@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { bookingSchema } from "@/lib/booking-schema";
+import { sendArtistCancellationByCustomer } from "@/lib/email/send-booking-email";
 import crypto from "crypto";
 import { redirect } from "next/navigation";
 
@@ -157,7 +158,24 @@ export async function cancelCustomerBookingAction(
     details: { from: booking.status, to: "cancelled", by: "customer" },
   });
 
-  console.log(`[email] artist cancellation notice for booking ${booking.id}`);
+  // Notify artist via email
+  const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
+    booking.artist_id,
+  );
+  if (artistAuth?.user?.email) {
+    const { data: cancelledBooking } = await serviceClient
+      .from("booking_requests")
+      .select("customer_handle, preferred_date, form_data")
+      .eq("id", booking.id)
+      .single();
+    const fd = cancelledBooking?.form_data as Record<string, string> | null;
+    await sendArtistCancellationByCustomer({
+      artistEmail: artistAuth.user.email,
+      customerHandle: cancelledBooking?.customer_handle ?? "unknown",
+      placement: fd?.placement ?? "",
+      date: cancelledBooking?.preferred_date ?? "",
+    });
+  }
 
   redirect(`/request/submitted?id=${booking.id}&cancelled=1`);
 }

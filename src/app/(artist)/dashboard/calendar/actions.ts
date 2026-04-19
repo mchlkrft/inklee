@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 
@@ -118,9 +119,7 @@ export async function editAppointmentAction(
     details: { by: "artist" },
   });
 
-  if (booking.customer_email) {
-    console.log(`[email] edit notification for ${booking.customer_email}`);
-  }
+  // No dedicated "artist edited" template — skip email on artist edit
 
   revalidatePath("/dashboard/calendar");
   revalidatePath("/dashboard");
@@ -160,7 +159,29 @@ export async function cancelAppointmentAction(
   });
 
   if (booking.customer_email) {
-    console.log(`[email] cancellation notice for ${booking.customer_email}`);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, slug")
+      .eq("id", user.id)
+      .single();
+    const { data: cancelledBooking } = await supabase
+      .from("booking_requests")
+      .select("customer_handle, preferred_date, form_data")
+      .eq("id", id)
+      .single();
+    const fd = cancelledBooking?.form_data as Record<string, string> | null;
+    await sendBookingEmail({
+      type: "customer_booking_cancelled_by_artist",
+      to: booking.customer_email,
+      artistId: user.id,
+      vars: {
+        customer_handle: cancelledBooking?.customer_handle ?? "",
+        artist_name: profile?.display_name ?? "",
+        artist_slug: profile?.slug ?? "",
+        placement: fd?.placement ?? "",
+        date: cancelledBooking?.preferred_date ?? "",
+      },
+    });
   }
 
   revalidatePath("/dashboard/calendar");

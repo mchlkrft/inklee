@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import { bookingSchema } from "@/lib/booking-schema";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "crypto";
@@ -128,14 +130,12 @@ export async function submitBookingAction(
 
   // Insert booking images
   if (storagePaths.length > 0) {
-    await supabase
-      .from("booking_images")
-      .insert(
-        storagePaths.map((path) => ({
-          booking_id: bookingId,
-          storage_path: path,
-        })),
-      );
+    await supabase.from("booking_images").insert(
+      storagePaths.map((path) => ({
+        booking_id: bookingId,
+        storage_path: path,
+      })),
+    );
   }
 
   // Write audit log
@@ -145,16 +145,54 @@ export async function submitBookingAction(
     details: { origin: "public_form", ip },
   });
 
-  // Log confirmation email (real send in slice 6)
-  console.log(
-    `[email] customer confirmation for ${data.email}, token: ${token}`,
-  );
+  // Fetch artist profile for email vars
+  const artistSlug = formData.get("artist_slug") as string;
+  const { data: artistProfile } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .eq("slug", artistSlug)
+    .single();
+
+  const artistId = artistProfile?.id ?? "";
+  const artistName = artistProfile?.display_name ?? artistSlug;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+  const magicLink = `${appUrl}/request/${token}`;
+  const emailVars = {
+    customer_handle: data.instagram_handle,
+    artist_name: artistName,
+    artist_slug: artistSlug,
+    placement: data.placement,
+    size: data.size,
+    date: data.preferred_date,
+    magic_link: magicLink,
+  };
+
+  // Customer confirmation
+  await sendBookingEmail({
+    type: "customer_booking_submitted",
+    to: data.email,
+    artistId,
+    vars: emailVars,
+  });
+
+  // Artist new request notification
+  const { data: artistAuth } =
+    await serviceClient.auth.admin.getUserById(artistId);
+  if (artistAuth?.user?.email) {
+    await sendBookingEmail({
+      type: "artist_new_booking_request",
+      to: artistAuth.user.email,
+      artistId,
+      vars: emailVars,
+    });
+  }
 
   redirect(
     `/request/submitted?id=${bookingId}&slug=${formData.get("artist_slug")}`,
   );
 }
 
+// Artist profile lookup
 async function getArtistIdFromSlug(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
