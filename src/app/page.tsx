@@ -1,7 +1,13 @@
 import ThemeToggle from "@/components/ThemeToggle";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="flex flex-col min-h-screen">
       <header className="flex justify-end px-6 py-4">
@@ -16,12 +22,21 @@ export default function Home() {
           <p className="text-lg text-muted-foreground">
             booking requests without the dm chaos
           </p>
-          <button
-            disabled
-            className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium bg-foreground text-background opacity-90 cursor-not-allowed"
-          >
-            sign up
-          </button>
+          {user ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium bg-foreground text-background"
+            >
+              go to dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/signup"
+              className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium bg-foreground text-background"
+            >
+              sign up
+            </Link>
+          )}
         </div>
       </main>
 

@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const ARTIST_PATHS = ["/dashboard", "/settings", "/onboarding"];
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -25,8 +27,36 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  // Refresh session so it doesn't expire
-  await supabase.auth.getUser();
+  const { pathname } = request.nextUrl;
+  const isArtistPath = ARTIST_PATHS.some((p) => pathname.startsWith(p));
+
+  if (isArtistPath) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    // Check profile exists for non-onboarding artist paths
+    if (!pathname.startsWith("/onboarding")) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("slug")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile) {
+        return NextResponse.redirect(
+          new URL("/onboarding/claim-slug", request.url),
+        );
+      }
+    }
+  } else {
+    // Still refresh session on all other routes
+    await supabase.auth.getUser();
+  }
 
   return supabaseResponse;
 }
