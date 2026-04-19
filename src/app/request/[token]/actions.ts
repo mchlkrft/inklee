@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import { bookingSchema } from "@/lib/booking-schema";
 import crypto from "crypto";
 import { redirect } from "next/navigation";
@@ -19,6 +20,7 @@ export async function editCustomerBookingAction(
   if (!token) return { error: "invalid link" };
 
   const tokenHash = hashToken(token);
+  // anon client: RLS allows SELECT on rows with a non-null customer_token_hash
   const supabase = await createClient();
 
   const { data: booking } = await supabase
@@ -67,12 +69,11 @@ export async function editCustomerBookingAction(
     };
   }
 
-  // Generate new token for next edit
   const newToken = crypto.randomBytes(32).toString("hex");
   const newHash = hashToken(newToken);
-
   const fd = booking.form_data as Record<string, string> | null;
 
+  // anon client: RLS allows UPDATE on rows with a non-null customer_token_hash
   const { error: updateError } = await supabase
     .from("booking_requests")
     .update({
@@ -93,15 +94,15 @@ export async function editCustomerBookingAction(
 
   if (updateError) return { error: "something went wrong — try again" };
 
-  await supabase.from("audit_log").insert({
+  // service client: anon cannot INSERT into audit_log (no anon INSERT policy by design)
+  await serviceClient.from("audit_log").insert({
     booking_id: booking.id,
     action: "token_rotated",
     details: { old_hash: tokenHash, new_hash: newHash, by: "customer" },
   });
-
-  await supabase.from("audit_log").insert({
+  await serviceClient.from("audit_log").insert({
     booking_id: booking.id,
-    action: "booking_edited",
+    action: "customer_edited",
     details: { by: "customer" },
   });
 
@@ -121,6 +122,7 @@ export async function cancelCustomerBookingAction(
   if (!token) return { error: "invalid link" };
 
   const tokenHash = hashToken(token);
+  // anon client: RLS allows SELECT on rows with a non-null customer_token_hash
   const supabase = await createClient();
 
   const { data: booking } = await supabase
@@ -140,6 +142,7 @@ export async function cancelCustomerBookingAction(
     return { error: "this request is already cancelled" };
   }
 
+  // anon client: RLS allows UPDATE on rows with a non-null customer_token_hash
   const { error: updateError } = await supabase
     .from("booking_requests")
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
@@ -147,9 +150,10 @@ export async function cancelCustomerBookingAction(
 
   if (updateError) return { error: "something went wrong — try again" };
 
-  await supabase.from("audit_log").insert({
+  // service client: only for audit_log — anon INSERT is intentionally blocked
+  await serviceClient.from("audit_log").insert({
     booking_id: booking.id,
-    action: "status_changed",
+    action: "customer_cancelled",
     details: { from: booking.status, to: "cancelled", by: "customer" },
   });
 
