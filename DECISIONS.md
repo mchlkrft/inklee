@@ -1,0 +1,68 @@
+# Decisions
+
+Living document. Every product decision recorded with one-line reasoning. When a TBD is resolved, move it to the Resolved section with the date. When a direction is rejected, log it in Rejected so it isn't re-proposed.
+
+## Resolved
+
+| Decision | Choice | Reasoning | Date |
+|---|---|---|---|
+| Product name | Inklee | Domain + trademark check pending | 2026-04-19 |
+| Domain preference | inklee.app | User preference; Instagram handle aligned | 2026-04-19 |
+| Launch language | English only | Reduces microcopy scope; i18n-ready architecture for future | 2026-04-19 |
+| Chat system | Deferred to v2 | Explicitly out of scope for MVP | 2026-04-19 |
+| Framework | Next.js 15 App Router + TypeScript | AI-friendly, matches design reference (Cal.com) | 2026-04-19 |
+| UI library | shadcn/ui + Tailwind | Composable, same as Cal.com, well-known to AI tools | 2026-04-19 |
+| Backend | Supabase (EU/Frankfurt) | Postgres + Auth + Storage in one, GDPR-compliant, free tier covers MVP | 2026-04-19 |
+| ORM | Drizzle | Type-safe, lightweight, less magic than Prisma | 2026-04-19 |
+| Email provider | Resend | Clean API, EU infra, good deliverability | 2026-04-19 |
+| Hosting | Vercel (EU region) | Zero-config Next.js, free tier, DPA available | 2026-04-19 |
+| Customer auth | Magic link from email | No account required, low friction | 2026-04-19 |
+| Customer edit permissions | Before approval only, via magic link | | 2026-04-19 |
+| Customer cancel permissions | Anytime via magic link | | 2026-04-19 |
+| Artist can create bookings directly | Yes, with optional customer email | "Arranged via DM, just needs to be in my calendar" use case | 2026-04-19 |
+| Max images per request | 5 | | 2026-04-19 |
+| Slot mode default | Fixed published slots | User preference as traveling artist | 2026-04-19 |
+| Voice | Lowercase, dry, conversational | Reference: "got it — we'll get back to you soon" | 2026-04-19 |
+| Color mode | Dark mode default, light mode available | | 2026-04-19 |
+| Palette | `#0E0E10` bg, `#1A1A1D` surface, `#E8E1D4` bone (text + warm accent), `#E5484D` red (errors only) | Warm editorial, tattoo-scene aesthetic | 2026-04-19 |
+| Customer-facing branding | Inklee brand for MVP | Custom artist branding is paid tier (post-MVP) | 2026-04-19 |
+| Calendar default view | Month | | 2026-04-19 |
+| Repository visibility | Public | Portfolio value; strict secrets discipline required | 2026-04-19 |
+| Pricing model | Free at launch, paid tier later | Premium features post-MVP | 2026-04-19 |
+| Audience | Global | English only, EU hosting, GDPR from day 1 | 2026-04-19 |
+| Package manager | pnpm | Faster, disk-efficient, preferred for monorepo potential later | 2026-04-19 |
+
+## Rejected (do not re-propose)
+
+- **Firebase** — single-vendor lock-in, Supabase covers the same surface on Postgres
+- **all-inkl.com for app hosting** — great for PHP/email, painful for Node.js in production; keep for existing sites
+- **Prisma** — Drizzle is lighter for this scope
+- **NextAuth / Auth.js** — Supabase Auth is bundled; redundant
+- **Mobile-first artist dashboard** — artists manage from laptop; mobile is nice-to-have, not MVP
+- **Customer accounts** — magic links remove the need; account creation is friction
+- **Instagram OAuth** — Meta's review process is painful and the user can paste their handle in 2 seconds
+- **Custom per-artist branding in MVP** — saved for paid tier, keeps MVP scope tight
+
+## Open — resolve before the listed slice
+
+| Decision | Blocks slice | Default if unresolved at start of slice |
+|---|---|---|
+| `inklee.app` availability + trademark clear | Slice 0 | Proceed with Inklee; rename if blocker found |
+| Launch deadline / first real personal booking target | Slice 1 | 8 weeks from slice 1 start |
+| Profile fields beyond name/handle/logo/bio | Slice 3 | Name, Instagram handle, bio (280 char), logo, timezone, location (free-text city) |
+| Reserved slug wordlist | Slice 3 | admin, api, app, settings, signup, signin, login, logout, help, terms, privacy, impressum, about, blog, pricing, dashboard, request, auth, static, public, favicon, robots, sitemap, 404, 500 |
+| Email sender identity | Slice 6 | `hello@inklee.app` with `{{artist_name}}` in subject line |
+| Artist edit email to customer — always send or opt-in? | Slice 7 | Always send for approved bookings; never for private artist-only appointments |
+| Slot duration — per-slot or global default? | Slice 9 | Per-slot (more flexible for guest-spot travel schedules) |
+| Slot conflict rule | Slice 9 | First submission locks slot; subsequent requesters see "unavailable" |
+| Recurring slots vs. one-off only for MVP | Slice 9 | One-off only; recurring in v2 |
+| Custom additional form fields — text-only, or types (checkbox, select)? | Slice 8 | Text-only for MVP, max 3 custom fields |
+| Legal entity for Impressum (required in Germany) | Pre-launch (Slice 10) | TBD — decide before public launch in DE |
+| Terms of Service + Privacy Policy authorship | Pre-launch (Slice 10) | Use template (iubenda or similar), then lawyer review before real users |
+| Cookie consent scope | Slice 10 | Plausible is cookie-free, but Supabase auth cookies need disclosure |
+
+## Process notes
+
+- Every open decision has a default so that hitting the blocking slice never actually blocks work — we ship the default and revise if the user disagrees.
+- When Claude Code hits an ambiguity not covered here, it asks one clarifying question in chat rather than guessing.
+- This file is updated by Claude Code at the end of each slice that resolves a TBD.
