@@ -3,6 +3,14 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import BookingForm from "./booking-form";
+import { formatSlotDisplay } from "@/lib/timezone";
+
+export type SlotOption = {
+  id: string;
+  date: string;
+  time: string;
+  tz: string;
+};
 
 export default async function ArtistPublicPage({
   params,
@@ -15,12 +23,34 @@ export default async function ArtistPublicPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "display_name, bio, logo_url, instagram_handle, location, booking_mode",
+      "id, display_name, bio, logo_url, instagram_handle, location, booking_mode, timezone",
     )
     .eq("slug", slug)
     .single();
 
   if (!profile) notFound();
+
+  const isSlotMode = profile.booking_mode === "fixed_slots";
+  let slots: SlotOption[] = [];
+
+  if (isSlotMode) {
+    const { data: rawSlots } = await supabase
+      .from("slots")
+      .select("id, starts_at, duration_minutes")
+      .eq("artist_id", profile.id)
+      .eq("status", "open")
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: true });
+
+    slots = (rawSlots ?? []).map((s) => {
+      const d = formatSlotDisplay(
+        s.starts_at,
+        s.duration_minutes,
+        profile.timezone,
+      );
+      return { id: s.id, date: d.date, time: d.time, tz: d.tz };
+    });
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -64,10 +94,21 @@ export default async function ArtistPublicPage({
               fill in the details and i&apos;ll get back to you
             </p>
           </div>
-          <BookingForm
-            artistSlug={slug}
-            artistFirstName={profile.display_name.split(" ")[0]}
-          />
+
+          {isSlotMode && slots.length === 0 ? (
+            <div className="rounded-md border border-border px-5 py-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                no slots available right now — check back soon.
+              </p>
+            </div>
+          ) : (
+            <BookingForm
+              artistSlug={slug}
+              artistFirstName={profile.display_name.split(" ")[0]}
+              bookingMode={profile.booking_mode ?? "preferred_date"}
+              slots={slots}
+            />
+          )}
         </div>
       </main>
 

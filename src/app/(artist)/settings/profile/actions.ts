@@ -26,6 +26,10 @@ export async function updateProfileAction(
   const bio = (formData.get("bio") as string | null)?.trim();
   const timezone = formData.get("timezone") as string;
   const location = (formData.get("location") as string | null)?.trim();
+  const bookingMode = formData.get("booking_mode") as
+    | "preferred_date"
+    | "fixed_slots"
+    | null;
   const logoFile = formData.get("logo") as File | null;
 
   if (!displayName) return { error: "display name is required" };
@@ -71,6 +75,7 @@ export async function updateProfileAction(
       timezone,
       location: location || null,
       ...(logoUrl ? { logo_url: logoUrl } : {}),
+      ...(bookingMode ? { booking_mode: bookingMode } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);

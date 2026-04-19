@@ -84,6 +84,32 @@ export async function submitBookingAction(
 
   const supabase = await createClient();
   const bookingId = crypto.randomUUID();
+  const bookingMode = formData.get("booking_mode") as string;
+
+  // Slot mode: atomically lock the slot before proceeding
+  let slotId: string | null = null;
+  let slotDate: string | null = null;
+  if (bookingMode === "fixed_slots") {
+    const rawSlotId = formData.get("slot_id") as string;
+    if (!rawSlotId) return { error: "please select a slot", field: "slot_id" };
+
+    const { data: locked } = await supabase
+      .from("slots")
+      .update({ status: "locked" })
+      .eq("id", rawSlotId)
+      .eq("status", "open")
+      .select("id, starts_at")
+      .single();
+
+    if (!locked) {
+      return {
+        error: "this slot is no longer available — please choose another",
+        field: "slot_id",
+      };
+    }
+    slotId = locked.id;
+    slotDate = locked.starts_at.split("T")[0];
+  }
 
   // Upload images to Supabase Storage
   const storagePaths: string[] = [];
@@ -119,14 +145,21 @@ export async function submitBookingAction(
         size: data.size,
         description: data.description,
       },
-      preferred_date: data.preferred_date,
+      preferred_date: slotDate ?? data.preferred_date,
+      slot_id: slotId,
       customer_email: data.email,
       customer_handle: data.instagram_handle,
       customer_token_hash: tokenHash,
       origin: "public_form",
     });
 
-  if (insertError) return { error: "something went wrong — try again" };
+  if (insertError) {
+    // Revert slot lock if booking insert failed
+    if (slotId) {
+      await supabase.from("slots").update({ status: "open" }).eq("id", slotId);
+    }
+    return { error: "something went wrong — try again" };
+  }
 
   // Insert booking images
   if (storagePaths.length > 0) {

@@ -128,7 +128,7 @@ export async function cancelCustomerBookingAction(
 
   const { data: booking } = await supabase
     .from("booking_requests")
-    .select("id, status, created_at, customer_email, artist_id")
+    .select("id, status, created_at, customer_email, artist_id, slot_id")
     .eq("customer_token_hash", tokenHash)
     .single();
 
@@ -150,6 +150,14 @@ export async function cancelCustomerBookingAction(
     .eq("id", booking.id);
 
   if (updateError) return { error: "something went wrong — try again" };
+
+  // Slot: return to open on customer cancel (use service client — anon can't update slots directly)
+  if (booking.slot_id) {
+    await serviceClient
+      .from("slots")
+      .update({ status: "open" })
+      .eq("id", booking.slot_id);
+  }
 
   // service client: only for audit_log — anon INSERT is intentionally blocked
   await serviceClient.from("audit_log").insert({

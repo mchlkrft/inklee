@@ -138,7 +138,7 @@ export async function cancelAppointmentAction(
 
   const { data: booking } = await supabase
     .from("booking_requests")
-    .select("artist_id, customer_email")
+    .select("artist_id, customer_email, slot_id")
     .eq("id", id)
     .single();
 
@@ -182,6 +182,14 @@ export async function cancelAppointmentAction(
         date: cancelledBooking?.preferred_date ?? "",
       },
     });
+  }
+
+  // Slot: return to open on artist cancel
+  if (booking.slot_id) {
+    await supabase
+      .from("slots")
+      .update({ status: "open" })
+      .eq("id", booking.slot_id);
   }
 
   revalidatePath("/dashboard/calendar");

@@ -18,6 +18,7 @@ type AuthorisedBookingResult =
         customer_email: string | null;
         customer_handle: string | null;
         preferred_date: string | null;
+        slot_id: string | null;
         form_data: Record<string, string> | null;
       };
     };
@@ -35,7 +36,7 @@ async function getAuthorisedBooking(
   const { data: booking } = await supabase
     .from("booking_requests")
     .select(
-      "status, artist_id, customer_email, customer_handle, preferred_date, form_data",
+      "status, artist_id, customer_email, customer_handle, preferred_date, slot_id, form_data",
     )
     .eq("id", bookingId)
     .single();
@@ -52,6 +53,7 @@ async function getAuthorisedBooking(
       customer_email: booking.customer_email,
       customer_handle: booking.customer_handle,
       preferred_date: booking.preferred_date,
+      slot_id: booking.slot_id,
       form_data: booking.form_data as Record<string, string> | null,
     },
   };
@@ -109,6 +111,14 @@ export async function approveBooking(id: string): Promise<ActionResult> {
     });
   }
 
+  // Slot: locked → booked
+  if (booking.slot_id) {
+    await supabase
+      .from("slots")
+      .update({ status: "booked" })
+      .eq("id", booking.slot_id);
+  }
+
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/requests/${id}`);
   return { success: true };
@@ -153,6 +163,14 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
         artist_name: profile?.display_name ?? "",
       },
     });
+  }
+
+  // Slot: locked → open (rejection frees the slot)
+  if (booking.slot_id) {
+    await supabase
+      .from("slots")
+      .update({ status: "open" })
+      .eq("id", booking.slot_id);
   }
 
   revalidatePath("/dashboard");

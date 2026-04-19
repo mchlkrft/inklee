@@ -23,12 +23,18 @@ const tomorrow = () => {
   return d.toISOString().split("T")[0];
 };
 
+type SlotOption = { id: string; date: string; time: string; tz: string };
+
 export default function BookingForm({
   artistSlug,
   artistFirstName,
+  bookingMode = "preferred_date",
+  slots = [],
 }: {
   artistSlug: string;
   artistFirstName: string;
+  bookingMode?: string;
+  slots?: SlotOption[];
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
@@ -287,26 +293,59 @@ export default function BookingForm({
         )}
       </div>
 
-      {/* Preferred date */}
-      <div className="space-y-1.5">
-        <label
-          htmlFor="preferred_date"
-          className="text-sm text-muted-foreground"
-        >
-          preferred date <span className="text-foreground">*</span>
-        </label>
-        <input
-          id="preferred_date"
-          name="preferred_date"
-          type="date"
-          required
-          min={tomorrow()}
-          className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        {err("preferred_date") && (
-          <p className="text-xs text-destructive">{err("preferred_date")}</p>
-        )}
-      </div>
+      {/* Date / slot selection */}
+      {bookingMode === "fixed_slots" ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            select a slot <span className="text-foreground">*</span>
+          </p>
+          <div className="space-y-2">
+            {slots.map((slot) => (
+              <label
+                key={slot.id}
+                className="flex items-start gap-3 rounded-md border border-border px-3 py-3 cursor-pointer has-[:checked]:border-foreground"
+              >
+                <input
+                  type="radio"
+                  name="slot_id"
+                  value={slot.id}
+                  required
+                  className="accent-foreground mt-0.5"
+                />
+                <div>
+                  <p className="text-sm text-foreground">{slot.date}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {slot.time} · {slot.tz}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+          {err("slot_id") && (
+            <p className="text-xs text-destructive">{err("slot_id")}</p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="preferred_date"
+            className="text-sm text-muted-foreground"
+          >
+            preferred date <span className="text-foreground">*</span>
+          </label>
+          <input
+            id="preferred_date"
+            name="preferred_date"
+            type="date"
+            required
+            min={tomorrow()}
+            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {err("preferred_date") && (
+            <p className="text-xs text-destructive">{err("preferred_date")}</p>
+          )}
+        </div>
+      )}
 
       {/* Honeypot */}
       <input
@@ -316,6 +355,7 @@ export default function BookingForm({
         className="hidden"
         aria-hidden
       />
+      <input type="hidden" name="booking_mode" value={bookingMode} />
 
       <button
         type="submit"

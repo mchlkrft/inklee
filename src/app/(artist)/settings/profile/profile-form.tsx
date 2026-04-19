@@ -35,6 +35,7 @@ type Profile = {
   timezone: string;
   location: string | null;
   logo_url: string | null;
+  booking_mode: string | null;
 };
 
 export default function ProfileForm({ profile }: { profile: Profile | null }) {
@@ -183,6 +184,26 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
           placeholder="city"
           className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
+      </div>
+
+      {/* Booking mode */}
+      <div className="space-y-1.5">
+        <label htmlFor="booking_mode" className="text-sm text-muted-foreground">
+          booking mode
+        </label>
+        <select
+          id="booking_mode"
+          name="booking_mode"
+          defaultValue={profile?.booking_mode ?? "preferred_date"}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="preferred_date">
+            preferred date — customer suggests a date
+          </option>
+          <option value="fixed_slots">
+            fixed slots — you publish time slots
+          </option>
+        </select>
       </div>
 
       <button
