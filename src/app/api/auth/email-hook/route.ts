@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
 import {
@@ -5,6 +6,35 @@ import {
   passwordResetEmail,
   magicLinkEmail,
 } from "@/lib/email/auth-templates";
+
+function verifyHookSignature(
+  rawBody: string,
+  headers: Headers,
+  secret: string,
+): boolean {
+  // Standard Webhooks format: secret is "v1,whsec_<base64>"
+  const keyBase64 = secret.replace(/^v1,whsec_/, "");
+  const key = Buffer.from(keyBase64, "base64");
+
+  const msgId = headers.get("webhook-id") ?? "";
+  const msgTimestamp = headers.get("webhook-timestamp") ?? "";
+  const msgSignature = headers.get("webhook-signature") ?? "";
+
+  const signedContent = `${msgId}.${msgTimestamp}.${rawBody}`;
+  const computed = createHmac("sha256", key)
+    .update(signedContent)
+    .digest("base64");
+
+  // webhook-signature may contain multiple sigs: "v1,<sig1> v1,<sig2>"
+  return msgSignature.split(" ").some((sig) => {
+    const sigValue = sig.replace(/^v1,/, "");
+    try {
+      return timingSafeEqual(Buffer.from(computed), Buffer.from(sigValue));
+    } catch {
+      return false;
+    }
+  });
+}
 
 type HookPayload = {
   user: { email: string };
@@ -35,11 +65,11 @@ function buildConfirmUrl(
 }
 
 export async function POST(request: NextRequest) {
-  // Verify hook secret
+  const rawBody = await request.text();
   const secret = process.env.SUPABASE_AUTH_HOOK_SECRET;
+
   if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
+    if (!verifyHookSignature(rawBody, request.headers, secret)) {
       return NextResponse.json(
         { error: { http_code: 401, message: "unauthorised" } },
         { status: 401 },
@@ -49,7 +79,7 @@ export async function POST(request: NextRequest) {
 
   let payload: HookPayload;
   try {
-    payload = await request.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json(
       { error: { http_code: 400, message: "invalid json" } },
