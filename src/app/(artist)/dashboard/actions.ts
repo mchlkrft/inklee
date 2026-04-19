@@ -52,7 +52,14 @@ async function transitionStatus(
   return { success: true };
 }
 
-export const approveBooking = (id: string) => transitionStatus(id, "approved");
-export const rejectBooking = (id: string) => transitionStatus(id, "rejected");
-export const markDepositPending = (id: string) =>
-  transitionStatus(id, "deposit_pending");
+export async function approveBooking(id: string): Promise<ActionResult> {
+  return transitionStatus(id, "approved");
+}
+
+export async function rejectBooking(id: string): Promise<ActionResult> {
+  return transitionStatus(id, "rejected");
+}
+
+export async function markDepositPending(id: string): Promise<ActionResult> {
+  return transitionStatus(id, "deposit_pending");
+}
