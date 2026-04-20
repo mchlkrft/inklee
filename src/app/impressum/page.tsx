@@ -16,10 +16,10 @@ export default function ImpressumPage() {
           <p className="text-xs">angaben gemäß § 5 TMG</p>
 
           <section className="space-y-1">
-            <p className="text-foreground font-medium">Michel Kraeft</p>
-            <p>[Straße und Hausnummer]</p>
-            <p>[PLZ] [Stadt]</p>
-            <p>Deutschland</p>
+            <p className="text-foreground font-medium">inklee app</p>
+            <p>16/2 Nimmanahaeminda Road</p>
+            <p>Tambon Su Thep, Amphoe Mueang Chiang Mai</p>
+            <p>Chiang Mai 50200, Thailand</p>
           </section>
 
           <section className="space-y-1">
@@ -39,7 +39,7 @@ export default function ImpressumPage() {
             <h2 className="text-base font-medium text-foreground">
               verantwortlich für den inhalt (§ 18 abs. 2 mstv)
             </h2>
-            <p>Michel Kraeft, Adresse wie oben</p>
+            <p>inklee app, Adresse wie oben</p>
           </section>
 
           <section className="space-y-2">
