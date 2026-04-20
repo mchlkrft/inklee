@@ -3,7 +3,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { bookingSchema } from "@/lib/booking-schema";
-import { sendArtistCancellationByCustomer } from "@/lib/email/send-booking-email";
+import {
+  sendArtistCancellationByCustomer,
+  sendBookingEmail,
+} from "@/lib/email/send-booking-email";
 import crypto from "crypto";
 import { redirect } from "next/navigation";
 
@@ -107,10 +110,26 @@ export async function editCustomerBookingAction(
     details: { by: "customer" },
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  console.log(
-    `[email] updated confirmation for ${data.email}, new magic link: ${appUrl}/request/${newToken}`,
-  );
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+  const { data: artistProfile } = await serviceClient
+    .from("profiles")
+    .select("display_name, slug")
+    .eq("id", booking.artist_id)
+    .single();
+  await sendBookingEmail({
+    type: "customer_booking_submitted",
+    to: data.email,
+    artistId: booking.artist_id,
+    vars: {
+      customer_handle: data.instagram_handle,
+      artist_name: artistProfile?.display_name ?? "",
+      artist_slug: artistProfile?.slug ?? "",
+      placement: data.placement,
+      size: data.size,
+      date: data.preferred_date,
+      magic_link: `${appUrl}/request/${newToken}`,
+    },
+  });
 
   redirect(`/request/submitted?id=${booking.id}&edited=1`);
 }

@@ -59,9 +59,26 @@ export async function createAppointmentAction(
   });
 
   if (email && sendEmail) {
-    console.log(
-      `[email] artist-created confirmation for ${email}, token: ${token}`,
-    );
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, slug")
+      .eq("id", user.id)
+      .single();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+    await sendBookingEmail({
+      type: "customer_booking_approved",
+      to: email,
+      artistId: user.id,
+      vars: {
+        customer_handle: handle,
+        artist_name: profile?.display_name ?? "",
+        artist_slug: profile?.slug ?? "",
+        placement,
+        size,
+        date,
+        magic_link: `${appUrl}/request/${token}`,
+      },
+    });
   }
 
   revalidatePath("/dashboard/calendar");

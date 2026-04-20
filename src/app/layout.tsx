@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
+import CookieBanner from "@/components/cookie-banner";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,6 +32,13 @@ export default function RootLayout({
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
         {children}
+        <CookieBanner />
+        <Script
+          defer
+          data-domain="inklee.app"
+          src="https://plausible.io/js/script.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
