@@ -150,11 +150,31 @@ export async function submitBookingAction(
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `${bookingId}/${crypto.randomUUID()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
-    // Use service client for uploads — anon client blocked by bucket RLS
-    const { error: uploadError } = await serviceClient.storage
-      .from("bookings")
-      .upload(path, buffer, { contentType: file.type });
-    if (uploadError) return { error: "image upload failed — try again" };
+    try {
+      const { error: uploadError } = await serviceClient.storage
+        .from("bookings")
+        .upload(path, buffer, { contentType: file.type });
+
+      if (uploadError) {
+        Sentry.captureMessage("booking image upload failed", {
+          level: "error",
+          tags: { action: "booking_upload" },
+          extra: {
+            bookingId,
+            path,
+            contentType: file.type,
+            message: uploadError.message,
+          },
+        });
+        return { error: "image upload failed — try again" };
+      }
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { action: "booking_upload" },
+        extra: { bookingId, path, contentType: file.type },
+      });
+      return { error: "image upload failed — try again" };
+    }
     storagePaths.push(path);
   }
 
@@ -234,15 +254,22 @@ export async function submitBookingAction(
   });
 
   // Artist new request notification
-  const { data: artistAuth } =
-    await serviceClient.auth.admin.getUserById(artistId);
-  if (artistAuth?.user?.email) {
-    await sendBookingEmail({
-      type: "artist_new_booking_request",
-      to: artistAuth.user.email,
-      artistId,
-      vars: emailVars,
-      customAnswers,
+  try {
+    const { data: artistAuth } =
+      await serviceClient.auth.admin.getUserById(artistId);
+    if (artistAuth?.user?.email) {
+      await sendBookingEmail({
+        type: "artist_new_booking_request",
+        to: artistAuth.user.email,
+        artistId,
+        vars: emailVars,
+        customAnswers,
+      });
+    }
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { action: "artist_notification_lookup" },
+      extra: { artistId, bookingId },
     });
   }
 
