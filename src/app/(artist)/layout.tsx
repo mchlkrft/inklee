@@ -44,6 +44,12 @@ export default async function ArtistLayout({
             >
               calendar
             </Link>
+            <Link
+              href="/dashboard/clients"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              clients
+            </Link>
             {profile && (
               <Link
                 href={`/${profile.slug}`}

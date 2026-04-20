@@ -161,3 +161,15 @@ export const customFields = pgTable("custom_fields", {
     .notNull()
     .defaultNow(),
 });
+
+export const clientNotes = pgTable("client_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  customerEmail: text("customer_email").notNull(),
+  notes: text("notes").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
