@@ -5,6 +5,7 @@ import Link from "next/link";
 import BookingForm from "./booking-form";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
+import { parseFormSettings } from "@/lib/form-settings";
 
 export type SlotOption = {
   id: string;
@@ -24,7 +25,7 @@ export default async function ArtistPublicPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "id, display_name, bio, logo_url, instagram_handle, location, booking_mode, timezone",
+      "id, display_name, bio, logo_url, instagram_handle, location, booking_mode, timezone, settings",
     )
     .eq("slug", slug)
     .single();
@@ -34,6 +35,8 @@ export default async function ArtistPublicPage({
   const isSlotMode = profile.booking_mode === "fixed_slots";
   let slots: SlotOption[] = [];
   let customFields: CustomFieldDef[] = [];
+  const profileSettings = (profile.settings ?? {}) as Record<string, unknown>;
+  const formSettings = parseFormSettings(profileSettings.form_settings);
 
   const { data: rawCustomFields } = await supabase
     .from("custom_fields")
@@ -120,6 +123,7 @@ export default async function ArtistPublicPage({
               bookingMode={profile.booking_mode ?? "preferred_date"}
               slots={slots}
               customFields={customFields}
+              formSettings={formSettings}
             />
           )}
         </div>

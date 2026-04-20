@@ -62,7 +62,7 @@ export default async function ArtistLayout({
               href="/settings/fields"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              fields
+              form
             </Link>
             <Link
               href="/settings/templates"

@@ -6,6 +6,8 @@ import { submitBookingAction } from "./actions";
 import { SIZES } from "@/lib/booking-schema";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import CustomFieldInput from "@/components/custom-field-input";
+import type { FormSettings } from "@/lib/form-settings";
+import { DEFAULT_FORM_SETTINGS } from "@/lib/form-settings";
 
 type State = { error: string; field?: string } | null;
 
@@ -33,12 +35,14 @@ export default function BookingForm({
   bookingMode = "preferred_date",
   slots = [],
   customFields = [],
+  formSettings = DEFAULT_FORM_SETTINGS,
 }: {
   artistSlug: string;
   artistFirstName: string;
   bookingMode?: string;
   slots?: SlotOption[];
   customFields?: CustomFieldDef[];
+  formSettings?: FormSettings;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
@@ -125,26 +129,28 @@ export default function BookingForm({
         )}
       </div>
 
-      {/* Reference link */}
-      <div className="space-y-1.5">
-        <label
-          htmlFor="reference_link"
-          className="text-sm text-muted-foreground"
-        >
-          reference link{" "}
-          <span className="text-muted-foreground text-xs">(optional)</span>
-        </label>
-        <input
-          id="reference_link"
-          name="reference_link"
-          type="url"
-          placeholder="instagram.com/p/… or any link"
-          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        {err("reference_link") && (
-          <p className="text-xs text-destructive">{err("reference_link")}</p>
-        )}
-      </div>
+      {/* Reference link — toggleable by artist */}
+      {formSettings.show_reference_link && (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="reference_link"
+            className="text-sm text-muted-foreground"
+          >
+            reference link{" "}
+            <span className="text-muted-foreground text-xs">(optional)</span>
+          </label>
+          <input
+            id="reference_link"
+            name="reference_link"
+            type="url"
+            placeholder="instagram.com/p/… or any link"
+            className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {err("reference_link") && (
+            <p className="text-xs text-destructive">{err("reference_link")}</p>
+          )}
+        </div>
+      )}
 
       {/* Placement */}
       <div className="space-y-1.5">
@@ -203,7 +209,12 @@ export default function BookingForm({
             htmlFor="description"
             className="text-sm text-muted-foreground"
           >
-            description <span className="text-foreground">*</span>
+            description{" "}
+            {formSettings.require_description ? (
+              <span className="text-foreground">*</span>
+            ) : (
+              <span className="text-muted-foreground text-xs">(optional)</span>
+            )}
           </label>
           <span
             className={`text-xs ${description.length > 1000 ? "text-destructive" : "text-muted-foreground"}`}
@@ -214,7 +225,7 @@ export default function BookingForm({
         <textarea
           id="description"
           name="description"
-          required
+          required={formSettings.require_description}
           rows={5}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -235,76 +246,82 @@ export default function BookingForm({
         />
       ))}
 
-      {/* Image upload */}
-      <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">
-          reference images{" "}
-          <span className="text-muted-foreground text-xs">
-            (optional, max 5)
-          </span>
-        </p>
+      {/* Image upload — toggleable by artist */}
+      {formSettings.show_image_upload && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            reference images{" "}
+            <span className="text-muted-foreground text-xs">
+              (optional, max 5)
+            </span>
+          </p>
 
-        {/* Drop zone */}
-        {images.length < 5 && (
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              addFiles(e.dataTransfer.files);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            className={`flex flex-col items-center justify-center rounded-md border border-dashed px-6 py-8 cursor-pointer transition-colors ${
-              dragOver ? "border-foreground bg-muted/20" : "border-border"
-            }`}
-          >
-            <p className="text-sm text-muted-foreground">
-              drag images here or{" "}
-              <span className="text-foreground underline underline-offset-4">
-                browse
-              </span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              jpg, png, webp — max 10mb each
-            </p>
-          </div>
-        )}
+          {/* Drop zone */}
+          {images.length < 5 && (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                addFiles(e.dataTransfer.files);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex flex-col items-center justify-center rounded-md border border-dashed px-6 py-8 cursor-pointer transition-colors ${
+                dragOver ? "border-foreground bg-muted/20" : "border-border"
+              }`}
+            >
+              <p className="text-sm text-muted-foreground">
+                drag images here or{" "}
+                <span className="text-foreground underline underline-offset-4">
+                  browse
+                </span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                jpg, png, webp — max 10mb each
+              </p>
+            </div>
+          )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          onChange={(e) => addFiles(e.target.files)}
-        />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => addFiles(e.target.files)}
+          />
 
-        {/* Thumbnails */}
-        {previews.length > 0 && (
-          <div className="grid grid-cols-5 gap-2">
-            {previews.map((src, i) => (
-              <div
-                key={i}
-                className="relative aspect-square rounded-md overflow-hidden border border-border group"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt="" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => removeImage(i)}
-                  className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-white text-lg"
+          {/* Thumbnails */}
+          {previews.length > 0 && (
+            <div className="grid grid-cols-5 gap-2">
+              {previews.map((src, i) => (
+                <div
+                  key={i}
+                  className="relative aspect-square rounded-md overflow-hidden border border-border group"
                 >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-white text-lg"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Date / slot selection */}
       {bookingMode === "fixed_slots" ? (
