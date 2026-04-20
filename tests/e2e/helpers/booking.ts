@@ -8,16 +8,22 @@ function tomorrow(): string {
 }
 
 /** Submits a booking on the public form and returns the booking ID from the redirect URL. */
-export async function submitTestBooking(page: Page): Promise<string> {
+export async function submitTestBooking(
+  page: Page,
+  handle = "e2e_test_customer",
+): Promise<string> {
   const slug = process.env.E2E_ARTIST_SLUG;
   if (!slug) throw new Error("E2E_ARTIST_SLUG not set");
 
   await page.goto(`/${slug}`);
-  await page.fill('[name="instagram_handle"]', "e2e_test_customer");
+  await page.fill('[name="instagram_handle"]', handle);
   await page.fill('[name="email"]', "e2e@inklee-test.invalid");
   await page.fill('[name="placement"]', "left forearm");
   await page.click('[name="size"][value="hand-sized"]');
-  await page.fill('[name="description"]', "automated e2e test — please ignore");
+  await page.fill(
+    'textarea[name="description"]',
+    "automated e2e test — please ignore",
+  );
   await page.fill('[name="preferred_date"]', tomorrow());
   await page.click('button[type="submit"]');
 

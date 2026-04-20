@@ -11,7 +11,7 @@ test.describe("submit → artist approve", () => {
   test("customer submits booking and artist approves it", async ({ page }) => {
     // 1. Submit booking as anonymous customer
     const bookingId = await submitTestBooking(page);
-    await expect(page.getByText(/got it/i)).toBeVisible();
+    await expect(page.getByText(/got it —/i).first()).toBeVisible();
 
     // 2. Artist logs in
     await loginAsArtist(page);
@@ -19,8 +19,8 @@ test.describe("submit → artist approve", () => {
     // 3. Navigate directly to the booking detail
     await page.goto(`/dashboard/requests/${bookingId}`);
 
-    // 4. Verify booking is pending
-    await expect(page.getByText("pending")).toBeVisible();
+    // 4. Verify booking is pending (exact match avoids matching "mark deposit pending" button)
+    await expect(page.getByText("pending", { exact: true })).toBeVisible();
 
     // 5. Approve
     await page.getByRole("button", { name: "approve" }).click();
