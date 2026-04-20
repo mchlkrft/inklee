@@ -150,7 +150,8 @@ export async function submitBookingAction(
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `${bookingId}/${crypto.randomUUID()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await supabase.storage
+    // Use service client for uploads — anon client blocked by bucket RLS
+    const { error: uploadError } = await serviceClient.storage
       .from("bookings")
       .upload(path, buffer, { contentType: file.type });
     if (uploadError) return { error: "image upload failed — try again" };
@@ -196,14 +197,12 @@ export async function submitBookingAction(
 
   // Insert booking images
   if (storagePaths.length > 0) {
-    await supabase
-      .from("booking_images")
-      .insert(
-        storagePaths.map((path) => ({
-          booking_id: bookingId,
-          storage_path: path,
-        })),
-      );
+    await supabase.from("booking_images").insert(
+      storagePaths.map((path) => ({
+        booking_id: bookingId,
+        storage_path: path,
+      })),
+    );
   }
 
   // Write audit log

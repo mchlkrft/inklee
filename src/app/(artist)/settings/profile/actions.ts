@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import sharp from "sharp";
 
 type State = { error: string } | { success: true } | null;
@@ -53,7 +54,7 @@ export async function updateProfileAction(
       .toBuffer();
 
     const path = `${user.id}/logo.webp`;
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await serviceClient.storage
       .from("logos")
       .upload(path, resized, {
         contentType: "image/webp",
@@ -62,7 +63,9 @@ export async function updateProfileAction(
 
     if (uploadError) return { error: "logo upload failed — try again" };
 
-    const { data: urlData } = supabase.storage.from("logos").getPublicUrl(path);
+    const { data: urlData } = serviceClient.storage
+      .from("logos")
+      .getPublicUrl(path);
     logoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
   }
 
