@@ -61,6 +61,62 @@ export async function sendBookingEmail({
   }
 }
 
+export async function sendWaitlistConfirmation({
+  to,
+  artistName,
+}: {
+  to: string;
+  artistName: string;
+}): Promise<void> {
+  try {
+    const body = `hi,
+
+you're on the waitlist for ${artistName}.
+
+we'll be in touch when books open.
+
+— inklee`;
+    const { buildEmailHtml: build } = await import("./booking-templates");
+    await sendEmail({
+      to,
+      subject: `you're on the waitlist for ${artistName}`,
+      html: build(body, {}),
+    });
+  } catch (err) {
+    console.error("[email] failed to send waitlist confirmation:", err);
+  }
+}
+
+export async function sendWaitlistConversionEmail({
+  to,
+  artistName,
+  magicLink,
+  customerHandle,
+}: {
+  to: string;
+  artistName: string;
+  magicLink: string;
+  customerHandle: string;
+}): Promise<void> {
+  try {
+    const body = `hi @${customerHandle},
+
+good news — ${artistName} has a spot for you.
+
+use the link below to view your booking details. it's valid for 30 days.
+
+${magicLink}`;
+    const { buildEmailHtml: build } = await import("./booking-templates");
+    await sendEmail({
+      to,
+      subject: `${artistName} has a spot for you`,
+      html: build(body, {}),
+    });
+  } catch (err) {
+    console.error("[email] failed to send waitlist conversion email:", err);
+  }
+}
+
 // Hardcoded system notification — not artist-customisable
 export async function sendArtistCancellationByCustomer({
   artistEmail,

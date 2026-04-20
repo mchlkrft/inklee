@@ -4,6 +4,11 @@ const STYLES: Record<string, string> = {
   rejected: "bg-destructive/10 text-destructive",
   deposit_pending: "bg-amber-500/10 text-amber-500",
   cancelled: "bg-muted text-muted-foreground opacity-60",
+  // waitlist
+  waiting: "bg-muted text-muted-foreground",
+  contacted: "bg-amber-500/10 text-amber-500",
+  converted: "bg-green-500/10 text-green-500",
+  dismissed: "bg-muted text-muted-foreground opacity-60",
 };
 
 const LABELS: Record<string, string> = {
@@ -12,6 +17,10 @@ const LABELS: Record<string, string> = {
   rejected: "rejected",
   deposit_pending: "deposit pending",
   cancelled: "cancelled",
+  waiting: "waiting",
+  contacted: "contacted",
+  converted: "converted",
+  dismissed: "dismissed",
 };
 
 export default function StatusBadge({ status }: { status: string }) {

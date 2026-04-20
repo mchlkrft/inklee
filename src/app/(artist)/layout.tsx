@@ -50,6 +50,12 @@ export default async function ArtistLayout({
             >
               clients
             </Link>
+            <Link
+              href="/dashboard/waitlist"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              waitlist
+            </Link>
             {profile && (
               <Link
                 href={`/${profile.slug}`}
@@ -58,6 +64,12 @@ export default async function ArtistLayout({
                 /{profile.slug}
               </Link>
             )}
+            <Link
+              href="/settings/books"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              books
+            </Link>
             <Link
               href="/settings/slots"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"

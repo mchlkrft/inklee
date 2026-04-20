@@ -162,6 +162,27 @@ export const customFields = pgTable("custom_fields", {
     .defaultNow(),
 });
 
+export const waitlistStatusEnum = pgEnum("waitlist_status", [
+  "waiting",
+  "contacted",
+  "converted",
+  "dismissed",
+]);
+
+export const waitlistEntries = pgTable("waitlist_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  customerEmail: text("customer_email").notNull(),
+  customerHandle: text("customer_handle").notNull(),
+  note: text("note"),
+  status: waitlistStatusEnum("status").notNull().default("waiting"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const clientNotes = pgTable("client_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   artistId: uuid("artist_id")

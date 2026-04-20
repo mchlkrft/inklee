@@ -3,14 +3,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { bookingSchema } from "@/lib/booking-schema";
-import { checkRateLimit } from "@/lib/ratelimit";
-import { sendBookingEmail } from "@/lib/email/send-booking-email";
+import { checkRateLimit, checkWaitlistRateLimit } from "@/lib/ratelimit";
+import {
+  sendBookingEmail,
+  sendWaitlistConfirmation,
+} from "@/lib/email/send-booking-email";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { validateCustomAnswers } from "@/lib/custom-fields";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
+import { parseBooksSettings } from "@/lib/books-settings";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -70,13 +74,36 @@ export async function submitBookingAction(
   const supabase = await createClient();
   const { data: artistProfile } = await supabase
     .from("profiles")
-    .select("id, display_name")
+    .select("id, display_name, settings")
     .eq("slug", artistSlug)
     .single();
 
   if (!artistProfile) return { error: "artist not found" };
   const artistId = artistProfile.id;
   const artistName = artistProfile.display_name;
+
+  // Books-open and cap enforcement (Slice 20)
+  const profileSettings = (artistProfile.settings ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const booksSettings = parseBooksSettings(profileSettings.books_settings);
+  const windowExpired =
+    booksSettings.booking_window_ends_at !== null &&
+    new Date(booksSettings.booking_window_ends_at) < new Date();
+  if (!booksSettings.books_open || windowExpired) {
+    return { error: "booking requests are currently closed" };
+  }
+  if (booksSettings.booking_cap !== null) {
+    const { count } = await serviceClient
+      .from("booking_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("artist_id", artistId)
+      .in("status", ["pending", "approved", "deposit_pending"]);
+    if ((count ?? 0) >= booksSettings.booking_cap) {
+      return { error: "this round of bookings is full" };
+    }
+  }
 
   // Fetch active custom fields and validate submitted answers
   // Uses canonical artistId — not a form-supplied value
@@ -274,4 +301,66 @@ export async function submitBookingAction(
   }
 
   redirect(`/request/submitted?id=${bookingId}&slug=${artistSlug}`);
+}
+
+export type WaitlistState =
+  | { error: string; field?: string }
+  | { ok: true }
+  | null;
+
+export async function submitWaitlistAction(
+  _prev: WaitlistState,
+  formData: FormData,
+): Promise<WaitlistState> {
+  // Honeypot
+  if (formData.get("website")) return { ok: true };
+
+  const headersList = await headers();
+  const ip =
+    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { allowed } = await checkWaitlistRateLimit(ip);
+  if (!allowed) return { error: "too many requests — try again later" };
+
+  const handle = (formData.get("instagram_handle") as string)?.replace(
+    /^@/,
+    "",
+  );
+  const email = formData.get("email") as string;
+  const note = (formData.get("note") as string) ?? "";
+  const artistSlug = formData.get("artist_slug") as string;
+
+  if (!handle || handle.length < 1)
+    return { error: "instagram handle is required", field: "instagram_handle" };
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return { error: "valid email is required", field: "email" };
+  if (note.length > 280)
+    return { error: "note must be 280 characters or fewer", field: "note" };
+
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .eq("slug", artistSlug)
+    .single();
+
+  if (!profile) return { error: "artist not found" };
+
+  const { error } = await serviceClient.from("waitlist_entries").insert({
+    artist_id: profile.id,
+    customer_email: email,
+    customer_handle: handle,
+    note: note || null,
+  });
+
+  if (error) {
+    Sentry.captureException(error, { tags: { action: "waitlist_insert" } });
+    return { error: "something went wrong — try again" };
+  }
+
+  await sendWaitlistConfirmation({
+    to: email,
+    artistName: profile.display_name,
+  });
+
+  return { ok: true };
 }

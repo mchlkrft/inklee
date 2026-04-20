@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { sendBookingEmail } from "@/lib/email/send-booking-email";
+import {
+  sendBookingEmail,
+  sendWaitlistConversionEmail,
+} from "@/lib/email/send-booking-email";
 import crypto from "crypto";
 import type { User } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
@@ -291,5 +294,83 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
 
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/requests/${id}`);
+  return { success: true };
+}
+
+// --- Waitlist actions ---
+
+export async function markWaitlistContacted(entryId: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase
+    .from("waitlist_entries")
+    .update({ status: "contacted" })
+    .eq("id", entryId);
+  revalidatePath("/dashboard/waitlist");
+}
+
+export async function dismissWaitlistEntry(entryId: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase
+    .from("waitlist_entries")
+    .update({ status: "dismissed" })
+    .eq("id", entryId);
+  revalidatePath("/dashboard/waitlist");
+}
+
+export async function convertWaitlistEntry({
+  entryId,
+  customerEmail,
+  customerHandle,
+  note,
+}: {
+  entryId: string;
+  customerEmail: string;
+  customerHandle: string;
+  note: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .single();
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  const { error } = await supabase.from("booking_requests").insert({
+    artist_id: user.id,
+    status: "approved",
+    origin: "artist_created",
+    customer_email: customerEmail,
+    customer_handle: customerHandle,
+    customer_token_hash: tokenHash,
+    form_data: { description: note || "" },
+  });
+
+  if (error) {
+    Sentry.captureException(error, { tags: { action: "waitlist_convert" } });
+    return { error: error.message };
+  }
+
+  await supabase
+    .from("waitlist_entries")
+    .update({ status: "converted" })
+    .eq("id", entryId);
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+  await sendWaitlistConversionEmail({
+    to: customerEmail,
+    artistName: profile?.display_name ?? "",
+    magicLink: `${appUrl}/request/${token}`,
+    customerHandle,
+  });
+
+  revalidatePath("/dashboard/waitlist");
   return { success: true };
 }

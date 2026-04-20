@@ -3,9 +3,13 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import BookingForm from "./booking-form";
+import BooksClosedBlock from "./books-closed-block";
+import WaitlistForm from "./waitlist-form";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings } from "@/lib/form-settings";
+import { parseBooksSettings } from "@/lib/books-settings";
+import { serviceClient } from "@/lib/supabase/service";
 
 export type SlotOption = {
   id: string;
@@ -67,6 +71,37 @@ export default async function ArtistPublicPage({
     });
   }
 
+  const booksSettings = parseBooksSettings(profileSettings.books_settings);
+  const now = new Date();
+
+  const windowExpired =
+    booksSettings.booking_window_ends_at !== null &&
+    new Date(booksSettings.booking_window_ends_at) < now;
+
+  const isManuallyClosed = !booksSettings.books_open || windowExpired;
+  const isSlotsClosed = isSlotMode && slots.length === 0;
+
+  let isCapReached = false;
+  if (
+    booksSettings.booking_cap !== null &&
+    !isManuallyClosed &&
+    !isSlotsClosed
+  ) {
+    const { count } = await serviceClient
+      .from("booking_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("artist_id", profile.id)
+      .in("status", ["pending", "approved", "deposit_pending"]);
+    isCapReached = (count ?? 0) >= booksSettings.booking_cap;
+  }
+
+  const isClosed = isManuallyClosed || isSlotsClosed || isCapReached;
+
+  const closedMessage = isCapReached
+    ? "this round of bookings is full."
+    : (booksSettings.books_closed_message ?? "books are currently closed.");
+  const closedHint = isCapReached ? undefined : "check back soon.";
+
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 mx-auto w-full max-w-lg px-6 py-12 space-y-10">
@@ -82,7 +117,7 @@ export default async function ArtistPublicPage({
               />
             </div>
           )}
-          <div>
+          <div className="space-y-0.5">
             <h1 className="text-lg font-semibold text-foreground">
               {profile.display_name}
             </h1>
@@ -90,6 +125,16 @@ export default async function ArtistPublicPage({
               <p className="text-sm text-muted-foreground">
                 {profile.location}
               </p>
+            )}
+            {profile.instagram_handle && (
+              <a
+                href={`https://instagram.com/${profile.instagram_handle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                @{profile.instagram_handle}
+              </a>
             )}
           </div>
           {profile.bio && (
@@ -110,12 +155,10 @@ export default async function ArtistPublicPage({
             </p>
           </div>
 
-          {isSlotMode && slots.length === 0 ? (
-            <div className="rounded-md border border-border px-5 py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                no slots available right now — check back soon.
-              </p>
-            </div>
+          {isClosed ? (
+            <BooksClosedBlock message={closedMessage} hint={closedHint}>
+              <WaitlistForm artistSlug={slug} />
+            </BooksClosedBlock>
           ) : (
             <BookingForm
               artistSlug={slug}
