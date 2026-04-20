@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
+import { formatCustomAnswer } from "@/lib/custom-fields";
 
 export const ALLOWED_VARS = [
   "customer_handle",
@@ -111,9 +113,20 @@ function renderBody(plainText: string): string {
   return escapeHtml(plainText);
 }
 
-export function buildEmailHtml(body: string, vars: TemplateVars): string {
+export function buildEmailHtml(
+  body: string,
+  vars: TemplateVars,
+  customAnswers?: CustomAnswerSnapshot[],
+): string {
   const substituted = substituteVars(body, vars);
-  const rendered = renderBody(substituted);
+  let rendered = renderBody(substituted);
+
+  if (customAnswers && customAnswers.length > 0) {
+    const lines = customAnswers.map(
+      (a) => `— ${escapeHtml(a.label)}: ${escapeHtml(formatCustomAnswer(a))}`,
+    );
+    rendered += `<br/><br/>additional details:<br/>${lines.join("<br/>")}`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">

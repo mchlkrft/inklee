@@ -38,6 +38,7 @@ export default function CustomFieldInput({
           type="text"
           required={required}
           placeholder={placeholder}
+          maxLength={200}
           className={BASE}
         />
       )}
@@ -49,6 +50,7 @@ export default function CustomFieldInput({
           required={required}
           rows={4}
           placeholder={placeholder}
+          maxLength={1000}
           className={`${BASE} resize-none`}
         />
       )}

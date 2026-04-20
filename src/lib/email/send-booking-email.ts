@@ -7,6 +7,7 @@ import {
   buildEmailHtml,
   substituteVars,
 } from "./booking-templates";
+import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
 
 type EmailType =
   | "customer_booking_submitted"
@@ -20,11 +21,13 @@ export async function sendBookingEmail({
   to,
   artistId,
   vars,
+  customAnswers,
 }: {
   type: EmailType;
   to: string;
   artistId: string;
   vars: TemplateVars;
+  customAnswers?: CustomAnswerSnapshot[];
 }): Promise<void> {
   try {
     const { data: profile } = await serviceClient
@@ -49,7 +52,7 @@ export async function sendBookingEmail({
 
     const body = custom?.body ?? DEFAULT_BODIES[type] ?? "";
     const subject = substituteVars(DEFAULT_SUBJECTS[type] ?? "inklee", vars);
-    const html = buildEmailHtml(body, vars);
+    const html = buildEmailHtml(body, vars, customAnswers);
 
     await sendEmail({ to, subject, html });
   } catch (err) {

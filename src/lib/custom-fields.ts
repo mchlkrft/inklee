@@ -38,21 +38,37 @@ export interface CustomAnswerSnapshot {
 // Key format: lowercase letters, digits, underscores; must start with a letter
 const KEY_RE = /^[a-z][a-z0-9_]*$/;
 
-export const fieldConfigSchema = z.object({
-  key: z
-    .string()
-    .min(2, "key must be at least 2 characters")
-    .max(50, "key must be at most 50 characters")
-    .regex(KEY_RE, "key must start with a letter and use only a–z, 0–9, _"),
-  label: z.string().min(1, "label is required").max(100, "max 100 characters"),
-  type: z.enum(CUSTOM_FIELD_TYPES),
-  required: z.boolean().default(false),
-  placeholder: z.string().max(200).optional(),
-  help_text: z.string().max(500).optional(),
-  options: z
-    .array(z.string().min(1, "option cannot be empty").max(100))
-    .default([]),
-});
+export const fieldConfigSchema = z
+  .object({
+    key: z
+      .string()
+      .min(2, "key must be at least 2 characters")
+      .max(50, "key must be at most 50 characters")
+      .regex(KEY_RE, "key must start with a letter and use only a–z, 0–9, _"),
+    label: z
+      .string()
+      .min(1, "label is required")
+      .max(100, "max 100 characters"),
+    type: z.enum(CUSTOM_FIELD_TYPES),
+    required: z.boolean().default(false),
+    placeholder: z.string().max(200).optional(),
+    help_text: z.string().max(500).optional(),
+    options: z
+      .array(z.string().min(1, "option cannot be empty").max(100))
+      .default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      (data.type === "select" || data.type === "radio") &&
+      data.options.length < 2
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${data.type} fields require at least 2 options`,
+        path: ["options"],
+      });
+    }
+  });
 
 export type FieldConfigInput = z.infer<typeof fieldConfigSchema>;
 

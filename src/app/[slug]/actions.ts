@@ -32,12 +32,10 @@ export async function submitBookingAction(
     headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const { allowed } = await checkRateLimit(ip);
   if (!allowed) {
-    return {
-      error: "too many requests — please wait before submitting again",
-    };
+    return { error: "too many requests — please wait before submitting again" };
   }
 
-  // Parse and validate form fields
+  // Core form validation
   const raw = {
     instagram_handle: formData.get("instagram_handle"),
     email: formData.get("email"),
@@ -60,22 +58,34 @@ export async function submitBookingAction(
   // Validate preferred date is in the future
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const chosen = new Date(data.preferred_date);
-  if (chosen <= today) {
+  if (new Date(data.preferred_date) <= today) {
     return {
       error: "preferred date must be a future date",
       field: "preferred_date",
     };
   }
 
-  // Validate custom fields
-  const formArtistId = formData.get("artist_id") as string | null;
+  // Init client and look up artist from slug — canonical source for artist_id
+  const artistSlug = formData.get("artist_slug") as string;
+  const supabase = await createClient();
+  const { data: artistProfile } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .eq("slug", artistSlug)
+    .single();
+
+  if (!artistProfile) return { error: "artist not found" };
+  const artistId = artistProfile.id;
+  const artistName = artistProfile.display_name;
+
+  // Fetch active custom fields and validate submitted answers
+  // Uses canonical artistId — not a form-supplied value
   let customAnswers: CustomAnswerSnapshot[] = [];
-  if (formArtistId) {
-    const { data: activeFields } = await (await createClient())
+  {
+    const { data: activeFields } = await supabase
       .from("custom_fields")
       .select("*")
-      .eq("artist_id", formArtistId)
+      .eq("artist_id", artistId)
       .eq("active", true)
       .is("deleted_at", null)
       .order("position");
@@ -99,17 +109,13 @@ export async function submitBookingAction(
   if (realImages.length > MAX_IMAGES) {
     return { error: `maximum ${MAX_IMAGES} images` };
   }
-
   for (const file of realImages) {
-    if (file.size > MAX_IMAGE_SIZE) {
-      return { error: `each image must be under 10mb` };
-    }
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    if (file.size > MAX_IMAGE_SIZE)
+      return { error: "each image must be under 10mb" };
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type))
       return { error: "images must be jpg, png, or webp" };
-    }
   }
 
-  const supabase = await createClient();
   const bookingId = crypto.randomUUID();
   const bookingMode = formData.get("booking_mode") as string;
 
@@ -160,10 +166,7 @@ export async function submitBookingAction(
     .from("booking_requests")
     .insert({
       id: bookingId,
-      artist_id: await getArtistIdFromSlug(
-        supabase,
-        formData.get("artist_slug") as string,
-      ),
+      artist_id: artistId,
       status: "pending",
       form_data: {
         instagram_handle: data.instagram_handle,
@@ -185,7 +188,6 @@ export async function submitBookingAction(
     Sentry.captureException(insertError, {
       tags: { action: "booking_insert" },
     });
-    // Revert slot lock if booking insert failed
     if (slotId) {
       await supabase.from("slots").update({ status: "open" }).eq("id", slotId);
     }
@@ -194,12 +196,14 @@ export async function submitBookingAction(
 
   // Insert booking images
   if (storagePaths.length > 0) {
-    await supabase.from("booking_images").insert(
-      storagePaths.map((path) => ({
-        booking_id: bookingId,
-        storage_path: path,
-      })),
-    );
+    await supabase
+      .from("booking_images")
+      .insert(
+        storagePaths.map((path) => ({
+          booking_id: bookingId,
+          storage_path: path,
+        })),
+      );
   }
 
   // Write audit log
@@ -209,16 +213,6 @@ export async function submitBookingAction(
     details: { origin: "public_form", ip },
   });
 
-  // Fetch artist profile for email vars
-  const artistSlug = formData.get("artist_slug") as string;
-  const { data: artistProfile } = await supabase
-    .from("profiles")
-    .select("id, display_name")
-    .eq("slug", artistSlug)
-    .single();
-
-  const artistId = artistProfile?.id ?? "";
-  const artistName = artistProfile?.display_name ?? artistSlug;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const magicLink = `${appUrl}/request/${token}`;
   const emailVars = {
@@ -237,6 +231,7 @@ export async function submitBookingAction(
     to: data.email,
     artistId,
     vars: emailVars,
+    customAnswers,
   });
 
   // Artist new request notification
@@ -248,24 +243,9 @@ export async function submitBookingAction(
       to: artistAuth.user.email,
       artistId,
       vars: emailVars,
+      customAnswers,
     });
   }
 
-  redirect(
-    `/request/submitted?id=${bookingId}&slug=${formData.get("artist_slug")}`,
-  );
-}
-
-// Artist profile lookup
-async function getArtistIdFromSlug(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  slug: string,
-): Promise<string> {
-  const { data } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("slug", slug)
-    .single();
-  return data.id;
+  redirect(`/request/submitted?id=${bookingId}&slug=${artistSlug}`);
 }

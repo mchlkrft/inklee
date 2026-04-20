@@ -39,14 +39,6 @@ export async function createFieldAction(
 
   const data = parsed.data;
 
-  // options required for select/radio
-  if (
-    (data.type === "select" || data.type === "radio") &&
-    data.options.length < 2
-  ) {
-    return { error: `${data.type} fields require at least 2 options` };
-  }
-
   // Auto-generate key from label if left blank
   const key = data.key || labelToKey(data.label);
 
@@ -111,17 +103,10 @@ export async function updateFieldAction(
 
   const data = parsed.data;
 
-  if (
-    (data.type === "select" || data.type === "radio") &&
-    data.options.length < 2
-  ) {
-    return { error: `${data.type} fields require at least 2 options` };
-  }
-
   const { error } = await supabase
     .from("custom_fields")
     .update({
-      key: data.key,
+      // key is intentionally omitted — immutable after creation
       label: data.label,
       type: data.type,
       required: data.required,

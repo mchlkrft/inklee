@@ -5,7 +5,7 @@ import {
   formatCustomAnswer,
   fieldConfigSchema,
 } from "../custom-fields";
-import type { CustomFieldDef } from "../custom-fields";
+import type { CustomFieldDef, CustomAnswerSnapshot } from "../custom-fields";
 
 const makeField = (
   overrides: Partial<CustomFieldDef> = {},
@@ -174,6 +174,114 @@ describe("validateCustomAnswers", () => {
       value: "fair",
     };
     expect(formatCustomAnswer(snapshot)).toBe("fair");
+  });
+});
+
+describe("fieldConfigSchema — options constraint", () => {
+  it("rejects select field with 0 options", () => {
+    const result = fieldConfigSchema.safeParse({
+      key: "style",
+      label: "Style",
+      type: "select",
+      options: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects select field with 1 option", () => {
+    const result = fieldConfigSchema.safeParse({
+      key: "style",
+      label: "Style",
+      type: "select",
+      options: ["only one"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects radio field with fewer than 2 options", () => {
+    const result = fieldConfigSchema.safeParse({
+      key: "style",
+      label: "Style",
+      type: "radio",
+      options: ["one"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts select field with 2+ options", () => {
+    const result = fieldConfigSchema.safeParse({
+      key: "style",
+      label: "Style",
+      type: "select",
+      options: ["black & grey", "colour"],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts short_text with no options", () => {
+    const result = fieldConfigSchema.safeParse({
+      key: "notes",
+      label: "Notes",
+      type: "short_text",
+      options: [],
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("validateCustomAnswers — hardening", () => {
+  it("only validates fields that are active (caller responsibility)", () => {
+    // validateCustomAnswers trusts the fields list it receives.
+    // The caller (booking action) must pass only active fields.
+    // If an inactive field is accidentally passed, it still validates.
+    const inactiveField = makeField({ active: false, required: true });
+    const result = validateCustomAnswers({}, [inactiveField]);
+    // Still enforces required — the guard is in the action layer
+    expect(result.ok).toBe(false);
+  });
+
+  it("accepts empty submission when field list is empty", () => {
+    const result = validateCustomAnswers({}, []);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.answers).toHaveLength(0);
+  });
+
+  it("rejects submission with keys not in field list", () => {
+    const result = validateCustomAnswers({ injected_key: "bad" }, []);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/unknown field/);
+  });
+
+  it("skips optional empty field — no snapshot entry", () => {
+    const fields = [makeField({ required: false })];
+    const result = validateCustomAnswers({ skin_type: "" }, fields);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.answers).toHaveLength(0);
+  });
+
+  it("includes only fields with submitted values in snapshot", () => {
+    const fields = [
+      makeField({ key: "a", label: "A", required: false }),
+      makeField({ key: "b", label: "B", required: false, options: ["x", "y"] }),
+    ];
+    const result = validateCustomAnswers({ b: "x" }, fields);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.answers).toHaveLength(1);
+      expect(result.answers[0].key).toBe("b");
+    }
+  });
+
+  it("snapshot remains readable if field is later archived", () => {
+    // Snapshot captures label and type at submission time.
+    // Simulates reading an old snapshot after the field def changes.
+    const oldSnapshot: CustomAnswerSnapshot = {
+      key: "skin_type",
+      label: "Skin type (archived)",
+      type: "select",
+      value: "fair",
+    };
+    expect(formatCustomAnswer(oldSnapshot)).toBe("fair");
   });
 });
 

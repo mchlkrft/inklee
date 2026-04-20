@@ -29,14 +29,12 @@ type SlotOption = { id: string; date: string; time: string; tz: string };
 
 export default function BookingForm({
   artistSlug,
-  artistId,
   artistFirstName,
   bookingMode = "preferred_date",
   slots = [],
   customFields = [],
 }: {
   artistSlug: string;
-  artistId: string;
   artistFirstName: string;
   bookingMode?: string;
   slots?: SlotOption[];
@@ -371,7 +369,6 @@ export default function BookingForm({
         aria-hidden
       />
       <input type="hidden" name="booking_mode" value={bookingMode} />
-      <input type="hidden" name="artist_id" value={artistId} />
 
       <button
         type="submit"

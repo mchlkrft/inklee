@@ -116,7 +116,6 @@ export default async function ArtistPublicPage({
           ) : (
             <BookingForm
               artistSlug={slug}
-              artistId={profile.id}
               artistFirstName={profile.display_name.split(" ")[0]}
               bookingMode={profile.booking_mode ?? "preferred_date"}
               slots={slots}
