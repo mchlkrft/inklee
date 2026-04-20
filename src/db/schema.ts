@@ -7,6 +7,7 @@ import {
   jsonb,
   integer,
   date,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 // --- Enums ---
@@ -132,4 +133,24 @@ export const auditLog = pgTable("audit_log", {
     .notNull()
     .defaultNow(),
   details: jsonb("details").default({}),
+});
+
+export const customFields = pgTable("custom_fields", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  label: text("label").notNull(),
+  type: text("type").notNull(),
+  required: boolean("required").notNull().default(false),
+  placeholder: text("placeholder"),
+  helpText: text("help_text"),
+  options: jsonb("options").notNull().default([]),
+  active: boolean("active").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

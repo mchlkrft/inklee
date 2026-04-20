@@ -18,6 +18,20 @@ export const metadata: Metadata = {
   title: "Inklee — booking requests without the DM chaos",
   description:
     "A simple booking request tool for freelance and traveling tattoo artists.",
+  metadataBase: new URL("https://inklee.app"),
+  openGraph: {
+    title: "Inklee — booking requests without the DM chaos",
+    description:
+      "A clean booking request tool for freelance tattoo artists. Replace chaotic DMs with a structured form and approval flow.",
+    url: "https://inklee.app",
+    siteName: "Inklee",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Inklee — booking requests without the DM chaos",
+    description: "A clean booking request tool for freelance tattoo artists.",
+  },
 };
 
 export default function RootLayout({

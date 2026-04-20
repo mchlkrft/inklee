@@ -8,6 +8,9 @@ import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "crypto";
+import * as Sentry from "@sentry/nextjs";
+import { validateCustomAnswers } from "@/lib/custom-fields";
+import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -63,6 +66,30 @@ export async function submitBookingAction(
       error: "preferred date must be a future date",
       field: "preferred_date",
     };
+  }
+
+  // Validate custom fields
+  const formArtistId = formData.get("artist_id") as string | null;
+  let customAnswers: CustomAnswerSnapshot[] = [];
+  if (formArtistId) {
+    const { data: activeFields } = await (await createClient())
+      .from("custom_fields")
+      .select("*")
+      .eq("artist_id", formArtistId)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .order("position");
+
+    const fields = (activeFields as CustomFieldDef[]) ?? [];
+    const rawCustom: Record<string, string> = {};
+    for (const field of fields) {
+      const val = formData.get(`cf_${field.key}`);
+      if (val !== null) rawCustom[field.key] = val as string;
+    }
+
+    const result = validateCustomAnswers(rawCustom, fields);
+    if (!result.ok) return { error: result.error, field: result.field };
+    customAnswers = result.answers;
   }
 
   // Validate images
@@ -144,6 +171,7 @@ export async function submitBookingAction(
         placement: data.placement,
         size: data.size,
         description: data.description,
+        ...(customAnswers.length > 0 && { custom_answers: customAnswers }),
       },
       preferred_date: slotDate ?? data.preferred_date,
       slot_id: slotId,
@@ -154,6 +182,9 @@ export async function submitBookingAction(
     });
 
   if (insertError) {
+    Sentry.captureException(insertError, {
+      tags: { action: "booking_insert" },
+    });
     // Revert slot lock if booking insert failed
     if (slotId) {
       await supabase.from("slots").update({ status: "open" }).eq("id", slotId);

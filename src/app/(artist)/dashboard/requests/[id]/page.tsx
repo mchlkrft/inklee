@@ -4,6 +4,8 @@ import Link from "next/link";
 import { formatDate, relativeTime } from "@/lib/format";
 import StatusActions from "./status-actions";
 import ImageLightbox from "./image-lightbox";
+import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
+import { formatCustomAnswer } from "@/lib/custom-fields";
 
 export default async function RequestDetailPage({
   params,
@@ -25,7 +27,9 @@ export default async function RequestDetailPage({
 
   if (!booking) notFound();
 
-  const fd = booking.form_data as Record<string, string> | null;
+  const fd = booking.form_data as Record<string, unknown> | null;
+  const customAnswers =
+    (fd?.custom_answers as CustomAnswerSnapshot[] | undefined) ?? [];
 
   // Generate signed URLs for images
   const signedUrls: string[] = [];
@@ -57,8 +61,8 @@ export default async function RequestDetailPage({
           <div className="rounded-md border border-border divide-y divide-border">
             <Row label="instagram" value={`@${booking.customer_handle}`} />
             <Row label="email" value={booking.customer_email ?? "—"} />
-            <Row label="placement" value={fd?.placement ?? "—"} />
-            <Row label="size" value={fd?.size ?? "—"} />
+            <Row label="placement" value={(fd?.placement as string) ?? "—"} />
+            <Row label="size" value={(fd?.size as string) ?? "—"} />
             <Row
               label="preferred date"
               value={
@@ -67,29 +71,36 @@ export default async function RequestDetailPage({
                   : "—"
               }
             />
-            {fd?.reference_link && (
+            {typeof fd?.reference_link === "string" && (
               <div className="flex px-4 py-3 gap-4">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">
                   reference
                 </span>
                 <a
-                  href={fd.reference_link}
+                  href={fd.reference_link as string}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-foreground underline underline-offset-4 break-all"
                 >
-                  {fd.reference_link}
+                  {fd.reference_link as string}
                 </a>
               </div>
             )}
+            {customAnswers.map((ans) => (
+              <Row
+                key={ans.key}
+                label={ans.label}
+                value={formatCustomAnswer(ans)}
+              />
+            ))}
           </div>
 
           {/* Description */}
-          {fd?.description && (
+          {typeof fd?.description === "string" && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">description</p>
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                {fd.description}
+                {fd.description as string}
               </p>
             </div>
           )}

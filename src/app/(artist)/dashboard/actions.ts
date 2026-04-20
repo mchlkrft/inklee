@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import crypto from "crypto";
 import type { User } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 
 type ActionResult = { error: string } | { success: true };
 type AuthorisedBookingResult =
@@ -80,7 +81,12 @@ export async function approveBooking(id: string): Promise<ActionResult> {
     })
     .eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "booking_status_change" },
+    });
+    return { error: error.message };
+  }
 
   await supabase.from("audit_log").insert({
     booking_id: id,
@@ -139,7 +145,12 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
     })
     .eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "booking_status_change" },
+    });
+    return { error: error.message };
+  }
 
   await supabase.from("audit_log").insert({
     booking_id: id,
@@ -188,7 +199,12 @@ export async function markDepositPending(id: string): Promise<ActionResult> {
     .update({ status: "deposit_pending", updated_at: new Date().toISOString() })
     .eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "booking_status_change" },
+    });
+    return { error: error.message };
+  }
 
   await supabase.from("audit_log").insert({
     booking_id: id,

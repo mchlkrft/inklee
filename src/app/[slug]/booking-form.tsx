@@ -4,6 +4,8 @@ import { useActionState, useRef, useState, startTransition } from "react";
 import Link from "next/link";
 import { submitBookingAction } from "./actions";
 import { SIZES } from "@/lib/booking-schema";
+import type { CustomFieldDef } from "@/lib/custom-fields";
+import CustomFieldInput from "@/components/custom-field-input";
 
 type State = { error: string; field?: string } | null;
 
@@ -27,14 +29,18 @@ type SlotOption = { id: string; date: string; time: string; tz: string };
 
 export default function BookingForm({
   artistSlug,
+  artistId,
   artistFirstName,
   bookingMode = "preferred_date",
   slots = [],
+  customFields = [],
 }: {
   artistSlug: string;
+  artistId: string;
   artistFirstName: string;
   bookingMode?: string;
   slots?: SlotOption[];
+  customFields?: CustomFieldDef[];
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
@@ -222,6 +228,15 @@ export default function BookingForm({
         )}
       </div>
 
+      {/* Custom fields */}
+      {customFields.map((field) => (
+        <CustomFieldInput
+          key={field.id}
+          field={field}
+          error={err(`cf_${field.key}`)}
+        />
+      ))}
+
       {/* Image upload */}
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
@@ -356,6 +371,7 @@ export default function BookingForm({
         aria-hidden
       />
       <input type="hidden" name="booking_mode" value={bookingMode} />
+      <input type="hidden" name="artist_id" value={artistId} />
 
       <button
         type="submit"

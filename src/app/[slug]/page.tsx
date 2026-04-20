@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import BookingForm from "./booking-form";
 import { formatSlotDisplay } from "@/lib/timezone";
+import type { CustomFieldDef } from "@/lib/custom-fields";
 
 export type SlotOption = {
   id: string;
@@ -32,6 +33,17 @@ export default async function ArtistPublicPage({
 
   const isSlotMode = profile.booking_mode === "fixed_slots";
   let slots: SlotOption[] = [];
+  let customFields: CustomFieldDef[] = [];
+
+  const { data: rawCustomFields } = await supabase
+    .from("custom_fields")
+    .select("*")
+    .eq("artist_id", profile.id)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .order("position", { ascending: true });
+
+  customFields = (rawCustomFields as CustomFieldDef[]) ?? [];
 
   if (isSlotMode) {
     const { data: rawSlots } = await supabase
@@ -104,9 +116,11 @@ export default async function ArtistPublicPage({
           ) : (
             <BookingForm
               artistSlug={slug}
+              artistId={profile.id}
               artistFirstName={profile.display_name.split(" ")[0]}
               bookingMode={profile.booking_mode ?? "preferred_date"}
               slots={slots}
+              customFields={customFields}
             />
           )}
         </div>
