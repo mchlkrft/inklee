@@ -46,3 +46,43 @@ export async function saveTemplateAction(
   revalidatePath("/settings/templates");
   return { success: true };
 }
+
+export async function toggleTemplateAction(
+  type: EmailType,
+  enabled: boolean,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", user.id)
+    .single();
+
+  const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+  const disabled = new Set<string>(
+    Array.isArray(settings.disabled_emails)
+      ? (settings.disabled_emails as string[])
+      : [],
+  );
+
+  if (enabled) {
+    disabled.delete(type);
+  } else {
+    disabled.add(type);
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ settings: { ...settings, disabled_emails: [...disabled] } })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings/templates");
+  return { success: true };
+}

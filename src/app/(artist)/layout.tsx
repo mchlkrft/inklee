@@ -59,6 +59,12 @@ export default async function ArtistLayout({
               slots
             </Link>
             <Link
+              href="/settings/templates"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              emails
+            </Link>
+            <Link
               href="/settings/profile"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >

@@ -27,6 +27,18 @@ export async function sendBookingEmail({
   vars: TemplateVars;
 }): Promise<void> {
   try {
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("settings")
+      .eq("id", artistId)
+      .single();
+
+    const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+    const disabled: string[] = Array.isArray(settings.disabled_emails)
+      ? (settings.disabled_emails as string[])
+      : [];
+    if (disabled.includes(type)) return;
+
     // Fetch custom template if the artist has saved one
     const { data: custom } = await serviceClient
       .from("email_templates")

@@ -26,13 +26,23 @@ export default async function TemplatesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: saved } = await supabase
-    .from("email_templates")
-    .select("type, body")
-    .eq("artist_id", user!.id);
+  const [{ data: saved }, { data: profile }] = await Promise.all([
+    supabase
+      .from("email_templates")
+      .select("type, body")
+      .eq("artist_id", user!.id),
+    supabase.from("profiles").select("settings").eq("id", user!.id).single(),
+  ]);
 
   const savedMap = Object.fromEntries(
     (saved ?? []).map((t) => [t.type, t.body]),
+  );
+
+  const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+  const disabledSet = new Set<string>(
+    Array.isArray(settings.disabled_emails)
+      ? (settings.disabled_emails as string[])
+      : [],
   );
 
   return (
@@ -68,6 +78,7 @@ export default async function TemplatesPage() {
             <TemplateEditor
               type={type}
               defaultBody={savedMap[type] ?? DEFAULT_BODIES[type] ?? ""}
+              defaultEnabled={!disabledSet.has(type)}
             />
           </div>
         ))}
