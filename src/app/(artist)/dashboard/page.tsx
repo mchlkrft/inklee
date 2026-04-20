@@ -15,19 +15,23 @@ const FILTERS = [
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; leg?: string }>;
 }) {
-  const { status = "all" } = await searchParams;
+  const { status = "all", leg = "all" } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("slug")
-    .eq("id", user!.id)
-    .single();
+  const [{ data: profile }, { data: travelLegs }] = await Promise.all([
+    supabase.from("profiles").select("slug").eq("id", user!.id).single(),
+    supabase
+      .from("travel_legs")
+      .select("id, city, country, starts_on, ends_on")
+      .eq("artist_id", user!.id)
+      .eq("is_active", true)
+      .order("starts_on", { ascending: false }),
+  ]);
 
   let query = supabase
     .from("booking_requests")
@@ -39,6 +43,9 @@ export default async function DashboardPage({
 
   if (status !== "all") {
     query = query.eq("status", status);
+  }
+  if (leg !== "all") {
+    query = query.eq("travel_leg_id", leg);
   }
 
   const { data: bookings } = await query;
@@ -60,20 +67,65 @@ export default async function DashboardPage({
 
       {/* Status filter */}
       <div className="flex gap-1 flex-wrap">
-        {FILTERS.map((f) => (
+        {FILTERS.map((f) => {
+          const href =
+            f.value === "all"
+              ? leg !== "all"
+                ? `?leg=${leg}`
+                : "/dashboard"
+              : leg !== "all"
+                ? `?status=${f.value}&leg=${leg}`
+                : `?status=${f.value}`;
+          return (
+            <Link
+              key={f.value}
+              href={href}
+              className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                status === f.value
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {f.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Trip filter — only shown when artist has travel legs */}
+      {travelLegs && travelLegs.length > 0 && (
+        <div className="flex gap-1 flex-wrap">
           <Link
-            key={f.value}
-            href={f.value === "all" ? "/dashboard" : `?status=${f.value}`}
+            href={status !== "all" ? `?status=${status}` : "/dashboard"}
             className={`rounded-full px-3 py-1 text-xs transition-colors ${
-              status === f.value
+              leg === "all"
                 ? "bg-foreground text-background"
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
           >
-            {f.label}
+            all trips
           </Link>
-        ))}
-      </div>
+          {travelLegs.map((l) => {
+            const href =
+              status !== "all"
+                ? `?status=${status}&leg=${l.id}`
+                : `?leg=${l.id}`;
+            return (
+              <Link
+                key={l.id}
+                href={href}
+                className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                  leg === l.id
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {l.city}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       {/* Table */}
       {!bookings || bookings.length === 0 ? (

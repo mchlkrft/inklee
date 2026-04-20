@@ -36,6 +36,7 @@ export default function BookingForm({
   slots = [],
   customFields = [],
   formSettings = DEFAULT_FORM_SETTINGS,
+  travelLegId = null,
 }: {
   artistSlug: string;
   artistFirstName: string;
@@ -43,6 +44,7 @@ export default function BookingForm({
   slots?: SlotOption[];
   customFields?: CustomFieldDef[];
   formSettings?: FormSettings;
+  travelLegId?: string | null;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
@@ -386,6 +388,9 @@ export default function BookingForm({
         aria-hidden
       />
       <input type="hidden" name="booking_mode" value={bookingMode} />
+      {travelLegId && (
+        <input type="hidden" name="travel_leg_id" value={travelLegId} />
+      )}
 
       <button
         type="submit"

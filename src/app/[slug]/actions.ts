@@ -143,6 +143,7 @@ export async function submitBookingAction(
       return { error: "images must be jpg, png, or webp" };
   }
 
+  const travelLegId = (formData.get("travel_leg_id") as string) || null;
   const bookingId = crypto.randomUUID();
   const bookingMode = formData.get("booking_mode") as string;
 
@@ -230,6 +231,7 @@ export async function submitBookingAction(
       customer_handle: data.instagram_handle,
       customer_token_hash: tokenHash,
       origin: "public_form",
+      ...(travelLegId ? { travel_leg_id: travelLegId } : {}),
     });
 
   if (insertError) {

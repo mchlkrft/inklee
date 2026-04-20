@@ -71,6 +71,19 @@ export default async function ArtistPublicPage({
     });
   }
 
+  // Active travel leg: is_active=true AND starts_on <= today <= ends_on
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: activeLeg } = await supabase
+    .from("travel_legs")
+    .select("id, city, country, studio_name, starts_on, ends_on, description")
+    .eq("artist_id", profile.id)
+    .eq("is_active", true)
+    .lte("starts_on", todayStr)
+    .gte("ends_on", todayStr)
+    .order("starts_on", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const now = new Date();
 
@@ -144,6 +157,32 @@ export default async function ArtistPublicPage({
           )}
         </div>
 
+        {/* Active travel leg context */}
+        {activeLeg && (
+          <div className="rounded-md border border-border px-4 py-3 space-y-0.5">
+            <p className="text-sm text-foreground">
+              currently in {activeLeg.city}, {activeLeg.country}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {new Date(activeLeg.starts_on).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+              })}
+              {" – "}
+              {new Date(activeLeg.ends_on).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+              })}
+              {activeLeg.studio_name ? ` · ${activeLeg.studio_name}` : ""}
+            </p>
+            {activeLeg.description && (
+              <p className="text-xs text-muted-foreground">
+                {activeLeg.description}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Booking form */}
         <div className="space-y-6">
           <div>
@@ -167,6 +206,7 @@ export default async function ArtistPublicPage({
               slots={slots}
               customFields={customFields}
               formSettings={formSettings}
+              travelLegId={activeLeg?.id ?? null}
             />
           )}
         </div>

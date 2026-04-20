@@ -78,6 +78,9 @@ export const bookingRequests = pgTable("booking_requests", {
   formData: jsonb("form_data").notNull().default({}),
   preferredDate: date("preferred_date"),
   slotId: uuid("slot_id"),
+  travelLegId: uuid("travel_leg_id").references(() => travelLegs.id, {
+    onDelete: "set null",
+  }),
   customerEmail: text("customer_email"),
   customerHandle: text("customer_handle"),
   customerTokenHash: text("customer_token_hash"),
@@ -157,6 +160,23 @@ export const customFields = pgTable("custom_fields", {
   active: boolean("active").notNull().default(true),
   position: integer("position").notNull().default(0),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const travelLegs = pgTable("travel_legs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  city: text("city").notNull(),
+  country: text("country").notNull(),
+  studioName: text("studio_name"),
+  startsOn: date("starts_on").notNull(),
+  endsOn: date("ends_on").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

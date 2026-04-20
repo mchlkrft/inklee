@@ -71,6 +71,12 @@ export default async function ArtistLayout({
               books
             </Link>
             <Link
+              href="/settings/travel"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              travel
+            </Link>
+            <Link
               href="/settings/slots"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
