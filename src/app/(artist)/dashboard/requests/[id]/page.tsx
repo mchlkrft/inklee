@@ -120,6 +120,28 @@ export default async function RequestDetailPage({
         <div className="space-y-6">
           <StatusActions booking={{ id: booking.id, status: booking.status }} />
 
+          {/* Deposit info — shown when a deposit has been requested */}
+          {booking.deposit_amount && (
+            <div className="rounded-md border border-border p-4 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                deposit
+              </p>
+              <p className="text-sm text-foreground font-medium">
+                €{Number(booking.deposit_amount).toFixed(2)}
+              </p>
+              {booking.deposit_due_at && (
+                <p className="text-xs text-muted-foreground">
+                  due {formatDate(booking.deposit_due_at)}
+                </p>
+              )}
+              {booking.deposit_note && (
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {booking.deposit_note}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="rounded-md border border-border divide-y divide-border text-sm">
             <Row label="submitted" value={relativeTime(booking.created_at)} />
             {booking.decided_at && (

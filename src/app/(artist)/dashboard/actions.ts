@@ -189,14 +189,25 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
-export async function markDepositPending(id: string): Promise<ActionResult> {
+export async function requestDeposit(
+  id: string,
+  amount: number,
+  dueAt: string,
+  note: string | null,
+): Promise<ActionResult> {
   const authorised = await getAuthorisedBooking(id);
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
   const { error } = await supabase
     .from("booking_requests")
-    .update({ status: "deposit_pending", updated_at: new Date().toISOString() })
+    .update({
+      status: "deposit_pending",
+      deposit_amount: amount,
+      deposit_due_at: dueAt,
+      deposit_note: note || null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id);
 
   if (error) {
@@ -210,7 +221,46 @@ export async function markDepositPending(id: string): Promise<ActionResult> {
     booking_id: id,
     action: "status_changed",
     actor: user.id,
-    details: { from: booking.status, to: "deposit_pending" },
+    details: {
+      from: booking.status,
+      to: "deposit_pending",
+      amount,
+      due_at: dueAt,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/requests/${id}`);
+  return { success: true };
+}
+
+export async function markDepositReceived(id: string): Promise<ActionResult> {
+  const authorised = await getAuthorisedBooking(id);
+  if ("error" in authorised) return authorised;
+
+  const { supabase, user, booking } = authorised;
+  const decidedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("booking_requests")
+    .update({
+      status: "approved",
+      updated_at: decidedAt,
+      decided_at: decidedAt,
+    })
+    .eq("id", id);
+
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "booking_status_change" },
+    });
+    return { error: error.message };
+  }
+
+  await supabase.from("audit_log").insert({
+    booking_id: id,
+    action: "status_changed",
+    actor: user.id,
+    details: { from: booking.status, to: "approved", via: "deposit_received" },
   });
 
   revalidatePath("/dashboard");

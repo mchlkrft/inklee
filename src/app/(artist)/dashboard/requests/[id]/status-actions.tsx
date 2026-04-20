@@ -1,10 +1,11 @@
 "use client";
 
-import { useOptimistic, useState, startTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import {
   approveBooking,
   rejectBooking,
-  markDepositPending,
+  requestDeposit,
+  markDepositReceived,
 } from "../../actions";
 import StatusBadge from "@/components/status-badge";
 
@@ -13,10 +14,22 @@ type Booking = {
   status: string;
 };
 
+function tomorrow(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+}
+
 export default function StatusActions({ booking }: { booking: Booking }) {
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(booking.status);
-  const [confirmReject, setConfirmReject] = useState(false);
+  const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const [showDepositForm, setShowDepositForm] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositDueAt, setDepositDueAt] = useState(tomorrow());
+  const [depositNote, setDepositNote] = useState("");
+  const [confirmReject, setConfirmReject] = useState(false);
 
   const run = async (
     action: (id: string) => Promise<{ error: string } | { success: true }>,
@@ -33,9 +46,37 @@ export default function StatusActions({ booking }: { booking: Booking }) {
     });
   };
 
+  const handleRequestDeposit = () => {
+    const amount = parseFloat(depositAmount);
+    if (!depositAmount || isNaN(amount) || amount <= 0) {
+      setError("enter a valid deposit amount");
+      return;
+    }
+    if (!depositDueAt) {
+      setError("enter a due date");
+      return;
+    }
+    setError(null);
+    setShowDepositForm(false);
+    startTransition(async () => {
+      setOptimisticStatus("deposit_pending");
+      const result = await requestDeposit(
+        booking.id,
+        amount,
+        depositDueAt,
+        depositNote.trim() || null,
+      );
+      if ("error" in result) {
+        setOptimisticStatus(booking.status);
+        setError(result.error);
+      }
+    });
+  };
+
   const isDone = ["approved", "rejected", "cancelled"].includes(
     optimisticStatus,
   );
+  const isDepositPending = optimisticStatus === "deposit_pending";
 
   return (
     <div className="space-y-4">
@@ -46,24 +87,132 @@ export default function StatusActions({ booking }: { booking: Booking }) {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {!isDone && (
+      {isDepositPending && (
         <div className="flex flex-col gap-2">
-          {optimisticStatus !== "approved" && (
+          <button
+            onClick={() => run(markDepositReceived, "approved")}
+            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+          >
+            mark deposit received
+          </button>
+          {!confirmReject ? (
             <button
-              onClick={() => run(approveBooking, "approved")}
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+              onClick={() => setConfirmReject(true)}
+              className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
             >
-              approve
+              reject
             </button>
+          ) : (
+            <div className="rounded-md border border-destructive/50 p-3 space-y-2">
+              <p className="text-sm text-foreground">reject this request?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    run(rejectBooking, "rejected");
+                    setConfirmReject(false);
+                  }}
+                  className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
+                >
+                  yes, reject
+                </button>
+                <button
+                  onClick={() => setConfirmReject(false)}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  cancel
+                </button>
+              </div>
+            </div>
           )}
+        </div>
+      )}
 
-          {optimisticStatus !== "deposit_pending" && (
+      {!isDone && !isDepositPending && (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => run(approveBooking, "approved")}
+            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+          >
+            approve
+          </button>
+
+          {!showDepositForm ? (
             <button
-              onClick={() => run(markDepositPending, "deposit_pending")}
+              onClick={() => setShowDepositForm(true)}
               className="rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
             >
-              mark deposit pending
+              request deposit
             </button>
+          ) : (
+            <div className="rounded-md border border-border p-4 space-y-3">
+              <p className="text-sm font-medium text-foreground">
+                request deposit
+              </p>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">
+                    amount *
+                  </label>
+                  <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
+                    <span className="text-muted-foreground select-none mr-1">
+                      €
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      placeholder="200"
+                      className="flex-1 bg-transparent text-foreground focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">
+                    due by *
+                  </label>
+                  <input
+                    type="date"
+                    value={depositDueAt}
+                    min={tomorrow()}
+                    onChange={(e) => setDepositDueAt(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">
+                    note to customer{" "}
+                    <span className="text-muted-foreground/60">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={depositNote}
+                    onChange={(e) => setDepositNote(e.target.value)}
+                    placeholder="e.g. bank transfer details or payment method"
+                    maxLength={300}
+                    className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRequestDeposit}
+                  className="flex-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background"
+                >
+                  send deposit request
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDepositForm(false);
+                    setError(null);
+                  }}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  cancel
+                </button>
+              </div>
+            </div>
           )}
 
           {!confirmReject ? (

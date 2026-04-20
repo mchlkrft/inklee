@@ -8,6 +8,7 @@ import {
   integer,
   date,
   boolean,
+  numeric,
 } from "drizzle-orm/pg-core";
 
 // --- Enums ---
@@ -88,6 +89,9 @@ export const bookingRequests = pgTable("booking_requests", {
     .notNull()
     .defaultNow(),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  depositAmount: numeric("deposit_amount", { precision: 10, scale: 2 }),
+  depositDueAt: date("deposit_due_at"),
+  depositNote: text("deposit_note"),
 });
 
 export const bookingImages = pgTable("booking_images", {

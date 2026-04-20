@@ -21,6 +21,9 @@ type Booking = {
   referenceLink: string | null;
   preferredDate: string;
   artistName: string;
+  depositAmount: number | null;
+  depositDueAt: string | null;
+  depositNote: string | null;
 };
 
 const tomorrow = () => {
@@ -250,6 +253,36 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           </div>
         )}
       </div>
+
+      {/* Deposit notice */}
+      {booking.depositAmount && booking.status === "deposit_pending" && (
+        <div className="rounded-md border border-border p-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            deposit requested
+          </p>
+          <p className="text-sm text-foreground">
+            {booking.artistName} has requested a deposit of{" "}
+            <span className="font-medium">
+              €{booking.depositAmount.toFixed(2)}
+            </span>
+            {booking.depositDueAt && (
+              <span className="text-muted-foreground">
+                {" "}
+                — due by {formatDate(booking.depositDueAt)}
+              </span>
+            )}
+          </p>
+          {booking.depositNote && (
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {booking.depositNote}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            once your deposit is received, {booking.artistName} will confirm
+            your booking.
+          </p>
+        </div>
+      )}
 
       {cancelState?.error && (
         <p className="text-sm text-destructive">{cancelState.error}</p>

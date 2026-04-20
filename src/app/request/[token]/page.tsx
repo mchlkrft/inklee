@@ -34,6 +34,7 @@ export default async function RequestPortalPage({
       id, status, created_at,
       customer_handle, customer_email,
       preferred_date, form_data,
+      deposit_amount, deposit_due_at, deposit_note,
       profiles!artist_id(display_name)
     `,
     )
@@ -80,6 +81,11 @@ export default async function RequestPortalPage({
           artistName:
             (profile as { display_name: string } | null)?.display_name ??
             "the artist",
+          depositAmount: booking.deposit_amount
+            ? Number(booking.deposit_amount)
+            : null,
+          depositDueAt: booking.deposit_due_at ?? null,
+          depositNote: booking.deposit_note ?? null,
         },
       };
     }
