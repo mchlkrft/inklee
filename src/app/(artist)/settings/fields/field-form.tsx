@@ -79,38 +79,19 @@ export default function FieldForm({
       )}
 
       {/* Label */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground">label *</label>
-          <input
-            name="label"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            required
-            maxLength={100}
-            placeholder="e.g. Skin type"
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
+      <input type="hidden" name="key" value={key} />
 
-        {/* Key */}
-        <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground">
-            key <span className="text-muted-foreground">(auto-generated)</span>
-          </label>
-          <input
-            name="key"
-            value={key}
-            onChange={(e) => {
-              setKeyTouched(true);
-              setKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""));
-            }}
-            required
-            maxLength={50}
-            placeholder="skin_type"
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">label *</label>
+        <input
+          name="label"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          required
+          maxLength={100}
+          placeholder="e.g. Skin type"
+          className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
       </div>
 
       {/* Type */}

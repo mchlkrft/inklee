@@ -84,9 +84,6 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
                     <span className="text-sm text-foreground truncate">
                       {field.label}
                     </span>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {field.key}
-                    </span>
                     <span className="text-xs border border-border rounded px-1.5 py-0.5 text-muted-foreground">
                       {TYPE_BADGE[field.type] ?? field.type}
                     </span>
