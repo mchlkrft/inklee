@@ -7,6 +7,13 @@ function tomorrow(): string {
   return d.toISOString().split("T")[0];
 }
 
+function testImageBuffer(): Buffer {
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlH0i8AAAAASUVORK5CYII=",
+    "base64",
+  );
+}
+
 /** Submits a booking on the public form and returns the booking ID from the redirect URL. */
 export async function submitTestBooking(
   page: Page,
@@ -22,8 +29,13 @@ export async function submitTestBooking(
   await page.click('[name="size"][value="hand-sized"]');
   await page.fill(
     'textarea[name="description"]',
-    "automated e2e test — please ignore",
+    "automated e2e test - please ignore",
   );
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "reference.png",
+    mimeType: "image/png",
+    buffer: testImageBuffer(),
+  });
   await page.fill('[name="preferred_date"]', tomorrow());
   await page.click('button[type="submit"]');
 

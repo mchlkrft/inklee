@@ -168,17 +168,12 @@ export async function reorderFieldAction(
   const swapIdx = direction === "up" ? idx - 1 : idx + 1;
   if (swapIdx < 0 || swapIdx >= fields.length) return { success: true };
 
-  const a = fields[idx];
-  const b = fields[swapIdx];
+  const { error } = await supabase.rpc("reorder_custom_field", {
+    p_field_id: fields[idx].id,
+    p_direction: direction,
+  });
 
-  await supabase
-    .from("custom_fields")
-    .update({ position: b.position })
-    .eq("id", a.id);
-  await supabase
-    .from("custom_fields")
-    .update({ position: a.position })
-    .eq("id", b.id);
+  if (error) return { error: error.message };
 
   revalidatePath("/settings/fields");
   return { success: true };
