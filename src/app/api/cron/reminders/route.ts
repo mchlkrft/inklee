@@ -20,6 +20,22 @@ function today(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+async function alreadySentToday(
+  bookingId: string,
+  type: "deposit_overdue" | "appointment_reminder" | "reconfirmation",
+): Promise<boolean> {
+  const todayStr = today();
+  const { count } = await serviceClient
+    .from("audit_log")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_id", bookingId)
+    .eq("action", "reminder_sent")
+    .filter("details->>type", "eq", type)
+    .gte("timestamp", `${todayStr}T00:00:00Z`);
+
+  return (count ?? 0) > 0;
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -50,17 +66,7 @@ export async function GET(request: Request) {
 
     for (const booking of overdueBookings ?? []) {
       try {
-        // Check if we already sent a reminder for this booking today
-        const todayStr = today();
-        const { count } = await serviceClient
-          .from("audit_log")
-          .select("id", { count: "exact", head: true })
-          .eq("booking_id", booking.id)
-          .eq("action", "reminder_sent")
-          .filter("details->>type", "eq", "deposit_overdue")
-          .gte("timestamp", `${todayStr}T00:00:00Z`);
-
-        if ((count ?? 0) > 0) continue;
+        if (await alreadySentToday(booking.id, "deposit_overdue")) continue;
 
         // Fetch artist email
         const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
@@ -127,6 +133,9 @@ export async function GET(request: Request) {
 
     for (const booking of upcoming ?? []) {
       try {
+        if (await alreadySentToday(booking.id, "appointment_reminder"))
+          continue;
+
         const { data: profile } = await serviceClient
           .from("profiles")
           .select("display_name")
@@ -172,6 +181,8 @@ export async function GET(request: Request) {
 
     for (const booking of upcoming ?? []) {
       try {
+        if (await alreadySentToday(booking.id, "reconfirmation")) continue;
+
         const { data: profile } = await serviceClient
           .from("profiles")
           .select("display_name")
@@ -187,21 +198,36 @@ export async function GET(request: Request) {
           .update(newToken)
           .digest("hex");
 
-        await serviceClient
+        const oldHash = booking.customer_token_hash;
+
+        const { error: tokenUpdateError } = await serviceClient
           .from("booking_requests")
           .update({ customer_token_hash: newHash })
           .eq("id", booking.id);
 
+        if (tokenUpdateError) {
+          results.errors++;
+          continue;
+        }
+
         const magicLink = `${appUrl}/request/${newToken}`;
 
-        await sendReconfirmationRequest({
-          to: booking.customer_email!,
-          customerHandle: booking.customer_handle ?? "there",
-          artistName: profile?.display_name ?? "the artist",
-          date: booking.preferred_date ?? targetDate,
-          placement: fd?.placement ?? "",
-          magicLink,
-        });
+        try {
+          await sendReconfirmationRequest({
+            to: booking.customer_email!,
+            customerHandle: booking.customer_handle ?? "there",
+            artistName: profile?.display_name ?? "the artist",
+            date: booking.preferred_date ?? targetDate,
+            placement: fd?.placement ?? "",
+            magicLink,
+          });
+        } catch (error) {
+          await serviceClient
+            .from("booking_requests")
+            .update({ customer_token_hash: oldHash })
+            .eq("id", booking.id);
+          throw error;
+        }
 
         await serviceClient.from("audit_log").insert({
           booking_id: booking.id,

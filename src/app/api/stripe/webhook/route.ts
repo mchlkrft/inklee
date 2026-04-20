@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     const { data: booking, error: fetchError } = await serviceClient
       .from("booking_requests")
       .select(
-        "id, status, customer_email, customer_handle, preferred_date, form_data, artist_id",
+        "id, status, customer_email, customer_handle, preferred_date, form_data, artist_id, deposit_amount, deposit_payment_intent_id",
       )
       .eq("id", bookingId)
       .single();
@@ -66,6 +66,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true, skipped: true });
     }
 
+    if (booking.status !== "deposit_pending") {
+      return NextResponse.json(
+        { error: "booking is not awaiting a deposit" },
+        { status: 409 },
+      );
+    }
+
+    const expectedAmount = booking.deposit_amount
+      ? Math.round(Number(booking.deposit_amount) * 100)
+      : null;
+
+    if (expectedAmount === null || Number.isNaN(expectedAmount)) {
+      return NextResponse.json(
+        { error: "booking deposit amount is missing" },
+        { status: 409 },
+      );
+    }
+
+    if (intent.amount !== expectedAmount) {
+      return NextResponse.json(
+        {
+          error: `payment amount mismatch: expected ${expectedAmount}, received ${intent.amount}`,
+        },
+        { status: 409 },
+      );
+    }
+
+    if (
+      booking.deposit_payment_intent_id &&
+      booking.deposit_payment_intent_id !== intent.id
+    ) {
+      return NextResponse.json(
+        { error: "payment intent does not match this booking" },
+        { status: 409 },
+      );
+    }
+
     // Generate new magic-link token for the customer
     const crypto = await import("crypto");
     const newToken = crypto.randomBytes(32).toString("hex");
@@ -78,6 +115,7 @@ export async function POST(request: Request) {
         deposit_paid_at: now,
         decided_at: now,
         updated_at: now,
+        deposit_payment_intent_id: intent.id,
         customer_token_hash: newHash,
       })
       .eq("id", bookingId);
