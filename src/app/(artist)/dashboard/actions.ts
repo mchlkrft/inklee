@@ -6,6 +6,7 @@ import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import crypto from "crypto";
 import type { User } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
+import { stripe } from "@/lib/stripe";
 
 type ActionResult = { error: string } | { success: true };
 type AuthorisedBookingResult =
@@ -199,6 +200,28 @@ export async function requestDeposit(
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
+
+  // Create a Stripe PaymentIntent when Stripe is configured
+  let paymentIntentId: string | null = null;
+  let clientSecret: string | null = null;
+  if (stripe && amount > 0) {
+    try {
+      const intent = await stripe.paymentIntents.create({
+        amount: Math.round(amount * 100), // EUR cents
+        currency: "eur",
+        metadata: { booking_id: id, artist_id: user.id },
+        description: `Tattoo deposit — booking ${id}`,
+      });
+      paymentIntentId = intent.id;
+      clientSecret = intent.client_secret;
+    } catch (stripeErr) {
+      Sentry.captureException(stripeErr, {
+        tags: { action: "stripe_create_intent" },
+      });
+      // Non-fatal: fall back to manual deposit tracking
+    }
+  }
+
   const { error } = await supabase
     .from("booking_requests")
     .update({
@@ -206,6 +229,8 @@ export async function requestDeposit(
       deposit_amount: amount,
       deposit_due_at: dueAt,
       deposit_note: note || null,
+      deposit_payment_intent_id: paymentIntentId,
+      deposit_client_secret: clientSecret,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -226,6 +251,7 @@ export async function requestDeposit(
       to: "deposit_pending",
       amount,
       due_at: dueAt,
+      stripe: !!paymentIntentId,
     },
   });
 

@@ -92,6 +92,9 @@ export const bookingRequests = pgTable("booking_requests", {
   depositAmount: numeric("deposit_amount", { precision: 10, scale: 2 }),
   depositDueAt: date("deposit_due_at"),
   depositNote: text("deposit_note"),
+  depositPaymentIntentId: text("deposit_payment_intent_id"),
+  depositClientSecret: text("deposit_client_secret"),
+  depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
 });
 
 export const bookingImages = pgTable("booking_images", {

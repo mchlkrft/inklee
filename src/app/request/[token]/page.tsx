@@ -35,6 +35,7 @@ export default async function RequestPortalPage({
       customer_handle, customer_email,
       preferred_date, form_data,
       deposit_amount, deposit_due_at, deposit_note,
+      deposit_client_secret,
       profiles!artist_id(display_name)
     `,
     )
@@ -86,6 +87,9 @@ export default async function RequestPortalPage({
             : null,
           depositDueAt: booking.deposit_due_at ?? null,
           depositNote: booking.deposit_note ?? null,
+          depositClientSecret: booking.deposit_client_secret ?? null,
+          stripePublishableKey:
+            process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null,
         },
       };
     }

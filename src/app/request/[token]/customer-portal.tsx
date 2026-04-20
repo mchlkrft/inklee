@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, lazy, Suspense } from "react";
 import {
   editCustomerBookingAction,
   cancelCustomerBookingAction,
@@ -8,6 +8,10 @@ import {
 import { SIZES } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
 import StatusBadge from "@/components/status-badge";
+
+const DepositPaymentForm = lazy(
+  () => import("@/components/deposit-payment-form"),
+);
 
 type Booking = {
   id: string;
@@ -24,6 +28,8 @@ type Booking = {
   depositAmount: number | null;
   depositDueAt: string | null;
   depositNote: string | null;
+  depositClientSecret: string | null;
+  stripePublishableKey: string | null;
 };
 
 const tomorrow = () => {
@@ -254,33 +260,51 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
         )}
       </div>
 
-      {/* Deposit notice */}
+      {/* Deposit block */}
       {booking.depositAmount && booking.status === "deposit_pending" && (
-        <div className="rounded-md border border-border p-4 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            deposit requested
-          </p>
-          <p className="text-sm text-foreground">
-            {booking.artistName} has requested a deposit of{" "}
-            <span className="font-medium">
-              €{booking.depositAmount.toFixed(2)}
-            </span>
-            {booking.depositDueAt && (
-              <span className="text-muted-foreground">
-                {" "}
-                — due by {formatDate(booking.depositDueAt)}
-              </span>
-            )}
-          </p>
-          {booking.depositNote && (
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {booking.depositNote}
-            </p>
+        <div className="space-y-3">
+          {booking.depositClientSecret && booking.stripePublishableKey ? (
+            <Suspense
+              fallback={
+                <p className="text-sm text-muted-foreground">
+                  loading payment…
+                </p>
+              }
+            >
+              <DepositPaymentForm
+                publishableKey={booking.stripePublishableKey}
+                clientSecret={booking.depositClientSecret}
+                amountEur={booking.depositAmount}
+              />
+            </Suspense>
+          ) : (
+            <div className="rounded-md border border-border p-4 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                deposit requested
+              </p>
+              <p className="text-sm text-foreground">
+                {booking.artistName} has requested a deposit of{" "}
+                <span className="font-medium">
+                  €{booking.depositAmount.toFixed(2)}
+                </span>
+                {booking.depositDueAt && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    — due by {formatDate(booking.depositDueAt)}
+                  </span>
+                )}
+              </p>
+              {booking.depositNote && (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {booking.depositNote}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                once your deposit is received, {booking.artistName} will confirm
+                your booking.
+              </p>
+            </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            once your deposit is received, {booking.artistName} will confirm
-            your booking.
-          </p>
         </div>
       )}
 
