@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import GeneralForm from "./general-form";
 import SecurityForm from "./security-form";
+import TwoFactorSection from "./two-factor-section";
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -17,6 +18,11 @@ export default async function AccountPage() {
   // Detect whether the account has a password (vs Google-only)
   const identities = user?.identities ?? [];
   const hasPassword = identities.some((i) => i.provider === "email");
+
+  // Check TOTP enrollment
+  const { data: factors } = await supabase.auth.mfa.listFactors();
+  const totpFactor = factors?.totp?.[0] ?? null;
+  const mfaEnabled = totpFactor?.status === "verified";
 
   return (
     <div className="space-y-10 max-w-lg">
@@ -44,6 +50,16 @@ export default async function AccountPage() {
           Security
         </h2>
         <SecurityForm hasPassword={hasPassword} />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+          Two-factor authentication
+        </h2>
+        <TwoFactorSection
+          isEnabled={mfaEnabled}
+          factorId={totpFactor?.id ?? null}
+        />
       </section>
     </div>
   );

@@ -7,6 +7,7 @@ const ARTIST_PATHS = [
   "/travel",
   "/settings",
   "/onboarding",
+  "/analytics",
 ];
 
 export async function proxy(request: NextRequest) {
@@ -43,6 +44,15 @@ export async function proxy(request: NextRequest) {
 
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    // If user has enrolled TOTP but is only at AAL1, require MFA challenge
+    if (!pathname.startsWith("/auth/mfa")) {
+      const { data: aal } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal?.nextLevel === "aal2" && aal?.currentLevel === "aal1") {
+        return NextResponse.redirect(new URL("/auth/mfa", request.url));
+      }
     }
 
     // Check profile exists for non-onboarding artist paths

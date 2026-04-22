@@ -443,7 +443,7 @@ These slices were added after Slice 23 was completed. They represent work that b
 
 ### Slice 31 — Two-factor authentication
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — TOTP via Supabase MFA, /auth/mfa challenge page, recovery codes, proxy AAL2 gate
 
 **Goal:** Artists who want stronger account security can enable TOTP-based 2FA; the feature is opt-in and does not disrupt artists who skip it.
 
