@@ -2,6 +2,7 @@
 
 import { useState, startTransition } from "react";
 import { editAppointmentAction, cancelAppointmentAction } from "./actions";
+import Spinner from "@/components/spinner";
 import { SIZES } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
 
@@ -229,7 +230,7 @@ export default function AppointmentDrawer({
                 disabled={saving}
                 className="flex-1 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
               >
-                {saving ? "saving…" : "save"}
+                {saving ? <Spinner className="w-4 h-4 mx-auto" /> : "save"}
               </button>
               <button
                 type="button"

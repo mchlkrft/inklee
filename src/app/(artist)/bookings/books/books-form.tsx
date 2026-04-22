@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { saveBooksSettingsAction } from "./actions";
+import Spinner from "@/components/spinner";
 import type { BooksSettings } from "@/lib/books-settings";
 
 type State = { error: string } | { success: true } | null;
@@ -127,7 +128,7 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
         disabled={pending}
         className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
       >
-        {pending ? "saving…" : "save"}
+        {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "save"}
       </button>
     </form>
   );

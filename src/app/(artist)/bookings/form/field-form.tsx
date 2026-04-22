@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useEffect } from "react";
 import { CUSTOM_FIELD_TYPES, labelToKey } from "@/lib/custom-fields";
+import Spinner from "@/components/spinner";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { createFieldAction, updateFieldAction } from "./actions";
 
@@ -196,7 +197,13 @@ export default function FieldForm({
           disabled={pending}
           className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
         >
-          {pending ? "saving…" : isEdit ? "save changes" : "add field"}
+          {pending ? (
+            <Spinner className="w-4 h-4 mx-auto" />
+          ) : isEdit ? (
+            "save changes"
+          ) : (
+            "add field"
+          )}
         </button>
         <button
           type="button"

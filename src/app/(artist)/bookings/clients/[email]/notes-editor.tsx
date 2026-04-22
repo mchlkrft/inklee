@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { saveClientNotesAction } from "./actions";
+import Spinner from "@/components/spinner";
 
 type State = { error: string } | { success: true } | null;
 
@@ -40,7 +41,7 @@ export default function NotesEditor({
           disabled={pending}
           className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
         >
-          {pending ? "saving…" : "save notes"}
+          {pending ? <Spinner className="w-3.5 h-3.5 mx-auto" /> : "save notes"}
         </button>
       </div>
     </form>

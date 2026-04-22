@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import { relativeTime, formatDate } from "@/lib/format";
+import CopyButton from "@/components/copy-button";
 
 const FILTERS = [
   { label: "all", value: "all" },
@@ -22,6 +23,15 @@ export default async function RequestsPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("slug")
+    .eq("id", user!.id)
+    .single();
+  const publicUrl = profile?.slug
+    ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/${profile.slug}`
+    : null;
 
   const { data: travelLegs } = await supabase
     .from("travel_legs")
@@ -111,12 +121,25 @@ export default async function RequestsPage({
 
       {/* Table */}
       {!bookings || bookings.length === 0 ? (
-        <div className="rounded-md border border-border px-6 py-12 text-center">
+        <div className="rounded-md border border-border px-6 py-12 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
             {status === "all"
-              ? "no requests yet. share your booking link to get started."
+              ? "no requests yet — share your booking link to get started."
               : `no ${status.replace("_", " ")} requests.`}
           </p>
+          {status === "all" && publicUrl && (
+            <div className="flex items-center justify-center gap-2">
+              <CopyButton text={publicUrl} />
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+              >
+                preview ↗
+              </a>
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-md border border-border overflow-hidden">

@@ -382,7 +382,7 @@ These slices were added after Slice 23 was completed. They represent work that b
 
 ### Slice 29 — UX polish
 
-**Status:** ⬜ pending
+**Status:** ✅ complete
 
 **Goal:** The app has a consistent visual language through a monochrome icon system and communicates loading state reliably across all data-heavy surfaces.
 

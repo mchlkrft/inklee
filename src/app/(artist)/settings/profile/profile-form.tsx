@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import Image from "next/image";
+import Spinner from "@/components/spinner";
 import { updateProfileAction } from "./actions";
 
 type State = { error: string } | { success: true } | null;
@@ -211,7 +212,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         disabled={pending}
         className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
       >
-        {pending ? "saving…" : "save profile"}
+        {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "save profile"}
       </button>
     </form>
   );

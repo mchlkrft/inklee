@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import StatusBadge from "@/components/status-badge";
 import { relativeTime } from "@/lib/format";
 import WaitlistActions from "./waitlist-actions";
+import Link from "next/link";
 
 export default async function WaitlistPage() {
   const supabase = await createClient();
@@ -27,10 +28,16 @@ export default async function WaitlistPage() {
       </div>
 
       {list.length === 0 ? (
-        <div className="rounded-md border border-border px-5 py-10 text-center">
+        <div className="rounded-md border border-border px-5 py-10 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
-            no waitlist entries yet.
+            no waitlist entries yet — close your books to start collecting them.
           </p>
+          <Link
+            href="/bookings/books"
+            className="inline-block text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+          >
+            manage books →
+          </Link>
         </div>
       ) : (
         <div className="rounded-md border border-border divide-y divide-border">

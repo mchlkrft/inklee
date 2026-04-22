@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { saveTemplateAction, toggleTemplateAction } from "./actions";
+import Spinner from "@/components/spinner";
 
 type EmailType =
   | "customer_booking_submitted"
@@ -88,7 +89,7 @@ export default function TemplateEditor({
             disabled={pending || !enabled}
             className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
           >
-            {pending ? "saving…" : "save"}
+            {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "save"}
           </button>
         </div>
       </div>

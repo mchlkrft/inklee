@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { relativeTime } from "@/lib/format";
 import StatusBadge from "@/components/status-badge";
+import CopyButton from "@/components/copy-button";
 
 type ClientRow = {
   email: string;
@@ -16,6 +17,15 @@ export default async function ClientsPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("slug")
+    .eq("id", user!.id)
+    .single();
+  const publicUrl = profile?.slug
+    ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/${profile.slug}`
+    : null;
 
   const { data: bookings } = await supabase
     .from("booking_requests")
@@ -53,9 +63,25 @@ export default async function ClientsPage() {
       </div>
 
       {clients.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          no bookings yet — clients will appear here once they submit a request.
-        </p>
+        <div className="rounded-md border border-border px-6 py-12 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">
+            no clients yet — share your booking link to start accepting
+            requests.
+          </p>
+          {publicUrl && (
+            <div className="flex items-center justify-center gap-2">
+              <CopyButton text={publicUrl} />
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+              >
+                preview ↗
+              </a>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="rounded-md border border-border divide-y divide-border">
           {clients.map((client) => (
