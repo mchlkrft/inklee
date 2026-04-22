@@ -49,11 +49,11 @@ export default function StatusActions({ booking }: { booking: Booking }) {
   const handleRequestDeposit = () => {
     const amount = parseFloat(depositAmount);
     if (!depositAmount || isNaN(amount) || amount <= 0) {
-      setError("enter a valid deposit amount");
+      setError("Enter a valid deposit amount");
       return;
     }
     if (!depositDueAt) {
-      setError("enter a due date");
+      setError("Enter a due date");
       return;
     }
     setError(null);
@@ -81,7 +81,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">status</span>
+        <span className="text-sm text-muted-foreground">Status</span>
         <StatusBadge status={optimisticStatus} />
       </div>
 
@@ -93,18 +93,18 @@ export default function StatusActions({ booking }: { booking: Booking }) {
             onClick={() => run(markDepositReceived, "approved")}
             className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
           >
-            mark deposit received
+            Mark deposit received
           </button>
           {!confirmReject ? (
             <button
               onClick={() => setConfirmReject(true)}
               className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
             >
-              reject
+              Reject
             </button>
           ) : (
             <div className="rounded-md border border-destructive/50 p-3 space-y-2">
-              <p className="text-sm text-foreground">reject this request?</p>
+              <p className="text-sm text-foreground">Reject this request?</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
@@ -113,13 +113,13 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                   }}
                   className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                 >
-                  yes, reject
+                  Yes, reject
                 </button>
                 <button
                   onClick={() => setConfirmReject(false)}
                   className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  cancel
+                  Cancel
                 </button>
               </div>
             </div>
@@ -133,7 +133,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
             onClick={() => run(approveBooking, "approved")}
             className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
           >
-            approve
+            Approve
           </button>
 
           {!showDepositForm ? (
@@ -141,21 +141,21 @@ export default function StatusActions({ booking }: { booking: Booking }) {
               onClick={() => setShowDepositForm(true)}
               className="rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
             >
-              request deposit
+              Request deposit
             </button>
           ) : (
             <div className="rounded-md border border-border p-4 space-y-3">
               <p className="text-sm font-medium text-foreground">
-                request deposit
+                Request deposit
               </p>
               <div className="space-y-2">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
-                    amount *
+                    Amount *
                   </label>
                   <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
                     <span className="text-muted-foreground select-none mr-1">
-                      €
+                      EUR
                     </span>
                     <input
                       type="number"
@@ -170,7 +170,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
-                    due by *
+                    Due by *
                   </label>
                   <input
                     type="date"
@@ -182,14 +182,14 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
-                    note to customer{" "}
+                    Note to customer{" "}
                     <span className="text-muted-foreground/60">(optional)</span>
                   </label>
                   <input
                     type="text"
                     value={depositNote}
                     onChange={(e) => setDepositNote(e.target.value)}
-                    placeholder="e.g. bank transfer details or payment method"
+                    placeholder="e.g. Bank transfer details or payment method"
                     maxLength={300}
                     className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   />
@@ -200,7 +200,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                   onClick={handleRequestDeposit}
                   className="flex-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background"
                 >
-                  send deposit request
+                  Send deposit request
                 </button>
                 <button
                   onClick={() => {
@@ -209,7 +209,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                   }}
                   className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  cancel
+                  Cancel
                 </button>
               </div>
             </div>
@@ -220,11 +220,11 @@ export default function StatusActions({ booking }: { booking: Booking }) {
               onClick={() => setConfirmReject(true)}
               className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
             >
-              reject
+              Reject
             </button>
           ) : (
             <div className="rounded-md border border-destructive/50 p-3 space-y-2">
-              <p className="text-sm text-foreground">reject this request?</p>
+              <p className="text-sm text-foreground">Reject this request?</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
@@ -233,13 +233,13 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                   }}
                   className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                 >
-                  yes, reject
+                  Yes, reject
                 </button>
                 <button
                   onClick={() => setConfirmReject(false)}
                   className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  cancel
+                  Cancel
                 </button>
               </div>
             </div>

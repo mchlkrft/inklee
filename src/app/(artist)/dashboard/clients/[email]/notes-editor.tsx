@@ -24,7 +24,7 @@ export default function NotesEditor({
         name="notes"
         defaultValue={defaultNotes}
         rows={5}
-        placeholder="private notes — only visible to you"
+        placeholder="Private notes - only visible to you"
         className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
       />
       <div className="flex items-center justify-between">
@@ -32,7 +32,7 @@ export default function NotesEditor({
           <p className="text-xs text-destructive">{state.error}</p>
         )}
         {state && "success" in state && (
-          <p className="text-xs text-muted-foreground">saved</p>
+          <p className="text-xs text-muted-foreground">Saved.</p>
         )}
         {!state && <span />}
         <button
@@ -40,7 +40,7 @@ export default function NotesEditor({
           disabled={pending}
           className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
         >
-          {pending ? "saving…" : "save notes"}
+          {pending ? "Saving..." : "Save notes"}
         </button>
       </div>
     </form>

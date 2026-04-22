@@ -75,7 +75,7 @@ export default function LoginPage() {
           disabled={pending}
           className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {pending ? "Signing in…" : "Sign in"}
+          {pending ? "Signing in..." : "Sign in"}
         </button>
       </form>
 

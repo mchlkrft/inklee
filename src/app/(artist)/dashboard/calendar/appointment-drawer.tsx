@@ -66,7 +66,6 @@ export default function AppointmentDrawer({
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-black/30"
         onClick={() => {
@@ -76,7 +75,6 @@ export default function AppointmentDrawer({
         }}
       />
 
-      {/* Drawer */}
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-background border-l border-border flex flex-col overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <span className="text-sm font-medium text-foreground">
@@ -90,34 +88,33 @@ export default function AppointmentDrawer({
             }}
             className="text-muted-foreground hover:text-foreground text-xl leading-none"
           >
-            ×
+            x
           </button>
         </div>
 
         {error && <p className="mx-5 mt-4 text-sm text-destructive">{error}</p>}
 
         {!editing ? (
-          // View mode
           <div className="flex-1 px-5 py-5 space-y-5">
             <div className="space-y-3 text-sm">
-              <Row label="date" value={formatDate(event.date)} />
-              <Row label="placement" value={event.placement} />
-              <Row label="size" value={event.size} />
-              {event.email && <Row label="email" value={event.email} />}
+              <Row label="Date" value={formatDate(event.date)} />
+              <Row label="Placement" value={event.placement} />
+              <Row label="Size" value={event.size} />
+              {event.email && <Row label="Email" value={event.email} />}
               {event.description && (
                 <div className="space-y-1">
-                  <span className="text-muted-foreground">description</span>
+                  <span className="text-muted-foreground">Description</span>
                   <p className="text-foreground leading-relaxed whitespace-pre-wrap">
                     {event.description}
                   </p>
                 </div>
               )}
               <Row
-                label="origin"
+                label="Origin"
                 value={
                   event.origin === "artist_created"
-                    ? "added by you"
-                    : "booking request"
+                    ? "Added by you"
+                    : "Booking request"
                 }
               />
             </div>
@@ -127,7 +124,7 @@ export default function AppointmentDrawer({
                 onClick={() => setEditing(true)}
                 className="rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
               >
-                edit
+                Edit
               </button>
 
               {!confirmCancel ? (
@@ -135,16 +132,16 @@ export default function AppointmentDrawer({
                   onClick={() => setConfirmCancel(true)}
                   className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
                 >
-                  cancel appointment
+                  Cancel appointment
                 </button>
               ) : (
                 <div className="rounded-md border border-destructive/50 p-3 space-y-2">
                   <p className="text-sm text-foreground">
-                    cancel this appointment?
+                    Cancel this appointment?
                   </p>
                   {event.email && (
                     <p className="text-xs text-muted-foreground">
-                      {event.email} will be notified
+                      {event.email} will be notified.
                     </p>
                   )}
                   <div className="flex gap-2">
@@ -152,13 +149,13 @@ export default function AppointmentDrawer({
                       onClick={handleCancel}
                       className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                     >
-                      yes, cancel
+                      Yes, cancel
                     </button>
                     <button
                       onClick={() => setConfirmCancel(false)}
                       className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground"
                     >
-                      keep it
+                      Keep it
                     </button>
                   </div>
                 </div>
@@ -166,16 +163,15 @@ export default function AppointmentDrawer({
             </div>
           </div>
         ) : (
-          // Edit mode
           <form onSubmit={handleSave} className="flex-1 px-5 py-5 space-y-4">
             <Field
-              label="instagram handle"
+              label="Instagram handle"
               name="customer_handle"
               defaultValue={event.handle}
               required
             />
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">date</label>
+              <label className="text-sm text-muted-foreground">Date</label>
               <input
                 name="preferred_date"
                 type="date"
@@ -185,13 +181,13 @@ export default function AppointmentDrawer({
               />
             </div>
             <Field
-              label="placement"
+              label="Placement"
               name="placement"
               defaultValue={event.placement}
               required
             />
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">size</label>
+              <label className="text-sm text-muted-foreground">Size</label>
               <select
                 name="size"
                 defaultValue={event.size}
@@ -207,7 +203,7 @@ export default function AppointmentDrawer({
             </div>
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground">
-                description
+                Description
               </label>
               <textarea
                 name="description"
@@ -217,7 +213,7 @@ export default function AppointmentDrawer({
               />
             </div>
             <Field
-              label="customer email"
+              label="Customer email"
               name="customer_email"
               defaultValue={event.email ?? ""}
               type="email"
@@ -229,7 +225,7 @@ export default function AppointmentDrawer({
                 disabled={saving}
                 className="flex-1 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
               >
-                {saving ? "saving…" : "save"}
+                {saving ? "Saving..." : "Save"}
               </button>
               <button
                 type="button"
@@ -239,7 +235,7 @@ export default function AppointmentDrawer({
                 }}
                 className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground"
               >
-                cancel
+                Cancel
               </button>
             </div>
           </form>

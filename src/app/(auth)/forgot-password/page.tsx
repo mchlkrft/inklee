@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
           disabled={pending}
           className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {pending ? "Sending…" : "Send reset link"}
+          {pending ? "Sending..." : "Send reset link"}
         </button>
       </form>
     </div>

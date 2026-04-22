@@ -9,15 +9,24 @@ import TemplateEditor from "./template-editor";
 const TEMPLATE_TYPES = [
   {
     type: "customer_booking_submitted",
-    label: "booking received (→ customer)",
+    label: "Booking received (to customer)",
   },
-  { type: "customer_booking_approved", label: "booking approved (→ customer)" },
-  { type: "customer_booking_rejected", label: "booking rejected (→ customer)" },
+  {
+    type: "customer_booking_approved",
+    label: "Booking approved (to customer)",
+  },
+  {
+    type: "customer_booking_rejected",
+    label: "Booking rejected (to customer)",
+  },
   {
     type: "customer_booking_cancelled_by_artist",
-    label: "you cancelled (→ customer)",
+    label: "You cancelled (to customer)",
   },
-  { type: "artist_new_booking_request", label: "new request (→ you)" },
+  {
+    type: "artist_new_booking_request",
+    label: "New request (to you)",
+  },
 ] as const;
 
 export default async function TemplatesPage() {
@@ -49,13 +58,13 @@ export default async function TemplatesPage() {
     <div className="space-y-8 max-w-2xl">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">
-          email templates
+          Email templates
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          customise the body of each email. subject lines and layout are fixed.
+          Customize the body of each email. Subject lines and layout are fixed.
         </p>
         <p className="text-xs text-muted-foreground mt-2">
-          available variables:{" "}
+          Available variables:{" "}
           {ALLOWED_VARS.map((v) => (
             <code key={v} className="mr-1.5 font-mono">{`{{${v}}}`}</code>
           ))}
@@ -71,7 +80,7 @@ export default async function TemplatesPage() {
             <div>
               <p className="text-sm font-medium text-foreground">{label}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                subject:{" "}
+                Subject:{" "}
                 <span className="font-mono">{DEFAULT_SUBJECTS[type]}</span>
               </p>
             </div>

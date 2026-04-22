@@ -82,7 +82,7 @@ export default function SignupPage() {
           disabled={pending}
           className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {pending ? "Creating account…" : "Create account"}
+          {pending ? "Creating account..." : "Create account"}
         </button>
       </form>
 

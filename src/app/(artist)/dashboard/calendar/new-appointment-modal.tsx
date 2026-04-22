@@ -42,13 +42,13 @@ export default function NewAppointmentModal({
         <div className="w-full max-w-md bg-background border border-border rounded-lg overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <span className="text-sm font-medium text-foreground">
-              new appointment
+              New appointment
             </span>
             <button
               onClick={onClose}
               className="text-muted-foreground hover:text-foreground text-xl leading-none"
             >
-              ×
+              x
             </button>
           </div>
 
@@ -60,7 +60,7 @@ export default function NewAppointmentModal({
 
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground">
-                instagram handle
+                Instagram handle
               </label>
               <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
                 <span className="text-muted-foreground select-none">@</span>
@@ -75,7 +75,7 @@ export default function NewAppointmentModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">date</label>
+              <label className="text-sm text-muted-foreground">Date</label>
               <input
                 name="preferred_date"
                 type="date"
@@ -86,24 +86,24 @@ export default function NewAppointmentModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">placement</label>
+              <label className="text-sm text-muted-foreground">Placement</label>
               <input
                 name="placement"
                 type="text"
                 required
-                placeholder="left forearm, inner wrist…"
+                placeholder="Left forearm, inner wrist..."
                 className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">size</label>
+              <label className="text-sm text-muted-foreground">Size</label>
               <select
                 name="size"
                 required
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">select size</option>
+                <option value="">Select size</option>
                 {SIZES.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -114,7 +114,7 @@ export default function NewAppointmentModal({
 
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground">
-                description <span className="text-xs">(optional)</span>
+                Description <span className="text-xs">(optional)</span>
               </label>
               <textarea
                 name="description"
@@ -133,7 +133,7 @@ export default function NewAppointmentModal({
                   onChange={(e) => setEmailEnabled(e.target.checked)}
                 />
                 <span className="text-sm text-muted-foreground">
-                  send confirmation email to customer
+                  Send confirmation email to customer
                 </span>
               </label>
 
@@ -153,14 +153,14 @@ export default function NewAppointmentModal({
                 disabled={saving}
                 className="flex-1 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
               >
-                {saving ? "adding…" : "add appointment"}
+                {saving ? "Adding..." : "Add appointment"}
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground"
               >
-                cancel
+                Cancel
               </button>
             </div>
           </form>
