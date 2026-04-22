@@ -23,11 +23,17 @@ export default async function ArtistLayout({
   const slug = profile?.slug ?? "";
   const displayName = profile?.display_name ?? "account";
 
-  const { count: unreadCount } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("artist_id", user.id)
-    .eq("is_read", false);
+  let unreadCount = 0;
+  try {
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", user.id)
+      .eq("is_read", false);
+    unreadCount = count ?? 0;
+  } catch {
+    // notifications table may not be ready — default to 0
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
