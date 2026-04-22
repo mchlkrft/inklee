@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/signup/actions";
 import { useState } from "react";
+import NotificationBell from "@/components/notification-bell";
 
 interface NavBarProps {
   slug: string;
   displayName: string;
+  unreadCount: number;
 }
 
 const TOP_NAV = [
@@ -25,7 +27,11 @@ const MOBILE_NAV = [
   { label: "Settings", href: "/settings" },
 ];
 
-export default function NavBar({ slug, displayName }: NavBarProps) {
+export default function NavBar({
+  slug,
+  displayName,
+  unreadCount,
+}: NavBarProps) {
   const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
 
@@ -62,55 +68,58 @@ export default function NavBar({ slug, displayName }: NavBarProps) {
             ))}
           </nav>
 
-          {/* Account menu */}
-          <div className="relative">
-            <button
-              onClick={() => setAccountOpen((v) => !v)}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-md hover:bg-muted/50"
-            >
-              <span>{displayName}</span>
-              <span className="text-xs opacity-60">▾</span>
-            </button>
+          {/* Bell + Account menu */}
+          <div className="flex items-center gap-1">
+            <NotificationBell initialUnreadCount={unreadCount} />
+            <div className="relative">
+              <button
+                onClick={() => setAccountOpen((v) => !v)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-md hover:bg-muted/50"
+              >
+                <span>{displayName}</span>
+                <span className="text-xs opacity-60">▾</span>
+              </button>
 
-            {accountOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setAccountOpen(false)}
-                />
-                <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-md border border-border bg-background shadow-lg py-1">
-                  <p className="px-3 py-2 text-xs text-muted-foreground truncate">
-                    {displayName}
-                  </p>
-                  <div className="border-t border-border my-1" />
-                  <Link
-                    href="/settings/profile"
+              {accountOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
                     onClick={() => setAccountOpen(false)}
-                    className="block px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors"
-                  >
-                    Edit profile
-                  </Link>
-                  <Link
-                    href={`/${slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setAccountOpen(false)}
-                    className="block px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                  >
-                    View public page ↗
-                  </Link>
-                  <div className="border-t border-border my-1" />
-                  <form action={logoutAction}>
-                    <button
-                      type="submit"
-                      className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-md border border-border bg-background shadow-lg py-1">
+                    <p className="px-3 py-2 text-xs text-muted-foreground truncate">
+                      {displayName}
+                    </p>
+                    <div className="border-t border-border my-1" />
+                    <Link
+                      href="/settings/profile"
+                      onClick={() => setAccountOpen(false)}
+                      className="block px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors"
                     >
-                      Sign out
-                    </button>
-                  </form>
-                </div>
-              </>
-            )}
+                      Edit profile
+                    </Link>
+                    <Link
+                      href={`/${slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setAccountOpen(false)}
+                      className="block px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      View public page ↗
+                    </Link>
+                    <div className="border-t border-border my-1" />
+                    <form action={logoutAction}>
+                      <button
+                        type="submit"
+                        className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      >
+                        Sign out
+                      </button>
+                    </form>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -125,49 +134,52 @@ export default function NavBar({ slug, displayName }: NavBarProps) {
             inklee
           </Link>
 
-          <div className="relative">
-            <button
-              onClick={() => setAccountOpen((v) => !v)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-md"
-            >
-              {displayName} ▾
-            </button>
+          <div className="flex items-center gap-1">
+            <NotificationBell initialUnreadCount={unreadCount} />
+            <div className="relative">
+              <button
+                onClick={() => setAccountOpen((v) => !v)}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded-md"
+              >
+                {displayName} ▾
+              </button>
 
-            {accountOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setAccountOpen(false)}
-                />
-                <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-md border border-border bg-background shadow-lg py-1">
-                  <Link
-                    href="/settings/profile"
+              {accountOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
                     onClick={() => setAccountOpen(false)}
-                    className="block px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors"
-                  >
-                    Edit profile
-                  </Link>
-                  <Link
-                    href={`/${slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setAccountOpen(false)}
-                    className="block px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                  >
-                    View public page ↗
-                  </Link>
-                  <div className="border-t border-border my-1" />
-                  <form action={logoutAction}>
-                    <button
-                      type="submit"
-                      className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-md border border-border bg-background shadow-lg py-1">
+                    <Link
+                      href="/settings/profile"
+                      onClick={() => setAccountOpen(false)}
+                      className="block px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors"
                     >
-                      Sign out
-                    </button>
-                  </form>
-                </div>
-              </>
-            )}
+                      Edit profile
+                    </Link>
+                    <Link
+                      href={`/${slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setAccountOpen(false)}
+                      className="block px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      View public page ↗
+                    </Link>
+                    <div className="border-t border-border my-1" />
+                    <form action={logoutAction}>
+                      <button
+                        type="submit"
+                        className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      >
+                        Sign out
+                      </button>
+                    </form>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>

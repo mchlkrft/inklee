@@ -9,6 +9,7 @@ import {
 } from "@/lib/email/send-booking-email";
 import crypto from "crypto";
 import { redirect } from "next/navigation";
+import { createNotification } from "@/lib/notifications";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -203,6 +204,25 @@ export async function cancelCustomerBookingAction(
       date: cancelledBooking?.preferred_date ?? "",
     });
   }
+
+  // Notify artist of customer cancellation
+  const { data: cancelledBooking } = await serviceClient
+    .from("booking_requests")
+    .select("customer_handle, preferred_date, form_data")
+    .eq("id", booking.id)
+    .single();
+  const fd2 = cancelledBooking?.form_data as Record<string, string> | null;
+  void createNotification({
+    artistId: booking.artist_id,
+    type: "booking_cancelled_by_client",
+    category: "client_update",
+    priority: "high",
+    title: "Booking cancelled by client",
+    message: `@${cancelledBooking?.customer_handle ?? "client"} cancelled their ${fd2?.placement ?? "booking"}${cancelledBooking?.preferred_date ? ` on ${cancelledBooking.preferred_date}` : ""}.`,
+    ctaLabel: "View request",
+    ctaHref: `/bookings/requests/${booking.id}`,
+    metadata: { booking_id: booking.id },
+  });
 
   redirect(`/request/submitted?id=${booking.id}&cancelled=1`);
 }

@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { validateCustomAnswers } from "@/lib/custom-fields";
+import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings } from "@/lib/books-settings";
 
@@ -259,6 +260,19 @@ export async function submitBookingAction(
     booking_id: bookingId,
     action: "booking_created",
     details: { origin: "public_form", ip },
+  });
+
+  // Notify artist of new booking request
+  void createNotification({
+    artistId: artistId,
+    type: "booking_request",
+    category: "booking_activity",
+    priority: "high",
+    title: "New booking request",
+    message: `@${data.instagram_handle} wants a ${data.placement} (${data.size})${data.preferred_date ? ` on ${data.preferred_date}` : ""}.`,
+    ctaLabel: "View request",
+    ctaHref: `/bookings/requests/${bookingId}`,
+    metadata: { booking_id: bookingId },
   });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";

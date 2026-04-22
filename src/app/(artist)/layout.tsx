@@ -23,9 +23,19 @@ export default async function ArtistLayout({
   const slug = profile?.slug ?? "";
   const displayName = profile?.display_name ?? "account";
 
+  const { count: unreadCount } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("artist_id", user.id)
+    .eq("is_read", false);
+
   return (
     <div className="min-h-screen flex flex-col">
-      <NavBar slug={slug} displayName={displayName} />
+      <NavBar
+        slug={slug}
+        displayName={displayName}
+        unreadCount={unreadCount ?? 0}
+      />
       {/* pb-14 on mobile gives room for the fixed bottom tab bar */}
       <main className="flex-1 mx-auto w-full max-w-5xl px-6 py-8 pb-20 md:pb-8">
         {children}
