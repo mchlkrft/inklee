@@ -7,6 +7,27 @@ import {
   sendAppointmentReminder,
   sendReconfirmationRequest,
 } from "@/lib/email/reminder-emails";
+import { parseReminderSettings } from "@/lib/reminder-settings";
+
+// Per-artist reminder settings cache for this cron run
+const artistSettingsCache = new Map<
+  string,
+  ReturnType<typeof parseReminderSettings>
+>();
+
+async function getArtistReminderSettings(artistId: string) {
+  if (artistSettingsCache.has(artistId))
+    return artistSettingsCache.get(artistId)!;
+  const { data } = await serviceClient
+    .from("profiles")
+    .select("settings")
+    .eq("id", artistId)
+    .single();
+  const profileSettings = (data?.settings ?? {}) as Record<string, unknown>;
+  const settings = parseReminderSettings(profileSettings.reminder_settings);
+  artistSettingsCache.set(artistId, settings);
+  return settings;
+}
 
 export const runtime = "nodejs";
 
@@ -66,6 +87,10 @@ export async function GET(request: Request) {
 
     for (const booking of overdueBookings ?? []) {
       try {
+        const artistSettings = await getArtistReminderSettings(
+          booking.artist_id,
+        );
+        if (!artistSettings.deposit_overdue_enabled) continue;
         if (await alreadySentToday(booking.id, "deposit_overdue")) continue;
 
         // Fetch artist email
@@ -118,20 +143,29 @@ export async function GET(request: Request) {
     }
   }
 
-  // ── 2. Appointment reminder (3 days out) ──────────────────────────────────
+  // ── 2. Appointment reminder (per-artist configurable days out) ────────────
+  // Collect all distinct reminder_days values to minimise queries
   {
-    const targetDate = daysFromNow(3);
-
-    const { data: upcoming } = await serviceClient
+    // Fetch all approved bookings in the relevant window (1-14 days out)
+    const { data: candidateBookings } = await serviceClient
       .from("booking_requests")
       .select(
         "id, customer_email, customer_handle, preferred_date, form_data, artist_id",
       )
       .eq("status", "approved")
-      .eq("preferred_date", targetDate)
+      .gte("preferred_date", daysFromNow(1))
+      .lte("preferred_date", daysFromNow(14))
       .not("customer_email", "is", null);
 
-    for (const booking of upcoming ?? []) {
+    const upcoming = [];
+    for (const booking of candidateBookings ?? []) {
+      const artistSettings = await getArtistReminderSettings(booking.artist_id);
+      if (!artistSettings.appointment_reminder_enabled) continue;
+      const targetDate = daysFromNow(artistSettings.appointment_reminder_days);
+      if (booking.preferred_date === targetDate) upcoming.push(booking);
+    }
+
+    for (const booking of upcoming) {
       try {
         if (await alreadySentToday(booking.id, "appointment_reminder"))
           continue;
@@ -148,7 +182,7 @@ export async function GET(request: Request) {
           to: booking.customer_email!,
           customerHandle: booking.customer_handle ?? "there",
           artistName: profile?.display_name ?? "the artist",
-          date: booking.preferred_date ?? targetDate,
+          date: booking.preferred_date ?? "",
           placement: fd?.placement ?? "",
         });
 
@@ -165,21 +199,28 @@ export async function GET(request: Request) {
     }
   }
 
-  // ── 3. Reconfirmation request (14 days out) ───────────────────────────────
+  // ── 3. Reconfirmation request (per-artist configurable days out) ──────────
   {
-    const targetDate = daysFromNow(14);
-
-    const { data: upcoming } = await serviceClient
+    const { data: candidateReconfirm } = await serviceClient
       .from("booking_requests")
       .select(
         "id, customer_email, customer_handle, customer_token_hash, preferred_date, form_data, artist_id",
       )
       .eq("status", "approved")
-      .eq("preferred_date", targetDate)
+      .gte("preferred_date", daysFromNow(3))
+      .lte("preferred_date", daysFromNow(30))
       .not("customer_email", "is", null)
       .not("customer_token_hash", "is", null);
 
-    for (const booking of upcoming ?? []) {
+    const upcoming = [];
+    for (const booking of candidateReconfirm ?? []) {
+      const artistSettings = await getArtistReminderSettings(booking.artist_id);
+      if (!artistSettings.reconfirmation_enabled) continue;
+      const targetDate = daysFromNow(artistSettings.reconfirmation_days);
+      if (booking.preferred_date === targetDate) upcoming.push(booking);
+    }
+
+    for (const booking of upcoming) {
       try {
         if (await alreadySentToday(booking.id, "reconfirmation")) continue;
 
@@ -217,7 +258,7 @@ export async function GET(request: Request) {
             to: booking.customer_email!,
             customerHandle: booking.customer_handle ?? "there",
             artistName: profile?.display_name ?? "the artist",
-            date: booking.preferred_date ?? targetDate,
+            date: booking.preferred_date ?? "",
             placement: fd?.placement ?? "",
             magicLink,
           });

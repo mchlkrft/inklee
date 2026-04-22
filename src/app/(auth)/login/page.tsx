@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { loginAction } from "./actions";
+import GoogleAuthButton from "@/components/google-auth-button";
 
 type State = { error: string } | null;
 
@@ -15,14 +16,14 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">sign in</h1>
+        <h1 className="text-xl font-semibold text-foreground">Sign in</h1>
         <p className="text-sm text-muted-foreground">
-          don&apos;t have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link
             href="/signup"
             className="text-foreground underline underline-offset-4"
           >
-            sign up
+            Sign up
           </Link>
         </p>
       </div>
@@ -34,7 +35,7 @@ export default function LoginPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="email" className="text-sm text-muted-foreground">
-            email
+            Email
           </label>
           <input
             id="email"
@@ -48,7 +49,7 @@ export default function LoginPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="password" className="text-sm text-muted-foreground">
-            password
+            Password
           </label>
           <input
             id="password"
@@ -65,7 +66,7 @@ export default function LoginPage() {
             href="/forgot-password"
             className="text-xs text-muted-foreground underline underline-offset-4"
           >
-            forgot password?
+            Forgot password?
           </Link>
         </div>
 
@@ -74,9 +75,22 @@ export default function LoginPage() {
           disabled={pending}
           className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {pending ? "signing in…" : "sign in"}
+          {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-background px-3 text-xs text-muted-foreground">
+            or
+          </span>
+        </div>
+      </div>
+
+      <GoogleAuthButton label="Continue with Google" />
     </div>
   );
 }

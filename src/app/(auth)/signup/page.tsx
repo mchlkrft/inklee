@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { signUpAction } from "./actions";
+import GoogleAuthButton from "@/components/google-auth-button";
 
 type State = { error: string } | { sent: true } | null;
 
@@ -15,9 +16,9 @@ export default function SignupPage() {
   if (state && "sent" in state) {
     return (
       <div className="text-center space-y-2">
-        <p className="text-foreground font-medium">check your email</p>
+        <p className="text-foreground font-medium">Check your email</p>
         <p className="text-sm text-muted-foreground">
-          we sent a confirmation link. check your spam folder if it doesn&apos;t
+          We sent a confirmation link. Check your spam folder if it doesn&apos;t
           arrive.
         </p>
       </div>
@@ -28,15 +29,15 @@ export default function SignupPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">
-          create account
+          Create account
         </h1>
         <p className="text-sm text-muted-foreground">
-          already have one?{" "}
+          Already have one?{" "}
           <Link
             href="/login"
             className="text-foreground underline underline-offset-4"
           >
-            sign in
+            Sign in
           </Link>
         </p>
       </div>
@@ -48,7 +49,7 @@ export default function SignupPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="email" className="text-sm text-muted-foreground">
-            email
+            Email
           </label>
           <input
             id="email"
@@ -62,7 +63,7 @@ export default function SignupPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="password" className="text-sm text-muted-foreground">
-            password
+            Password
           </label>
           <input
             id="password"
@@ -73,7 +74,7 @@ export default function SignupPage() {
             minLength={8}
             className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          <p className="text-xs text-muted-foreground">minimum 8 characters</p>
+          <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
         </div>
 
         <button
@@ -81,9 +82,22 @@ export default function SignupPage() {
           disabled={pending}
           className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {pending ? "creating account…" : "create account"}
+          {pending ? "Creating account…" : "Create account"}
         </button>
       </form>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-background px-3 text-xs text-muted-foreground">
+            or
+          </span>
+        </div>
+      </div>
+
+      <GoogleAuthButton label="Sign up with Google" />
     </div>
   );
 }

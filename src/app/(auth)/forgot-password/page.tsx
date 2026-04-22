@@ -15,9 +15,9 @@ export default function ForgotPasswordPage() {
   if (state && "sent" in state) {
     return (
       <div className="text-center space-y-2">
-        <p className="text-foreground font-medium">check your email</p>
+        <p className="text-foreground font-medium">Check your email</p>
         <p className="text-sm text-muted-foreground">
-          if that address is registered, a reset link is on its way.
+          If that address is registered, a reset link is on its way.
         </p>
       </div>
     );
@@ -27,14 +27,14 @@ export default function ForgotPasswordPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">
-          reset password
+          Reset password
         </h1>
         <p className="text-sm text-muted-foreground">
           <Link
             href="/login"
             className="text-foreground underline underline-offset-4"
           >
-            back to sign in
+            Back to sign in
           </Link>
         </p>
       </div>
@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="email" className="text-sm text-muted-foreground">
-            email
+            Email
           </label>
           <input
             id="email"
@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
           disabled={pending}
           className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {pending ? "sending…" : "send reset link"}
+          {pending ? "Sending…" : "Send reset link"}
         </button>
       </form>
     </div>

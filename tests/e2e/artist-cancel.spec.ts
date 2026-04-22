@@ -20,7 +20,7 @@ test.describe("artist cancels approved booking", () => {
     await loginAsArtist(page);
 
     // 2. Go to calendar
-    await page.goto("/dashboard/calendar");
+    await page.goto("/bookings/calendar");
     await page.waitForLoadState("networkidle");
 
     // 3. Open new appointment modal

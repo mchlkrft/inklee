@@ -15,7 +15,7 @@ export default function ResetPasswordPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">
-          set new password
+          Set new password
         </h1>
       </div>
 
@@ -26,7 +26,7 @@ export default function ResetPasswordPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="password" className="text-sm text-muted-foreground">
-            new password
+            New password
           </label>
           <input
             id="password"
@@ -41,7 +41,7 @@ export default function ResetPasswordPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="confirm" className="text-sm text-muted-foreground">
-            confirm password
+            Confirm password
           </label>
           <input
             id="confirm"
@@ -58,7 +58,7 @@ export default function ResetPasswordPage() {
           disabled={pending}
           className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {pending ? "updating…" : "update password"}
+          {pending ? "Updating…" : "Update password"}
         </button>
       </form>
     </div>

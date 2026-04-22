@@ -17,7 +17,7 @@ test.describe("submit → artist reject", () => {
     await loginAsArtist(page);
 
     // 3. Navigate to booking detail
-    await page.goto(`/dashboard/requests/${bookingId}`);
+    await page.goto(`/bookings/requests/${bookingId}`);
 
     // 4. Verify pending (exact match avoids matching "mark deposit pending" button)
     await expect(page.getByText("pending", { exact: true })).toBeVisible();

@@ -1,0 +1,134 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import { saveBooksSettingsAction } from "./actions";
+import type { BooksSettings } from "@/lib/books-settings";
+
+type State = { error: string } | { success: true } | null;
+
+export default function BooksForm({ settings }: { settings: BooksSettings }) {
+  const [state, action, pending] = useActionState<State, FormData>(
+    saveBooksSettingsAction,
+    null,
+  );
+
+  const [booksOpen, setBooksOpen] = useState(settings.books_open);
+  const [message, setMessage] = useState(settings.books_closed_message ?? "");
+
+  return (
+    <form action={action} className="space-y-6">
+      {/* Open / closed toggle */}
+      <div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
+        <div>
+          <p className="text-sm text-foreground">accept booking requests</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            when off, your booking page shows a closed message and waitlist form
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={booksOpen}
+          onClick={() => setBooksOpen((v) => !v)}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+            booksOpen ? "bg-foreground" : "bg-border"
+          }`}
+        >
+          <span
+            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow transform transition-transform ${
+              booksOpen ? "translate-x-5" : "translate-x-0"
+            }`}
+          />
+        </button>
+        <input type="hidden" name="books_open" value={String(booksOpen)} />
+      </div>
+
+      {/* Booking cap */}
+      <div className="space-y-1.5">
+        <label htmlFor="booking_cap" className="text-sm text-muted-foreground">
+          booking cap{" "}
+          <span className="text-muted-foreground text-xs">(optional)</span>
+        </label>
+        <input
+          id="booking_cap"
+          name="booking_cap"
+          type="number"
+          min="1"
+          step="1"
+          defaultValue={settings.booking_cap ?? ""}
+          placeholder="e.g. 20 — auto-closes when reached"
+          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <p className="text-xs text-muted-foreground">
+          counts pending, approved, and deposit-pending requests
+        </p>
+      </div>
+
+      {/* Window end date */}
+      <div className="space-y-1.5">
+        <label
+          htmlFor="booking_window_ends_at"
+          className="text-sm text-muted-foreground"
+        >
+          close books on{" "}
+          <span className="text-muted-foreground text-xs">(optional)</span>
+        </label>
+        <input
+          id="booking_window_ends_at"
+          name="booking_window_ends_at"
+          type="date"
+          defaultValue={settings.booking_window_ends_at ?? ""}
+          className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <p className="text-xs text-muted-foreground">
+          books auto-close at midnight on this date
+        </p>
+      </div>
+
+      {/* Closed message */}
+      <div className="space-y-1.5">
+        <div className="flex justify-between">
+          <label
+            htmlFor="books_closed_message"
+            className="text-sm text-muted-foreground"
+          >
+            closed message{" "}
+            <span className="text-muted-foreground text-xs">(optional)</span>
+          </label>
+          <span
+            className={`text-xs ${message.length > 280 ? "text-destructive" : "text-muted-foreground"}`}
+          >
+            {message.length}/280
+          </span>
+        </div>
+        <textarea
+          id="books_closed_message"
+          name="books_closed_message"
+          rows={3}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="books are currently closed — check back soon."
+          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+        />
+        <p className="text-xs text-muted-foreground">
+          shown on your public page when books are closed or full
+        </p>
+      </div>
+
+      {state && "error" in state && (
+        <p className="text-sm text-destructive">{state.error}</p>
+      )}
+      {state && "success" in state && (
+        <p className="text-sm text-muted-foreground">saved.</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
+      >
+        {pending ? "saving…" : "save"}
+      </button>
+    </form>
+  );
+}

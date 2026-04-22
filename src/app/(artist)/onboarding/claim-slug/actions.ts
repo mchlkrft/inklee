@@ -27,9 +27,14 @@ export async function claimSlugAction(
   formData: FormData,
 ): Promise<State> {
   const slug = (formData.get("slug") as string).trim().toLowerCase();
+  const firstName =
+    (formData.get("first_name") as string | null)?.trim() || null;
+  const lastName = (formData.get("last_name") as string | null)?.trim() || null;
+  const displayName = (formData.get("display_name") as string | null)?.trim();
 
   const validationError = validateSlug(slug);
   if (validationError) return { error: validationError };
+  if (!displayName) return { error: "artist name is required" };
 
   const supabase = await createClient();
   const {
@@ -49,11 +54,13 @@ export async function claimSlugAction(
   const { error } = await supabase.from("profiles").upsert({
     id: user.id,
     slug,
-    display_name: user.email?.split("@")[0] ?? "artist",
+    display_name: displayName,
+    first_name: firstName,
+    last_name: lastName,
     timezone: "Europe/Berlin",
   });
 
   if (error) return { error: error.message.toLowerCase() };
 
-  redirect("/settings/profile");
+  redirect("/onboarding/profile");
 }

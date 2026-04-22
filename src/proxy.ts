@@ -1,7 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const ARTIST_PATHS = ["/dashboard", "/settings", "/onboarding"];
+const ARTIST_PATHS = [
+  "/dashboard",
+  "/bookings",
+  "/travel",
+  "/settings",
+  "/onboarding",
+];
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
