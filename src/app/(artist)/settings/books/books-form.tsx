@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import { useActionState, useState } from "react";
 import { saveBooksSettingsAction } from "./actions";
 import type { BooksSettings } from "@/lib/books-settings";
@@ -71,10 +72,9 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
           Close books on{" "}
           <span className="text-muted-foreground text-xs">(optional)</span>
         </label>
-        <input
+        <DateInput
           id="booking_window_ends_at"
           name="booking_window_ends_at"
-          type="date"
           defaultValue={settings.booking_window_ends_at ?? ""}
           className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />

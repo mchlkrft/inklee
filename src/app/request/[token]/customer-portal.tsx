@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import { useActionState, useState, lazy, Suspense } from "react";
 import {
   editCustomerBookingAction,
@@ -188,10 +189,9 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
             >
               Preferred date <span className="text-foreground">*</span>
             </label>
-            <input
+            <DateInput
               id="preferred_date"
               name="preferred_date"
-              type="date"
               required
               defaultValue={booking.preferredDate}
               min={tomorrow()}

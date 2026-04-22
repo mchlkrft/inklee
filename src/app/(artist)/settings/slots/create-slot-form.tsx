@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import { useState, startTransition } from "react";
 import { createSlotAction, createSlotBlockAction } from "./actions";
 
@@ -84,9 +85,8 @@ export default function CreateSlotForm() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className="text-sm text-muted-foreground">Date</label>
-            <input
+            <DateInput
               name="date"
-              type="date"
               required
               min={tomorrow()}
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"

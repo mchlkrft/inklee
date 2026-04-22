@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import { useActionState, useRef, useState, startTransition } from "react";
 import Link from "next/link";
 import { submitBookingAction } from "./actions";
@@ -357,10 +358,9 @@ export default function BookingForm({
           >
             Preferred date <span className="text-foreground">*</span>
           </label>
-          <input
+          <DateInput
             id="preferred_date"
             name="preferred_date"
-            type="date"
             required
             min={tomorrow()}
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"

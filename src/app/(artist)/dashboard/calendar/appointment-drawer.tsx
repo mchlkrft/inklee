@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import { useState, startTransition } from "react";
 import { editAppointmentAction, cancelAppointmentAction } from "./actions";
 import { SIZES } from "@/lib/booking-schema";
@@ -172,9 +173,8 @@ export default function AppointmentDrawer({
             />
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground">Date</label>
-              <input
+              <DateInput
                 name="preferred_date"
-                type="date"
                 defaultValue={event.date}
                 required
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"

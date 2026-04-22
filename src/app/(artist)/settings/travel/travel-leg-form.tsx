@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import { useActionState } from "react";
 import { createTravelLegAction } from "./actions";
 
@@ -47,10 +48,9 @@ export default function TravelLegForm() {
           <label htmlFor="starts_on" className="text-sm text-muted-foreground">
             From <span className="text-foreground">*</span>
           </label>
-          <input
+          <DateInput
             id="starts_on"
             name="starts_on"
-            type="date"
             required
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
@@ -59,10 +59,9 @@ export default function TravelLegForm() {
           <label htmlFor="ends_on" className="text-sm text-muted-foreground">
             To <span className="text-foreground">*</span>
           </label>
-          <input
+          <DateInput
             id="ends_on"
             name="ends_on"
-            type="date"
             required
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />

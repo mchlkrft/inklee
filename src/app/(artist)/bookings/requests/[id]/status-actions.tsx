@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import { useOptimistic, useState, useTransition } from "react";
 import {
   approveBooking,
@@ -172,8 +173,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                   <label className="text-xs text-muted-foreground">
                     Due by *
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={depositDueAt}
                     min={tomorrow()}
                     onChange={(e) => setDepositDueAt(e.target.value)}

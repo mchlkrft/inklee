@@ -1,5 +1,6 @@
 "use client";
 
+import DateInput from "@/components/date-input";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 
 const BASE =
@@ -67,10 +68,9 @@ export default function CustomFieldInput({
       )}
 
       {field.type === "date" && (
-        <input
+        <DateInput
           id={name}
           name={name}
-          type="date"
           required={required}
           className={`${BASE} bg-background`}
         />
