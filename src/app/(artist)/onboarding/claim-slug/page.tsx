@@ -101,7 +101,7 @@ export default function ClaimSlugPage() {
               id="first_name"
               name="first_name"
               type="text"
-              placeholder="Alex"
+              placeholder="Bert"
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
@@ -116,7 +116,7 @@ export default function ClaimSlugPage() {
               id="last_name"
               name="last_name"
               type="text"
-              placeholder="Smith"
+              placeholder="Grimm"
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
