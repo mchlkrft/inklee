@@ -8,8 +8,11 @@ import {
   markAllReadAction,
   resolveWarningAction,
 } from "@/app/(artist)/notifications/actions";
-import type { Notification, NotificationPriority } from "@/lib/notifications";
-import { PRIORITY_ORDER } from "@/lib/notifications";
+import type {
+  Notification,
+  NotificationPriority,
+} from "@/lib/notification-types";
+import { PRIORITY_ORDER } from "@/lib/notification-types";
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();

@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Notification } from "@/lib/notifications";
+import type { Notification } from "@/lib/notification-types";
 
 export async function fetchNotificationsAction(): Promise<Notification[]> {
   const supabase = await createClient();
