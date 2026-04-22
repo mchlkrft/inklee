@@ -44,7 +44,7 @@ export default function GeneralForm({
               name="first_name"
               type="text"
               defaultValue={firstName ?? ""}
-              placeholder="e.g. Alex"
+              placeholder="e.g. Bert"
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
@@ -60,7 +60,7 @@ export default function GeneralForm({
               name="last_name"
               type="text"
               defaultValue={lastName ?? ""}
-              placeholder="e.g. Smith"
+              placeholder="e.g. Grimm"
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
