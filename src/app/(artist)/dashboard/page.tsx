@@ -260,6 +260,19 @@ export default async function DashboardPage() {
         )}
       </div>
 
+      <Link
+        href="/analytics"
+        className="flex items-center justify-between rounded-md border border-border px-4 py-3 transition-colors hover:bg-muted/20"
+      >
+        <div>
+          <p className="text-sm text-foreground">Analytics</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Conversion, volume, and client return rate
+          </p>
+        </div>
+        <span className="text-sm text-muted-foreground">&rarr;</span>
+      </Link>
+
       {!widgets.pending_requests &&
         !widgets.books_status &&
         !widgets.upcoming_appointments &&

@@ -409,7 +409,7 @@ These slices were added after Slice 23 was completed. They represent work that b
 
 ### Slice 30 — Simple analytics
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — /analytics, 5 metrics, CSS bar chart, date range selector, dashboard entry point
 
 **Goal:** Artists can see basic booking performance at a glance — volume, conversion, and client return rate — without leaving the app.
 

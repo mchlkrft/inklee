@@ -14,6 +14,14 @@ const TOP_NAV = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Bookings", href: "/bookings" },
   { label: "Travel", href: "/travel" },
+  { label: "Analytics", href: "/analytics" },
+  { label: "Settings", href: "/settings" },
+];
+
+const MOBILE_NAV = [
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Bookings", href: "/bookings" },
+  { label: "Travel", href: "/travel" },
   { label: "Settings", href: "/settings" },
 ];
 
@@ -170,7 +178,7 @@ export default function NavBar({ slug, displayName }: NavBarProps) {
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="grid grid-cols-4 h-14">
-          {TOP_NAV.map(({ label, href }) => (
+          {MOBILE_NAV.map(({ label, href }) => (
             <Link
               key={href}
               href={href}
