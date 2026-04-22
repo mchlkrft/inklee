@@ -45,7 +45,7 @@ export default function TemplateEditor({
         <p className="text-xs text-destructive">{state.error}</p>
       )}
       {state && "success" in state && (
-        <p className="text-xs text-green-500">saved</p>
+        <p className="text-xs text-green-500">Saved.</p>
       )}
 
       <textarea
@@ -81,14 +81,14 @@ export default function TemplateEditor({
             />
           </button>
           <span className="text-xs text-muted-foreground">
-            {enabled ? "on" : "off"}
+            {enabled ? "On" : "Off"}
           </span>
           <button
             type="submit"
             disabled={pending || !enabled}
             className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
           >
-            {pending ? "saving…" : "save"}
+            {pending ? "Saving..." : "Save"}
           </button>
         </div>
       </div>

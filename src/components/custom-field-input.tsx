@@ -86,7 +86,7 @@ export default function CustomFieldInput({
             required={required}
             className="accent-foreground"
           />
-          <span className="text-sm text-muted-foreground">yes</span>
+          <span className="text-sm text-muted-foreground">Yes</span>
         </label>
       )}
 
@@ -99,7 +99,7 @@ export default function CustomFieldInput({
           className={`${BASE} bg-background`}
         >
           <option value="" disabled>
-            {placeholder ?? "select one…"}
+            {placeholder ?? "Select one..."}
           </option>
           {field.options.map((opt) => (
             <option key={opt} value={opt}>

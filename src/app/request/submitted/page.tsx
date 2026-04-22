@@ -31,21 +31,21 @@ export default async function SubmittedPage({
   const isCancelled = cancelled === "1";
 
   const headline = isCancelled
-    ? "request cancelled"
+    ? "Request cancelled"
     : isEdited
-      ? "changes saved"
-      : "request sent";
+      ? "Changes saved"
+      : "Request sent";
 
   const body = isCancelled
-    ? "your booking request has been cancelled. the artist has been notified."
+    ? "Your booking request has been cancelled. The artist has been notified."
     : isEdited
-      ? "your changes have been saved. a new confirmation link has been sent to your email."
+      ? "Your changes have been saved. A new confirmation link has been sent to your email."
       : firstName
-        ? `got it — ${firstName} will review your request and get back to you. check your email for a confirmation.`
-        : "your request is in. the artist will get back to you. check your email for a confirmation.";
+        ? `Got it - ${firstName} will review your request and get back to you. Check your email for a confirmation.`
+        : "Your request is in. The artist will get back to you. Check your email for a confirmation.";
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm space-y-6 text-center">
         <CheckCircle
           className={`mx-auto h-10 w-10 ${isCancelled ? "text-muted-foreground" : "text-green-500"}`}
@@ -54,23 +54,23 @@ export default async function SubmittedPage({
 
         <div className="space-y-2">
           <h1 className="text-xl font-semibold text-foreground">{headline}</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <p className="text-sm leading-relaxed text-muted-foreground">
             {body}
           </p>
         </div>
 
         {id && (
-          <p className="text-xs text-muted-foreground font-mono">
-            ref: {id.slice(0, 8)}
+          <p className="font-mono text-xs text-muted-foreground">
+            Ref: {id.slice(0, 8)}
           </p>
         )}
 
         {slug && !isCancelled && (
           <Link
             href={`/${slug}`}
-            className="inline-block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+            className="inline-block text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
           >
-            back to {artistName ?? slug}
+            Back to {artistName ?? slug}
           </Link>
         )}
       </div>

@@ -42,20 +42,19 @@ export default async function SlotsPage() {
   return (
     <div className="space-y-8 max-w-lg">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">slots</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Slots</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          publish time slots for customers to book. times shown in{" "}
+          Publish time slots for customers to book. Times shown in{" "}
           <span className="text-foreground">{timezone}</span>.
         </p>
         {profile?.booking_mode !== "fixed_slots" && (
           <p className="text-xs text-amber-500 mt-2">
-            your booking mode is set to preferred date — switch to fixed slots
-            in{" "}
+            Your booking mode is set to Preferred date. Switch to Fixed slots in{" "}
             <Link
               href="/settings/profile"
               className="underline underline-offset-4"
             >
-              profile settings
+              Profile settings
             </Link>{" "}
             for customers to see these slots.
           </p>

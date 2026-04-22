@@ -38,54 +38,52 @@ export default async function PublicPageManagementPage() {
 
   const activeFieldSummary =
     [
-      formSettings.show_reference_link && "reference link",
-      formSettings.show_image_upload && "images",
+      formSettings.show_reference_link && "Reference link",
+      formSettings.show_image_upload && "Images",
       (customFieldCount ?? 0) > 0 && `${customFieldCount} custom fields`,
     ]
       .filter(Boolean)
-      .join(", ") || "standard fields only";
+      .join(", ") || "Standard fields only";
 
   return (
     <div className="space-y-8 max-w-lg">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">public page</h1>
+        <h1 className="text-lg font-semibold text-foreground">Public page</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          your client-facing booking page — share this URL with customers
+          Your client-facing booking page. Share this URL with customers.
         </p>
       </div>
 
-      {/* URL + actions */}
       <PublicPageClient publicUrl={publicUrl} slug={slug} />
 
-      {/* Current state summary */}
       <div className="rounded-md border border-border divide-y divide-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
-            <p className="text-sm text-foreground">books</p>
+            <p className="text-sm text-foreground">Books</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {isOpen
-                ? "currently accepting requests"
-                : "closed to new requests"}
+                ? "Currently accepting requests"
+                : "Closed to new requests"}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <span
               className={`text-xs font-medium ${isOpen ? "text-green-500" : "text-muted-foreground"}`}
             >
-              {isOpen ? "open" : "closed"}
+              {isOpen ? "Open" : "Closed"}
             </span>
             <Link
               href="/bookings/books"
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              edit →
+              Edit &rarr;
             </Link>
           </div>
         </div>
 
         <div className="flex items-center justify-between px-4 py-3">
           <div>
-            <p className="text-sm text-foreground">form</p>
+            <p className="text-sm text-foreground">Form</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {activeFieldSummary}
             </p>
@@ -94,7 +92,7 @@ export default async function PublicPageManagementPage() {
             href="/bookings/form"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            edit →
+            Edit &rarr;
           </Link>
         </div>
       </div>

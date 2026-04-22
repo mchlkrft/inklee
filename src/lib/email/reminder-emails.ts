@@ -20,15 +20,15 @@ export async function sendDepositOverdueCustomer({
   dueAt: string;
   note: string | null;
 }): Promise<void> {
-  const body = `hi @${customerHandle},
+  const body = `Hi @${customerHandle},
 
-your deposit of €${amountEur.toFixed(2)} for your booking with ${artistName} was due on ${dueAt} and hasn't been received yet.
+Your deposit of EUR ${amountEur.toFixed(2)} for your booking with ${artistName} was due on ${dueAt} and hasn't been received yet.
 
-${note ? `payment instructions from ${artistName}:\n${note}\n\n` : ""}please arrange payment as soon as possible to keep your booking. if you can no longer proceed, you can cancel using your booking link.`;
+${note ? `Payment instructions from ${artistName}:\n${note}\n\n` : ""}Please arrange payment as soon as possible to keep your booking. If you can no longer proceed, you can cancel using your booking link.`;
 
   await sendEmail({
     to,
-    subject: `deposit overdue — booking with ${artistName}`,
+    subject: `Deposit overdue - booking with ${artistName}`,
     html: html(body),
   });
 }
@@ -44,16 +44,16 @@ export async function sendDepositOverdueArtist({
   amountEur: number;
   dueAt: string;
 }): Promise<void> {
-  const body = `@${customerHandle}'s deposit of €${amountEur.toFixed(2)} was due on ${dueAt} and hasn't been received.
+  const body = `@${customerHandle}'s deposit of EUR ${amountEur.toFixed(2)} was due on ${dueAt} and hasn't been received.
 
-you may want to follow up or cancel the booking.
+You may want to follow up or cancel the booking.
 
-view your dashboard:
+View your dashboard:
 https://inklee.app/dashboard`;
 
   await sendEmail({
     to,
-    subject: `deposit overdue — @${customerHandle}`,
+    subject: `Deposit overdue - @${customerHandle}`,
     html: html(body),
   });
 }
@@ -71,18 +71,18 @@ export async function sendAppointmentReminder({
   date: string;
   placement: string;
 }): Promise<void> {
-  const body = `hi @${customerHandle},
+  const body = `Hi @${customerHandle},
 
-a quick reminder — your tattoo appointment with ${artistName} is in 3 days.
+A quick reminder - your tattoo appointment with ${artistName} is in 3 days.
 
-— date: ${date}
-— placement: ${placement}
+- Date: ${date}
+- Placement: ${placement}
 
-if anything changes, get in touch with ${artistName} directly.`;
+If anything changes, get in touch with ${artistName} directly.`;
 
   await sendEmail({
     to,
-    subject: `reminder — appointment with ${artistName} in 3 days`,
+    subject: `Reminder - appointment with ${artistName} in 3 days`,
     html: html(body),
   });
 }
@@ -102,19 +102,19 @@ export async function sendReconfirmationRequest({
   placement: string;
   magicLink: string;
 }): Promise<void> {
-  const body = `hi @${customerHandle},
+  const body = `Hi @${customerHandle},
 
-your tattoo with ${artistName} is coming up on ${date} (${placement}).
+Your tattoo with ${artistName} is coming up on ${date} (${placement}).
 
-just checking in — are you still good to go? no action needed if everything is fine.
+Just checking in - are you still good to go? No action needed if everything is fine.
 
-if your plans have changed, please cancel using the link below so ${artistName} can offer the slot to someone else.
+If your plans have changed, please cancel using the link below so ${artistName} can offer the slot to someone else.
 
 ${magicLink}`;
 
   await sendEmail({
     to,
-    subject: `upcoming appointment with ${artistName} — confirming in 2 weeks`,
+    subject: `Upcoming appointment with ${artistName} - confirming in 2 weeks`,
     html: html(body),
   });
 }

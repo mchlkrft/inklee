@@ -20,9 +20,9 @@ export default async function DashboardSettingsPage() {
   return (
     <div className="space-y-6 max-w-lg">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">dashboard</h1>
+        <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          choose which widgets appear on your dashboard overview
+          Choose which widgets appear on your dashboard overview.
         </p>
       </div>
       <DashboardWidgetsForm widgets={widgets} />

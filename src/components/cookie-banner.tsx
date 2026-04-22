@@ -20,22 +20,22 @@ export default function CookieBanner() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background px-6 py-4">
-      <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          inklee uses strictly necessary session cookies for artist login. no
+      <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Inklee uses strictly necessary session cookies for artist login. No
           tracking cookies.{" "}
           <Link
             href="/privacy"
             className="text-foreground underline underline-offset-4"
           >
-            privacy policy
+            Privacy policy
           </Link>
         </p>
         <button
           onClick={dismiss}
           className="shrink-0 rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background"
         >
-          got it
+          Got it
         </button>
       </div>
     </div>

@@ -30,7 +30,6 @@ export default async function DashboardPage() {
     new Date(booksSettings.booking_window_ends_at) < now;
   const booksOpen = booksSettings.books_open && !windowExpired;
 
-  // Fetch data for visible widgets in parallel
   const [pendingResult, upcomingResult, waitlistResult, capResult] =
     await Promise.all([
       widgets.pending_requests
@@ -89,47 +88,45 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">
-          {profile?.display_name ?? "dashboard"}
+          {profile?.display_name ?? "Dashboard"}
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">overview</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">Overview</p>
       </div>
 
-      {/* Onboarding prompt for artists who skipped the wizard */}
       {!onboardingCompleted && (
         <Link
           href="/onboarding/profile"
-          className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-4 py-3 hover:bg-muted/40 transition-colors"
+          className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40"
         >
           <div>
             <p className="text-sm text-foreground">
-              finish setting up your profile
+              Finish setting up your profile
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              add your bio, location, and booking preferences
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Add your bio, location, and booking preferences.
             </p>
           </div>
-          <span className="text-muted-foreground text-sm">→</span>
+          <span className="text-sm text-muted-foreground">&rarr;</span>
         </Link>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Pending requests widget */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {widgets.pending_requests && (
-          <div className="rounded-md border border-border p-5 space-y-3">
+          <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-foreground">
-                pending requests
+                Pending requests
               </p>
               <Link
                 href="/bookings/requests?status=pending"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                view all →
+                View all
               </Link>
             </div>
             {pendingCount === 0 ? (
               <p className="text-sm text-muted-foreground">
-                no pending requests.
+                No pending requests.
               </p>
             ) : (
               <>
@@ -141,9 +138,9 @@ export default async function DashboardPage() {
                     <Link
                       key={b.id}
                       href={`/bookings/requests/${b.id}`}
-                      className="flex items-center justify-between py-1 hover:text-foreground group"
+                      className="group flex items-center justify-between py-1 hover:text-foreground"
                     >
-                      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                      <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
                         @{b.customer_handle}
                       </span>
                       <StatusBadge status="pending" />
@@ -160,24 +157,23 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Books status widget */}
         {widgets.books_status && (
-          <div className="rounded-md border border-border p-5 space-y-3">
+          <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">books</p>
+              <p className="text-sm font-medium text-foreground">Books</p>
               <Link
                 href="/bookings/books"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                manage →
+                Manage
               </Link>
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`inline-block w-2 h-2 rounded-full ${booksOpen ? "bg-green-500" : "bg-muted-foreground"}`}
+                className={`inline-block h-2 w-2 rounded-full ${booksOpen ? "bg-green-500" : "bg-muted-foreground"}`}
               />
               <p className="text-sm text-foreground">
-                {booksOpen ? "open" : "closed"}
+                {booksOpen ? "Open" : "Closed"}
               </p>
             </div>
             {capRemaining !== null && booksOpen && (
@@ -186,28 +182,27 @@ export default async function DashboardPage() {
               </p>
             )}
             {booksSettings.books_closed_message && !booksOpen && (
-              <p className="text-xs text-muted-foreground italic">
+              <p className="text-xs italic text-muted-foreground">
                 &ldquo;{booksSettings.books_closed_message}&rdquo;
               </p>
             )}
           </div>
         )}
 
-        {/* Upcoming appointments widget */}
         {widgets.upcoming_appointments && (
-          <div className="rounded-md border border-border p-5 space-y-3">
+          <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">upcoming</p>
+              <p className="text-sm font-medium text-foreground">Upcoming</p>
               <Link
                 href="/bookings/calendar"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                calendar →
+                Calendar
               </Link>
             </div>
             {upcomingBookings.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                no upcoming appointments.
+                No upcoming appointments.
               </p>
             ) : (
               <div className="space-y-2">
@@ -217,7 +212,7 @@ export default async function DashboardPage() {
                     <Link
                       key={b.id}
                       href={`/bookings/requests/${b.id}`}
-                      className="flex items-center justify-between group"
+                      className="group flex items-center justify-between"
                     >
                       <div>
                         <p className="text-sm text-foreground group-hover:underline">
@@ -229,8 +224,8 @@ export default async function DashboardPage() {
                           </p>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground shrink-0">
-                        {b.preferred_date ? formatDate(b.preferred_date) : "—"}
+                      <p className="shrink-0 text-xs text-muted-foreground">
+                        {b.preferred_date ? formatDate(b.preferred_date) : "-"}
                       </p>
                     </Link>
                   );
@@ -240,34 +235,31 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Waitlist widget — shown when books are closed or cap reached */}
         {widgets.waitlist && waitlistCount > 0 && (
-          <div className="rounded-md border border-border p-5 space-y-3">
+          <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">waitlist</p>
+              <p className="text-sm font-medium text-foreground">Waitlist</p>
               <Link
                 href="/bookings/waitlist"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                view →
+                View
               </Link>
             </div>
             <p className="text-3xl font-semibold text-foreground">
               {waitlistCount}
             </p>
             <p className="text-xs text-muted-foreground">
-              {waitlistCount === 1 ? "person" : "people"} waiting
+              {waitlistCount === 1 ? "Person" : "People"} waiting
             </p>
           </div>
         )}
 
-        {/* Booking link widget */}
         {widgets.booking_link && profile?.slug && (
           <BookingLinkWidget publicUrl={publicUrl} slug={profile.slug} />
         )}
       </div>
 
-      {/* Empty state when all widgets disabled */}
       {!widgets.pending_requests &&
         !widgets.books_status &&
         !widgets.upcoming_appointments &&
@@ -275,12 +267,12 @@ export default async function DashboardPage() {
         !widgets.booking_link && (
           <div className="rounded-md border border-border px-6 py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              all widgets are hidden.{" "}
+              All widgets are hidden.{" "}
               <Link
                 href="/settings/dashboard"
                 className="underline hover:text-foreground"
               >
-                configure dashboard
+                Configure dashboard
               </Link>
             </p>
           </div>

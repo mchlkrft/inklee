@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center px-6">
       <div className="w-full max-w-lg space-y-8">
         <Link
           href="/"
@@ -10,25 +10,25 @@ export default function AboutPage() {
         >
           inklee
         </Link>
-        <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-          <h1 className="text-xl font-semibold text-foreground">about</h1>
+        <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
+          <h1 className="text-xl font-semibold text-foreground">About</h1>
           <p>
-            inklee is a booking request tool built for freelance and traveling
-            tattoo artists. no more managing DMs, spreadsheets, or missed
+            Inklee is a booking request tool built for freelance and traveling
+            tattoo artists. No more managing DMs, spreadsheets, or missed
             messages.
           </p>
           <p>
-            artists get a clean public page where customers can send a proper
-            booking request — with all the details you actually need before
+            Artists get a clean public page where customers can send a proper
+            booking request - with all the details you actually need before
             saying yes.
           </p>
-          <p>built by a tattoo artist, for tattoo artists.</p>
+          <p>Built by a tattoo artist, for tattoo artists.</p>
         </div>
         <Link
           href="/signup"
           className="inline-flex items-center justify-center rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background"
         >
-          get started
+          Get started
         </Link>
       </div>
     </div>

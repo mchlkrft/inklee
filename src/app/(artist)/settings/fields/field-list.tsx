@@ -10,17 +10,17 @@ import {
 import FieldForm from "./field-form";
 
 const TYPE_BADGE: Record<string, string> = {
-  short_text: "text",
-  long_text: "textarea",
-  number: "number",
-  select: "dropdown",
-  radio: "radio",
-  checkbox: "checkbox",
-  date: "date",
+  short_text: "Text",
+  long_text: "Textarea",
+  number: "Number",
+  select: "Dropdown",
+  radio: "Radio",
+  checkbox: "Checkbox",
+  date: "Date",
 };
 
 export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
-  const [mode, setMode] = useState<null | "add" | string>(null); // null | "add" | fieldId
+  const [mode, setMode] = useState<null | "add" | string>(null);
   const [, startTransition] = useTransition();
 
   function toggle(field: CustomFieldDef) {
@@ -45,7 +45,7 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
     <div className="space-y-4">
       {fields.length === 0 && mode !== "add" && (
         <p className="text-sm text-muted-foreground">
-          no custom fields yet — add one to extend your booking form.
+          No custom fields yet. Add one to extend your booking form.
         </p>
       )}
 
@@ -56,29 +56,27 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
               <FieldForm field={field} onDone={() => setMode(null)} />
             ) : (
               <div className="rounded-md border border-border px-4 py-3 flex items-center gap-3">
-                {/* Reorder */}
                 <div className="flex flex-col gap-0.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => move(field.id, "up")}
                     disabled={idx === 0}
                     className="text-muted-foreground hover:text-foreground disabled:opacity-25 transition-colors text-xs leading-none"
-                    aria-label="move up"
+                    aria-label="Move up"
                   >
-                    ▲
+                    ^
                   </button>
                   <button
                     type="button"
                     onClick={() => move(field.id, "down")}
                     disabled={idx === fields.length - 1}
                     className="text-muted-foreground hover:text-foreground disabled:opacity-25 transition-colors text-xs leading-none"
-                    aria-label="move down"
+                    aria-label="Move down"
                   >
-                    ▼
+                    v
                   </button>
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm text-foreground truncate">
@@ -88,12 +86,11 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
                       {TYPE_BADGE[field.type] ?? field.type}
                     </span>
                     {field.required && (
-                      <span className="text-xs text-foreground">required</span>
+                      <span className="text-xs text-foreground">Required</span>
                     )}
                   </div>
                 </div>
 
-                {/* Active toggle */}
                 <button
                   type="button"
                   role="switch"
@@ -110,28 +107,26 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
                   />
                 </button>
 
-                {/* Edit */}
                 <button
                   type="button"
                   onClick={() => setMode(field.id)}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 >
-                  edit
+                  Edit
                 </button>
 
-                {/* Delete */}
                 <button
                   type="button"
                   onClick={() => {
                     if (
-                      confirm(`remove "${field.label}"? this cannot be undone`)
+                      confirm(`Remove "${field.label}"? This cannot be undone.`)
                     ) {
                       remove(field.id);
                     }
                   }}
                   className="text-xs text-muted-foreground hover:text-destructive transition-colors shrink-0"
                 >
-                  remove
+                  Remove
                 </button>
               </div>
             )}
@@ -147,7 +142,7 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
           onClick={() => setMode("add")}
           className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
         >
-          + add field
+          + Add field
         </button>
       )}
     </div>

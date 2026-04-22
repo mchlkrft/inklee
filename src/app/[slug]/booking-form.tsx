@@ -15,10 +15,10 @@ const SIZE_LABELS: Record<
   (typeof SIZES)[number],
   { label: string; hint: string }
 > = {
-  "palm-sized": { label: "palm-sized", hint: "≈ 5cm" },
-  "hand-sized": { label: "hand-sized", hint: "≈ 10cm" },
-  forearm: { label: "forearm", hint: "≈ 15–20cm" },
-  larger: { label: "larger", hint: "20cm+" },
+  "palm-sized": { label: "Palm-sized", hint: "~ 5 cm" },
+  "hand-sized": { label: "Hand-sized", hint: "~ 10 cm" },
+  forearm: { label: "Forearm", hint: "~ 15-20 cm" },
+  larger: { label: "Larger", hint: "20 cm+" },
 };
 
 const tomorrow = () => {
@@ -85,21 +85,19 @@ export default function BookingForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Global error */}
       {state?.error && !state.field && (
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
-      {/* Instagram */}
       <div className="space-y-1.5">
         <label
           htmlFor="instagram_handle"
           className="text-sm text-muted-foreground"
         >
-          instagram handle <span className="text-foreground">*</span>
+          Instagram handle <span className="text-foreground">*</span>
         </label>
         <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
-          <span className="text-muted-foreground select-none">@</span>
+          <span className="select-none text-muted-foreground">@</span>
           <input
             id="instagram_handle"
             name="instagram_handle"
@@ -114,10 +112,9 @@ export default function BookingForm({
         )}
       </div>
 
-      {/* Email */}
       <div className="space-y-1.5">
         <label htmlFor="email" className="text-sm text-muted-foreground">
-          email <span className="text-foreground">*</span>
+          Email <span className="text-foreground">*</span>
         </label>
         <input
           id="email"
@@ -131,21 +128,20 @@ export default function BookingForm({
         )}
       </div>
 
-      {/* Reference link — toggleable by artist */}
       {formSettings.show_reference_link && (
         <div className="space-y-1.5">
           <label
             htmlFor="reference_link"
             className="text-sm text-muted-foreground"
           >
-            reference link{" "}
-            <span className="text-muted-foreground text-xs">(optional)</span>
+            Reference link{" "}
+            <span className="text-xs text-muted-foreground">(optional)</span>
           </label>
           <input
             id="reference_link"
             name="reference_link"
             type="url"
-            placeholder="instagram.com/p/… or any link"
+            placeholder="instagram.com/p/... or any link"
             className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {err("reference_link") && (
@@ -154,17 +150,16 @@ export default function BookingForm({
         </div>
       )}
 
-      {/* Placement */}
       <div className="space-y-1.5">
         <label htmlFor="placement" className="text-sm text-muted-foreground">
-          placement <span className="text-foreground">*</span>
+          Placement <span className="text-foreground">*</span>
         </label>
         <input
           id="placement"
           name="placement"
           type="text"
           required
-          placeholder="left forearm, inner wrist…"
+          placeholder="Left forearm, inner wrist..."
           className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {err("placement") && (
@@ -172,30 +167,31 @@ export default function BookingForm({
         )}
       </div>
 
-      {/* Size */}
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
-          size <span className="text-foreground">*</span>
+          Size <span className="text-foreground">*</span>
         </p>
         <div className="grid grid-cols-2 gap-2">
           {SIZES.map((s) => (
             <label
               key={s}
-              className="flex items-center gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm cursor-pointer has-[:checked]:border-foreground has-[:checked]:text-foreground text-muted-foreground"
+              className="cursor-pointer rounded-md border border-border px-3 py-2.5 text-sm text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
             >
-              <input
-                type="radio"
-                name="size"
-                value={s}
-                required
-                className="accent-foreground"
-              />
-              <span>
-                {SIZE_LABELS[s].label}
-                <span className="ml-1 text-xs text-muted-foreground">
-                  {SIZE_LABELS[s].hint}
+              <div className="flex items-center gap-2.5">
+                <input
+                  type="radio"
+                  name="size"
+                  value={s}
+                  required
+                  className="accent-foreground"
+                />
+                <span>
+                  {SIZE_LABELS[s].label}
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {SIZE_LABELS[s].hint}
+                  </span>
                 </span>
-              </span>
+              </div>
             </label>
           ))}
         </div>
@@ -204,18 +200,17 @@ export default function BookingForm({
         )}
       </div>
 
-      {/* Description */}
       <div className="space-y-1.5">
         <div className="flex justify-between">
           <label
             htmlFor="description"
             className="text-sm text-muted-foreground"
           >
-            description{" "}
+            Description{" "}
             {formSettings.require_description ? (
               <span className="text-foreground">*</span>
             ) : (
-              <span className="text-muted-foreground text-xs">(optional)</span>
+              <span className="text-xs text-muted-foreground">(optional)</span>
             )}
           </label>
           <span
@@ -231,15 +226,14 @@ export default function BookingForm({
           rows={5}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder={`tell me about the tattoo you have in mind — style, mood, any details that matter to you`}
-          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
+          className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {err("description") && (
           <p className="text-xs text-destructive">{err("description")}</p>
         )}
       </div>
 
-      {/* Custom fields */}
       {customFields.map((field) => (
         <CustomFieldInput
           key={field.id}
@@ -248,17 +242,15 @@ export default function BookingForm({
         />
       ))}
 
-      {/* Image upload — toggleable by artist */}
       {formSettings.show_image_upload && (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            reference images{" "}
-            <span className="text-muted-foreground text-xs">
+            Reference images{" "}
+            <span className="text-xs text-muted-foreground">
               (optional, max 5)
             </span>
           </p>
 
-          {/* Drop zone */}
           {images.length < 5 && (
             <div
               onDragOver={(e) => {
@@ -272,19 +264,21 @@ export default function BookingForm({
                 addFiles(e.dataTransfer.files);
               }}
               onClick={() => fileInputRef.current?.click()}
-              className={`flex flex-col items-center justify-center rounded-md border border-dashed px-6 py-8 cursor-pointer transition-colors ${
+              className={`cursor-pointer rounded-md border border-dashed px-6 py-8 transition-colors ${
                 dragOver ? "border-foreground bg-muted/20" : "border-border"
               }`}
             >
-              <p className="text-sm text-muted-foreground">
-                drag images here or{" "}
-                <span className="text-foreground underline underline-offset-4">
-                  browse
-                </span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                jpg, png, webp — max 10mb each
-              </p>
+              <div className="flex flex-col items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Drag images here or{" "}
+                  <span className="text-foreground underline underline-offset-4">
+                    browse
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  JPG, PNG, WebP - max 10 MB each
+                </p>
+              </div>
             </div>
           )}
 
@@ -297,26 +291,25 @@ export default function BookingForm({
             onChange={(e) => addFiles(e.target.files)}
           />
 
-          {/* Thumbnails */}
           {previews.length > 0 && (
             <div className="grid grid-cols-5 gap-2">
               {previews.map((src, i) => (
                 <div
                   key={i}
-                  className="relative aspect-square rounded-md overflow-hidden border border-border group"
+                  className="group relative aspect-square overflow-hidden rounded-md border border-border"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={src}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                   />
                   <button
                     type="button"
                     onClick={() => removeImage(i)}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-white text-lg"
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 text-lg text-white opacity-0 transition-opacity group-hover:opacity-100"
                   >
-                    ×
+                    X
                   </button>
                 </div>
               ))}
@@ -325,24 +318,23 @@ export default function BookingForm({
         </div>
       )}
 
-      {/* Date / slot selection */}
       {bookingMode === "fixed_slots" ? (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            select a slot <span className="text-foreground">*</span>
+            Select a slot <span className="text-foreground">*</span>
           </p>
           <div className="space-y-2">
             {slots.map((slot) => (
               <label
                 key={slot.id}
-                className="flex items-start gap-3 rounded-md border border-border px-3 py-3 cursor-pointer has-[:checked]:border-foreground"
+                className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 has-[:checked]:border-foreground"
               >
                 <input
                   type="radio"
                   name="slot_id"
                   value={slot.id}
                   required
-                  className="accent-foreground mt-0.5"
+                  className="mt-0.5 accent-foreground"
                 />
                 <div>
                   <p className="text-sm text-foreground">{slot.date}</p>
@@ -363,7 +355,7 @@ export default function BookingForm({
             htmlFor="preferred_date"
             className="text-sm text-muted-foreground"
           >
-            preferred date <span className="text-foreground">*</span>
+            Preferred date <span className="text-foreground">*</span>
           </label>
           <input
             id="preferred_date"
@@ -379,7 +371,6 @@ export default function BookingForm({
         </div>
       )}
 
-      {/* Honeypot */}
       <input
         name="website"
         type="text"
@@ -397,18 +388,19 @@ export default function BookingForm({
         disabled={pending}
         className="w-full rounded-md bg-foreground px-4 py-3 text-sm font-medium text-background disabled:opacity-50"
       >
-        {pending ? "sending…" : `send request to ${artistFirstName}`}
+        {pending ? "Sending..." : `Send request to ${artistFirstName}`}
       </button>
 
-      <p className="text-xs text-muted-foreground text-center">
-        by submitting you agree to our{" "}
+      <p className="text-center text-xs text-muted-foreground">
+        By submitting, you agree to our{" "}
         <Link href="/terms" className="underline underline-offset-4">
-          terms
+          Terms
         </Link>{" "}
         and{" "}
         <Link href="/privacy" className="underline underline-offset-4">
-          privacy policy
+          Privacy Policy
         </Link>
+        .
       </p>
     </form>
   );

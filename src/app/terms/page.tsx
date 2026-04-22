@@ -2,8 +2,8 @@ import Link from "next/link";
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1 mx-auto w-full max-w-2xl px-6 py-12 space-y-8">
+    <div className="flex min-h-screen flex-col">
+      <main className="mx-auto flex-1 w-full max-w-2xl space-y-8 px-6 py-12">
         <Link
           href="/"
           className="text-xl font-semibold tracking-tight text-foreground"
@@ -11,20 +11,20 @@ export default function TermsPage() {
           inklee
         </Link>
 
-        <div className="space-y-6 text-sm text-muted-foreground leading-relaxed">
+        <div className="space-y-6 text-sm leading-relaxed text-muted-foreground">
           <h1 className="text-2xl font-semibold text-foreground">
-            terms of service
+            Terms of Service
           </h1>
           <p className="text-xs">
-            last updated: April 2026 · subject to change before public launch
+            Last updated: April 2026 - subject to change before public launch
           </p>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              1. service
+              1. Service
             </h2>
             <p>
-              inklee provides a booking request platform for tattoo artists. we
+              inklee provides a booking request platform for tattoo artists. We
               are not a party to any booking agreement between artists and their
               customers.
             </p>
@@ -32,10 +32,10 @@ export default function TermsPage() {
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              2. accounts
+              2. Accounts
             </h2>
             <p>
-              artist accounts require a valid email address. you are responsible
+              Artist accounts require a valid email address. You are responsible
               for keeping your login secure and for all activity under your
               account.
             </p>
@@ -43,11 +43,11 @@ export default function TermsPage() {
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              3. content
+              3. Content
             </h2>
             <p>
-              you retain ownership of content you upload (profile images,
-              booking reference images). by uploading, you grant inklee a
+              You retain ownership of content you upload (profile images,
+              booking reference images). By uploading, you grant inklee a
               limited licence to store and display it for the purpose of
               operating the service.
             </p>
@@ -55,40 +55,40 @@ export default function TermsPage() {
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              4. prohibited use
+              4. Prohibited use
             </h2>
             <p>
-              you may not use inklee for unlawful purposes, to spam, to scrape,
+              You may not use inklee for unlawful purposes, to spam, to scrape,
               or to interfere with the service or other users.
             </p>
           </section>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              5. availability
+              5. Availability
             </h2>
             <p>
-              inklee is provided as-is. we make no guarantees of uptime or
+              inklee is provided as-is. We make no guarantees of uptime or
               availability, particularly during the beta period.
             </p>
           </section>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              6. termination
+              6. Termination
             </h2>
             <p>
-              we may suspend accounts that violate these terms. you may delete
+              We may suspend accounts that violate these terms. You may delete
               your account at any time by contacting hello@inklee.app.
             </p>
           </section>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              7. contact
+              7. Contact
             </h2>
             <p>
-              questions:{" "}
+              Questions:{" "}
               <a
                 href="mailto:hello@inklee.app"
                 className="text-foreground underline underline-offset-4"

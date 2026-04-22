@@ -18,12 +18,12 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
 
   return (
     <form action={action} className="space-y-6">
-      {/* Open / closed toggle */}
       <div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
         <div>
-          <p className="text-sm text-foreground">accept booking requests</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            when off, your booking page shows a closed message and waitlist form
+          <p className="text-sm text-foreground">Accept booking requests</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            When off, your booking page shows a closed message and waitlist
+            form.
           </p>
         </div>
         <button
@@ -36,7 +36,7 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
           }`}
         >
           <span
-            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow transform transition-transform ${
+            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow transition-transform ${
               booksOpen ? "translate-x-5" : "translate-x-0"
             }`}
           />
@@ -44,11 +44,10 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
         <input type="hidden" name="books_open" value={String(booksOpen)} />
       </div>
 
-      {/* Booking cap */}
       <div className="space-y-1.5">
         <label htmlFor="booking_cap" className="text-sm text-muted-foreground">
-          booking cap{" "}
-          <span className="text-muted-foreground text-xs">(optional)</span>
+          Booking cap{" "}
+          <span className="text-xs text-muted-foreground">(optional)</span>
         </label>
         <input
           id="booking_cap"
@@ -57,22 +56,21 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
           min="1"
           step="1"
           defaultValue={settings.booking_cap ?? ""}
-          placeholder="e.g. 20 — auto-closes when reached"
+          placeholder="e.g. 20 - auto-closes when reached"
           className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <p className="text-xs text-muted-foreground">
-          counts pending, approved, and deposit-pending requests
+          Counts pending, approved, and deposit-pending requests.
         </p>
       </div>
 
-      {/* Window end date */}
       <div className="space-y-1.5">
         <label
           htmlFor="booking_window_ends_at"
           className="text-sm text-muted-foreground"
         >
-          close books on{" "}
-          <span className="text-muted-foreground text-xs">(optional)</span>
+          Close books on{" "}
+          <span className="text-xs text-muted-foreground">(optional)</span>
         </label>
         <input
           id="booking_window_ends_at"
@@ -82,19 +80,18 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
           className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <p className="text-xs text-muted-foreground">
-          books auto-close at midnight on this date
+          Books auto-close at midnight on this date.
         </p>
       </div>
 
-      {/* Closed message */}
       <div className="space-y-1.5">
         <div className="flex justify-between">
           <label
             htmlFor="books_closed_message"
             className="text-sm text-muted-foreground"
           >
-            closed message{" "}
-            <span className="text-muted-foreground text-xs">(optional)</span>
+            Closed message{" "}
+            <span className="text-xs text-muted-foreground">(optional)</span>
           </label>
           <span
             className={`text-xs ${message.length > 280 ? "text-destructive" : "text-muted-foreground"}`}
@@ -108,11 +105,11 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
           rows={3}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="books are currently closed — check back soon."
-          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          placeholder="Books are currently closed. Check back soon."
+          className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <p className="text-xs text-muted-foreground">
-          shown on your public page when books are closed or full
+          Shown on your public page when books are closed or full.
         </p>
       </div>
 
@@ -120,7 +117,7 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
         <p className="text-sm text-destructive">{state.error}</p>
       )}
       {state && "success" in state && (
-        <p className="text-sm text-muted-foreground">saved.</p>
+        <p className="text-sm text-muted-foreground">Saved.</p>
       )}
 
       <button
@@ -128,7 +125,7 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
         disabled={pending}
         className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
       >
-        {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "save"}
+        {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Save"}
       </button>
     </form>
   );

@@ -45,7 +45,6 @@ export default async function RequestPortalPage({
   let state: PageState;
 
   if (!booking) {
-    // Check if this token was rotated (single-use edit)
     const { data: auditEntry } = await supabase
       .from("audit_log")
       .select("id")
@@ -57,51 +56,49 @@ export default async function RequestPortalPage({
     state = auditEntry ? { type: "used" } : { type: "not-found" };
   } else if (booking.status === "cancelled") {
     state = { type: "cancelled" };
+  } else if (isExpired(booking.created_at)) {
+    state = { type: "expired" };
   } else {
-    if (isExpired(booking.created_at)) {
-      state = { type: "expired" };
-    } else {
-      const fd = booking.form_data as Record<string, string> | null;
-      const profile = Array.isArray(booking.profiles)
-        ? booking.profiles[0]
-        : booking.profiles;
+    const fd = booking.form_data as Record<string, string> | null;
+    const profile = Array.isArray(booking.profiles)
+      ? booking.profiles[0]
+      : booking.profiles;
 
-      state = {
-        type: "active",
-        booking: {
-          id: booking.id,
-          token,
-          status: booking.status,
-          handle: booking.customer_handle ?? "",
-          email: booking.customer_email ?? "",
-          placement: fd?.placement ?? "",
-          size: fd?.size ?? "",
-          description: fd?.description ?? "",
-          referenceLink: fd?.reference_link ?? null,
-          preferredDate: booking.preferred_date ?? "",
-          artistName:
-            (profile as { display_name: string } | null)?.display_name ??
-            "the artist",
-          depositAmount: booking.deposit_amount
-            ? Number(booking.deposit_amount)
-            : null,
-          depositDueAt: booking.deposit_due_at ?? null,
-          depositNote: booking.deposit_note ?? null,
-          depositClientSecret: booking.deposit_client_secret ?? null,
-          stripePublishableKey:
-            process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null,
-        },
-      };
-    }
+    state = {
+      type: "active",
+      booking: {
+        id: booking.id,
+        token,
+        status: booking.status,
+        handle: booking.customer_handle ?? "",
+        email: booking.customer_email ?? "",
+        placement: fd?.placement ?? "",
+        size: fd?.size ?? "",
+        description: fd?.description ?? "",
+        referenceLink: fd?.reference_link ?? null,
+        preferredDate: booking.preferred_date ?? "",
+        artistName:
+          (profile as { display_name: string } | null)?.display_name ??
+          "the artist",
+        depositAmount: booking.deposit_amount
+          ? Number(booking.deposit_amount)
+          : null,
+        depositDueAt: booking.deposit_due_at ?? null,
+        depositNote: booking.deposit_note ?? null,
+        depositClientSecret: booking.deposit_client_secret ?? null,
+        stripePublishableKey:
+          process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null,
+      },
+    };
   }
 
   if (state.type === "active") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
           <Link
             href="/"
-            className="block text-center text-xl font-semibold tracking-tight text-foreground mb-10"
+            className="mb-10 block text-center text-xl font-semibold tracking-tight text-foreground"
           >
             inklee
           </Link>
@@ -116,36 +113,36 @@ export default async function RequestPortalPage({
     { headline: string; body: string }
   > = {
     expired: {
-      headline: "link expired",
-      body: "this link was valid for 30 days. contact the artist directly if you need to make changes.",
+      headline: "Link expired",
+      body: "This link was valid for 30 days. Contact the artist directly if you need to make changes.",
     },
     used: {
-      headline: "link already used",
-      body: "this link was a one-time edit link. check your email for a new link that was sent after your last edit.",
+      headline: "Link already used",
+      body: "This link was a one-time edit link. Check your email for a new link that was sent after your last edit.",
     },
     cancelled: {
-      headline: "request cancelled",
-      body: "this booking request has been cancelled.",
+      headline: "Request cancelled",
+      body: "This booking request has been cancelled.",
     },
     "not-found": {
-      headline: "link not found",
-      body: "this link doesn't match any booking request. it may be invalid or mistyped.",
+      headline: "Link not found",
+      body: "This link doesn't match any booking request. It may be invalid or mistyped.",
     },
   };
 
   const { headline, body } = messages[state.type];
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6">
-      <div className="w-full max-w-sm text-center space-y-4">
+    <div className="flex min-h-screen flex-col items-center justify-center px-6">
+      <div className="w-full max-w-sm space-y-4 text-center">
         <Link
           href="/"
-          className="block text-xl font-semibold tracking-tight text-foreground mb-8"
+          className="mb-8 block text-xl font-semibold tracking-tight text-foreground"
         >
           inklee
         </Link>
         <h1 className="text-lg font-semibold text-foreground">{headline}</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
       </div>
     </div>
   );

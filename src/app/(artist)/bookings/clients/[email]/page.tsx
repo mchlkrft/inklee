@@ -47,7 +47,7 @@ export default async function ClientDetailPage({
           href="/bookings/clients"
           className="hover:text-foreground transition-colors"
         >
-          clients
+          Clients
         </Link>
         <span>/</span>
         <span className="text-foreground">
@@ -61,13 +61,13 @@ export default async function ClientDetailPage({
         </h1>
         <p className="text-sm text-muted-foreground">{customerEmail}</p>
         <p className="text-xs text-muted-foreground">
-          {bookings.length} {bookings.length === 1 ? "booking" : "bookings"} ·{" "}
+          {bookings.length} {bookings.length === 1 ? "booking" : "bookings"} -{" "}
           {approved} approved
         </p>
       </div>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-foreground">notes</h2>
+        <h2 className="text-sm font-medium text-foreground">Notes</h2>
         <NotesEditor
           customerEmail={customerEmail}
           defaultNotes={noteRow?.notes ?? ""}
@@ -75,7 +75,7 @@ export default async function ClientDetailPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-foreground">booking history</h2>
+        <h2 className="text-sm font-medium text-foreground">Booking history</h2>
         <div className="rounded-md border border-border divide-y divide-border">
           {bookings.map((booking) => {
             const fd = booking.form_data as Record<string, string> | null;
@@ -87,13 +87,13 @@ export default async function ClientDetailPage({
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground">
-                    {fd?.placement ?? "—"}
+                    {fd?.placement ?? "-"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {booking.preferred_date
                       ? formatDate(booking.preferred_date)
-                      : "no date"}{" "}
-                    · submitted {relativeTime(booking.created_at)}
+                      : "No date"}{" "}
+                    - submitted {relativeTime(booking.created_at)}
                   </p>
                 </div>
                 <StatusBadge status={booking.status} />

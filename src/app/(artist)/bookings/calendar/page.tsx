@@ -35,7 +35,7 @@ export default async function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">calendar</h1>
+      <h1 className="text-2xl font-semibold text-foreground">Calendar</h1>
       <CalendarView events={events} />
     </div>
   );

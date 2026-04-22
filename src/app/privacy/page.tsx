@@ -2,8 +2,8 @@ import Link from "next/link";
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1 mx-auto w-full max-w-2xl px-6 py-12 space-y-8">
+    <div className="flex min-h-screen flex-col">
+      <main className="mx-auto flex-1 w-full max-w-2xl space-y-8 px-6 py-12">
         <Link
           href="/"
           className="text-xl font-semibold tracking-tight text-foreground"
@@ -11,39 +11,39 @@ export default function PrivacyPage() {
           inklee
         </Link>
 
-        <div className="space-y-6 text-sm text-muted-foreground leading-relaxed">
+        <div className="space-y-6 text-sm leading-relaxed text-muted-foreground">
           <h1 className="text-2xl font-semibold text-foreground">
-            privacy policy
+            Privacy Policy
           </h1>
           <p className="text-xs">
-            last updated: April 2026 · subject to review by a lawyer before
+            Last updated: April 2026 - subject to review by a lawyer before
             public launch
           </p>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              data we collect
+              Data we collect
             </h2>
             <p>
               <strong className="text-foreground">Artists:</strong> email
-              address, display name, instagram handle, bio, location, timezone,
+              address, display name, Instagram handle, bio, location, timezone,
               logo image, booking preferences.
             </p>
             <p>
               <strong className="text-foreground">
                 Customers (via booking form):
               </strong>{" "}
-              instagram handle, email address, tattoo description, reference
-              images, preferred date or slot. customers do not create accounts.
+              Instagram handle, email address, tattoo description, reference
+              images, preferred date or slot. Customers do not create accounts.
             </p>
           </section>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              how we use it
+              How we use it
             </h2>
             <p>
-              to operate the booking service: authenticate artists, route
+              To operate the booking service: authenticate artists, route
               booking requests, send transactional emails, and maintain an audit
               log of booking status changes.
             </p>
@@ -51,12 +51,12 @@ export default function PrivacyPage() {
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              subprocessors
+              Subprocessors
             </h2>
-            <ul className="space-y-1 list-disc list-inside">
+            <ul className="list-inside list-disc space-y-1">
               <li>
                 <strong className="text-foreground">Supabase</strong>{" "}
-                (EU/Frankfurt) — database, authentication, file storage.{" "}
+                (EU/Frankfurt) - database, authentication, file storage.{" "}
                 <a
                   href="https://supabase.com/privacy"
                   className="underline underline-offset-4"
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
               </li>
               <li>
                 <strong className="text-foreground">Vercel</strong> (EU region)
-                — application hosting.{" "}
+                - application hosting.{" "}
                 <a
                   href="https://vercel.com/legal/dpa"
                   className="underline underline-offset-4"
@@ -77,11 +77,11 @@ export default function PrivacyPage() {
                 .
               </li>
               <li>
-                <strong className="text-foreground">Resend</strong> (EU) —
+                <strong className="text-foreground">Resend</strong> (EU) -
                 transactional email delivery.
               </li>
               <li>
-                <strong className="text-foreground">Plausible</strong> —
+                <strong className="text-foreground">Plausible</strong> -
                 privacy-friendly analytics. No cookies. No personal data
                 collected.
               </li>
@@ -89,30 +89,30 @@ export default function PrivacyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-medium text-foreground">cookies</h2>
+            <h2 className="text-base font-medium text-foreground">Cookies</h2>
             <p>
-              inklee uses strictly necessary cookies only — specifically,
+              inklee uses strictly necessary cookies only - specifically,
               session cookies required for artist authentication (Supabase
-              auth). no tracking cookies, no third-party advertising cookies.
-              plausible analytics is cookie-free.
+              Auth). No tracking cookies, no third-party advertising cookies.
+              Plausible analytics is cookie-free.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-medium text-foreground">retention</h2>
+            <h2 className="text-base font-medium text-foreground">Retention</h2>
             <p>
-              rejected and cancelled booking images are deleted after 30 days.
-              booking records are retained until an artist deletes their
+              Rejected and cancelled booking images are deleted after 30 days.
+              Booking records are retained until an artist deletes their
               account.
             </p>
           </section>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
-              your rights (GDPR)
+              Your rights (GDPR)
             </h2>
             <p>
-              you have the right to access, correct, and delete your data. to
+              You have the right to access, correct, and delete your data. To
               exercise these rights, email{" "}
               <a
                 href="mailto:hello@inklee.app"
@@ -120,12 +120,12 @@ export default function PrivacyPage() {
               >
                 hello@inklee.app
               </a>
-              . we will respond within 30 days.
+              . We will respond within 30 days.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-medium text-foreground">contact</h2>
+            <h2 className="text-base font-medium text-foreground">Contact</h2>
             <p>
               <a
                 href="mailto:hello@inklee.app"

@@ -66,7 +66,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold text-foreground">
-            edit your request
+            Edit your request
           </h1>
           <button
             onClick={() => {
@@ -74,7 +74,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
             }}
             className="text-sm text-muted-foreground underline underline-offset-4"
           >
-            cancel edit
+            Cancel edit
           </button>
         </div>
 
@@ -93,7 +93,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           )}
 
           <Field
-            label="instagram handle"
+            label="Instagram handle"
             name="instagram_handle"
             defaultValue={booking.handle}
             prefix="@"
@@ -101,7 +101,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
             err={err("instagram_handle")}
           />
           <Field
-            label="email"
+            label="Email"
             name="email"
             type="email"
             defaultValue={booking.email}
@@ -109,15 +109,15 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
             err={err("email")}
           />
           <Field
-            label="reference link"
+            label="Reference link"
             name="reference_link"
             type="url"
             defaultValue={booking.referenceLink ?? ""}
-            placeholder="instagram.com/p/… or any link"
+            placeholder="instagram.com/p/... or any link"
             err={err("reference_link")}
           />
           <Field
-            label="placement"
+            label="Placement"
             name="placement"
             defaultValue={booking.placement}
             required
@@ -126,23 +126,25 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
 
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              size <span className="text-foreground">*</span>
+              Size <span className="text-foreground">*</span>
             </p>
             <div className="grid grid-cols-2 gap-2">
               {SIZES.map((s) => (
                 <label
                   key={s}
-                  className="flex items-center gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm cursor-pointer has-[:checked]:border-foreground has-[:checked]:text-foreground text-muted-foreground"
+                  className="cursor-pointer rounded-md border border-border px-3 py-2.5 text-sm text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
                 >
-                  <input
-                    type="radio"
-                    name="size"
-                    value={s}
-                    required
-                    defaultChecked={booking.size === s}
-                    className="accent-foreground"
-                  />
-                  {s}
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="size"
+                      value={s}
+                      required
+                      defaultChecked={booking.size === s}
+                      className="accent-foreground"
+                    />
+                    {s}
+                  </div>
                 </label>
               ))}
             </div>
@@ -157,7 +159,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                 htmlFor="description"
                 className="text-sm text-muted-foreground"
               >
-                description <span className="text-foreground">*</span>
+                Description <span className="text-foreground">*</span>
               </label>
               <span
                 className={`text-xs ${description.length > 1000 ? "text-destructive" : "text-muted-foreground"}`}
@@ -172,7 +174,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+              className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {err("description") && (
               <p className="text-xs text-destructive">{err("description")}</p>
@@ -184,7 +186,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
               htmlFor="preferred_date"
               className="text-sm text-muted-foreground"
             >
-              preferred date <span className="text-foreground">*</span>
+              Preferred date <span className="text-foreground">*</span>
             </label>
             <input
               id="preferred_date"
@@ -207,12 +209,12 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
             disabled={editPending}
             className="w-full rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
           >
-            {editPending ? "saving…" : "save changes"}
+            {editPending ? "Saving..." : "Save changes"}
           </button>
 
-          <p className="text-xs text-muted-foreground text-center">
-            after saving, a new confirmation email will be sent with an updated
-            link
+          <p className="text-center text-xs text-muted-foreground">
+            After saving, a new confirmation email will be sent with an updated
+            link.
           </p>
         </form>
       </div>
@@ -223,51 +225,50 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-lg font-semibold text-foreground">
-          your booking request
+          Your booking request
         </h1>
         <p className="text-sm text-muted-foreground">
-          sent to {booking.artistName}
+          Sent to {booking.artistName}
         </p>
       </div>
 
-      <div className="rounded-md border border-border divide-y divide-border text-sm">
-        <Row label="status">
+      <div className="divide-y divide-border rounded-md border border-border text-sm">
+        <Row label="Status">
           <StatusBadge status={booking.status} />
         </Row>
-        <Row label="instagram" value={`@${booking.handle}`} />
-        <Row label="placement" value={booking.placement} />
-        <Row label="size" value={booking.size} />
-        <Row label="preferred date" value={formatDate(booking.preferredDate)} />
+        <Row label="Instagram" value={`@${booking.handle}`} />
+        <Row label="Placement" value={booking.placement} />
+        <Row label="Size" value={booking.size} />
+        <Row label="Preferred date" value={formatDate(booking.preferredDate)} />
         {booking.referenceLink && (
-          <Row label="reference">
+          <Row label="Reference">
             <a
               href={booking.referenceLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="underline underline-offset-4 text-foreground break-all"
+              className="break-all text-foreground underline underline-offset-4"
             >
               {booking.referenceLink}
             </a>
           </Row>
         )}
         {booking.description && (
-          <div className="px-4 py-3 space-y-1">
-            <span className="text-muted-foreground">description</span>
-            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+          <div className="space-y-1 px-4 py-3">
+            <span className="text-muted-foreground">Description</span>
+            <p className="whitespace-pre-wrap leading-relaxed text-foreground">
               {booking.description}
             </p>
           </div>
         )}
       </div>
 
-      {/* Deposit block */}
       {booking.depositAmount && booking.status === "deposit_pending" && (
         <div className="space-y-3">
           {booking.depositClientSecret && booking.stripePublishableKey ? (
             <Suspense
               fallback={
                 <p className="text-sm text-muted-foreground">
-                  loading payment…
+                  Loading payment...
                 </p>
               }
             >
@@ -278,29 +279,29 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
               />
             </Suspense>
           ) : (
-            <div className="rounded-md border border-border p-4 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                deposit requested
+            <div className="space-y-2 rounded-md border border-border p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Deposit requested
               </p>
               <p className="text-sm text-foreground">
                 {booking.artistName} has requested a deposit of{" "}
                 <span className="font-medium">
-                  €{booking.depositAmount.toFixed(2)}
+                  EUR {booking.depositAmount.toFixed(2)}
                 </span>
                 {booking.depositDueAt && (
                   <span className="text-muted-foreground">
                     {" "}
-                    — due by {formatDate(booking.depositDueAt)}
+                    - due by {formatDate(booking.depositDueAt)}
                   </span>
                 )}
               </p>
               {booking.depositNote && (
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   {booking.depositNote}
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                once your deposit is received, {booking.artistName} will confirm
+                Once your deposit is received, {booking.artistName} will confirm
                 your booking.
               </p>
             </div>
@@ -317,22 +318,22 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           {isPending && (
             <button
               onClick={() => setMode("edit")}
-              className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-foreground hover:bg-muted/30 transition-colors"
+              className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted/30"
             >
-              edit request
+              Edit request
             </button>
           )}
 
           {!confirmCancel ? (
             <button
               onClick={() => setConfirmCancel(true)}
-              className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+              className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
             >
-              cancel request
+              Cancel request
             </button>
           ) : (
-            <div className="rounded-md border border-destructive/50 p-4 space-y-3">
-              <p className="text-sm text-foreground">cancel this request?</p>
+            <div className="space-y-3 rounded-md border border-destructive/50 p-4">
+              <p className="text-sm text-foreground">Cancel this request?</p>
               <p className="text-xs text-muted-foreground">
                 {booking.artistName} will be notified.
               </p>
@@ -343,14 +344,14 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                   disabled={cancelPending}
                   className="rounded-md bg-destructive px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
                 >
-                  {cancelPending ? "cancelling…" : "yes, cancel"}
+                  {cancelPending ? "Cancelling..." : "Yes, cancel"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmCancel(false)}
                   className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground"
                 >
-                  keep it
+                  Keep it
                 </button>
               </form>
             </div>
@@ -371,8 +372,8 @@ function Row({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex px-4 py-3 gap-4">
-      <span className="text-muted-foreground w-28 shrink-0 text-sm">
+    <div className="flex gap-4 px-4 py-3">
+      <span className="w-28 shrink-0 text-sm text-muted-foreground">
         {label}
       </span>
       {children ?? <span className="text-sm text-foreground">{value}</span>}
@@ -403,11 +404,11 @@ function Field({
     <div className="space-y-1.5">
       <label className="text-sm text-muted-foreground">
         {label}
-        {required && <span className="text-foreground ml-0.5">*</span>}
+        {required && <span className="ml-0.5 text-foreground">*</span>}
       </label>
       {prefix ? (
         <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
-          <span className="text-muted-foreground select-none">{prefix}</span>
+          <span className="select-none text-muted-foreground">{prefix}</span>
           <input
             name={name}
             type={type}

@@ -20,9 +20,9 @@ export default async function RemindersSettingsPage() {
   return (
     <div className="space-y-6 max-w-lg">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">reminders</h1>
+        <h1 className="text-lg font-semibold text-foreground">Reminders</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          configure when automated emails are sent to clients
+          Configure when automated emails are sent to clients.
         </p>
       </div>
       <RemindersForm settings={settings} />

@@ -71,7 +71,6 @@ export default async function ArtistPublicPage({
     });
   }
 
-  // Active travel leg: is_active=true AND starts_on <= today <= ends_on
   const todayStr = new Date().toISOString().split("T")[0];
   const { data: activeLeg } = await supabase
     .from("travel_legs")
@@ -111,17 +110,16 @@ export default async function ArtistPublicPage({
   const isClosed = isManuallyClosed || isSlotsClosed || isCapReached;
 
   const closedMessage = isCapReached
-    ? "this round of bookings is full."
-    : (booksSettings.books_closed_message ?? "books are currently closed.");
-  const closedHint = isCapReached ? undefined : "check back soon.";
+    ? "This round of bookings is full."
+    : (booksSettings.books_closed_message ?? "Books are currently closed.");
+  const closedHint = isCapReached ? undefined : "Check back soon.";
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1 mx-auto w-full max-w-lg px-6 py-12 space-y-10">
-        {/* Artist header */}
-        <div className="flex flex-col items-center text-center space-y-3">
+    <div className="flex min-h-screen flex-col">
+      <main className="mx-auto flex-1 w-full max-w-lg space-y-10 px-6 py-12">
+        <div className="flex flex-col items-center space-y-3 text-center">
           {profile.logo_url && (
-            <div className="h-16 w-16 rounded-full overflow-hidden border border-border relative">
+            <div className="relative h-16 w-16 overflow-hidden rounded-full border border-border">
               <Image
                 src={profile.logo_url}
                 alt={profile.display_name}
@@ -144,31 +142,30 @@ export default async function ArtistPublicPage({
                 href={`https://instagram.com/${profile.instagram_handle}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 @{profile.instagram_handle}
               </a>
             )}
           </div>
           {profile.bio && (
-            <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
+            <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
               {profile.bio}
             </p>
           )}
         </div>
 
-        {/* Active travel leg context */}
         {activeLeg && (
-          <div className="rounded-md border border-border px-4 py-3 space-y-0.5">
+          <div className="space-y-0.5 rounded-md border border-border px-4 py-3">
             <p className="text-sm text-foreground">
-              currently in {activeLeg.city}, {activeLeg.country}
+              Currently in {activeLeg.city}, {activeLeg.country}
             </p>
             <p className="text-xs text-muted-foreground">
               {new Date(activeLeg.starts_on).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "short",
               })}
-              {" – "}
+              {" - "}
               {new Date(activeLeg.ends_on).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "short",
@@ -183,14 +180,13 @@ export default async function ArtistPublicPage({
           </div>
         )}
 
-        {/* Booking form */}
         <div className="space-y-6">
           <div>
             <h2 className="text-base font-medium text-foreground">
-              booking request
+              Booking request
             </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              fill in the details and i&apos;ll get back to you
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Fill in the details and I&apos;ll get back to you.
             </p>
           </div>
 
@@ -212,25 +208,25 @@ export default async function ArtistPublicPage({
         </div>
       </main>
 
-      <footer className="px-6 py-6 flex justify-center gap-6 text-xs text-muted-foreground">
-        <Link href="/terms" className="hover:text-foreground transition-colors">
-          terms
+      <footer className="flex justify-center gap-6 px-6 py-6 text-xs text-muted-foreground">
+        <Link href="/terms" className="transition-colors hover:text-foreground">
+          Terms
         </Link>
         <Link
           href="/privacy"
-          className="hover:text-foreground transition-colors"
+          className="transition-colors hover:text-foreground"
         >
-          privacy
+          Privacy
         </Link>
         <Link
           href="/impressum"
-          className="hover:text-foreground transition-colors"
+          className="transition-colors hover:text-foreground"
         >
-          impressum
+          Impressum
         </Link>
         <span>·</span>
-        <Link href="/" className="hover:text-foreground transition-colors">
-          powered by inklee
+        <Link href="/" className="transition-colors hover:text-foreground">
+          Powered by inklee
         </Link>
       </footer>
     </div>

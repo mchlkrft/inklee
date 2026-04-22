@@ -4,8 +4,8 @@ import { useState } from "react";
 
 export default function CopyButton({
   text,
-  label = "copy link",
-  copiedLabel = "copied!",
+  label = "Copy link",
+  copiedLabel = "Copied!",
   className = "",
 }: {
   text: string;
@@ -25,7 +25,7 @@ export default function CopyButton({
   return (
     <button
       onClick={copy}
-      className={`text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors ${className}`}
+      className={`rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground ${className}`}
     >
       {copied ? copiedLabel : label}
     </button>

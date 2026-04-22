@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function GoogleAuthButton({
-  label = "continue with google",
+  label = "Continue with Google",
 }: {
   label?: string;
 }) {
@@ -30,10 +30,9 @@ export default function GoogleAuthButton({
     });
 
     if (error) {
-      setError("could not connect to google — try again");
+      setError("Could not connect to Google. Try again.");
       setLoading(false);
     }
-    // On success the browser is redirected by Supabase — no further action needed
   }
 
   return (
@@ -42,10 +41,10 @@ export default function GoogleAuthButton({
         type="button"
         onClick={handleGoogleSignIn}
         disabled={loading}
-        className="w-full flex items-center justify-center gap-2.5 rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2.5 rounded-md border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50"
       >
         {loading ? (
-          <span className="text-muted-foreground">redirecting…</span>
+          <span className="text-muted-foreground">Redirecting...</span>
         ) : (
           <>
             <GoogleIcon />
@@ -53,7 +52,7 @@ export default function GoogleAuthButton({
           </>
         )}
       </button>
-      {error && <p className="text-xs text-destructive text-center">{error}</p>}
+      {error && <p className="text-center text-xs text-destructive">{error}</p>}
     </div>
   );
 }

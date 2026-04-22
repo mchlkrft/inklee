@@ -16,7 +16,7 @@ export default function TravelLegForm() {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label htmlFor="city" className="text-sm text-muted-foreground">
-            city <span className="text-foreground">*</span>
+            City <span className="text-foreground">*</span>
           </label>
           <input
             id="city"
@@ -29,7 +29,7 @@ export default function TravelLegForm() {
         </div>
         <div className="space-y-1.5">
           <label htmlFor="country" className="text-sm text-muted-foreground">
-            country <span className="text-foreground">*</span>
+            Country <span className="text-foreground">*</span>
           </label>
           <input
             id="country"
@@ -45,7 +45,7 @@ export default function TravelLegForm() {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label htmlFor="starts_on" className="text-sm text-muted-foreground">
-            from <span className="text-foreground">*</span>
+            From <span className="text-foreground">*</span>
           </label>
           <input
             id="starts_on"
@@ -57,7 +57,7 @@ export default function TravelLegForm() {
         </div>
         <div className="space-y-1.5">
           <label htmlFor="ends_on" className="text-sm text-muted-foreground">
-            to <span className="text-foreground">*</span>
+            To <span className="text-foreground">*</span>
           </label>
           <input
             id="ends_on"
@@ -71,7 +71,7 @@ export default function TravelLegForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="studio_name" className="text-sm text-muted-foreground">
-          studio{" "}
+          Studio{" "}
           <span className="text-muted-foreground text-xs">(optional)</span>
         </label>
         <input
@@ -85,7 +85,7 @@ export default function TravelLegForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="description" className="text-sm text-muted-foreground">
-          description{" "}
+          Description{" "}
           <span className="text-muted-foreground text-xs">
             (optional, max 500 chars)
           </span>
@@ -94,7 +94,7 @@ export default function TravelLegForm() {
           id="description"
           name="description"
           rows={2}
-          placeholder="any context for customers"
+          placeholder="Any context for customers"
           className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
         />
       </div>
@@ -103,7 +103,7 @@ export default function TravelLegForm() {
         <p className="text-sm text-destructive">{state.error}</p>
       )}
       {state && "success" in state && (
-        <p className="text-sm text-muted-foreground">leg added.</p>
+        <p className="text-sm text-muted-foreground">Leg added.</p>
       )}
 
       <button
@@ -111,7 +111,7 @@ export default function TravelLegForm() {
         disabled={pending}
         className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
       >
-        {pending ? "adding…" : "add leg"}
+        {pending ? "Adding..." : "Add leg"}
       </button>
     </form>
   );

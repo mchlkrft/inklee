@@ -30,7 +30,6 @@ export default function CreateSlotForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Block preview
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [duration, setDuration] = useState(120);
@@ -57,7 +56,6 @@ export default function CreateSlotForm() {
 
   return (
     <div className="rounded-md border border-border p-5 space-y-5">
-      {/* Mode toggle */}
       <div className="flex gap-2">
         {(["single", "block"] as const).map((m) => (
           <button
@@ -70,7 +68,7 @@ export default function CreateSlotForm() {
                 : "bg-muted text-muted-foreground"
             }`}
           >
-            {m === "single" ? "single slot" : "block of slots"}
+            {m === "single" ? "Single slot" : "Block of slots"}
           </button>
         ))}
       </div>
@@ -78,14 +76,14 @@ export default function CreateSlotForm() {
       {error && <p className="text-sm text-destructive">{error}</p>}
       {success && (
         <p className="text-sm text-green-500">
-          {mode === "single" ? "slot added" : `${slotCount} slots added`}
+          {mode === "single" ? "Slot added." : `${slotCount} slots added.`}
         </p>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">date</label>
+            <label className="text-sm text-muted-foreground">Date</label>
             <input
               name="date"
               type="date"
@@ -98,7 +96,7 @@ export default function CreateSlotForm() {
           {mode === "single" ? (
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground">
-                start time
+                Start time
               </label>
               <input
                 name="time"
@@ -108,25 +106,23 @@ export default function CreateSlotForm() {
               />
             </div>
           ) : (
-            <>
-              <div className="space-y-1.5">
-                <label className="text-sm text-muted-foreground">start</label>
-                <input
-                  name="start_time"
-                  type="time"
-                  required
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-            </>
+            <div className="space-y-1.5">
+              <label className="text-sm text-muted-foreground">Start</label>
+              <input
+                name="start_time"
+                type="time"
+                required
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
           )}
         </div>
 
         {mode === "block" && (
           <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">end</label>
+            <label className="text-sm text-muted-foreground">End</label>
             <input
               name="end_time"
               type="time"
@@ -139,7 +135,7 @@ export default function CreateSlotForm() {
         )}
 
         <div className="space-y-1.5">
-          <label className="text-sm text-muted-foreground">duration</label>
+          <label className="text-sm text-muted-foreground">Duration</label>
           <select
             name="duration"
             required
@@ -159,10 +155,11 @@ export default function CreateSlotForm() {
 
         {mode === "block" && slotCount > 0 && (
           <p className="text-xs text-muted-foreground">
-            this will generate{" "}
+            This will generate{" "}
             <span className="text-foreground">
               {slotCount} slot{slotCount !== 1 ? "s" : ""}
             </span>
+            .
           </p>
         )}
 
@@ -172,10 +169,10 @@ export default function CreateSlotForm() {
           className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
           {saving
-            ? "adding…"
+            ? "Adding..."
             : mode === "single"
-              ? "add slot"
-              : "generate slots"}
+              ? "Add slot"
+              : "Generate slots"}
         </button>
       </form>
     </div>

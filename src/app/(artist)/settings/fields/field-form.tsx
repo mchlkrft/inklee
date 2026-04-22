@@ -15,13 +15,13 @@ const NEEDS_PLACEHOLDER = new Set([
 ]);
 
 const TYPE_LABELS: Record<string, string> = {
-  short_text: "short text",
-  long_text: "long text",
-  number: "number",
-  select: "dropdown",
-  radio: "radio group",
-  checkbox: "checkbox",
-  date: "date",
+  short_text: "Short text",
+  long_text: "Long text",
+  number: "Number",
+  select: "Dropdown",
+  radio: "Radio group",
+  checkbox: "Checkbox",
+  date: "Date",
 };
 
 export default function FieldForm({
@@ -44,13 +44,11 @@ export default function FieldForm({
   const [type, setType] = useState<string>(field?.type ?? "short_text");
   const [options, setOptions] = useState<string[]>(field?.options ?? []);
 
-  // Auto-derive key from label until user manually edits it
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!keyTouched && label) setKey(labelToKey(label));
   }, [label, keyTouched]);
 
-  // Reset on successful save
   useEffect(() => {
     if (state && "success" in state) onDone();
   }, [state, onDone]);
@@ -78,11 +76,10 @@ export default function FieldForm({
         <p className="text-xs text-destructive">{state.error}</p>
       )}
 
-      {/* Label */}
       <input type="hidden" name="key" value={key} />
 
       <div className="space-y-1.5">
-        <label className="text-xs text-muted-foreground">label *</label>
+        <label className="text-xs text-muted-foreground">Label *</label>
         <input
           name="label"
           value={label}
@@ -94,9 +91,8 @@ export default function FieldForm({
         />
       </div>
 
-      {/* Type */}
       <div className="space-y-1.5">
-        <label className="text-xs text-muted-foreground">type *</label>
+        <label className="text-xs text-muted-foreground">Type *</label>
         <select
           name="type"
           value={type}
@@ -111,11 +107,10 @@ export default function FieldForm({
         </select>
       </div>
 
-      {/* Options (select/radio) */}
       {NEEDS_OPTIONS.has(type) && (
         <div className="space-y-2">
           <label className="text-xs text-muted-foreground">
-            options <span className="text-foreground">*</span> (at least 2)
+            Options <span className="text-foreground">*</span> (at least 2)
           </label>
           <div className="space-y-1.5">
             {options.map((opt, i) => (
@@ -123,7 +118,7 @@ export default function FieldForm({
                 <input
                   value={opt}
                   onChange={(e) => updateOption(i, e.target.value)}
-                  placeholder={`option ${i + 1}`}
+                  placeholder={`Option ${i + 1}`}
                   maxLength={100}
                   className="flex-1 rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
@@ -132,7 +127,7 @@ export default function FieldForm({
                   onClick={() => removeOption(i)}
                   className="px-2 text-muted-foreground hover:text-destructive transition-colors text-sm"
                 >
-                  ×
+                  x
                 </button>
               </div>
             ))}
@@ -142,17 +137,16 @@ export default function FieldForm({
             onClick={addOption}
             className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
           >
-            + add option
+            + Add option
           </button>
           <input type="hidden" name="options" value={JSON.stringify(options)} />
         </div>
       )}
 
-      {/* Placeholder */}
       {NEEDS_PLACEHOLDER.has(type) && (
         <div className="space-y-1.5">
           <label className="text-xs text-muted-foreground">
-            placeholder{" "}
+            Placeholder{" "}
             <span className="text-muted-foreground text-xs">(optional)</span>
           </label>
           <input
@@ -164,10 +158,9 @@ export default function FieldForm({
         </div>
       )}
 
-      {/* Help text */}
       <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">
-          help text{" "}
+          Help text{" "}
           <span className="text-muted-foreground text-xs">(optional)</span>
         </label>
         <input
@@ -178,7 +171,6 @@ export default function FieldForm({
         />
       </div>
 
-      {/* Required */}
       <label className="flex items-center gap-2.5 cursor-pointer">
         <input
           type="checkbox"
@@ -186,24 +178,23 @@ export default function FieldForm({
           defaultChecked={field?.required ?? false}
           className="accent-foreground"
         />
-        <span className="text-sm text-muted-foreground">required field</span>
+        <span className="text-sm text-muted-foreground">Required field</span>
       </label>
 
-      {/* Actions */}
       <div className="flex items-center gap-3 pt-1">
         <button
           type="submit"
           disabled={pending}
           className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
         >
-          {pending ? "saving…" : isEdit ? "save changes" : "add field"}
+          {pending ? "Saving..." : isEdit ? "Save changes" : "Add field"}
         </button>
         <button
           type="button"
           onClick={onDone}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
-          cancel
+          Cancel
         </button>
       </div>
     </form>

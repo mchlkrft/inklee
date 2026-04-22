@@ -21,22 +21,22 @@ export default async function WaitlistPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">waitlist</h1>
+        <h1 className="text-lg font-semibold text-foreground">Waitlist</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          people who signed up while books were closed
+          People who signed up while books were closed.
         </p>
       </div>
 
       {list.length === 0 ? (
         <div className="rounded-md border border-border px-5 py-10 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
-            no waitlist entries yet — close your books to start collecting them.
+            No waitlist entries yet. Close your books to start collecting them.
           </p>
           <Link
             href="/bookings/books"
             className="inline-block text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
           >
-            manage books →
+            Manage books &rarr;
           </Link>
         </div>
       ) : (

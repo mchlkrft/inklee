@@ -37,7 +37,7 @@ export default function CommunicationSidebar({
     startTransition(async () => {
       const result = await fn();
       if (result && "error" in result) setFeedback(result.error);
-      else setFeedback("sent.");
+      else setFeedback("Sent.");
       setTimeout(() => setFeedback(null), 3000);
     });
   }
@@ -51,7 +51,7 @@ export default function CommunicationSidebar({
   return (
     <div className="space-y-4">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        communication
+        Communication
       </p>
 
       {hasActions && (
@@ -64,7 +64,7 @@ export default function CommunicationSidebar({
               disabled={pending}
               className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
-              {pending ? "sending…" : "↑ send deposit reminder"}
+              {pending ? "Sending..." : "Send deposit reminder"}
             </button>
           )}
           {canSendReconfirmation && (
@@ -75,7 +75,7 @@ export default function CommunicationSidebar({
               disabled={pending}
               className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
-              {pending ? "sending…" : "↑ send reconfirmation"}
+              {pending ? "Sending..." : "Send reconfirmation"}
             </button>
           )}
           {feedback && (
@@ -89,8 +89,9 @@ export default function CommunicationSidebar({
           {log.map((entry, i) => {
             const type = String(entry.details?.type ?? "reminder");
             const isManual = entry.details?.manual === true;
-            const label =
+            const rawLabel =
               type.replace(/_/g, " ") + (isManual ? " (manual)" : "");
+            const label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
             return (
               <div key={i} className="flex justify-between text-xs">
                 <span className="text-muted-foreground">{label}</span>
@@ -102,7 +103,7 @@ export default function CommunicationSidebar({
           })}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">no reminders sent yet.</p>
+        <p className="text-xs text-muted-foreground">No reminders sent yet.</p>
       )}
     </div>
   );

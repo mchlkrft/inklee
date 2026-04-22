@@ -32,35 +32,33 @@ export default function PublicPageClient({
 
   return (
     <div className="space-y-6">
-      {/* URL bar */}
       <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-4 py-3">
-        <span className="flex-1 text-sm text-foreground font-mono truncate">
+        <span className="flex-1 truncate font-mono text-sm text-foreground">
           {publicUrl.replace(/^https?:\/\//, "")}
         </span>
         <button
           onClick={copyUrl}
-          className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:border-foreground"
+          className="shrink-0 rounded border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
         >
-          {copied ? "copied!" : "copy"}
+          {copied ? "Copied!" : "Copy"}
         </button>
         <a
           href={`/${slug}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:border-foreground"
+          className="shrink-0 rounded border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
         >
-          preview ↗
+          Preview
         </a>
       </div>
 
-      {/* QR code */}
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">qr code</p>
-        <div className="w-fit rounded-md border border-border p-3 bg-[#09090b]">
+        <p className="text-sm text-muted-foreground">QR code</p>
+        <div className="w-fit rounded-md border border-border bg-[#09090b] p-3">
           <canvas ref={canvasRef} />
         </div>
         <p className="text-xs text-muted-foreground">
-          right-click to save for print or in-person sharing
+          Right-click to save for print or in-person sharing.
         </p>
       </div>
     </div>

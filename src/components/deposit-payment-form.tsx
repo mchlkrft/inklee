@@ -9,7 +9,6 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 
-// Initialise outside component to avoid recreating on every render
 function getStripePromise(publishableKey: string) {
   return loadStripe(publishableKey);
 }
@@ -33,7 +32,7 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
     });
 
     if (stripeError) {
-      setError(stripeError.message ?? "payment failed — try again");
+      setError(stripeError.message ?? "Payment failed. Try again.");
       setProcessing(false);
       return;
     }
@@ -54,7 +53,7 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
         disabled={!stripe || processing}
         className="w-full rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
       >
-        {processing ? "processing…" : "pay deposit"}
+        {processing ? "Processing..." : "Pay deposit"}
       </button>
     </form>
   );
@@ -74,10 +73,10 @@ export default function DepositPaymentForm({
 
   if (paid) {
     return (
-      <div className="rounded-md border border-border p-4 space-y-1">
-        <p className="text-sm font-medium text-foreground">payment received</p>
+      <div className="space-y-1 rounded-md border border-border p-4">
+        <p className="text-sm font-medium text-foreground">Payment received</p>
         <p className="text-sm text-muted-foreground">
-          your €{amountEur.toFixed(2)} deposit has been paid. the artist will
+          Your EUR {amountEur.toFixed(2)} deposit has been paid. The artist will
           confirm your booking shortly.
         </p>
       </div>
@@ -87,9 +86,9 @@ export default function DepositPaymentForm({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">pay deposit</p>
+        <p className="text-sm font-medium text-foreground">Pay deposit</p>
         <p className="text-sm text-muted-foreground">
-          €{amountEur.toFixed(2)} due to confirm your booking
+          EUR {amountEur.toFixed(2)} due to confirm your booking
         </p>
       </div>
       <Elements

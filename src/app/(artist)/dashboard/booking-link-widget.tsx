@@ -20,33 +20,33 @@ export default function BookingLinkWidget({
   }
 
   return (
-    <div className="rounded-md border border-border p-5 space-y-3">
+    <div className="space-y-3 rounded-md border border-border p-5">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-foreground">booking link</p>
+        <p className="text-sm font-medium text-foreground">Booking link</p>
         <Link
           href="/bookings/public-page"
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          manage →
+          Manage
         </Link>
       </div>
-      <p className="text-sm text-muted-foreground font-mono truncate">
+      <p className="truncate font-mono text-sm text-muted-foreground">
         {publicUrl.replace(/^https?:\/\//, "")}
       </p>
       <div className="flex gap-2">
         <button
           onClick={copy}
-          className="text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+          className="rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
         >
-          {copied ? "copied!" : "copy link"}
+          {copied ? "Copied!" : "Copy link"}
         </button>
         <a
           href={`/${slug}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+          className="rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
         >
-          preview ↗
+          Preview
         </a>
       </div>
     </div>

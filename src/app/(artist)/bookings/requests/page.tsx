@@ -5,12 +5,12 @@ import { relativeTime, formatDate } from "@/lib/format";
 import CopyButton from "@/components/copy-button";
 
 const FILTERS = [
-  { label: "all", value: "all" },
-  { label: "pending", value: "pending" },
-  { label: "approved", value: "approved" },
-  { label: "deposit pending", value: "deposit_pending" },
-  { label: "rejected", value: "rejected" },
-  { label: "cancelled", value: "cancelled" },
+  { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
+  { label: "Approved", value: "approved" },
+  { label: "Deposit pending", value: "deposit_pending" },
+  { label: "Rejected", value: "rejected" },
+  { label: "Cancelled", value: "cancelled" },
 ] as const;
 
 export default async function RequestsPage({
@@ -55,10 +55,9 @@ export default async function RequestsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">requests</h1>
+      <h1 className="text-2xl font-semibold text-foreground">Requests</h1>
 
-      {/* Status filter */}
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex flex-wrap gap-1">
         {FILTERS.map((f) => {
           const href =
             f.value === "all"
@@ -84,9 +83,8 @@ export default async function RequestsPage({
         })}
       </div>
 
-      {/* Trip filter */}
       {travelLegs && travelLegs.length > 0 && (
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex flex-wrap gap-1">
           <Link
             href={status !== "all" ? `?status=${status}` : "/bookings/requests"}
             className={`rounded-full px-3 py-1 text-xs transition-colors ${
@@ -95,7 +93,7 @@ export default async function RequestsPage({
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
           >
-            all trips
+            All trips
           </Link>
           {travelLegs.map((l) => {
             const href =
@@ -119,13 +117,12 @@ export default async function RequestsPage({
         </div>
       )}
 
-      {/* Table */}
       {!bookings || bookings.length === 0 ? (
-        <div className="rounded-md border border-border px-6 py-12 text-center space-y-3">
+        <div className="space-y-3 rounded-md border border-border px-6 py-12 text-center">
           <p className="text-sm text-muted-foreground">
             {status === "all"
-              ? "no requests yet — share your booking link to get started."
-              : `no ${status.replace("_", " ")} requests.`}
+              ? "No requests yet - share your booking link to get started."
+              : `No ${status.replace("_", " ")} requests.`}
           </p>
           {status === "all" && publicUrl && (
             <div className="flex items-center justify-center gap-2">
@@ -134,35 +131,35 @@ export default async function RequestsPage({
                 href={publicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                className="rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
               >
-                preview ↗
+                Preview
               </a>
             </div>
           )}
         </div>
       ) : (
-        <div className="rounded-md border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs text-muted-foreground font-medium">
-                  handle
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+                  Handle
                 </th>
-                <th className="text-left px-4 py-3 text-xs text-muted-foreground font-medium">
-                  placement
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+                  Placement
                 </th>
-                <th className="text-left px-4 py-3 text-xs text-muted-foreground font-medium hidden sm:table-cell">
-                  size
+                <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground sm:table-cell">
+                  Size
                 </th>
-                <th className="text-left px-4 py-3 text-xs text-muted-foreground font-medium hidden md:table-cell">
-                  date
+                <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground md:table-cell">
+                  Date
                 </th>
-                <th className="text-left px-4 py-3 text-xs text-muted-foreground font-medium">
-                  status
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+                  Status
                 </th>
-                <th className="text-right px-4 py-3 text-xs text-muted-foreground font-medium hidden sm:table-cell">
-                  submitted
+                <th className="hidden px-4 py-3 text-right text-xs font-medium text-muted-foreground sm:table-cell">
+                  Submitted
                 </th>
               </tr>
             </thead>
@@ -172,7 +169,7 @@ export default async function RequestsPage({
                 return (
                   <tr
                     key={b.id}
-                    className="hover:bg-muted/20 transition-colors cursor-pointer"
+                    className="cursor-pointer transition-colors hover:bg-muted/20"
                   >
                     <td className="px-4 py-3">
                       <Link
@@ -182,28 +179,28 @@ export default async function RequestsPage({
                         @{b.customer_handle}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-[180px] truncate">
+                    <td className="max-w-[180px] truncate px-4 py-3 text-muted-foreground">
                       <Link
                         href={`/bookings/requests/${b.id}`}
                         className="block"
                       >
-                        {fd?.placement ?? "—"}
+                        {fd?.placement ?? "-"}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                    <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
                       <Link
                         href={`/bookings/requests/${b.id}`}
                         className="block"
                       >
-                        {fd?.size ?? "—"}
+                        {fd?.size ?? "-"}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
                       <Link
                         href={`/bookings/requests/${b.id}`}
                         className="block"
                       >
-                        {b.preferred_date ? formatDate(b.preferred_date) : "—"}
+                        {b.preferred_date ? formatDate(b.preferred_date) : "-"}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
@@ -214,7 +211,7 @@ export default async function RequestsPage({
                         <StatusBadge status={b.status} />
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-right hidden sm:table-cell">
+                    <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
                       <Link
                         href={`/bookings/requests/${b.id}`}
                         className="block"

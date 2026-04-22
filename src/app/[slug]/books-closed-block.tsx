@@ -1,5 +1,5 @@
 export default function BooksClosedBlock({
-  message = "books are currently closed",
+  message = "Books are currently closed.",
   hint,
   children,
 }: {
@@ -8,7 +8,7 @@ export default function BooksClosedBlock({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-border px-5 py-8 text-center space-y-3">
+    <div className="space-y-3 rounded-md border border-border px-5 py-8 text-center">
       <div className="space-y-1">
         <p className="text-sm text-foreground">{message}</p>
         {hint && <p className="text-sm text-muted-foreground">{hint}</p>}

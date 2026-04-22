@@ -12,15 +12,15 @@ const STYLES: Record<string, string> = {
 };
 
 const LABELS: Record<string, string> = {
-  pending: "pending",
-  approved: "approved",
-  rejected: "rejected",
-  deposit_pending: "deposit pending",
-  cancelled: "cancelled",
-  waiting: "waiting",
-  contacted: "contacted",
-  converted: "converted",
-  dismissed: "dismissed",
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  deposit_pending: "Deposit pending",
+  cancelled: "Cancelled",
+  waiting: "Waiting",
+  contacted: "Contacted",
+  converted: "Converted",
+  dismissed: "Dismissed",
 };
 
 export default function StatusBadge({ status }: { status: string }) {

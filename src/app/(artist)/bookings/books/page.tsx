@@ -20,9 +20,9 @@ export default async function BooksSettingsPage() {
   return (
     <div className="space-y-6 max-w-lg">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">books</h1>
+        <h1 className="text-lg font-semibold text-foreground">Books</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          control when and how many booking requests you accept
+          Control when and how many booking requests you accept.
         </p>
       </div>
       <BooksForm settings={booksSettings} />

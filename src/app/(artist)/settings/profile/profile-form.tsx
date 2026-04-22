@@ -56,12 +56,11 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         <p className="text-sm text-destructive">{state.error}</p>
       )}
       {state && "success" in state && (
-        <p className="text-sm text-green-500">profile updated</p>
+        <p className="text-sm text-green-500">Profile updated.</p>
       )}
 
-      {/* Logo */}
       <div className="space-y-2">
-        <label className="text-sm text-muted-foreground">logo</label>
+        <label className="text-sm text-muted-foreground">Logo</label>
         <div className="flex items-center gap-4">
           {preview ? (
             <div className="relative h-16 w-16 rounded-full overflow-hidden border border-border">
@@ -69,7 +68,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
             </div>
           ) : (
             <div className="h-16 w-16 rounded-full border border-border flex items-center justify-center text-muted-foreground text-xs">
-              none
+              None
             </div>
           )}
           <button
@@ -77,7 +76,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
             onClick={() => fileRef.current?.click()}
             className="text-sm text-muted-foreground underline underline-offset-4"
           >
-            change
+            Change
           </button>
           <input
             ref={fileRef}
@@ -92,14 +91,13 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          png, jpg, or webp — max 2mb — resized to 512×512
+          PNG, JPG, or WebP - max 2 MB - resized to 512x512
         </p>
       </div>
 
-      {/* Display name */}
       <div className="space-y-1.5">
         <label htmlFor="display_name" className="text-sm text-muted-foreground">
-          display name
+          Display name
         </label>
         <input
           id="display_name"
@@ -111,13 +109,12 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         />
       </div>
 
-      {/* Instagram */}
       <div className="space-y-1.5">
         <label
           htmlFor="instagram_handle"
           className="text-sm text-muted-foreground"
         >
-          instagram handle
+          Instagram handle
         </label>
         <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
           <span className="text-muted-foreground select-none">@</span>
@@ -131,11 +128,10 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         </div>
       </div>
 
-      {/* Bio */}
       <div className="space-y-1.5">
         <div className="flex justify-between">
           <label htmlFor="bio" className="text-sm text-muted-foreground">
-            bio
+            Bio
           </label>
           <span
             className={`text-xs ${bio.length > 280 ? "text-destructive" : "text-muted-foreground"}`}
@@ -153,10 +149,9 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         />
       </div>
 
-      {/* Timezone */}
       <div className="space-y-1.5">
         <label htmlFor="timezone" className="text-sm text-muted-foreground">
-          timezone
+          Timezone
         </label>
         <select
           id="timezone"
@@ -172,25 +167,23 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         </select>
       </div>
 
-      {/* Location */}
       <div className="space-y-1.5">
         <label htmlFor="location" className="text-sm text-muted-foreground">
-          location
+          Location
         </label>
         <input
           id="location"
           name="location"
           type="text"
           defaultValue={profile?.location ?? ""}
-          placeholder="city"
+          placeholder="City"
           className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
 
-      {/* Booking mode */}
       <div className="space-y-1.5">
         <label htmlFor="booking_mode" className="text-sm text-muted-foreground">
-          booking mode
+          Booking mode
         </label>
         <select
           id="booking_mode"
@@ -199,10 +192,10 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="preferred_date">
-            preferred date — customer suggests a date
+            Preferred date - customer suggests a date
           </option>
           <option value="fixed_slots">
-            fixed slots — you publish time slots
+            Fixed slots - you publish time slots
           </option>
         </select>
       </div>
@@ -212,7 +205,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         disabled={pending}
         className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
       >
-        {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "save profile"}
+        {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Save profile"}
       </button>
     </form>
   );

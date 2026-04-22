@@ -55,7 +55,7 @@ export default async function ClientsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">clients</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Clients</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {clients.length} unique{" "}
           {clients.length === 1 ? "customer" : "customers"}
@@ -65,8 +65,7 @@ export default async function ClientsPage() {
       {clients.length === 0 ? (
         <div className="rounded-md border border-border px-6 py-12 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
-            no clients yet — share your booking link to start accepting
-            requests.
+            No clients yet. Share your booking link to start accepting requests.
           </p>
           {publicUrl && (
             <div className="flex items-center justify-center gap-2">
@@ -77,7 +76,7 @@ export default async function ClientsPage() {
                 rel="noopener noreferrer"
                 className="text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
               >
-                preview ↗
+                Preview &rarr;
               </a>
             </div>
           )}

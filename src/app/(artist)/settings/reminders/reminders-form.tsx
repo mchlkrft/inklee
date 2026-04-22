@@ -30,13 +30,12 @@ export default function RemindersForm({
 
   return (
     <form action={action} className="space-y-6">
-      {/* Deposit overdue */}
       <div className="rounded-md border border-border divide-y divide-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
-            <p className="text-sm text-foreground">deposit overdue reminder</p>
+            <p className="text-sm text-foreground">Deposit overdue reminder</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              sent to client and artist when a deposit is past due
+              Sent to client and artist when a deposit is past due.
             </p>
           </div>
           <input
@@ -58,13 +57,12 @@ export default function RemindersForm({
         </div>
       </div>
 
-      {/* Appointment reminder */}
       <div className="rounded-md border border-border divide-y divide-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
-            <p className="text-sm text-foreground">appointment reminder</p>
+            <p className="text-sm text-foreground">Appointment reminder</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              sent to client before their appointment
+              Sent to client before their appointment.
             </p>
           </div>
           <input
@@ -90,7 +88,7 @@ export default function RemindersForm({
               htmlFor="appointment_days"
               className="text-sm text-muted-foreground"
             >
-              send how many days before?
+              Send how many days before?
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -108,20 +106,19 @@ export default function RemindersForm({
                 }
                 className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-ring"
               />
-              <span className="text-sm text-muted-foreground">days</span>
+              <span className="text-sm text-muted-foreground">Days</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Reconfirmation */}
       <div className="rounded-md border border-border divide-y divide-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
-            <p className="text-sm text-foreground">reconfirmation request</p>
+            <p className="text-sm text-foreground">Reconfirmation request</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              asks the client to confirm they&apos;re still coming, with a fresh
-              cancel link
+              Asks the client to confirm they&apos;re still coming, with a fresh
+              cancel link.
             </p>
           </div>
           <input
@@ -147,7 +144,7 @@ export default function RemindersForm({
               htmlFor="reconfirmation_days"
               className="text-sm text-muted-foreground"
             >
-              send how many days before?
+              Send how many days before?
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -165,7 +162,7 @@ export default function RemindersForm({
                 }
                 className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-ring"
               />
-              <span className="text-sm text-muted-foreground">days</span>
+              <span className="text-sm text-muted-foreground">Days</span>
             </div>
           </div>
         )}
@@ -175,7 +172,7 @@ export default function RemindersForm({
         <p className="text-sm text-destructive">{state.error}</p>
       )}
       {state && "success" in state && (
-        <p className="text-sm text-muted-foreground">saved.</p>
+        <p className="text-sm text-muted-foreground">Saved.</p>
       )}
 
       <button
@@ -183,7 +180,7 @@ export default function RemindersForm({
         disabled={pending}
         className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
       >
-        {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "save"}
+        {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Save"}
       </button>
     </form>
   );

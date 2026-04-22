@@ -32,7 +32,6 @@ export default async function RequestDetailPage({
   const customAnswers =
     (fd?.custom_answers as CustomAnswerSnapshot[] | undefined) ?? [];
 
-  // Fetch reminder audit log for this booking
   const { data: reminderLog } = await supabase
     .from("audit_log")
     .select("timestamp, details")
@@ -56,7 +55,7 @@ export default async function RequestDetailPage({
           href="/bookings/requests"
           className="hover:text-foreground transition-colors"
         >
-          requests
+          Requests
         </Link>
         <span>/</span>
         <span className="text-foreground">@{booking.customer_handle}</span>
@@ -65,22 +64,22 @@ export default async function RequestDetailPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-md border border-border divide-y divide-border">
-            <Row label="instagram" value={`@${booking.customer_handle}`} />
-            <Row label="email" value={booking.customer_email ?? "—"} />
-            <Row label="placement" value={(fd?.placement as string) ?? "—"} />
-            <Row label="size" value={(fd?.size as string) ?? "—"} />
+            <Row label="Instagram" value={`@${booking.customer_handle}`} />
+            <Row label="Email" value={booking.customer_email ?? "-"} />
+            <Row label="Placement" value={(fd?.placement as string) ?? "-"} />
+            <Row label="Size" value={(fd?.size as string) ?? "-"} />
             <Row
-              label="preferred date"
+              label="Preferred date"
               value={
                 booking.preferred_date
                   ? formatDate(booking.preferred_date)
-                  : "—"
+                  : "-"
               }
             />
             {typeof fd?.reference_link === "string" && (
               <div className="flex px-4 py-3 gap-4">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">
-                  reference
+                  Reference
                 </span>
                 <a
                   href={fd.reference_link as string}
@@ -103,7 +102,7 @@ export default async function RequestDetailPage({
 
           {typeof fd?.description === "string" && (
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">description</p>
+              <p className="text-sm text-muted-foreground">Description</p>
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                 {fd.description as string}
               </p>
@@ -113,7 +112,7 @@ export default async function RequestDetailPage({
           {signedUrls.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                reference images ({signedUrls.length})
+                Reference images ({signedUrls.length})
               </p>
               <ImageLightbox urls={signedUrls} />
             </div>
@@ -126,14 +125,14 @@ export default async function RequestDetailPage({
           {booking.deposit_amount && (
             <div className="rounded-md border border-border p-4 space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                deposit
+                Deposit
               </p>
               <p className="text-sm text-foreground font-medium">
-                €{Number(booking.deposit_amount).toFixed(2)}
+                EUR {Number(booking.deposit_amount).toFixed(2)}
               </p>
               {booking.deposit_due_at && (
                 <p className="text-xs text-muted-foreground">
-                  due {formatDate(booking.deposit_due_at)}
+                  Due {formatDate(booking.deposit_due_at)}
                 </p>
               )}
               {booking.deposit_note && (
@@ -145,15 +144,15 @@ export default async function RequestDetailPage({
           )}
 
           <div className="rounded-md border border-border divide-y divide-border text-sm">
-            <Row label="submitted" value={relativeTime(booking.created_at)} />
+            <Row label="Submitted" value={relativeTime(booking.created_at)} />
             {booking.decided_at && (
-              <Row label="decided" value={relativeTime(booking.decided_at)} />
+              <Row label="Decided" value={relativeTime(booking.decided_at)} />
             )}
             <Row
-              label="magic link"
-              value={booking.customer_token_hash ? "active" : "none"}
+              label="Magic link"
+              value={booking.customer_token_hash ? "Active" : "None"}
             />
-            <Row label="origin" value={booking.origin.replace("_", " ")} />
+            <Row label="Origin" value={booking.origin.replace("_", " ")} />
           </div>
 
           <div className="rounded-md border border-border p-4">
