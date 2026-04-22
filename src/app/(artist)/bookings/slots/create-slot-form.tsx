@@ -1,5 +1,6 @@
 "use client";
 
+import TimeInput from "@/components/time-input";
 import DateInput from "@/components/date-input";
 import { useState, startTransition } from "react";
 import { createSlotAction, createSlotBlockAction } from "./actions";
@@ -98,9 +99,8 @@ export default function CreateSlotForm() {
               <label className="text-sm text-muted-foreground">
                 Start time
               </label>
-              <input
+              <TimeInput
                 name="time"
-                type="time"
                 required
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
@@ -108,9 +108,8 @@ export default function CreateSlotForm() {
           ) : (
             <div className="space-y-1.5">
               <label className="text-sm text-muted-foreground">Start</label>
-              <input
+              <TimeInput
                 name="start_time"
-                type="time"
                 required
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
@@ -123,9 +122,8 @@ export default function CreateSlotForm() {
         {mode === "block" && (
           <div className="space-y-1.5">
             <label className="text-sm text-muted-foreground">End</label>
-            <input
+            <TimeInput
               name="end_time"
-              type="time"
               required
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
