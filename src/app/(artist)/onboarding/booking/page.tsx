@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveOnboardingBookingAction } from "./actions";
 import OnboardingProgress from "@/components/onboarding-progress";
 import Link from "next/link";
@@ -12,6 +12,7 @@ export default function OnboardingBookingPage() {
     saveOnboardingBookingAction,
     null,
   );
+  const [selectedMode, setSelectedMode] = useState("preferred_date");
 
   return (
     <div className="space-y-6">
@@ -37,6 +38,7 @@ export default function OnboardingBookingPage() {
               value="preferred_date"
               defaultChecked
               className="mt-0.5 shrink-0"
+              onChange={() => setSelectedMode("preferred_date")}
             />
             <div>
               <p className="text-sm font-medium text-foreground">
@@ -55,6 +57,7 @@ export default function OnboardingBookingPage() {
               name="booking_mode"
               value="fixed_slots"
               className="mt-0.5 shrink-0"
+              onChange={() => setSelectedMode("fixed_slots")}
             />
             <div>
               <p className="text-sm font-medium text-foreground">Fixed slots</p>
@@ -65,6 +68,22 @@ export default function OnboardingBookingPage() {
             </div>
           </label>
         </div>
+
+        {selectedMode === "fixed_slots" && (
+          <div className="rounded-md border border-orange-400/40 bg-orange-400/5 px-4 py-3 flex items-start gap-2.5">
+            <span className="text-orange-400 text-base shrink-0 mt-0.5">⚠</span>
+            <div className="space-y-1">
+              <p className="text-sm text-orange-400 font-medium">
+                Your booking page will be closed until you publish slots
+              </p>
+              <p className="text-xs text-orange-400/80">
+                After finishing setup, go to <strong>Bookings → Slots</strong>{" "}
+                to add your first time slots. Clients cannot book until at least
+                one slot is published.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-3 pt-2">
           <button
