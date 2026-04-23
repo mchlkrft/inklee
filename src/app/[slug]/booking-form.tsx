@@ -56,20 +56,46 @@ export default function BookingForm({
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_FILES = 5;
+  const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+  const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
   const addFiles = (incoming: FileList | null) => {
     if (!incoming) return;
-    const toAdd = Array.from(incoming).slice(0, 5 - images.length);
-    const newImages = [...images, ...toAdd].slice(0, 5);
+    const errors: string[] = [];
+    const valid: File[] = [];
+
+    Array.from(incoming).forEach((file) => {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        errors.push(`${file.name}: unsupported format (JPG, PNG, WebP only)`);
+      } else if (file.size > MAX_SIZE_BYTES) {
+        errors.push(`${file.name}: too large (max 10 MB per file)`);
+      } else {
+        valid.push(file);
+      }
+    });
+
+    const slots = MAX_FILES - images.length;
+    if (valid.length > slots) {
+      errors.push(
+        `Only ${slots} more image${slots === 1 ? "" : "s"} can be added (max ${MAX_FILES} total)`,
+      );
+    }
+
+    const newImages = [...images, ...valid].slice(0, MAX_FILES);
     setImages(newImages);
     setPreviews(newImages.map((f) => URL.createObjectURL(f)));
+    setUploadErrors(errors);
   };
 
   const removeImage = (idx: number) => {
     const next = images.filter((_, i) => i !== idx);
     setImages(next);
     setPreviews(next.map((f) => URL.createObjectURL(f)));
+    setUploadErrors([]);
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -245,14 +271,18 @@ export default function BookingForm({
 
       {formSettings.show_image_upload && (
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Reference images{" "}
-            <span className="text-xs text-muted-foreground">
-              (optional, max 5)
-            </span>
-          </p>
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Reference images{" "}
+              <span className="text-xs text-muted-foreground">(optional)</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Up to 5 files — JPG, PNG, or WebP — max 10 MB each. Large images
+              are automatically optimised before upload.
+            </p>
+          </div>
 
-          {images.length < 5 && (
+          {images.length < MAX_FILES && (
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -269,15 +299,17 @@ export default function BookingForm({
                 dragOver ? "border-foreground bg-muted/20" : "border-border"
               }`}
             >
-              <div className="flex flex-col items-center justify-center">
+              <div className="flex flex-col items-center justify-center gap-1">
                 <p className="text-sm text-muted-foreground">
                   Drag images here or{" "}
                   <span className="text-foreground underline underline-offset-4">
                     browse
                   </span>
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  JPG, PNG, WebP - max 10 MB each
+                <p className="text-xs text-muted-foreground">
+                  {images.length > 0
+                    ? `${images.length} of ${MAX_FILES} added — ${MAX_FILES - images.length} more allowed`
+                    : `Up to ${MAX_FILES} images`}
                 </p>
               </div>
             </div>
@@ -291,6 +323,16 @@ export default function BookingForm({
             className="hidden"
             onChange={(e) => addFiles(e.target.files)}
           />
+
+          {uploadErrors.length > 0 && (
+            <ul className="space-y-1">
+              {uploadErrors.map((msg, i) => (
+                <li key={i} className="text-xs text-destructive">
+                  {msg}
+                </li>
+              ))}
+            </ul>
+          )}
 
           {previews.length > 0 && (
             <div className="grid grid-cols-5 gap-2">
@@ -308,9 +350,9 @@ export default function BookingForm({
                   <button
                     type="button"
                     onClick={() => removeImage(i)}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 text-lg text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm text-white opacity-0 transition-opacity group-hover:opacity-100"
                   >
-                    X
+                    Remove
                   </button>
                 </div>
               ))}

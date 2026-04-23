@@ -16,9 +16,10 @@ import { validateCustomAnswers } from "@/lib/custom-fields";
 import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { processImage } from "@/lib/image-processing";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB raw input limit
 const MAX_IMAGES = 5;
 
 type State = { error: string; field?: string } | null;
@@ -173,38 +174,76 @@ export async function submitBookingAction(
     slotDate = locked.starts_at.split("T")[0];
   }
 
-  // Upload images to Supabase Storage
-  const storagePaths: string[] = [];
+  // Process and upload images — resize/compress to WebP before storage
+  type UploadedImage = {
+    path: string;
+    originalFilename: string;
+    mimeType: string;
+    width: number;
+    height: number;
+    fileSize: number;
+  };
+  const uploadedImages: UploadedImage[] = [];
+
   for (const file of realImages) {
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${bookingId}/${crypto.randomUUID()}.${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const path = `${artistId}/${bookingId}/${crypto.randomUUID()}.webp`;
+    let processed;
+    try {
+      processed = await processImage(file);
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { action: "booking_image_process" },
+        extra: { bookingId, filename: file.name, size: file.size },
+      });
+      // Clean up any already-uploaded files before returning
+      if (uploadedImages.length > 0) {
+        await serviceClient.storage
+          .from("bookings")
+          .remove(uploadedImages.map((u) => u.path));
+      }
+      return { error: "image processing failed — try a different file" };
+    }
+
     try {
       const { error: uploadError } = await serviceClient.storage
         .from("bookings")
-        .upload(path, buffer, { contentType: file.type });
+        .upload(path, processed.buffer, { contentType: "image/webp" });
 
       if (uploadError) {
         Sentry.captureMessage("booking image upload failed", {
           level: "error",
           tags: { action: "booking_upload" },
-          extra: {
-            bookingId,
-            path,
-            contentType: file.type,
-            message: uploadError.message,
-          },
+          extra: { bookingId, path, message: uploadError.message },
         });
+        // Clean up already-uploaded files
+        if (uploadedImages.length > 0) {
+          await serviceClient.storage
+            .from("bookings")
+            .remove(uploadedImages.map((u) => u.path));
+        }
         return { error: "image upload failed — try again" };
       }
     } catch (error) {
       Sentry.captureException(error, {
         tags: { action: "booking_upload" },
-        extra: { bookingId, path, contentType: file.type },
+        extra: { bookingId, path },
       });
+      if (uploadedImages.length > 0) {
+        await serviceClient.storage
+          .from("bookings")
+          .remove(uploadedImages.map((u) => u.path));
+      }
       return { error: "image upload failed — try again" };
     }
-    storagePaths.push(path);
+
+    uploadedImages.push({
+      path,
+      originalFilename: file.name,
+      mimeType: processed.mimeType,
+      width: processed.width,
+      height: processed.height,
+      fileSize: processed.fileSize,
+    });
   }
 
   // Generate magic-link token
@@ -242,15 +281,26 @@ export async function submitBookingAction(
     if (slotId) {
       await supabase.from("slots").update({ status: "open" }).eq("id", slotId);
     }
+    // Clean up uploaded images since booking failed
+    if (uploadedImages.length > 0) {
+      await serviceClient.storage
+        .from("bookings")
+        .remove(uploadedImages.map((u) => u.path));
+    }
     return { error: "something went wrong — try again" };
   }
 
-  // Insert booking images
-  if (storagePaths.length > 0) {
+  // Insert booking images with metadata
+  if (uploadedImages.length > 0) {
     await supabase.from("booking_images").insert(
-      storagePaths.map((path) => ({
+      uploadedImages.map((img) => ({
         booking_id: bookingId,
-        storage_path: path,
+        storage_path: img.path,
+        original_filename: img.originalFilename,
+        mime_type: img.mimeType,
+        width: img.width,
+        height: img.height,
+        file_size: img.fileSize,
       })),
     );
   }
