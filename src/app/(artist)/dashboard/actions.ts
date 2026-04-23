@@ -10,6 +10,7 @@ import crypto from "crypto";
 import type { User } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
+import { canTransition } from "@/lib/booking-fsm";
 
 type ActionResult = { error: string } | { success: true };
 type AuthorisedBookingResult =
@@ -69,6 +70,9 @@ export async function approveBooking(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
+
+  const guard = canTransition(booking.status, "approved");
+  if (!guard.ok) return { error: guard.reason };
 
   // Generate new token so customer gets a fresh cancel link
   const newToken = crypto.randomBytes(32).toString("hex");
@@ -139,6 +143,10 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
+
+  const guardR = canTransition(booking.status, "rejected");
+  if (!guardR.ok) return { error: guardR.reason };
+
   const decidedAt = new Date().toISOString();
   const { error } = await supabase
     .from("booking_requests")
@@ -268,6 +276,10 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
+
+  const guardM = canTransition(booking.status, "approved");
+  if (!guardM.ok) return { error: guardM.reason };
+
   const decidedAt = new Date().toISOString();
   const { error } = await supabase
     .from("booking_requests")

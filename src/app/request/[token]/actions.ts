@@ -11,6 +11,7 @@ import crypto from "crypto";
 import { redirect } from "next/navigation";
 import { createNotification } from "@/lib/notifications";
 import { checkPortalRateLimit } from "@/lib/ratelimit";
+import { canTransition } from "@/lib/booking-fsm";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -163,9 +164,8 @@ export async function cancelCustomerBookingAction(
     30 * 24 * 60 * 60 * 1000;
   if (expired) return { error: "this link has expired" };
 
-  if (booking.status === "cancelled") {
-    return { error: "this request is already cancelled" };
-  }
+  const guard = canTransition(booking.status, "cancelled");
+  if (!guard.ok) return { error: guard.reason };
 
   // anon client: RLS allows UPDATE on rows with a non-null customer_token_hash
   const { error: updateError } = await supabase

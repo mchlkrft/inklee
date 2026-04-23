@@ -10,6 +10,7 @@ import crypto from "crypto";
 import type { User } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
+import { canTransition } from "@/lib/booking-fsm";
 
 type ActionResult = { error: string } | { success: true };
 type AuthorisedBookingResult =
@@ -69,6 +70,9 @@ export async function approveBooking(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
+
+  const guard = canTransition(booking.status, "approved");
+  if (!guard.ok) return { error: guard.reason };
 
   const newToken = crypto.randomBytes(32).toString("hex");
   const newHash = crypto.createHash("sha256").update(newToken).digest("hex");
@@ -138,6 +142,10 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
+
+  const guard = canTransition(booking.status, "rejected");
+  if (!guard.ok) return { error: guard.reason };
+
   const decidedAt = new Date().toISOString();
   const { error } = await supabase
     .from("booking_requests")
@@ -203,6 +211,32 @@ export async function requestDeposit(
 
   const { supabase, user, booking } = authorised;
 
+  const guard = canTransition(booking.status, "deposit_pending");
+  if (!guard.ok) return { error: guard.reason };
+
+  // Idempotency: re-fetch to check if a PaymentIntent already exists
+  const { data: fresh } = await supabase
+    .from("booking_requests")
+    .select("deposit_payment_intent_id, deposit_client_secret")
+    .eq("id", id)
+    .single();
+
+  if (fresh?.deposit_payment_intent_id && fresh?.deposit_client_secret) {
+    // A PaymentIntent already exists — update metadata but reuse the intent
+    await supabase
+      .from("booking_requests")
+      .update({
+        deposit_amount: amount,
+        deposit_due_at: dueAt,
+        deposit_note: note || null,
+        status: "deposit_pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    revalidatePath(`/bookings/requests/${id}`);
+    return { success: true };
+  }
+
   let paymentIntentId: string | null = null;
   let clientSecret: string | null = null;
   if (stripe && amount > 0) {
@@ -266,6 +300,10 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
+
+  const guard = canTransition(booking.status, "approved");
+  if (!guard.ok) return { error: guard.reason };
+
   const decidedAt = new Date().toISOString();
   const { error } = await supabase
     .from("booking_requests")

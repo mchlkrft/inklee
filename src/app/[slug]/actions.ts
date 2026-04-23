@@ -149,6 +149,21 @@ export async function submitBookingAction(
   const bookingId = crypto.randomUUID();
   const bookingMode = formData.get("booking_mode") as string;
 
+  // Deduplication: reject if this customer already submitted to this artist within 60 seconds
+  const dedupeWindow = new Date(Date.now() - 60000).toISOString();
+  const { count: recentCount } = await supabase
+    .from("booking_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("artist_id", artistId)
+    .eq("customer_email", data.email)
+    .gte("created_at", dedupeWindow);
+  if ((recentCount ?? 0) > 0) {
+    return {
+      error:
+        "your request was already submitted — check your email for confirmation",
+    };
+  }
+
   // Slot mode: atomically lock the slot before proceeding
   let slotId: string | null = null;
   let slotDate: string | null = null;

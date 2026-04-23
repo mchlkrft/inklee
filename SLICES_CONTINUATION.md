@@ -582,7 +582,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 35 — Booking state machine and idempotency hardening
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — FSM in booking-fsm.ts, guards on all transitions, Stripe intent dedup, 60s submission dedup
 
 **Goal:** Booking status transitions are validated against an explicit state machine server-side; repeated or concurrent requests for the same transition are safe and produce no duplicate side effects.
 
