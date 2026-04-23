@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { checkLoginRateLimit } from "@/lib/ratelimit";
 
 type State = { error: string } | null;
 
@@ -9,6 +11,11 @@ export async function loginAction(
   _prev: State,
   formData: FormData,
 ): Promise<State> {
+  const ip = (await headers()).get("x-forwarded-for") ?? "unknown";
+  const { allowed } = await checkLoginRateLimit(ip);
+  if (!allowed)
+    return { error: "too many login attempts — please wait a few minutes" };
+
   const email = (formData.get("email") as string).trim();
   const password = formData.get("password") as string;
 

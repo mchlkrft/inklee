@@ -49,7 +49,15 @@ export async function createTravelLegAction(
 
 export async function deleteTravelLegAction(id: string): Promise<void> {
   const supabase = await createClient();
-  await supabase.from("travel_legs").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from("travel_legs")
+    .delete()
+    .eq("id", id)
+    .eq("artist_id", user.id);
   revalidatePath("/travel");
 }
 
@@ -58,9 +66,14 @@ export async function toggleTravelLegAction(
   isActive: boolean,
 ): Promise<void> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
   await supabase
     .from("travel_legs")
     .update({ is_active: isActive })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("artist_id", user.id);
   revalidatePath("/travel");
 }

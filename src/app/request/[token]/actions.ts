@@ -10,6 +10,7 @@ import {
 import crypto from "crypto";
 import { redirect } from "next/navigation";
 import { createNotification } from "@/lib/notifications";
+import { checkPortalRateLimit } from "@/lib/ratelimit";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -143,6 +144,9 @@ export async function cancelCustomerBookingAction(
   if (!token) return { error: "invalid link" };
 
   const tokenHash = hashToken(token);
+
+  const { allowed } = await checkPortalRateLimit(tokenHash);
+  if (!allowed) return { error: "too many requests — please try again later" };
   // anon client: RLS allows SELECT on rows with a non-null customer_token_hash
   const supabase = await createClient();
 

@@ -1,44 +1,75 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-let ratelimit: Ratelimit | null = null;
+const hasRedis =
+  !!process.env.UPSTASH_REDIS_REST_URL &&
+  !!process.env.UPSTASH_REDIS_REST_TOKEN;
 
-if (
-  process.env.UPSTASH_REDIS_REST_URL &&
-  process.env.UPSTASH_REDIS_REST_TOKEN
-) {
-  ratelimit = new Ratelimit({
-    redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(5, "1 h"),
-    prefix: "inklee:booking",
-  });
+function makeLimit(
+  limiter: Ratelimit["limiter"],
+  prefix: string,
+): Ratelimit | null {
+  if (!hasRedis) return null;
+  return new Ratelimit({ redis: Redis.fromEnv(), limiter, prefix });
 }
 
-export async function checkRateLimit(
-  ip: string,
+async function check(
+  rl: Ratelimit | null,
+  key: string,
 ): Promise<{ allowed: boolean }> {
-  if (!ratelimit) return { allowed: true };
-  const { success } = await ratelimit.limit(ip);
+  if (!rl) return { allowed: true };
+  const { success } = await rl.limit(key);
   return { allowed: success };
 }
 
-let waitlistRatelimit: Ratelimit | null = null;
-
-if (
-  process.env.UPSTASH_REDIS_REST_URL &&
-  process.env.UPSTASH_REDIS_REST_TOKEN
-) {
-  waitlistRatelimit = new Ratelimit({
-    redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(3, "1 h"),
-    prefix: "inklee:waitlist",
-  });
+// Public booking form: 5 submissions / artist / IP / hour
+const bookingRl = makeLimit(
+  Ratelimit.slidingWindow(5, "1 h"),
+  "inklee:booking",
+);
+export async function checkRateLimit(ip: string) {
+  return check(bookingRl, ip);
 }
 
-export async function checkWaitlistRateLimit(
-  ip: string,
-): Promise<{ allowed: boolean }> {
-  if (!waitlistRatelimit) return { allowed: true };
-  const { success } = await waitlistRatelimit.limit(ip);
-  return { allowed: success };
+// Waitlist form: 3 submissions / IP / hour
+const waitlistRl = makeLimit(
+  Ratelimit.slidingWindow(3, "1 h"),
+  "inklee:waitlist",
+);
+export async function checkWaitlistRateLimit(ip: string) {
+  return check(waitlistRl, ip);
+}
+
+// Login: 10 attempts / IP / 15 min
+const loginRl = makeLimit(Ratelimit.slidingWindow(10, "15 m"), "inklee:login");
+export async function checkLoginRateLimit(ip: string) {
+  return check(loginRl, ip);
+}
+
+// Password reset: 5 / IP / hour, also 5 / email / hour
+const passwordResetRl = makeLimit(
+  Ratelimit.slidingWindow(5, "1 h"),
+  "inklee:pwd-reset",
+);
+export async function checkPasswordResetRateLimit(key: string) {
+  return check(passwordResetRl, key);
+}
+
+// Manual reminder send: 3 / artist / booking / reminder-type / day
+const reminderRl = makeLimit(
+  Ratelimit.slidingWindow(3, "24 h"),
+  "inklee:reminder",
+);
+export async function checkReminderRateLimit(
+  artistId: string,
+  bookingId: string,
+  type: string,
+) {
+  return check(reminderRl, `${artistId}:${bookingId}:${type}`);
+}
+
+// Customer portal actions (reschedule/cancel): 5 / token / hour
+const portalRl = makeLimit(Ratelimit.slidingWindow(5, "1 h"), "inklee:portal");
+export async function checkPortalRateLimit(tokenHash: string) {
+  return check(portalRl, tokenHash);
 }

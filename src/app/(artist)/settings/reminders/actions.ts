@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import crypto from "crypto";
 import type { ReminderSettings } from "@/lib/reminder-settings";
+import { checkReminderRateLimit } from "@/lib/ratelimit";
 import {
   sendDepositOverdueCustomer,
   sendDepositOverdueArtist,
@@ -88,6 +89,14 @@ export async function sendManualDepositReminderAction(
   if (!booking) return { error: "booking not found" };
   if (!booking.customer_email)
     return { error: "no customer email on this booking" };
+
+  const { allowed } = await checkReminderRateLimit(
+    user.id,
+    bookingId,
+    "deposit",
+  );
+  if (!allowed)
+    return { error: "reminder already sent recently — try again later" };
 
   const { data: profile } = await supabase
     .from("profiles")

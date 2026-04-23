@@ -521,7 +521,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 33 — Server-side authorization hardening
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — ownership assertions added to travel (delete/toggle), waitlist (contacted/dismiss); all action files audited
 
 **Goal:** Every artist-facing server action enforces authentication and ownership checks server-side, so that auth cannot be bypassed by manipulating client state, URL parameters, or form payloads.
 
@@ -550,7 +550,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 34 — Rate limiting expansion
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — login (10/15min), password reset (5/hr per IP+email), manual reminder send (3/day), customer portal cancel (5/hr per token)
 
 **Goal:** Rate limiting covers all externally accessible actions that are either unauthenticated (booking form, login, password reset) or prone to automated abuse (reminder sends, resend triggers).
 

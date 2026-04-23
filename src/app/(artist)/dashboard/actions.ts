@@ -301,19 +301,29 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
 
 export async function markWaitlistContacted(entryId: string): Promise<void> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
   await supabase
     .from("waitlist_entries")
     .update({ status: "contacted" })
-    .eq("id", entryId);
+    .eq("id", entryId)
+    .eq("artist_id", user.id);
   revalidatePath("/dashboard/waitlist");
 }
 
 export async function dismissWaitlistEntry(entryId: string): Promise<void> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
   await supabase
     .from("waitlist_entries")
     .update({ status: "dismissed" })
-    .eq("id", entryId);
+    .eq("id", entryId)
+    .eq("artist_id", user.id);
   revalidatePath("/dashboard/waitlist");
 }
 
