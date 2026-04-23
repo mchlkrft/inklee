@@ -477,3 +477,289 @@ These slices were added after Slice 23 was completed. They represent work that b
 Slices 24–31 complete the pre-v0.1 work.
 
 **v0.1 begins after Slice 31 is complete and the product has been validated end-to-end with at least one real artist user.**
+
+---
+
+## Hardening package: Slices 32–41
+
+These slices form a structured hardening track that runs alongside or after v0.1 validation. They are sequenced by risk reduction priority and implementation dependency — not grouped by theme. Early slices address the most foundational protections; deposit and backup work comes later when those surfaces are live and tested.
+
+**Ordering rationale:** Upload abuse protection is already partially shipped and closes the most immediate surface risk. Server-side authorization comes next because it is the prerequisite for meaningful rate limiting and state machine enforcement. Rate limiting follows once actions are correctly locked. Booking state machine hardening requires confident auth and a stable action layer. Webhook and origin integrity depend on the full request pipeline being understood. Audit log expansion is most useful once the state machine is clean. Email safeguards depend on the reminder system being stable. Session reauthentication hardening requires 2FA to be shipped (Slice 31). Deposit hardening is meaningful only once real payments exist. Backup and recovery is placed last as it is the lowest operational urgency for a pre-scale product.
+
+---
+
+### Slice 32 — Upload hardening and payload limits
+
+**Status:** ✅ complete (image optimization and file validation shipped 2026-04-23; payload limit configuration pending)
+
+**Goal:** Customer image uploads are validated, optimised, and stored safely; the server enforces hard limits on request size and rejects malformed payloads before they reach application logic.
+
+**Scope:**
+
+- File count cap (5 per booking), mime-type allowlist (jpeg/png/webp), per-file size limit (10 MB), all enforced server-side in addition to client-side — **done**
+- Images processed through sharp before storage: resize to ≤1600px longest edge, convert to WebP at 85% quality — **done**
+- Storage path structured as `{artistId}/{bookingId}/{uuid}.webp` — **done**
+- Orphan cleanup: uploaded files removed from storage if processing, upload, or booking insert fails — **done**
+- `booking_images` table extended with `width`, `height`, `file_size`, `mime_type`, `original_filename` — **done**
+- Next.js `api.bodyParser.sizeLimit` set to a safe ceiling (e.g. `25mb`) in `next.config.ts` to prevent giant raw request bodies from reaching the runtime on Pro plan — **pending**
+- Supabase Storage bucket policy for `bookings` bucket: restrict writes to service role only, reads scoped to artist ownership — **pending**
+
+**Out of scope:** Client-side compression, drag-and-drop reordering, image moderation, original archive.
+
+**Dependencies:** None — foundational surface hardening.
+
+**Acceptance criteria:**
+
+- Uploads above 10 MB are rejected with a user-facing error before processing
+- Unsupported mime types are rejected server-side regardless of client input
+- A booking creation failure after upload cleans up all associated storage files
+- Stored images are WebP, ≤1600px on longest edge
+- Oversized raw request bodies are rejected at the platform edge before reaching application code
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 33 — Server-side authorization hardening
+
+**Status:** ⬜ pending
+
+**Goal:** Every artist-facing server action enforces authentication and ownership checks server-side, so that auth cannot be bypassed by manipulating client state, URL parameters, or form payloads.
+
+**Scope:**
+
+- Audit all server actions under `src/app/(artist)/` and `src/app/[slug]/`: confirm each fetches the session user and validates `artist_id === user.id` before reading or writing data
+- Booking actions (approve, reject, deposit, cancel): re-fetch booking from DB and assert ownership before applying transition — not just trusting the submitted booking ID
+- Settings actions (profile, books, slots, fields, templates, reminders): assert the update target belongs to the authenticated user
+- Waitlist and travel actions: same ownership assertion
+- Admin route (`/admin`): server-side email check already in place — audit that no admin query falls through to an unauthenticated call
+- Storage: ensure all Supabase Storage reads for booking images go through the service client only, never the anon client directly from the artist app
+- Remove any remaining cases where only page-level auth guards (middleware redirect, UI hide) protect a sensitive action
+
+**Out of scope:** API-key based authentication, organisation-level RBAC, audit log for every authorization check.
+
+**Dependencies:** None — can proceed against current codebase.
+
+**Acceptance criteria:**
+
+- Every server action that mutates artist data begins with `supabase.auth.getUser()` and an explicit ownership assertion
+- A fabricated form submission with a different artist's booking ID is rejected before any DB write
+- No action relies solely on a hidden field or URL param for identity — all identity comes from the session
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 34 — Rate limiting expansion
+
+**Status:** ⬜ pending
+
+**Goal:** Rate limiting covers all externally accessible actions that are either unauthenticated (booking form, login, password reset) or prone to automated abuse (reminder sends, resend triggers).
+
+**Scope:**
+
+- **Currently rate-limited:** public booking form submission — no change needed
+- **Add rate limits via Upstash:**
+  - Login action: per IP, e.g. 10 attempts / 15 min
+  - Password reset (forgot-password action): per IP + per email, e.g. 5 / hour
+  - Manual reminder send (booking detail): per artist per booking per type, e.g. 3 / day
+  - Waitlist conversion email: per artist per entry, 1 send
+  - Customer-facing portal actions (reschedule, cancel): per token per action, e.g. 5 / hour
+- All rate limit errors return a clear, user-facing message — not a raw 429
+- Rate limit key strategy: prefer IP + action slug for unauthenticated routes, user ID + action slug for authenticated ones
+
+**Out of scope:** Full DDoS protection (platform-level concern), per-endpoint analytics.
+
+**Dependencies:** Slice 33 (authorization hardening — actions should be auth-locked before layering rate limits).
+
+**Acceptance criteria:**
+
+- Login endpoint rejects excess attempts with a user-facing message and does not leak information about account existence
+- Password reset cannot be spammed per email address
+- Manual reminder send is capped per booking per type
+- All rate-limited actions fail gracefully with a readable error
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 35 — Booking state machine and idempotency hardening
+
+**Status:** ⬜ pending
+
+**Goal:** Booking status transitions are validated against an explicit state machine server-side; repeated or concurrent requests for the same transition are safe and produce no duplicate side effects.
+
+**Scope:**
+
+- Define explicit valid transitions as a constant, e.g.:
+  - `pending → approved | rejected | deposit_pending | cancelled`
+  - `deposit_pending → approved | rejected | cancelled`
+  - `approved → cancelled`
+  - Terminal states (`rejected`, `cancelled`) accept no further transitions
+- All status-changing server actions (`approveBooking`, `rejectBooking`, `requestDeposit`, `markDepositReceived`, `cancelCustomerBooking`) validate the current status against allowed transitions before writing — re-fetching the row inside the action, not trusting submitted state
+- Idempotency: status-changing actions check that the transition has not already been applied (DB re-fetch) before sending emails or creating notifications — prevents duplicate emails on double-click or retry
+- Slot release on cancellation / rejection is already handled — verify it is inside the transition guard and not outside it
+- Public booking submission: add a short-lived deduplication key (customer email + artist slug + timestamp window) to prevent identical bookings submitted twice within 60 seconds
+
+**Out of scope:** Full event sourcing, optimistic locking with row versions, multi-artist workflows.
+
+**Dependencies:** Slice 33 (ownership checks must be in place before transition guards are meaningful).
+
+**Acceptance criteria:**
+
+- A server action called on a booking in a terminal state returns an error without writing to the DB
+- Approving an already-approved booking is a no-op that does not send a second email
+- A customer submitting the same form twice within 60 seconds results in one booking, not two
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 36 — Webhook and origin integrity
+
+**Status:** ⬜ pending
+
+**Goal:** Incoming webhooks (Stripe, cron) are verified before being trusted; the booking form rejects submissions from unexpected origins.
+
+**Scope:**
+
+- **Stripe webhook:** audit `/api/stripe/webhook` — confirm `stripe.webhooks.constructEvent` is called with `STRIPE_WEBHOOK_SECRET` before any booking update; if the raw body is not being correctly forwarded by Next.js, fix it (disable body parsing for that route)
+- **Cron endpoints:** confirm `CRON_SECRET` header check is present and returns 401 without it on `/api/cron/cleanup` and `/api/cron/reminders`
+- **Booking form origin:** add `Origin` / `Referer` header check in `submitBookingAction` — reject submissions that do not originate from the expected app domain (configurable via `NEXT_PUBLIC_APP_URL`)
+- **Auth callback:** confirm `/auth/callback` rejects `code` parameters that do not match expected Supabase state — already handled by Supabase SDK, document this
+
+**Out of scope:** Full CSRF token implementation for all forms (Supabase session cookies are SameSite=Lax by default — adequate for same-origin forms), Resend webhook verification (defer to Slice 38).
+
+**Dependencies:** Slice 34 (rate limiting in place before focusing on origin hardening).
+
+**Acceptance criteria:**
+
+- A Stripe webhook request without a valid signature is rejected with 400 before any DB write
+- Cron endpoints return 401 for requests without the correct `Authorization` header
+- A booking form POST from an unexpected origin is rejected server-side
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 37 — Audit log expansion
+
+**Status:** ⬜ pending
+
+**Goal:** The existing `audit_log` table is extended to cover auth events, settings changes, and sensitive admin actions — making it a practical debugging and trust tool, not just a booking history.
+
+**Scope:**
+
+- **Currently logged:** booking lifecycle events (created, approved, rejected, cancelled, deposit, customer_cancelled) — no change
+- **Add logging for:**
+  - Auth events: login (success and failure), password change, 2FA enable/disable, recovery code use
+  - Settings changes: booking mode change, books open/close, email template edits
+  - Admin actions: any admin analytics page load (for access record)
+  - Notification sends: manual reminder trigger (already partial — verify completeness)
+- Log schema additions: add `actor_email` (denormalized for readability) and `event_category` (`auth | booking | settings | admin`) columns — or store in existing `details` JSONB if migration is undesirable
+- Log viewer: expose auth and settings events in the booking detail communication sidebar where relevant (e.g. "password changed" visible to admin only, not artist-facing)
+- Retention: no automatic pruning in v1 — document that logs are permanent until manual cleanup
+
+**Out of scope:** Real-time alerting on log events, log export UI, compliance-grade audit trails.
+
+**Dependencies:** Slice 35 (state machine hardening — clean transitions before logging them), Slice 31 (2FA must be shipped before auth events can be logged).
+
+**Acceptance criteria:**
+
+- A password change writes an entry to `audit_log` with actor, timestamp, and event type
+- A 2FA enable/disable event is recorded
+- Booking mode changes appear in the audit log
+- Admin page access is recorded
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 38 — Email infrastructure safeguards
+
+**Status:** ⬜ pending
+
+**Goal:** The email sending layer has per-artist daily send limits, deduplication hardening for reminders, and a foundation for tracking delivery failures.
+
+**Scope:**
+
+- **Per-artist send cap:** add a daily email send counter (via Upstash or a `daily_email_count` field in `profiles.settings`) — cap total outbound emails per artist per day at a sensible default (e.g. 200), log and skip beyond the cap without hard-failing the request
+- **Reminder deduplication:** tighten the cron idempotency check — before sending any reminder, verify the `audit_log` does not already contain a matching send for the same booking + type + day window; current check exists but confirm it covers all three reminder types
+- **Resend webhook (optional):** if Resend delivery webhooks are available, register an endpoint to receive `email.bounced` and `email.complained` events and write them to `audit_log` with type `email_delivery_failed` — do not hard-block sending on first bounce in v1, just record it
+- **Sender domain:** document that `EMAIL_FROM` must use a verified sending domain in Resend; add a startup check that warns if the domain is unverified
+
+**Out of scope:** Unsubscribe list management, bounce-based send suppression (defer to post-v0.1), full deliverability monitoring.
+
+**Dependencies:** Slice 36 (webhook integrity — Resend webhook endpoint needs origin validation), Slice 34 (rate limiting covers manual reminder triggers).
+
+**Acceptance criteria:**
+
+- An artist with an unusually high booking volume cannot trigger more than the daily cap of outbound emails via cron
+- A reminder that was already sent today for a given booking is skipped without error
+- If Resend webhooks are configured, a bounced email is recorded in `audit_log`
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 39 — Deposit payment hardening
+
+**Status:** ⬜ pending
+
+**Goal:** The Stripe deposit flow is hardened against duplicate payments, webhook replay, and unreconciled states; the system can detect and recover from payment/booking mismatches.
+
+**Scope:**
+
+- **Webhook idempotency:** before processing `payment_intent.succeeded`, check `audit_log` for an existing entry with the same `payment_intent_id` — skip if already processed; Stripe's own retry logic means the same event may arrive multiple times
+- **Duplicate intent prevention:** when `requestDeposit` creates a new PaymentIntent, check that the booking does not already have a non-cancelled `deposit_payment_intent_id`; if so, return the existing client secret rather than creating a second intent
+- **Reconciliation cron (weekly):** add a cron job that queries bookings in `deposit_pending` status where `deposit_due_at` is more than 7 days past and no matching `deposit_paid_at` exists — log these as `deposit_unreconciled` in `audit_log` for manual review; do not auto-cancel
+- **Stripe secret rotation safety:** document the procedure for rotating `STRIPE_WEBHOOK_SECRET` without downtime (add to DECISIONS.md)
+- **Test mode guard:** confirm that test-mode Stripe keys cannot be mixed with production Supabase data by checking `STRIPE_SECRET_KEY` prefix (`sk_live_` vs `sk_test_`) at startup and logging a warning if in production with a test key
+
+**Out of scope:** Refund automation, dispute handling, invoice generation, Stripe Radar integration.
+
+**Dependencies:** Slice 36 (webhook signature verification must be in place before idempotency work is meaningful), active Stripe test-mode usage with real bookings to validate against.
+
+**Acceptance criteria:**
+
+- A replayed `payment_intent.succeeded` webhook does not update the booking or write a duplicate audit entry
+- Calling `requestDeposit` twice on the same booking returns the existing PaymentIntent, not a new one
+- The reconciliation cron identifies unresolved deposits without modifying booking status
+- A test-mode key in a production environment logs a startup warning
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 40 — Backup and recovery basics
+
+**Status:** ⬜ pending
+
+**Goal:** Critical booking and artist data can be recovered from an incident; the team has a documented, tested recovery path and artists can export their own records.
+
+**Scope:**
+
+- **Supabase PITR:** document the current PITR window (7 days on free plan, 30 days on Pro) in DECISIONS.md — include the procedure to restore a single table to a point in time using the Supabase dashboard
+- **Artist data export:** add a `/settings/export` page (or action) that generates a JSON export of the authenticated artist's bookings, client notes, and audit log — available on demand, no scheduled automation in v1
+- **Booking integrity check (admin):** add a section to the `/admin` analytics page that flags bookings in impossible states (e.g. `approved` with no `decided_at`, `deposit_pending` with no `deposit_amount`) — display count only, no automated repair
+- **Critical field protection:** confirm that `profiles.slug` and `booking_requests.customer_token_hash` have no delete RLS path for the artist role — artists cannot delete their own slug or invalidate customer magic links
+- **Recovery runbook:** add `RUNBOOK.md` with step-by-step instructions for: restoring a deleted booking from PITR, resending a customer magic link, recovering an artist account after lockout
+
+**Out of scope:** Automated off-site backups, cross-region replication, point-in-time restore automation, GDPR deletion workflows (separate concern).
+
+**Dependencies:** Slice 37 (audit log expansion — export should include audit events), production data volume sufficient to validate export size and performance.
+
+**Acceptance criteria:**
+
+- An artist can download a JSON export of their bookings from Settings
+- The admin page flags at least two categories of booking integrity anomalies
+- `RUNBOOK.md` exists and covers the three recovery scenarios
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+## Hardening package boundary
+
+Slices 32–40 constitute the hardening track.
+
+**Sequencing summary:**
+
+- Slices 32–33: surface protection (uploads locked, actions auth-guarded) — highest priority, ship first
+- Slices 34–35: behavioral integrity (rate limits, state machine) — ship before first real artist wave
+- Slices 36–37: trust and observability (webhooks, audit log) — ship before public launch
+- Slices 38–39: operational reliability (email, deposits) — ship as each surface becomes active
+- Slice 40: recovery readiness — ship before meaningful data accumulates
+
+**v0.1 hard launch readiness requires Slices 32–36 complete.**
