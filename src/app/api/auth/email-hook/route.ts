@@ -68,13 +68,19 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const secret = process.env.SUPABASE_AUTH_HOOK_SECRET;
 
-  if (secret) {
-    if (!verifyHookSignature(rawBody, request.headers, secret)) {
-      return NextResponse.json(
-        { error: { http_code: 401, message: "unauthorised" } },
-        { status: 401 },
-      );
-    }
+  // Secret must be configured — reject if missing to prevent unauthenticated hook calls
+  if (!secret) {
+    return NextResponse.json(
+      { error: { http_code: 500, message: "hook secret not configured" } },
+      { status: 500 },
+    );
+  }
+
+  if (!verifyHookSignature(rawBody, request.headers, secret)) {
+    return NextResponse.json(
+      { error: { http_code: 401, message: "unauthorised" } },
+      { status: 401 },
+    );
   }
 
   let payload: HookPayload;

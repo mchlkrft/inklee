@@ -32,8 +32,15 @@ export async function submitBookingAction(
   const honeypot = formData.get("website") as string;
   if (honeypot) return null;
 
-  // Rate limit by IP
+  // Origin check — reject submissions from unexpected domains
   const headersList = await headers();
+  const origin = headersList.get("origin") ?? "";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  if (appUrl && origin && origin !== appUrl) {
+    return { error: "invalid request origin" };
+  }
+
+  // Rate limit by IP
   const ip =
     headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const { allowed } = await checkRateLimit(ip);
@@ -340,8 +347,8 @@ export async function submitBookingAction(
     metadata: { booking_id: bookingId },
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  const magicLink = `${appUrl}/request/${token}`;
+  const magicLinkBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+  const magicLink = `${magicLinkBase}/request/${token}`;
   const emailVars = {
     customer_handle: data.instagram_handle,
     artist_name: artistName,

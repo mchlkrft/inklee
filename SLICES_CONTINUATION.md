@@ -613,7 +613,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 36 — Webhook and origin integrity
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — Stripe audit_log idempotency, email-hook secret required, booking form origin check, crons audited (both had CRON_SECRET)
 
 **Goal:** Incoming webhooks (Stripe, cron) are verified before being trusted; the booking form rejects submissions from unexpected origins.
 

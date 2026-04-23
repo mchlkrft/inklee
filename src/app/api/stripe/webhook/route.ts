@@ -57,7 +57,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "booking not found" }, { status: 404 });
     }
 
-    // Idempotent — skip if already processed
+    // Idempotency: check audit_log for this payment_intent_id — handles concurrent webhook retries
+    const { count: alreadyLogged } = await serviceClient
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", bookingId)
+      .eq("action", "deposit_paid")
+      .contains("details", { payment_intent_id: intent.id });
+
+    if ((alreadyLogged ?? 0) > 0) {
+      return NextResponse.json({ received: true, skipped: true });
+    }
+
+    // Status-based idempotency — skip if already in a terminal state
     if (
       booking.status === "approved" ||
       booking.status === "rejected" ||
