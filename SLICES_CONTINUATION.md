@@ -697,7 +697,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 39 — Deposit payment hardening
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — Stripe test-mode guard, unreconciled deposit cron, duplicate intent guard (Slice 35), webhook idempotency (Slice 36)
 
 **Goal:** The Stripe deposit flow is hardened against duplicate payments, webhook replay, and unreconciled states; the system can detect and recover from payment/booking mismatches.
 
@@ -725,7 +725,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 40 — Backup and recovery basics
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — /settings/export JSON download, admin integrity checks panel, RUNBOOK.md (5 procedures)
 
 **Goal:** Critical booking and artist data can be recovered from an incident; the team has a documented, tested recovery path and artists can export their own records.
 

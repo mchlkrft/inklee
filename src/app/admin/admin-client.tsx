@@ -8,6 +8,7 @@ import type {
   getFeatureAdoption,
   getQualitySignals,
   getArtistRoster,
+  getIntegrityFlags,
 } from "@/lib/admin-queries";
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
   featureAdoption: Awaited<ReturnType<typeof getFeatureAdoption>>;
   quality: Awaited<ReturnType<typeof getQualitySignals>>;
   artists: Awaited<ReturnType<typeof getArtistRoster>>;
+  integrity: Awaited<ReturnType<typeof getIntegrityFlags>>;
 };
 
 const RANGES = [
@@ -61,6 +63,7 @@ export default function AdminClient({
   featureAdoption,
   quality,
   artists,
+  integrity,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -393,6 +396,43 @@ export default function AdminClient({
             </table>
           </div>
         </section>
+
+        {/* Booking integrity */}
+        {(integrity.approvedNoDecidedAt > 0 ||
+          integrity.depositPendingNoAmount > 0 ||
+          integrity.unreconciled > 0) && (
+          <section className="space-y-3">
+            <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Booking integrity
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {integrity.approvedNoDecidedAt > 0 && (
+                <QualityCard
+                  label="Approved, no decided_at"
+                  count={integrity.approvedNoDecidedAt}
+                  severity="medium"
+                  hint="Status mismatch — decided_at is null"
+                />
+              )}
+              {integrity.depositPendingNoAmount > 0 && (
+                <QualityCard
+                  label="Deposit pending, no amount"
+                  count={integrity.depositPendingNoAmount}
+                  severity="high"
+                  hint="deposit_amount is null on deposit_pending booking"
+                />
+              )}
+              {integrity.unreconciled > 0 && (
+                <QualityCard
+                  label="Unreconciled deposits"
+                  count={integrity.unreconciled}
+                  severity="medium"
+                  hint="Deposit due >7 days ago, not paid, not cancelled"
+                />
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Instrumentation gaps note */}
         <section className="rounded-md border border-border/50 bg-muted/20 px-5 py-4 space-y-2">

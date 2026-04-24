@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { writeAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -48,5 +49,48 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ deleted: ids.length });
+  // ── Unreconciled deposit check ────────────────────────────────────────────
+  // Bookings in deposit_pending where due date is >7 days past and no
+  // deposit_paid_at — flag for manual review, do not auto-cancel.
+  const overdueWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  const { data: unreconciled } = await serviceClient
+    .from("booking_requests")
+    .select("id, artist_id, customer_handle, deposit_due_at")
+    .eq("status", "deposit_pending")
+    .lt("deposit_due_at", overdueWindow)
+    .is("deposit_paid_at", null);
+
+  let flagged = 0;
+  for (const booking of unreconciled ?? []) {
+    // Only flag once — skip if already logged as unreconciled today
+    const today = new Date().toISOString().split("T")[0];
+    const { count } = await serviceClient
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", booking.id)
+      .eq("action", "deposit_unreconciled")
+      .gte("timestamp", `${today}T00:00:00Z`);
+
+    if ((count ?? 0) > 0) continue;
+
+    void writeAudit({
+      bookingId: booking.id,
+      action: "deposit_unreconciled",
+      category: "system",
+      details: {
+        artist_id: booking.artist_id,
+        customer_handle: booking.customer_handle,
+        deposit_due_at: booking.deposit_due_at,
+      },
+    });
+    flagged++;
+  }
+
+  return NextResponse.json({
+    deleted: ids.length,
+    flagged_unreconciled: flagged,
+  });
 }

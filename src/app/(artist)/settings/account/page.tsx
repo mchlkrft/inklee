@@ -61,6 +61,25 @@ export default async function AccountPage() {
           factorId={totpFactor?.id ?? null}
         />
       </section>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+          Data export
+        </h2>
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Download all your bookings, client notes, custom fields, and audit
+            log as JSON.
+          </p>
+          <a
+            href="/settings/export"
+            download
+            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+          >
+            Download export
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

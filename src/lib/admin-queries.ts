@@ -412,3 +412,41 @@ export async function getArtistRoster() {
     };
   });
 }
+
+// ── Booking integrity checks ─────────────────────────────────────────────────
+
+export async function getIntegrityFlags() {
+  const now = new Date().toISOString();
+
+  const [approvedNoDecidedAt, depositPendingNoAmount, unreconciled] =
+    await Promise.all([
+      // Approved bookings without a decided_at timestamp
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "approved")
+        .is("decided_at", null)
+        .then((r) => r.count ?? 0),
+      // Deposit-pending bookings with no deposit_amount set
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "deposit_pending")
+        .is("deposit_amount", null)
+        .then((r) => r.count ?? 0),
+      // Deposit-pending bookings where due date is >7 days past and not paid
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "deposit_pending")
+        .lt(
+          "deposit_due_at",
+          new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0],
+        )
+        .is("deposit_paid_at", null)
+        .then((r) => r.count ?? 0),
+    ]);
+
+  void now; // suppress unused warning
+  return { approvedNoDecidedAt, depositPendingNoAmount, unreconciled };
+}
