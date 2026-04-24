@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Spinner from "@/components/spinner";
 import { saveBookingModeAction } from "./actions";
 
@@ -24,6 +24,7 @@ export default function BookingModeForm({
 }: {
   currentMode: string;
 }) {
+  const [selected, setSelected] = useState(currentMode);
   const [state, action, pending] = useActionState<State, FormData>(
     saveBookingModeAction,
     null,
@@ -33,21 +34,22 @@ export default function BookingModeForm({
     <form action={action} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         {MODES.map((m) => {
-          const active = currentMode === m.value;
+          const active = selected === m.value;
           return (
             <label
               key={m.value}
               className={`relative flex cursor-pointer flex-col gap-1 rounded-md border-2 px-4 py-3.5 transition-colors ${
                 active
                   ? "border-foreground bg-foreground/5"
-                  : "border-border text-muted-foreground hover:border-foreground/40"
+                  : "border-border hover:border-foreground/40"
               }`}
             >
               <input
                 type="radio"
                 name="booking_mode"
                 value={m.value}
-                defaultChecked={active}
+                checked={active}
+                onChange={() => setSelected(m.value)}
                 className="sr-only"
               />
               <span

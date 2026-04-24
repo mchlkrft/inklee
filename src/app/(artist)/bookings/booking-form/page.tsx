@@ -5,6 +5,7 @@ import { parseBooksSettings } from "@/lib/books-settings";
 import FieldList from "../form/field-list";
 import StandardFields from "../form/standard-fields";
 import PublicPageClient from "../public-page/public-page-client";
+import FormAppearanceForm from "../settings/form-appearance-form";
 import Link from "next/link";
 
 export default async function BookingFormPage() {
@@ -88,22 +89,20 @@ export default async function BookingFormPage() {
               </Link>
             </div>
           </div>
-
-          <div className="flex items-center justify-between px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">Appearance</p>
-              <p className="text-sm text-muted-foreground mt-0.5 capitalize">
-                {booksSettings.form_appearance} mode
-              </p>
-            </div>
-            <Link
-              href="/bookings/settings#appearance"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Edit &rarr;
-            </Link>
-          </div>
         </div>
+      </section>
+
+      {/* Form appearance */}
+      <section className="space-y-4">
+        <div className="border-b-2 border-border pb-2">
+          <h2 className="text-base font-semibold text-foreground">
+            Appearance
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Choose the colour theme of your public booking form.
+          </p>
+        </div>
+        <FormAppearanceForm current={booksSettings.form_appearance} />
       </section>
 
       {/* Standard fields */}

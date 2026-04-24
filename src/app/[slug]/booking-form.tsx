@@ -134,7 +134,7 @@ export default function BookingForm({
             type="text"
             required
             autoComplete="off"
-            className="flex-1 bg-transparent text-foreground focus:outline-none"
+            className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
           />
         </div>
         {err("instagram_handle") && (
@@ -428,29 +428,27 @@ export default function BookingForm({
         <input type="hidden" name="travel_leg_id" value={travelLegId} />
       )}
 
-      {trips.length > 0 && (
+      {trips.length === 1 && (
+        <input type="hidden" name="trip_id" value={trips[0].id} />
+      )}
+
+      {trips.length > 1 && (
         <div className="space-y-1.5">
           <label htmlFor="trip_id" className="text-sm text-muted-foreground">
-            Trip / location
+            Location
           </label>
           <select
             id="trip_id"
             name="trip_id"
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            <option value="">No specific trip</option>
+            <option value="">No preference</option>
             {trips.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.title}
               </option>
             ))}
           </select>
-          {trips.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Select a trip if you&apos;d like to book for a specific guest
-              spot.
-            </p>
-          )}
         </div>
       )}
 

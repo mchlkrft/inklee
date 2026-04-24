@@ -3,7 +3,6 @@ import { formatSlotDisplay } from "@/lib/timezone";
 import { parseBooksSettings } from "@/lib/books-settings";
 import BookingModeForm from "./booking-mode-form";
 import AvailabilityForm from "./availability-form";
-import FormAppearanceForm from "./form-appearance-form";
 import CreateSlotForm from "../slots/create-slot-form";
 import SlotList from "../slots/slot-list";
 
@@ -53,7 +52,7 @@ export default async function BookingSettingsPage() {
           Booking Settings
         </h1>
         <p className="mt-1 text-base text-muted-foreground">
-          Control your booking mode, availability, and how your form looks.
+          Control your booking mode and availability.
         </p>
       </div>
 
@@ -70,24 +69,20 @@ export default async function BookingSettingsPage() {
         <BookingModeForm currentMode={bookingMode} />
       </section>
 
-      {/* Slots — only relevant in fixed_slots mode */}
-      <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">Slots</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Publish time slots for clients to book. Times shown in{" "}
-            <span className="text-foreground">{timezone}</span>.
-          </p>
-          {bookingMode !== "fixed_slots" && (
-            <p className="mt-1.5 text-sm text-amber-500">
-              Slots are only shown on your booking form when booking mode is set
-              to Fixed slots.
+      {/* Slots — only in fixed_slots mode */}
+      {bookingMode === "fixed_slots" && (
+        <section className="space-y-4">
+          <div className="border-b-2 border-border pb-2">
+            <h2 className="text-base font-semibold text-foreground">Slots</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Publish time slots for clients to book. Times shown in{" "}
+              <span className="text-foreground">{timezone}</span>.
             </p>
-          )}
-        </div>
-        <CreateSlotForm />
-        <SlotList slots={formattedSlots} />
-      </section>
+          </div>
+          <CreateSlotForm />
+          <SlotList slots={formattedSlots} />
+        </section>
+      )}
 
       {/* Availability */}
       <section className="space-y-4">
@@ -100,19 +95,6 @@ export default async function BookingSettingsPage() {
           </p>
         </div>
         <AvailabilityForm settings={booksSettings} />
-      </section>
-
-      {/* Form Appearance */}
-      <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
-            Form appearance
-          </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Choose the colour theme of your public booking form.
-          </p>
-        </div>
-        <FormAppearanceForm current={booksSettings.form_appearance} />
       </section>
     </div>
   );

@@ -149,6 +149,7 @@ export async function saveFormAppearanceAction(
   if (error) return { error: error.message };
 
   revalidatePath("/bookings/settings");
+  revalidatePath("/bookings/booking-form");
   revalidatePath("/[slug]");
   return { success: true };
 }

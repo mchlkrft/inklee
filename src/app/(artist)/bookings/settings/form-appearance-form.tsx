@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Spinner from "@/components/spinner";
 import { saveFormAppearanceAction } from "./actions";
 import type { FormAppearance } from "@/lib/books-settings";
@@ -31,6 +31,7 @@ export default function FormAppearanceForm({
 }: {
   current: FormAppearance;
 }) {
+  const [selected, setSelected] = useState<FormAppearance>(current);
   const [state, action, pending] = useActionState<State, FormData>(
     saveFormAppearanceAction,
     null,
@@ -40,21 +41,22 @@ export default function FormAppearanceForm({
     <form action={action} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-3">
         {OPTIONS.map((opt) => {
-          const active = current === opt.value;
+          const active = selected === opt.value;
           return (
             <label
               key={opt.value}
               className={`relative flex cursor-pointer flex-col gap-1 rounded-md border-2 px-4 py-3.5 transition-colors ${
                 active
                   ? "border-foreground bg-foreground/5"
-                  : "border-border text-muted-foreground hover:border-foreground/40"
+                  : "border-border hover:border-foreground/40"
               }`}
             >
               <input
                 type="radio"
                 name="form_appearance"
                 value={opt.value}
-                defaultChecked={active}
+                checked={active}
+                onChange={() => setSelected(opt.value)}
                 className="sr-only"
               />
               <span

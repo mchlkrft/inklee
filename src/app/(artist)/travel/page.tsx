@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import TripCard from "./trip-card";
-import TripForm from "./trip-form";
+import TripManager from "./trip-manager";
 import StudioList from "./studio-list";
 
 export default async function TravelPage() {
@@ -66,21 +65,7 @@ export default async function TravelPage() {
         </p>
       </div>
 
-      <TripForm />
-
-      {trips.length > 0 ? (
-        <div className="space-y-4">
-          {trips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} studios={studioList} />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-md border-2 border-border px-5 py-12 text-center">
-          <p className="text-base text-muted-foreground">
-            No trips yet — create your first one above.
-          </p>
-        </div>
-      )}
+      <TripManager trips={trips} studios={studioList} />
 
       <StudioList studios={studioList} />
     </div>
