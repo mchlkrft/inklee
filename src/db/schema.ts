@@ -81,6 +81,7 @@ export const bookingRequests = pgTable("booking_requests", {
   travelLegId: uuid("travel_leg_id").references(() => travelLegs.id, {
     onDelete: "set null",
   }),
+  tripId: uuid("trip_id").references(() => trips.id, { onDelete: "set null" }),
   customerEmail: text("customer_email"),
   customerHandle: text("customer_handle"),
   customerTokenHash: text("customer_token_hash"),
@@ -177,6 +178,50 @@ export const travelLegs = pgTable("travel_legs", {
   endsOn: date("ends_on").notNull(),
   description: text("description"),
   isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const studios = pgTable("studios", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  city: text("city").notNull(),
+  country: text("country").notNull(),
+  address: text("address"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const trips = pgTable("trips", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  showOnBookingForm: boolean("show_on_booking_form").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const tripLegs = pgTable("trip_legs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id")
+    .notNull()
+    .references(() => trips.id, { onDelete: "cascade" }),
+  studioId: uuid("studio_id").references(() => studios.id, {
+    onDelete: "set null",
+  }),
+  startsOn: date("starts_on").notNull(),
+  endsOn: date("ends_on").notNull(),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

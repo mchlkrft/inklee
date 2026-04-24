@@ -72,16 +72,62 @@ export default async function ArtistPublicPage({
   }
 
   const todayStr = new Date().toISOString().split("T")[0];
-  const { data: activeLeg } = await supabase
-    .from("travel_legs")
-    .select("id, city, country, studio_name, starts_on, ends_on, description")
+
+  // Fetch all visible trips with their legs
+  const { data: rawTrips } = await supabase
+    .from("trips")
+    .select(
+      "id, title, description, show_on_booking_form, trip_legs(id, starts_on, ends_on, studio_id, studios(name))",
+    )
     .eq("artist_id", profile.id)
-    .eq("is_active", true)
-    .lte("starts_on", todayStr)
-    .gte("ends_on", todayStr)
-    .order("starts_on", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .eq("show_on_booking_form", true);
+
+  type RawLeg = {
+    id: string;
+    starts_on: string;
+    ends_on: string;
+    studio_id: string | null;
+    studios: { name: string } | { name: string }[] | null;
+  };
+  type RawTrip = {
+    id: string;
+    title: string;
+    description: string | null;
+    show_on_booking_form: boolean;
+    trip_legs: RawLeg[];
+  };
+
+  const visibleTrips = (rawTrips as unknown as RawTrip[]) ?? [];
+
+  // Active trip: a trip that has at least one leg spanning today
+  const activeTrip =
+    visibleTrips.find((t) =>
+      t.trip_legs.some((l) => l.starts_on <= todayStr && l.ends_on >= todayStr),
+    ) ?? null;
+
+  const activeLeg = activeTrip
+    ? (activeTrip.trip_legs.find(
+        (l) => l.starts_on <= todayStr && l.ends_on >= todayStr,
+      ) ?? null)
+    : null;
+
+  const activeLegData =
+    activeLeg && activeTrip
+      ? {
+          tripTitle: activeTrip.title,
+          startsOn: activeLeg.starts_on,
+          endsOn: activeLeg.ends_on,
+          studioName: Array.isArray(activeLeg.studios)
+            ? (activeLeg.studios[0]?.name ?? null)
+            : ((activeLeg.studios as { name: string } | null)?.name ?? null),
+          description: activeTrip.description,
+        }
+      : null;
+
+  // Future trips for the booking form selector
+  const futureTrips = visibleTrips
+    .filter((t) => t.trip_legs.some((l) => l.ends_on >= todayStr))
+    .map((t) => ({ id: t.id, title: t.title, description: t.description }));
 
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const now = new Date();
@@ -114,8 +160,13 @@ export default async function ArtistPublicPage({
     : (booksSettings.books_closed_message ?? "Books are currently closed.");
   const closedHint = isCapReached ? undefined : "Check back soon.";
 
+  const formAppearance = booksSettings.form_appearance;
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div
+      className="flex min-h-screen flex-col bg-background text-foreground"
+      data-appearance={formAppearance !== "dark" ? formAppearance : undefined}
+    >
       <main className="mx-auto flex-1 w-full max-w-lg space-y-10 px-6 py-12">
         <div className="flex flex-col items-center space-y-3 text-center">
           {profile.logo_url && (
@@ -155,26 +206,24 @@ export default async function ArtistPublicPage({
           )}
         </div>
 
-        {activeLeg && (
+        {activeLegData && (
           <div className="space-y-0.5 rounded-md border border-border px-4 py-3">
-            <p className="text-sm text-foreground">
-              Currently in {activeLeg.city}, {activeLeg.country}
-            </p>
+            <p className="text-sm text-foreground">{activeLegData.tripTitle}</p>
             <p className="text-xs text-muted-foreground">
-              {new Date(activeLeg.starts_on).toLocaleDateString("en-GB", {
+              {new Date(activeLegData.startsOn).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "short",
               })}
-              {" - "}
-              {new Date(activeLeg.ends_on).toLocaleDateString("en-GB", {
+              {" — "}
+              {new Date(activeLegData.endsOn).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "short",
               })}
-              {activeLeg.studio_name ? ` · ${activeLeg.studio_name}` : ""}
+              {activeLegData.studioName ? ` · ${activeLegData.studioName}` : ""}
             </p>
-            {activeLeg.description && (
+            {activeLegData.description && (
               <p className="text-xs text-muted-foreground">
-                {activeLeg.description}
+                {activeLegData.description}
               </p>
             )}
           </div>
@@ -202,7 +251,8 @@ export default async function ArtistPublicPage({
               slots={slots}
               customFields={customFields}
               formSettings={formSettings}
-              travelLegId={activeLeg?.id ?? null}
+              travelLegId={null}
+              trips={futureTrips}
             />
           )}
         </div>

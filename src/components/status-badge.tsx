@@ -7,7 +7,7 @@ const STYLES: Record<string, string> = {
   // waitlist
   waiting: "bg-muted text-muted-foreground",
   contacted: "bg-amber-500/10 text-amber-500",
-  converted: "bg-green-500/10 text-green-500",
+  converted: "bg-blue-500/10 text-blue-500",
   dismissed: "bg-muted text-muted-foreground opacity-60",
 };
 
@@ -19,7 +19,7 @@ const LABELS: Record<string, string> = {
   cancelled: "Cancelled",
   waiting: "Waiting",
   contacted: "Contacted",
-  converted: "Converted",
+  converted: "Waitlist Request",
   dismissed: "Dismissed",
 };
 

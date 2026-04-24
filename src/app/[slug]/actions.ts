@@ -153,6 +153,7 @@ export async function submitBookingAction(
   }
 
   const travelLegId = (formData.get("travel_leg_id") as string) || null;
+  const tripId = (formData.get("trip_id") as string) || null;
   const bookingId = crypto.randomUUID();
   const bookingMode = formData.get("booking_mode") as string;
 
@@ -294,6 +295,7 @@ export async function submitBookingAction(
       customer_token_hash: tokenHash,
       origin: "public_form",
       ...(travelLegId ? { travel_leg_id: travelLegId } : {}),
+      ...(tripId ? { trip_id: tripId } : {}),
     });
 
   if (insertError) {

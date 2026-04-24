@@ -66,5 +66,6 @@ export async function saveBooksSettingsAction(
   });
 
   revalidatePath("/bookings/books");
+  revalidatePath("/bookings/settings");
   return { success: true };
 }

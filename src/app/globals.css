@@ -77,14 +77,65 @@
   --radius: 0.5rem;
 }
 
+/* Public booking form appearance overrides — scoped to wrapper */
+[data-appearance="light"] {
+  --background: #f5f0e8;
+  --foreground: #0e0e10;
+  --card: #ede6d8;
+  --card-foreground: #0e0e10;
+  --popover: #ede6d8;
+  --popover-foreground: #0e0e10;
+  --primary: #0e0e10;
+  --primary-foreground: #f5f0e8;
+  --secondary: #ede6d8;
+  --secondary-foreground: #0e0e10;
+  --muted: #ede6d8;
+  --muted-foreground: rgba(14, 14, 16, 0.6);
+  --accent: #ede6d8;
+  --accent-foreground: #0e0e10;
+  --destructive: #e5484d;
+  --border: rgba(14, 14, 16, 0.1);
+  --input: rgba(14, 14, 16, 0.1);
+  --ring: rgba(14, 14, 16, 0.3);
+}
+
+[data-appearance="auto"] {
+  @media (prefers-color-scheme: light) {
+    --background: #f5f0e8;
+    --foreground: #0e0e10;
+    --card: #ede6d8;
+    --card-foreground: #0e0e10;
+    --popover: #ede6d8;
+    --popover-foreground: #0e0e10;
+    --primary: #0e0e10;
+    --primary-foreground: #f5f0e8;
+    --secondary: #ede6d8;
+    --secondary-foreground: #0e0e10;
+    --muted: #ede6d8;
+    --muted-foreground: rgba(14, 14, 16, 0.6);
+    --accent: #ede6d8;
+    --accent-foreground: #0e0e10;
+    --destructive: #e5484d;
+    --border: rgba(14, 14, 16, 0.1);
+    --input: rgba(14, 14, 16, 0.1);
+    --ring: rgba(14, 14, 16, 0.3);
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
   }
+  /* Thicker borders on interactive and card elements */
+  input,
+  textarea,
+  select {
+    border-width: 2px;
+  }
   body {
     @apply bg-background text-foreground;
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: 16px;
+    line-height: 1.6;
   }
   h1,
   h2,

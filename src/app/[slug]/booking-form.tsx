@@ -29,6 +29,7 @@ const tomorrow = () => {
 };
 
 type SlotOption = { id: string; date: string; time: string; tz: string };
+type TripOption = { id: string; title: string; description: string | null };
 
 export default function BookingForm({
   artistSlug,
@@ -38,6 +39,7 @@ export default function BookingForm({
   customFields = [],
   formSettings = DEFAULT_FORM_SETTINGS,
   travelLegId = null,
+  trips = [],
 }: {
   artistSlug: string;
   artistFirstName: string;
@@ -46,6 +48,7 @@ export default function BookingForm({
   customFields?: CustomFieldDef[];
   formSettings?: FormSettings;
   travelLegId?: string | null;
+  trips?: TripOption[];
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
@@ -423,6 +426,32 @@ export default function BookingForm({
       <input type="hidden" name="booking_mode" value={bookingMode} />
       {travelLegId && (
         <input type="hidden" name="travel_leg_id" value={travelLegId} />
+      )}
+
+      {trips.length > 0 && (
+        <div className="space-y-1.5">
+          <label htmlFor="trip_id" className="text-sm text-muted-foreground">
+            Trip / location
+          </label>
+          <select
+            id="trip_id"
+            name="trip_id"
+            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">No specific trip</option>
+            {trips.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+          {trips.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Select a trip if you&apos;d like to book for a specific guest
+              spot.
+            </p>
+          )}
+        </div>
       )}
 
       <button

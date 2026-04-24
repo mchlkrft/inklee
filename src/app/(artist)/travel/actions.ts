@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 
 type State = { error: string } | { success: true } | null;
 
-export async function createTravelLegAction(
+// -- Studio actions --
+
+export async function createStudioAction(
   _prev: State,
   formData: FormData,
 ): Promise<State> {
@@ -15,65 +17,195 @@ export async function createTravelLegAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "not authenticated" };
 
-  const city = (formData.get("city") as string).trim();
-  const country = (formData.get("country") as string).trim();
-  const studioName = (formData.get("studio_name") as string).trim() || null;
-  const startsOn = formData.get("starts_on") as string;
-  const endsOn = formData.get("ends_on") as string;
-  const description = (formData.get("description") as string).trim() || null;
+  const name = (formData.get("name") as string)?.trim();
+  const city = (formData.get("city") as string)?.trim();
+  const country = (formData.get("country") as string)?.trim();
+  const address = (formData.get("address") as string)?.trim() || null;
+  const notes = (formData.get("notes") as string)?.trim() || null;
 
-  if (!city) return { error: "city is required" };
-  if (!country) return { error: "country is required" };
-  if (!startsOn || !endsOn)
-    return { error: "start and end dates are required" };
-  if (new Date(endsOn) < new Date(startsOn))
-    return { error: "end date must be after start date" };
-  if (description && description.length > 500)
-    return { error: "description must be 500 characters or fewer" };
+  if (!name || !city || !country) {
+    return { error: "name, city and country are required" };
+  }
 
-  const { error } = await supabase.from("travel_legs").insert({
-    artist_id: user.id,
-    city,
-    country,
-    studio_name: studioName,
-    starts_on: startsOn,
-    ends_on: endsOn,
-    description,
-  });
+  const { error } = await supabase
+    .from("studios")
+    .insert({ artist_id: user.id, name, city, country, address, notes });
 
   if (error) return { error: error.message };
-
   revalidatePath("/travel");
   return { success: true };
 }
 
-export async function deleteTravelLegAction(id: string): Promise<void> {
+export async function deleteStudioAction(id: string): Promise<State> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase
-    .from("travel_legs")
+  if (!user) return { error: "not authenticated" };
+
+  const { error } = await supabase
+    .from("studios")
     .delete()
     .eq("id", id)
     .eq("artist_id", user.id);
+
+  if (error) return { error: error.message };
   revalidatePath("/travel");
+  return { success: true };
 }
 
-export async function toggleTravelLegAction(
-  id: string,
-  isActive: boolean,
-): Promise<void> {
+// -- Trip actions --
+
+export async function createTripAction(
+  _prev: State,
+  formData: FormData,
+): Promise<State> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase
-    .from("travel_legs")
-    .update({ is_active: isActive })
+  if (!user) return { error: "not authenticated" };
+
+  const title = (formData.get("title") as string)?.trim();
+  const description = (formData.get("description") as string)?.trim() || null;
+  const showOnBookingForm = formData.get("show_on_booking_form") !== "false";
+
+  if (!title) return { error: "title is required" };
+
+  const { error } = await supabase.from("trips").insert({
+    artist_id: user.id,
+    title,
+    description,
+    show_on_booking_form: showOnBookingForm,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true };
+}
+
+export async function updateTripAction(
+  _prev: State,
+  formData: FormData,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const id = formData.get("id") as string;
+  const title = (formData.get("title") as string)?.trim();
+  const description = (formData.get("description") as string)?.trim() || null;
+  const showOnBookingForm = formData.get("show_on_booking_form") === "true";
+
+  if (!title) return { error: "title is required" };
+
+  const { error } = await supabase
+    .from("trips")
+    .update({ title, description, show_on_booking_form: showOnBookingForm })
     .eq("id", id)
     .eq("artist_id", user.id);
+
+  if (error) return { error: error.message };
   revalidatePath("/travel");
+  return { success: true };
+}
+
+export async function toggleTripVisibilityAction(
+  id: string,
+  show: boolean,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { error } = await supabase
+    .from("trips")
+    .update({ show_on_booking_form: show })
+    .eq("id", id)
+    .eq("artist_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true };
+}
+
+export async function deleteTripAction(id: string): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { error } = await supabase
+    .from("trips")
+    .delete()
+    .eq("id", id)
+    .eq("artist_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true };
+}
+
+// -- Trip leg actions --
+
+export async function createTripLegAction(
+  _prev: State,
+  formData: FormData,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const tripId = formData.get("trip_id") as string;
+  const studioId = (formData.get("studio_id") as string) || null;
+  const startsOn = formData.get("starts_on") as string;
+  const endsOn = formData.get("ends_on") as string;
+  const notes = (formData.get("notes") as string)?.trim() || null;
+
+  if (!tripId || !startsOn || !endsOn) {
+    return { error: "trip, start date and end date are required" };
+  }
+
+  // Verify ownership via trips table
+  const { data: trip } = await supabase
+    .from("trips")
+    .select("id")
+    .eq("id", tripId)
+    .eq("artist_id", user.id)
+    .single();
+
+  if (!trip) return { error: "trip not found" };
+
+  const { error } = await supabase.from("trip_legs").insert({
+    trip_id: tripId,
+    studio_id: studioId || null,
+    starts_on: startsOn,
+    ends_on: endsOn,
+    notes,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true };
+}
+
+export async function deleteTripLegAction(id: string): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { error } = await supabase.from("trip_legs").delete().eq("id", id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true };
 }

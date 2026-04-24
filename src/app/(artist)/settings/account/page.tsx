@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import GeneralForm from "./general-form";
 import SecurityForm from "./security-form";
 import TwoFactorSection from "./two-factor-section";
@@ -11,7 +12,7 @@ export default async function AccountPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("first_name, last_name, display_name")
+    .select("first_name, last_name, display_name, booking_mode")
     .eq("id", user!.id)
     .single();
 
@@ -32,6 +33,32 @@ export default async function AccountPage() {
           Manage your identity and account security.
         </p>
       </div>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+          Booking mode
+        </h2>
+        <div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
+          <div>
+            <p className="text-sm text-foreground">
+              {profile?.booking_mode === "fixed_slots"
+                ? "Fixed slots"
+                : "Preferred date"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {profile?.booking_mode === "fixed_slots"
+                ? "You publish specific time slots for clients to pick."
+                : "Clients suggest a date — you confirm or negotiate."}
+            </p>
+          </div>
+          <Link
+            href="/bookings/settings"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            Edit in Booking Settings &rarr;
+          </Link>
+        </div>
+      </section>
 
       <section className="space-y-4">
         <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">

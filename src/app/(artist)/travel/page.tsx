@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatDate } from "@/lib/format";
-import TravelLegForm from "./travel-leg-form";
-import LegRowActions from "./leg-row-actions";
+import TripCard from "./trip-card";
+import TripForm from "./trip-form";
+import StudioList from "./studio-list";
 
 export default async function TravelPage() {
   const supabase = await createClient();
@@ -9,99 +9,80 @@ export default async function TravelPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: legs } = await supabase
-    .from("travel_legs")
-    .select("id, city, country, studio_name, starts_on, ends_on, is_active")
-    .eq("artist_id", user!.id)
-    .order("starts_on", { ascending: false });
+  const [{ data: rawTrips }, { data: studios }] = await Promise.all([
+    supabase
+      .from("trips")
+      .select(
+        "id, title, description, show_on_booking_form, trip_legs(id, starts_on, ends_on, notes, studios(id, name))",
+      )
+      .eq("artist_id", user!.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("studios")
+      .select("id, name, city, country, address")
+      .eq("artist_id", user!.id)
+      .order("name", { ascending: true }),
+  ]);
 
-  const today = new Date().toISOString().split("T")[0];
+  const trips = (rawTrips ?? []).map((t) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    showOnBookingForm: t.show_on_booking_form,
+    legs: (
+      (t.trip_legs as unknown as Array<{
+        id: string;
+        starts_on: string;
+        ends_on: string;
+        notes: string | null;
+        studios: { id: string; name: string } | null;
+      }>) ?? []
+    )
+      .map((l) => ({
+        id: l.id,
+        startsOn: l.starts_on,
+        endsOn: l.ends_on,
+        notes: l.notes,
+        studio: l.studios,
+      }))
+      .sort((a, b) => a.startsOn.localeCompare(b.startsOn)),
+  }));
 
-  const currentAndUpcoming = (legs ?? []).filter(
-    (l) => l.is_active && l.ends_on >= today,
-  );
-  const past = (legs ?? []).filter((l) => !l.is_active || l.ends_on < today);
+  const studioList = (studios ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    city: s.city,
+    country: s.country,
+    address: s.address,
+  }));
 
   return (
-    <div className="space-y-10 max-w-lg">
+    <div className="space-y-10 max-w-2xl">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Travel</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Guest spots and travel dates shown on your public booking page when
-          active.
+        <h1 className="text-2xl font-semibold text-foreground">Trip Planner</h1>
+        <p className="mt-1 text-base text-muted-foreground">
+          Plan guest spots and travel dates. Toggle visibility to control which
+          trips appear on your public booking form.
         </p>
       </div>
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-medium text-foreground">Add leg</h2>
-        <TravelLegForm />
-      </section>
+      <TripForm />
 
-      {currentAndUpcoming.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-foreground">
-            Current &amp; upcoming
-          </h2>
-          <div className="rounded-md border border-border divide-y divide-border">
-            {currentAndUpcoming.map((leg) => {
-              const isActive = leg.ends_on >= today && leg.starts_on <= today;
-              return (
-                <div
-                  key={leg.id}
-                  className="flex items-center justify-between gap-4 px-4 py-3"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-foreground">
-                        {leg.city}, {leg.country}
-                      </p>
-                      {isActive && (
-                        <span className="text-xs text-green-500">Active</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(leg.starts_on)} - {formatDate(leg.ends_on)}
-                      {leg.studio_name ? ` - ${leg.studio_name}` : ""}
-                    </p>
-                  </div>
-                  <LegRowActions id={leg.id} isActive={leg.is_active} />
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {past.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Past</h2>
-          <div className="rounded-md border border-border divide-y divide-border opacity-60">
-            {past.map((leg) => (
-              <div
-                key={leg.id}
-                className="flex items-center justify-between gap-4 px-4 py-3"
-              >
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm text-foreground">
-                    {leg.city}, {leg.country}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(leg.starts_on)} - {formatDate(leg.ends_on)}
-                    {leg.studio_name ? ` - ${leg.studio_name}` : ""}
-                  </p>
-                </div>
-                <LegRowActions id={leg.id} isActive={leg.is_active} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {(!legs || legs.length === 0) && (
-        <div className="rounded-md border border-border px-5 py-10 text-center">
-          <p className="text-sm text-muted-foreground">No travel legs yet.</p>
+      {trips.length > 0 ? (
+        <div className="space-y-4">
+          {trips.map((trip) => (
+            <TripCard key={trip.id} trip={trip} studios={studioList} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-md border-2 border-border px-5 py-12 text-center">
+          <p className="text-base text-muted-foreground">
+            No trips yet — create your first one above.
+          </p>
         </div>
       )}
+
+      <StudioList studios={studioList} />
     </div>
   );
 }

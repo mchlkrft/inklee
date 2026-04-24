@@ -2,9 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import Spinner from "@/components/spinner";
-import SlotsPromptModal from "@/components/slots-prompt-modal";
 import { updateProfileAction } from "./actions";
 
 type State = { error: string } | { success: true } | null;
@@ -38,7 +36,6 @@ type Profile = {
   timezone: string;
   location: string | null;
   logo_url: string | null;
-  booking_mode: string | null;
 };
 
 export default function ProfileForm({ profile }: { profile: Profile | null }) {
@@ -50,11 +47,6 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
   const [preview, setPreview] = useState<string | null>(
     profile?.logo_url ?? null,
   );
-  const [bookingMode, setBookingMode] = useState(
-    profile?.booking_mode ?? "preferred_date",
-  );
-  const [showSlotsModal, setShowSlotsModal] = useState(false);
-  const [slotsWarningDismissed, setSlotsWarningDismissed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -192,54 +184,6 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
           />
         </div>
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="booking_mode"
-            className="text-sm text-muted-foreground"
-          >
-            Booking mode
-          </label>
-          <select
-            id="booking_mode"
-            name="booking_mode"
-            value={bookingMode}
-            onChange={(e) => {
-              const next = e.target.value;
-              if (next === "fixed_slots") {
-                setBookingMode("fixed_slots");
-                setShowSlotsModal(true);
-              } else {
-                setBookingMode(next);
-                setSlotsWarningDismissed(false);
-              }
-            }}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="preferred_date">
-              Preferred date — client suggests a date
-            </option>
-            <option value="fixed_slots">
-              Fixed slots — you publish specific time slots
-            </option>
-          </select>
-
-          {bookingMode === "fixed_slots" && slotsWarningDismissed && (
-            <div className="rounded-md border border-orange-400/40 bg-orange-400/5 px-3 py-2.5 flex items-start gap-2">
-              <span className="text-orange-400 text-sm shrink-0 mt-px">⚠</span>
-              <p className="text-xs text-orange-400 leading-relaxed">
-                Books will be closed until you{" "}
-                <Link
-                  href="/bookings/slots"
-                  className="underline underline-offset-4 hover:opacity-80"
-                >
-                  publish slots
-                </Link>
-                .
-              </p>
-            </div>
-          )}
-        </div>
-
         <button
           type="submit"
           disabled={pending}
@@ -248,19 +192,6 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
           {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Save profile"}
         </button>
       </form>
-
-      {showSlotsModal && (
-        <SlotsPromptModal
-          onSkip={() => {
-            setShowSlotsModal(false);
-            setSlotsWarningDismissed(true);
-          }}
-          onCancel={() => {
-            setShowSlotsModal(false);
-            setBookingMode("preferred_date");
-          }}
-        />
-      )}
     </>
   );
 }

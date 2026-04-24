@@ -5,17 +5,14 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const MANAGE = [
-  { label: "Requests", href: "/bookings/requests" },
+  { label: "Overview", href: "/bookings/overview" },
   { label: "Calendar", href: "/bookings/calendar" },
-  { label: "Clients", href: "/bookings/clients" },
   { label: "Waitlist", href: "/bookings/waitlist" },
 ];
 
 const SETUP = [
-  { label: "Books", href: "/bookings/books" },
-  { label: "Slots", href: "/bookings/slots" },
-  { label: "Form", href: "/bookings/form" },
-  { label: "Public page", href: "/bookings/public-page" },
+  { label: "Booking Settings", href: "/bookings/settings" },
+  { label: "Booking Form", href: "/bookings/booking-form" },
 ];
 
 function isSetupPath(pathname: string) {
