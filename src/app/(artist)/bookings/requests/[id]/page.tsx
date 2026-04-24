@@ -22,7 +22,9 @@ export default async function RequestDetailPage({
 
   const { data: booking } = await supabase
     .from("booking_requests")
-    .select("*, booking_images(storage_path, annotations)")
+    .select(
+      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status)",
+    )
     .eq("id", id)
     .eq("artist_id", user!.id)
     .single();
@@ -73,6 +75,19 @@ export default async function RequestDetailPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-md border border-border divide-y divide-border">
+            {booking.flash_items && (
+              <div className="flex px-4 py-3 gap-4">
+                <span className="text-sm text-muted-foreground w-32 shrink-0">
+                  Flash item
+                </span>
+                <Link
+                  href={`/flash/items/${(booking.flash_items as { id: string }).id}`}
+                  className="text-sm text-foreground underline underline-offset-4 hover:opacity-80"
+                >
+                  {(booking.flash_items as { title: string }).title}
+                </Link>
+              </div>
+            )}
             <Row label="Instagram" value={`@${booking.customer_handle}`} />
             <Row label="Email" value={booking.customer_email ?? "-"} />
             <Row label="Placement" value={(fd?.placement as string) ?? "-"} />

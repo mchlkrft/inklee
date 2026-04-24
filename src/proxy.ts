@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const ARTIST_PATHS = [
   "/dashboard",
   "/bookings",
+  "/flash",
   "/travel",
   "/settings",
   "/onboarding",

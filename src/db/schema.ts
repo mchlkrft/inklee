@@ -99,6 +99,13 @@ export const bookingRequests = pgTable("booking_requests", {
   depositPaymentIntentId: text("deposit_payment_intent_id"),
   depositClientSecret: text("deposit_client_secret"),
   depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
+  // Flash — set when a booking originates from a flash item
+  flashItemId: uuid("flash_item_id").references(() => flashItems.id, {
+    onDelete: "set null",
+  }),
+  flashDayId: uuid("flash_day_id").references(() => flashDays.id, {
+    onDelete: "set null",
+  }),
 });
 
 export const bookingImages = pgTable("booking_images", {
@@ -244,6 +251,49 @@ export const waitlistEntries = pgTable("waitlist_entries", {
   customerHandle: text("customer_handle").notNull(),
   note: text("note"),
   status: waitlistStatusEnum("status").notNull().default("waiting"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const flashDays = pgTable("flash_days", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  scheduledOn: date("scheduled_on"),
+  location: text("location"),
+  description: text("description"),
+  status: text("status").notNull().default("upcoming"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const flashItems = pgTable("flash_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  status: text("status").notNull().default("draft"),
+  instagramPostUrl: text("instagram_post_url"),
+  previewImageUrl: text("preview_image_url"),
+  shortDescription: text("short_description"),
+  priceType: text("price_type").notNull().default("request"),
+  price: numeric("price", { precision: 10, scale: 2 }),
+  sizeInfo: text("size_info"),
+  placementNotes: text("placement_notes"),
+  bookingMode: text("booking_mode").notNull().default("unique"),
+  maxBookings: integer("max_bookings"),
+  isBookable: boolean("is_bookable").notNull().default(true),
+  availableFrom: date("available_from"),
+  availableUntil: date("available_until"),
+  flashDayId: uuid("flash_day_id").references(() => flashDays.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

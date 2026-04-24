@@ -15,6 +15,7 @@ interface NavBarProps {
 const TOP_NAV = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Bookings", href: "/bookings" },
+  { label: "Flash", href: "/flash" },
   { label: "Trip Planner", href: "/travel" },
   { label: "Analytics", href: "/analytics" },
   { label: "Settings", href: "/settings" },
@@ -23,7 +24,7 @@ const TOP_NAV = [
 const MOBILE_NAV = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Bookings", href: "/bookings" },
-  { label: "Trip Planner", href: "/travel" },
+  { label: "Flash", href: "/flash" },
   { label: "Settings", href: "/settings" },
 ];
 
