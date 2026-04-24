@@ -29,7 +29,25 @@ const tomorrow = () => {
 };
 
 type SlotOption = { id: string; date: string; time: string; tz: string };
-type TripOption = { id: string; title: string; description: string | null };
+type TripLeg = { startsOn: string; endsOn: string };
+type TripOption = {
+  id: string;
+  title: string;
+  description: string | null;
+  legs: TripLeg[];
+};
+
+/**
+ * Returns the subset of trips that have at least one leg covering `date`.
+ * Uses plain ISO string comparison (no Date objects) to avoid UTC offset
+ * issues — both leg dates and the preferred date are YYYY-MM-DD strings.
+ */
+function tripsForDate(date: string, allTrips: TripOption[]): TripOption[] {
+  if (!date) return [];
+  return allTrips.filter((t) =>
+    t.legs.some((l) => l.startsOn <= date && l.endsOn >= date),
+  );
+}
 
 export default function BookingForm({
   artistSlug,
@@ -54,6 +72,9 @@ export default function BookingForm({
     submitBookingAction,
     null,
   );
+
+  // Preferred date — drives location filtering
+  const [preferredDate, setPreferredDate] = useState("");
 
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<File[]>([]);
@@ -112,6 +133,12 @@ export default function BookingForm({
 
   const err = (field: string) =>
     state && "field" in state && state.field === field ? state.error : null;
+
+  // Location availability — derived entirely from the selected date.
+  // validLocations resets automatically whenever preferredDate changes because
+  // it is computed from state, not stored independently.
+  const hasTrips = trips.length > 0;
+  const validLocations = tripsForDate(preferredDate, trips);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -364,6 +391,7 @@ export default function BookingForm({
         </div>
       )}
 
+      {/* Date / slot selection */}
       {bookingMode === "fixed_slots" ? (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
@@ -408,12 +436,64 @@ export default function BookingForm({
             name="preferred_date"
             required
             min={tomorrow()}
+            value={preferredDate}
+            onChange={(e) => setPreferredDate(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {err("preferred_date") && (
             <p className="text-xs text-destructive">{err("preferred_date")}</p>
           )}
         </div>
+      )}
+
+      {/* Location — only in preferred_date mode, only when trips exist.
+          Filtered reactively from the selected preferred date.
+          Uses key={preferredDate} to reset the select's value on date change. */}
+      {bookingMode !== "fixed_slots" && hasTrips && preferredDate && (
+        <>
+          {validLocations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No guest spots are scheduled for that date — your request will be
+              treated as a home studio booking.
+            </p>
+          ) : validLocations.length === 1 ? (
+            <>
+              <input
+                type="hidden"
+                name="trip_id"
+                value={validLocations[0].id}
+              />
+              <p className="text-sm text-muted-foreground">
+                Location:{" "}
+                <span className="text-foreground">
+                  {validLocations[0].title}
+                </span>
+              </p>
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <label
+                htmlFor="trip_id"
+                className="text-sm text-muted-foreground"
+              >
+                Location
+              </label>
+              <select
+                key={preferredDate}
+                id="trip_id"
+                name="trip_id"
+                className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">No preference</option>
+                {validLocations.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </>
       )}
 
       <input
@@ -426,30 +506,6 @@ export default function BookingForm({
       <input type="hidden" name="booking_mode" value={bookingMode} />
       {travelLegId && (
         <input type="hidden" name="travel_leg_id" value={travelLegId} />
-      )}
-
-      {trips.length === 1 && (
-        <input type="hidden" name="trip_id" value={trips[0].id} />
-      )}
-
-      {trips.length > 1 && (
-        <div className="space-y-1.5">
-          <label htmlFor="trip_id" className="text-sm text-muted-foreground">
-            Location
-          </label>
-          <select
-            id="trip_id"
-            name="trip_id"
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="">No preference</option>
-            {trips.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.title}
-              </option>
-            ))}
-          </select>
-        </div>
       )}
 
       <button

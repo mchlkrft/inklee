@@ -124,10 +124,19 @@ export default async function ArtistPublicPage({
         }
       : null;
 
-  // Future trips for the booking form selector
+  // Future trips for the booking form selector — include leg date ranges so the
+  // client can filter locations by the chosen preferred date.
   const futureTrips = visibleTrips
     .filter((t) => t.trip_legs.some((l) => l.ends_on >= todayStr))
-    .map((t) => ({ id: t.id, title: t.title, description: t.description }));
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      // Include only legs that haven't fully ended yet
+      legs: t.trip_legs
+        .filter((l) => l.ends_on >= todayStr)
+        .map((l) => ({ startsOn: l.starts_on, endsOn: l.ends_on })),
+    }));
 
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const now = new Date();

@@ -154,8 +154,39 @@ export async function submitBookingAction(
 
   const travelLegId = (formData.get("travel_leg_id") as string) || null;
   const tripId = (formData.get("trip_id") as string) || null;
-  const bookingId = crypto.randomUUID();
   const bookingMode = formData.get("booking_mode") as string;
+
+  // Cross-validate trip_id against preferred_date.
+  // If the client submits a trip that has no leg covering the chosen date,
+  // reject the request — this guards against stale/tampered submissions.
+  // Uses plain ISO string comparison (no Date) to avoid UTC offset errors.
+  if (tripId && data.preferred_date && bookingMode !== "fixed_slots") {
+    const { data: tripLegs } = await supabase
+      .from("trip_legs")
+      .select("starts_on, ends_on")
+      .eq("trip_id", tripId);
+
+    const { data: tripOwner } = await supabase
+      .from("trips")
+      .select("artist_id")
+      .eq("id", tripId)
+      .single();
+
+    const legCoversDate = (tripLegs ?? []).some(
+      (l) =>
+        l.starts_on <= data.preferred_date! &&
+        l.ends_on >= data.preferred_date!,
+    );
+
+    if (!tripOwner || tripOwner.artist_id !== artistId || !legCoversDate) {
+      return {
+        error: "the selected location is not available on that date",
+        field: "preferred_date",
+      };
+    }
+  }
+
+  const bookingId = crypto.randomUUID();
 
   // Deduplication: reject if this customer already submitted to this artist within 60 seconds
   const dedupeWindow = new Date(Date.now() - 60000).toISOString();
