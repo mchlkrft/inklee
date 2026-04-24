@@ -6,6 +6,25 @@ import { serviceClient } from "@/lib/supabase/service";
 import crypto from "crypto";
 import type { ReminderSettings } from "@/lib/reminder-settings";
 import { checkReminderRateLimit } from "@/lib/ratelimit";
+import { writeAudit } from "@/lib/audit";
+
+function todayStr(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+async function alreadySentTodayManual(
+  bookingId: string,
+  type: string,
+): Promise<boolean> {
+  const { count } = await serviceClient
+    .from("audit_log")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_id", bookingId)
+    .eq("action", "reminder_sent")
+    .filter("details->>type", "eq", type)
+    .gte("timestamp", `${todayStr()}T00:00:00Z`);
+  return (count ?? 0) > 0;
+}
 import {
   sendDepositOverdueCustomer,
   sendDepositOverdueArtist,
@@ -90,6 +109,9 @@ export async function sendManualDepositReminderAction(
   if (!booking.customer_email)
     return { error: "no customer email on this booking" };
 
+  if (await alreadySentTodayManual(bookingId, "deposit_overdue"))
+    return { error: "a deposit reminder was already sent today" };
+
   const { allowed } = await checkReminderRateLimit(
     user.id,
     bookingId,
@@ -129,9 +151,11 @@ export async function sendManualDepositReminderAction(
     });
   }
 
-  await supabase.from("audit_log").insert({
-    booking_id: bookingId,
+  void writeAudit({
+    bookingId,
     action: "reminder_sent",
+    actor: user.id,
+    category: "booking",
     details: { type: "deposit_overdue", manual: true },
   });
 
@@ -162,6 +186,9 @@ export async function sendManualReconfirmationAction(
     return { error: "no customer email on this booking" };
   if (!booking.customer_token_hash) return { error: "no magic link token" };
 
+  if (await alreadySentTodayManual(bookingId, "reconfirmation"))
+    return { error: "a reconfirmation was already sent today" };
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
 
   const newToken = crypto.randomBytes(32).toString("hex");
@@ -189,9 +216,11 @@ export async function sendManualReconfirmationAction(
     magicLink: `${appUrl}/request/${newToken}`,
   });
 
-  await supabase.from("audit_log").insert({
-    booking_id: bookingId,
+  void writeAudit({
+    bookingId,
     action: "reminder_sent",
+    actor: user.id,
+    category: "booking",
     details: { type: "reconfirmation", manual: true },
   });
 

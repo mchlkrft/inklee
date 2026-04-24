@@ -6,6 +6,14 @@ type SendEmailParams = {
   html: string;
 };
 
+// Warn once at module load if EMAIL_FROM looks misconfigured
+const emailFrom = process.env.EMAIL_FROM ?? "inklee <noreply@inklee.app>";
+if (!emailFrom.includes("@")) {
+  console.warn(
+    "[email] EMAIL_FROM does not contain an '@' — check configuration",
+  );
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -21,7 +29,7 @@ export async function sendEmail({
   }
 
   const resend = new Resend(apiKey);
-  const from = process.env.EMAIL_FROM ?? "inklee <noreply@inklee.app>";
+  const from = emailFrom;
 
   const { data, error } = await resend.emails.send({ from, to, subject, html });
 

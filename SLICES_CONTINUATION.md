@@ -671,7 +671,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 38 — Email infrastructure safeguards
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — per-artist cron cap (10/run), manual send dedup via audit_log, Resend delivery webhook, EMAIL_FROM validation
 
 **Goal:** The email sending layer has per-artist daily send limits, deduplication hardening for reminders, and a foundation for tracking delivery failures.
 

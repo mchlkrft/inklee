@@ -68,7 +68,18 @@ export async function GET(request: Request) {
     appointment_reminder: 0,
     reconfirmation: 0,
     errors: 0,
+    capped: 0,
   };
+
+  // Per-artist email cap for this cron run — prevents a bug from spamming one artist
+  const ARTIST_EMAIL_CAP = 10;
+  const artistEmailCount = new Map<string, number>();
+  function withinCap(artistId: string): boolean {
+    const n = artistEmailCount.get(artistId) ?? 0;
+    if (n >= ARTIST_EMAIL_CAP) return false;
+    artistEmailCount.set(artistId, n + 1);
+    return true;
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
 
@@ -92,6 +103,10 @@ export async function GET(request: Request) {
         );
         if (!artistSettings.deposit_overdue_enabled) continue;
         if (await alreadySentToday(booking.id, "deposit_overdue")) continue;
+        if (!withinCap(booking.artist_id)) {
+          results.capped++;
+          continue;
+        }
 
         // Fetch artist email
         const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
@@ -169,6 +184,10 @@ export async function GET(request: Request) {
       try {
         if (await alreadySentToday(booking.id, "appointment_reminder"))
           continue;
+        if (!withinCap(booking.artist_id)) {
+          results.capped++;
+          continue;
+        }
 
         const { data: profile } = await serviceClient
           .from("profiles")
@@ -223,6 +242,10 @@ export async function GET(request: Request) {
     for (const booking of upcoming) {
       try {
         if (await alreadySentToday(booking.id, "reconfirmation")) continue;
+        if (!withinCap(booking.artist_id)) {
+          results.capped++;
+          continue;
+        }
 
         const { data: profile } = await serviceClient
           .from("profiles")
