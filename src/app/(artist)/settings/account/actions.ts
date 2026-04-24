@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { writeAudit } from "@/lib/audit";
 
 type State = { error: string } | { success: true } | null;
 
@@ -94,7 +95,27 @@ export async function changePasswordAction(
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) return { error: error.message.toLowerCase() };
 
+  void writeAudit({
+    action: "password_changed",
+    actor: user.id,
+    category: "auth",
+    details: { email: user.email },
+  });
+
   return { success: true };
+}
+
+// Called from client components for auth events that happen client-side (2FA flows)
+export async function logAuthEventAction(
+  action: string,
+  details: Record<string, unknown> = {},
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  void writeAudit({ action, actor: user.id, category: "auth", details });
 }
 
 async function sha256(text: string): Promise<string> {

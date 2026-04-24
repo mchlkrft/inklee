@@ -639,7 +639,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 37 — Audit log expansion
 
-**Status:** ⬜ pending
+**Status:** ✅ complete — event_category column (migration 0015), writeAudit() helper, auth/settings/admin hooks, full booking timeline in sidebar
 
 **Goal:** The existing `audit_log` table is extended to cover auth events, settings changes, and sensitive admin actions — making it a practical debugging and trust tool, not just a booking history.
 

@@ -6,6 +6,7 @@ import {
   DEFAULT_SUBJECTS,
 } from "@/lib/email/booking-templates";
 import { revalidatePath } from "next/cache";
+import { writeAudit } from "@/lib/audit";
 
 type State = { error: string } | { success: true } | null;
 
@@ -42,6 +43,13 @@ export async function saveTemplateAction(
     );
 
   if (error) return { error: error.message };
+
+  void writeAudit({
+    action: "email_template_edited",
+    actor: user.id,
+    category: "settings",
+    details: { template_type: type },
+  });
 
   revalidatePath("/settings/emails");
   return { success: true };

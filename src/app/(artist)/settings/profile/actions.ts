@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import sharp from "sharp";
+import { writeAudit } from "@/lib/audit";
 
 type State = { error: string } | { success: true } | null;
 
@@ -84,6 +85,15 @@ export async function updateProfileAction(
     .eq("id", user.id);
 
   if (error) return { error: error.message.toLowerCase() };
+
+  if (bookingMode) {
+    void writeAudit({
+      action: "booking_mode_changed",
+      actor: user.id,
+      category: "settings",
+      details: { to: bookingMode },
+    });
+  }
 
   return { success: true };
 }

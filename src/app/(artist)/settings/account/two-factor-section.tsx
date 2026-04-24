@@ -7,6 +7,7 @@ import CopyButton from "@/components/copy-button";
 import {
   saveMfaRecoveryCodesAction,
   clearMfaRecoveryCodesAction,
+  logAuthEventAction,
 } from "./actions";
 
 type Step = "idle" | "enrolling" | "verifying" | "codes" | "disabling" | "done";
@@ -82,6 +83,7 @@ export default function TwoFactorSection({
       const newCodes = generateCodes();
       setCodes(newCodes);
       await saveMfaRecoveryCodesAction(newCodes);
+      void logAuthEventAction("2fa_enabled", { method: "totp" });
       setStep("codes");
     } finally {
       setPending(false);
@@ -109,6 +111,7 @@ export default function TwoFactorSection({
       }
       await supabase.auth.mfa.unenroll({ factorId });
       await clearMfaRecoveryCodesAction();
+      void logAuthEventAction("2fa_disabled", { method: "totp" });
       setFactorId(null);
       setStep("done");
     } finally {

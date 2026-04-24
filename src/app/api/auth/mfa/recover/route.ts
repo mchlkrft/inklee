@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { writeAudit } from "@/lib/audit";
 
 async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest(
@@ -71,6 +72,13 @@ export async function POST(request: Request) {
     .from("profiles")
     .update({ settings: { ...settings, mfa_recovery_codes: remaining } })
     .eq("id", user.id);
+
+  void writeAudit({
+    action: "2fa_recovery_code_used",
+    actor: user.id,
+    category: "auth",
+    details: { codes_remaining: remaining.length },
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -8,8 +8,17 @@ import {
 } from "@/app/(artist)/settings/reminders/actions";
 
 type LogEntry = {
+  action: string;
   timestamp: string;
   details: Record<string, unknown>;
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  booking_created: "Booking submitted",
+  status_changed: "Status changed",
+  reminder_sent: "Reminder sent",
+  deposit_paid: "Deposit paid",
+  customer_cancelled: "Cancelled by client",
 };
 
 export default function CommunicationSidebar({
@@ -87,15 +96,22 @@ export default function CommunicationSidebar({
       {log.length > 0 ? (
         <div className="space-y-1.5">
           {log.map((entry, i) => {
-            const type = String(entry.details?.type ?? "reminder");
-            const isManual = entry.details?.manual === true;
-            const rawLabel =
-              type.replace(/_/g, " ") + (isManual ? " (manual)" : "");
-            const label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+            let label =
+              ACTION_LABELS[entry.action] ?? entry.action.replace(/_/g, " ");
+            if (entry.action === "status_changed") {
+              const to = String(entry.details?.to ?? "");
+              if (to) label = `→ ${to.replace(/_/g, " ")}`;
+            }
+            if (entry.action === "reminder_sent") {
+              const type = String(entry.details?.type ?? "");
+              const isManual = entry.details?.manual === true;
+              label = `Reminder: ${type.replace(/_/g, " ")}${isManual ? " (manual)" : ""}`;
+            }
+            label = label.charAt(0).toUpperCase() + label.slice(1);
             return (
-              <div key={i} className="flex justify-between text-xs">
+              <div key={i} className="flex justify-between text-xs gap-2">
                 <span className="text-muted-foreground">{label}</span>
-                <span className="text-muted-foreground/60 shrink-0 ml-2">
+                <span className="text-muted-foreground/60 shrink-0">
                   {relativeTime(entry.timestamp)}
                 </span>
               </div>
@@ -103,7 +119,7 @@ export default function CommunicationSidebar({
           })}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">No reminders sent yet.</p>
+        <p className="text-xs text-muted-foreground">No activity logged yet.</p>
       )}
     </div>
   );

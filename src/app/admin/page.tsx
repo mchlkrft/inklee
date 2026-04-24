@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { writeAudit } from "@/lib/audit";
 import {
   getKpis,
   getOnboardingFunnel,
@@ -28,6 +29,13 @@ export default async function AdminPage({
   if (!user || !ADMIN_EMAILS.includes(user.email ?? "")) {
     redirect("/dashboard");
   }
+
+  void writeAudit({
+    action: "admin_page_accessed",
+    actor: user.id,
+    category: "admin",
+    details: { email: user.email },
+  });
 
   const { range: rawRange = "30" } = await searchParams;
   const range = (

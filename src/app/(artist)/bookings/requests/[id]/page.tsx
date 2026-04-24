@@ -34,11 +34,10 @@ export default async function RequestDetailPage({
 
   const { data: reminderLog } = await supabase
     .from("audit_log")
-    .select("timestamp, details")
+    .select("action, timestamp, details")
     .eq("booking_id", id)
-    .eq("action", "reminder_sent")
     .order("timestamp", { ascending: false })
-    .limit(20);
+    .limit(30);
 
   const signedUrls: string[] = [];
   for (const img of booking.booking_images ?? []) {
@@ -166,6 +165,7 @@ export default async function RequestDetailPage({
                 booking.preferred_date >= new Date().toISOString().split("T")[0]
               }
               log={(reminderLog ?? []).map((e) => ({
+                action: e.action,
                 timestamp: e.timestamp,
                 details: (e.details ?? {}) as Record<string, unknown>,
               }))}

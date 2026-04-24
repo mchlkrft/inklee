@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { writeAudit } from "@/lib/audit";
 
 type State = { error: string } | { success: true } | null;
 
@@ -56,6 +57,13 @@ export async function saveBooksSettingsAction(
     .eq("id", user.id);
 
   if (error) return { error: error.message };
+
+  void writeAudit({
+    action: booksOpen ? "books_opened" : "books_closed",
+    actor: user.id,
+    category: "settings",
+    details: { books_open: booksOpen },
+  });
 
   revalidatePath("/bookings/books");
   return { success: true };
