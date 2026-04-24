@@ -156,31 +156,34 @@ export async function submitBookingAction(
   const tripId = (formData.get("trip_id") as string) || null;
   const bookingMode = formData.get("booking_mode") as string;
 
-  // Cross-validate trip_id against preferred_date.
-  // If the client submits a trip that has no leg covering the chosen date,
-  // reject the request — this guards against stale/tampered submissions.
-  // Uses plain ISO string comparison (no Date) to avoid UTC offset errors.
+  // Validate trip ownership and that the trip is not fully in the past.
+  // We allow advance bookings (preferred date before trip start) because
+  // customers book guest spots in advance. We only reject if the trip's last
+  // leg has already ended before the chosen date, or if the trip doesn't
+  // belong to this artist.
   if (tripId && data.preferred_date && bookingMode !== "fixed_slots") {
-    const { data: tripLegs } = await supabase
-      .from("trip_legs")
-      .select("starts_on, ends_on")
-      .eq("trip_id", tripId);
-
     const { data: tripOwner } = await supabase
       .from("trips")
       .select("artist_id")
       .eq("id", tripId)
       .single();
 
-    const legCoversDate = (tripLegs ?? []).some(
-      (l) =>
-        l.starts_on <= data.preferred_date! &&
-        l.ends_on >= data.preferred_date!,
+    if (!tripOwner || tripOwner.artist_id !== artistId) {
+      return { error: "invalid location selection" };
+    }
+
+    const { data: tripLegs } = await supabase
+      .from("trip_legs")
+      .select("ends_on")
+      .eq("trip_id", tripId);
+
+    const tripHasFutureLegs = (tripLegs ?? []).some(
+      (l) => l.ends_on >= data.preferred_date!,
     );
 
-    if (!tripOwner || tripOwner.artist_id !== artistId || !legCoversDate) {
+    if (!tripHasFutureLegs) {
       return {
-        error: "the selected location is not available on that date",
+        error: "the selected location is no longer available",
         field: "preferred_date",
       };
     }

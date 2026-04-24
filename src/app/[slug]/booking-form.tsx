@@ -38,15 +38,15 @@ type TripOption = {
 };
 
 /**
- * Returns the subset of trips that have at least one leg covering `date`.
- * Uses plain ISO string comparison (no Date objects) to avoid UTC offset
- * issues — both leg dates and the preferred date are YYYY-MM-DD strings.
+ * Returns trips that are active on OR upcoming after `date`.
+ * A trip qualifies if any of its legs ends on or after the chosen date —
+ * this allows advance bookings for future guest spots even when the preferred
+ * date is before the trip starts.
+ * Uses plain ISO string comparison (YYYY-MM-DD) to avoid UTC offset issues.
  */
 function tripsForDate(date: string, allTrips: TripOption[]): TripOption[] {
   if (!date) return [];
-  return allTrips.filter((t) =>
-    t.legs.some((l) => l.startsOn <= date && l.endsOn >= date),
-  );
+  return allTrips.filter((t) => t.legs.some((l) => l.endsOn >= date));
 }
 
 export default function BookingForm({
