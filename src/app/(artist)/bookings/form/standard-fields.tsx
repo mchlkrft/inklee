@@ -28,6 +28,12 @@ const CONFIGURABLE: {
     description: "lets customers upload up to 5 photos",
   },
   {
+    key: "allow_photo_annotations",
+    label: "photo annotations",
+    description:
+      "after uploading a photo, clients can tap to mark spots with notes",
+  },
+  {
     key: "require_description",
     label: "description required",
     description: "when off, description becomes optional",

@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatDate, relativeTime } from "@/lib/format";
 import StatusActions from "./status-actions";
-import ImageLightbox from "./image-lightbox";
+import AnnotatedImageGallery from "./annotated-image-gallery";
 import CommunicationSidebar from "./communication-sidebar";
+import type { Annotation } from "@/lib/annotations";
 import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { formatCustomAnswer } from "@/lib/custom-fields";
 
@@ -21,7 +22,7 @@ export default async function RequestDetailPage({
 
   const { data: booking } = await supabase
     .from("booking_requests")
-    .select("*, booking_images(storage_path)")
+    .select("*, booking_images(storage_path, annotations)")
     .eq("id", id)
     .eq("artist_id", user!.id)
     .single();
@@ -39,12 +40,21 @@ export default async function RequestDetailPage({
     .order("timestamp", { ascending: false })
     .limit(30);
 
-  const signedUrls: string[] = [];
-  for (const img of booking.booking_images ?? []) {
+  type ImageRow = { storage_path: string; annotations: unknown };
+  const imagesWithUrls: { url: string; annotations: Annotation[] | null }[] =
+    [];
+  for (const img of (booking.booking_images as ImageRow[]) ?? []) {
     const { data } = await supabase.storage
       .from("bookings")
       .createSignedUrl(img.storage_path, 3600);
-    if (data?.signedUrl) signedUrls.push(data.signedUrl);
+    if (data?.signedUrl) {
+      imagesWithUrls.push({
+        url: data.signedUrl,
+        annotations: Array.isArray(img.annotations)
+          ? (img.annotations as Annotation[])
+          : null,
+      });
+    }
   }
 
   return (
@@ -108,12 +118,12 @@ export default async function RequestDetailPage({
             </div>
           )}
 
-          {signedUrls.length > 0 && (
+          {imagesWithUrls.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                Reference images ({signedUrls.length})
+                Reference images ({imagesWithUrls.length})
               </p>
-              <ImageLightbox urls={signedUrls} />
+              <AnnotatedImageGallery images={imagesWithUrls} />
             </div>
           )}
         </div>

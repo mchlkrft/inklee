@@ -9,6 +9,8 @@ import type { CustomFieldDef } from "@/lib/custom-fields";
 import CustomFieldInput from "@/components/custom-field-input";
 import type { FormSettings } from "@/lib/form-settings";
 import { DEFAULT_FORM_SETTINGS } from "@/lib/form-settings";
+import type { Annotation } from "@/lib/annotations";
+import AnnotationModal from "./annotation-modal";
 
 type State = { error: string; field?: string } | null;
 
@@ -37,11 +39,11 @@ type TripOption = {
   legs: TripLeg[];
 };
 
+// Stable image entry — avoids index-based annotation tracking issues
+type ImageEntry = { id: string; file: File; preview: string };
+
 /**
  * Returns trips that are active on OR upcoming after `date`.
- * A trip qualifies if any of its legs ends on or after the chosen date —
- * this allows advance bookings for future guest spots even when the preferred
- * date is before the trip starts.
  * Uses plain ISO string comparison (YYYY-MM-DD) to avoid UTC offset issues.
  */
 function tripsForDate(date: string, allTrips: TripOption[]): TripOption[] {
@@ -73,21 +75,29 @@ export default function BookingForm({
     null,
   );
 
-  // Preferred date — drives location filtering
   const [preferredDate, setPreferredDate] = useState("");
-
   const [description, setDescription] = useState("");
-  const [images, setImages] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [dragOver, setDragOver] = useState(false);
+
+  // Image management — stable IDs decouple annotation tracking from array order
+  const [imageEntries, setImageEntries] = useState<ImageEntry[]>([]);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Annotation state — keyed by imageEntry.id
+  const [annotationMap, setAnnotationMap] = useState<
+    Record<string, Annotation[]>
+  >({});
+  const [annotatingId, setAnnotatingId] = useState<string | null>(null);
 
   const MAX_FILES = 5;
   const MAX_SIZE_BYTES = 10 * 1024 * 1024;
   const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-  const addFiles = (incoming: FileList | null) => {
+  const annotationsEnabled =
+    formSettings.show_image_upload && formSettings.allow_photo_annotations;
+
+  function addFiles(incoming: FileList | null) {
     if (!incoming) return;
     const errors: string[] = [];
     const valid: File[] = [];
@@ -102,431 +112,506 @@ export default function BookingForm({
       }
     });
 
-    const slots = MAX_FILES - images.length;
+    const slots = MAX_FILES - imageEntries.length;
     if (valid.length > slots) {
       errors.push(
         `Only ${slots} more image${slots === 1 ? "" : "s"} can be added (max ${MAX_FILES} total)`,
       );
     }
 
-    const newImages = [...images, ...valid].slice(0, MAX_FILES);
-    setImages(newImages);
-    setPreviews(newImages.map((f) => URL.createObjectURL(f)));
-    setUploadErrors(errors);
-  };
+    const newEntries: ImageEntry[] = valid
+      .slice(0, Math.max(0, slots))
+      .map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        preview: URL.createObjectURL(file),
+      }));
 
-  const removeImage = (idx: number) => {
-    const next = images.filter((_, i) => i !== idx);
-    setImages(next);
-    setPreviews(next.map((f) => URL.createObjectURL(f)));
+    setImageEntries((prev) => [...prev, ...newEntries]);
+    setUploadErrors(errors);
+
+    // Auto-open annotation modal for the first newly added photo
+    if (annotationsEnabled && newEntries.length > 0) {
+      setAnnotatingId(newEntries[0].id);
+    }
+  }
+
+  function removeImage(entryId: string) {
+    setImageEntries((prev) => prev.filter((e) => e.id !== entryId));
+    setAnnotationMap((prev) => {
+      const next = { ...prev };
+      delete next[entryId];
+      return next;
+    });
     setUploadErrors([]);
-  };
+    if (annotatingId === entryId) setAnnotatingId(null);
+  }
+
+  function handleAnnotationSave(entryId: string, annotations: Annotation[]) {
+    setAnnotationMap((prev) => ({ ...prev, [entryId]: annotations }));
+    setAnnotatingId(null);
+  }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.delete("images");
-    images.forEach((f) => fd.append("images", f));
+    imageEntries.forEach((entry) => fd.append("images", entry.file));
     fd.set("artist_slug", artistSlug);
+    // Serialize annotations as a parallel array (same order as images)
+    if (annotationsEnabled) {
+      const annotationsPayload = imageEntries.map(
+        (entry) => annotationMap[entry.id] ?? [],
+      );
+      fd.set("annotations_json", JSON.stringify(annotationsPayload));
+    }
     startTransition(() => action(fd));
   };
 
   const err = (field: string) =>
     state && "field" in state && state.field === field ? state.error : null;
 
-  // Location availability — derived entirely from the selected date.
-  // validLocations resets automatically whenever preferredDate changes because
-  // it is computed from state, not stored independently.
+  // Location availability — derived from selected date
   const hasTrips = trips.length > 0;
   const validLocations = tripsForDate(preferredDate, trips);
 
+  const annotatingEntry = annotatingId
+    ? (imageEntries.find((e) => e.id === annotatingId) ?? null)
+    : null;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {state?.error && !state.field && (
-        <p className="text-sm text-destructive">{state.error}</p>
-      )}
-
-      <div className="space-y-1.5">
-        <label
-          htmlFor="instagram_handle"
-          className="text-sm text-muted-foreground"
-        >
-          Instagram handle <span className="text-foreground">*</span>
-        </label>
-        <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
-          <span className="select-none text-muted-foreground">@</span>
-          <input
-            id="instagram_handle"
-            name="instagram_handle"
-            type="text"
-            required
-            autoComplete="off"
-            className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
-          />
-        </div>
-        {err("instagram_handle") && (
-          <p className="text-xs text-destructive">{err("instagram_handle")}</p>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {state?.error && !state.field && (
+          <p className="text-sm text-destructive">{state.error}</p>
         )}
-      </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="email" className="text-sm text-muted-foreground">
-          Email <span className="text-foreground">*</span>
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        {err("email") && (
-          <p className="text-xs text-destructive">{err("email")}</p>
-        )}
-      </div>
-
-      {formSettings.show_reference_link && (
         <div className="space-y-1.5">
           <label
-            htmlFor="reference_link"
+            htmlFor="instagram_handle"
             className="text-sm text-muted-foreground"
           >
-            Reference link{" "}
-            <span className="text-xs text-muted-foreground">(optional)</span>
+            Instagram handle <span className="text-foreground">*</span>
+          </label>
+          <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
+            <span className="select-none text-muted-foreground">@</span>
+            <input
+              id="instagram_handle"
+              name="instagram_handle"
+              type="text"
+              required
+              autoComplete="off"
+              className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
+            />
+          </div>
+          {err("instagram_handle") && (
+            <p className="text-xs text-destructive">
+              {err("instagram_handle")}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="text-sm text-muted-foreground">
+            Email <span className="text-foreground">*</span>
           </label>
           <input
-            id="reference_link"
-            name="reference_link"
-            type="url"
-            placeholder="instagram.com/p/... or any link"
+            id="email"
+            name="email"
+            type="email"
+            required
+            className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {err("email") && (
+            <p className="text-xs text-destructive">{err("email")}</p>
+          )}
+        </div>
+
+        {formSettings.show_reference_link && (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="reference_link"
+              className="text-sm text-muted-foreground"
+            >
+              Reference link{" "}
+              <span className="text-xs text-muted-foreground">(optional)</span>
+            </label>
+            <input
+              id="reference_link"
+              name="reference_link"
+              type="url"
+              placeholder="instagram.com/p/... or any link"
+              className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {err("reference_link") && (
+              <p className="text-xs text-destructive">
+                {err("reference_link")}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <label htmlFor="placement" className="text-sm text-muted-foreground">
+            Placement <span className="text-foreground">*</span>
+          </label>
+          <input
+            id="placement"
+            name="placement"
+            type="text"
+            required
+            placeholder="Left forearm, inner wrist..."
             className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          {err("reference_link") && (
-            <p className="text-xs text-destructive">{err("reference_link")}</p>
+          {err("placement") && (
+            <p className="text-xs text-destructive">{err("placement")}</p>
           )}
         </div>
-      )}
 
-      <div className="space-y-1.5">
-        <label htmlFor="placement" className="text-sm text-muted-foreground">
-          Placement <span className="text-foreground">*</span>
-        </label>
-        <input
-          id="placement"
-          name="placement"
-          type="text"
-          required
-          placeholder="Left forearm, inner wrist..."
-          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        {err("placement") && (
-          <p className="text-xs text-destructive">{err("placement")}</p>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">
-          Size <span className="text-foreground">*</span>
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {SIZES.map((s) => (
-            <label
-              key={s}
-              className="cursor-pointer rounded-md border border-border px-3 py-2.5 text-sm text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
-            >
-              <div className="flex items-center gap-2.5">
-                <input
-                  type="radio"
-                  name="size"
-                  value={s}
-                  required
-                  className="accent-foreground"
-                />
-                <span>
-                  {SIZE_LABELS[s].label}
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    {SIZE_LABELS[s].hint}
-                  </span>
-                </span>
-              </div>
-            </label>
-          ))}
-        </div>
-        {err("size") && (
-          <p className="text-xs text-destructive">{err("size")}</p>
-        )}
-      </div>
-
-      <div className="space-y-1.5">
-        <div className="flex justify-between">
-          <label
-            htmlFor="description"
-            className="text-sm text-muted-foreground"
-          >
-            Description{" "}
-            {formSettings.require_description ? (
-              <span className="text-foreground">*</span>
-            ) : (
-              <span className="text-xs text-muted-foreground">(optional)</span>
-            )}
-          </label>
-          <span
-            className={`text-xs ${description.length > 1000 ? "text-destructive" : "text-muted-foreground"}`}
-          >
-            {description.length}/1000
-          </span>
-        </div>
-        <textarea
-          id="description"
-          name="description"
-          required={formSettings.require_description}
-          rows={5}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
-          className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        {err("description") && (
-          <p className="text-xs text-destructive">{err("description")}</p>
-        )}
-      </div>
-
-      {customFields.map((field) => (
-        <CustomFieldInput
-          key={field.id}
-          field={field}
-          error={err(`cf_${field.key}`)}
-        />
-      ))}
-
-      {formSettings.show_image_upload && (
-        <div className="space-y-2">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Reference images{" "}
-              <span className="text-xs text-muted-foreground">(optional)</span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Up to 5 files — JPG, PNG, or WebP — max 10 MB each. Large images
-              are automatically optimised before upload.
-            </p>
-          </div>
-
-          {images.length < MAX_FILES && (
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                addFiles(e.dataTransfer.files);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              className={`cursor-pointer rounded-md border border-dashed px-6 py-8 transition-colors ${
-                dragOver ? "border-foreground bg-muted/20" : "border-border"
-              }`}
-            >
-              <div className="flex flex-col items-center justify-center gap-1">
-                <p className="text-sm text-muted-foreground">
-                  Drag images here or{" "}
-                  <span className="text-foreground underline underline-offset-4">
-                    browse
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {images.length > 0
-                    ? `${images.length} of ${MAX_FILES} added — ${MAX_FILES - images.length} more allowed`
-                    : `Up to ${MAX_FILES} images`}
-                </p>
-              </div>
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={(e) => addFiles(e.target.files)}
-          />
-
-          {uploadErrors.length > 0 && (
-            <ul className="space-y-1">
-              {uploadErrors.map((msg, i) => (
-                <li key={i} className="text-xs text-destructive">
-                  {msg}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {previews.length > 0 && (
-            <div className="grid grid-cols-5 gap-2">
-              {previews.map((src, i) => (
-                <div
-                  key={i}
-                  className="group relative aspect-square overflow-hidden rounded-md border border-border"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(i)}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm text-white opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Date / slot selection */}
-      {bookingMode === "fixed_slots" ? (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            Select a slot <span className="text-foreground">*</span>
+            Size <span className="text-foreground">*</span>
           </p>
-          <div className="space-y-2">
-            {slots.map((slot) => (
+          <div className="grid grid-cols-2 gap-2">
+            {SIZES.map((s) => (
               <label
-                key={slot.id}
-                className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 has-[:checked]:border-foreground"
+                key={s}
+                className="cursor-pointer rounded-md border border-border px-3 py-2.5 text-sm text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
               >
-                <input
-                  type="radio"
-                  name="slot_id"
-                  value={slot.id}
-                  required
-                  className="mt-0.5 accent-foreground"
-                />
-                <div>
-                  <p className="text-sm text-foreground">{slot.date}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {slot.time} · {slot.tz}
-                  </p>
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="radio"
+                    name="size"
+                    value={s}
+                    required
+                    className="accent-foreground"
+                  />
+                  <span>
+                    {SIZE_LABELS[s].label}
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      {SIZE_LABELS[s].hint}
+                    </span>
+                  </span>
                 </div>
               </label>
             ))}
           </div>
-          {err("slot_id") && (
-            <p className="text-xs text-destructive">{err("slot_id")}</p>
+          {err("size") && (
+            <p className="text-xs text-destructive">{err("size")}</p>
           )}
         </div>
-      ) : (
-        <div className="space-y-1.5">
-          <label
-            htmlFor="preferred_date"
-            className="text-sm text-muted-foreground"
-          >
-            Preferred date <span className="text-foreground">*</span>
-          </label>
-          <DateInput
-            id="preferred_date"
-            name="preferred_date"
-            required
-            min={tomorrow()}
-            value={preferredDate}
-            onChange={(e) => setPreferredDate(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          {err("preferred_date") && (
-            <p className="text-xs text-destructive">{err("preferred_date")}</p>
-          )}
-        </div>
-      )}
 
-      {/* Location — only in preferred_date mode, only when trips exist.
-          Filtered reactively from the selected preferred date.
-          Uses key={preferredDate} to reset the select's value on date change. */}
-      {bookingMode !== "fixed_slots" && hasTrips && preferredDate && (
-        <>
-          {validLocations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No guest spots are scheduled for that date — your request will be
-              treated as a home studio booking.
-            </p>
-          ) : validLocations.length === 1 ? (
-            <>
-              <input
-                type="hidden"
-                name="trip_id"
-                value={validLocations[0].id}
-              />
+        <div className="space-y-1.5">
+          <div className="flex justify-between">
+            <label
+              htmlFor="description"
+              className="text-sm text-muted-foreground"
+            >
+              Description{" "}
+              {formSettings.require_description ? (
+                <span className="text-foreground">*</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  (optional)
+                </span>
+              )}
+            </label>
+            <span
+              className={`text-xs ${description.length > 1000 ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {description.length}/1000
+            </span>
+          </div>
+          <textarea
+            id="description"
+            name="description"
+            required={formSettings.require_description}
+            rows={5}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
+            className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {err("description") && (
+            <p className="text-xs text-destructive">{err("description")}</p>
+          )}
+        </div>
+
+        {customFields.map((field) => (
+          <CustomFieldInput
+            key={field.id}
+            field={field}
+            error={err(`cf_${field.key}`)}
+          />
+        ))}
+
+        {formSettings.show_image_upload && (
+          <div className="space-y-2">
+            <div>
               <p className="text-sm text-muted-foreground">
-                Location:{" "}
-                <span className="text-foreground">
-                  {validLocations[0].title}
+                Reference images{" "}
+                <span className="text-xs text-muted-foreground">
+                  (optional)
                 </span>
               </p>
-            </>
-          ) : (
-            <div className="space-y-1.5">
-              <label
-                htmlFor="trip_id"
-                className="text-sm text-muted-foreground"
-              >
-                Location
-              </label>
-              <select
-                key={preferredDate}
-                id="trip_id"
-                name="trip_id"
-                className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">No preference</option>
-                {validLocations.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
-                ))}
-              </select>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Up to 5 files — JPG, PNG, or WebP — max 10 MB each.
+                {annotationsEnabled &&
+                  " You can add notes to photos after uploading."}
+              </p>
             </div>
-          )}
-        </>
+
+            {imageEntries.length < MAX_FILES && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  addFiles(e.dataTransfer.files);
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                className={`cursor-pointer rounded-md border border-dashed px-6 py-8 transition-colors ${
+                  dragOver ? "border-foreground bg-muted/20" : "border-border"
+                }`}
+              >
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <p className="text-sm text-muted-foreground">
+                    Drag images here or{" "}
+                    <span className="text-foreground underline underline-offset-4">
+                      browse
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {imageEntries.length > 0
+                      ? `${imageEntries.length} of ${MAX_FILES} added — ${MAX_FILES - imageEntries.length} more allowed`
+                      : `Up to ${MAX_FILES} images`}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => addFiles(e.target.files)}
+            />
+
+            {uploadErrors.length > 0 && (
+              <ul className="space-y-1">
+                {uploadErrors.map((msg, i) => (
+                  <li key={i} className="text-xs text-destructive">
+                    {msg}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {imageEntries.length > 0 && (
+              <div className="grid grid-cols-5 gap-2">
+                {imageEntries.map((entry) => {
+                  const entryAnnotations = annotationMap[entry.id] ?? [];
+                  return (
+                    <div
+                      key={entry.id}
+                      className="group relative aspect-square overflow-hidden rounded-md border border-border"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={entry.preview}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+
+                      {/* Annotation badge / open modal button */}
+                      {annotationsEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => setAnnotatingId(entry.id)}
+                          className="absolute top-1 left-1 rounded-full bg-black/60 px-1.5 py-0.5 text-white text-xs leading-none hover:bg-black/80 transition-colors"
+                          title={
+                            entryAnnotations.length > 0
+                              ? `${entryAnnotations.length} note${entryAnnotations.length > 1 ? "s" : ""} — click to edit`
+                              : "Add notes"
+                          }
+                        >
+                          {entryAnnotations.length > 0
+                            ? `${entryAnnotations.length} ✎`
+                            : "+ note"}
+                        </button>
+                      )}
+
+                      {/* Remove button */}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(entry.id)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Date / slot selection */}
+        {bookingMode === "fixed_slots" ? (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Select a slot <span className="text-foreground">*</span>
+            </p>
+            <div className="space-y-2">
+              {slots.map((slot) => (
+                <label
+                  key={slot.id}
+                  className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 has-[:checked]:border-foreground"
+                >
+                  <input
+                    type="radio"
+                    name="slot_id"
+                    value={slot.id}
+                    required
+                    className="mt-0.5 accent-foreground"
+                  />
+                  <div>
+                    <p className="text-sm text-foreground">{slot.date}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {slot.time} · {slot.tz}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {err("slot_id") && (
+              <p className="text-xs text-destructive">{err("slot_id")}</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="preferred_date"
+              className="text-sm text-muted-foreground"
+            >
+              Preferred date <span className="text-foreground">*</span>
+            </label>
+            <DateInput
+              id="preferred_date"
+              name="preferred_date"
+              required
+              min={tomorrow()}
+              value={preferredDate}
+              onChange={(e) => setPreferredDate(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {err("preferred_date") && (
+              <p className="text-xs text-destructive">
+                {err("preferred_date")}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Location — preferred_date mode only, reactive to date */}
+        {bookingMode !== "fixed_slots" && hasTrips && preferredDate && (
+          <>
+            {validLocations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No guest spots are scheduled for that date — your request will
+                be treated as a home studio booking.
+              </p>
+            ) : validLocations.length === 1 ? (
+              <>
+                <input
+                  type="hidden"
+                  name="trip_id"
+                  value={validLocations[0].id}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Location:{" "}
+                  <span className="text-foreground">
+                    {validLocations[0].title}
+                  </span>
+                </p>
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="trip_id"
+                  className="text-sm text-muted-foreground"
+                >
+                  Location
+                </label>
+                <select
+                  key={preferredDate}
+                  id="trip_id"
+                  name="trip_id"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">No preference</option>
+                  {validLocations.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </>
+        )}
+
+        <input
+          name="website"
+          type="text"
+          tabIndex={-1}
+          className="hidden"
+          aria-hidden
+        />
+        <input type="hidden" name="booking_mode" value={bookingMode} />
+        {travelLegId && (
+          <input type="hidden" name="travel_leg_id" value={travelLegId} />
+        )}
+
+        <button
+          type="submit"
+          disabled={pending}
+          className="w-full rounded-md bg-foreground px-4 py-3 text-sm font-medium text-background disabled:opacity-50"
+        >
+          {pending ? "Sending..." : `Send request to ${artistFirstName}`}
+        </button>
+
+        <p className="text-center text-xs text-muted-foreground">
+          By submitting, you agree to our{" "}
+          <Link href="/terms" className="underline underline-offset-4">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline underline-offset-4">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+      </form>
+
+      {/* Annotation modal — rendered outside the form to avoid nested form issues */}
+      {annotationsEnabled && annotatingEntry && (
+        <AnnotationModal
+          imagePreview={annotatingEntry.preview}
+          initialAnnotations={annotationMap[annotatingEntry.id] ?? []}
+          onSave={(annotations) =>
+            handleAnnotationSave(annotatingEntry.id, annotations)
+          }
+          onClose={() => setAnnotatingId(null)}
+        />
       )}
-
-      <input
-        name="website"
-        type="text"
-        tabIndex={-1}
-        className="hidden"
-        aria-hidden
-      />
-      <input type="hidden" name="booking_mode" value={bookingMode} />
-      {travelLegId && (
-        <input type="hidden" name="travel_leg_id" value={travelLegId} />
-      )}
-
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-foreground px-4 py-3 text-sm font-medium text-background disabled:opacity-50"
-      >
-        {pending ? "Sending..." : `Send request to ${artistFirstName}`}
-      </button>
-
-      <p className="text-center text-xs text-muted-foreground">
-        By submitting, you agree to our{" "}
-        <Link href="/terms" className="underline underline-offset-4">
-          Terms
-        </Link>{" "}
-        and{" "}
-        <Link href="/privacy" className="underline underline-offset-4">
-          Privacy Policy
-        </Link>
-        .
-      </p>
-    </form>
+    </>
   );
 }

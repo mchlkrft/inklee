@@ -107,6 +107,7 @@ export const bookingImages = pgTable("booking_images", {
     .notNull()
     .references(() => bookingRequests.id, { onDelete: "cascade" }),
   storagePath: text("storage_path").notNull(),
+  annotations: jsonb("annotations"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -348,18 +348,37 @@ export async function submitBookingAction(
     return { error: "something went wrong — try again" };
   }
 
-  // Insert booking images with metadata
+  // Parse annotation data submitted alongside images (optional, artist-gated)
+  let imageAnnotations: unknown[][] = [];
+  try {
+    const raw = formData.get("annotations_json") as string | null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) imageAnnotations = parsed;
+    }
+  } catch {
+    // Malformed JSON — ignore, proceed without annotations
+  }
+
+  // Insert booking images with metadata and optional annotations
   if (uploadedImages.length > 0) {
     await supabase.from("booking_images").insert(
-      uploadedImages.map((img) => ({
-        booking_id: bookingId,
-        storage_path: img.path,
-        original_filename: img.originalFilename,
-        mime_type: img.mimeType,
-        width: img.width,
-        height: img.height,
-        file_size: img.fileSize,
-      })),
+      uploadedImages.map((img, idx) => {
+        const annotations = imageAnnotations[idx];
+        return {
+          booking_id: bookingId,
+          storage_path: img.path,
+          original_filename: img.originalFilename,
+          mime_type: img.mimeType,
+          width: img.width,
+          height: img.height,
+          file_size: img.fileSize,
+          annotations:
+            Array.isArray(annotations) && annotations.length > 0
+              ? annotations
+              : null,
+        };
+      }),
     );
   }
 
