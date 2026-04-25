@@ -55,6 +55,32 @@ export async function saveTemplateAction(
   return { success: true };
 }
 
+export async function resetTemplateAction(type: EmailType): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { error } = await supabase
+    .from("email_templates")
+    .delete()
+    .eq("artist_id", user.id)
+    .eq("type", type);
+
+  if (error) return { error: error.message };
+
+  void writeAudit({
+    action: "email_template_reset",
+    actor: user.id,
+    category: "settings",
+    details: { template_type: type },
+  });
+
+  revalidatePath("/settings/emails");
+  return { success: true };
+}
+
 export async function toggleTemplateAction(
   type: EmailType,
   enabled: boolean,

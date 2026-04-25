@@ -1,7 +1,11 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { saveTemplateAction, toggleTemplateAction } from "./actions";
+import {
+  saveTemplateAction,
+  toggleTemplateAction,
+  resetTemplateAction,
+} from "./actions";
 import Spinner from "@/components/spinner";
 
 type EmailType =
@@ -16,10 +20,12 @@ type State = { error: string } | { success: true } | null;
 export default function TemplateEditor({
   type,
   defaultBody,
+  systemDefault,
   defaultEnabled,
 }: {
   type: EmailType;
   defaultBody: string;
+  systemDefault: string;
   defaultEnabled: boolean;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
@@ -29,6 +35,8 @@ export default function TemplateEditor({
   const [body, setBody] = useState(defaultBody);
   const [enabled, setEnabled] = useState(defaultEnabled);
   const [toggling, startToggle] = useTransition();
+  const [resetting, startReset] = useTransition();
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   function handleToggle() {
     const next = !enabled;
@@ -37,6 +45,16 @@ export default function TemplateEditor({
       await toggleTemplateAction(type, next);
     });
   }
+
+  function handleReset() {
+    setConfirmingReset(false);
+    startReset(async () => {
+      await resetTemplateAction(type);
+      setBody(systemDefault);
+    });
+  }
+
+  const isCustomised = body !== systemDefault;
 
   return (
     <form action={action} className="space-y-3">
@@ -52,19 +70,58 @@ export default function TemplateEditor({
       <textarea
         name="body"
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={(e) => {
+          setBody(e.target.value);
+          setConfirmingReset(false);
+        }}
         rows={8}
         disabled={!enabled}
         className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-y disabled:opacity-40 disabled:cursor-not-allowed"
       />
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <span
           className={`text-xs ${body.length > 2000 ? "text-destructive" : "text-muted-foreground"}`}
         >
           {body.length}/2000
         </span>
-        <div className="flex items-center gap-4">
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Reset to default */}
+          {isCustomised && !confirmingReset && (
+            <button
+              type="button"
+              onClick={() => setConfirmingReset(true)}
+              disabled={resetting || !enabled}
+              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors disabled:opacity-40"
+            >
+              Reset to default
+            </button>
+          )}
+          {confirmingReset && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Restore system default?
+              </span>
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={resetting}
+                className="text-xs text-destructive hover:underline disabled:opacity-50"
+              >
+                {resetting ? "Resetting…" : "Yes, reset"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingReset(false)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {/* Enable toggle */}
           <button
             type="button"
             role="switch"
@@ -84,6 +141,8 @@ export default function TemplateEditor({
           <span className="text-xs text-muted-foreground">
             {enabled ? "On" : "Off"}
           </span>
+
+          {/* Save */}
           <button
             type="submit"
             disabled={pending || !enabled}

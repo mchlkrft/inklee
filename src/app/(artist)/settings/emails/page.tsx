@@ -99,6 +99,7 @@ export default async function TemplatesPage() {
                 <TemplateEditor
                   type={type}
                   defaultBody={savedMap[type] ?? DEFAULT_BODIES[type] ?? ""}
+                  systemDefault={DEFAULT_BODIES[type] ?? ""}
                   defaultEnabled={!disabledSet.has(type)}
                 />
               </div>
