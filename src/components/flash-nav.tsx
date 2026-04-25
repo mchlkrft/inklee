@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { label: "Flash Items", href: "/flash/items" },
   { label: "Flash Days", href: "/flash/days" },
+  { label: "Instagram", href: "/flash/instagram" },
 ];
 
 export default function FlashNav() {

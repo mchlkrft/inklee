@@ -271,6 +271,43 @@ export const flashDays = pgTable("flash_days", {
     .defaultNow(),
 });
 
+export const instagramAccounts = pgTable("instagram_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .unique()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  instagramUserId: text("instagram_user_id").notNull(),
+  username: text("username").notNull(),
+  accessToken: text("access_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  connected: boolean("connected").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const instagramPosts = pgTable("instagram_posts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  instagramMediaId: text("instagram_media_id").notNull(),
+  mediaType: text("media_type").notNull().default("IMAGE"),
+  mediaUrl: text("media_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  permalink: text("permalink").notNull(),
+  caption: text("caption"),
+  postedAt: timestamp("posted_at", { withTimezone: true }),
+  syncedAt: timestamp("synced_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const flashItems = pgTable("flash_items", {
   id: uuid("id").primaryKey().defaultRandom(),
   artistId: uuid("artist_id")
@@ -294,6 +331,10 @@ export const flashItems = pgTable("flash_items", {
   flashDayId: uuid("flash_day_id").references(() => flashDays.id, {
     onDelete: "set null",
   }),
+  instagramPostId: uuid("instagram_post_id").references(
+    () => instagramPosts.id,
+    { onDelete: "set null" },
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
