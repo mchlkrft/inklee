@@ -39,18 +39,17 @@ export default function ClaimSlugPage() {
       return { text: "Checking…", color: "text-muted-foreground" };
     if (!result) return null;
     if (result.error) return { text: result.error, color: "text-destructive" };
-    if (result.available) return { text: "Available", color: "text-green-500" };
+    if (result.available)
+      return { text: "Available ✓", color: "text-green-500" };
     return { text: "Already taken", color: "text-destructive" };
   })();
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">
-          Welcome to Inklee
-        </h1>
+        <h1 className="text-xl font-semibold text-foreground">Your profile</h1>
         <p className="text-sm text-muted-foreground">
-          Let&apos;s get your booking page set up.
+          This is what clients see on your booking page.
         </p>
       </div>
 
@@ -61,12 +60,36 @@ export default function ClaimSlugPage() {
           <p className="text-sm text-destructive">{state.error}</p>
         )}
 
+        {/* Artist name */}
         <div className="space-y-1.5">
-          <label className="text-sm text-muted-foreground">
-            Your booking link <span className="text-foreground">*</span>
+          <label
+            htmlFor="display_name"
+            className="text-sm font-medium text-foreground"
+          >
+            Artist name{" "}
+            <span className="text-muted-foreground font-normal">*</span>
+          </label>
+          <input
+            id="display_name"
+            name="display_name"
+            type="text"
+            placeholder="e.g. Bert Grimm"
+            required
+            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground">
+            Shown on your public booking page.
+          </p>
+        </div>
+
+        {/* Booking link slug */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            Booking link{" "}
+            <span className="text-muted-foreground font-normal">*</span>
           </label>
           <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
-            <span className="text-muted-foreground select-none">
+            <span className="select-none text-muted-foreground">
               inklee.app/
             </span>
             <input
@@ -84,57 +107,52 @@ export default function ClaimSlugPage() {
           </div>
           {hint && <p className={`text-xs ${hint.color}`}>{hint.text}</p>}
           <p className="text-xs text-muted-foreground">
-            3–30 characters, lowercase, single dashes — this is your permanent
-            booking URL
+            3–30 characters, lowercase letters and dashes only.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="first_name"
-              className="text-sm text-muted-foreground"
-            >
-              First name
-            </label>
-            <input
-              id="first_name"
-              name="first_name"
-              type="text"
-              placeholder="Bert"
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="last_name"
-              className="text-sm text-muted-foreground"
-            >
-              Last name
-            </label>
-            <input
-              id="last_name"
-              name="last_name"
-              type="text"
-              placeholder="Grimm"
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-        </div>
-
+        {/* Instagram handle — optional */}
         <div className="space-y-1.5">
           <label
-            htmlFor="display_name"
-            className="text-sm text-muted-foreground"
+            htmlFor="instagram_handle"
+            className="text-sm font-medium text-foreground"
           >
-            Artist name <span className="text-foreground">*</span>
+            Instagram handle{" "}
+            <span className="text-xs font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </label>
+          <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
+            <span className="select-none text-muted-foreground">@</span>
+            <input
+              id="instagram_handle"
+              name="instagram_handle"
+              type="text"
+              placeholder="yourhandle"
+              className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Shown as a link on your booking page.
+          </p>
+        </div>
+
+        {/* Location — optional */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="location"
+            className="text-sm font-medium text-foreground"
+          >
+            Location{" "}
+            <span className="text-xs font-normal text-muted-foreground">
+              (optional)
+            </span>
           </label>
           <input
-            id="display_name"
-            name="display_name"
+            id="location"
+            name="location"
             type="text"
-            placeholder="Shown on your public booking page"
-            required
+            placeholder="e.g. Berlin"
             className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>

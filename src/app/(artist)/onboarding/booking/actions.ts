@@ -30,5 +30,5 @@ export async function saveOnboardingBookingAction(
 
   if (error) return { error: error.message.toLowerCase() };
 
-  redirect("/onboarding/done");
+  redirect("/onboarding/availability");
 }

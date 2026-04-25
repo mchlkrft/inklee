@@ -23,7 +23,7 @@ export async function GET(request: Request) {
           .single();
 
         if (!profile) {
-          return NextResponse.redirect(`${origin}/onboarding/claim-slug`);
+          return NextResponse.redirect(`${origin}/onboarding/welcome`);
         }
       }
 

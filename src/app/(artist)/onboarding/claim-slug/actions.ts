@@ -27,10 +27,12 @@ export async function claimSlugAction(
   formData: FormData,
 ): Promise<State> {
   const slug = (formData.get("slug") as string).trim().toLowerCase();
-  const firstName =
-    (formData.get("first_name") as string | null)?.trim() || null;
-  const lastName = (formData.get("last_name") as string | null)?.trim() || null;
   const displayName = (formData.get("display_name") as string | null)?.trim();
+  const instagramHandle =
+    (formData.get("instagram_handle") as string | null)
+      ?.trim()
+      .replace(/^@/, "") || null;
+  const location = (formData.get("location") as string | null)?.trim() || null;
 
   const validationError = validateSlug(slug);
   if (validationError) return { error: validationError };
@@ -47,6 +49,7 @@ export async function claimSlugAction(
     .from("profiles")
     .select("id")
     .eq("slug", slug)
+    .neq("id", user.id)
     .single();
 
   if (existing) return { error: "that slug is already taken" };
@@ -55,12 +58,13 @@ export async function claimSlugAction(
     id: user.id,
     slug,
     display_name: displayName,
-    first_name: firstName,
-    last_name: lastName,
+    instagram_handle: instagramHandle,
+    location,
     timezone: "Europe/Berlin",
+    updated_at: new Date().toISOString(),
   });
 
   if (error) return { error: error.message.toLowerCase() };
 
-  redirect("/onboarding/profile");
+  redirect("/onboarding/booking");
 }

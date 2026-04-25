@@ -35,7 +35,7 @@ export async function loginAction(
     .single();
 
   if (!profile) {
-    redirect("/onboarding/claim-slug");
+    redirect("/onboarding/welcome");
   }
 
   redirect("/dashboard");

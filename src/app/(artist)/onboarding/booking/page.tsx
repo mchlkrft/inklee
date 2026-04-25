@@ -3,27 +3,44 @@
 import { useActionState, useState } from "react";
 import { saveOnboardingBookingAction } from "./actions";
 import OnboardingProgress from "@/components/onboarding-progress";
-import Link from "next/link";
+import { CalendarDays, Clock } from "lucide-react";
 
 type State = { error: string } | null;
+
+const MODES = [
+  {
+    value: "preferred_date",
+    icon: CalendarDays,
+    title: "Preferred date",
+    desc: "Clients suggest a date. You review and approve each request. Best for open booking.",
+  },
+  {
+    value: "fixed_slots",
+    icon: Clock,
+    title: "Fixed slots",
+    desc: "You publish specific time slots and clients pick one. Best for booking rounds.",
+  },
+] as const;
 
 export default function OnboardingBookingPage() {
   const [state, action, pending] = useActionState<State, FormData>(
     saveOnboardingBookingAction,
     null,
   );
-  const [selectedMode, setSelectedMode] = useState("preferred_date");
+  const [selectedMode, setSelectedMode] = useState<
+    "preferred_date" | "fixed_slots"
+  >("preferred_date");
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Booking setup</h1>
+        <h1 className="text-xl font-semibold text-foreground">Booking mode</h1>
         <p className="text-sm text-muted-foreground">
           How do you want clients to request appointments?
         </p>
       </div>
 
-      <OnboardingProgress current={3} />
+      <OnboardingProgress current={2} />
 
       <form action={action} className="space-y-4">
         {state?.error && (
@@ -31,75 +48,65 @@ export default function OnboardingBookingPage() {
         )}
 
         <div className="space-y-2">
-          <label className="flex items-start gap-3 rounded-md border border-border p-4 cursor-pointer hover:border-foreground transition-colors has-[:checked]:border-foreground has-[:checked]:bg-muted/30">
-            <input
-              type="radio"
-              name="booking_mode"
-              value="preferred_date"
-              defaultChecked
-              className="mt-0.5 shrink-0"
-              onChange={() => setSelectedMode("preferred_date")}
-            />
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                Preferred date
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Clients suggest a date — you review and approve each request.
-                Best for open booking.
-              </p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-md border border-border p-4 cursor-pointer hover:border-foreground transition-colors has-[:checked]:border-foreground has-[:checked]:bg-muted/30">
-            <input
-              type="radio"
-              name="booking_mode"
-              value="fixed_slots"
-              className="mt-0.5 shrink-0"
-              onChange={() => setSelectedMode("fixed_slots")}
-            />
-            <div>
-              <p className="text-sm font-medium text-foreground">Fixed slots</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                You publish specific time slots — clients pick one. Best for
-                wave booking rounds.
-              </p>
-            </div>
-          </label>
+          {MODES.map(({ value, icon: Icon, title, desc }) => {
+            const active = selectedMode === value;
+            return (
+              <label
+                key={value}
+                className={`flex cursor-pointer items-start gap-3 rounded-md border-2 p-4 transition-colors ${
+                  active
+                    ? "border-foreground bg-muted/20"
+                    : "border-border hover:border-foreground/40"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="booking_mode"
+                  value={value}
+                  checked={active}
+                  onChange={() => setSelectedMode(value)}
+                  className="sr-only"
+                />
+                <Icon
+                  className={`mt-0.5 h-4 w-4 shrink-0 ${active ? "text-foreground" : "text-muted-foreground"}`}
+                />
+                <div>
+                  <p
+                    className={`text-sm font-medium ${active ? "text-foreground" : "text-muted-foreground"}`}
+                  >
+                    {title}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+                    {desc}
+                  </p>
+                </div>
+              </label>
+            );
+          })}
         </div>
 
         {selectedMode === "fixed_slots" && (
-          <div className="rounded-md border border-orange-400/40 bg-orange-400/5 px-4 py-3 flex items-start gap-2.5">
-            <span className="text-orange-400 text-base shrink-0 mt-0.5">⚠</span>
+          <div className="flex items-start gap-2.5 rounded-md border border-orange-400/40 bg-orange-400/5 px-4 py-3">
+            <span className="mt-0.5 shrink-0 text-sm text-orange-400">⚠</span>
             <div className="space-y-1">
-              <p className="text-sm text-orange-400 font-medium">
+              <p className="text-sm font-medium text-orange-400">
                 Your booking page will be closed until you publish slots
               </p>
               <p className="text-xs text-orange-400/80">
-                After finishing setup, go to <strong>Bookings → Slots</strong>{" "}
-                to add your first time slots. Clients cannot book until at least
-                one slot is published.
+                After setup, go to <strong>Bookings → Booking Settings</strong>{" "}
+                to add your first time slots before sharing your link.
               </p>
             </div>
           </div>
         )}
 
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={pending}
-            className="flex-1 rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
-          >
-            {pending ? "Saving…" : "Continue →"}
-          </button>
-          <Link
-            href="/onboarding/done"
-            className="rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Skip
-          </Link>
-        </div>
+        <button
+          type="submit"
+          disabled={pending}
+          className="w-full rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
+        >
+          {pending ? "Saving…" : "Continue →"}
+        </button>
       </form>
     </div>
   );

@@ -70,7 +70,7 @@ export async function proxy(request: NextRequest) {
 
       if (!profile) {
         return NextResponse.redirect(
-          new URL("/onboarding/claim-slug", request.url),
+          new URL("/onboarding/welcome", request.url),
         );
       }
     }

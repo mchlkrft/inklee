@@ -38,7 +38,7 @@ export async function signUpAction(
 
   // If email confirmation is disabled, user is logged in immediately
   if (user) {
-    redirect("/onboarding/claim-slug");
+    redirect("/onboarding/welcome");
   }
 
   return { sent: true };

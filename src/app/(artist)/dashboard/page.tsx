@@ -6,6 +6,14 @@ import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import BookingLinkWidget from "./booking-link-widget";
+import {
+  Inbox,
+  BookOpen,
+  CalendarDays,
+  Users,
+  BarChart3,
+  Sparkles,
+} from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -95,16 +103,19 @@ export default async function DashboardPage() {
 
       {!onboardingCompleted && (
         <Link
-          href="/onboarding/profile"
+          href="/onboarding/booking"
           className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40"
         >
-          <div>
-            <p className="text-sm text-foreground">
-              Finish setting up your profile
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Add your bio, location, and booking preferences.
-            </p>
+          <div className="flex items-center gap-3">
+            <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Finish setting up your account
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                A couple more steps before your booking page is fully ready.
+              </p>
+            </div>
           </div>
           <span className="text-sm text-muted-foreground">&rarr;</span>
         </Link>
@@ -114,11 +125,14 @@ export default async function DashboardPage() {
         {widgets.pending_requests && (
           <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">
-                Pending requests
-              </p>
+              <div className="flex items-center gap-2">
+                <Inbox className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">
+                  Pending requests
+                </p>
+              </div>
               <Link
-                href="/bookings/requests?status=pending"
+                href="/bookings/overview?view=requests"
                 className="text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 View all
@@ -137,7 +151,7 @@ export default async function DashboardPage() {
                   {pendingBookings.map((b) => (
                     <Link
                       key={b.id}
-                      href={`/bookings/requests/${b.id}`}
+                      href={`/bookings/overview/${b.id}`}
                       className="group flex items-center justify-between py-1 hover:text-foreground"
                     >
                       <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
@@ -160,9 +174,12 @@ export default async function DashboardPage() {
         {widgets.books_status && (
           <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">Books</p>
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">Books</p>
+              </div>
               <Link
-                href="/bookings/books"
+                href="/bookings/settings"
                 className="text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 Manage
@@ -192,7 +209,10 @@ export default async function DashboardPage() {
         {widgets.upcoming_appointments && (
           <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">Upcoming</p>
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">Upcoming</p>
+              </div>
               <Link
                 href="/bookings/calendar"
                 className="text-xs text-muted-foreground transition-colors hover:text-foreground"
@@ -211,7 +231,7 @@ export default async function DashboardPage() {
                   return (
                     <Link
                       key={b.id}
-                      href={`/bookings/requests/${b.id}`}
+                      href={`/bookings/overview/${b.id}`}
                       className="group flex items-center justify-between"
                     >
                       <div>
@@ -238,7 +258,10 @@ export default async function DashboardPage() {
         {widgets.waitlist && waitlistCount > 0 && (
           <div className="space-y-3 rounded-md border border-border p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">Waitlist</p>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">Waitlist</p>
+              </div>
               <Link
                 href="/bookings/waitlist"
                 className="text-xs text-muted-foreground transition-colors hover:text-foreground"
@@ -264,11 +287,14 @@ export default async function DashboardPage() {
         href="/analytics"
         className="flex items-center justify-between rounded-md border border-border px-4 py-3 transition-colors hover:bg-muted/20"
       >
-        <div>
-          <p className="text-sm text-foreground">Analytics</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Conversion, volume, and client return rate
-          </p>
+        <div className="flex items-center gap-3">
+          <BarChart3 className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div>
+            <p className="text-sm text-foreground">Analytics</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Conversion, volume, and client return rate
+            </p>
+          </div>
         </div>
         <span className="text-sm text-muted-foreground">&rarr;</span>
       </Link>
