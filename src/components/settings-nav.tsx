@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 const SETTINGS_NAV = [
   { label: "Profile", href: "/settings/profile" },
   { label: "Emails", href: "/settings/emails" },
-  { label: "Reminders", href: "/settings/reminders" },
   { label: "Calendar", href: "/settings/calendar" },
   { label: "Dashboard", href: "/settings/dashboard" },
   { label: "Account", href: "/settings/account" },
