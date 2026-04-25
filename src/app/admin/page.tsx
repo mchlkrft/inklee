@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/admin-guard";
 import { redirect } from "next/navigation";
 import { writeAudit } from "@/lib/audit";
 import {
@@ -13,10 +14,6 @@ import {
 } from "@/lib/admin-queries";
 import AdminClient from "./admin-client";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "michel.kraeft@gmail.com")
-  .split(",")
-  .map((e) => e.trim());
-
 export default async function AdminPage({
   searchParams,
 }: {
@@ -27,7 +24,7 @@ export default async function AdminPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user || !ADMIN_EMAILS.includes(user.email ?? "")) {
+  if (!user || !isAdminEmail(user.email)) {
     redirect("/dashboard");
   }
 

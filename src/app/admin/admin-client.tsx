@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useState } from "react";
 import type {
   getKpis,
   getOnboardingFunnel,
@@ -329,73 +331,7 @@ export default function AdminClient({
         </section>
 
         {/* Artist roster */}
-        <section className="space-y-3">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Artist roster
-          </h2>
-          <div className="rounded-md border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  {[
-                    "Artist",
-                    "Slug",
-                    "Activated",
-                    "Bookings",
-                    "Confirmed",
-                    "Last activity",
-                    "Joined",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {artists.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="hover:bg-muted/10 transition-colors"
-                  >
-                    <td className="px-4 py-2 font-medium text-foreground">
-                      {a.displayName}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground font-mono text-xs">
-                      {a.slug}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded-full ${
-                          a.activated
-                            ? "bg-green-500/10 text-green-600"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {a.activated ? "Yes" : "No"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 tabular-nums text-muted-foreground">
-                      {a.totalBookings}
-                    </td>
-                    <td className="px-4 py-2 tabular-nums text-muted-foreground">
-                      {a.approvedBookings}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {relTime(a.lastActivity)}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {relTime(a.createdAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <ArtistRoster artists={artists} />
 
         {/* Booking integrity */}
         {(integrity.approvedNoDecidedAt > 0 ||
@@ -457,6 +393,155 @@ export default function AdminClient({
         </section>
       </div>
     </div>
+  );
+}
+
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
+    active: "bg-green-500/10 text-green-600",
+    suspended: "bg-orange-400/10 text-orange-500",
+    archived: "bg-muted text-muted-foreground",
+  };
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-xs ${map[status] ?? "bg-muted text-muted-foreground"}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+function ArtistRoster({
+  artists,
+}: {
+  artists: Awaited<ReturnType<typeof getArtistRoster>>;
+}) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filtered = artists.filter((a) => {
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      a.displayName.toLowerCase().includes(q) ||
+      a.slug.toLowerCase().includes(q);
+    const matchStatus =
+      statusFilter === "all" || a.accountStatus === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Accounts ({artists.length})
+        </h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            placeholder="Search name or slug…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-md border border-border bg-transparent px-3 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-44"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+      </div>
+      <div className="rounded-md border border-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              {[
+                "Artist",
+                "Slug",
+                "Status",
+                "Onboarded",
+                "Bookings",
+                "Confirmed",
+                "Last activity",
+                "Joined",
+                "",
+              ].map((h) => (
+                <th
+                  key={h}
+                  className="px-4 py-2 text-left text-xs font-medium text-muted-foreground"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {filtered.length === 0 && (
+              <tr>
+                <td
+                  colSpan={9}
+                  className="px-4 py-8 text-center text-xs text-muted-foreground"
+                >
+                  No accounts match the current filter.
+                </td>
+              </tr>
+            )}
+            {filtered.map((a) => (
+              <tr
+                key={a.id}
+                className={`transition-colors hover:bg-muted/10 ${
+                  a.accountStatus === "archived" ? "opacity-50" : ""
+                }`}
+              >
+                <td className="px-4 py-2 font-medium text-foreground">
+                  {a.displayName}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                  {a.slug}
+                </td>
+                <td className="px-4 py-2">{statusBadge(a.accountStatus)}</td>
+                <td className="px-4 py-2">
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded-full ${
+                      a.activated
+                        ? "bg-green-500/10 text-green-600"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {a.activated ? "Yes" : "No"}
+                  </span>
+                </td>
+                <td className="px-4 py-2 tabular-nums text-muted-foreground">
+                  {a.totalBookings}
+                </td>
+                <td className="px-4 py-2 tabular-nums text-muted-foreground">
+                  {a.approvedBookings}
+                </td>
+                <td className="px-4 py-2 text-muted-foreground">
+                  {relTime(a.lastActivity)}
+                </td>
+                <td className="px-4 py-2 text-muted-foreground">
+                  {relTime(a.createdAt)}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  <Link
+                    href={`/admin/accounts/${a.id}`}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    View →
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

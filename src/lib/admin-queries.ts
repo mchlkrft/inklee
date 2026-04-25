@@ -368,9 +368,9 @@ export async function getQualitySignals() {
 export async function getArtistRoster() {
   const { data: profiles } = await serviceClient
     .from("profiles")
-    .select("id, slug, display_name, created_at, settings")
+    .select("id, slug, display_name, created_at, settings, account_status")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(200);
 
   const { data: bookingSummary } = await serviceClient
     .from("booking_requests")
@@ -406,11 +406,133 @@ export async function getArtistRoster() {
       displayName: p.display_name,
       createdAt: p.created_at,
       activated: s.onboarding_completed === true,
+      accountStatus: (p.account_status as string) ?? "active",
       totalBookings: stats.total,
       approvedBookings: stats.approved,
       lastActivity: stats.lastActivity,
     };
   });
+}
+
+// ── Account detail ───────────────────────────────────────────────────────────
+
+export async function getAccountDetail(artistId: string) {
+  const [
+    profileResult,
+    authUserResult,
+    bookingsResult,
+    flashResult,
+    tripsResult,
+    customFieldsResult,
+    emailTemplatesResult,
+    waitlistResult,
+    recentBookingsResult,
+    adminActionsResult,
+  ] = await Promise.allSettled([
+    serviceClient.from("profiles").select("*").eq("id", artistId).single(),
+    serviceClient.auth.admin.getUserById(artistId),
+    serviceClient
+      .from("booking_requests")
+      .select("status, created_at, customer_handle, form_data")
+      .eq("artist_id", artistId)
+      .order("created_at", { ascending: false }),
+    serviceClient
+      .from("flash_items")
+      .select("id, status")
+      .eq("artist_id", artistId),
+    serviceClient
+      .from("trips")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", artistId),
+    serviceClient
+      .from("custom_fields")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", artistId),
+    serviceClient
+      .from("email_templates")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", artistId),
+    serviceClient
+      .from("waitlist_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", artistId),
+    serviceClient
+      .from("booking_requests")
+      .select("id, status, created_at, customer_handle, form_data")
+      .eq("artist_id", artistId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    serviceClient
+      .from("admin_action_log")
+      .select("id, admin_user_id, action, reason, metadata, created_at")
+      .eq("target_user_id", artistId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const profile =
+    profileResult.status === "fulfilled" ? profileResult.value.data : null;
+  const authUser =
+    authUserResult.status === "fulfilled"
+      ? authUserResult.value.data.user
+      : null;
+  const allBookings =
+    bookingsResult.status === "fulfilled"
+      ? (bookingsResult.value.data ?? [])
+      : [];
+  const flashItems =
+    flashResult.status === "fulfilled" ? (flashResult.value.data ?? []) : [];
+  const tripCount =
+    tripsResult.status === "fulfilled" ? (tripsResult.value.count ?? 0) : 0;
+  const customFieldCount =
+    customFieldsResult.status === "fulfilled"
+      ? (customFieldsResult.value.count ?? 0)
+      : 0;
+  const emailTemplateCount =
+    emailTemplatesResult.status === "fulfilled"
+      ? (emailTemplatesResult.value.count ?? 0)
+      : 0;
+  const waitlistCount =
+    waitlistResult.status === "fulfilled"
+      ? (waitlistResult.value.count ?? 0)
+      : 0;
+  const recentBookings =
+    recentBookingsResult.status === "fulfilled"
+      ? (recentBookingsResult.value.data ?? [])
+      : [];
+  const adminActions =
+    adminActionsResult.status === "fulfilled"
+      ? (adminActionsResult.value.data ?? [])
+      : [];
+
+  const bookingCounts = {
+    total: allBookings.length,
+    pending: allBookings.filter((b) => b.status === "pending").length,
+    approved: allBookings.filter((b) => b.status === "approved").length,
+    rejected: allBookings.filter((b) => b.status === "rejected").length,
+    cancelled: allBookings.filter((b) => b.status === "cancelled").length,
+  };
+
+  const lastActivity =
+    allBookings.length > 0 ? allBookings[0].created_at : null;
+
+  return {
+    profile,
+    email: authUser?.email ?? null,
+    authLastSignIn: authUser?.last_sign_in_at ?? null,
+    bookingCounts,
+    flashCounts: {
+      total: flashItems.length,
+      published: flashItems.filter((f) => f.status === "published").length,
+    },
+    tripCount,
+    customFieldCount,
+    emailTemplateCount,
+    waitlistCount,
+    recentBookings,
+    adminActions,
+    lastActivity,
+  };
 }
 
 // ── Booking integrity checks ─────────────────────────────────────────────────

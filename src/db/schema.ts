@@ -61,6 +61,11 @@ export const profiles = pgTable("profiles", {
   bookingMode: bookingModeEnum("booking_mode")
     .notNull()
     .default("preferred_date"),
+  accountStatus: text("account_status").notNull().default("active"),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  suspendedReason: text("suspended_reason"),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -348,6 +353,20 @@ export const clientNotes = pgTable("client_notes", {
   customerEmail: text("customer_email").notNull(),
   notes: text("notes").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Admin action log — all account control actions by admins are recorded here.
+// Not artist-facing. Accessible only via service role.
+export const adminActionLog = pgTable("admin_action_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  adminUserId: uuid("admin_user_id").notNull(),
+  targetUserId: uuid("target_user_id"),
+  action: text("action").notNull(),
+  reason: text("reason"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
