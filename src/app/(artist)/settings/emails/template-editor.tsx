@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import {
   saveTemplateAction,
   toggleTemplateAction,
@@ -22,11 +22,13 @@ export default function TemplateEditor({
   defaultBody,
   systemDefault,
   defaultEnabled,
+  onSaveSuccess,
 }: {
   type: EmailType;
   defaultBody: string;
   systemDefault: string;
   defaultEnabled: boolean;
+  onSaveSuccess?: () => void;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     saveTemplateAction,
@@ -55,6 +57,14 @@ export default function TemplateEditor({
   }
 
   const isCustomised = body !== systemDefault;
+
+  // Close modal 700ms after a successful save so the user sees "Saved."
+  useEffect(() => {
+    if (state && "success" in state && onSaveSuccess) {
+      const t = setTimeout(onSaveSuccess, 700);
+      return () => clearTimeout(t);
+    }
+  }, [state, onSaveSuccess]);
 
   return (
     <form action={action} className="space-y-3">
