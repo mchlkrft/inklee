@@ -4,17 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/signup/actions";
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import NotificationBell from "@/components/notification-bell";
-
-const RandomizedLogo = dynamic(() => import("@/components/randomized-logo"), {
-  ssr: false,
-  loading: () => (
-    <span className="text-base font-semibold tracking-tight text-foreground">
-      inklee
-    </span>
-  ),
-});
+import RandomizedLogo from "@/components/randomized-logo";
 
 interface NavBarProps {
   slug: string;

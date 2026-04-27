@@ -1,27 +1,47 @@
 "use client";
 
-// SVG viewBox: 946.52 × 271.70 → aspect ratio ≈ 3.48 : 1
-// Displayed at height 24px → width ≈ 84px
+import { useSyncExternalStore } from "react";
+
 const VARIANTS = [
-  "/logo/inklee-0b3d9f.svg", // blue
-  "/logo/inklee-105f2d.svg", // green
-  "/logo/inklee-cf2e2c.svg", // red
-  "/logo/inklee-db88b9.svg", // pink
-  "/logo/inklee-e9b22b.svg", // amber
-  "/logo/inklee-f5f5f6.svg", // off-white
+  "/logo/inklee-0b3d9f.svg",
+  "/logo/inklee-105f2d.svg",
+  "/logo/inklee-cf2e2c.svg",
+  "/logo/inklee-db88b9.svg",
+  "/logo/inklee-e9b22b.svg",
+  "/logo/inklee-f5f5f6.svg",
 ];
 
-// Picked exactly once when this module loads in the browser.
-// Stable across re-renders and client-side navigation.
-// Changes on hard reload.
-const picked = VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
+// Picked once at module load in the browser — stable across re-renders
+// and client-side navigation, changes on hard reload.
+let _picked: string | null = null;
+function getPicked(): string {
+  if (!_picked) _picked = VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
+  return _picked;
+}
+
+// useSyncExternalStore: server snapshot = null (renders fallback),
+// client snapshot = the picked variant. React handles the divergence
+// cleanly with no hydration warnings.
+const noop = () => () => {};
+const getServerSnapshot = (): string | null => null;
+const getClientSnapshot = (): string | null => getPicked();
 
 export default function RandomizedLogo({ height = 24 }: { height?: number }) {
+  const src = useSyncExternalStore(noop, getClientSnapshot, getServerSnapshot);
   const width = Math.round(height * 3.484);
+
+  if (!src) {
+    return (
+      <span className="text-base font-semibold tracking-tight text-foreground">
+        inklee
+      </span>
+    );
+  }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={picked}
+      src={src}
       alt="inklee"
       width={width}
       height={height}
