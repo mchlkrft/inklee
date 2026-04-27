@@ -4,7 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/signup/actions";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import NotificationBell from "@/components/notification-bell";
+
+const RandomizedLogo = dynamic(() => import("@/components/randomized-logo"), {
+  ssr: false,
+  loading: () => (
+    <span className="text-base font-semibold tracking-tight text-foreground">
+      inklee
+    </span>
+  ),
+});
 
 interface NavBarProps {
   slug: string;
@@ -46,11 +56,8 @@ export default function NavBar({
       {/* Desktop top nav */}
       <header className="border-b border-border hidden md:block">
         <div className="mx-auto max-w-5xl px-6 h-14 flex items-center justify-between">
-          <Link
-            href="/dashboard"
-            className="text-base font-semibold tracking-tight text-foreground"
-          >
-            inklee
+          <Link href="/dashboard" aria-label="inklee — go to dashboard">
+            <RandomizedLogo height={22} />
           </Link>
 
           <nav className="flex items-center gap-1">
@@ -128,11 +135,8 @@ export default function NavBar({
       {/* Mobile top bar (logo + account only — nav is in bottom tabs) */}
       <header className="border-b border-border md:hidden">
         <div className="px-4 h-12 flex items-center justify-between">
-          <Link
-            href="/dashboard"
-            className="text-base font-semibold tracking-tight text-foreground"
-          >
-            inklee
+          <Link href="/dashboard" aria-label="inklee — go to dashboard">
+            <RandomizedLogo height={20} />
           </Link>
 
           <div className="flex items-center gap-1">
