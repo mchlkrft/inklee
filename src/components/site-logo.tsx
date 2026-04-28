@@ -10,7 +10,7 @@ export default function SiteLogo({ height = 20 }: { height?: number }) {
     alt: "",
     width,
     height,
-    style: { width, height, display: "block" } as React.CSSProperties,
+    style: { width, height } as React.CSSProperties,
     draggable: false as const,
   };
   return (
