@@ -1,11 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
-// Light background → Animation-Emoji-02.svg
-// Dark background  → Animation-Emoji-11.svg
-const LIGHT_ICON = "/icons/dark/Animation-Emoji-02.svg";
-const DARK_ICON = "/icons/light/Animation-Emoji-11.svg";
+const VARIANTS = [
+  "/branding/illustrations/spiderweb/spiderweb-blue.svg",
+  "/branding/illustrations/spiderweb/spiderweb-bone.svg",
+  "/branding/illustrations/spiderweb/spiderweb-green.svg",
+  "/branding/illustrations/spiderweb/spiderweb-mustard.svg",
+  "/branding/illustrations/spiderweb/spiderweb-red.svg",
+  "/branding/illustrations/spiderweb/spiderweb-rosa.svg",
+];
+
+// Bone is visible on the dark background — safe SSR default, no flash.
+const SSR_DEFAULT = "/branding/illustrations/spiderweb/spiderweb-bone.svg";
+
+// Picked once at module load — stable across re-renders and soft navigation,
+// changes on hard reload (same behaviour as RandomizedLogo).
+let _picked: string | null = null;
+function getPicked(): string {
+  if (!_picked) _picked = VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
+  return _picked;
+}
+
+const noop = () => () => {};
+const getServerSnapshot = (): string => SSR_DEFAULT;
+const getClientSnapshot = (): string => getPicked();
 
 export interface BrandLoaderProps {
   /** Icon display size in px. Default 96. */
@@ -15,26 +34,7 @@ export interface BrandLoaderProps {
 }
 
 export default function BrandLoader({ size = 96, label }: BrandLoaderProps) {
-  const [isDark, setIsDark] = useState(true);
-  const [reducedMotion] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-
-  useEffect(() => {
-    const check = () =>
-      setIsDark(document.documentElement.classList.contains("dark"));
-    check();
-    const obs = new MutationObserver(check);
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => obs.disconnect();
-  }, []);
-
-  const src = isDark ? DARK_ICON : LIGHT_ICON;
+  const src = useSyncExternalStore(noop, getClientSnapshot, getServerSnapshot);
 
   return (
     <div
@@ -51,11 +51,10 @@ export default function BrandLoader({ size = 96, label }: BrandLoaderProps) {
         height={size}
         style={{
           display: "block",
-          animation: reducedMotion
-            ? "none"
-            : "inklee-float 2.6s ease-in-out infinite",
+          animation: "inklee-float 2.6s ease-in-out infinite",
           willChange: "transform",
         }}
+        className="motion-reduce:![animation:none]"
       />
       {label && (
         <p className="text-xs text-muted-foreground tracking-wide">{label}</p>
