@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import SiteLogo from "@/components/site-logo";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -33,16 +34,7 @@ function SiteHeader() {
   return (
     <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
       <Link href="/" aria-label="inklee home">
-        <img
-          src="/branding/logos/inklee-logo-bone.svg"
-          alt="inklee"
-          className="h-5 w-auto dark:block hidden"
-        />
-        <img
-          src="/branding/logos/inklee-logo-charcoal.svg"
-          alt="inklee"
-          className="h-5 w-auto dark:hidden block"
-        />
+        <SiteLogo height={20} />
       </Link>
       <nav className="flex items-center gap-5">
         <Link
@@ -324,16 +316,7 @@ function SiteFooter() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <img
-              src="/branding/logos/inklee-logo-bone.svg"
-              alt="inklee"
-              className="h-4 w-auto dark:block hidden"
-            />
-            <img
-              src="/branding/logos/inklee-logo-charcoal.svg"
-              alt="inklee"
-              className="h-4 w-auto dark:hidden block"
-            />
+            <SiteLogo height={16} />
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
               Booking tools for freelance and
               <br />

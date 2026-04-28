@@ -11,6 +11,9 @@ const VARIANTS = [
   "/logo/inklee-f5f5f6.svg",
 ];
 
+// Bone/white variant used as the SSR default — visible on the dark background.
+const SSR_DEFAULT = "/logo/inklee-f5f5f6.svg";
+
 // Picked once at module load in the browser — stable across re-renders
 // and client-side navigation, changes on hard reload.
 let _picked: string | null = null;
@@ -19,24 +22,16 @@ function getPicked(): string {
   return _picked;
 }
 
-// useSyncExternalStore: server snapshot = null (renders fallback),
-// client snapshot = the picked variant. React handles the divergence
-// cleanly with no hydration warnings.
+// useSyncExternalStore: server snapshot = bone SVG (same <img> structure as
+// the client snapshot). React handles the src divergence without a hydration
+// warning, and the user sees an SVG immediately — no text→image flash.
 const noop = () => () => {};
-const getServerSnapshot = (): string | null => null;
-const getClientSnapshot = (): string | null => getPicked();
+const getServerSnapshot = (): string => SSR_DEFAULT;
+const getClientSnapshot = (): string => getPicked();
 
 export default function RandomizedLogo({ height = 24 }: { height?: number }) {
   const src = useSyncExternalStore(noop, getClientSnapshot, getServerSnapshot);
   const width = Math.round(height * 3.484);
-
-  if (!src) {
-    return (
-      <span className="text-base font-semibold tracking-tight text-foreground">
-        inklee
-      </span>
-    );
-  }
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
