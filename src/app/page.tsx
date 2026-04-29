@@ -80,7 +80,7 @@ function HeroSection() {
                 Get started free
               </Link>
               <Link
-                href="/ouchy"
+                href="/bert-grimm"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-md border border-foreground/20 px-6 py-3 text-base font-bold text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
@@ -264,7 +264,7 @@ function AboutSection() {
               Get started free
             </Link>
             <Link
-              href="/ouchy"
+              href="/bert-grimm"
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-md border border-foreground/20 px-6 py-3 text-base font-bold text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
@@ -340,7 +340,7 @@ function SiteFooter() {
               </li>
               <li>
                 <Link
-                  href="/ouchy"
+                  href="/bert-grimm"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
