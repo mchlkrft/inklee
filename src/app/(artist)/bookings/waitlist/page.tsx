@@ -3,6 +3,7 @@ import StatusBadge from "@/components/status-badge";
 import { relativeTime } from "@/lib/format";
 import WaitlistActions from "./waitlist-actions";
 import Link from "next/link";
+import FeatureIntroModal from "@/components/feature-intro-modal";
 
 export default async function WaitlistPage() {
   const supabase = await createClient();
@@ -20,11 +21,14 @@ export default async function WaitlistPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-foreground">Waitlist</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          People who signed up while books were closed.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground">Waitlist</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            People who signed up while books were closed.
+          </p>
+        </div>
+        <FeatureIntroModal featureKey="waitlist" isEmpty={list.length === 0} />
       </div>
 
       {list.length === 0 ? (

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import FeatureIntroModal from "@/components/feature-intro-modal";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
@@ -93,7 +94,7 @@ export default async function FlashItemsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
             Flash Items
@@ -103,12 +104,18 @@ export default async function FlashItemsPage() {
             your public flash page.
           </p>
         </div>
-        <Link
-          href="/flash/items/new"
-          className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background"
-        >
-          New item
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          <FeatureIntroModal
+            featureKey="flash-items"
+            isEmpty={!items || items.length === 0}
+          />
+          <Link
+            href="/flash/items/new"
+            className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background"
+          >
+            New item
+          </Link>
+        </div>
       </div>
 
       {!items || items.length === 0 ? (

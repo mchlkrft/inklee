@@ -3,6 +3,7 @@ import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import { relativeTime, formatDate } from "@/lib/format";
 import CopyButton from "@/components/copy-button";
+import FeatureIntroModal from "@/components/feature-intro-modal";
 
 const STATUS_FILTERS = [
   { label: "All", value: "all" },
@@ -334,11 +335,13 @@ export default async function BookingOverviewPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("slug")
-    .eq("id", user!.id)
-    .single();
+  const [{ data: profile }, { count: requestCount }] = await Promise.all([
+    supabase.from("profiles").select("slug").eq("id", user!.id).single(),
+    supabase
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", user!.id),
+  ]);
   const publicUrl = profile?.slug
     ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/${profile.slug}`
     : null;
@@ -350,9 +353,15 @@ export default async function BookingOverviewPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">
-        Booking Overview
-      </h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold text-foreground">
+          Booking Overview
+        </h1>
+        <FeatureIntroModal
+          featureKey="overview"
+          isEmpty={(requestCount ?? 0) === 0}
+        />
+      </div>
 
       <div className="flex gap-1 border-b border-border">
         {tabs.map((tab) => {

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import FeatureIntroModal from "@/components/feature-intro-modal";
 
 function DayStatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -31,19 +32,25 @@ export default async function FlashDaysPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Flash Days</h1>
           <p className="mt-1 text-base text-muted-foreground">
             Group flash items into a scheduled event or day.
           </p>
         </div>
-        <Link
-          href="/flash/days/new"
-          className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background"
-        >
-          New day
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          <FeatureIntroModal
+            featureKey="flash-days"
+            isEmpty={!days || days.length === 0}
+          />
+          <Link
+            href="/flash/days/new"
+            className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background"
+          >
+            New day
+          </Link>
+        </div>
       </div>
 
       {!days || days.length === 0 ? (

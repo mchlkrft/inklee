@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import TripManager from "./trip-manager";
 import StudioList from "./studio-list";
+import FeatureIntroModal from "@/components/feature-intro-modal";
 
 export default async function TravelPage() {
   const supabase = await createClient();
@@ -57,12 +58,17 @@ export default async function TravelPage() {
 
   return (
     <div className="space-y-10 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Trip Planner</h1>
-        <p className="mt-1 text-base text-muted-foreground">
-          Plan guest spots and travel dates. Toggle visibility to control which
-          trips appear on your public booking form.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Trip Planner
+          </h1>
+          <p className="mt-1 text-base text-muted-foreground">
+            Plan guest spots and travel dates. Toggle visibility to control
+            which trips appear on your public booking form.
+          </p>
+        </div>
+        <FeatureIntroModal featureKey="travel" isEmpty={trips.length === 0} />
       </div>
 
       <TripManager trips={trips} studios={studioList} />
