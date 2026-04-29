@@ -49,7 +49,7 @@ export default function AnnotatedImageGallery({
                 className="w-full h-full object-cover"
               />
               {count > 0 && (
-                <span className="absolute top-1 right-1 rounded-full bg-foreground text-background text-xs font-bold leading-none px-1.5 py-0.5">
+                <span className="absolute top-1 right-1 rounded-full bg-brand-mustard text-brand-charcoal text-xs font-bold leading-none px-1.5 py-0.5">
                   {count}
                 </span>
               )}

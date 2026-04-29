@@ -135,7 +135,7 @@ export default async function OnboardingDonePage() {
       {/* Primary CTA */}
       <Link
         href="/dashboard"
-        className="block w-full rounded-md bg-foreground px-4 py-3 text-center text-sm font-medium text-background"
+        className="block w-full rounded-md bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
       >
         Go to dashboard →
       </Link>

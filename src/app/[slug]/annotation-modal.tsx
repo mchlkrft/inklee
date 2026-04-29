@@ -135,7 +135,7 @@ export default function AnnotationModal({
           <div className="px-5 space-y-2">
             {draft.map((ann, idx) => (
               <div key={ann.id} className="flex items-start gap-2">
-                <span className="mt-2.5 flex-shrink-0 w-5 h-5 rounded-full bg-foreground flex items-center justify-center text-background text-xs font-bold">
+                <span className="mt-2.5 flex-shrink-0 w-5 h-5 rounded-full bg-brand-mustard flex items-center justify-center text-brand-charcoal text-xs font-bold">
                   {idx + 1}
                 </span>
                 <input
@@ -167,7 +167,7 @@ export default function AnnotationModal({
           <button
             type="button"
             onClick={() => onSave(draft)}
-            className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background"
+            className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
           >
             {draft.length > 0 ? "Save notes" : "Done"}
           </button>

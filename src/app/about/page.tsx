@@ -26,7 +26,7 @@ export default function AboutPage() {
         </div>
         <Link
           href="/signup"
-          className="inline-flex items-center justify-center rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background"
+          className="inline-flex items-center justify-center rounded-md bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal"
         >
           Get started
         </Link>

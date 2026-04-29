@@ -103,7 +103,7 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
           </div>
           <button
             onClick={() => setShowNew(true)}
-            className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background"
+            className="rounded-md bg-brand-mustard px-3 py-1.5 text-sm font-medium text-brand-charcoal"
           >
             + new appointment
           </button>
@@ -141,7 +141,7 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
                   <span
                     className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs mb-1 ${
                       isToday
-                        ? "bg-foreground text-background font-medium"
+                        ? "bg-brand-mustard text-brand-charcoal font-medium"
                         : "text-muted-foreground"
                     }`}
                   >

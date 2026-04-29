@@ -80,7 +80,7 @@ export default function BookingModeForm({
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
+        className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Save"}
       </button>

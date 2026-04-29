@@ -60,7 +60,7 @@ export default function OnboardingWelcomePage() {
       <div className="space-y-3">
         <Link
           href="/onboarding/claim-slug"
-          className="block w-full rounded-md bg-foreground px-4 py-3 text-center text-sm font-medium text-background"
+          className="block w-full rounded-md bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
         >
           Start setup →
         </Link>

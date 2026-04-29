@@ -169,7 +169,7 @@ function CreateTripModal({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={pending}
-            className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
+            className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
             {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Create trip"}
           </button>
@@ -286,7 +286,7 @@ function AddLegForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Add"}
         </button>
@@ -434,7 +434,7 @@ function EditTripModal({
         <button
           type="submit"
           disabled={editPending || deleting}
-          className="rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {editPending ? (
             <Spinner className="mx-auto h-4 w-4" />

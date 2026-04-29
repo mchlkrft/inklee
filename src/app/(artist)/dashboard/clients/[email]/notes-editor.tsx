@@ -38,7 +38,7 @@ export default function NotesEditor({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? "Saving..." : "Save notes"}
         </button>

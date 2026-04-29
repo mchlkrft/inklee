@@ -85,7 +85,7 @@ export default function MfaPage() {
             <button
               type="submit"
               disabled={pending || code.length < 6}
-              className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+              className="w-full rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
             >
               {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Verify"}
             </button>
@@ -114,7 +114,7 @@ export default function MfaPage() {
             <button
               type="submit"
               disabled={recoveryPending || code.length < 8}
-              className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+              className="w-full rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
             >
               {recoveryPending ? (
                 <Spinner className="w-4 h-4 mx-auto" />

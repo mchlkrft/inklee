@@ -20,9 +20,9 @@ export default function OnboardingProgress({
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
                   done
-                    ? "bg-foreground text-background"
+                    ? "bg-brand-mustard text-brand-charcoal"
                     : active
-                      ? "border-2 border-foreground text-foreground"
+                      ? "border-2 border-brand-mustard text-foreground"
                       : "border border-border text-muted-foreground"
                 }`}
               >
@@ -30,7 +30,7 @@ export default function OnboardingProgress({
               </div>
               {i < STEPS.length - 1 && (
                 <div
-                  className={`h-px flex-1 ${done ? "bg-foreground" : "bg-border"}`}
+                  className={`h-px flex-1 ${done ? "bg-brand-mustard" : "bg-border"}`}
                 />
               )}
             </div>

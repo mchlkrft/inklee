@@ -1,13 +1,13 @@
 const STYLES: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
   approved: "bg-green-500/10 text-green-500",
-  rejected: "bg-destructive/10 text-destructive",
-  deposit_pending: "bg-amber-500/10 text-amber-500",
+  rejected: "bg-brand-red/10 text-brand-red",
+  deposit_pending: "bg-brand-mustard/15 text-brand-mustard",
   cancelled: "bg-muted text-muted-foreground opacity-60",
   // waitlist
   waiting: "bg-muted text-muted-foreground",
-  contacted: "bg-amber-500/10 text-amber-500",
-  converted: "bg-blue-500/10 text-blue-500",
+  contacted: "bg-brand-rosa/15 text-brand-rosa",
+  converted: "bg-brand-cobalt/15 text-brand-cobalt",
   dismissed: "bg-muted text-muted-foreground opacity-60",
 };
 

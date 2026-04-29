@@ -33,7 +33,7 @@ export default function CookieBanner() {
         </p>
         <button
           onClick={dismiss}
-          className="shrink-0 rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background"
+          className="shrink-0 rounded-md bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal"
         >
           Got it
         </button>

@@ -41,7 +41,7 @@ export default async function StartPage() {
           </Link>
           <Link
             href="/signup"
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
           >
             Get started
           </Link>
@@ -62,7 +62,7 @@ export default async function StartPage() {
           <div className="mt-8">
             <Link
               href="/signup"
-              className="inline-block w-full rounded-md bg-foreground px-8 py-3.5 text-center text-sm font-medium text-background sm:w-auto"
+              className="inline-block w-full rounded-md bg-brand-mustard px-8 py-3.5 text-center text-sm font-medium text-brand-charcoal sm:w-auto"
             >
               Create your booking link
             </Link>
@@ -340,7 +340,7 @@ export default async function StartPage() {
             </p>
             <Link
               href="/signup"
-              className="mt-8 inline-block w-full rounded-md bg-foreground px-8 py-3.5 text-center text-sm font-medium text-background sm:w-auto"
+              className="mt-8 inline-block w-full rounded-md bg-brand-mustard px-8 py-3.5 text-center text-sm font-medium text-brand-charcoal sm:w-auto"
             >
               Create your booking link
             </Link>
@@ -553,7 +553,7 @@ function CalendarPreview() {
             key={day}
             className={`flex h-6 items-center justify-center rounded text-[10px] ${
               booked.has(day)
-                ? "bg-foreground font-semibold text-background"
+                ? "bg-foreground font-semibold text-brand-charcoal"
                 : "text-muted-foreground"
             }`}
           >

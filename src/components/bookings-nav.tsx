@@ -64,7 +64,7 @@ export default function BookingsNav() {
                 onClick={() => setCluster(c)}
                 className={`px-4 py-1.5 text-xs font-medium transition-colors ${
                   cluster === c
-                    ? "bg-foreground text-background"
+                    ? "bg-brand-mustard text-brand-charcoal"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >

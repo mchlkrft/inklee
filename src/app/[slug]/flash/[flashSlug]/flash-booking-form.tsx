@@ -150,7 +150,7 @@ export default function FlashBookingForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-foreground px-4 py-3 text-sm font-medium text-background disabled:opacity-50"
+        className="w-full rounded-md bg-brand-mustard px-4 py-3 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending ? "Sending…" : `Send request to ${artistFirstName}`}
       </button>

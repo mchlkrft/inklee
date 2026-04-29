@@ -97,7 +97,7 @@ export default function GeneralForm({
         <button
           type="submit"
           disabled={namePending}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {namePending ? "Saving…" : "Save"}
         </button>
@@ -157,7 +157,7 @@ export default function GeneralForm({
               <button
                 type="submit"
                 disabled={emailPending}
-                className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+                className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
               >
                 {emailPending ? "Sending…" : "Send confirmation"}
               </button>

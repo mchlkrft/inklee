@@ -69,7 +69,7 @@ export default function PostsBrowser({ posts }: { posts: Post[] }) {
           <button
             onClick={handleImport}
             disabled={selectedCount === 0 || pending}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40 transition-opacity"
+            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-40 transition-opacity"
           >
             {pending
               ? "Importing…"
@@ -135,7 +135,7 @@ export default function PostsBrowser({ posts }: { posts: Post[] }) {
                   <span
                     className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
                       isSelected
-                        ? "border-foreground bg-foreground text-background"
+                        ? "border-brand-mustard bg-brand-mustard text-brand-charcoal"
                         : "border-white/80 bg-black/25 text-white"
                     }`}
                   >

@@ -26,7 +26,7 @@ export default function SettingsNav() {
                 href={href}
                 className={`shrink-0 text-sm transition-colors px-1 pb-0.5 border-b-2 ${
                   active
-                    ? "border-foreground text-foreground font-medium"
+                    ? "border-brand-mustard text-foreground font-medium"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >

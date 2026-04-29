@@ -74,7 +74,7 @@ async function RequestsView({
               href={href}
               className={`rounded-full px-3 py-1 text-sm transition-colors ${
                 status === f.value
-                  ? "bg-foreground text-background"
+                  ? "bg-brand-mustard text-brand-charcoal"
                   : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -94,7 +94,7 @@ async function RequestsView({
             }
             className={`rounded-full px-3 py-1 text-sm transition-colors ${
               leg === "all"
-                ? "bg-foreground text-background"
+                ? "bg-brand-mustard text-brand-charcoal"
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -111,7 +111,7 @@ async function RequestsView({
                 href={href}
                 className={`rounded-full px-3 py-1 text-sm transition-colors ${
                   leg === l.id
-                    ? "bg-foreground text-background"
+                    ? "bg-brand-mustard text-brand-charcoal"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}
               >

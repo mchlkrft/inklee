@@ -172,7 +172,7 @@ export default function TwoFactorSection({
         <button
           disabled={!codesConfirmed}
           onClick={() => setStep("idle")}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           Done — 2FA is active
         </button>
@@ -220,7 +220,7 @@ export default function TwoFactorSection({
           <button
             disabled={pending || totpCode.length < 6}
             onClick={verifyEnroll}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
             {pending ? (
               <Spinner className="w-4 h-4 mx-auto" />
@@ -310,7 +310,7 @@ export default function TwoFactorSection({
         <button
           disabled={pending}
           onClick={startEnroll}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Enable 2FA"}
         </button>

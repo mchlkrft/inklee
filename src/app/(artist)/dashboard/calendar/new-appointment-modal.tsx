@@ -151,7 +151,7 @@ export default function NewAppointmentModal({
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+                className="flex-1 rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
               >
                 {saving ? "Adding..." : "Add appointment"}
               </button>

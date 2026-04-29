@@ -187,7 +187,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-brand-mustard px-5 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Save profile"}
         </button>

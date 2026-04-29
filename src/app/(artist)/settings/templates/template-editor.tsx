@@ -86,7 +86,7 @@ export default function TemplateEditor({
           <button
             type="submit"
             disabled={pending || !enabled}
-            className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-background disabled:opacity-50"
+            className="rounded-md bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
           >
             {pending ? "Saving..." : "Save"}
           </button>

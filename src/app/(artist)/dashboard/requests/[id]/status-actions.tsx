@@ -92,7 +92,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
         <div className="flex flex-col gap-2">
           <button
             onClick={() => run(markDepositReceived, "approved")}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
           >
             Mark deposit received
           </button>
@@ -132,7 +132,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
         <div className="flex flex-col gap-2">
           <button
             onClick={() => run(approveBooking, "approved")}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
           >
             Approve
           </button>
@@ -198,7 +198,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
               <div className="flex gap-2">
                 <button
                   onClick={handleRequestDeposit}
-                  className="flex-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background"
+                  className="flex-1 rounded-md bg-brand-mustard px-3 py-1.5 text-xs font-medium text-brand-charcoal"
                 >
                   Send deposit request
                 </button>

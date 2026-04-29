@@ -50,7 +50,7 @@ export default function AnalyticsClient({
               onClick={() => setRange(r.value)}
               className={`rounded-full px-3 py-1 text-xs transition-colors ${
                 range === r.value
-                  ? "bg-foreground text-background"
+                  ? "bg-brand-mustard text-brand-charcoal"
                   : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
