@@ -238,20 +238,6 @@ export default async function ArtistPublicPage({
           </div>
         )}
 
-        {slug === "bert-grimm" && (
-          <div className="rounded-md border border-brand-mustard/30 bg-brand-mustard/5 px-4 py-3 space-y-1">
-            <p className="text-sm font-medium text-foreground">
-              Demo account — for illustration only
-            </p>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              This page is a live example showing how Inklee works. It&apos;s
-              dedicated to Bert Grimm (1900–1985), one of the most influential
-              tattoo artists of the 20th century. Please don&apos;t submit real
-              booking requests here.
-            </p>
-          </div>
-        )}
-
         <div className="space-y-6">
           <div>
             <h2 className="text-base font-medium text-foreground">
@@ -276,6 +262,7 @@ export default async function ArtistPublicPage({
               formSettings={formSettings}
               travelLegId={null}
               trips={futureTrips}
+              isDemoAccount={slug === "bert-grimm"}
             />
           )}
         </div>

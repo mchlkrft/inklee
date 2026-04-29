@@ -60,6 +60,7 @@ export default function BookingForm({
   formSettings = DEFAULT_FORM_SETTINGS,
   travelLegId = null,
   trips = [],
+  isDemoAccount = false,
 }: {
   artistSlug: string;
   artistFirstName: string;
@@ -69,12 +70,14 @@ export default function BookingForm({
   formSettings?: FormSettings;
   travelLegId?: string | null;
   trips?: TripOption[];
+  isDemoAccount?: boolean;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
     null,
   );
 
+  const [demoBlocked, setDemoBlocked] = useState(false);
   const [preferredDate, setPreferredDate] = useState("");
   const [description, setDescription] = useState("");
 
@@ -154,6 +157,10 @@ export default function BookingForm({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isDemoAccount) {
+      setDemoBlocked(true);
+      return;
+    }
     const fd = new FormData(e.currentTarget);
     fd.delete("images");
     imageEntries.forEach((entry) => fd.append("images", entry.file));
@@ -578,6 +585,20 @@ export default function BookingForm({
         <input type="hidden" name="booking_mode" value={bookingMode} />
         {travelLegId && (
           <input type="hidden" name="travel_leg_id" value={travelLegId} />
+        )}
+
+        {demoBlocked && (
+          <div className="rounded-md border border-brand-mustard/30 bg-brand-mustard/5 px-4 py-3 space-y-1">
+            <p className="text-sm font-medium text-foreground">
+              Demo account — for illustration only
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              This page is a live example showing how Inklee works. It&apos;s
+              dedicated to Bert Grimm (1900–1985), one of the most influential
+              tattoo artists of the 20th century. Please don&apos;t submit real
+              booking requests here.
+            </p>
+          </div>
         )}
 
         <button
