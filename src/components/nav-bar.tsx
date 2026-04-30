@@ -46,7 +46,7 @@ export default function NavBar({
   return (
     <>
       {/* Desktop top nav */}
-      <header className="border-b border-border hidden md:block">
+      <header className="sticky top-0 z-20 border-b border-border bg-background hidden md:block">
         <div className="mx-auto max-w-5xl px-6 h-14 flex items-center justify-between">
           <Link href="/dashboard" aria-label="inklee — go to dashboard">
             <RandomizedLogo height={22} />
@@ -125,7 +125,7 @@ export default function NavBar({
       </header>
 
       {/* Mobile top bar (logo + account only — nav is in bottom tabs) */}
-      <header className="border-b border-border md:hidden">
+      <header className="sticky top-0 z-20 border-b border-border bg-background md:hidden">
         <div className="px-4 h-12 flex items-center justify-between">
           <Link href="/dashboard" aria-label="inklee — go to dashboard">
             <RandomizedLogo height={20} />
@@ -184,21 +184,26 @@ export default function NavBar({
       {/* Mobile bottom tab bar */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom)",
+          // GPU compositing prevents iOS Safari visual-viewport resize wobble
+          transform: "translateZ(0)",
+          willChange: "transform",
+        }}
       >
-        <div className="grid grid-cols-5 h-16">
+        <div className="grid grid-cols-5 h-[4.5rem]">
           {MOBILE_NAV.map(({ label, href }) => {
             const active = isActive(href);
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center justify-center gap-1 text-[11px] transition-colors ${
+                className={`flex flex-col items-center justify-center gap-1.5 text-xs transition-colors ${
                   active ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
                 <TabIcon section={label} active={active} />
-                <span className={active ? "font-medium" : ""}>{label}</span>
+                <span className={active ? "font-semibold" : ""}>{label}</span>
               </Link>
             );
           })}
@@ -209,7 +214,7 @@ export default function NavBar({
 }
 
 function TabIcon({ section, active }: { section: string; active: boolean }) {
-  const cls = `w-5 h-5 transition-opacity ${active ? "opacity-100" : "opacity-40"}`;
+  const cls = `w-6 h-6 transition-opacity ${active ? "opacity-100" : "opacity-40"}`;
   if (section === "Dashboard")
     return (
       <svg

@@ -36,7 +36,7 @@ export default function BookingsNav() {
   }
 
   return (
-    <div className="border-b border-border">
+    <div className="sticky top-12 md:top-14 z-10 border-b border-border bg-background">
       <div className="mx-auto max-w-5xl px-6">
         {/* Desktop: two clusters with divider */}
         <div className="hidden md:flex items-center h-10 gap-5">

@@ -15,7 +15,7 @@ export default function SettingsNav() {
   const pathname = usePathname();
 
   return (
-    <div className="border-b border-border">
+    <div className="sticky top-12 md:top-14 z-10 border-b border-border bg-background">
       <div className="mx-auto max-w-5xl px-6">
         <div className="flex items-center gap-1 h-11 overflow-x-auto">
           {SETTINGS_NAV.map(({ label, href }) => {

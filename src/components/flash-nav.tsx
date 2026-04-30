@@ -22,7 +22,7 @@ export default function FlashNav() {
   }
 
   return (
-    <div className="border-b border-border">
+    <div className="sticky top-12 md:top-14 z-10 border-b border-border bg-background">
       <div className="mx-auto max-w-5xl px-6">
         <div className="flex items-center h-11 gap-5 overflow-x-auto">
           {ITEMS.map(({ label, href }) => (

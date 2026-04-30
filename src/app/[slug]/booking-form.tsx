@@ -196,7 +196,7 @@ export default function BookingForm({
         <div className="space-y-1.5">
           <label
             htmlFor="instagram_handle"
-            className="text-sm text-muted-foreground"
+            className="text-base text-muted-foreground"
           >
             Instagram handle <span className="text-foreground">*</span>
           </label>
@@ -212,14 +212,14 @@ export default function BookingForm({
             />
           </div>
           {err("instagram_handle") && (
-            <p className="text-xs text-destructive">
+            <p className="text-sm text-destructive">
               {err("instagram_handle")}
             </p>
           )}
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="email" className="text-sm text-muted-foreground">
+          <label htmlFor="email" className="text-base text-muted-foreground">
             Email <span className="text-foreground">*</span>
           </label>
           <input
@@ -227,10 +227,10 @@ export default function BookingForm({
             name="email"
             type="email"
             required
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {err("email") && (
-            <p className="text-xs text-destructive">{err("email")}</p>
+            <p className="text-sm text-destructive">{err("email")}</p>
           )}
         </div>
 
@@ -238,7 +238,7 @@ export default function BookingForm({
           <div className="space-y-1.5">
             <label
               htmlFor="reference_link"
-              className="text-sm text-muted-foreground"
+              className="text-base text-muted-foreground"
             >
               Reference link{" "}
               <span className="text-xs text-muted-foreground">(optional)</span>
@@ -248,10 +248,10 @@ export default function BookingForm({
               name="reference_link"
               type="url"
               placeholder="instagram.com/p/... or any link"
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {err("reference_link") && (
-              <p className="text-xs text-destructive">
+              <p className="text-sm text-destructive">
                 {err("reference_link")}
               </p>
             )}
@@ -259,7 +259,10 @@ export default function BookingForm({
         )}
 
         <div className="space-y-1.5">
-          <label htmlFor="placement" className="text-sm text-muted-foreground">
+          <label
+            htmlFor="placement"
+            className="text-base text-muted-foreground"
+          >
             Placement <span className="text-foreground">*</span>
           </label>
           <input
@@ -268,22 +271,22 @@ export default function BookingForm({
             type="text"
             required
             placeholder="Left forearm, inner wrist..."
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {err("placement") && (
-            <p className="text-xs text-destructive">{err("placement")}</p>
+            <p className="text-sm text-destructive">{err("placement")}</p>
           )}
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-base text-muted-foreground">
             Size <span className="text-foreground">*</span>
           </p>
           <div className="grid grid-cols-2 gap-2">
             {SIZES.map((s) => (
               <label
                 key={s}
-                className="cursor-pointer rounded-md border border-border px-3 py-2.5 text-sm text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
+                className="cursor-pointer rounded-md border border-border px-3 py-3 text-base text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
               >
                 <div className="flex items-center gap-2.5">
                   <input
@@ -304,7 +307,7 @@ export default function BookingForm({
             ))}
           </div>
           {err("size") && (
-            <p className="text-xs text-destructive">{err("size")}</p>
+            <p className="text-sm text-destructive">{err("size")}</p>
           )}
         </div>
 
@@ -312,7 +315,7 @@ export default function BookingForm({
           <div className="flex justify-between">
             <label
               htmlFor="description"
-              className="text-sm text-muted-foreground"
+              className="text-base text-muted-foreground"
             >
               Description{" "}
               {formSettings.require_description ? (
@@ -337,10 +340,10 @@ export default function BookingForm({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
-            className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {err("description") && (
-            <p className="text-xs text-destructive">{err("description")}</p>
+            <p className="text-sm text-destructive">{err("description")}</p>
           )}
         </div>
 
@@ -355,7 +358,7 @@ export default function BookingForm({
         {formSettings.show_image_upload && (
           <div className="space-y-2">
             <div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base text-muted-foreground">
                 Reference images{" "}
                 <span className="text-xs text-muted-foreground">
                   (optional)
@@ -386,7 +389,7 @@ export default function BookingForm({
                 }`}
               >
                 <div className="flex flex-col items-center justify-center gap-1">
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-base text-muted-foreground">
                     Drag images here or{" "}
                     <span className="text-foreground underline underline-offset-4">
                       browse
@@ -413,7 +416,7 @@ export default function BookingForm({
             {uploadErrors.length > 0 && (
               <ul className="space-y-1">
                 {uploadErrors.map((msg, i) => (
-                  <li key={i} className="text-xs text-destructive">
+                  <li key={i} className="text-sm text-destructive">
                     {msg}
                   </li>
                 ))}
@@ -473,7 +476,7 @@ export default function BookingForm({
         {/* Date / slot selection */}
         {bookingMode === "fixed_slots" ? (
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               Select a slot <span className="text-foreground">*</span>
             </p>
             <div className="space-y-2">
@@ -499,14 +502,14 @@ export default function BookingForm({
               ))}
             </div>
             {err("slot_id") && (
-              <p className="text-xs text-destructive">{err("slot_id")}</p>
+              <p className="text-sm text-destructive">{err("slot_id")}</p>
             )}
           </div>
         ) : (
           <div className="space-y-1.5">
             <label
               htmlFor="preferred_date"
-              className="text-sm text-muted-foreground"
+              className="text-base text-muted-foreground"
             >
               Preferred date <span className="text-foreground">*</span>
             </label>
@@ -517,10 +520,10 @@ export default function BookingForm({
               min={tomorrow()}
               value={preferredDate}
               onChange={(e) => setPreferredDate(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {err("preferred_date") && (
-              <p className="text-xs text-destructive">
+              <p className="text-sm text-destructive">
                 {err("preferred_date")}
               </p>
             )}
@@ -531,7 +534,7 @@ export default function BookingForm({
         {bookingMode !== "fixed_slots" && hasTrips && preferredDate && (
           <>
             {validLocations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base text-muted-foreground">
                 No guest spots are scheduled for that date — your request will
                 be treated as a home studio booking.
               </p>
@@ -542,7 +545,7 @@ export default function BookingForm({
                   name="trip_id"
                   value={validLocations[0].id}
                 />
-                <p className="text-sm text-muted-foreground">
+                <p className="text-base text-muted-foreground">
                   Location:{" "}
                   <span className="text-foreground">
                     {validLocations[0].title}
@@ -553,7 +556,7 @@ export default function BookingForm({
               <div className="space-y-1.5">
                 <label
                   htmlFor="trip_id"
-                  className="text-sm text-muted-foreground"
+                  className="text-base text-muted-foreground"
                 >
                   Location
                 </label>
@@ -561,7 +564,7 @@ export default function BookingForm({
                   key={preferredDate}
                   id="trip_id"
                   name="trip_id"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                   <option value="">No preference</option>
                   {validLocations.map((t) => (
@@ -604,7 +607,7 @@ export default function BookingForm({
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-md bg-brand-mustard px-4 py-3 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="w-full rounded-md bg-brand-mustard px-4 py-3 text-base font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? "Sending..." : `Send request to ${artistFirstName}`}
         </button>

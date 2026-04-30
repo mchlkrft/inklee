@@ -53,7 +53,10 @@ export default function FlashBookingForm({
       )}
 
       <div className="space-y-1.5">
-        <label htmlFor="flash_handle" className="text-sm text-muted-foreground">
+        <label
+          htmlFor="flash_handle"
+          className="text-base text-muted-foreground"
+        >
           Instagram handle <span className="text-foreground">*</span>
         </label>
         <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
@@ -68,12 +71,15 @@ export default function FlashBookingForm({
           />
         </div>
         {err("instagram_handle") && (
-          <p className="text-xs text-destructive">{err("instagram_handle")}</p>
+          <p className="text-sm text-destructive">{err("instagram_handle")}</p>
         )}
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="flash_email" className="text-sm text-muted-foreground">
+        <label
+          htmlFor="flash_email"
+          className="text-base text-muted-foreground"
+        >
           Email <span className="text-foreground">*</span>
         </label>
         <input
@@ -81,17 +87,17 @@ export default function FlashBookingForm({
           name="email"
           type="email"
           required
-          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {err("email") && (
-          <p className="text-xs text-destructive">{err("email")}</p>
+          <p className="text-sm text-destructive">{err("email")}</p>
         )}
       </div>
 
       <div className="space-y-1.5">
         <label
           htmlFor="flash_placement"
-          className="text-sm text-muted-foreground"
+          className="text-base text-muted-foreground"
         >
           Placement on body <span className="text-foreground">*</span>
         </label>
@@ -101,15 +107,15 @@ export default function FlashBookingForm({
           type="text"
           required
           placeholder={placementHint ?? "Left forearm, inner wrist…"}
-          className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {err("placement") && (
-          <p className="text-xs text-destructive">{err("placement")}</p>
+          <p className="text-sm text-destructive">{err("placement")}</p>
         )}
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="flash_date" className="text-sm text-muted-foreground">
+        <label htmlFor="flash_date" className="text-base text-muted-foreground">
           Preferred date <span className="text-foreground">*</span>
         </label>
         <DateInput
@@ -117,15 +123,18 @@ export default function FlashBookingForm({
           name="preferred_date"
           required
           min={tomorrow()}
-          className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {err("preferred_date") && (
-          <p className="text-xs text-destructive">{err("preferred_date")}</p>
+          <p className="text-sm text-destructive">{err("preferred_date")}</p>
         )}
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="flash_notes" className="text-sm text-muted-foreground">
+        <label
+          htmlFor="flash_notes"
+          className="text-base text-muted-foreground"
+        >
           Additional notes{" "}
           <span className="text-xs text-muted-foreground">(optional)</span>
         </label>
@@ -134,7 +143,7 @@ export default function FlashBookingForm({
           name="notes"
           rows={3}
           placeholder="Anything else the artist should know…"
-          className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
 
@@ -150,7 +159,7 @@ export default function FlashBookingForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-brand-mustard px-4 py-3 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+        className="w-full rounded-md bg-brand-mustard px-4 py-3 text-base font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending ? "Sending…" : `Send request to ${artistFirstName}`}
       </button>
