@@ -26,6 +26,7 @@ const MOBILE_NAV = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Bookings", href: "/bookings" },
   { label: "Flash", href: "/flash" },
+  { label: "Travel", href: "/travel" },
   { label: "Settings", href: "/settings" },
 ];
 
@@ -185,21 +186,22 @@ export default function NavBar({
         className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="grid grid-cols-4 h-14">
-          {MOBILE_NAV.map(({ label, href }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex flex-col items-center justify-center gap-0.5 text-xs transition-colors ${
-                isActive(href)
-                  ? "text-foreground font-medium"
-                  : "text-muted-foreground"
-              }`}
-            >
-              <TabIcon section={label} active={isActive(href)} />
-              <span>{label}</span>
-            </Link>
-          ))}
+        <div className="grid grid-cols-5 h-16">
+          {MOBILE_NAV.map(({ label, href }) => {
+            const active = isActive(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex flex-col items-center justify-center gap-1 text-[11px] transition-colors ${
+                  active ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                <TabIcon section={label} active={active} />
+                <span className={active ? "font-medium" : ""}>{label}</span>
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </>
@@ -207,7 +209,7 @@ export default function NavBar({
 }
 
 function TabIcon({ section, active }: { section: string; active: boolean }) {
-  const cls = `w-5 h-5 ${active ? "opacity-100" : "opacity-50"}`;
+  const cls = `w-5 h-5 transition-opacity ${active ? "opacity-100" : "opacity-40"}`;
   if (section === "Dashboard")
     return (
       <svg
@@ -240,6 +242,22 @@ function TabIcon({ section, active }: { section: string; active: boolean }) {
         />
       </svg>
     );
+  if (section === "Flash")
+    return (
+      <svg
+        className={cls}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
+        />
+      </svg>
+    );
   if (section === "Travel")
     return (
       <svg
@@ -252,11 +270,16 @@ function TabIcon({ section, active }: { section: string; active: boolean }) {
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
+          d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
         />
       </svg>
     );
-  // settings
+  // Settings
   return (
     <svg
       className={cls}

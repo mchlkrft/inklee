@@ -24,9 +24,13 @@ export default function FlashNav() {
   return (
     <div className="border-b border-border">
       <div className="mx-auto max-w-5xl px-6">
-        <div className="flex items-center h-10 gap-5">
+        <div className="flex items-center h-11 gap-5 overflow-x-auto">
           {ITEMS.map(({ label, href }) => (
-            <Link key={href} href={href} className={linkClass(href)}>
+            <Link
+              key={href}
+              href={href}
+              className={`shrink-0 ${linkClass(href)}`}
+            >
               {label}
             </Link>
           ))}

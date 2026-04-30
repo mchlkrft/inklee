@@ -42,8 +42,8 @@ export default async function ArtistLayout({
         displayName={displayName}
         unreadCount={unreadCount ?? 0}
       />
-      {/* pb-14 on mobile gives room for the fixed bottom tab bar */}
-      <main className="flex-1 mx-auto w-full max-w-5xl px-6 py-8 pb-20 md:pb-8">
+      {/* pb accounts for fixed bottom tab bar (h-16) + safe area on iOS */}
+      <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 pb-24 md:px-6 md:py-8 md:pb-8">
         {children}
       </main>
     </div>

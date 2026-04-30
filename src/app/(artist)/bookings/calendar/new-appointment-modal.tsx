@@ -47,9 +47,9 @@ export default function NewAppointmentModal({
             </span>
             <button
               onClick={onClose}
-              className="text-muted-foreground hover:text-foreground text-xl leading-none"
+              className="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             >
-              x
+              ✕
             </button>
           </div>
 

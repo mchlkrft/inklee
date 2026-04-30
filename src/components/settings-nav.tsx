@@ -17,14 +17,14 @@ export default function SettingsNav() {
   return (
     <div className="border-b border-border">
       <div className="mx-auto max-w-5xl px-6">
-        <div className="flex items-center gap-1 h-10 overflow-x-auto">
+        <div className="flex items-center gap-1 h-11 overflow-x-auto">
           {SETTINGS_NAV.map(({ label, href }) => {
             const active = pathname.startsWith(href);
             return (
               <Link
                 key={href}
                 href={href}
-                className={`shrink-0 text-sm transition-colors px-1 pb-0.5 border-b-2 ${
+                className={`shrink-0 text-sm transition-colors px-2 py-2 border-b-2 ${
                   active
                     ? "border-brand-mustard text-foreground font-medium"
                     : "border-transparent text-muted-foreground hover:text-foreground"

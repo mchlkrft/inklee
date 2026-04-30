@@ -56,13 +56,13 @@ export default function BookingsNav() {
         </div>
 
         {/* Mobile: Manage / Setup segmented switch + active cluster links */}
-        <div className="md:hidden space-y-2 py-2">
+        <div className="md:hidden space-y-2 py-2.5">
           <div className="flex rounded-md border border-border overflow-hidden w-fit">
             {(["manage", "setup"] as const).map((c) => (
               <button
                 key={c}
                 onClick={() => setCluster(c)}
-                className={`px-4 py-1.5 text-xs font-medium transition-colors ${
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
                   cluster === c
                     ? "bg-brand-mustard text-brand-charcoal"
                     : "text-muted-foreground hover:text-foreground"
@@ -73,12 +73,12 @@ export default function BookingsNav() {
             ))}
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-0.5">
+          <div className="flex gap-5 overflow-x-auto pb-0.5">
             {activeCluster.map(({ label, href }) => (
               <Link
                 key={href}
                 href={href}
-                className={`shrink-0 ${linkClass(href)}`}
+                className={`shrink-0 py-1 ${linkClass(href)}`}
               >
                 {label}
               </Link>

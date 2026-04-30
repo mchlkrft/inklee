@@ -189,14 +189,14 @@ export default function FeatureIntroModal({
             aria-hidden="true"
           />
 
-          {/* Dialog — slides up from bottom on mobile, centered on desktop */}
+          {/* Dialog — centered on all screen sizes */}
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby={`intro-title-${featureKey}`}
-            className="fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 sm:inset-0 sm:items-center"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
-            <div className="w-full max-w-md rounded-xl border border-border bg-background shadow-2xl">
+            <div className="w-full max-w-md rounded-xl border border-border bg-background shadow-2xl max-h-[90vh] overflow-y-auto">
               {/* Body */}
               <div className="space-y-3 p-6">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-brand-mustard">
