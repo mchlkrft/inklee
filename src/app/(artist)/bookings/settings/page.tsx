@@ -3,7 +3,7 @@ import { formatSlotDisplay } from "@/lib/timezone";
 import { parseBooksSettings } from "@/lib/books-settings";
 import BookingModeForm from "./booking-mode-form";
 import AvailabilityForm from "./availability-form";
-import SlotPatternBuilder from "../slots/slot-pattern-builder";
+import AddSlotButton from "../slots/add-slot-button";
 import SlotList from "../slots/slot-list";
 
 export default async function BookingSettingsPage() {
@@ -101,7 +101,7 @@ export default async function BookingSettingsPage() {
               <span className="text-foreground">{timezone}</span>.
             </p>
           </div>
-          <SlotPatternBuilder timezone={timezone} />
+          <AddSlotButton timezone={timezone} />
           <SlotList slots={formattedSlots} />
         </section>
       )}
