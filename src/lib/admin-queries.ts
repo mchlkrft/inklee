@@ -27,14 +27,31 @@ async function countWhere(
     if (v !== null) q = q.eq(k, v);
   }
   if (fromDate) q = q.gte(dateCol, fromDate);
+  if (table === "profiles") q = q.eq("is_tester", false);
   const { count } = await q;
   return count ?? 0;
+}
+
+async function testerIds(): Promise<string[]> {
+  const { data } = await serviceClient
+    .from("profiles")
+    .select("id")
+    .eq("is_tester", true);
+  return (data ?? []).map((r) => r.id);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function excludeTesters(q: any, excluded: string[]): any {
+  return excluded.length > 0
+    ? q.not("artist_id", "in", `(${excluded.join(",")})`)
+    : q;
 }
 
 // ── KPIs ────────────────────────────────────────────────────────────────────
 
 export async function getKpis(range: DateRange) {
   const { current, previous } = periodBounds(range);
+  const excluded = await testerIds();
 
   const [
     totalArtists,
@@ -53,49 +70,107 @@ export async function getKpis(range: DateRange) {
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("settings->>onboarding_completed", "true")
+      .eq("is_tester", false)
       .then((r) => r.count ?? 0),
     countWhere("profiles", {}, current),
     countWhere("profiles", {}, previous),
-    countWhere("booking_requests", {}, current),
-    countWhere("booking_requests", {}, previous),
-    countWhere("booking_requests", { status: "approved" }, current),
-    countWhere("booking_requests", { status: "approved" }, previous),
-    countWhere("booking_requests", { status: "cancelled" }, current),
-    countWhere("booking_requests", { status: "rejected" }, current),
+    excludeTesters(
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true }),
+      excluded,
+    )
+      .gte("created_at", current ?? "2000-01-01")
+      .then((r: { count: number | null }) => r.count ?? 0),
+    excludeTesters(
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true }),
+      excluded,
+    )
+      .gte("created_at", previous ?? "2000-01-01")
+      .lt("created_at", current ?? new Date().toISOString())
+      .then((r: { count: number | null }) => r.count ?? 0),
+    excludeTesters(
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "approved"),
+      excluded,
+    )
+      .gte("created_at", current ?? "2000-01-01")
+      .then((r: { count: number | null }) => r.count ?? 0),
+    excludeTesters(
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "approved"),
+      excluded,
+    )
+      .gte("created_at", previous ?? "2000-01-01")
+      .lt("created_at", current ?? new Date().toISOString())
+      .then((r: { count: number | null }) => r.count ?? 0),
+    excludeTesters(
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "cancelled"),
+      excluded,
+    )
+      .gte("created_at", current ?? "2000-01-01")
+      .then((r: { count: number | null }) => r.count ?? 0),
+    excludeTesters(
+      serviceClient
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "rejected"),
+      excluded,
+    )
+      .gte("created_at", current ?? "2000-01-01")
+      .then((r: { count: number | null }) => r.count ?? 0),
   ]);
 
   // Active artists: had at least one booking request in period (proxy for activity)
-  const { data: activeArtistsCurrent } = await serviceClient
-    .from("booking_requests")
-    .select("artist_id")
-    .gte("created_at", current ?? "2000-01-01");
-  const activeNow = new Set(activeArtistsCurrent?.map((r) => r.artist_id)).size;
+  const { data: activeArtistsCurrent } = await excludeTesters(
+    serviceClient.from("booking_requests").select("artist_id"),
+    excluded,
+  ).gte("created_at", current ?? "2000-01-01");
+  const activeNow = new Set(
+    activeArtistsCurrent?.map((r: { artist_id: string }) => r.artist_id),
+  ).size;
 
   const { data: activeArtistsPrevious } = previous
-    ? await serviceClient
-        .from("booking_requests")
-        .select("artist_id")
+    ? await excludeTesters(
+        serviceClient.from("booking_requests").select("artist_id"),
+        excluded,
+      )
         .gte("created_at", previous)
         .lt("created_at", current!)
     : { data: [] };
-  const activePrev = new Set(activeArtistsPrevious?.map((r) => r.artist_id))
-    .size;
+  const activePrev = new Set(
+    (activeArtistsPrevious ?? []).map(
+      (r: { artist_id: string }) => r.artist_id,
+    ),
+  ).size;
 
   // Median response time (decided_at - created_at) for decided bookings
-  const { data: decidedRows } = await serviceClient
-    .from("booking_requests")
-    .select("created_at, decided_at")
-    .not("decided_at", "is", null)
+  const { data: decidedRows } = await excludeTesters(
+    serviceClient
+      .from("booking_requests")
+      .select("created_at, decided_at")
+      .not("decided_at", "is", null),
+    excluded,
+  )
     .gte("created_at", current ?? "2000-01-01")
     .limit(500);
 
   const durations = (decidedRows ?? [])
     .map(
-      (r) =>
+      (r: { created_at: string; decided_at: string | null }) =>
         (new Date(r.decided_at!).getTime() - new Date(r.created_at).getTime()) /
         3600000,
     )
-    .sort((a, b) => a - b);
+    .sort((a: number, b: number) => a - b);
   const medianHours =
     durations.length > 0 ? durations[Math.floor(durations.length / 2)] : null;
 
@@ -132,6 +207,7 @@ export async function getKpis(range: DateRange) {
 export async function getOnboardingFunnel(range: DateRange) {
   const { current } = periodBounds(range);
   const fromFilter = current ?? "2000-01-01";
+  const excluded = await testerIds();
 
   const [
     accountsCreated,
@@ -144,12 +220,14 @@ export async function getOnboardingFunnel(range: DateRange) {
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
+      .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .then((r) => r.count ?? 0),
     // slug is always set on account creation — same as total
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
+      .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .not("slug", "is", null)
       .then((r) => r.count ?? 0),
@@ -157,6 +235,7 @@ export async function getOnboardingFunnel(range: DateRange) {
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
+      .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .or("bio.not.is.null,location.not.is.null")
       .then((r) => r.count ?? 0),
@@ -164,6 +243,7 @@ export async function getOnboardingFunnel(range: DateRange) {
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
+      .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .not("settings->books_settings", "is", null)
       .then((r) => r.count ?? 0),
@@ -171,15 +251,17 @@ export async function getOnboardingFunnel(range: DateRange) {
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
+      .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .eq("settings->>onboarding_completed", "true")
       .then((r) => r.count ?? 0),
     // At least one booking received: artists with booking_requests
-    serviceClient
-      .from("booking_requests")
-      .select("artist_id")
+    excludeTesters(
+      serviceClient.from("booking_requests").select("artist_id"),
+      excluded,
+    )
       .gte("created_at", fromFilter)
-      .then((r) => {
+      .then((r: { data: { artist_id: string }[] | null }) => {
         const ids = new Set(r.data?.map((b) => b.artist_id));
         return ids.size;
       }),
@@ -200,11 +282,15 @@ export async function getOnboardingFunnel(range: DateRange) {
 export async function getBookingFunnel(range: DateRange) {
   const { current } = periodBounds(range);
   const from = current ?? "2000-01-01";
+  const excluded = await testerIds();
 
-  const { data: all } = await serviceClient
+  let q = serviceClient
     .from("booking_requests")
     .select("status, deposit_amount, decided_at")
     .gte("created_at", from);
+  if (excluded.length > 0)
+    q = q.not("artist_id", "in", `(${excluded.join(",")})`);
+  const { data: all } = await q;
 
   const rows = all ?? [];
   const submitted = rows.length;
@@ -231,6 +317,23 @@ export async function getBookingFunnel(range: DateRange) {
 // ── Feature adoption ─────────────────────────────────────────────────────────
 
 export async function getFeatureAdoption() {
+  const excluded = await testerIds();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const countDistinctArtists = async (
+    table: string,
+    extraFilter?: (q: any) => any,
+  ): Promise<number> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = serviceClient.from(table).select("artist_id");
+    if (extraFilter) q = extraFilter(q);
+    if (excluded.length > 0)
+      q = q.not("artist_id", "in", `(${excluded.join(",")})`);
+    const { data } = await q;
+    return new Set((data ?? []).map((x: { artist_id: string }) => x.artist_id))
+      .size;
+  };
+
   const [
     totalArtists,
     withCustomFields,
@@ -243,39 +346,16 @@ export async function getFeatureAdoption() {
     withNotifications,
   ] = await Promise.all([
     countWhere("profiles"),
-    serviceClient
-      .from("custom_fields")
-      .select("artist_id")
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
-    serviceClient
-      .from("email_templates")
-      .select("artist_id")
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
-    serviceClient
-      .from("slots")
-      .select("artist_id")
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
-    serviceClient
-      .from("travel_legs")
-      .select("artist_id")
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
-    serviceClient
-      .from("waitlist_entries")
-      .select("artist_id")
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
-    serviceClient
-      .from("booking_requests")
-      .select("artist_id")
-      .not("deposit_amount", "is", null)
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
-    serviceClient
-      .from("client_notes")
-      .select("artist_id")
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
-    serviceClient
-      .from("notifications")
-      .select("artist_id")
-      .then((r) => new Set(r.data?.map((x) => x.artist_id)).size),
+    countDistinctArtists("custom_fields"),
+    countDistinctArtists("email_templates"),
+    countDistinctArtists("slots"),
+    countDistinctArtists("travel_legs"),
+    countDistinctArtists("waitlist_entries"),
+    countDistinctArtists("booking_requests", (q) =>
+      q.not("deposit_amount", "is", null),
+    ),
+    countDistinctArtists("client_notes"),
+    countDistinctArtists("notifications"),
   ]);
 
   const pct = (n: number) =>
@@ -368,7 +448,9 @@ export async function getQualitySignals() {
 export async function getArtistRoster() {
   const { data: profiles } = await serviceClient
     .from("profiles")
-    .select("id, slug, display_name, created_at, settings, account_status")
+    .select(
+      "id, slug, display_name, created_at, settings, account_status, is_tester",
+    )
     .order("created_at", { ascending: false })
     .limit(200);
 
@@ -407,6 +489,7 @@ export async function getArtistRoster() {
       createdAt: p.created_at,
       activated: s.onboarding_completed === true,
       accountStatus: (p.account_status as string) ?? "active",
+      isTester: p.is_tester ?? false,
       totalBookings: stats.total,
       approvedBookings: stats.approved,
       lastActivity: stats.lastActivity,

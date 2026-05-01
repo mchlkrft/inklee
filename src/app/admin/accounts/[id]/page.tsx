@@ -104,6 +104,7 @@ export default async function AccountDetailPage({
 
   const accountStatus = (profile.account_status as string) ?? "active";
   const isSelf = adminUser.id === profile.id;
+  const isTester = profile.is_tester ?? false;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -182,6 +183,18 @@ export default async function AccountDetailPage({
                 {accountStatus === "archived" && profile.deleted_at && (
                   <Row label="Archived" value={fmtDate(profile.deleted_at)} />
                 )}
+                <Row
+                  label="Tester account"
+                  value={
+                    isTester ? (
+                      <span className="rounded-full bg-brand-mustard/20 px-2 py-0.5 text-xs font-medium text-brand-charcoal">
+                        Yes — excluded from analytics
+                      </span>
+                    ) : (
+                      "No"
+                    )
+                  }
+                />
                 <Row label="Location" value={profile.location ?? "—"} />
                 <Row
                   label="Instagram"
@@ -368,6 +381,7 @@ export default async function AccountDetailPage({
                   accountStatus as "active" | "suspended" | "archived"
                 }
                 isSelf={isSelf}
+                isTester={isTester}
               />
             </section>
 

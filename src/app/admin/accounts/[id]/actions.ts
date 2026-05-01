@@ -213,6 +213,33 @@ export async function resetOnboardingAction(
   return {};
 }
 
+// ── Toggle tester flag ───────────────────────────────────────────────────────
+
+export async function setTesterFlagAction(
+  targetUserId: string,
+  isTester: boolean,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "unauthorized" };
+
+  const { error } = await serviceClient
+    .from("profiles")
+    .update({ is_tester: isTester, updated_at: new Date().toISOString() })
+    .eq("id", targetUserId);
+
+  if (error) return { error: error.message };
+
+  await logAdminAction(
+    adminId,
+    targetUserId,
+    isTester ? "flag_tester" : "unflag_tester",
+  );
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/accounts/${targetUserId}`);
+  return {};
+}
+
 // ── Trigger password reset ───────────────────────────────────────────────────
 
 export async function triggerPasswordResetAction(

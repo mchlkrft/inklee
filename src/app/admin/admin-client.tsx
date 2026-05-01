@@ -499,7 +499,14 @@ function ArtistRoster({
                 }`}
               >
                 <td className="px-4 py-2 font-medium text-foreground">
-                  {a.displayName}
+                  <span className="flex items-center gap-1.5">
+                    {a.displayName}
+                    {a.isTester && (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        tester
+                      </span>
+                    )}
+                  </span>
                 </td>
                 <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
                   {a.slug}

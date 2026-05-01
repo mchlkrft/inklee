@@ -7,6 +7,7 @@ import {
   archiveAccountAction,
   resetOnboardingAction,
   triggerPasswordResetAction,
+  setTesterFlagAction,
 } from "./actions";
 
 type AccountStatus = "active" | "suspended" | "archived";
@@ -32,14 +33,18 @@ export default function AccountActions({
   accountId,
   accountStatus,
   isSelf,
+  isTester,
 }: {
   accountId: string;
   accountStatus: AccountStatus;
   isSelf: boolean;
+  isTester: boolean;
 }) {
   const [state, setState] = useState<State>({ phase: "idle" });
   const [reason, setReason] = useState("");
   const [pending, startTransition] = useTransition();
+  const [tester, setTester] = useState(isTester);
+  const [testerPending, startTesterTransition] = useTransition();
 
   function startConfirm(action: ActionId) {
     setReason("");
@@ -132,6 +137,42 @@ export default function AccountActions({
           onTrigger={() => startConfirm("password_reset")}
           disabled={pending}
         />
+      </div>
+
+      {/* Tester flag */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Analytics
+        </p>
+        <div className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              Tester account
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Excluded from KPIs, funnels, and feature adoption metrics.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={testerPending}
+            onClick={() => {
+              const newValue = !tester;
+              setTester(newValue);
+              startTesterTransition(async () => {
+                const result = await setTesterFlagAction(accountId, newValue);
+                if (result.error) setTester(!newValue);
+              });
+            }}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+              tester
+                ? "bg-brand-mustard text-brand-charcoal"
+                : "border border-border text-muted-foreground hover:text-foreground hover:border-foreground"
+            }`}
+          >
+            {tester ? "Tester" : "Mark as tester"}
+          </button>
+        </div>
       </div>
 
       {/* Danger zone */}
