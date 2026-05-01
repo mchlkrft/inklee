@@ -1,30 +1,22 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { getBrandColor } from "@/lib/brand-pick";
 
-const VARIANTS = [
-  "/branding/illustrations/spiderweb/spiderweb-blue.svg",
-  "/branding/illustrations/spiderweb/spiderweb-bone.svg",
-  "/branding/illustrations/spiderweb/spiderweb-green.svg",
-  "/branding/illustrations/spiderweb/spiderweb-mustard.svg",
-  "/branding/illustrations/spiderweb/spiderweb-red.svg",
-  "/branding/illustrations/spiderweb/spiderweb-rosa.svg",
-];
+const SPIDERWEB: Record<string, string> = {
+  blue: "/branding/illustrations/spiderweb/spiderweb-blue.svg",
+  bone: "/branding/illustrations/spiderweb/spiderweb-bone.svg",
+  green: "/branding/illustrations/spiderweb/spiderweb-green.svg",
+  mustard: "/branding/illustrations/spiderweb/spiderweb-mustard.svg",
+  red: "/branding/illustrations/spiderweb/spiderweb-red.svg",
+  rosa: "/branding/illustrations/spiderweb/spiderweb-rosa.svg",
+};
 
-// Bone is visible on the dark background — safe SSR default, no flash.
 const SSR_DEFAULT = "/branding/illustrations/spiderweb/spiderweb-bone.svg";
-
-// Picked once at module load — stable across re-renders and soft navigation,
-// changes on hard reload (same behaviour as RandomizedLogo).
-let _picked: string | null = null;
-function getPicked(): string {
-  if (!_picked) _picked = VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
-  return _picked;
-}
 
 const noop = () => () => {};
 const getServerSnapshot = (): string => SSR_DEFAULT;
-const getClientSnapshot = (): string => getPicked();
+const getClientSnapshot = (): string => SPIDERWEB[getBrandColor()];
 
 export interface BrandLoaderProps {
   /** Icon display size in px. Default 96. */
