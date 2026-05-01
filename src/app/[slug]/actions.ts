@@ -16,6 +16,7 @@ import { validateCustomAnswers } from "@/lib/custom-fields";
 import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { parseFormSettings } from "@/lib/form-settings";
 import { processImage } from "@/lib/image-processing";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -48,37 +49,7 @@ export async function submitBookingAction(
     return { error: "too many requests — please wait before submitting again" };
   }
 
-  // Core form validation
-  const raw = {
-    instagram_handle: formData.get("instagram_handle"),
-    email: formData.get("email"),
-    reference_link: formData.get("reference_link"),
-    placement: formData.get("placement"),
-    size: formData.get("size"),
-    description: formData.get("description"),
-    preferred_date: formData.get("preferred_date"),
-    website: formData.get("website"),
-  };
-
-  const parsed = bookingSchema.safeParse(raw);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    return { error: first.message, field: first.path[0] as string };
-  }
-
-  const data = parsed.data;
-
-  // Validate preferred date is in the future
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (new Date(data.preferred_date) <= today) {
-    return {
-      error: "preferred date must be a future date",
-      field: "preferred_date",
-    };
-  }
-
-  // Init client and look up artist from slug — canonical source for artist_id
+  // Load artist profile first — needed for formSettings and books-open check
   const artistSlug = formData.get("artist_slug") as string;
   const supabase = await createClient();
   const { data: artistProfile } = await supabase
@@ -91,11 +62,63 @@ export async function submitBookingAction(
   const artistId = artistProfile.id;
   const artistName = artistProfile.display_name;
 
-  // Books-open and cap enforcement (Slice 20)
   const profileSettings = (artistProfile.settings ?? {}) as Record<
     string,
     unknown
   >;
+  const formSettings = parseFormSettings(profileSettings.form_settings);
+  // Core form validation — null → "" for fields that may be hidden
+  const raw = {
+    instagram_handle: (formData.get("instagram_handle") as string) ?? "",
+    email: (formData.get("email") as string) ?? "",
+    reference_link: formData.get("reference_link"),
+    placement: (formData.get("placement") as string) ?? "",
+    size: (formData.get("size") as string) ?? "",
+    description: (formData.get("description") as string) ?? "",
+    preferred_date: (formData.get("preferred_date") as string) ?? "",
+    website: formData.get("website"),
+  };
+
+  // Presence checks — only enforce for fields the artist has enabled
+  if (formSettings.show_instagram_handle && !raw.instagram_handle) {
+    return { error: "instagram handle is required", field: "instagram_handle" };
+  }
+  if (formSettings.show_email && !raw.email) {
+    return { error: "valid email required", field: "email" };
+  }
+  if (formSettings.show_placement && !raw.placement) {
+    return { error: "placement is required", field: "placement" };
+  }
+  if (formSettings.show_size && !raw.size) {
+    return { error: "please select a size", field: "size" };
+  }
+  if (formSettings.show_preferred_date && !raw.preferred_date) {
+    return { error: "preferred date is required", field: "preferred_date" };
+  }
+  if (!raw.description && formSettings.require_description) {
+    return { error: "description is required", field: "description" };
+  }
+
+  const parsed = bookingSchema.safeParse(raw);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return { error: first.message, field: first.path[0] as string };
+  }
+
+  const data = parsed.data;
+
+  // Validate preferred date is in the future (skipped when field is hidden)
+  if (data.preferred_date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(data.preferred_date) <= today) {
+      return {
+        error: "preferred date must be a future date",
+        field: "preferred_date",
+      };
+    }
+  }
+
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&

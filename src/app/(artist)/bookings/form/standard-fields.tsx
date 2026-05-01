@@ -4,19 +4,36 @@ import { useState, useTransition } from "react";
 import { saveFormSettingsAction } from "./form-settings-actions";
 import type { FormSettings } from "@/lib/form-settings";
 
-const FIXED_FIELDS = [
-  { label: "instagram handle", note: "recommended" },
-  { label: "email", note: "recommended" },
-  { label: "placement", note: "recommended" },
-  { label: "size", note: "recommended" },
-  { label: "preferred date / slot", note: "recommended" },
-];
-
-const CONFIGURABLE: {
+const FIELDS: {
   key: keyof FormSettings;
   label: string;
   description: string;
 }[] = [
+  {
+    key: "show_instagram_handle",
+    label: "instagram handle",
+    description: "recommended contact method for booking coordination",
+  },
+  {
+    key: "show_email",
+    label: "email",
+    description: "used to send booking confirmation and updates",
+  },
+  {
+    key: "show_placement",
+    label: "placement",
+    description: "where on the body the client wants the tattoo",
+  },
+  {
+    key: "show_size",
+    label: "size",
+    description: "approximate size selection (palm-sized to larger)",
+  },
+  {
+    key: "show_preferred_date",
+    label: "preferred date / slot",
+    description: "when the client would like to come in",
+  },
   {
     key: "show_reference_link",
     label: "reference link",
@@ -85,36 +102,18 @@ export default function StandardFields({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Fixed fields — always on */}
-      <div className="rounded-md border border-border divide-y divide-border">
-        {FIXED_FIELDS.map((f) => (
-          <div key={f.label} className="flex items-center px-4 py-3 gap-3">
-            <span className="flex-1 text-sm text-muted-foreground">
-              {f.label}
-            </span>
-            <span className="text-xs text-muted-foreground">{f.note}</span>
-            <div className="w-9 flex justify-center">
-              <span className="text-xs text-muted-foreground/40">—</span>
-            </div>
+    <div className="rounded-md border border-border divide-y divide-border">
+      {FIELDS.map(({ key, label, description }) => (
+        <div key={key} className="flex items-center px-4 py-3 gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {description}
+            </p>
           </div>
-        ))}
-      </div>
-
-      {/* Configurable standard fields */}
-      <div className="rounded-md border border-border divide-y divide-border">
-        {CONFIGURABLE.map(({ key, label, description }) => (
-          <div key={key} className="flex items-center px-4 py-3 gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-foreground">{label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {description}
-              </p>
-            </div>
-            <Toggle checked={local[key]} onChange={(v) => update(key, v)} />
-          </div>
-        ))}
-      </div>
+          <Toggle checked={local[key]} onChange={(v) => update(key, v)} />
+        </div>
+      ))}
     </div>
   );
 }

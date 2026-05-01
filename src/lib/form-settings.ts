@@ -1,4 +1,11 @@
 export interface FormSettings {
+  // Standard fields (all default on)
+  show_instagram_handle: boolean;
+  show_email: boolean;
+  show_placement: boolean;
+  show_size: boolean;
+  show_preferred_date: boolean;
+  // Configurable fields
   show_reference_link: boolean;
   show_image_upload: boolean;
   require_description: boolean;
@@ -6,6 +13,11 @@ export interface FormSettings {
 }
 
 export const DEFAULT_FORM_SETTINGS: FormSettings = {
+  show_instagram_handle: true,
+  show_email: true,
+  show_placement: true,
+  show_size: true,
+  show_preferred_date: true,
   show_reference_link: true,
   show_image_upload: true,
   require_description: true,
@@ -15,22 +27,20 @@ export const DEFAULT_FORM_SETTINGS: FormSettings = {
 export function parseFormSettings(raw: unknown): FormSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_FORM_SETTINGS };
   const r = raw as Record<string, unknown>;
+  function bool(key: keyof FormSettings): boolean {
+    return typeof r[key] === "boolean"
+      ? (r[key] as boolean)
+      : DEFAULT_FORM_SETTINGS[key];
+  }
   return {
-    show_reference_link:
-      typeof r.show_reference_link === "boolean"
-        ? r.show_reference_link
-        : DEFAULT_FORM_SETTINGS.show_reference_link,
-    show_image_upload:
-      typeof r.show_image_upload === "boolean"
-        ? r.show_image_upload
-        : DEFAULT_FORM_SETTINGS.show_image_upload,
-    require_description:
-      typeof r.require_description === "boolean"
-        ? r.require_description
-        : DEFAULT_FORM_SETTINGS.require_description,
-    allow_photo_annotations:
-      typeof r.allow_photo_annotations === "boolean"
-        ? r.allow_photo_annotations
-        : DEFAULT_FORM_SETTINGS.allow_photo_annotations,
+    show_instagram_handle: bool("show_instagram_handle"),
+    show_email: bool("show_email"),
+    show_placement: bool("show_placement"),
+    show_size: bool("show_size"),
+    show_preferred_date: bool("show_preferred_date"),
+    show_reference_link: bool("show_reference_link"),
+    show_image_upload: bool("show_image_upload"),
+    require_description: bool("require_description"),
+    allow_photo_annotations: bool("allow_photo_annotations"),
   };
 }

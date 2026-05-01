@@ -193,46 +193,50 @@ export default function BookingForm({
           <p className="text-sm text-destructive">{state.error}</p>
         )}
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="instagram_handle"
-            className="text-base text-muted-foreground"
-          >
-            Instagram handle <span className="text-foreground">*</span>
-          </label>
-          <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
-            <span className="select-none text-muted-foreground">@</span>
-            <input
-              id="instagram_handle"
-              name="instagram_handle"
-              type="text"
-              required
-              autoComplete="off"
-              className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
-            />
+        {formSettings.show_instagram_handle && (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="instagram_handle"
+              className="text-base text-muted-foreground"
+            >
+              Instagram handle <span className="text-foreground">*</span>
+            </label>
+            <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
+              <span className="select-none text-muted-foreground">@</span>
+              <input
+                id="instagram_handle"
+                name="instagram_handle"
+                type="text"
+                required
+                autoComplete="off"
+                className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
+              />
+            </div>
+            {err("instagram_handle") && (
+              <p className="text-sm text-destructive">
+                {err("instagram_handle")}
+              </p>
+            )}
           </div>
-          {err("instagram_handle") && (
-            <p className="text-sm text-destructive">
-              {err("instagram_handle")}
-            </p>
-          )}
-        </div>
+        )}
 
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="text-base text-muted-foreground">
-            Email <span className="text-foreground">*</span>
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          {err("email") && (
-            <p className="text-sm text-destructive">{err("email")}</p>
-          )}
-        </div>
+        {formSettings.show_email && (
+          <div className="space-y-1.5">
+            <label htmlFor="email" className="text-base text-muted-foreground">
+              Email <span className="text-foreground">*</span>
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {err("email") && (
+              <p className="text-sm text-destructive">{err("email")}</p>
+            )}
+          </div>
+        )}
 
         {formSettings.show_reference_link && (
           <div className="space-y-1.5">
@@ -258,58 +262,62 @@ export default function BookingForm({
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="placement"
-            className="text-base text-muted-foreground"
-          >
-            Placement <span className="text-foreground">*</span>
-          </label>
-          <input
-            id="placement"
-            name="placement"
-            type="text"
-            required
-            placeholder="Left forearm, inner wrist..."
-            className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          {err("placement") && (
-            <p className="text-sm text-destructive">{err("placement")}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-base text-muted-foreground">
-            Size <span className="text-foreground">*</span>
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {SIZES.map((s) => (
-              <label
-                key={s}
-                className="cursor-pointer rounded-md border border-border px-3 py-3 text-base text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
-              >
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="radio"
-                    name="size"
-                    value={s}
-                    required
-                    className="accent-foreground"
-                  />
-                  <span>
-                    {SIZE_LABELS[s].label}
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      {SIZE_LABELS[s].hint}
-                    </span>
-                  </span>
-                </div>
-              </label>
-            ))}
+        {formSettings.show_placement && (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="placement"
+              className="text-base text-muted-foreground"
+            >
+              Placement <span className="text-foreground">*</span>
+            </label>
+            <input
+              id="placement"
+              name="placement"
+              type="text"
+              required
+              placeholder="Left forearm, inner wrist..."
+              className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {err("placement") && (
+              <p className="text-sm text-destructive">{err("placement")}</p>
+            )}
           </div>
-          {err("size") && (
-            <p className="text-sm text-destructive">{err("size")}</p>
-          )}
-        </div>
+        )}
+
+        {formSettings.show_size && (
+          <div className="space-y-2">
+            <p className="text-base text-muted-foreground">
+              Size <span className="text-foreground">*</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {SIZES.map((s) => (
+                <label
+                  key={s}
+                  className="cursor-pointer rounded-md border border-border px-3 py-3 text-base text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="size"
+                      value={s}
+                      required
+                      className="accent-foreground"
+                    />
+                    <span>
+                      {SIZE_LABELS[s].label}
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        {SIZE_LABELS[s].hint}
+                      </span>
+                    </span>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {err("size") && (
+              <p className="text-sm text-destructive">{err("size")}</p>
+            )}
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <div className="flex justify-between">
@@ -474,109 +482,113 @@ export default function BookingForm({
         )}
 
         {/* Date / slot selection */}
-        {bookingMode === "fixed_slots" ? (
-          <div className="space-y-2">
-            <p className="text-base text-muted-foreground">
-              Select a slot <span className="text-foreground">*</span>
-            </p>
+        {formSettings.show_preferred_date &&
+          (bookingMode === "fixed_slots" ? (
             <div className="space-y-2">
-              {slots.map((slot) => (
-                <label
-                  key={slot.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 has-[:checked]:border-foreground"
-                >
-                  <input
-                    type="radio"
-                    name="slot_id"
-                    value={slot.id}
-                    required
-                    className="mt-0.5 accent-foreground"
-                  />
-                  <div>
-                    <p className="text-sm text-foreground">{slot.date}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {slot.time} · {slot.tz}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            {err("slot_id") && (
-              <p className="text-sm text-destructive">{err("slot_id")}</p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            <label
-              htmlFor="preferred_date"
-              className="text-base text-muted-foreground"
-            >
-              Preferred date <span className="text-foreground">*</span>
-            </label>
-            <DateInput
-              id="preferred_date"
-              name="preferred_date"
-              required
-              min={tomorrow()}
-              value={preferredDate}
-              onChange={(e) => setPreferredDate(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            {err("preferred_date") && (
-              <p className="text-sm text-destructive">
-                {err("preferred_date")}
+              <p className="text-base text-muted-foreground">
+                Select a slot <span className="text-foreground">*</span>
               </p>
-            )}
-          </div>
-        )}
+              <div className="space-y-2">
+                {slots.map((slot) => (
+                  <label
+                    key={slot.id}
+                    className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 has-[:checked]:border-foreground"
+                  >
+                    <input
+                      type="radio"
+                      name="slot_id"
+                      value={slot.id}
+                      required
+                      className="mt-0.5 accent-foreground"
+                    />
+                    <div>
+                      <p className="text-sm text-foreground">{slot.date}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {slot.time} · {slot.tz}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {err("slot_id") && (
+                <p className="text-sm text-destructive">{err("slot_id")}</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label
+                htmlFor="preferred_date"
+                className="text-base text-muted-foreground"
+              >
+                Preferred date <span className="text-foreground">*</span>
+              </label>
+              <DateInput
+                id="preferred_date"
+                name="preferred_date"
+                required
+                min={tomorrow()}
+                value={preferredDate}
+                onChange={(e) => setPreferredDate(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {err("preferred_date") && (
+                <p className="text-sm text-destructive">
+                  {err("preferred_date")}
+                </p>
+              )}
+            </div>
+          ))}
 
         {/* Location — preferred_date mode only, reactive to date */}
-        {bookingMode !== "fixed_slots" && hasTrips && preferredDate && (
-          <>
-            {validLocations.length === 0 ? (
-              <p className="text-base text-muted-foreground">
-                No guest spots are scheduled for that date — your request will
-                be treated as a home studio booking.
-              </p>
-            ) : validLocations.length === 1 ? (
-              <>
-                <input
-                  type="hidden"
-                  name="trip_id"
-                  value={validLocations[0].id}
-                />
+        {formSettings.show_preferred_date &&
+          bookingMode !== "fixed_slots" &&
+          hasTrips &&
+          preferredDate && (
+            <>
+              {validLocations.length === 0 ? (
                 <p className="text-base text-muted-foreground">
-                  Location:{" "}
-                  <span className="text-foreground">
-                    {validLocations[0].title}
-                  </span>
+                  No guest spots are scheduled for that date — your request will
+                  be treated as a home studio booking.
                 </p>
-              </>
-            ) : (
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="trip_id"
-                  className="text-base text-muted-foreground"
-                >
-                  Location
-                </label>
-                <select
-                  key={preferredDate}
-                  id="trip_id"
-                  name="trip_id"
-                  className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="">No preference</option>
-                  {validLocations.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </>
-        )}
+              ) : validLocations.length === 1 ? (
+                <>
+                  <input
+                    type="hidden"
+                    name="trip_id"
+                    value={validLocations[0].id}
+                  />
+                  <p className="text-base text-muted-foreground">
+                    Location:{" "}
+                    <span className="text-foreground">
+                      {validLocations[0].title}
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="trip_id"
+                    className="text-base text-muted-foreground"
+                  >
+                    Location
+                  </label>
+                  <select
+                    key={preferredDate}
+                    id="trip_id"
+                    name="trip_id"
+                    className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">No preference</option>
+                    {validLocations.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
 
         <input
           name="website"
