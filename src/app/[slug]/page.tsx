@@ -7,7 +7,7 @@ import BooksClosedBlock from "./books-closed-block";
 import WaitlistForm from "./waitlist-form";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
-import { parseFormSettings } from "@/lib/form-settings";
+import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
 
@@ -51,6 +51,10 @@ export default async function ArtistPublicPage({
     .order("position", { ascending: true });
 
   customFields = (rawCustomFields as CustomFieldDef[]) ?? [];
+
+  const fieldOrder: string[] = Array.isArray(profileSettings.field_order)
+    ? (profileSettings.field_order as string[])
+    : buildDefaultFieldOrder(customFields.map((f) => f.id));
 
   if (isSlotMode) {
     const { data: rawSlots } = await supabase
@@ -179,7 +183,7 @@ export default async function ArtistPublicPage({
       <main className="mx-auto flex-1 w-full max-w-lg space-y-10 px-6 py-12">
         <div className="flex flex-col items-center space-y-3 text-center">
           {profile.logo_url && (
-            <div className="relative h-16 w-16 overflow-hidden rounded-full border border-border">
+            <div className="relative h-25 w-25 overflow-hidden rounded-full border border-border">
               <Image
                 src={profile.logo_url}
                 alt={profile.display_name}
@@ -260,6 +264,7 @@ export default async function ArtistPublicPage({
               slots={slots}
               customFields={customFields}
               formSettings={formSettings}
+              fieldOrder={fieldOrder}
               travelLegId={null}
               trips={futureTrips}
               isDemoAccount={slug === "bert-grimm"}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { fieldConfigSchema, labelToKey } from "@/lib/custom-fields";
+import { buildDefaultFieldOrder, insertFieldId } from "@/lib/form-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -53,23 +54,59 @@ export async function createFieldAction(
 
   const position = (existing?.[0]?.position ?? -1) + 1;
 
-  const { error } = await supabase.from("custom_fields").insert({
-    artist_id: user.id,
-    key,
-    label: data.label,
-    type: data.type,
-    required: data.required,
-    placeholder: data.placeholder ?? null,
-    help_text: data.help_text ?? null,
-    options: data.options,
-    active: true,
-    position,
-  });
+  const { data: inserted, error } = await supabase
+    .from("custom_fields")
+    .insert({
+      artist_id: user.id,
+      key,
+      label: data.label,
+      type: data.type,
+      required: data.required,
+      placeholder: data.placeholder ?? null,
+      help_text: data.help_text ?? null,
+      options: data.options,
+      active: true,
+      position,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     if (error.code === "23505")
       return { error: `a field with key "${key}" already exists` };
     return { error: error.message };
+  }
+
+  // Append new field ID to field_order in artist settings
+  {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("settings")
+      .eq("id", user.id)
+      .single();
+
+    const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+    let existingOrder: string[];
+    if (Array.isArray(settings.field_order)) {
+      existingOrder = settings.field_order as string[];
+    } else {
+      // Build default from all existing custom fields
+      const { data: allFields } = await supabase
+        .from("custom_fields")
+        .select("id")
+        .eq("artist_id", user.id)
+        .is("deleted_at", null)
+        .order("position", { ascending: true });
+      existingOrder = buildDefaultFieldOrder(
+        (allFields ?? []).map((f) => f.id as string),
+      );
+    }
+    const newOrder = insertFieldId(existingOrder, inserted.id);
+
+    await supabase
+      .from("profiles")
+      .update({ settings: { ...settings, field_order: newOrder } })
+      .eq("id", user.id);
   }
 
   revalidatePath("/bookings/form");
@@ -215,6 +252,26 @@ export async function deleteFieldAction(id: string): Promise<State> {
       .eq("id", id)
       .eq("artist_id", user.id);
     if (error) return { error: error.message };
+  }
+
+  // Remove field from field_order
+  {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("settings")
+      .eq("id", user.id)
+      .single();
+
+    const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+    if (Array.isArray(settings.field_order)) {
+      const newOrder = (settings.field_order as string[]).filter(
+        (k) => k !== id,
+      );
+      await supabase
+        .from("profiles")
+        .update({ settings: { ...settings, field_order: newOrder } })
+        .eq("id", user.id);
+    }
   }
 
   revalidatePath("/bookings/form");

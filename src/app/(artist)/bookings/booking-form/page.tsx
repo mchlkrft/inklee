@@ -1,9 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type { CustomFieldDef } from "@/lib/custom-fields";
-import { parseFormSettings } from "@/lib/form-settings";
+import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
-import FieldList from "../form/field-list";
-import StandardFields from "../form/standard-fields";
+import UnifiedFieldList from "../form/unified-field-list";
 import PublicPageClient from "../public-page/public-page-client";
 import FormAppearanceForm from "../settings/form-appearance-form";
 import Link from "next/link";
@@ -31,6 +30,10 @@ export default async function BookingFormPage() {
   const profileSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   const formSettings = parseFormSettings(profileSettings.form_settings);
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
+  const customFieldIds = ((fields ?? []) as CustomFieldDef[]).map((f) => f.id);
+  const initialOrder = Array.isArray(profileSettings.field_order)
+    ? (profileSettings.field_order as string[])
+    : buildDefaultFieldOrder(customFieldIds);
   const slug = profile?.slug ?? "";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const publicUrl = `${appUrl}/${slug}`;
@@ -92,32 +95,23 @@ export default async function BookingFormPage() {
         </div>
       </section>
 
-      {/* Standard fields */}
+      {/* Form fields */}
       <section className="space-y-4">
         <div className="border-b-2 border-border pb-2">
           <h2 className="text-base font-semibold text-foreground">
-            Standard fields
+            Form fields
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Built-in fields. Fixed ones are always shown. Use the toggles to
-            configure the optional ones.
+            Toggle fields on or off, drag to reorder, and add custom questions.
+            The order here matches what clients see.
           </p>
         </div>
-        <StandardFields settings={formSettings} />
-      </section>
-
-      {/* Custom fields */}
-      <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
-            Custom fields
-          </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Add your own questions. Active fields appear after the standard
-            fields, in the order shown below.
-          </p>
-        </div>
-        <FieldList fields={(fields as CustomFieldDef[]) ?? []} />
+        <UnifiedFieldList
+          key={fields?.length ?? 0}
+          initialSettings={formSettings}
+          customFields={(fields as CustomFieldDef[]) ?? []}
+          initialOrder={initialOrder}
+        />
       </section>
 
       {/* Form appearance */}

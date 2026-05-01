@@ -24,6 +24,47 @@ export const DEFAULT_FORM_SETTINGS: FormSettings = {
   allow_photo_annotations: false,
 };
 
+// Canonical IDs for standard fields in field_order arrays
+export const STD_FIELD_IDS = [
+  "instagram_handle",
+  "email",
+  "reference_link",
+  "placement",
+  "size",
+  "description",
+  "image_upload",
+  "preferred_date",
+] as const;
+
+export type StdFieldId = (typeof STD_FIELD_IDS)[number];
+
+/** Default field order matching the original hardcoded public form sequence. */
+export function buildDefaultFieldOrder(customFieldIds: string[]): string[] {
+  // Custom fields slot in between description and image_upload — matches old behavior
+  return [
+    "instagram_handle",
+    "email",
+    "reference_link",
+    "placement",
+    "size",
+    "description",
+    ...customFieldIds,
+    "image_upload",
+    "preferred_date",
+  ];
+}
+
+/** Insert a new custom field ID just before image_upload (or preferred_date, or at end). */
+export function insertFieldId(order: string[], newId: string): string[] {
+  for (const anchor of ["image_upload", "preferred_date"] as const) {
+    const idx = order.indexOf(anchor);
+    if (idx !== -1) {
+      return [...order.slice(0, idx), newId, ...order.slice(idx)];
+    }
+  }
+  return [...order, newId];
+}
+
 export function parseFormSettings(raw: unknown): FormSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_FORM_SETTINGS };
   const r = raw as Record<string, unknown>;

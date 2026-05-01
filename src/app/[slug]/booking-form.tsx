@@ -8,7 +8,10 @@ import { SIZES } from "@/lib/booking-schema";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import CustomFieldInput from "@/components/custom-field-input";
 import type { FormSettings } from "@/lib/form-settings";
-import { DEFAULT_FORM_SETTINGS } from "@/lib/form-settings";
+import {
+  DEFAULT_FORM_SETTINGS,
+  buildDefaultFieldOrder,
+} from "@/lib/form-settings";
 import type { Annotation } from "@/lib/annotations";
 import AnnotationModal from "./annotation-modal";
 
@@ -58,6 +61,7 @@ export default function BookingForm({
   slots = [],
   customFields = [],
   formSettings = DEFAULT_FORM_SETTINGS,
+  fieldOrder,
   travelLegId = null,
   trips = [],
   isDemoAccount = false,
@@ -68,6 +72,7 @@ export default function BookingForm({
   slots?: SlotOption[];
   customFields?: CustomFieldDef[];
   formSettings?: FormSettings;
+  fieldOrder?: string[];
   travelLegId?: string | null;
   trips?: TripOption[];
   isDemoAccount?: boolean;
@@ -186,14 +191,13 @@ export default function BookingForm({
     ? (imageEntries.find((e) => e.id === annotatingId) ?? null)
     : null;
 
-  return (
-    <>
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {state?.error && !state.field && (
-          <p className="text-sm text-destructive">{state.error}</p>
-        )}
+  const resolvedFieldOrder =
+    fieldOrder ?? buildDefaultFieldOrder(customFields.map((f) => f.id));
 
-        {formSettings.show_instagram_handle && (
+  function renderField(key: string) {
+    switch (key) {
+      case "instagram_handle":
+        return formSettings.show_instagram_handle ? (
           <div className="space-y-1.5">
             <label
               htmlFor="instagram_handle"
@@ -218,9 +222,10 @@ export default function BookingForm({
               </p>
             )}
           </div>
-        )}
+        ) : null;
 
-        {formSettings.show_email && (
+      case "email":
+        return formSettings.show_email ? (
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-base text-muted-foreground">
               Email <span className="text-foreground">*</span>
@@ -236,9 +241,10 @@ export default function BookingForm({
               <p className="text-sm text-destructive">{err("email")}</p>
             )}
           </div>
-        )}
+        ) : null;
 
-        {formSettings.show_reference_link && (
+      case "reference_link":
+        return formSettings.show_reference_link ? (
           <div className="space-y-1.5">
             <label
               htmlFor="reference_link"
@@ -260,9 +266,10 @@ export default function BookingForm({
               </p>
             )}
           </div>
-        )}
+        ) : null;
 
-        {formSettings.show_placement && (
+      case "placement":
+        return formSettings.show_placement ? (
           <div className="space-y-1.5">
             <label
               htmlFor="placement"
@@ -282,9 +289,10 @@ export default function BookingForm({
               <p className="text-sm text-destructive">{err("placement")}</p>
             )}
           </div>
-        )}
+        ) : null;
 
-        {formSettings.show_size && (
+      case "size":
+        return formSettings.show_size ? (
           <div className="space-y-2">
             <p className="text-base text-muted-foreground">
               Size <span className="text-foreground">*</span>
@@ -317,53 +325,49 @@ export default function BookingForm({
               <p className="text-sm text-destructive">{err("size")}</p>
             )}
           </div>
-        )}
+        ) : null;
 
-        <div className="space-y-1.5">
-          <div className="flex justify-between">
-            <label
-              htmlFor="description"
-              className="text-base text-muted-foreground"
-            >
-              Description{" "}
-              {formSettings.require_description ? (
-                <span className="text-foreground">*</span>
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  (optional)
-                </span>
-              )}
-            </label>
-            <span
-              className={`text-xs ${description.length > 1000 ? "text-destructive" : "text-muted-foreground"}`}
-            >
-              {description.length}/1000
-            </span>
+      case "description":
+        return (
+          <div className="space-y-1.5">
+            <div className="flex justify-between">
+              <label
+                htmlFor="description"
+                className="text-base text-muted-foreground"
+              >
+                Description{" "}
+                {formSettings.require_description ? (
+                  <span className="text-foreground">*</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    (optional)
+                  </span>
+                )}
+              </label>
+              <span
+                className={`text-xs ${description.length > 1000 ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                {description.length}/1000
+              </span>
+            </div>
+            <textarea
+              id="description"
+              name="description"
+              required={formSettings.require_description}
+              rows={5}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
+              className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {err("description") && (
+              <p className="text-sm text-destructive">{err("description")}</p>
+            )}
           </div>
-          <textarea
-            id="description"
-            name="description"
-            required={formSettings.require_description}
-            rows={5}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
-            className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          {err("description") && (
-            <p className="text-sm text-destructive">{err("description")}</p>
-          )}
-        </div>
+        );
 
-        {customFields.map((field) => (
-          <CustomFieldInput
-            key={field.id}
-            field={field}
-            error={err(`cf_${field.key}`)}
-          />
-        ))}
-
-        {formSettings.show_image_upload && (
+      case "image_upload":
+        return formSettings.show_image_upload ? (
           <div className="space-y-2">
             <div>
               <p className="text-base text-muted-foreground">
@@ -446,8 +450,6 @@ export default function BookingForm({
                         alt=""
                         className="h-full w-full object-cover"
                       />
-
-                      {/* Annotation badge / open modal button */}
                       {annotationsEnabled && (
                         <button
                           type="button"
@@ -464,8 +466,6 @@ export default function BookingForm({
                             : "+ note"}
                         </button>
                       )}
-
-                      {/* Remove button */}
                       <button
                         type="button"
                         onClick={() => removeImage(entry.id)}
@@ -479,116 +479,138 @@ export default function BookingForm({
               </div>
             )}
           </div>
+        ) : null;
+
+      case "preferred_date":
+        return formSettings.show_preferred_date ? (
+          <>
+            {bookingMode === "fixed_slots" ? (
+              <div className="space-y-2">
+                <p className="text-base text-muted-foreground">
+                  Select a slot <span className="text-foreground">*</span>
+                </p>
+                <div className="space-y-2">
+                  {slots.map((slot) => (
+                    <label
+                      key={slot.id}
+                      className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 has-[:checked]:border-foreground"
+                    >
+                      <input
+                        type="radio"
+                        name="slot_id"
+                        value={slot.id}
+                        required
+                        className="mt-0.5 accent-foreground"
+                      />
+                      <div>
+                        <p className="text-sm text-foreground">{slot.date}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {slot.time} · {slot.tz}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {err("slot_id") && (
+                  <p className="text-sm text-destructive">{err("slot_id")}</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="preferred_date"
+                  className="text-base text-muted-foreground"
+                >
+                  Preferred date <span className="text-foreground">*</span>
+                </label>
+                <DateInput
+                  id="preferred_date"
+                  name="preferred_date"
+                  required
+                  min={tomorrow()}
+                  value={preferredDate}
+                  onChange={(e) => setPreferredDate(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                {err("preferred_date") && (
+                  <p className="text-sm text-destructive">
+                    {err("preferred_date")}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Location selector — preferred_date mode only, reactive to chosen date */}
+            {bookingMode !== "fixed_slots" && hasTrips && preferredDate && (
+              <>
+                {validLocations.length === 0 ? (
+                  <p className="text-base text-muted-foreground">
+                    No guest spots are scheduled for that date — your request
+                    will be treated as a home studio booking.
+                  </p>
+                ) : validLocations.length === 1 ? (
+                  <>
+                    <input
+                      type="hidden"
+                      name="trip_id"
+                      value={validLocations[0].id}
+                    />
+                    <p className="text-base text-muted-foreground">
+                      Location:{" "}
+                      <span className="text-foreground">
+                        {validLocations[0].title}
+                      </span>
+                    </p>
+                  </>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="trip_id"
+                      className="text-base text-muted-foreground"
+                    >
+                      Location
+                    </label>
+                    <select
+                      key={preferredDate}
+                      id="trip_id"
+                      name="trip_id"
+                      className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">No preference</option>
+                      {validLocations.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        ) : null;
+
+      default: {
+        // Custom field — look up by UUID in the active customFields list
+        const cf = customFields.find((f) => f.id === key);
+        return cf ? (
+          <CustomFieldInput field={cf} error={err(`cf_${cf.key}`)} />
+        ) : null;
+      }
+    }
+  }
+
+  return (
+    <>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {state?.error && !state.field && (
+          <p className="text-sm text-destructive">{state.error}</p>
         )}
 
-        {/* Date / slot selection */}
-        {formSettings.show_preferred_date &&
-          (bookingMode === "fixed_slots" ? (
-            <div className="space-y-2">
-              <p className="text-base text-muted-foreground">
-                Select a slot <span className="text-foreground">*</span>
-              </p>
-              <div className="space-y-2">
-                {slots.map((slot) => (
-                  <label
-                    key={slot.id}
-                    className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 has-[:checked]:border-foreground"
-                  >
-                    <input
-                      type="radio"
-                      name="slot_id"
-                      value={slot.id}
-                      required
-                      className="mt-0.5 accent-foreground"
-                    />
-                    <div>
-                      <p className="text-sm text-foreground">{slot.date}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {slot.time} · {slot.tz}
-                      </p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              {err("slot_id") && (
-                <p className="text-sm text-destructive">{err("slot_id")}</p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <label
-                htmlFor="preferred_date"
-                className="text-base text-muted-foreground"
-              >
-                Preferred date <span className="text-foreground">*</span>
-              </label>
-              <DateInput
-                id="preferred_date"
-                name="preferred_date"
-                required
-                min={tomorrow()}
-                value={preferredDate}
-                onChange={(e) => setPreferredDate(e.target.value)}
-                className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              {err("preferred_date") && (
-                <p className="text-sm text-destructive">
-                  {err("preferred_date")}
-                </p>
-              )}
-            </div>
-          ))}
-
-        {/* Location — preferred_date mode only, reactive to date */}
-        {formSettings.show_preferred_date &&
-          bookingMode !== "fixed_slots" &&
-          hasTrips &&
-          preferredDate && (
-            <>
-              {validLocations.length === 0 ? (
-                <p className="text-base text-muted-foreground">
-                  No guest spots are scheduled for that date — your request will
-                  be treated as a home studio booking.
-                </p>
-              ) : validLocations.length === 1 ? (
-                <>
-                  <input
-                    type="hidden"
-                    name="trip_id"
-                    value={validLocations[0].id}
-                  />
-                  <p className="text-base text-muted-foreground">
-                    Location:{" "}
-                    <span className="text-foreground">
-                      {validLocations[0].title}
-                    </span>
-                  </p>
-                </>
-              ) : (
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="trip_id"
-                    className="text-base text-muted-foreground"
-                  >
-                    Location
-                  </label>
-                  <select
-                    key={preferredDate}
-                    id="trip_id"
-                    name="trip_id"
-                    className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">No preference</option>
-                    {validLocations.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </>
-          )}
+        {resolvedFieldOrder.map((key) => {
+          const node = renderField(key);
+          return node ? <div key={key}>{node}</div> : null;
+        })}
 
         <input
           name="website"

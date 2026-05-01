@@ -43,3 +43,30 @@ export async function saveFormSettingsAction(
   revalidatePath("/bookings/form");
   return { success: true };
 }
+
+export async function saveFieldOrderAction(
+  order: string[],
+): Promise<{ error: string } | { success: true } | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", user.id)
+    .single();
+
+  const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ settings: { ...settings, field_order: order } })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+  // No revalidatePath — the optimistic UI already reflects the new order
+  return { success: true };
+}
