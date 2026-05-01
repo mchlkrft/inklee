@@ -92,6 +92,107 @@ export async function createSlotBlockAction(
   return { success: true };
 }
 
+export async function createSlotsFromPatternAction(
+  formData: FormData,
+): Promise<{ error: string } | { success: true; count: number }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("timezone")
+    .eq("id", user.id)
+    .single();
+  const timezone = profile?.timezone ?? "Europe/Berlin";
+
+  // Parse time windows
+  let windows: { start: string; end: string }[];
+  try {
+    windows = JSON.parse(formData.get("windows_json") as string);
+    if (!Array.isArray(windows) || windows.length === 0)
+      return { error: "at least one time window is required" };
+    for (const w of windows) {
+      if (!w.start || !w.end || w.end <= w.start)
+        return {
+          error: "each window must have a start time before its end time",
+        };
+    }
+  } catch {
+    return { error: "invalid window data" };
+  }
+
+  // Generate date list
+  const applyMode = formData.get("apply_mode") as string;
+  const dates: string[] = [];
+
+  if (applyMode === "weekdays") {
+    let weekdays: number[];
+    try {
+      weekdays = JSON.parse(formData.get("weekdays_json") as string);
+      if (!Array.isArray(weekdays) || weekdays.length === 0)
+        return { error: "select at least one weekday" };
+    } catch {
+      return { error: "invalid weekday data" };
+    }
+    const fromDate = formData.get("from_date") as string;
+    const toDate = formData.get("to_date") as string;
+    if (!fromDate || !toDate) return { error: "date range is required" };
+
+    const end = new Date(toDate + "T12:00:00Z");
+    for (
+      let d = new Date(fromDate + "T12:00:00Z");
+      d <= end;
+      d.setDate(d.getDate() + 1)
+    ) {
+      if (weekdays.includes((d.getDay() + 6) % 7)) {
+        dates.push(d.toISOString().split("T")[0]);
+      }
+    }
+  } else if (applyMode === "dates") {
+    let parsed: string[];
+    try {
+      parsed = JSON.parse(formData.get("dates_json") as string);
+      if (!Array.isArray(parsed) || parsed.length === 0)
+        return { error: "add at least one date" };
+      dates.push(...parsed);
+    } catch {
+      return { error: "invalid date data" };
+    }
+  } else {
+    return { error: "invalid apply mode" };
+  }
+
+  if (dates.length === 0) return { error: "no matching dates in that range" };
+
+  // Build slot records — each window on each date is one slot
+  const slots = [];
+  for (const date of dates) {
+    for (const w of windows) {
+      const startsAt = localToUTC(date, w.start, timezone);
+      const endsAt = localToUTC(date, w.end, timezone);
+      const durationMinutes = Math.round(
+        (new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 60000,
+      );
+      slots.push({
+        artist_id: user.id,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        duration_minutes: durationMinutes,
+        status: "open" as const,
+      });
+    }
+  }
+
+  const { error } = await supabase.from("slots").insert(slots);
+  if (error) return { error: error.message };
+
+  revalidatePath("/bookings/settings");
+  return { success: true, count: slots.length };
+}
+
 export async function deleteSlotAction(slotId: string): Promise<ActionResult> {
   const supabase = await createClient();
   const {

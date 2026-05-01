@@ -3,7 +3,7 @@ import { formatSlotDisplay } from "@/lib/timezone";
 import { parseBooksSettings } from "@/lib/books-settings";
 import BookingModeForm from "./booking-mode-form";
 import AvailabilityForm from "./availability-form";
-import CreateSlotForm from "../slots/create-slot-form";
+import SlotPatternBuilder from "../slots/slot-pattern-builder";
 import SlotList from "../slots/slot-list";
 
 export default async function BookingSettingsPage() {
@@ -62,28 +62,20 @@ export default async function BookingSettingsPage() {
         </p>
       </div>
 
-      {/* Availability — at top as status indicator */}
+      {/* Availability */}
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">
-              Availability
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Control when and how many booking requests you accept.
-            </p>
-          </div>
-          <span
-            className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${
-              isOpen
-                ? "bg-green-500/10 text-green-500"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {isOpen ? "Open" : "Closed"}
-          </span>
+        <div className="border-b-2 border-border pb-2">
+          <h2 className="text-base font-semibold text-foreground">
+            Availability
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Control when and how many booking requests you accept.
+          </p>
         </div>
-        <AvailabilityForm settings={booksSettings} />
+        <AvailabilityForm
+          settings={booksSettings}
+          windowExpired={windowExpired}
+        />
       </section>
 
       {/* Booking Mode */}
@@ -96,7 +88,7 @@ export default async function BookingSettingsPage() {
             Choose how clients request sessions with you.
           </p>
         </div>
-        <BookingModeForm currentMode={bookingMode} />
+        <BookingModeForm currentMode={bookingMode} timezone={timezone} />
       </section>
 
       {/* Slots — only in fixed_slots mode */}
@@ -105,11 +97,11 @@ export default async function BookingSettingsPage() {
           <div className="border-b-2 border-border pb-2">
             <h2 className="text-base font-semibold text-foreground">Slots</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Publish time slots for clients to book. Times shown in{" "}
+              Publish time slots for clients to book. Times in{" "}
               <span className="text-foreground">{timezone}</span>.
             </p>
           </div>
-          <CreateSlotForm />
+          <SlotPatternBuilder timezone={timezone} />
           <SlotList slots={formattedSlots} />
         </section>
       )}
