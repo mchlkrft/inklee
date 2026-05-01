@@ -36,6 +36,37 @@ export async function createStudioAction(
   return { success: true };
 }
 
+export async function updateStudioAction(
+  _prev: State,
+  formData: FormData,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const id = formData.get("id") as string;
+  const name = (formData.get("name") as string)?.trim();
+  const city = (formData.get("city") as string)?.trim();
+  const country = (formData.get("country") as string)?.trim();
+  const address = (formData.get("address") as string)?.trim() || null;
+
+  if (!name || !city || !country) {
+    return { error: "name, city and country are required" };
+  }
+
+  const { error } = await supabase
+    .from("studios")
+    .update({ name, city, country, address })
+    .eq("id", id)
+    .eq("artist_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true };
+}
+
 export async function deleteStudioAction(id: string): Promise<State> {
   const supabase = await createClient();
   const {

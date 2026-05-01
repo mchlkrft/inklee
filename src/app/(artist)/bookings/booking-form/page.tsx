@@ -50,11 +50,11 @@ export default async function BookingFormPage() {
         </p>
       </div>
 
-      {/* Public page link + QR */}
+      {/* Share public page */}
       <section className="space-y-4">
         <div className="border-b-2 border-border pb-2">
           <h2 className="text-base font-semibold text-foreground">
-            Public page
+            Share public page
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Share this link with clients.
@@ -92,19 +92,6 @@ export default async function BookingFormPage() {
         </div>
       </section>
 
-      {/* Form appearance */}
-      <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
-            Appearance
-          </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Choose the colour theme of your public booking form.
-          </p>
-        </div>
-        <FormAppearanceForm current={booksSettings.form_appearance} />
-      </section>
-
       {/* Standard fields */}
       <section className="space-y-4">
         <div className="border-b-2 border-border pb-2">
@@ -131,6 +118,19 @@ export default async function BookingFormPage() {
           </p>
         </div>
         <FieldList fields={(fields as CustomFieldDef[]) ?? []} />
+      </section>
+
+      {/* Form appearance */}
+      <section className="space-y-4">
+        <div className="border-b-2 border-border pb-2">
+          <h2 className="text-base font-semibold text-foreground">
+            Appearance
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Choose the colour theme of your public booking form.
+          </p>
+        </div>
+        <FormAppearanceForm current={booksSettings.form_appearance} />
       </section>
     </div>
   );

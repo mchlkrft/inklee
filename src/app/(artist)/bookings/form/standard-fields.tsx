@@ -5,11 +5,11 @@ import { saveFormSettingsAction } from "./form-settings-actions";
 import type { FormSettings } from "@/lib/form-settings";
 
 const FIXED_FIELDS = [
-  { label: "instagram handle", note: "required" },
-  { label: "email", note: "required" },
-  { label: "placement", note: "required" },
-  { label: "size", note: "required" },
-  { label: "preferred date / slot", note: "required" },
+  { label: "instagram handle", note: "recommended" },
+  { label: "email", note: "recommended" },
+  { label: "placement", note: "recommended" },
+  { label: "size", note: "recommended" },
+  { label: "preferred date / slot", note: "recommended" },
 ];
 
 const CONFIGURABLE: {

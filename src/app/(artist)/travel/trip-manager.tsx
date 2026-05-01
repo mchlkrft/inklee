@@ -371,8 +371,8 @@ function EditTripModal({
         </button>
       </div>
 
-      {/* Edit form */}
-      <form action={editAction} className="space-y-4">
+      {/* Edit form — no submit button here; button lives at the bottom */}
+      <form id="edit-trip-form" action={editAction} className="space-y-4">
         <input type="hidden" name="id" value={trip.id} />
 
         <div className="space-y-1.5">
@@ -426,22 +426,6 @@ function EditTripModal({
             value={String(show)}
           />
         </div>
-
-        {editState && "error" in editState && (
-          <p className="text-sm text-destructive">{editState.error}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={editPending || deleting}
-          className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
-        >
-          {editPending ? (
-            <Spinner className="mx-auto h-4 w-4" />
-          ) : (
-            "Save changes"
-          )}
-        </button>
       </form>
 
       {/* Date ranges */}
@@ -500,8 +484,12 @@ function EditTripModal({
         <AddLegForm tripId={trip.id} studios={studios} />
       </div>
 
-      {/* Danger zone */}
-      <div className="pt-2 border-t border-border">
+      {/* Bottom actions */}
+      {editState && "error" in editState && (
+        <p className="text-sm text-destructive">{editState.error}</p>
+      )}
+
+      <div className="pt-2 border-t border-border flex items-center justify-between">
         <button
           type="button"
           disabled={deleting}
@@ -509,6 +497,18 @@ function EditTripModal({
           className="text-sm text-destructive hover:opacity-70 transition-opacity disabled:opacity-40"
         >
           {deleting ? "Deleting…" : "Delete trip"}
+        </button>
+        <button
+          type="submit"
+          form="edit-trip-form"
+          disabled={editPending || deleting}
+          className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+        >
+          {editPending ? (
+            <Spinner className="mx-auto h-4 w-4" />
+          ) : (
+            "Save changes"
+          )}
         </button>
       </div>
     </div>
@@ -574,7 +574,7 @@ function TripSummaryCard({
 type ModalState =
   | { type: "none" }
   | { type: "create" }
-  | { type: "edit"; trip: Trip };
+  | { type: "edit"; tripId: string };
 
 export default function TripManager({
   trips,
@@ -588,6 +588,12 @@ export default function TripManager({
   function closeModal() {
     setModal({ type: "none" });
   }
+
+  // Derive the current trip from props so the modal always reflects latest server data
+  const editTrip =
+    modal.type === "edit"
+      ? (trips.find((t) => t.id === modal.tripId) ?? null)
+      : null;
 
   return (
     <>
@@ -606,7 +612,7 @@ export default function TripManager({
           <TripSummaryCard
             key={trip.id}
             trip={trip}
-            onClick={() => setModal({ type: "edit", trip })}
+            onClick={() => setModal({ type: "edit", tripId: trip.id })}
           />
         ))}
 
@@ -623,10 +629,10 @@ export default function TripManager({
         </Modal>
       )}
 
-      {modal.type === "edit" && (
+      {modal.type === "edit" && editTrip && (
         <Modal onClose={closeModal}>
           <EditTripModal
-            trip={modal.trip}
+            trip={editTrip}
             studios={studios}
             onClose={closeModal}
           />
