@@ -76,8 +76,29 @@ function Modal({
 
 // ─── Create trip modal ────────────────────────────────────────────────────────
 
-function CreateTripModal({ onClose }: { onClose: () => void }) {
+type PendingStop = {
+  id: string;
+  startsOn: string;
+  endsOn: string;
+  studioId: string;
+  notes: string;
+};
+
+function CreateTripModal({
+  onClose,
+  studios,
+}: {
+  onClose: () => void;
+  studios: Studio[];
+}) {
   const [show, setShow] = useState(true);
+  const [stops, setStops] = useState<PendingStop[]>([]);
+  const [addingStop, setAddingStop] = useState(false);
+  const [stopFrom, setStopFrom] = useState("");
+  const [stopTo, setStopTo] = useState("");
+  const [stopStudio, setStopStudio] = useState("");
+  const [stopNotes, setStopNotes] = useState("");
+
   const [state, action, pending] = useActionState<State, FormData>(
     createTripAction,
     null,
@@ -89,6 +110,29 @@ function CreateTripModal({ onClose }: { onClose: () => void }) {
     }
     prevState.current = state;
   }, [state, onClose]);
+
+  function confirmStop() {
+    if (!stopFrom || !stopTo) return;
+    setStops((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        startsOn: stopFrom,
+        endsOn: stopTo,
+        studioId: stopStudio,
+        notes: stopNotes,
+      },
+    ]);
+    setStopFrom("");
+    setStopTo("");
+    setStopStudio("");
+    setStopNotes("");
+    setAddingStop(false);
+  }
+
+  function removeStop(id: string) {
+    setStops((prev) => prev.filter((s) => s.id !== id));
+  }
 
   return (
     <div className="px-6 py-5 space-y-4">
@@ -129,6 +173,133 @@ function CreateTripModal({ onClose }: { onClose: () => void }) {
             className="w-full resize-none rounded-md border-2 border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
+
+        {/* Stops on your trip */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground border-b border-border pb-1.5">
+            Stops on your trip
+          </h3>
+
+          {stops.length > 0 && (
+            <div className="divide-y divide-border rounded-md border-2 border-border">
+              {stops.map((stop) => (
+                <div
+                  key={stop.id}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm text-foreground">
+                      {formatDate(stop.startsOn)} — {formatDate(stop.endsOn)}
+                    </p>
+                    {stop.studioId && studios.length > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {studios.find((s) => s.id === stop.studioId)?.name}
+                      </p>
+                    )}
+                    {stop.notes && (
+                      <p className="text-sm text-muted-foreground italic">
+                        {stop.notes}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeStop(stop.id)}
+                    className="text-xs text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {addingStop ? (
+            <div className="space-y-3 rounded-md border-2 border-border px-4 py-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-sm text-muted-foreground">From</label>
+                  <DateInput
+                    value={stopFrom}
+                    onChange={(e) => setStopFrom(e.target.value)}
+                    className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-muted-foreground">To</label>
+                  <DateInput
+                    value={stopTo}
+                    onChange={(e) => setStopTo(e.target.value)}
+                    className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+
+              {studios.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-sm text-muted-foreground">
+                    Studio{" "}
+                    <span className="text-muted-foreground">(optional)</span>
+                  </label>
+                  <select
+                    value={stopStudio}
+                    onChange={(e) => setStopStudio(e.target.value)}
+                    className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">None</option>
+                    {studios.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} — {s.city}, {s.country}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">
+                  Notes{" "}
+                  <span className="text-muted-foreground">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={stopNotes}
+                  onChange={(e) => setStopNotes(e.target.value)}
+                  placeholder="e.g. walk-ins welcome"
+                  className="w-full rounded-md border-2 border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={confirmStop}
+                  disabled={!stopFrom || !stopTo}
+                  className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
+                >
+                  Add stop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddingStop(false)}
+                  className="rounded-md border-2 border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAddingStop(true)}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              + Add stop
+            </button>
+          )}
+        </div>
+
+        <input type="hidden" name="legs_json" value={JSON.stringify(stops)} />
 
         <div className="flex items-center justify-between rounded-md border-2 border-border px-4 py-3">
           <div>
@@ -215,7 +386,7 @@ function AddLegForm({
         onClick={() => setOpen(true)}
         className="text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
-        + Add date range
+        + Add stop
       </button>
     );
   }
@@ -225,7 +396,7 @@ function AddLegForm({
       action={action}
       className="space-y-3 rounded-md border-2 border-border px-4 py-4"
     >
-      <p className="text-sm font-medium text-foreground">Add date range</p>
+      <p className="text-sm font-medium text-foreground">Add stop</p>
       <input type="hidden" name="trip_id" value={tripId} />
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -288,7 +459,7 @@ function AddLegForm({
           disabled={pending}
           className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
-          {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Add"}
+          {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Add stop"}
         </button>
         <button
           type="button"
@@ -428,10 +599,10 @@ function EditTripModal({
         </div>
       </form>
 
-      {/* Date ranges */}
+      {/* Stops */}
       <div className="space-y-3">
         <h3 className="text-sm font-medium text-foreground border-b border-border pb-1.5">
-          Date ranges
+          Stops on your trip
         </h3>
 
         {trip.legs.length > 0 && (
@@ -478,7 +649,7 @@ function EditTripModal({
         )}
 
         {trip.legs.length === 0 && (
-          <p className="text-sm text-muted-foreground">No dates yet.</p>
+          <p className="text-sm text-muted-foreground">No stops yet.</p>
         )}
 
         <AddLegForm tripId={trip.id} studios={studios} />
@@ -625,7 +796,7 @@ export default function TripManager({
 
       {modal.type === "create" && (
         <Modal onClose={closeModal}>
-          <CreateTripModal onClose={closeModal} />
+          <CreateTripModal onClose={closeModal} studios={studios} />
         </Modal>
       )}
 

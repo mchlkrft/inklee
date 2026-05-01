@@ -103,14 +103,44 @@ export async function createTripAction(
 
   if (!title) return { error: "title is required" };
 
-  const { error } = await supabase.from("trips").insert({
-    artist_id: user.id,
-    title,
-    description,
-    show_on_booking_form: showOnBookingForm,
-  });
+  const { data: newTrip, error } = await supabase
+    .from("trips")
+    .insert({
+      artist_id: user.id,
+      title,
+      description,
+      show_on_booking_form: showOnBookingForm,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
+
+  const legsJson = formData.get("legs_json") as string | null;
+  if (legsJson) {
+    try {
+      const legs = JSON.parse(legsJson) as {
+        startsOn: string;
+        endsOn: string;
+        studioId: string;
+        notes: string;
+      }[];
+      if (legs.length > 0) {
+        await supabase.from("trip_legs").insert(
+          legs.map((l) => ({
+            trip_id: newTrip.id,
+            starts_on: l.startsOn,
+            ends_on: l.endsOn,
+            studio_id: l.studioId || null,
+            notes: l.notes || null,
+          })),
+        );
+      }
+    } catch {
+      // non-fatal — trip was created, legs can be added manually
+    }
+  }
+
   revalidatePath("/travel");
   return { success: true };
 }
