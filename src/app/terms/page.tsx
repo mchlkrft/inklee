@@ -78,7 +78,7 @@ export default function TermsPage() {
             </h2>
             <p>
               We may suspend accounts that violate these terms. You may delete
-              your account at any time by contacting hello@inklee.app.
+              your account at any time by contacting support@inklee.app.
             </p>
           </section>
 
@@ -89,10 +89,10 @@ export default function TermsPage() {
             <p>
               Questions:{" "}
               <a
-                href="mailto:hello@inklee.app"
+                href="mailto:support@inklee.app"
                 className="text-foreground underline underline-offset-4"
               >
-                hello@inklee.app
+                support@inklee.app
               </a>
             </p>
           </section>

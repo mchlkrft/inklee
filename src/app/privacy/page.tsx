@@ -125,10 +125,10 @@ export default function PrivacyPage() {
               You have the right to access, correct, and delete your data. To
               exercise these rights, email{" "}
               <a
-                href="mailto:hello@inklee.app"
+                href="mailto:support@inklee.app"
                 className="text-foreground underline underline-offset-4"
               >
-                hello@inklee.app
+                support@inklee.app
               </a>
               . We will respond within 30 days.
             </p>
@@ -138,10 +138,10 @@ export default function PrivacyPage() {
             <h2 className="text-base font-medium text-foreground">Contact</h2>
             <p>
               <a
-                href="mailto:hello@inklee.app"
+                href="mailto:support@inklee.app"
                 className="text-foreground underline underline-offset-4"
               >
-                hello@inklee.app
+                support@inklee.app
               </a>
             </p>
           </section>

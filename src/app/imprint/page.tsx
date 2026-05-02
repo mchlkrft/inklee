@@ -48,10 +48,10 @@ export default function ImprintPage() {
             <p>
               E-mail:{" "}
               <a
-                href="mailto:hello@inklee.app"
+                href="mailto:support@inklee.app"
                 className="text-foreground underline underline-offset-4"
               >
-                hello@inklee.app
+                support@inklee.app
               </a>
             </p>
           </section>

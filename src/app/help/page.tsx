@@ -39,7 +39,7 @@ const FAQ = [
   },
   {
     q: "How do I delete my account?",
-    a: "Email hello@inklee.app and we'll delete your account and all associated data within 30 days.",
+    a: "Email support@inklee.app and we'll delete your account and all associated data within 30 days.",
   },
 ];
 
@@ -74,10 +74,10 @@ export default function HelpPage() {
         <p className="text-sm text-muted-foreground">
           Still have a question?{" "}
           <a
-            href="mailto:hello@inklee.app"
+            href="mailto:support@inklee.app"
             className="text-foreground underline underline-offset-4"
           >
-            hello@inklee.app
+            support@inklee.app
           </a>
         </p>
       </main>
