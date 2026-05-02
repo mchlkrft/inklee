@@ -68,7 +68,6 @@ export async function editCustomerBookingAction(
     size: formData.get("size"),
     description: formData.get("description"),
     preferred_date: formData.get("preferred_date"),
-    website: formData.get("website"),
   };
 
   const parsed = bookingSchema.safeParse(raw);

@@ -8,6 +8,7 @@ import { todayInTimeZone } from "@/lib/date-utils";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { createNotification } from "@/lib/notifications";
 import { computeFlashAvailability } from "@/lib/flash";
+import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -21,7 +22,6 @@ const flashBookingSchema = z.object({
   placement: z.string().min(1, "placement is required").max(200),
   preferred_date: z.string().min(1, "preferred date is required"),
   notes: z.string().max(500).optional(),
-  website: z.string().optional(), // honeypot
 });
 
 type State = { error: string; field?: string } | null;
@@ -30,8 +30,8 @@ export async function submitFlashBookingAction(
   _prev: State,
   formData: FormData,
 ): Promise<State> {
-  // Honeypot
-  if (formData.get("website")) return null;
+  // Honeypot — silently succeed so bots don't know they were blocked.
+  if (isHoneypotTriggered(formData.get(HONEYPOT_FIELD))) return null;
 
   // Origin check
   const headersList = await headers();
@@ -56,7 +56,6 @@ export async function submitFlashBookingAction(
     placement: formData.get("placement"),
     preferred_date: formData.get("preferred_date"),
     notes: formData.get("notes"),
-    website: formData.get("website"),
   };
 
   const parsed = flashBookingSchema.safeParse(raw);

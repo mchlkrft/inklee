@@ -16,6 +16,7 @@ import type { Annotation } from "@/lib/annotations";
 import AnnotationModal from "./annotation-modal";
 import type { BookingMode } from "@/lib/booking-domain";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 
 type State = { error: string; field?: string } | null;
 
@@ -611,11 +612,12 @@ export default function BookingForm({
         })}
 
         <input
-          name="website"
+          name={HONEYPOT_FIELD}
           type="text"
           tabIndex={-1}
-          className="hidden"
-          aria-hidden
+          autoComplete="off"
+          aria-hidden="true"
+          className="absolute h-px w-px overflow-hidden -left-[9999px] top-auto"
         />
         {demoBlocked && (
           <div className="rounded-md border border-brand-mustard/30 bg-brand-mustard/5 px-4 py-3 space-y-1">

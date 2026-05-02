@@ -16,7 +16,6 @@ export const bookingSchema = z.object({
     .or(z.literal(""))
     .optional(),
   description: z.string().max(1000, "max 1000 characters"),
-  website: z.string().optional(),
 });
 
 export type BookingInput = z.infer<typeof bookingSchema>;

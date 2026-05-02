@@ -4,6 +4,7 @@ import DateInput from "@/components/date-input";
 import { useActionState, startTransition } from "react";
 import Link from "next/link";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { submitFlashBookingAction } from "./actions";
 
 type State = { error: string; field?: string } | null;
@@ -146,11 +147,12 @@ export default function FlashBookingForm({
 
       {/* Honeypot */}
       <input
-        name="website"
+        name={HONEYPOT_FIELD}
         type="text"
         tabIndex={-1}
-        className="hidden"
-        aria-hidden
+        autoComplete="off"
+        aria-hidden="true"
+        className="absolute h-px w-px overflow-hidden -left-[9999px] top-auto"
       />
 
       <button

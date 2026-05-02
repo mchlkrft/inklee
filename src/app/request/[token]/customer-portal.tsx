@@ -10,6 +10,7 @@ import { SIZES } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
 import StatusBadge from "@/components/status-badge";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 
 const DepositPaymentForm = lazy(
   () => import("@/components/deposit-payment-form"),
@@ -84,11 +85,12 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
         <form action={editAction} className="space-y-5">
           <input type="hidden" name="_token" value={booking.token} />
           <input
-            name="website"
+            name={HONEYPOT_FIELD}
             type="text"
             tabIndex={-1}
-            className="hidden"
-            aria-hidden
+            autoComplete="off"
+            aria-hidden="true"
+            className="absolute h-px w-px overflow-hidden -left-[9999px] top-auto"
           />
 
           {editState?.error && !editState.field && (

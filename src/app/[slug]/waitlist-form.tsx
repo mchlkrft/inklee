@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { submitWaitlistAction, type WaitlistState } from "./actions";
 
 export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
@@ -25,11 +26,12 @@ export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
     <form action={action} className="space-y-3 text-left">
       <input type="hidden" name="artist_slug" value={artistSlug} />
       <input
-        name="website"
+        name={HONEYPOT_FIELD}
         type="text"
         tabIndex={-1}
-        className="hidden"
-        aria-hidden
+        autoComplete="off"
+        aria-hidden="true"
+        className="absolute h-px w-px overflow-hidden -left-[9999px] top-auto"
       />
 
       {state && "error" in state && !state.field && (

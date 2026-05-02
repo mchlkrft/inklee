@@ -29,6 +29,7 @@ import {
   isDateKeyOnOrBefore,
   todayInTimeZone,
 } from "@/lib/date-utils";
+import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB raw input limit
@@ -40,9 +41,10 @@ export async function submitBookingAction(
   _prev: State,
   formData: FormData,
 ): Promise<State> {
-  // Honeypot check — silently succeed so bots don't know they were blocked
-  const honeypot = formData.get("website") as string;
-  if (honeypot) return null;
+  // Honeypot check — silently succeed so bots don't know they were blocked.
+  // Tightened: only treat URL-shaped or very long fills as bot signal so
+  // browser autofill writing into the hidden field doesn't false-positive.
+  if (isHoneypotTriggered(formData.get(HONEYPOT_FIELD))) return null;
 
   // Origin check — reject submissions from unexpected domains
   const headersList = await headers();
@@ -90,7 +92,6 @@ export async function submitBookingAction(
     size: (formData.get("size") as string) ?? "",
     description: (formData.get("description") as string) ?? "",
     preferred_date: (formData.get("preferred_date") as string) ?? "",
-    website: formData.get("website"),
   };
 
   // Presence checks — only enforce optional fields when the artist has enabled them.
@@ -524,8 +525,8 @@ export async function submitWaitlistAction(
   _prev: WaitlistState,
   formData: FormData,
 ): Promise<WaitlistState> {
-  // Honeypot
-  if (formData.get("website")) return { ok: true };
+  // Honeypot — silently succeed so bots don't know they were blocked.
+  if (isHoneypotTriggered(formData.get(HONEYPOT_FIELD))) return { ok: true };
 
   const headersList = await headers();
   const ip =
