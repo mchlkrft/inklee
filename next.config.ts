@@ -47,6 +47,13 @@ const nextConfig: NextConfig = {
       headers: securityHeaders,
     },
   ],
+  redirects: async () => [
+    {
+      source: "/impressum",
+      destination: "/imprint",
+      permanent: true,
+    },
+  ],
 };
 
 export default nextConfig;

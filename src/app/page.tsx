@@ -408,10 +408,10 @@ function SiteFooter() {
               </li>
               <li>
                 <Link
-                  href="/impressum"
+                  href="/imprint"
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Impressum
+                  Imprint
                 </Link>
               </li>
             </ul>

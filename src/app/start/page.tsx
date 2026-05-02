@@ -369,10 +369,10 @@ export default async function StartPage() {
               Privacy
             </Link>
             <Link
-              href="/impressum"
+              href="/imprint"
               className="transition-colors hover:text-foreground"
             >
-              Impressum
+              Imprint
             </Link>
           </div>
         </div>

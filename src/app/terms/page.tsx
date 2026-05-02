@@ -15,16 +15,17 @@ export default function TermsPage() {
           <h1 className="text-2xl font-semibold text-foreground">
             Terms of Service
           </h1>
-          <p className="text-xs">Last updated: April 2026</p>
+          <p className="text-xs">Last updated: May 2026</p>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
               1. Service
             </h2>
             <p>
-              inklee provides a booking request platform for tattoo artists. We
-              are not a party to any booking agreement between artists and their
-              customers.
+              Inklee is operated by Inklee OÜ (Pärnu mnt. 105, 11312 Tallinn,
+              Estonia). The platform provides booking request management for
+              tattoo artists. Inklee OÜ is not a party to any booking agreement
+              between an artist and their client.
             </p>
           </section>
 

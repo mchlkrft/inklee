@@ -289,10 +289,10 @@ export default async function ArtistPublicPage({
           Privacy
         </Link>
         <Link
-          href="/impressum"
+          href="/imprint"
           className="transition-colors hover:text-foreground"
         >
-          Impressum
+          Imprint
         </Link>
         <span>·</span>
         <Link href="/" className="transition-colors hover:text-foreground">

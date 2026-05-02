@@ -15,7 +15,20 @@ export default function PrivacyPage() {
           <h1 className="text-2xl font-semibold text-foreground">
             Privacy Policy
           </h1>
-          <p className="text-xs">Last updated: April 2026</p>
+          <p className="text-xs">Last updated: May 2026</p>
+
+          <section className="space-y-2">
+            <h2 className="text-base font-medium text-foreground">
+              Data controller
+            </h2>
+            <p>
+              Inklee OÜ, Pärnu mnt. 105, 11312 Tallinn, Estonia. See the{" "}
+              <Link href="/imprint" className="underline underline-offset-4">
+                Imprint
+              </Link>{" "}
+              for full company details.
+            </p>
+          </section>
 
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">

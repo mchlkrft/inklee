@@ -456,10 +456,10 @@ function LandingFooter() {
               Privacy
             </Link>
             <Link
-              href="/impressum"
+              href="/imprint"
               className="transition-colors hover:text-foreground"
             >
-              Impressum
+              Imprint
             </Link>
           </div>
           <span className="text-xs text-muted-foreground">
