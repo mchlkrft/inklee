@@ -8,8 +8,15 @@ if (typeof window !== "undefined") {
   throw new Error("supabase/service must not be imported in client components");
 }
 
-export const serviceClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } },
-);
+// Build-safe: page-data collection during `next build` evaluates server
+// modules even when env vars are not provided (e.g. preview deployments
+// without env scoping). Use placeholders so module evaluation succeeds;
+// real values are picked up at runtime where they are always defined.
+const url =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
+const key =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-service-role-key";
+
+export const serviceClient = createClient(url, key, {
+  auth: { persistSession: false },
+});
