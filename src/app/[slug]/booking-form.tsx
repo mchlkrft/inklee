@@ -17,6 +17,7 @@ import AnnotationModal from "./annotation-modal";
 import type { BookingMode } from "@/lib/booking-domain";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import { compressImageInBrowser } from "@/lib/image-compress";
 
 type State = { error: string; field?: string } | null;
 
@@ -159,7 +160,9 @@ export default function BookingForm({
     setAnnotatingId(null);
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const [compressing, setCompressing] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isDemoAccount) {
       setDemoBlocked(true);
@@ -167,9 +170,27 @@ export default function BookingForm({
     }
     const fd = new FormData(e.currentTarget);
     fd.delete("images");
-    imageEntries.forEach((entry) => fd.append("images", entry.file));
     fd.set("artist_slug", artistSlug);
-    // Serialize annotations as a parallel array (same order as images)
+
+    // Compress images in the browser before upload — Vercel Hobby caps the
+    // total request body at ~4.5 MB, which a couple of phone photos easily
+    // exceed. The server still re-processes via sharp() to enforce final
+    // dimensions and produce the canonical WebP.
+    let attachments = imageEntries.map((entry) => entry.file);
+    if (attachments.length > 0) {
+      setCompressing(true);
+      try {
+        attachments = await Promise.all(
+          imageEntries.map((entry) => compressImageInBrowser(entry.file)),
+        );
+      } finally {
+        setCompressing(false);
+      }
+    }
+    attachments.forEach((file) => fd.append("images", file));
+
+    // Serialize annotations as a parallel array (same order as images).
+    // Coordinates are 0–1 normalized so compression does not displace pins.
     if (annotationsEnabled) {
       const annotationsPayload = imageEntries.map(
         (entry) => annotationMap[entry.id] ?? [],
@@ -635,10 +656,14 @@ export default function BookingForm({
 
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || compressing}
           className="w-full rounded-md bg-brand-mustard px-4 py-3 text-base font-medium text-brand-charcoal disabled:opacity-50"
         >
-          {pending ? "Sending..." : `Send request to ${artistFirstName}`}
+          {compressing
+            ? "Preparing photos..."
+            : pending
+              ? "Sending..."
+              : `Send request to ${artistFirstName}`}
         </button>
 
         <p className="text-center text-xs text-muted-foreground">
