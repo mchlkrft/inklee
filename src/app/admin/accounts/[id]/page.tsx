@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { isAdminEmail } from "@/lib/admin-guard";
-import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/admin-guard";
 import { getAccountDetail } from "@/lib/admin-queries";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { parseFormSettings } from "@/lib/form-settings";
@@ -66,15 +64,7 @@ export default async function AccountDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
-  const supabase = await createClient();
-  const {
-    data: { user: adminUser },
-  } = await supabase.auth.getUser();
-
-  if (!adminUser || !isAdminEmail(adminUser.email)) {
-    redirect("/dashboard");
-  }
+  const adminId = await requireAdmin();
 
   const detail = await getAccountDetail(id);
   if (!detail.profile) notFound();
@@ -103,7 +93,7 @@ export default async function AccountDetailPage({
   const publicUrl = `${appUrl}/${profile.slug}`;
 
   const accountStatus = (profile.account_status as string) ?? "active";
-  const isSelf = adminUser.id === profile.id;
+  const isSelf = adminId === profile.id;
   const isTester = profile.is_tester ?? false;
 
   return (

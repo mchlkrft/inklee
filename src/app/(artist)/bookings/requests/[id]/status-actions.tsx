@@ -1,6 +1,7 @@
 "use client";
 
 import DateInput from "@/components/date-input";
+import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { useOptimistic, useState, useTransition } from "react";
 import {
   approveBooking,
@@ -16,9 +17,7 @@ type Booking = {
 };
 
 function tomorrow(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
+  return addDaysToDateKey(localDateKey(), 1);
 }
 
 export default function StatusActions({ booking }: { booking: Booking }) {

@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import NavBar from "@/components/nav-bar";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function ArtistLayout({
   children,
@@ -25,24 +25,28 @@ export default async function ArtistLayout({
 
   let unreadCount = 0;
   try {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("artist_id", user.id)
       .eq("is_read", false);
-    unreadCount = count ?? 0;
-  } catch {
-    // notifications table may not be ready — default to 0
+
+    if (error) {
+      console.error("[notifications/unread-count]", error.message, {
+        artistId: user.id,
+      });
+    } else {
+      unreadCount = count ?? 0;
+    }
+  } catch (error) {
+    console.error("[notifications/unread-count]", error, {
+      artistId: user.id,
+    });
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      <NavBar
-        slug={slug}
-        displayName={displayName}
-        unreadCount={unreadCount ?? 0}
-      />
-      {/* pb-28 accounts for fixed bottom tab bar (h-[4.5rem] ≈ 72px) + iOS safe area */}
+      <NavBar slug={slug} displayName={displayName} unreadCount={unreadCount} />
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 pb-28 md:px-6 md:py-8 md:pb-8">
         {children}
       </main>

@@ -2,10 +2,34 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import {
+  validateTripLeg,
+  validateTripLegsPayload,
+} from "@/lib/trip-validation";
 
 type State = { error: string } | { success: true } | null;
 
-// -- Studio actions --
+async function validateOwnedStudios(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  artistId: string,
+  studioIds: string[],
+): Promise<string | null> {
+  if (studioIds.length === 0) return null;
+
+  const uniqueIds = [...new Set(studioIds)];
+  const { data: studios, error } = await supabase
+    .from("studios")
+    .select("id")
+    .eq("artist_id", artistId)
+    .in("id", uniqueIds);
+
+  if (error) return error.message;
+  if ((studios ?? []).length !== uniqueIds.length) {
+    return "one or more selected studios are invalid";
+  }
+
+  return null;
+}
 
 export async function createStudioAction(
   _prev: State,
@@ -85,8 +109,6 @@ export async function deleteStudioAction(id: string): Promise<State> {
   return { success: true };
 }
 
-// -- Trip actions --
-
 export async function createTripAction(
   _prev: State,
   formData: FormData,
@@ -103,6 +125,24 @@ export async function createTripAction(
 
   if (!title) return { error: "title is required" };
 
+  let legs;
+  try {
+    legs = validateTripLegsPayload(
+      (formData.get("legs_json") as string) || null,
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "trip stops are invalid",
+    };
+  }
+
+  const studioError = await validateOwnedStudios(
+    supabase,
+    user.id,
+    legs.map((leg) => leg.studioId).filter(Boolean) as string[],
+  );
+  if (studioError) return { error: studioError };
+
   const { data: newTrip, error } = await supabase
     .from("trips")
     .insert({
@@ -116,28 +156,20 @@ export async function createTripAction(
 
   if (error) return { error: error.message };
 
-  const legsJson = formData.get("legs_json") as string | null;
-  if (legsJson) {
-    try {
-      const legs = JSON.parse(legsJson) as {
-        startsOn: string;
-        endsOn: string;
-        studioId: string;
-        notes: string;
-      }[];
-      if (legs.length > 0) {
-        await supabase.from("trip_legs").insert(
-          legs.map((l) => ({
-            trip_id: newTrip.id,
-            starts_on: l.startsOn,
-            ends_on: l.endsOn,
-            studio_id: l.studioId || null,
-            notes: l.notes || null,
-          })),
-        );
-      }
-    } catch {
-      // non-fatal — trip was created, legs can be added manually
+  if (legs.length > 0) {
+    const { error: legsError } = await supabase.from("trip_legs").insert(
+      legs.map((leg) => ({
+        trip_id: newTrip.id,
+        starts_on: leg.startsOn,
+        ends_on: leg.endsOn,
+        studio_id: leg.studioId,
+        notes: leg.notes,
+      })),
+    );
+
+    if (legsError) {
+      await supabase.from("trips").delete().eq("id", newTrip.id);
+      return { error: legsError.message };
     }
   }
 
@@ -212,8 +244,6 @@ export async function deleteTripAction(id: string): Promise<State> {
   return { success: true };
 }
 
-// -- Trip leg actions --
-
 export async function createTripLegAction(
   _prev: State,
   formData: FormData,
@@ -225,16 +255,23 @@ export async function createTripLegAction(
   if (!user) return { error: "not authenticated" };
 
   const tripId = formData.get("trip_id") as string;
-  const studioId = (formData.get("studio_id") as string) || null;
-  const startsOn = formData.get("starts_on") as string;
-  const endsOn = formData.get("ends_on") as string;
   const notes = (formData.get("notes") as string)?.trim() || null;
+  if (!tripId) return { error: "trip, start date and end date are required" };
 
-  if (!tripId || !startsOn || !endsOn) {
-    return { error: "trip, start date and end date are required" };
+  let leg;
+  try {
+    leg = validateTripLeg({
+      startsOn: formData.get("starts_on"),
+      endsOn: formData.get("ends_on"),
+      studioId: (formData.get("studio_id") as string) || null,
+      notes,
+    });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "trip stop is invalid",
+    };
   }
 
-  // Verify ownership via trips table
   const { data: trip } = await supabase
     .from("trips")
     .select("id")
@@ -244,12 +281,19 @@ export async function createTripLegAction(
 
   if (!trip) return { error: "trip not found" };
 
+  const studioError = await validateOwnedStudios(
+    supabase,
+    user.id,
+    leg.studioId ? [leg.studioId] : [],
+  );
+  if (studioError) return { error: studioError };
+
   const { error } = await supabase.from("trip_legs").insert({
     trip_id: tripId,
-    studio_id: studioId || null,
-    starts_on: startsOn,
-    ends_on: endsOn,
-    notes,
+    studio_id: leg.studioId,
+    starts_on: leg.startsOn,
+    ends_on: leg.endsOn,
+    notes: leg.notes,
   });
 
   if (error) return { error: error.message };
@@ -263,6 +307,15 @@ export async function deleteTripLegAction(id: string): Promise<State> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "not authenticated" };
+
+  const { data: leg } = await supabase
+    .from("trip_legs")
+    .select("id, trips!inner(artist_id)")
+    .eq("id", id)
+    .eq("trips.artist_id", user.id)
+    .single();
+
+  if (!leg) return { error: "trip stop not found" };
 
   const { error } = await supabase.from("trip_legs").delete().eq("id", id);
 

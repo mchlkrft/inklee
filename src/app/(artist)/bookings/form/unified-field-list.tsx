@@ -50,7 +50,6 @@ const STD: StdConfig[] = [
   {
     id: "preferred_date",
     label: "Preferred date / slot",
-    toggleKey: "show_preferred_date",
   },
 ];
 

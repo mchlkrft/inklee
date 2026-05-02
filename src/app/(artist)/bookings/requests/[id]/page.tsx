@@ -8,6 +8,9 @@ import CommunicationSidebar from "./communication-sidebar";
 import type { Annotation } from "@/lib/annotations";
 import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { formatCustomAnswer } from "@/lib/custom-fields";
+import { bookingModeFromRequest, bookingModeLabel } from "@/lib/booking-domain";
+import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
+import { formatSlotDisplay } from "@/lib/timezone";
 
 export default async function RequestDetailPage({
   params,
@@ -23,7 +26,7 @@ export default async function RequestDetailPage({
   const { data: booking } = await supabase
     .from("booking_requests")
     .select(
-      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status)",
+      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status), trips(title), slots(starts_at, duration_minutes), profiles!artist_id(timezone)",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
@@ -34,6 +37,24 @@ export default async function RequestDetailPage({
   const fd = booking.form_data as Record<string, unknown> | null;
   const customAnswers =
     (fd?.custom_answers as CustomAnswerSnapshot[] | undefined) ?? [];
+  const bookingMode = bookingModeFromRequest({ slot_id: booking.slot_id });
+  const artistProfile = Array.isArray(booking.profiles)
+    ? booking.profiles[0]
+    : booking.profiles;
+  const artistTimeZone =
+    (artistProfile as { timezone?: string } | null)?.timezone ??
+    "Europe/Berlin";
+  const slotInfo =
+    booking.slot_id && booking.slots
+      ? formatSlotDisplay(
+          (booking.slots as { starts_at: string }).starts_at,
+          (booking.slots as { duration_minutes: number }).duration_minutes,
+          artistTimeZone,
+        )
+      : null;
+  const tripTitle = Array.isArray(booking.trips)
+    ? booking.trips[0]?.title
+    : ((booking.trips as { title?: string } | null)?.title ?? null);
 
   const { data: reminderLog } = await supabase
     .from("audit_log")
@@ -89,6 +110,7 @@ export default async function RequestDetailPage({
               </div>
             )}
             <Row label="Instagram" value={`@${booking.customer_handle}`} />
+            <Row label="Booking type" value={bookingModeLabel(bookingMode)} />
             <Row label="Email" value={booking.customer_email ?? "-"} />
             <Row label="Placement" value={(fd?.placement as string) ?? "-"} />
             <Row label="Size" value={(fd?.size as string) ?? "-"} />
@@ -100,6 +122,13 @@ export default async function RequestDetailPage({
                   : "-"
               }
             />
+            {slotInfo && (
+              <Row
+                label="Slot time"
+                value={`${slotInfo.date} · ${slotInfo.time}`}
+              />
+            )}
+            {tripTitle && <Row label="Location" value={tripTitle} />}
             {typeof fd?.reference_link === "string" && (
               <div className="flex px-4 py-3 gap-4">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">
@@ -187,7 +216,10 @@ export default async function RequestDetailPage({
               hasMagicLink={!!booking.customer_token_hash}
               hasUpcomingDate={
                 !!booking.preferred_date &&
-                booking.preferred_date >= new Date().toISOString().split("T")[0]
+                isDateKeyOnOrAfter(
+                  booking.preferred_date,
+                  todayInTimeZone(artistTimeZone),
+                )
               }
               log={(reminderLog ?? []).map((e) => ({
                 action: e.action,

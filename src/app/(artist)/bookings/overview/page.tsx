@@ -24,11 +24,11 @@ type ClientRow = {
 
 async function RequestsView({
   status,
-  leg,
+  trip,
   publicUrl,
 }: {
   status: string;
-  leg: string;
+  trip: string;
   publicUrl: string | null;
 }) {
   const supabase = await createClient();
@@ -36,12 +36,11 @@ async function RequestsView({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: travelLegs } = await supabase
-    .from("travel_legs")
-    .select("id, city")
+  const { data: trips } = await supabase
+    .from("trips")
+    .select("id, title")
     .eq("artist_id", user!.id)
-    .eq("is_active", true)
-    .order("starts_on", { ascending: false });
+    .order("created_at", { ascending: false });
 
   let query = supabase
     .from("booking_requests")
@@ -52,7 +51,7 @@ async function RequestsView({
     .order("created_at", { ascending: false });
 
   if (status !== "all") query = query.eq("status", status);
-  if (leg !== "all") query = query.eq("travel_leg_id", leg);
+  if (trip !== "all") query = query.eq("trip_id", trip);
 
   const { data: bookings } = await query;
 
@@ -62,11 +61,11 @@ async function RequestsView({
         {STATUS_FILTERS.map((f) => {
           const href =
             f.value === "all"
-              ? leg !== "all"
-                ? `/bookings/overview?leg=${leg}`
+              ? trip !== "all"
+                ? `/bookings/overview?trip=${trip}`
                 : "/bookings/overview"
-              : leg !== "all"
-                ? `/bookings/overview?status=${f.value}&leg=${leg}`
+              : trip !== "all"
+                ? `/bookings/overview?status=${f.value}&trip=${trip}`
                 : `/bookings/overview?status=${f.value}`;
           return (
             <Link
@@ -84,7 +83,7 @@ async function RequestsView({
         })}
       </div>
 
-      {travelLegs && travelLegs.length > 0 && (
+      {trips && trips.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           <Link
             href={
@@ -93,29 +92,29 @@ async function RequestsView({
                 : "/bookings/overview"
             }
             className={`rounded-full px-3 py-1 text-sm transition-colors ${
-              leg === "all"
+              trip === "all"
                 ? "bg-brand-mustard text-brand-charcoal"
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
           >
             All trips
           </Link>
-          {travelLegs.map((l) => {
+          {trips.map((t) => {
             const href =
               status !== "all"
-                ? `/bookings/overview?status=${status}&leg=${l.id}`
-                : `/bookings/overview?leg=${l.id}`;
+                ? `/bookings/overview?status=${status}&trip=${t.id}`
+                : `/bookings/overview?trip=${t.id}`;
             return (
               <Link
-                key={l.id}
+                key={t.id}
                 href={href}
                 className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                  leg === l.id
+                  trip === t.id
                     ? "bg-brand-mustard text-brand-charcoal"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {l.city}
+                {t.title}
               </Link>
             );
           })}
@@ -327,9 +326,20 @@ async function ClientsView({ publicUrl }: { publicUrl: string | null }) {
 export default async function BookingOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; status?: string; leg?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    status?: string;
+    trip?: string;
+    leg?: string;
+  }>;
 }) {
-  const { view = "requests", status = "all", leg = "all" } = await searchParams;
+  const {
+    view = "requests",
+    status = "all",
+    trip: tripParam,
+    leg: legacyLeg,
+  } = await searchParams;
+  const trip = tripParam ?? legacyLeg ?? "all";
   const supabase = await createClient();
   const {
     data: { user },
@@ -385,7 +395,7 @@ export default async function BookingOverviewPage({
       {view === "clients" ? (
         <ClientsView publicUrl={publicUrl} />
       ) : (
-        <RequestsView status={status} leg={leg} publicUrl={publicUrl} />
+        <RequestsView status={status} trip={trip} publicUrl={publicUrl} />
       )}
     </div>
   );

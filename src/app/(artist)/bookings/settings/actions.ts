@@ -102,7 +102,7 @@ export async function skipSlotSetupAction(): Promise<
     .contains("metadata", { warning_type: "no_slots_warning" });
 
   if ((count ?? 0) === 0) {
-    await createNotification({
+    const notificationResult = await createNotification({
       artistId: user.id,
       type: "system_warning",
       category: "system_warning",
@@ -115,6 +115,9 @@ export async function skipSlotSetupAction(): Promise<
       isResolved: false,
       metadata: { warning_type: "no_slots_warning" },
     });
+    if (!notificationResult.ok) {
+      return { error: notificationResult.error };
+    }
   }
 
   return { success: true };

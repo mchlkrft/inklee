@@ -9,6 +9,7 @@ import {
 import { SIZES } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
 import StatusBadge from "@/components/status-badge";
+import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 
 const DepositPaymentForm = lazy(
   () => import("@/components/deposit-payment-form"),
@@ -26,6 +27,9 @@ type Booking = {
   referenceLink: string | null;
   preferredDate: string;
   artistName: string;
+  bookingModeLabel: string;
+  canEdit: boolean;
+  editDisabledReason: string | null;
   depositAmount: number | null;
   depositDueAt: string | null;
   depositNote: string | null;
@@ -34,9 +38,7 @@ type Booking = {
 };
 
 const tomorrow = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
+  return addDaysToDateKey(localDateKey(), 1);
 };
 
 export default function CustomerPortal({ booking }: { booking: Booking }) {
@@ -237,6 +239,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           <StatusBadge status={booking.status} />
         </Row>
         <Row label="Instagram" value={`@${booking.handle}`} />
+        <Row label="Booking type" value={booking.bookingModeLabel} />
         <Row label="Placement" value={booking.placement} />
         <Row label="Size" value={booking.size} />
         <Row label="Preferred date" value={formatDate(booking.preferredDate)} />
@@ -315,13 +318,19 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
 
       {!isCancelled && (
         <div className="space-y-3">
-          {isPending && (
+          {isPending && booking.canEdit && (
             <button
               onClick={() => setMode("edit")}
               className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted/30"
             >
               Edit request
             </button>
+          )}
+
+          {isPending && !booking.canEdit && booking.editDisabledReason && (
+            <div className="rounded-md border border-border px-4 py-3 text-sm text-muted-foreground">
+              {booking.editDisabledReason}
+            </div>
           )}
 
           {!confirmCancel ? (

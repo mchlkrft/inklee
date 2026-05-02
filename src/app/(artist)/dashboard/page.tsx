@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { parseDashboardWidgets } from "@/lib/dashboard-settings";
+import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
@@ -14,7 +15,6 @@ import {
   BarChart3,
   Sparkles,
 } from "lucide-react";
-
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("slug, display_name, settings")
+    .select("slug, display_name, settings, timezone, bio")
     .eq("id", user!.id)
     .single();
 
@@ -32,10 +32,10 @@ export default async function DashboardPage() {
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const widgets = parseDashboardWidgets(profileSettings.dashboard_widgets);
 
-  const now = new Date();
+  const today = todayInTimeZone(profile?.timezone ?? "Europe/Berlin");
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&
-    new Date(booksSettings.booking_window_ends_at) < now;
+    isDateKeyBefore(booksSettings.booking_window_ends_at, today);
   const booksOpen = booksSettings.books_open && !windowExpired;
 
   const [pendingResult, upcomingResult, waitlistResult, capResult] =
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
             .eq("artist_id", user!.id)
             .eq("status", "approved")
             .not("preferred_date", "is", null)
-            .gte("preferred_date", now.toISOString().split("T")[0])
+            .gte("preferred_date", today)
             .order("preferred_date", { ascending: true })
             .limit(3)
         : Promise.resolve({ data: null }),
@@ -121,6 +121,24 @@ export default async function DashboardPage() {
         </Link>
       )}
 
+      {onboardingCompleted && !profile?.bio && (
+        <Link
+          href="/settings/profile"
+          className="flex items-center justify-between rounded-md border border-dashed border-border px-4 py-3 transition-colors hover:bg-muted/20"
+        >
+          <div className="flex items-center gap-3">
+            <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="text-sm text-foreground">Add a short bio</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Help clients understand your style before they book.
+              </p>
+            </div>
+          </div>
+          <span className="text-sm text-muted-foreground">&rarr;</span>
+        </Link>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {widgets.pending_requests && (
           <div className="space-y-3 rounded-md border border-border p-5">
@@ -151,7 +169,7 @@ export default async function DashboardPage() {
                   {pendingBookings.map((b) => (
                     <Link
                       key={b.id}
-                      href={`/bookings/overview/${b.id}`}
+                      href={`/bookings/requests/${b.id}`}
                       className="group flex items-center justify-between py-1 hover:text-foreground"
                     >
                       <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
@@ -231,7 +249,7 @@ export default async function DashboardPage() {
                   return (
                     <Link
                       key={b.id}
-                      href={`/bookings/overview/${b.id}`}
+                      href={`/bookings/requests/${b.id}`}
                       className="group flex items-center justify-between"
                     >
                       <div>

@@ -34,12 +34,25 @@ export interface InstagramUserResponse {
 // ─── Configuration helpers ──────────────────────────────────────────────────
 
 export function isInstagramConfigured(): boolean {
-  return !!(process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET);
+  return !!(
+    process.env.INSTAGRAM_APP_ID &&
+    process.env.INSTAGRAM_APP_SECRET &&
+    (process.env.INSTAGRAM_STATE_SECRET || process.env.CRON_SECRET)
+  );
 }
 
 export function getRedirectUri(): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   return `${base}/api/instagram/callback`;
+}
+
+function getStateSecret(): string {
+  const secret =
+    process.env.INSTAGRAM_STATE_SECRET ?? process.env.CRON_SECRET ?? null;
+  if (!secret) {
+    throw new Error("instagram oauth state secret is not configured");
+  }
+  return secret;
 }
 
 // ─── State parameter (stateless HMAC — no DB storage needed) ───────────────
@@ -53,7 +66,7 @@ export function generateOAuthState(artistId: string): string {
     }),
   ).toString("base64url");
   const sig = crypto
-    .createHmac("sha256", process.env.CRON_SECRET ?? "inklee-dev")
+    .createHmac("sha256", getStateSecret())
     .update(payload)
     .digest("hex");
   return `${payload}.${sig}`;
@@ -65,7 +78,7 @@ export function verifyOAuthState(state: string): string | null {
   const payload = state.slice(0, dot);
   const sig = state.slice(dot + 1);
   const expected = crypto
-    .createHmac("sha256", process.env.CRON_SECRET ?? "inklee-dev")
+    .createHmac("sha256", getStateSecret())
     .update(payload)
     .digest("hex");
   if (sig !== expected) return null;

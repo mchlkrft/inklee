@@ -3,15 +3,12 @@
 import DateInput from "@/components/date-input";
 import { useActionState, startTransition } from "react";
 import Link from "next/link";
+import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { submitFlashBookingAction } from "./actions";
 
 type State = { error: string; field?: string } | null;
 
-const tomorrow = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
-};
+const tomorrow = () => addDaysToDateKey(localDateKey(), 1);
 
 export default function FlashBookingForm({
   artistSlug,

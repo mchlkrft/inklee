@@ -1,6 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
-import { isAdminEmail } from "@/lib/admin-guard";
-import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/admin-guard";
 import { writeAudit } from "@/lib/audit";
 import {
   getKpis,
@@ -19,20 +17,12 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<{ range?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || !isAdminEmail(user.email)) {
-    redirect("/dashboard");
-  }
+  const adminId = await requireAdmin();
 
   void writeAudit({
     action: "admin_page_accessed",
-    actor: user.id,
+    actor: adminId,
     category: "admin",
-    details: { email: user.email },
   });
 
   const { range: rawRange = "30" } = await searchParams;

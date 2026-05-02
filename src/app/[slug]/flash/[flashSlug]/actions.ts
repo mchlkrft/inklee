@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { todayInTimeZone } from "@/lib/date-utils";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { createNotification } from "@/lib/notifications";
 import { computeFlashAvailability } from "@/lib/flash";
@@ -65,16 +66,6 @@ export async function submitFlashBookingAction(
   }
   const data = parsed.data;
 
-  // Validate preferred date is in the future
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (new Date(data.preferred_date) <= today) {
-    return {
-      error: "preferred date must be a future date",
-      field: "preferred_date",
-    };
-  }
-
   const supabase = await createClient();
   const flashItemId = formData.get("flash_item_id") as string;
   const flashDayId = (formData.get("flash_day_id") as string) || null;
@@ -83,11 +74,21 @@ export async function submitFlashBookingAction(
   // Look up artist
   const { data: artistProfile } = await supabase
     .from("profiles")
-    .select("id, display_name")
+    .select("id, display_name, timezone")
     .eq("slug", artistSlug)
     .single();
   if (!artistProfile) return { error: "artist not found" };
   const artistId = artistProfile.id;
+
+  if (
+    data.preferred_date <=
+    todayInTimeZone(artistProfile.timezone ?? "Europe/Berlin")
+  ) {
+    return {
+      error: "preferred date must be a future date",
+      field: "preferred_date",
+    };
+  }
 
   // Fetch flash item and check ownership
   const { data: flashItem } = await supabase
@@ -171,7 +172,7 @@ export async function submitFlashBookingAction(
   });
 
   // Notify artist
-  void createNotification({
+  const notificationResult = await createNotification({
     artistId,
     type: "booking_request",
     category: "booking_activity",
@@ -182,6 +183,13 @@ export async function submitFlashBookingAction(
     ctaHref: `/bookings/requests/${bookingId}`,
     metadata: { booking_id: bookingId, flash_item_id: flashItemId },
   });
+  if (!notificationResult.ok) {
+    console.error("[flash-booking] notification failed", {
+      artistId,
+      bookingId,
+      error: notificationResult.error,
+    });
+  }
 
   // Send confirmation email using existing booking email system
   const magicLinkBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
@@ -206,5 +214,5 @@ export async function submitFlashBookingAction(
     Sentry.captureException(e, { tags: { action: "flash_email_send" } });
   }
 
-  redirect(`/request/submitted?token=${token}`);
+  redirect(`/request/submitted?id=${bookingId}&slug=${artistSlug}&email=1`);
 }

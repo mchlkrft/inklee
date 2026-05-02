@@ -3,14 +3,18 @@ import { isInstagramConfigured } from "@/lib/instagram";
 import PostsBrowser from "./posts-browser";
 import {
   connectInstagramAction,
-  syncInstagramAction,
   disconnectInstagramAction,
+  syncInstagramAction,
 } from "./actions";
 
 export default async function FlashInstagramPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{
+    connected?: string;
+    synced?: string;
+    error?: string;
+  }>;
 }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -19,7 +23,6 @@ export default async function FlashInstagramPage({
   } = await supabase.auth.getUser();
 
   const configured = isInstagramConfigured();
-
   const { data: account } = await supabase
     .from("instagram_accounts")
     .select("username, last_sync_at")
@@ -35,13 +38,11 @@ export default async function FlashInstagramPage({
         .order("posted_at", { ascending: false })
         .limit(100)
     : { data: [] };
-
   const posts = rawPosts ?? [];
 
-  // Which posts already have a linked flash item?
   const linkedSet = new Set<string>();
   if (posts.length > 0) {
-    const postIds = posts.map((p) => p.id);
+    const postIds = posts.map((post) => post.id);
     const { data: linked } = await supabase
       .from("flash_items")
       .select("instagram_post_id")
@@ -49,14 +50,14 @@ export default async function FlashInstagramPage({
       .eq("artist_id", user!.id)
       .not("instagram_post_id", "is", null);
 
-    for (const r of linked ?? []) {
-      if (r.instagram_post_id) linkedSet.add(r.instagram_post_id);
+    for (const row of linked ?? []) {
+      if (row.instagram_post_id) linkedSet.add(row.instagram_post_id);
     }
   }
 
-  const enrichedPosts = posts.map((p) => ({
-    ...p,
-    already_linked: linkedSet.has(p.id),
+  const enrichedPosts = posts.map((post) => ({
+    ...post,
+    already_linked: linkedSet.has(post.id),
   }));
 
   return (
@@ -73,15 +74,23 @@ export default async function FlashInstagramPage({
           Instagram connected. Your recent posts have been synced below.
         </div>
       )}
+      {params.synced === "1" && (
+        <div className="rounded-md bg-green-500/10 px-4 py-3 text-sm text-green-500">
+          Instagram posts synced successfully.
+        </div>
+      )}
       {params.error && (
         <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {params.error === "denied"
             ? "Instagram connection was cancelled."
-            : "Instagram connection failed — please try again."}
+            : params.error === "not_connected"
+              ? "Connect Instagram first before syncing posts."
+              : params.error === "sync_failed"
+                ? "Instagram sync failed - no new posts were imported."
+                : "Instagram connection failed - please try again."}
         </div>
       )}
 
-      {/* Account section */}
       <div className="rounded-md border border-border divide-y divide-border">
         <div className="px-5 py-3">
           <p className="text-sm font-medium text-foreground">
@@ -92,12 +101,13 @@ export default async function FlashInstagramPage({
         {!configured ? (
           <div className="px-5 py-4 space-y-1">
             <p className="text-sm text-muted-foreground">
-              Instagram integration is not yet configured for this environment.
+              Instagram integration is not configured for this environment yet.
             </p>
             <p className="text-xs text-muted-foreground">
-              Set <code className="font-mono">INSTAGRAM_APP_ID</code> and{" "}
-              <code className="font-mono">INSTAGRAM_APP_SECRET</code> to enable
-              this feature.
+              Set <code className="font-mono">INSTAGRAM_APP_ID</code>,{" "}
+              <code className="font-mono">INSTAGRAM_APP_SECRET</code>, and{" "}
+              <code className="font-mono">INSTAGRAM_STATE_SECRET</code> to
+              enable this feature.
             </p>
           </div>
         ) : account ? (
@@ -155,7 +165,6 @@ export default async function FlashInstagramPage({
         )}
       </div>
 
-      {/* Posts browser */}
       {account && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">

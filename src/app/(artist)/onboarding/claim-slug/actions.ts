@@ -45,6 +45,12 @@ export async function claimSlugAction(
 
   if (!user) return { error: "not authenticated" };
 
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("timezone")
+    .eq("id", user.id)
+    .maybeSingle();
+
   const { data: existing } = await supabase
     .from("profiles")
     .select("id")
@@ -60,7 +66,7 @@ export async function claimSlugAction(
     display_name: displayName,
     instagram_handle: instagramHandle,
     location,
-    timezone: "Europe/Berlin",
+    timezone: currentProfile?.timezone ?? "Europe/Berlin",
     updated_at: new Date().toISOString(),
   });
 

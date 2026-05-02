@@ -10,6 +10,11 @@ import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
+import {
+  formatDateKey,
+  isDateKeyBefore,
+  todayInTimeZone,
+} from "@/lib/date-utils";
 
 export type SlotOption = {
   id: string;
@@ -75,7 +80,7 @@ export default async function ArtistPublicPage({
     });
   }
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = todayInTimeZone(profile.timezone ?? "Europe/Berlin");
 
   // Fetch all visible trips with their legs
   const { data: rawTrips } = await supabase
@@ -143,11 +148,12 @@ export default async function ArtistPublicPage({
     }));
 
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
-  const now = new Date();
-
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&
-    new Date(booksSettings.booking_window_ends_at) < now;
+    isDateKeyBefore(
+      booksSettings.booking_window_ends_at,
+      todayInTimeZone(profile.timezone ?? "Europe/Berlin"),
+    );
 
   const isManuallyClosed = !booksSettings.books_open || windowExpired;
   const isSlotsClosed = isSlotMode && slots.length === 0;
@@ -223,12 +229,12 @@ export default async function ArtistPublicPage({
           <div className="space-y-0.5 rounded-md border border-border px-4 py-3">
             <p className="text-sm text-foreground">{activeLegData.tripTitle}</p>
             <p className="text-xs text-muted-foreground">
-              {new Date(activeLegData.startsOn).toLocaleDateString("en-GB", {
+              {formatDateKey(activeLegData.startsOn, {
                 day: "numeric",
                 month: "short",
               })}
               {" — "}
-              {new Date(activeLegData.endsOn).toLocaleDateString("en-GB", {
+              {formatDateKey(activeLegData.endsOn, {
                 day: "numeric",
                 month: "short",
               })}
@@ -265,7 +271,6 @@ export default async function ArtistPublicPage({
               customFields={customFields}
               formSettings={formSettings}
               fieldOrder={fieldOrder}
-              travelLegId={null}
               trips={futureTrips}
               isDemoAccount={slug === "bert-grimm"}
             />

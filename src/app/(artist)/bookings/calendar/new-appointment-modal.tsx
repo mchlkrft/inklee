@@ -1,15 +1,12 @@
 "use client";
 
 import DateInput from "@/components/date-input";
+import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { useState, startTransition } from "react";
 import { createAppointmentAction } from "./actions";
 import { SIZES } from "@/lib/booking-schema";
 
-const tomorrow = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
-};
+const tomorrow = () => addDaysToDateKey(localDateKey(), 1);
 
 export default function NewAppointmentModal({
   onClose,

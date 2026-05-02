@@ -1,5 +1,6 @@
 "use client";
 
+import { localDateKey } from "@/lib/date-utils";
 import { useState } from "react";
 import AppointmentDrawer, { type CalendarEvent } from "./appointment-drawer";
 import NewAppointmentModal from "./new-appointment-modal";
@@ -41,10 +42,10 @@ function buildMonthGrid(year: number, month: number): Date[] {
 }
 
 function toDateKey(d: Date) {
-  return d.toISOString().split("T")[0];
+  return localDateKey(d);
 }
 
-const TODAY = toDateKey(new Date());
+const TODAY = localDateKey();
 
 export default function CalendarView({ events }: { events: CalendarEvent[] }) {
   const now = new Date();

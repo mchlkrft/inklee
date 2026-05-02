@@ -28,12 +28,14 @@ export async function saveFormSettingsAction(
     unknown
   >;
 
+  const persistedValue = key === "show_preferred_date" ? true : value;
+
   const { error } = await supabase
     .from("profiles")
     .update({
       settings: {
         ...settings,
-        form_settings: { ...formSettings, [key]: value },
+        form_settings: { ...formSettings, [key]: persistedValue },
       },
     })
     .eq("id", user.id);

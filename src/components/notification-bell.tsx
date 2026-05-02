@@ -70,6 +70,7 @@ export default function NotificationBell({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -88,9 +89,10 @@ export default function NotificationBell({
     setOpen((v) => !v);
     if (!loaded) {
       startTransition(async () => {
-        const data = await fetchNotificationsAction();
-        setNotifications(data);
-        setUnreadCount(data.filter((n) => !n.is_read).length);
+        const result = await fetchNotificationsAction();
+        setNotifications(result.notifications);
+        setUnreadCount(result.notifications.filter((n) => !n.is_read).length);
+        setError(result.error ?? null);
         setLoaded(true);
       });
     }
@@ -98,15 +100,24 @@ export default function NotificationBell({
 
   function handleMarkAllRead() {
     startTransition(async () => {
-      await markAllReadAction();
+      const result = await markAllReadAction();
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      setError(null);
     });
   }
 
   function handleMarkRead(ids: string[]) {
     startTransition(async () => {
-      await markReadAction(ids);
+      const result = await markReadAction(ids);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
       setNotifications((prev) =>
         prev.map((n) => (ids.includes(n.id) ? { ...n, is_read: true } : n)),
       );
@@ -119,17 +130,23 @@ export default function NotificationBell({
             ).length,
         ),
       );
+      setError(null);
     });
   }
 
   function handleResolve(id: string) {
     startTransition(async () => {
-      await resolveWarningAction(id);
+      const result = await resolveWarningAction(id);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
       setNotifications((prev) =>
         prev.map((n) =>
           n.id === id ? { ...n, is_resolved: true, is_read: true } : n,
         ),
       );
+      setError(null);
     });
   }
 
@@ -183,49 +200,58 @@ export default function NotificationBell({
           <div className="overflow-y-auto flex-1">
             {!loaded ? (
               <LoadingSkeleton />
-            ) : notifications.length === 0 ? (
-              <EmptyState />
             ) : (
               <>
-                {/* Warnings pinned at top */}
-                {warnings.length > 0 && (
-                  <div className="border-b border-border">
-                    <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Warnings
-                    </p>
-                    {warnings.map((n) => (
-                      <WarningRow
-                        key={n.id}
-                        notification={n}
-                        onResolve={() => handleResolve(n.id)}
-                        onRead={() => !n.is_read && handleMarkRead([n.id])}
-                      />
-                    ))}
+                {error && (
+                  <div className="border-b border-border bg-destructive/5 px-4 py-3 text-xs text-destructive">
+                    {error}
                   </div>
                 )}
-
-                {/* Activity */}
-                {grouped.length > 0 && (
-                  <div>
+                {notifications.length === 0 ? (
+                  <EmptyState />
+                ) : (
+                  <>
+                    {/* Warnings pinned at top */}
                     {warnings.length > 0 && (
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                        Activity
-                      </p>
+                      <div className="border-b border-border">
+                        <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Warnings
+                        </p>
+                        {warnings.map((n) => (
+                          <WarningRow
+                            key={n.id}
+                            notification={n}
+                            onResolve={() => handleResolve(n.id)}
+                            onRead={() => !n.is_read && handleMarkRead([n.id])}
+                          />
+                        ))}
+                      </div>
                     )}
-                    {grouped.map((g) => (
-                      <ActivityRow
-                        key={g.key}
-                        group={g}
-                        onRead={() => {
-                          const unreadIds = g.notifications
-                            .filter((n) => !n.is_read)
-                            .map((n) => n.id);
-                          if (unreadIds.length) handleMarkRead(unreadIds);
-                        }}
-                        onClose={() => setOpen(false)}
-                      />
-                    ))}
-                  </div>
+
+                    {/* Activity */}
+                    {grouped.length > 0 && (
+                      <div>
+                        {warnings.length > 0 && (
+                          <p className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Activity
+                          </p>
+                        )}
+                        {grouped.map((g) => (
+                          <ActivityRow
+                            key={g.key}
+                            group={g}
+                            onRead={() => {
+                              const unreadIds = g.notifications
+                                .filter((n) => !n.is_read)
+                                .map((n) => n.id);
+                              if (unreadIds.length) handleMarkRead(unreadIds);
+                            }}
+                            onClose={() => setOpen(false)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}

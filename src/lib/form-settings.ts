@@ -78,7 +78,7 @@ export function parseFormSettings(raw: unknown): FormSettings {
     show_email: bool("show_email"),
     show_placement: bool("show_placement"),
     show_size: bool("show_size"),
-    show_preferred_date: bool("show_preferred_date"),
+    show_preferred_date: true,
     show_reference_link: bool("show_reference_link"),
     show_image_upload: bool("show_image_upload"),
     require_description: bool("require_description"),

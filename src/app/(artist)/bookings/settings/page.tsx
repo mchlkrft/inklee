@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseBooksSettings } from "@/lib/books-settings";
 import BookingModeForm from "./booking-mode-form";
@@ -45,11 +46,12 @@ export default async function BookingSettingsPage() {
     };
   });
 
-  const now = new Date();
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&
-    new Date(booksSettings.booking_window_ends_at) < now;
-  const isOpen = booksSettings.books_open && !windowExpired;
+    isDateKeyBefore(
+      booksSettings.booking_window_ends_at,
+      todayInTimeZone(timezone),
+    );
 
   return (
     <div className="space-y-12 max-w-lg">

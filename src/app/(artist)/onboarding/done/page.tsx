@@ -1,22 +1,17 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   CheckCircle2,
-  Link2,
-  Image as ImageIcon,
-  Zap,
-  Plane,
-  Mail,
   CreditCard,
+  Link2,
+  Mail,
+  Plane,
+  Zap,
 } from "lucide-react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import LogoUpload from "./logo-upload";
 
 const OPTIONAL_FEATURES = [
-  {
-    icon: ImageIcon,
-    label: "Logo & branding",
-    href: "/settings/profile",
-  },
   {
     icon: Zap,
     label: "Flash items",
@@ -30,7 +25,7 @@ const OPTIONAL_FEATURES = [
   {
     icon: Mail,
     label: "Email templates",
-    href: "/settings/templates",
+    href: "/settings/emails",
   },
   {
     icon: CreditCard,
@@ -47,7 +42,7 @@ export default async function OnboardingDonePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("slug, display_name, booking_mode, settings")
+    .select("slug, display_name, booking_mode, settings, logo_url")
     .eq("id", user!.id)
     .single();
 
@@ -64,6 +59,19 @@ export default async function OnboardingDonePage() {
       .eq("id", user!.id);
   }
 
+  const { count: slotCount } =
+    profile.booking_mode === "fixed_slots"
+      ? await supabase
+          .from("slots")
+          .select("id", { count: "exact", head: true })
+          .eq("artist_id", user!.id)
+          .eq("status", "open")
+      : { count: 0 };
+
+  const hasRequiredAvailability =
+    profile.booking_mode !== "fixed_slots" || (slotCount ?? 0) > 0;
+  const isReadyToShare = hasRequiredAvailability;
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const publicUrl = `${appUrl}/${profile.slug}`;
 
@@ -76,8 +84,21 @@ export default async function OnboardingDonePage() {
           ? "Fixed slots"
           : "Preferred date",
     },
-    { label: "Availability configured", detail: null },
-    { label: "Booking form ready", detail: null },
+    {
+      label: "Availability configured",
+      detail:
+        profile.booking_mode === "fixed_slots"
+          ? (slotCount ?? 0) > 0
+            ? `${slotCount} open slot${slotCount === 1 ? "" : "s"}`
+            : "Add at least one slot before sharing"
+          : "Preferred-date requests enabled",
+    },
+    {
+      label: "Booking form ready",
+      detail: isReadyToShare
+        ? "Clients can submit requests"
+        : "Finish availability setup first",
+    },
   ];
 
   return (
@@ -86,15 +107,16 @@ export default async function OnboardingDonePage() {
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-5 w-5 text-green-500" />
           <h1 className="text-xl font-semibold text-foreground">
-            You&apos;re ready.
+            {isReadyToShare ? "You are ready." : "Almost ready."}
           </h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Your booking page is live and ready to share.
+          {isReadyToShare
+            ? "Your booking page has the basics in place and can be shared."
+            : "Your public page exists, but clients cannot safely book until the required availability setup is finished."}
         </p>
       </div>
 
-      {/* Completion summary */}
       <div className="rounded-md border border-border divide-y divide-border">
         {completedItems.map(({ label, detail }) => (
           <div key={label} className="flex items-center gap-3 px-4 py-3">
@@ -109,7 +131,6 @@ export default async function OnboardingDonePage() {
         ))}
       </div>
 
-      {/* Booking link */}
       <div className="rounded-md border border-border p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Link2 className="h-4 w-4 text-muted-foreground" />
@@ -127,26 +148,35 @@ export default async function OnboardingDonePage() {
             rel="noopener noreferrer"
             className="rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
           >
-            Preview your page ↗
+            Preview your page
           </a>
+          {!isReadyToShare && (
+            <Link
+              href="/bookings/settings"
+              className="rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+            >
+              Finish setup
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* Primary CTA */}
+      <LogoUpload logoUrl={profile.logo_url ?? null} />
+
       <Link
-        href="/dashboard"
+        href={isReadyToShare ? "/dashboard" : "/bookings/settings"}
         className="block w-full rounded-md bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
       >
-        Go to dashboard →
+        {isReadyToShare ? "Go to dashboard" : "Set up availability"}
       </Link>
 
-      {/* Optional features — set up later */}
       <div className="space-y-3 pt-2">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
           Set up when ready
         </p>
         <p className="text-xs text-muted-foreground">
-          These are optional — configure them whenever it makes sense.
+          These are optional - configure them whenever they actually help your
+          workflow.
         </p>
         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {OPTIONAL_FEATURES.map(({ icon: Icon, label, href }) => (

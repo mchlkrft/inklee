@@ -2,6 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import crypto from "crypto";
 import CustomerPortal from "./customer-portal";
+import {
+  bookingModeFromRequest,
+  bookingModeLabel,
+  portalEditSupport,
+} from "@/lib/booking-domain";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -34,9 +39,10 @@ export default async function RequestPortalPage({
       id, status, created_at,
       customer_handle, customer_email,
       preferred_date, form_data,
+      slot_id, trip_id, flash_item_id,
       deposit_amount, deposit_due_at, deposit_note,
       deposit_client_secret,
-      profiles!artist_id(display_name)
+      profiles!artist_id(display_name, timezone)
     `,
     )
     .eq("customer_token_hash", tokenHash)
@@ -63,6 +69,17 @@ export default async function RequestPortalPage({
     const profile = Array.isArray(booking.profiles)
       ? booking.profiles[0]
       : booking.profiles;
+    const support = portalEditSupport({
+      status: booking.status,
+      customerEmail: booking.customer_email,
+      preferredDate: booking.preferred_date,
+      customerHandle: booking.customer_handle,
+      slotId: booking.slot_id,
+      tripId: booking.trip_id,
+      flashItemId: booking.flash_item_id,
+      formData: fd,
+    });
+    const bookingMode = bookingModeFromRequest({ slot_id: booking.slot_id });
 
     state = {
       type: "active",
@@ -80,6 +97,9 @@ export default async function RequestPortalPage({
         artistName:
           (profile as { display_name: string } | null)?.display_name ??
           "the artist",
+        bookingModeLabel: bookingModeLabel(bookingMode),
+        canEdit: support.editable,
+        editDisabledReason: support.editable ? null : support.reason,
         depositAmount: booking.deposit_amount
           ? Number(booking.deposit_amount)
           : null,

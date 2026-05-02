@@ -2,6 +2,7 @@
 
 import TimeInput from "@/components/time-input";
 import DateInput from "@/components/date-input";
+import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { useState, startTransition } from "react";
 import { createSlotsFromPatternAction } from "./actions";
 
@@ -10,9 +11,7 @@ type Window = { id: string; start: string; end: string };
 const DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 function tomorrow() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
+  return addDaysToDateKey(localDateKey(), 1);
 }
 
 function countDatesInRange(

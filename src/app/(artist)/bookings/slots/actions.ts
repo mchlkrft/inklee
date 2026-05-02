@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { addDaysToDateKey } from "@/lib/date-utils";
 import { localToUTC, generateSubSlots } from "@/lib/timezone";
 import { revalidatePath } from "next/cache";
 
@@ -141,14 +142,14 @@ export async function createSlotsFromPatternAction(
     const toDate = formData.get("to_date") as string;
     if (!fromDate || !toDate) return { error: "date range is required" };
 
-    const end = new Date(toDate + "T12:00:00Z");
     for (
-      let d = new Date(fromDate + "T12:00:00Z");
-      d <= end;
-      d.setDate(d.getDate() + 1)
+      let dateKey = fromDate;
+      dateKey <= toDate;
+      dateKey = addDaysToDateKey(dateKey, 1)
     ) {
+      const d = new Date(`${dateKey}T12:00:00Z`);
       if (weekdays.includes((d.getDay() + 6) % 7)) {
-        dates.push(d.toISOString().split("T")[0]);
+        dates.push(dateKey);
       }
     }
   } else if (applyMode === "dates") {

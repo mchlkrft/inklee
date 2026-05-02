@@ -32,7 +32,8 @@ const FIELDS: {
   {
     key: "show_preferred_date",
     label: "preferred date / slot",
-    description: "when the client would like to come in",
+    description:
+      "required booking selection field used for preferred dates or fixed slots",
   },
   {
     key: "show_reference_link",
@@ -111,7 +112,11 @@ export default function StandardFields({
               {description}
             </p>
           </div>
-          <Toggle checked={local[key]} onChange={(v) => update(key, v)} />
+          {key === "show_preferred_date" ? (
+            <span className="text-xs text-muted-foreground">Always on</span>
+          ) : (
+            <Toggle checked={local[key]} onChange={(v) => update(key, v)} />
+          )}
         </div>
       ))}
     </div>

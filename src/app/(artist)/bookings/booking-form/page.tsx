@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import UnifiedFieldList from "../form/unified-field-list";
 import PublicPageClient from "../public-page/public-page-client";
 import FormAppearanceForm from "../settings/form-appearance-form";
@@ -22,7 +23,7 @@ export default async function BookingFormPage() {
       .order("position", { ascending: true }),
     supabase
       .from("profiles")
-      .select("slug, settings")
+      .select("slug, settings, timezone")
       .eq("id", user!.id)
       .single(),
   ]);
@@ -35,13 +36,16 @@ export default async function BookingFormPage() {
     ? (profileSettings.field_order as string[])
     : buildDefaultFieldOrder(customFieldIds);
   const slug = profile?.slug ?? "";
+  const timezone = profile?.timezone ?? "Europe/Berlin";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const publicUrl = `${appUrl}/${slug}`;
 
-  const now = new Date();
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&
-    new Date(booksSettings.booking_window_ends_at) < now;
+    isDateKeyBefore(
+      booksSettings.booking_window_ends_at,
+      todayInTimeZone(timezone),
+    );
   const isOpen = booksSettings.books_open && !windowExpired;
 
   return (

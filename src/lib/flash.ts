@@ -1,3 +1,5 @@
+import { localDateKey } from "@/lib/date-utils";
+
 export type FlashBookingMode = "unique" | "limited" | "repeatable";
 export type FlashStatus = "draft" | "published" | "archived";
 export type FlashPriceType = "fixed" | "from" | "request";
@@ -41,7 +43,7 @@ export function computeFlashAvailability(
     return { bookable: false, reason: "archived" };
   if (!item.is_bookable) return { bookable: false, reason: "disabled" };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateKey();
   if (item.available_from && item.available_from > today)
     return { bookable: false, reason: "not_yet" };
   if (item.available_until && item.available_until < today)

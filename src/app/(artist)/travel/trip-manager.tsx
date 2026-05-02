@@ -9,6 +9,7 @@ import {
 } from "react";
 import Spinner from "@/components/spinner";
 import DateInput from "@/components/date-input";
+import { formatDateKey, localDateKey } from "@/lib/date-utils";
 import {
   createTripAction,
   updateTripAction,
@@ -35,12 +36,8 @@ type Trip = {
 };
 type State = { error: string } | { success: true } | null;
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+function formatDate(dateKey: string) {
+  return formatDateKey(dateKey);
 }
 
 // ─── Modal shell ──────────────────────────────────────────────────────────────
@@ -482,7 +479,7 @@ function EditTripModal({
   studios: Studio[];
   onClose: () => void;
 }) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateKey();
   const [show, setShow] = useState(trip.showOnBookingForm);
   const [deletingLeg, setDeletingLeg] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -695,7 +692,7 @@ function TripSummaryCard({
   trip: Trip;
   onClick: () => void;
 }) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateKey();
   const isActive = trip.legs.some(
     (l) => l.startsOn <= today && l.endsOn >= today,
   );

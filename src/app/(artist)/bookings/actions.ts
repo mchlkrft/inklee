@@ -1,32 +1,37 @@
 "use server";
 
+import crypto from "crypto";
+import type { User } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { canTransition } from "@/lib/booking-fsm";
 import {
   sendBookingEmail,
   sendWaitlistConversionEmail,
 } from "@/lib/email/send-booking-email";
-import crypto from "crypto";
-import type { User } from "@supabase/supabase-js";
-import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
-import { canTransition } from "@/lib/booking-fsm";
 
 type ActionResult = { error: string } | { success: true };
+
+type AuthorisedBooking = {
+  status: string;
+  artist_id: string;
+  customer_email: string | null;
+  customer_handle: string | null;
+  preferred_date: string | null;
+  slot_id: string | null;
+  customer_token_hash: string | null;
+  decided_at: string | null;
+  form_data: Record<string, string> | null;
+};
+
 type AuthorisedBookingResult =
   | { error: string }
   | {
       supabase: Awaited<ReturnType<typeof createClient>>;
       user: User;
-      booking: {
-        status: string;
-        artist_id: string;
-        customer_email: string | null;
-        customer_handle: string | null;
-        preferred_date: string | null;
-        slot_id: string | null;
-        form_data: Record<string, string> | null;
-      };
+      booking: AuthorisedBooking;
     };
 
 async function getAuthorisedBooking(
@@ -42,7 +47,7 @@ async function getAuthorisedBooking(
   const { data: booking } = await supabase
     .from("booking_requests")
     .select(
-      "status, artist_id, customer_email, customer_handle, preferred_date, slot_id, form_data",
+      "status, artist_id, customer_email, customer_handle, preferred_date, slot_id, customer_token_hash, decided_at, form_data",
     )
     .eq("id", bookingId)
     .single();
@@ -60,9 +65,34 @@ async function getAuthorisedBooking(
       customer_handle: booking.customer_handle,
       preferred_date: booking.preferred_date,
       slot_id: booking.slot_id,
+      customer_token_hash: booking.customer_token_hash,
+      decided_at: booking.decided_at,
       form_data: booking.form_data as Record<string, string> | null,
     },
   };
+}
+
+async function restoreBookingAfterSlotFailure(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  bookingId: string,
+  booking: AuthorisedBooking,
+  extra: Partial<Pick<AuthorisedBooking, "customer_token_hash">> & {
+    deposit_paid_at?: string | null;
+  } = {},
+): Promise<void> {
+  await supabase
+    .from("booking_requests")
+    .update({
+      status: booking.status,
+      updated_at: new Date().toISOString(),
+      decided_at: booking.decided_at,
+      customer_token_hash:
+        extra.customer_token_hash ?? booking.customer_token_hash,
+      ...(extra.deposit_paid_at !== undefined
+        ? { deposit_paid_at: extra.deposit_paid_at }
+        : {}),
+    })
+    .eq("id", bookingId);
 }
 
 export async function approveBooking(id: string): Promise<ActionResult> {
@@ -70,14 +100,17 @@ export async function approveBooking(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
-
   const guard = canTransition(booking.status, "approved");
   if (!guard.ok) return { error: guard.reason };
 
-  const newToken = crypto.randomBytes(32).toString("hex");
-  const newHash = crypto.createHash("sha256").update(newToken).digest("hex");
-
+  const newToken = booking.customer_email
+    ? crypto.randomBytes(32).toString("hex")
+    : null;
+  const newHash = newToken
+    ? crypto.createHash("sha256").update(newToken).digest("hex")
+    : null;
   const decidedAt = new Date().toISOString();
+
   const { error } = await supabase
     .from("booking_requests")
     .update({
@@ -95,6 +128,18 @@ export async function approveBooking(id: string): Promise<ActionResult> {
     return { error: error.message };
   }
 
+  if (booking.slot_id) {
+    const { error: slotError } = await supabase
+      .from("slots")
+      .update({ status: "booked" })
+      .eq("id", booking.slot_id);
+
+    if (slotError) {
+      await restoreBookingAfterSlotFailure(supabase, id, booking);
+      return { error: "the slot could not be confirmed - please try again" };
+    }
+  }
+
   await supabase.from("audit_log").insert({
     booking_id: id,
     action: "status_changed",
@@ -102,7 +147,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
     details: { from: booking.status, to: "approved" },
   });
 
-  if (booking.customer_email) {
+  if (booking.customer_email && newToken) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("display_name")
@@ -124,13 +169,6 @@ export async function approveBooking(id: string): Promise<ActionResult> {
     });
   }
 
-  if (booking.slot_id) {
-    await supabase
-      .from("slots")
-      .update({ status: "booked" })
-      .eq("id", booking.slot_id);
-  }
-
   revalidatePath("/dashboard");
   revalidatePath("/bookings/requests");
   revalidatePath(`/bookings/requests/${id}`);
@@ -142,7 +180,6 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
-
   const guard = canTransition(booking.status, "rejected");
   if (!guard.ok) return { error: guard.reason };
 
@@ -161,6 +198,18 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+
+  if (booking.slot_id) {
+    const { error: slotError } = await supabase
+      .from("slots")
+      .update({ status: "open" })
+      .eq("id", booking.slot_id);
+
+    if (slotError) {
+      await restoreBookingAfterSlotFailure(supabase, id, booking);
+      return { error: "the slot could not be released - please try again" };
+    }
   }
 
   await supabase.from("audit_log").insert({
@@ -187,13 +236,6 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
     });
   }
 
-  if (booking.slot_id) {
-    await supabase
-      .from("slots")
-      .update({ status: "open" })
-      .eq("id", booking.slot_id);
-  }
-
   revalidatePath("/dashboard");
   revalidatePath("/bookings/requests");
   revalidatePath(`/bookings/requests/${id}`);
@@ -210,11 +252,10 @@ export async function requestDeposit(
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
-
   const guard = canTransition(booking.status, "deposit_pending");
   if (!guard.ok) return { error: guard.reason };
 
-  // Idempotency: re-fetch to check if a PaymentIntent already exists
+  const decidedAt = new Date().toISOString();
   const { data: fresh } = await supabase
     .from("booking_requests")
     .select("deposit_payment_intent_id, deposit_client_secret")
@@ -222,17 +263,19 @@ export async function requestDeposit(
     .single();
 
   if (fresh?.deposit_payment_intent_id && fresh?.deposit_client_secret) {
-    // A PaymentIntent already exists — update metadata but reuse the intent
-    await supabase
+    const { error: reuseError } = await supabase
       .from("booking_requests")
       .update({
         deposit_amount: amount,
         deposit_due_at: dueAt,
         deposit_note: note || null,
         status: "deposit_pending",
-        updated_at: new Date().toISOString(),
+        decided_at: decidedAt,
+        updated_at: decidedAt,
       })
       .eq("id", id);
+    if (reuseError) return { error: reuseError.message };
+
     revalidatePath(`/bookings/requests/${id}`);
     return { success: true };
   }
@@ -245,7 +288,7 @@ export async function requestDeposit(
         amount: Math.round(amount * 100),
         currency: "eur",
         metadata: { booking_id: id, artist_id: user.id },
-        description: `Tattoo deposit — booking ${id}`,
+        description: `Tattoo deposit - booking ${id}`,
       });
       paymentIntentId = intent.id;
       clientSecret = intent.client_secret;
@@ -265,7 +308,8 @@ export async function requestDeposit(
       deposit_note: note || null,
       deposit_payment_intent_id: paymentIntentId,
       deposit_client_secret: clientSecret,
-      updated_at: new Date().toISOString(),
+      decided_at: decidedAt,
+      updated_at: decidedAt,
     })
     .eq("id", id);
 
@@ -300,7 +344,6 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
   if ("error" in authorised) return authorised;
 
   const { supabase, user, booking } = authorised;
-
   const guard = canTransition(booking.status, "approved");
   if (!guard.ok) return { error: guard.reason };
 
@@ -310,7 +353,8 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
     .update({
       status: "approved",
       updated_at: decidedAt,
-      decided_at: decidedAt,
+      decided_at: booking.decided_at ?? decidedAt,
+      deposit_paid_at: decidedAt,
     })
     .eq("id", id);
 
@@ -319,6 +363,20 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+
+  if (booking.slot_id) {
+    const { error: slotError } = await supabase
+      .from("slots")
+      .update({ status: "booked" })
+      .eq("id", booking.slot_id);
+
+    if (slotError) {
+      await restoreBookingAfterSlotFailure(supabase, id, booking, {
+        deposit_paid_at: null,
+      });
+      return { error: "the slot could not be confirmed - please try again" };
+    }
   }
 
   await supabase.from("audit_log").insert({
@@ -334,19 +392,19 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
-// --- Waitlist actions ---
-
 export async function markWaitlistContacted(entryId: string): Promise<void> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
+
   await supabase
     .from("waitlist_entries")
     .update({ status: "contacted" })
     .eq("id", entryId)
     .eq("artist_id", user.id);
+
   revalidatePath("/bookings/waitlist");
 }
 
@@ -356,11 +414,13 @@ export async function dismissWaitlistEntry(entryId: string): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
+
   await supabase
     .from("waitlist_entries")
     .update({ status: "dismissed" })
     .eq("id", entryId)
     .eq("artist_id", user.id);
+
   revalidatePath("/bookings/waitlist");
 }
 
@@ -389,6 +449,7 @@ export async function convertWaitlistEntry({
 
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const decidedAt = new Date().toISOString();
 
   const { error } = await supabase.from("booking_requests").insert({
     artist_id: user.id,
@@ -398,6 +459,8 @@ export async function convertWaitlistEntry({
     customer_handle: customerHandle,
     customer_token_hash: tokenHash,
     form_data: { description: note || "" },
+    decided_at: decidedAt,
+    updated_at: decidedAt,
   });
 
   if (error) {

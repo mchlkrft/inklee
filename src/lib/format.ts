@@ -1,3 +1,5 @@
+import { formatDateValue } from "@/lib/date-utils";
+
 export function relativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60_000);
@@ -10,7 +12,7 @@ export function relativeTime(dateStr: string): string {
 }
 
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-GB", {
+  return formatDateValue(dateStr, {
     day: "numeric",
     month: "short",
     year: "numeric",

@@ -1,6 +1,5 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { bookingSchema } from "@/lib/booking-schema";
 import {
@@ -12,9 +11,15 @@ import { redirect } from "next/navigation";
 import { createNotification } from "@/lib/notifications";
 import { checkPortalRateLimit } from "@/lib/ratelimit";
 import { canTransition } from "@/lib/booking-fsm";
+import { portalEditSupport } from "@/lib/booking-domain";
+import { isDateKeyOnOrBefore, todayInTimeZone } from "@/lib/date-utils";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function isExpired(createdAt: string): boolean {
+  return Date.now() - new Date(createdAt).getTime() > 30 * 24 * 60 * 60 * 1000;
 }
 
 type State = { error: string; field?: string } | null;
@@ -27,26 +32,32 @@ export async function editCustomerBookingAction(
   if (!token) return { error: "invalid link" };
 
   const tokenHash = hashToken(token);
-  // anon client: RLS allows SELECT on rows with a non-null customer_token_hash
-  const supabase = await createClient();
+  const { allowed } = await checkPortalRateLimit(tokenHash);
+  if (!allowed) return { error: "too many requests — please try again later" };
 
-  const { data: booking } = await supabase
+  const { data: booking } = await serviceClient
     .from("booking_requests")
     .select(
-      "id, status, created_at, form_data, customer_email, preferred_date, artist_id",
+      "id, status, created_at, form_data, customer_email, preferred_date, artist_id, slot_id, trip_id, flash_item_id, customer_handle",
     )
     .eq("customer_token_hash", tokenHash)
     .single();
 
   if (!booking) return { error: "this link is no longer valid" };
+  if (isExpired(booking.created_at)) return { error: "this link has expired" };
 
-  const expired =
-    Date.now() - new Date(booking.created_at).getTime() >
-    30 * 24 * 60 * 60 * 1000;
-  if (expired) return { error: "this link has expired" };
-
-  if (booking.status !== "pending") {
-    return { error: "this request can no longer be edited" };
+  const support = portalEditSupport({
+    status: booking.status,
+    customerEmail: booking.customer_email,
+    preferredDate: booking.preferred_date,
+    customerHandle: booking.customer_handle,
+    slotId: booking.slot_id,
+    tripId: booking.trip_id,
+    flashItemId: booking.flash_item_id,
+    formData: booking.form_data as Record<string, unknown> | null,
+  });
+  if (!support.editable) {
+    return { error: support.reason };
   }
 
   const raw = {
@@ -67,9 +78,17 @@ export async function editCustomerBookingAction(
   }
 
   const data = parsed.data;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (new Date(data.preferred_date) <= today) {
+
+  const { data: artistProfile } = await serviceClient
+    .from("profiles")
+    .select("display_name, slug, timezone")
+    .eq("id", booking.artist_id)
+    .single();
+
+  const artistTimeZone = artistProfile?.timezone ?? "Europe/Berlin";
+  if (
+    isDateKeyOnOrBefore(data.preferred_date, todayInTimeZone(artistTimeZone))
+  ) {
     return {
       error: "preferred date must be a future date",
       field: "preferred_date",
@@ -78,10 +97,9 @@ export async function editCustomerBookingAction(
 
   const newToken = crypto.randomBytes(32).toString("hex");
   const newHash = hashToken(newToken);
-  const fd = booking.form_data as Record<string, string> | null;
+  const fd = (booking.form_data ?? {}) as Record<string, string>;
 
-  // anon client: RLS allows UPDATE on rows with a non-null customer_token_hash
-  const { error: updateError } = await supabase
+  const { error: updateError } = await serviceClient
     .from("booking_requests")
     .update({
       customer_handle: data.instagram_handle,
@@ -97,11 +115,11 @@ export async function editCustomerBookingAction(
       },
       updated_at: new Date().toISOString(),
     })
-    .eq("id", booking.id);
+    .eq("id", booking.id)
+    .eq("customer_token_hash", tokenHash);
 
   if (updateError) return { error: "something went wrong — try again" };
 
-  // service client: anon cannot INSERT into audit_log (no anon INSERT policy by design)
   await serviceClient.from("audit_log").insert({
     booking_id: booking.id,
     action: "token_rotated",
@@ -114,11 +132,6 @@ export async function editCustomerBookingAction(
   });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  const { data: artistProfile } = await serviceClient
-    .from("profiles")
-    .select("display_name, slug")
-    .eq("id", booking.artist_id)
-    .single();
   await sendBookingEmail({
     type: "customer_booking_submitted",
     to: data.email,
@@ -134,7 +147,7 @@ export async function editCustomerBookingAction(
     },
   });
 
-  redirect(`/request/submitted?id=${booking.id}&edited=1`);
+  redirect(`/request/submitted?id=${booking.id}&edited=1&email=1`);
 }
 
 export async function cancelCustomerBookingAction(
@@ -145,88 +158,90 @@ export async function cancelCustomerBookingAction(
   if (!token) return { error: "invalid link" };
 
   const tokenHash = hashToken(token);
-
   const { allowed } = await checkPortalRateLimit(tokenHash);
   if (!allowed) return { error: "too many requests — please try again later" };
-  // anon client: RLS allows SELECT on rows with a non-null customer_token_hash
-  const supabase = await createClient();
 
-  const { data: booking } = await supabase
+  const { data: booking } = await serviceClient
     .from("booking_requests")
-    .select("id, status, created_at, customer_email, artist_id, slot_id")
+    .select(
+      "id, status, created_at, customer_email, artist_id, slot_id, customer_handle, preferred_date, form_data",
+    )
     .eq("customer_token_hash", tokenHash)
     .single();
 
   if (!booking) return { error: "this link is no longer valid" };
-
-  const expired =
-    Date.now() - new Date(booking.created_at).getTime() >
-    30 * 24 * 60 * 60 * 1000;
-  if (expired) return { error: "this link has expired" };
+  if (isExpired(booking.created_at)) return { error: "this link has expired" };
 
   const guard = canTransition(booking.status, "cancelled");
   if (!guard.ok) return { error: guard.reason };
 
-  // anon client: RLS allows UPDATE on rows with a non-null customer_token_hash
-  const { error: updateError } = await supabase
+  const cancelledAt = new Date().toISOString();
+  const { error: updateError } = await serviceClient
     .from("booking_requests")
-    .update({ status: "cancelled", updated_at: new Date().toISOString() })
-    .eq("id", booking.id);
+    .update({ status: "cancelled", updated_at: cancelledAt })
+    .eq("id", booking.id)
+    .eq("customer_token_hash", tokenHash);
 
   if (updateError) return { error: "something went wrong — try again" };
 
-  // Slot: return to open on customer cancel (use service client — anon can't update slots directly)
   if (booking.slot_id) {
-    await serviceClient
+    const { error: slotError } = await serviceClient
       .from("slots")
       .update({ status: "open" })
       .eq("id", booking.slot_id);
+
+    if (slotError) {
+      await serviceClient
+        .from("booking_requests")
+        .update({
+          status: booking.status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", booking.id);
+      return { error: "the slot could not be released — please try again" };
+    }
   }
 
-  // service client: only for audit_log — anon INSERT is intentionally blocked
   await serviceClient.from("audit_log").insert({
     booking_id: booking.id,
     action: "customer_cancelled",
     details: { from: booking.status, to: "cancelled", by: "customer" },
   });
 
-  // Notify artist via email
   const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
     booking.artist_id,
   );
   if (artistAuth?.user?.email) {
-    const { data: cancelledBooking } = await serviceClient
-      .from("booking_requests")
-      .select("customer_handle, preferred_date, form_data")
-      .eq("id", booking.id)
-      .single();
-    const fd = cancelledBooking?.form_data as Record<string, string> | null;
+    const fd = booking.form_data as Record<string, string> | null;
     await sendArtistCancellationByCustomer({
       artistEmail: artistAuth.user.email,
-      customerHandle: cancelledBooking?.customer_handle ?? "unknown",
+      customerHandle: booking.customer_handle ?? "unknown",
       placement: fd?.placement ?? "",
-      date: cancelledBooking?.preferred_date ?? "",
+      date: booking.preferred_date ?? "",
     });
   }
 
-  // Notify artist of customer cancellation
-  const { data: cancelledBooking } = await serviceClient
-    .from("booking_requests")
-    .select("customer_handle, preferred_date, form_data")
-    .eq("id", booking.id)
-    .single();
-  const fd2 = cancelledBooking?.form_data as Record<string, string> | null;
-  void createNotification({
+  const fd = booking.form_data as Record<string, string> | null;
+  const notificationResult = await createNotification({
     artistId: booking.artist_id,
     type: "booking_cancelled_by_client",
     category: "client_update",
     priority: "high",
     title: "Booking cancelled by client",
-    message: `@${cancelledBooking?.customer_handle ?? "client"} cancelled their ${fd2?.placement ?? "booking"}${cancelledBooking?.preferred_date ? ` on ${cancelledBooking.preferred_date}` : ""}.`,
+    message: `@${booking.customer_handle ?? "client"} cancelled their ${fd?.placement ?? "booking"}${booking.preferred_date ? ` on ${booking.preferred_date}` : ""}.`,
     ctaLabel: "View request",
     ctaHref: `/bookings/requests/${booking.id}`,
     metadata: { booking_id: booking.id },
   });
+  if (!notificationResult.ok) {
+    console.error("[customer-cancel] notification failed", {
+      artistId: booking.artist_id,
+      bookingId: booking.id,
+      error: notificationResult.error,
+    });
+  }
 
-  redirect(`/request/submitted?id=${booking.id}&cancelled=1`);
+  redirect(
+    `/request/submitted?id=${booking.id}&cancelled=1&email=${booking.customer_email ? "1" : "0"}`,
+  );
 }

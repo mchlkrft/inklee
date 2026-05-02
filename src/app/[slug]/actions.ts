@@ -18,6 +18,17 @@ import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { parseFormSettings } from "@/lib/form-settings";
 import { processImage } from "@/lib/image-processing";
+import {
+  buildBookingFingerprintKey,
+  bookingModeFromRequest,
+  normalizeBookingMode,
+} from "@/lib/booking-domain";
+import {
+  dateKeyInTimeZone,
+  isDateKeyBefore,
+  isDateKeyOnOrBefore,
+  todayInTimeZone,
+} from "@/lib/date-utils";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB raw input limit
@@ -49,24 +60,27 @@ export async function submitBookingAction(
     return { error: "too many requests — please wait before submitting again" };
   }
 
-  // Load artist profile first — needed for formSettings and books-open check
+  // Load artist profile first — needed for settings, booking mode, and timezone.
   const artistSlug = formData.get("artist_slug") as string;
   const supabase = await createClient();
   const { data: artistProfile } = await supabase
     .from("profiles")
-    .select("id, display_name, settings")
+    .select("id, display_name, settings, booking_mode, timezone")
     .eq("slug", artistSlug)
     .single();
 
   if (!artistProfile) return { error: "artist not found" };
   const artistId = artistProfile.id;
   const artistName = artistProfile.display_name;
+  const artistBookingMode = normalizeBookingMode(artistProfile.booking_mode);
+  const artistTimeZone = artistProfile.timezone ?? "Europe/Berlin";
 
   const profileSettings = (artistProfile.settings ?? {}) as Record<
     string,
     unknown
   >;
   const formSettings = parseFormSettings(profileSettings.form_settings);
+
   // Core form validation — null → "" for fields that may be hidden
   const raw = {
     instagram_handle: (formData.get("instagram_handle") as string) ?? "",
@@ -79,7 +93,7 @@ export async function submitBookingAction(
     website: formData.get("website"),
   };
 
-  // Presence checks — only enforce for fields the artist has enabled
+  // Presence checks — only enforce optional fields when the artist has enabled them.
   if (formSettings.show_instagram_handle && !raw.instagram_handle) {
     return { error: "instagram handle is required", field: "instagram_handle" };
   }
@@ -92,7 +106,7 @@ export async function submitBookingAction(
   if (formSettings.show_size && !raw.size) {
     return { error: "please select a size", field: "size" };
   }
-  if (formSettings.show_preferred_date && !raw.preferred_date) {
+  if (artistBookingMode === "preferred_date" && !raw.preferred_date) {
     return { error: "preferred date is required", field: "preferred_date" };
   }
   if (!raw.description && formSettings.require_description) {
@@ -107,11 +121,10 @@ export async function submitBookingAction(
 
   const data = parsed.data;
 
-  // Validate preferred date is in the future (skipped when field is hidden)
-  if (data.preferred_date) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (new Date(data.preferred_date) <= today) {
+  if (artistBookingMode === "preferred_date" && data.preferred_date) {
+    if (
+      isDateKeyOnOrBefore(data.preferred_date, todayInTimeZone(artistTimeZone))
+    ) {
       return {
         error: "preferred date must be a future date",
         field: "preferred_date",
@@ -122,7 +135,10 @@ export async function submitBookingAction(
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&
-    new Date(booksSettings.booking_window_ends_at) < new Date();
+    isDateKeyBefore(
+      booksSettings.booking_window_ends_at,
+      todayInTimeZone(artistTimeZone),
+    );
   if (!booksSettings.books_open || windowExpired) {
     return { error: "booking requests are currently closed" };
   }
@@ -138,7 +154,6 @@ export async function submitBookingAction(
   }
 
   // Fetch active custom fields and validate submitted answers
-  // Uses canonical artistId — not a form-supplied value
   let customAnswers: CustomAnswerSnapshot[] = [];
   {
     const { data: activeFields } = await supabase
@@ -175,16 +190,14 @@ export async function submitBookingAction(
       return { error: "images must be jpg, png, or webp" };
   }
 
-  const travelLegId = (formData.get("travel_leg_id") as string) || null;
   const tripId = (formData.get("trip_id") as string) || null;
-  const bookingMode = formData.get("booking_mode") as string;
+  const requestedSlotId =
+    artistBookingMode === "fixed_slots"
+      ? (formData.get("slot_id") as string) || null
+      : null;
 
-  // Validate trip ownership and that the trip is not fully in the past.
-  // We allow advance bookings (preferred date before trip start) because
-  // customers book guest spots in advance. We only reject if the trip's last
-  // leg has already ended before the chosen date, or if the trip doesn't
-  // belong to this artist.
-  if (tripId && data.preferred_date && bookingMode !== "fixed_slots") {
+  // Validate trip ownership and that the selected trip still has future coverage.
+  if (tripId && data.preferred_date && artistBookingMode !== "fixed_slots") {
     const { data: tripOwner } = await supabase
       .from("trips")
       .select("artist_id")
@@ -201,7 +214,7 @@ export async function submitBookingAction(
       .eq("trip_id", tripId);
 
     const tripHasFutureLegs = (tripLegs ?? []).some(
-      (l) => l.ends_on >= data.preferred_date!,
+      (leg) => leg.ends_on >= data.preferred_date,
     );
 
     if (!tripHasFutureLegs) {
@@ -214,32 +227,62 @@ export async function submitBookingAction(
 
   const bookingId = crypto.randomUUID();
 
-  // Deduplication: reject if this customer already submitted to this artist within 60 seconds
+  // Deduplication: compare a request fingerprint instead of email only.
   const dedupeWindow = new Date(Date.now() - 60000).toISOString();
-  const { count: recentCount } = await supabase
+  const requestFingerprint = buildBookingFingerprintKey({
+    bookingMode: artistBookingMode,
+    customerEmail: data.email || null,
+    customerHandle: data.instagram_handle || null,
+    preferredDate: data.preferred_date || null,
+    slotId: requestedSlotId,
+    tripId,
+    placement: data.placement || null,
+    size: data.size || null,
+  });
+  const { data: recentBookings } = await supabase
     .from("booking_requests")
-    .select("id", { count: "exact", head: true })
+    .select(
+      "customer_email, customer_handle, preferred_date, slot_id, trip_id, flash_item_id, form_data",
+    )
     .eq("artist_id", artistId)
-    .eq("customer_email", data.email)
     .gte("created_at", dedupeWindow);
-  if ((recentCount ?? 0) > 0) {
+
+  const duplicate = (recentBookings ?? []).some((row) => {
+    const fd = row.form_data as Record<string, unknown> | null;
+    return (
+      buildBookingFingerprintKey({
+        bookingMode: bookingModeFromRequest(row),
+        customerEmail: row.customer_email,
+        customerHandle: row.customer_handle,
+        preferredDate: row.preferred_date,
+        slotId: row.slot_id,
+        tripId: row.trip_id,
+        flashItemId: row.flash_item_id,
+        placement: typeof fd?.placement === "string" ? fd.placement : null,
+        size: typeof fd?.size === "string" ? fd.size : null,
+      }) === requestFingerprint
+    );
+  });
+
+  if (duplicate) {
     return {
-      error:
-        "your request was already submitted — check your email for confirmation",
+      error: data.email
+        ? "your request was already submitted — check your email for confirmation"
+        : "this request was already submitted very recently",
     };
   }
 
-  // Slot mode: atomically lock the slot before proceeding
+  // Slot mode: atomically lock the slot before proceeding.
   let slotId: string | null = null;
   let slotDate: string | null = null;
-  if (bookingMode === "fixed_slots") {
-    const rawSlotId = formData.get("slot_id") as string;
-    if (!rawSlotId) return { error: "please select a slot", field: "slot_id" };
+  if (artistBookingMode === "fixed_slots") {
+    if (!requestedSlotId)
+      return { error: "please select a slot", field: "slot_id" };
 
     const { data: locked } = await supabase
       .from("slots")
       .update({ status: "locked" })
-      .eq("id", rawSlotId)
+      .eq("id", requestedSlotId)
       .eq("status", "open")
       .select("id, starts_at")
       .single();
@@ -251,7 +294,7 @@ export async function submitBookingAction(
       };
     }
     slotId = locked.id;
-    slotDate = locked.starts_at.split("T")[0];
+    slotDate = dateKeyInTimeZone(locked.starts_at, artistTimeZone);
   }
 
   // Process and upload images — resize/compress to WebP before storage
@@ -275,7 +318,6 @@ export async function submitBookingAction(
         tags: { action: "booking_image_process" },
         extra: { bookingId, filename: file.name, size: file.size },
       });
-      // Clean up any already-uploaded files before returning
       if (uploadedImages.length > 0) {
         await serviceClient.storage
           .from("bookings")
@@ -295,7 +337,6 @@ export async function submitBookingAction(
           tags: { action: "booking_upload" },
           extra: { bookingId, path, message: uploadError.message },
         });
-        // Clean up already-uploaded files
         if (uploadedImages.length > 0) {
           await serviceClient.storage
             .from("bookings")
@@ -326,11 +367,12 @@ export async function submitBookingAction(
     });
   }
 
-  // Generate magic-link token
+  // Generate a magic-link token only when we can actually deliver it.
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-  // Insert booking request
+  const requestDate = slotDate ?? data.preferred_date ?? null;
+
   const { error: insertError } = await supabase
     .from("booking_requests")
     .insert({
@@ -345,13 +387,12 @@ export async function submitBookingAction(
         description: data.description,
         ...(customAnswers.length > 0 && { custom_answers: customAnswers }),
       },
-      preferred_date: slotDate ?? data.preferred_date,
+      preferred_date: requestDate,
       slot_id: slotId,
-      customer_email: data.email,
-      customer_handle: data.instagram_handle,
-      customer_token_hash: tokenHash,
+      customer_email: data.email || null,
+      customer_handle: data.instagram_handle || null,
+      customer_token_hash: data.email ? tokenHash : null,
       origin: "public_form",
-      ...(travelLegId ? { travel_leg_id: travelLegId } : {}),
       ...(tripId ? { trip_id: tripId } : {}),
     });
 
@@ -362,7 +403,6 @@ export async function submitBookingAction(
     if (slotId) {
       await supabase.from("slots").update({ status: "open" }).eq("id", slotId);
     }
-    // Clean up uploaded images since booking failed
     if (uploadedImages.length > 0) {
       await serviceClient.storage
         .from("bookings")
@@ -371,19 +411,18 @@ export async function submitBookingAction(
     return { error: "something went wrong — try again" };
   }
 
-  // Parse annotation data submitted alongside images (optional, artist-gated)
   let imageAnnotations: unknown[][] = [];
   try {
-    const raw = formData.get("annotations_json") as string | null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) imageAnnotations = parsed;
+    const rawAnnotations = formData.get("annotations_json") as string | null;
+    if (rawAnnotations) {
+      const parsedAnnotations = JSON.parse(rawAnnotations);
+      if (Array.isArray(parsedAnnotations))
+        imageAnnotations = parsedAnnotations;
     }
   } catch {
-    // Malformed JSON — ignore, proceed without annotations
+    // Ignore malformed annotation payloads instead of blocking the whole booking.
   }
 
-  // Insert booking images with metadata and optional annotations
   if (uploadedImages.length > 0) {
     await supabase.from("booking_images").insert(
       uploadedImages.map((img, idx) => {
@@ -405,25 +444,30 @@ export async function submitBookingAction(
     );
   }
 
-  // Write audit log
   await supabase.from("audit_log").insert({
     booking_id: bookingId,
     action: "booking_created",
     details: { origin: "public_form", ip },
   });
 
-  // Notify artist of new booking request
-  void createNotification({
-    artistId: artistId,
+  const notificationResult = await createNotification({
+    artistId,
     type: "booking_request",
     category: "booking_activity",
     priority: "high",
     title: "New booking request",
-    message: `@${data.instagram_handle} wants a ${data.placement} (${data.size})${data.preferred_date ? ` on ${data.preferred_date}` : ""}.`,
+    message: `@${data.instagram_handle} wants a ${data.placement} (${data.size})${requestDate ? ` on ${requestDate}` : ""}.`,
     ctaLabel: "View request",
     ctaHref: `/bookings/requests/${bookingId}`,
     metadata: { booking_id: bookingId },
   });
+  if (!notificationResult.ok) {
+    console.error("[booking-submit] notification failed", {
+      artistId,
+      bookingId,
+      error: notificationResult.error,
+    });
+  }
 
   const magicLinkBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const magicLink = `${magicLinkBase}/request/${token}`;
@@ -433,20 +477,20 @@ export async function submitBookingAction(
     artist_slug: artistSlug,
     placement: data.placement,
     size: data.size,
-    date: data.preferred_date,
+    date: requestDate ?? "",
     magic_link: magicLink,
   };
 
-  // Customer confirmation
-  await sendBookingEmail({
-    type: "customer_booking_submitted",
-    to: data.email,
-    artistId,
-    vars: emailVars,
-    customAnswers,
-  });
+  if (data.email) {
+    await sendBookingEmail({
+      type: "customer_booking_submitted",
+      to: data.email,
+      artistId,
+      vars: emailVars,
+      customAnswers,
+    });
+  }
 
-  // Artist new request notification
   try {
     const { data: artistAuth } =
       await serviceClient.auth.admin.getUserById(artistId);
@@ -466,7 +510,9 @@ export async function submitBookingAction(
     });
   }
 
-  redirect(`/request/submitted?id=${bookingId}&slug=${artistSlug}`);
+  redirect(
+    `/request/submitted?id=${bookingId}&slug=${artistSlug}&email=${data.email ? "1" : "0"}`,
+  );
 }
 
 export type WaitlistState =

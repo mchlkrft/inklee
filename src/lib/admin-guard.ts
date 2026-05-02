@@ -2,14 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
 function getAdminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS ?? "michel.kraeft@gmail.com")
+  return (process.env.ADMIN_EMAILS ?? "")
     .split(",")
-    .map((e) => e.trim())
+    .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 }
 
 export function isAdminEmail(email: string | undefined | null): boolean {
-  return !!email && getAdminEmails().includes(email);
+  return !!email && getAdminEmails().includes(email.trim().toLowerCase());
 }
 
 /** Server-side: redirects non-admins to /dashboard. Returns admin user id. */

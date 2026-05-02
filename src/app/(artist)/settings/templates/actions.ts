@@ -43,7 +43,7 @@ export async function saveTemplateAction(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/settings/templates");
+  revalidatePath("/settings/emails");
   return { success: true };
 }
 
@@ -83,6 +83,6 @@ export async function toggleTemplateAction(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/settings/templates");
+  revalidatePath("/settings/emails");
   return { success: true };
 }

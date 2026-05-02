@@ -131,8 +131,8 @@ export default function AccountActions({
 
         <ActionRow
           label="Trigger password reset"
-          description="Generates a recovery link for this account's email address."
-          buttonLabel="Generate link"
+          description="Sends a password reset email to this account."
+          buttonLabel="Send email"
           variant="default"
           onTrigger={() => startConfirm("password_reset")}
           disabled={pending}
@@ -228,13 +228,10 @@ export default function AccountActions({
           ) : (
             <>
               <p>{actionDoneLabel(state.action)}</p>
-              {state.action === "password_reset" && state.data?.resetLink && (
-                <div className="space-y-1">
-                  <p className="text-xs text-green-500/80">Recovery link:</p>
-                  <p className="break-all font-mono text-xs text-green-500/80">
-                    {state.data.resetLink as string}
-                  </p>
-                </div>
+              {state.action === "password_reset" && state.data?.email && (
+                <p className="text-xs text-green-500/80">
+                  Sent to {String(state.data.email)}.
+                </p>
               )}
             </>
           )}
@@ -379,7 +376,7 @@ function actionDoneLabel(action: ActionId): string {
     reactivate: "Account reactivated. Auth access restored.",
     archive: "Account archived and auth access blocked.",
     reset_onboarding: "Onboarding reset. Artist will see setup prompt again.",
-    password_reset: "Recovery link generated.",
+    password_reset: "Password reset email queued.",
   };
   return map[action];
 }

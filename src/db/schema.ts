@@ -61,6 +61,7 @@ export const profiles = pgTable("profiles", {
   bookingMode: bookingModeEnum("booking_mode")
     .notNull()
     .default("preferred_date"),
+  isTester: boolean("is_tester").notNull().default(false),
   accountStatus: text("account_status").notNull().default("active"),
   suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   suspendedReason: text("suspended_reason"),
@@ -119,6 +120,11 @@ export const bookingImages = pgTable("booking_images", {
     .notNull()
     .references(() => bookingRequests.id, { onDelete: "cascade" }),
   storagePath: text("storage_path").notNull(),
+  originalFilename: text("original_filename"),
+  mimeType: text("mime_type").notNull().default("image/webp"),
+  width: integer("width"),
+  height: integer("height"),
+  fileSize: integer("file_size"),
   annotations: jsonb("annotations"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -353,6 +359,26 @@ export const clientNotes = pgTable("client_notes", {
   customerEmail: text("customer_email").notNull(),
   notes: text("notes").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  category: text("category").notNull(),
+  priority: text("priority").notNull().default("medium"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  ctaLabel: text("cta_label"),
+  ctaHref: text("cta_href"),
+  isRead: boolean("is_read").notNull().default(false),
+  isResolved: boolean("is_resolved"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

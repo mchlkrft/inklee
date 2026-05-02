@@ -1,3 +1,6 @@
+import { cache } from "react";
+import { buildBookingFunnel, buildIntegrityFlags } from "@/lib/admin-metrics";
+import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { serviceClient } from "@/lib/supabase/service";
 
 export type DateRange = "7" | "30" | "90" | "all";
@@ -7,11 +10,13 @@ export function periodBounds(range: DateRange): {
   previous: string | null;
 } {
   if (range === "all") return { current: null, previous: null };
-  const days = parseInt(range);
+
+  const days = parseInt(range, 10);
   const now = Date.now();
-  const current = new Date(now - days * 86400000).toISOString();
-  const previous = new Date(now - 2 * days * 86400000).toISOString();
-  return { current, previous };
+  return {
+    current: new Date(now - days * 86_400_000).toISOString(),
+    previous: new Date(now - 2 * days * 86_400_000).toISOString(),
+  };
 }
 
 async function countWhere(
@@ -20,34 +25,35 @@ async function countWhere(
   fromDate?: string | null,
   dateCol = "created_at",
 ): Promise<number> {
-  let q = serviceClient
+  let query = serviceClient
     .from(table)
     .select("id", { count: "exact", head: true });
-  for (const [k, v] of Object.entries(filters)) {
-    if (v !== null) q = q.eq(k, v);
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== null) query = query.eq(key, value);
   }
-  if (fromDate) q = q.gte(dateCol, fromDate);
-  if (table === "profiles") q = q.eq("is_tester", false);
-  const { count } = await q;
+
+  if (fromDate) query = query.gte(dateCol, fromDate);
+  if (table === "profiles") query = query.eq("is_tester", false);
+
+  const { count } = await query;
   return count ?? 0;
 }
 
-async function testerIds(): Promise<string[]> {
+const testerIds = cache(async (): Promise<string[]> => {
   const { data } = await serviceClient
     .from("profiles")
     .select("id")
     .eq("is_tester", true);
-  return (data ?? []).map((r) => r.id);
-}
+  return (data ?? []).map((row) => row.id);
+});
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function excludeTesters(q: any, excluded: string[]): any {
-  return excluded.length > 0
-    ? q.not("artist_id", "in", `(${excluded.join(",")})`)
-    : q;
+function excludeArtistsQuery(query: any, excludedArtistIds: string[]): any {
+  return excludedArtistIds.length > 0
+    ? query.not("artist_id", "in", `(${excludedArtistIds.join(",")})`)
+    : query;
 }
-
-// ── KPIs ────────────────────────────────────────────────────────────────────
 
 export async function getKpis(range: DateRange) {
   const { current, previous } = periodBounds(range);
@@ -63,7 +69,9 @@ export async function getKpis(range: DateRange) {
     confirmedCurrent,
     confirmedPrevious,
     cancelledCurrent,
-    rejectedCurrent,
+    decidedRowsResult,
+    activeArtistsCurrent,
+    activeArtistsPrevious,
   ] = await Promise.all([
     countWhere("profiles"),
     serviceClient
@@ -71,18 +79,18 @@ export async function getKpis(range: DateRange) {
       .select("id", { count: "exact", head: true })
       .eq("settings->>onboarding_completed", "true")
       .eq("is_tester", false)
-      .then((r) => r.count ?? 0),
+      .then((result) => result.count ?? 0),
     countWhere("profiles", {}, current),
     countWhere("profiles", {}, previous),
-    excludeTesters(
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
         .select("id", { count: "exact", head: true }),
       excluded,
     )
       .gte("created_at", current ?? "2000-01-01")
-      .then((r: { count: number | null }) => r.count ?? 0),
-    excludeTesters(
+      .then((result: { count: number | null }) => result.count ?? 0),
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
         .select("id", { count: "exact", head: true }),
@@ -90,8 +98,8 @@ export async function getKpis(range: DateRange) {
     )
       .gte("created_at", previous ?? "2000-01-01")
       .lt("created_at", current ?? new Date().toISOString())
-      .then((r: { count: number | null }) => r.count ?? 0),
-    excludeTesters(
+      .then((result: { count: number | null }) => result.count ?? 0),
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
         .select("id", { count: "exact", head: true })
@@ -99,8 +107,8 @@ export async function getKpis(range: DateRange) {
       excluded,
     )
       .gte("created_at", current ?? "2000-01-01")
-      .then((r: { count: number | null }) => r.count ?? 0),
-    excludeTesters(
+      .then((result: { count: number | null }) => result.count ?? 0),
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
         .select("id", { count: "exact", head: true })
@@ -109,8 +117,8 @@ export async function getKpis(range: DateRange) {
     )
       .gte("created_at", previous ?? "2000-01-01")
       .lt("created_at", current ?? new Date().toISOString())
-      .then((r: { count: number | null }) => r.count ?? 0),
-    excludeTesters(
+      .then((result: { count: number | null }) => result.count ?? 0),
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
         .select("id", { count: "exact", head: true })
@@ -118,70 +126,59 @@ export async function getKpis(range: DateRange) {
       excluded,
     )
       .gte("created_at", current ?? "2000-01-01")
-      .then((r: { count: number | null }) => r.count ?? 0),
-    excludeTesters(
+      .then((result: { count: number | null }) => result.count ?? 0),
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "rejected"),
+        .select("created_at, decided_at")
+        .not("decided_at", "is", null),
       excluded,
     )
       .gte("created_at", current ?? "2000-01-01")
-      .then((r: { count: number | null }) => r.count ?? 0),
+      .limit(500),
+    excludeArtistsQuery(
+      serviceClient.from("booking_requests").select("artist_id"),
+      excluded,
+    ).gte("created_at", current ?? "2000-01-01"),
+    previous
+      ? excludeArtistsQuery(
+          serviceClient.from("booking_requests").select("artist_id"),
+          excluded,
+        )
+          .gte("created_at", previous)
+          .lt("created_at", current!)
+      : Promise.resolve({ data: [] as { artist_id: string }[] }),
   ]);
 
-  // Active artists: had at least one booking request in period (proxy for activity)
-  const { data: activeArtistsCurrent } = await excludeTesters(
-    serviceClient.from("booking_requests").select("artist_id"),
-    excluded,
-  ).gte("created_at", current ?? "2000-01-01");
   const activeNow = new Set(
-    activeArtistsCurrent?.map((r: { artist_id: string }) => r.artist_id),
+    (activeArtistsCurrent.data ?? []).map(
+      (row: { artist_id: string }) => row.artist_id,
+    ),
   ).size;
-
-  const { data: activeArtistsPrevious } = previous
-    ? await excludeTesters(
-        serviceClient.from("booking_requests").select("artist_id"),
-        excluded,
-      )
-        .gte("created_at", previous)
-        .lt("created_at", current!)
-    : { data: [] };
   const activePrev = new Set(
-    (activeArtistsPrevious ?? []).map(
-      (r: { artist_id: string }) => r.artist_id,
+    (activeArtistsPrevious.data ?? []).map(
+      (row: { artist_id: string }) => row.artist_id,
     ),
   ).size;
 
-  // Median response time (decided_at - created_at) for decided bookings
-  const { data: decidedRows } = await excludeTesters(
-    serviceClient
-      .from("booking_requests")
-      .select("created_at, decided_at")
-      .not("decided_at", "is", null),
-    excluded,
-  )
-    .gte("created_at", current ?? "2000-01-01")
-    .limit(500);
-
-  const durations = (decidedRows ?? [])
+  const durations = (decidedRowsResult.data ?? [])
     .map(
-      (r: { created_at: string; decided_at: string | null }) =>
-        (new Date(r.decided_at!).getTime() - new Date(r.created_at).getTime()) /
-        3600000,
+      (row: { created_at: string; decided_at: string | null }) =>
+        (new Date(row.decided_at!).getTime() -
+          new Date(row.created_at).getTime()) /
+        3_600_000,
     )
     .sort((a: number, b: number) => a - b);
+
   const medianHours =
     durations.length > 0 ? durations[Math.floor(durations.length / 2)] : null;
-
-  const totalBookings = bookingsCurrent;
   const confirmRate =
-    totalBookings > 0
-      ? Math.round((confirmedCurrent / totalBookings) * 100)
+    bookingsCurrent > 0
+      ? Math.round((confirmedCurrent / bookingsCurrent) * 100)
       : null;
   const cancelRate =
-    totalBookings > 0
-      ? Math.round((cancelledCurrent / totalBookings) * 100)
+    bookingsCurrent > 0
+      ? Math.round((cancelledCurrent / bookingsCurrent) * 100)
       : null;
   const activationRate =
     totalArtists > 0
@@ -202,8 +199,6 @@ export async function getKpis(range: DateRange) {
   };
 }
 
-// ── Onboarding funnel ────────────────────────────────────────────────────────
-
 export async function getOnboardingFunnel(range: DateRange) {
   const { current } = periodBounds(range);
   const fromFilter = current ?? "2000-01-01";
@@ -222,47 +217,42 @@ export async function getOnboardingFunnel(range: DateRange) {
       .select("id", { count: "exact", head: true })
       .eq("is_tester", false)
       .gte("created_at", fromFilter)
-      .then((r) => r.count ?? 0),
-    // slug is always set on account creation — same as total
+      .then((result) => result.count ?? 0),
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .not("slug", "is", null)
-      .then((r) => r.count ?? 0),
-    // Profile info: has bio or location
+      .then((result) => result.count ?? 0),
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .or("bio.not.is.null,location.not.is.null")
-      .then((r) => r.count ?? 0),
-    // Books configured: books_settings in settings JSONB
+      .then((result) => result.count ?? 0),
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .not("settings->books_settings", "is", null)
-      .then((r) => r.count ?? 0),
-    // Onboarding completed flag
+      .then((result) => result.count ?? 0),
     serviceClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("is_tester", false)
       .gte("created_at", fromFilter)
       .eq("settings->>onboarding_completed", "true")
-      .then((r) => r.count ?? 0),
-    // At least one booking received: artists with booking_requests
-    excludeTesters(
+      .then((result) => result.count ?? 0),
+    excludeArtistsQuery(
       serviceClient.from("booking_requests").select("artist_id"),
       excluded,
     )
       .gte("created_at", fromFilter)
-      .then((r: { data: { artist_id: string }[] | null }) => {
-        const ids = new Set(r.data?.map((b) => b.artist_id));
+      .then((result: { data: { artist_id: string }[] | null }) => {
+        const ids = new Set(result.data?.map((booking) => booking.artist_id));
         return ids.size;
       }),
   ]);
@@ -277,61 +267,36 @@ export async function getOnboardingFunnel(range: DateRange) {
   ];
 }
 
-// ── Booking funnel ───────────────────────────────────────────────────────────
-
 export async function getBookingFunnel(range: DateRange) {
   const { current } = periodBounds(range);
-  const from = current ?? "2000-01-01";
   const excluded = await testerIds();
 
-  let q = serviceClient
+  let query = serviceClient
     .from("booking_requests")
-    .select("status, deposit_amount, decided_at")
-    .gte("created_at", from);
-  if (excluded.length > 0)
-    q = q.not("artist_id", "in", `(${excluded.join(",")})`);
-  const { data: all } = await q;
+    .select("status, deposit_amount, deposit_paid_at, decided_at")
+    .gte("created_at", current ?? "2000-01-01");
+  query = excludeArtistsQuery(query, excluded);
 
-  const rows = all ?? [];
-  const submitted = rows.length;
-  const reviewed = rows.filter((r) => r.decided_at !== null).length;
-  const approved = rows.filter((r) => r.status === "approved").length;
-  const depositRequested = rows.filter((r) => r.deposit_amount !== null).length;
-  const depositPaid = rows.filter(
-    (r) => r.deposit_amount !== null && r.status === "approved",
-  ).length;
-  const rejected = rows.filter((r) => r.status === "rejected").length;
-  const cancelled = rows.filter((r) => r.status === "cancelled").length;
-
-  return [
-    { label: "Submitted", count: submitted },
-    { label: "Reviewed", count: reviewed },
-    { label: "Approved", count: approved },
-    { label: "Deposit requested", count: depositRequested },
-    { label: "Deposit paid", count: depositPaid },
-    { label: "Rejected", count: rejected },
-    { label: "Cancelled", count: cancelled },
-  ];
+  const { data } = await query;
+  return buildBookingFunnel(data ?? []);
 }
-
-// ── Feature adoption ─────────────────────────────────────────────────────────
 
 export async function getFeatureAdoption() {
   const excluded = await testerIds();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const countDistinctArtists = async (
     table: string,
-    extraFilter?: (q: any) => any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    extraFilter?: (query: any) => any,
   ): Promise<number> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = serviceClient.from(table).select("artist_id");
-    if (extraFilter) q = extraFilter(q);
-    if (excluded.length > 0)
-      q = q.not("artist_id", "in", `(${excluded.join(",")})`);
-    const { data } = await q;
-    return new Set((data ?? []).map((x: { artist_id: string }) => x.artist_id))
-      .size;
+    let query: any = serviceClient.from(table).select("artist_id");
+    if (extraFilter) query = extraFilter(query);
+    query = excludeArtistsQuery(query, excluded);
+    const { data } = await query;
+    return new Set(
+      (data ?? []).map((row: { artist_id: string }) => row.artist_id),
+    ).size;
   };
 
   const [
@@ -339,7 +304,7 @@ export async function getFeatureAdoption() {
     withCustomFields,
     withEmailTemplates,
     withSlots,
-    withTravelLegs,
+    withTrips,
     withWaitlistEntries,
     withDeposits,
     withClientNotes,
@@ -349,17 +314,17 @@ export async function getFeatureAdoption() {
     countDistinctArtists("custom_fields"),
     countDistinctArtists("email_templates"),
     countDistinctArtists("slots"),
-    countDistinctArtists("travel_legs"),
+    countDistinctArtists("trips"),
     countDistinctArtists("waitlist_entries"),
-    countDistinctArtists("booking_requests", (q) =>
-      q.not("deposit_amount", "is", null),
+    countDistinctArtists("booking_requests", (query) =>
+      query.not("deposit_amount", "is", null),
     ),
     countDistinctArtists("client_notes"),
     countDistinctArtists("notifications"),
   ]);
 
-  const pct = (n: number) =>
-    totalArtists > 0 ? Math.round((n / totalArtists) * 100) : 0;
+  const pct = (count: number) =>
+    totalArtists > 0 ? Math.round((count / totalArtists) * 100) : 0;
 
   return [
     {
@@ -375,8 +340,8 @@ export async function getFeatureAdoption() {
     { feature: "Fixed slots", users: withSlots, pct: pct(withSlots) },
     {
       feature: "Travel / guest spots",
-      users: withTravelLegs,
-      pct: pct(withTravelLegs),
+      users: withTrips,
+      pct: pct(withTrips),
     },
     {
       feature: "Waitlist",
@@ -397,43 +362,54 @@ export async function getFeatureAdoption() {
   ];
 }
 
-// ── Quality signals ──────────────────────────────────────────────────────────
-
 export async function getQualitySignals() {
-  const now = new Date().toISOString();
+  const today = localDateKey();
+  const excluded = await testerIds();
+  const pendingThreshold = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
-  const [overdueDeposits, deadAccounts, pendingOld, totalArtists] =
-    await Promise.all([
-      // Deposits overdue: deposit_pending and due date past
+  const [
+    overdueDeposits,
+    activatedProfiles,
+    activeBookings,
+    pendingOld,
+    totalArtists,
+  ] = await Promise.all([
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
         .select("id", { count: "exact", head: true })
         .eq("status", "deposit_pending")
-        .lt("deposit_due_at", now.slice(0, 10))
-        .then((r) => r.count ?? 0),
-      // Dead accounts: activated but zero booking requests ever
-      serviceClient
-        .from("profiles")
-        .select("id")
-        .eq("settings->>onboarding_completed", "true")
-        .then(async (r) => {
-          const allIds = r.data?.map((p) => p.id) ?? [];
-          if (!allIds.length) return 0;
-          const { data: active } = await serviceClient
-            .from("booking_requests")
-            .select("artist_id");
-          const activeIds = new Set(active?.map((b) => b.artist_id));
-          return allIds.filter((id) => !activeIds.has(id)).length;
-        }),
-      // Bookings pending > 7 days with no response
+        .lt("deposit_due_at", today),
+      excluded,
+    ).then((result: { count: number | null }) => result.count ?? 0),
+    serviceClient
+      .from("profiles")
+      .select("id")
+      .eq("settings->>onboarding_completed", "true")
+      .eq("is_tester", false),
+    excludeArtistsQuery(
+      serviceClient.from("booking_requests").select("artist_id"),
+      excluded,
+    ),
+    excludeArtistsQuery(
       serviceClient
         .from("booking_requests")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending")
-        .lt("created_at", new Date(Date.now() - 7 * 86400000).toISOString())
-        .then((r) => r.count ?? 0),
-      countWhere("profiles"),
-    ]);
+        .lt("created_at", pendingThreshold),
+      excluded,
+    ).then((result: { count: number | null }) => result.count ?? 0),
+    countWhere("profiles"),
+  ]);
+
+  const activeArtistIds = new Set(
+    (activeBookings.data ?? []).map(
+      (booking: { artist_id: string }) => booking.artist_id,
+    ),
+  );
+  const deadAccounts = (activatedProfiles.data ?? []).filter(
+    (profile: { id: string }) => !activeArtistIds.has(profile.id),
+  ).length;
 
   return {
     overdueDeposits,
@@ -442,8 +418,6 @@ export async function getQualitySignals() {
     totalArtists,
   };
 }
-
-// ── Artist roster ────────────────────────────────────────────────────────────
 
 export async function getArtistRoster() {
   const { data: profiles } = await serviceClient
@@ -462,42 +436,43 @@ export async function getArtistRoster() {
     string,
     { total: number; approved: number; lastActivity: string | null }
   >();
-  for (const b of bookingSummary ?? []) {
-    const cur = byArtist.get(b.artist_id) ?? {
+
+  for (const booking of bookingSummary ?? []) {
+    const current = byArtist.get(booking.artist_id) ?? {
       total: 0,
       approved: 0,
       lastActivity: null,
     };
-    cur.total++;
-    if (b.status === "approved") cur.approved++;
-    if (!cur.lastActivity || b.created_at > cur.lastActivity)
-      cur.lastActivity = b.created_at;
-    byArtist.set(b.artist_id, cur);
+    current.total++;
+    if (booking.status === "approved") current.approved++;
+    if (!current.lastActivity || booking.created_at > current.lastActivity) {
+      current.lastActivity = booking.created_at;
+    }
+    byArtist.set(booking.artist_id, current);
   }
 
-  return (profiles ?? []).map((p) => {
-    const s = (p.settings ?? {}) as Record<string, unknown>;
-    const stats = byArtist.get(p.id) ?? {
+  return (profiles ?? []).map((profile) => {
+    const settings = (profile.settings ?? {}) as Record<string, unknown>;
+    const stats = byArtist.get(profile.id) ?? {
       total: 0,
       approved: 0,
       lastActivity: null,
     };
+
     return {
-      id: p.id,
-      slug: p.slug,
-      displayName: p.display_name,
-      createdAt: p.created_at,
-      activated: s.onboarding_completed === true,
-      accountStatus: (p.account_status as string) ?? "active",
-      isTester: p.is_tester ?? false,
+      id: profile.id,
+      slug: profile.slug,
+      displayName: profile.display_name,
+      createdAt: profile.created_at,
+      activated: settings.onboarding_completed === true,
+      accountStatus: (profile.account_status as string) ?? "active",
+      isTester: profile.is_tester ?? false,
       totalBookings: stats.total,
       approvedBookings: stats.approved,
       lastActivity: stats.lastActivity,
     };
   });
 }
-
-// ── Account detail ───────────────────────────────────────────────────────────
 
 export async function getAccountDetail(artistId: string) {
   const [
@@ -590,14 +565,15 @@ export async function getAccountDetail(artistId: string) {
 
   const bookingCounts = {
     total: allBookings.length,
-    pending: allBookings.filter((b) => b.status === "pending").length,
-    approved: allBookings.filter((b) => b.status === "approved").length,
-    rejected: allBookings.filter((b) => b.status === "rejected").length,
-    cancelled: allBookings.filter((b) => b.status === "cancelled").length,
+    pending: allBookings.filter((booking) => booking.status === "pending")
+      .length,
+    approved: allBookings.filter((booking) => booking.status === "approved")
+      .length,
+    rejected: allBookings.filter((booking) => booking.status === "rejected")
+      .length,
+    cancelled: allBookings.filter((booking) => booking.status === "cancelled")
+      .length,
   };
-
-  const lastActivity =
-    allBookings.length > 0 ? allBookings[0].created_at : null;
 
   return {
     profile,
@@ -606,7 +582,8 @@ export async function getAccountDetail(artistId: string) {
     bookingCounts,
     flashCounts: {
       total: flashItems.length,
-      published: flashItems.filter((f) => f.status === "published").length,
+      published: flashItems.filter((item) => item.status === "published")
+        .length,
     },
     tripCount,
     customFieldCount,
@@ -614,44 +591,19 @@ export async function getAccountDetail(artistId: string) {
     waitlistCount,
     recentBookings,
     adminActions,
-    lastActivity,
+    lastActivity: allBookings.length > 0 ? allBookings[0].created_at : null,
   };
 }
 
-// ── Booking integrity checks ─────────────────────────────────────────────────
-
 export async function getIntegrityFlags() {
-  const now = new Date().toISOString();
+  const excluded = await testerIds();
+  let query = serviceClient
+    .from("booking_requests")
+    .select(
+      "status, decided_at, deposit_amount, deposit_due_at, deposit_paid_at",
+    );
+  query = excludeArtistsQuery(query, excluded);
 
-  const [approvedNoDecidedAt, depositPendingNoAmount, unreconciled] =
-    await Promise.all([
-      // Approved bookings without a decided_at timestamp
-      serviceClient
-        .from("booking_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "approved")
-        .is("decided_at", null)
-        .then((r) => r.count ?? 0),
-      // Deposit-pending bookings with no deposit_amount set
-      serviceClient
-        .from("booking_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "deposit_pending")
-        .is("deposit_amount", null)
-        .then((r) => r.count ?? 0),
-      // Deposit-pending bookings where due date is >7 days past and not paid
-      serviceClient
-        .from("booking_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "deposit_pending")
-        .lt(
-          "deposit_due_at",
-          new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0],
-        )
-        .is("deposit_paid_at", null)
-        .then((r) => r.count ?? 0),
-    ]);
-
-  void now; // suppress unused warning
-  return { approvedNoDecidedAt, depositPendingNoAmount, unreconciled };
+  const { data } = await query;
+  return buildIntegrityFlags(data ?? [], addDaysToDateKey(localDateKey(), -7));
 }

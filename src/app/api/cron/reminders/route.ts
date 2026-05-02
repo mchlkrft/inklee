@@ -1,58 +1,80 @@
-import { NextResponse } from "next/server";
-import { serviceClient } from "@/lib/supabase/service";
 import crypto from "crypto";
+import { NextResponse } from "next/server";
 import {
-  sendDepositOverdueCustomer,
-  sendDepositOverdueArtist,
+  relativeDateKeyFromToday,
+  addDaysToDateKey,
+  localDateKey,
+  todayInTimeZone,
+} from "@/lib/date-utils";
+import {
   sendAppointmentReminder,
+  sendDepositOverdueArtist,
+  sendDepositOverdueCustomer,
   sendReconfirmationRequest,
 } from "@/lib/email/reminder-emails";
 import { parseReminderSettings } from "@/lib/reminder-settings";
-
-// Per-artist reminder settings cache for this cron run
-const artistSettingsCache = new Map<
-  string,
-  ReturnType<typeof parseReminderSettings>
->();
-
-async function getArtistReminderSettings(artistId: string) {
-  if (artistSettingsCache.has(artistId))
-    return artistSettingsCache.get(artistId)!;
-  const { data } = await serviceClient
-    .from("profiles")
-    .select("settings")
-    .eq("id", artistId)
-    .single();
-  const profileSettings = (data?.settings ?? {}) as Record<string, unknown>;
-  const settings = parseReminderSettings(profileSettings.reminder_settings);
-  artistSettingsCache.set(artistId, settings);
-  return settings;
-}
+import { serviceClient } from "@/lib/supabase/service";
+import { localToUTC } from "@/lib/timezone";
 
 export const runtime = "nodejs";
 
-function daysFromNow(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split("T")[0];
+type ReminderSettingsSnapshot = ReturnType<typeof parseReminderSettings>;
+type ArtistSnapshot = {
+  displayName: string;
+  timezone: string;
+  settings: ReminderSettingsSnapshot;
+};
+
+const artistSnapshotCache = new Map<string, ArtistSnapshot>();
+const artistEmailCache = new Map<string, string | null>();
+
+async function getArtistSnapshot(artistId: string): Promise<ArtistSnapshot> {
+  const cached = artistSnapshotCache.get(artistId);
+  if (cached) return cached;
+
+  const { data } = await serviceClient
+    .from("profiles")
+    .select("display_name, timezone, settings")
+    .eq("id", artistId)
+    .single();
+
+  const profileSettings = (data?.settings ?? {}) as Record<string, unknown>;
+  const snapshot = {
+    displayName: data?.display_name ?? "the artist",
+    timezone: data?.timezone ?? "Europe/Berlin",
+    settings: parseReminderSettings(profileSettings.reminder_settings),
+  };
+  artistSnapshotCache.set(artistId, snapshot);
+  return snapshot;
 }
 
-function today(): string {
-  return new Date().toISOString().split("T")[0];
+async function getArtistEmail(artistId: string): Promise<string | null> {
+  if (artistEmailCache.has(artistId)) {
+    return artistEmailCache.get(artistId) ?? null;
+  }
+
+  const { data } = await serviceClient.auth.admin.getUserById(artistId);
+  const email = data.user?.email ?? null;
+  artistEmailCache.set(artistId, email);
+  return email;
+}
+
+function startOfTodayUtc(timezone: string): string {
+  return localToUTC(todayInTimeZone(timezone), "00:00", timezone);
 }
 
 async function alreadySentToday(
   bookingId: string,
   type: "deposit_overdue" | "appointment_reminder" | "reconfirmation",
+  timezone: string,
 ): Promise<boolean> {
-  const todayStr = today();
   const { count } = await serviceClient
     .from("audit_log")
     .select("id", { count: "exact", head: true })
     .eq("booking_id", bookingId)
     .eq("action", "reminder_sent")
     .filter("details->>type", "eq", type)
-    .gte("timestamp", `${todayStr}T00:00:00Z`);
+    .gte("timestamp", startOfTodayUtc(timezone));
 
   return (count ?? 0) > 0;
 }
@@ -71,77 +93,70 @@ export async function GET(request: Request) {
     capped: 0,
   };
 
-  // Per-artist email cap for this cron run — prevents a bug from spamming one artist
   const ARTIST_EMAIL_CAP = 10;
   const artistEmailCount = new Map<string, number>();
   function withinCap(artistId: string): boolean {
-    const n = artistEmailCount.get(artistId) ?? 0;
-    if (n >= ARTIST_EMAIL_CAP) return false;
-    artistEmailCount.set(artistId, n + 1);
+    const count = artistEmailCount.get(artistId) ?? 0;
+    if (count >= ARTIST_EMAIL_CAP) return false;
+    artistEmailCount.set(artistId, count + 1);
     return true;
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
 
-  // ── 1. Deposit overdue ────────────────────────────────────────────────────
-  // Bookings still deposit_pending where due date has passed.
-  // Deduped via audit_log — won't resend if already sent today.
   {
     const { data: overdueBookings } = await serviceClient
       .from("booking_requests")
       .select(
-        "id, customer_email, customer_handle, customer_token_hash, deposit_amount, deposit_due_at, deposit_note, artist_id",
+        "id, customer_email, customer_handle, deposit_amount, deposit_due_at, deposit_note, artist_id",
       )
       .eq("status", "deposit_pending")
-      .lt("deposit_due_at", today())
       .not("customer_email", "is", null);
 
     for (const booking of overdueBookings ?? []) {
       try {
-        const artistSettings = await getArtistReminderSettings(
-          booking.artist_id,
-        );
-        if (!artistSettings.deposit_overdue_enabled) continue;
-        if (await alreadySentToday(booking.id, "deposit_overdue")) continue;
+        const snapshot = await getArtistSnapshot(booking.artist_id);
+        if (!snapshot.settings.deposit_overdue_enabled) continue;
+        if (
+          !booking.deposit_due_at ||
+          booking.deposit_due_at >= todayInTimeZone(snapshot.timezone)
+        ) {
+          continue;
+        }
+        if (
+          await alreadySentToday(
+            booking.id,
+            "deposit_overdue",
+            snapshot.timezone,
+          )
+        ) {
+          continue;
+        }
         if (!withinCap(booking.artist_id)) {
           results.capped++;
           continue;
         }
 
-        // Fetch artist email
-        const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
-          booking.artist_id,
-        );
-        const artistEmail = artistAuth?.user?.email;
-
-        const { data: artistProfile } = await serviceClient
-          .from("profiles")
-          .select("display_name")
-          .eq("id", booking.artist_id)
-          .single();
-
-        const artistName = artistProfile?.display_name ?? "the artist";
+        const artistEmail = await getArtistEmail(booking.artist_id);
         const amount = booking.deposit_amount
           ? Number(booking.deposit_amount)
           : 0;
 
-        // Email customer
         await sendDepositOverdueCustomer({
           to: booking.customer_email!,
           customerHandle: booking.customer_handle ?? "there",
-          artistName,
+          artistName: snapshot.displayName,
           amountEur: amount,
-          dueAt: booking.deposit_due_at ?? "",
+          dueAt: booking.deposit_due_at,
           note: booking.deposit_note,
         });
 
-        // Email artist
         if (artistEmail) {
           await sendDepositOverdueArtist({
             to: artistEmail,
             customerHandle: booking.customer_handle ?? "customer",
             amountEur: amount,
-            dueAt: booking.deposit_due_at ?? "",
+            dueAt: booking.deposit_due_at,
           });
         }
 
@@ -152,116 +167,131 @@ export async function GET(request: Request) {
         });
 
         results.deposit_overdue++;
-      } catch {
+      } catch (error) {
+        console.error("[cron/reminders][deposit_overdue]", error, {
+          bookingId: booking.id,
+        });
         results.errors++;
       }
     }
   }
 
-  // ── 2. Appointment reminder (per-artist configurable days out) ────────────
-  // Collect all distinct reminder_days values to minimise queries
   {
-    // Fetch all approved bookings in the relevant window (1-14 days out)
+    const windowStart = addDaysToDateKey(localDateKey(), 1);
+    const windowEnd = addDaysToDateKey(localDateKey(), 15);
+
     const { data: candidateBookings } = await serviceClient
       .from("booking_requests")
       .select(
         "id, customer_email, customer_handle, preferred_date, form_data, artist_id",
       )
       .eq("status", "approved")
-      .gte("preferred_date", daysFromNow(1))
-      .lte("preferred_date", daysFromNow(14))
+      .gte("preferred_date", windowStart)
+      .lte("preferred_date", windowEnd)
       .not("customer_email", "is", null);
 
-    const upcoming = [];
     for (const booking of candidateBookings ?? []) {
-      const artistSettings = await getArtistReminderSettings(booking.artist_id);
-      if (!artistSettings.appointment_reminder_enabled) continue;
-      const targetDate = daysFromNow(artistSettings.appointment_reminder_days);
-      if (booking.preferred_date === targetDate) upcoming.push(booking);
-    }
-
-    for (const booking of upcoming) {
       try {
-        if (await alreadySentToday(booking.id, "appointment_reminder"))
+        const snapshot = await getArtistSnapshot(booking.artist_id);
+        if (!snapshot.settings.appointment_reminder_enabled) continue;
+        if (
+          booking.preferred_date !==
+          relativeDateKeyFromToday(
+            snapshot.settings.appointment_reminder_days,
+            snapshot.timezone,
+          )
+        ) {
           continue;
+        }
+        if (
+          await alreadySentToday(
+            booking.id,
+            "appointment_reminder",
+            snapshot.timezone,
+          )
+        ) {
+          continue;
+        }
         if (!withinCap(booking.artist_id)) {
           results.capped++;
           continue;
         }
 
-        const { data: profile } = await serviceClient
-          .from("profiles")
-          .select("display_name")
-          .eq("id", booking.artist_id)
-          .single();
-
-        const fd = booking.form_data as Record<string, string> | null;
-
+        const formData = booking.form_data as Record<string, string> | null;
         await sendAppointmentReminder({
           to: booking.customer_email!,
           customerHandle: booking.customer_handle ?? "there",
-          artistName: profile?.display_name ?? "the artist",
+          artistName: snapshot.displayName,
           date: booking.preferred_date ?? "",
-          placement: fd?.placement ?? "",
+          placement: formData?.placement ?? "",
         });
 
         await serviceClient.from("audit_log").insert({
           booking_id: booking.id,
           action: "reminder_sent",
-          details: { type: "appointment_reminder", days_out: 3 },
+          details: {
+            type: "appointment_reminder",
+            days_out: snapshot.settings.appointment_reminder_days,
+          },
         });
 
         results.appointment_reminder++;
-      } catch {
+      } catch (error) {
+        console.error("[cron/reminders][appointment_reminder]", error, {
+          bookingId: booking.id,
+        });
         results.errors++;
       }
     }
   }
 
-  // ── 3. Reconfirmation request (per-artist configurable days out) ──────────
   {
-    const { data: candidateReconfirm } = await serviceClient
+    const windowStart = addDaysToDateKey(localDateKey(), 3);
+    const windowEnd = addDaysToDateKey(localDateKey(), 31);
+
+    const { data: candidateBookings } = await serviceClient
       .from("booking_requests")
       .select(
         "id, customer_email, customer_handle, customer_token_hash, preferred_date, form_data, artist_id",
       )
       .eq("status", "approved")
-      .gte("preferred_date", daysFromNow(3))
-      .lte("preferred_date", daysFromNow(30))
+      .gte("preferred_date", windowStart)
+      .lte("preferred_date", windowEnd)
       .not("customer_email", "is", null)
       .not("customer_token_hash", "is", null);
 
-    const upcoming = [];
-    for (const booking of candidateReconfirm ?? []) {
-      const artistSettings = await getArtistReminderSettings(booking.artist_id);
-      if (!artistSettings.reconfirmation_enabled) continue;
-      const targetDate = daysFromNow(artistSettings.reconfirmation_days);
-      if (booking.preferred_date === targetDate) upcoming.push(booking);
-    }
-
-    for (const booking of upcoming) {
+    for (const booking of candidateBookings ?? []) {
       try {
-        if (await alreadySentToday(booking.id, "reconfirmation")) continue;
+        const snapshot = await getArtistSnapshot(booking.artist_id);
+        if (!snapshot.settings.reconfirmation_enabled) continue;
+        if (
+          booking.preferred_date !==
+          relativeDateKeyFromToday(
+            snapshot.settings.reconfirmation_days,
+            snapshot.timezone,
+          )
+        ) {
+          continue;
+        }
+        if (
+          await alreadySentToday(
+            booking.id,
+            "reconfirmation",
+            snapshot.timezone,
+          )
+        ) {
+          continue;
+        }
         if (!withinCap(booking.artist_id)) {
           results.capped++;
           continue;
         }
 
-        const { data: profile } = await serviceClient
-          .from("profiles")
-          .select("display_name")
-          .eq("id", booking.artist_id)
-          .single();
-
-        const fd = booking.form_data as Record<string, string> | null;
-
-        // Issue a fresh token so the customer gets a working cancel link
         const newToken = crypto.randomBytes(32).toString("hex");
         const newHash = crypto
           .createHash("sha256")
           .update(newToken)
           .digest("hex");
-
         const oldHash = booking.customer_token_hash;
 
         const { error: tokenUpdateError } = await serviceClient
@@ -274,16 +304,15 @@ export async function GET(request: Request) {
           continue;
         }
 
-        const magicLink = `${appUrl}/request/${newToken}`;
-
+        const formData = booking.form_data as Record<string, string> | null;
         try {
           await sendReconfirmationRequest({
             to: booking.customer_email!,
             customerHandle: booking.customer_handle ?? "there",
-            artistName: profile?.display_name ?? "the artist",
+            artistName: snapshot.displayName,
             date: booking.preferred_date ?? "",
-            placement: fd?.placement ?? "",
-            magicLink,
+            placement: formData?.placement ?? "",
+            magicLink: `${appUrl}/request/${newToken}`,
           });
         } catch (error) {
           await serviceClient
@@ -296,11 +325,17 @@ export async function GET(request: Request) {
         await serviceClient.from("audit_log").insert({
           booking_id: booking.id,
           action: "reminder_sent",
-          details: { type: "reconfirmation", days_out: 14 },
+          details: {
+            type: "reconfirmation",
+            days_out: snapshot.settings.reconfirmation_days,
+          },
         });
 
         results.reconfirmation++;
-      } catch {
+      } catch (error) {
+        console.error("[cron/reminders][reconfirmation]", error, {
+          bookingId: booking.id,
+        });
         results.errors++;
       }
     }

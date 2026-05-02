@@ -10,9 +10,10 @@ export default async function SubmittedPage({
     slug?: string;
     edited?: string;
     cancelled?: string;
+    email?: string;
   }>;
 }) {
-  const { id, slug, edited, cancelled } = await searchParams;
+  const { id, slug, edited, cancelled, email } = await searchParams;
 
   let artistName: string | null = null;
   if (slug) {
@@ -29,6 +30,7 @@ export default async function SubmittedPage({
 
   const isEdited = edited === "1";
   const isCancelled = cancelled === "1";
+  const hasEmail = email !== "0";
 
   const headline = isCancelled
     ? "Request cancelled"
@@ -41,8 +43,12 @@ export default async function SubmittedPage({
     : isEdited
       ? "Your changes have been saved. A new confirmation link has been sent to your email."
       : firstName
-        ? `Got it - ${firstName} will review your request and get back to you. Check your email for a confirmation.`
-        : "Your request is in. The artist will get back to you. Check your email for a confirmation.";
+        ? hasEmail
+          ? `Got it - ${firstName} will review your request and get back to you. Check your email for a confirmation.`
+          : `Got it - ${firstName} will review your request and get back to you.`
+        : hasEmail
+          ? "Your request is in. The artist will get back to you. Check your email for a confirmation."
+          : "Your request is in. The artist will get back to you.";
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-6">

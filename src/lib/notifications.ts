@@ -20,10 +20,14 @@ type CreateNotificationInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type NotificationWriteResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 export async function createNotification(
   input: CreateNotificationInput,
-): Promise<void> {
-  await serviceClient.from("notifications").insert({
+): Promise<NotificationWriteResult> {
+  const { error } = await serviceClient.from("notifications").insert({
     artist_id: input.artistId,
     type: input.type,
     category: input.category,
@@ -36,4 +40,15 @@ export async function createNotification(
     is_resolved: input.isResolved ?? null,
     metadata: input.metadata ?? null,
   });
+
+  if (error) {
+    console.error("[notifications/create]", error.message, {
+      artistId: input.artistId,
+      type: input.type,
+      ctaHref: input.ctaHref ?? null,
+    });
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
 }

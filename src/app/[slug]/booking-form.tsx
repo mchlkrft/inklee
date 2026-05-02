@@ -14,6 +14,8 @@ import {
 } from "@/lib/form-settings";
 import type { Annotation } from "@/lib/annotations";
 import AnnotationModal from "./annotation-modal";
+import type { BookingMode } from "@/lib/booking-domain";
+import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 
 type State = { error: string; field?: string } | null;
 
@@ -28,9 +30,7 @@ const SIZE_LABELS: Record<
 };
 
 const tomorrow = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
+  return addDaysToDateKey(localDateKey(), 1);
 };
 
 type SlotOption = { id: string; date: string; time: string; tz: string };
@@ -62,18 +62,16 @@ export default function BookingForm({
   customFields = [],
   formSettings = DEFAULT_FORM_SETTINGS,
   fieldOrder,
-  travelLegId = null,
   trips = [],
   isDemoAccount = false,
 }: {
   artistSlug: string;
   artistFirstName: string;
-  bookingMode?: string;
+  bookingMode?: BookingMode;
   slots?: SlotOption[];
   customFields?: CustomFieldDef[];
   formSettings?: FormSettings;
   fieldOrder?: string[];
-  travelLegId?: string | null;
   trips?: TripOption[];
   isDemoAccount?: boolean;
 }) {
@@ -482,7 +480,7 @@ export default function BookingForm({
         ) : null;
 
       case "preferred_date":
-        return formSettings.show_preferred_date ? (
+        return (
           <>
             {bookingMode === "fixed_slots" ? (
               <div className="space-y-2">
@@ -588,7 +586,7 @@ export default function BookingForm({
               </>
             )}
           </>
-        ) : null;
+        );
 
       default: {
         // Custom field — look up by UUID in the active customFields list
@@ -619,11 +617,6 @@ export default function BookingForm({
           className="hidden"
           aria-hidden
         />
-        <input type="hidden" name="booking_mode" value={bookingMode} />
-        {travelLegId && (
-          <input type="hidden" name="travel_leg_id" value={travelLegId} />
-        )}
-
         {demoBlocked && (
           <div className="rounded-md border border-brand-mustard/30 bg-brand-mustard/5 px-4 py-3 space-y-1">
             <p className="text-sm font-medium text-foreground">

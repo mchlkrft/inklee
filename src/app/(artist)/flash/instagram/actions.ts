@@ -28,7 +28,7 @@ export async function syncInstagramAction(): Promise<void> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) redirect("/login");
 
   const { data: account } = await supabase
     .from("instagram_accounts")
@@ -37,7 +37,7 @@ export async function syncInstagramAction(): Promise<void> {
     .eq("connected", true)
     .maybeSingle();
 
-  if (!account) return;
+  if (!account) redirect("/flash/instagram?error=not_connected");
 
   try {
     const now = new Date().toISOString();
@@ -66,9 +66,11 @@ export async function syncInstagramAction(): Promise<void> {
       .eq("artist_id", user.id);
   } catch (err) {
     console.error("[instagram/sync]", err);
+    redirect("/flash/instagram?error=sync_failed");
   }
 
   revalidatePath("/flash/instagram");
+  redirect("/flash/instagram?synced=1");
 }
 
 export async function disconnectInstagramAction(): Promise<void> {

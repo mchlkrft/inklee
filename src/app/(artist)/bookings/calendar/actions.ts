@@ -1,9 +1,9 @@
 "use server";
 
+import crypto from "crypto";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
-import { revalidatePath } from "next/cache";
-import crypto from "crypto";
 
 type ActionResult = { error: string } | { success: true };
 
@@ -36,6 +36,7 @@ export async function createAppointmentAction(
   const bookingId = crypto.randomUUID();
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const decidedAt = new Date().toISOString();
 
   const { error } = await supabase.from("booking_requests").insert({
     id: bookingId,
@@ -47,6 +48,8 @@ export async function createAppointmentAction(
     customer_token_hash: email ? tokenHash : null,
     preferred_date: date,
     form_data: { placement, size, description },
+    decided_at: decidedAt,
+    updated_at: decidedAt,
   });
 
   if (error) return { error: error.message };
@@ -136,8 +139,6 @@ export async function editAppointmentAction(
     details: { by: "artist" },
   });
 
-  // No dedicated "artist edited" template — skip email on artist edit
-
   revalidatePath("/bookings/calendar");
   revalidatePath("/dashboard");
   revalidatePath(`/bookings/requests/${id}`);
@@ -161,12 +162,28 @@ export async function cancelAppointmentAction(
 
   if (!booking || booking.artist_id !== user.id) return { error: "not found" };
 
+  const updatedAt = new Date().toISOString();
   const { error } = await supabase
     .from("booking_requests")
-    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .update({ status: "cancelled", updated_at: updatedAt })
     .eq("id", id);
 
   if (error) return { error: error.message };
+
+  if (booking.slot_id) {
+    const { error: slotError } = await supabase
+      .from("slots")
+      .update({ status: "open" })
+      .eq("id", booking.slot_id);
+
+    if (slotError) {
+      await supabase
+        .from("booking_requests")
+        .update({ status: "approved", updated_at: new Date().toISOString() })
+        .eq("id", id);
+      return { error: "the slot could not be released - please try again" };
+    }
+  }
 
   await supabase.from("audit_log").insert({
     booking_id: id,
@@ -187,6 +204,7 @@ export async function cancelAppointmentAction(
       .eq("id", id)
       .single();
     const fd = cancelledBooking?.form_data as Record<string, string> | null;
+
     await sendBookingEmail({
       type: "customer_booking_cancelled_by_artist",
       to: booking.customer_email,
@@ -199,14 +217,6 @@ export async function cancelAppointmentAction(
         date: cancelledBooking?.preferred_date ?? "",
       },
     });
-  }
-
-  // Slot: return to open on artist cancel
-  if (booking.slot_id) {
-    await supabase
-      .from("slots")
-      .update({ status: "open" })
-      .eq("id", booking.slot_id);
   }
 
   revalidatePath("/bookings/calendar");

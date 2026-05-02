@@ -490,7 +490,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 
 ### Slice 32 — Upload hardening and payload limits
 
-**Status:** ✅ complete (image optimization and file validation shipped 2026-04-23; payload limit configuration pending)
+**Status:** ✅ complete
 
 **Goal:** Customer image uploads are validated, optimised, and stored safely; the server enforces hard limits on request size and rejects malformed payloads before they reach application logic.
 
@@ -501,7 +501,7 @@ These slices form a structured hardening track that runs alongside or after v0.1
 - Storage path structured as `{artistId}/{bookingId}/{uuid}.webp` — **done**
 - Orphan cleanup: uploaded files removed from storage if processing, upload, or booking insert fails — **done**
 - `booking_images` table extended with `width`, `height`, `file_size`, `mime_type`, `original_filename` — **done**
-- Next.js `api.bodyParser.sizeLimit` set to a safe ceiling (e.g. `25mb`) in `next.config.ts` to prevent giant raw request bodies from reaching the runtime on Pro plan — **pending**
+- Next.js `serverActions.bodySizeLimit` set to `52mb` in `next.config.ts` — **done**
 - Supabase Storage bucket policy for `bookings` bucket: restrict writes to service role only, reads scoped to artist ownership — **pending**
 
 **Out of scope:** Client-side compression, drag-and-drop reordering, image moderation, original archive.
@@ -763,3 +763,261 @@ Slices 32–40 constitute the hardening track.
 - Slice 40: recovery readiness — ship before meaningful data accumulates
 
 **v0.1 hard launch readiness requires Slices 32–36 complete.**
+
+---
+
+## Post-hardening work — Slices 41–53
+
+These slices were built after the hardening package was complete. They are not pre-planned roadmap items — they emerged from real product decisions, UX gaps identified during testing, and marketing needs during the pre-launch window. All are shipped to production.
+
+**Migrations applied to production:** 0000–0021 (all current).
+
+---
+
+### Slice 41 — UI/UX restructuring and Trip Planner
+
+**Status:** ✅ complete (`ff703f1`, `1286953`, `1717037`, `a7142fc`; migration 0016)
+
+**Goal:** Consolidate the navigation into a cleaner structure, replace the flat `travel_legs` model with a proper Studios + Trips + Trip Legs hierarchy, and add an Appearance settings section.
+
+**Scope:**
+
+- Nav consolidation: merged scattered settings into a unified sidebar; added dedicated Travel/Trip Planner section
+- **New data model** (migration 0016): `studios` (reusable venue records), `trips` (parent trip with title + booking-form flag), `trip_legs` (date ranges with optional studio, nested under trips); existing `travel_legs` rows migrated forward
+- `booking_requests.trip_id` FK added; `travel_leg_id` retained for historical reference
+- Appearance settings section added to artist settings
+- Bug fixes: preferred date now syncs with trip/location availability; advance bookings allowed for upcoming (not yet active) trip legs
+
+---
+
+### Slice 42 — Placement photo annotation
+
+**Status:** ✅ complete (`ed19438`; migration 0017)
+
+**Goal:** Clients can annotate uploaded reference photos with pin markers and comments to indicate exact placement on the body; annotations are stored alongside the image and shown to the artist on the booking detail.
+
+**Scope:**
+
+- `booking_images.annotations` JSONB column (array of `{ id, x, y, comment }` objects) — migration 0017
+- Client-side annotation canvas on the image upload step of the booking form
+- Artist sees annotated images with pins overlaid on the booking detail page
+
+---
+
+### Slice 43 — Flash feature and Instagram integration
+
+**Status:** ✅ complete (`515fb79`, `cfe4188`; migrations 0018, 0019)
+
+**Goal:** Artists can publish flash designs with optional flash days; clients can browse and request specific flash pieces. Artists can also connect their Instagram account to import posts directly as flash items.
+
+**Scope:**
+
+- **Flash items** (`flash_items` table, migration 0018): design images, price, availability status (`available | claimed | archived`), optional flash day assignment
+- **Flash days** (`flash_days` table, migration 0018): title, date, location, description, status (`upcoming | active | past | cancelled`)
+- Public flash page at `/[slug]/flash`: clients can browse available flash
+- Availability modes: artist can set whether flash is bookable via the standard booking form or requires a separate contact
+- **Instagram integration** (migration 0019): artists connect their Instagram account; posts can be synced and imported directly as flash items without manual re-upload
+- `/settings/flash` and `/settings/instagram` in artist app
+
+**Known limitation:** Instagram OAuth redirect URI requires configuration in Meta App dashboard — documented as open task.
+
+---
+
+### Slice 44 — Marketing growth pages and demo artist
+
+**Status:** ✅ complete (`d9f7f22`, `7716ea3`, `dd84bf0`, `e9b945f`, `562eb44`)
+
+**Goal:** Targeted landing pages for paid social campaigns; the live demo experience uses a real artist (Bert Grimm) with a clear demo notice so visitors understand it is not a live booking.
+
+**Scope:**
+
+- `/start` — primary Instagram ad landing page ("stop booking via DMs")
+- `/dm-chaos` — variant landing page targeting booking friction pain point
+- `/guest-spots` — variant targeting traveling/guest-spot artists
+- Live demo switched from placeholder to Bert Grimm (`/bert-grimm`); demo notice intercepts form submit with an explanation modal so no accidental submissions land on the artist
+- Demo notice moved to form submit intercept (not shown on page load) to preserve natural browsing
+
+---
+
+### Slice 45 — Admin account management system
+
+**Status:** ✅ complete (`dca9d41`; migration 0020)
+
+**Goal:** Admins can manage artist account status (suspend, reactivate, archive) from a dedicated account detail page; all actions are logged.
+
+**Scope:**
+
+- `profiles.account_status` (`active | suspended | archived`), `suspended_at`, `suspended_reason`, `deleted_at`, `deleted_by` columns — migration 0020
+- `/admin/accounts/[id]` — full account detail page with usage stats, configuration snapshot, recent bookings, admin action history
+- Admin actions: suspend (with reason, auth ban), reactivate (unban), archive (soft delete + auth ban), reset onboarding, trigger password reset (generates Supabase recovery link)
+- All admin actions logged to new `admin_action_log` table and `audit_log`
+- `getAccountDetail()` query in `admin-queries.ts`
+
+---
+
+### Slice 46 — Branding system and visual identity
+
+**Status:** ✅ complete (`db2feab`, `f928e34`, `aa4f371`, `5a7e7c8`, `61c9405`, `4299357`, `3ab92dc`, `6927d65`, `70fe3e3`, `00e0a2c`, `19de975`, `345df9d`)
+
+**Goal:** Establish a consistent Inklee visual identity — randomized but stable logo color, matching spiderweb loading illustrations, updated favicon, and a redesigned landing page — applied uniformly across the platform.
+
+**Scope:**
+
+- **Randomized logo**: six color variants (`blue`, `bone`, `green`, `mustard`, `red`, `rosa`); picked once at module load per session via `useSyncExternalStore` (hydration-safe, no flash)
+- **Spiderweb loader**: `BrandLoader` component using matching six-variant spiderweb SVGs with a floating animation; replaces the old generic spinner
+- **Brand color synchronization**: `src/lib/brand-pick.ts` shared singleton ensures logo and spiderweb loader always display the same color within a session
+- **Landing page redesign**: new hero, feature highlights, social proof placeholder, footer; aligns with Inklee brand voice and palette
+- Favicon updated to spiderweb illustration (mustard on charcoal)
+- Branding applied consistently across auth pages, onboarding, customer portal, and public booking pages
+- `/dev/loader` preview page for internal component review
+
+---
+
+### Slice 47 — Mobile UX pass
+
+**Status:** ✅ complete (`a80c27d`, `3aec894`, `e3d8753`)
+
+**Goal:** The artist app is usable on mobile — key flows (booking list, request detail, travel editing, booking form) work reliably with touch inputs and appropriate typography scale.
+
+**Scope:**
+
+- Nav: bottom tab bar stable; fixed header on mobile scroll
+- Modals: scroll-safe, full-width on small screens
+- Touch targets: minimum 44px on all interactive elements
+- Typography: line height and size tuned for mobile readability
+- Booking form reorder: field drag works on touch
+- QR card for artist's booking URL, shareable on mobile
+- Availability status displayed inline on booking settings
+
+---
+
+### Slice 48 — Onboarding and settings UX polish
+
+**Status:** ✅ complete (`25479bd`, `dd44497`, `2180034`, `da69e3a`, `ea91c8b`)
+
+**Goal:** Tighten the first-run experience and the most-used settings surfaces; reduce modal count in settings navigation.
+
+**Scope:**
+
+- **Onboarding refactor**: 5-step essential flow (identity → profile → booking setup → flash intro → go live); dashboard widget icons added for quick navigation
+- **Feature intro modals**: empty placeholder modals on first encounter with Flash, Waitlist, and Travel features — scaffolded for copy, not yet written
+- **Reminders merged into Emails**: `/settings/reminders` content folded into `/settings/emails` to reduce nav depth
+- **Email templates UX**: card-list layout + modal editor replaces inline forms; "reset to default" button restores the system template body
+
+---
+
+### Slice 49 — Unified booking form builder
+
+**Status:** ✅ complete (`931fd86`, `f5234c4`)
+
+**Goal:** Artists have a single drag-and-drop interface for controlling which fields appear on their booking form and in what order, covering both standard fields and custom fields.
+
+**Scope:**
+
+- All standard fields (instagram handle, email, reference link, placement, size, description, image upload, preferred date, trip selector) are individually toggleable
+- **Unified field list** (`UnifiedFieldList` component): combines standard field toggles and custom field management in one list; fields are reorderable via HTML5 drag-and-drop
+- `profiles.settings.field_order` JSONB stores the canonical field order; public booking form renders fields in that order via a `renderField(key)` closure
+- Backward-compatible: accounts without a saved order fall back to `buildDefaultFieldOrder()`
+
+---
+
+### Slice 50 — Booking settings UX (availability and slots)
+
+**Status:** ✅ complete (`dad32c7`, `fd42efd`)
+
+**Goal:** Availability toggle is instant; switching to fixed-slots mode is guided; adding time slots uses a pattern builder that handles bulk creation across dates or weekdays.
+
+**Scope:**
+
+- **Immediate availability toggle**: `books_open` flips on click without a save button; server action `toggleBooksOpenAction` updates the DB optimistically
+- **Booking mode modal**: switching to `fixed_slots` for the first time opens an inline slot setup modal; skipping creates a `system_warning` notification so the artist is reminded
+- **Slot pattern builder** (`SlotPatternBuilder`): define time windows (start–end pairs), apply to specific dates or to weekdays within a date range; creates multiple slots in one server action call (`createSlotsFromPatternAction`)
+- "Add time slot" button opens a modal containing the pattern builder; replaces the old inline form
+
+---
+
+### Slice 51 — Admin analytics tester exclusion
+
+**Status:** ✅ complete (`2c09701`; migration 0021)
+
+**Goal:** Admin and test accounts can be flagged as testers so their activity does not skew product analytics.
+
+**Scope:**
+
+- `profiles.is_tester boolean NOT NULL DEFAULT false` — migration 0021
+- Admin toggle on `/admin/accounts/[id]`: "Mark as tester" / "Tester" pill button; immediate optimistic save; logged in `admin_action_log` as `flag_tester` / `unflag_tester`
+- "tester" badge in artist roster table
+- All admin analytics queries (`getKpis`, `getOnboardingFunnel`, `getBookingFunnel`, `getFeatureAdoption`) exclude flagged profiles and their associated booking activity via `testerIds()` + `excludeTesters()` helpers
+
+---
+
+### Slice 52 — Trip planner UX improvements
+
+**Status:** ✅ complete (`e276be1`)
+
+**Goal:** Stops are part of the new-trip creation flow, not an after-the-fact edit; terminology is consistent and clear.
+
+**Scope:**
+
+- "Stops on your trip" section included in the New Trip modal; stops are collected in client state and submitted as `legs_json` with the trip in a single request
+- `createTripAction` accepts `legs_json` and inserts trip legs in the same server action call
+- All "date range" / "Add date range" labels renamed to "stop" / "Add stop" throughout trip manager and edit modal
+
+---
+
+### Slice 53 — Brand color synchronization
+
+**Status:** ✅ complete (`345df9d`)
+
+**Goal:** The spiderweb loader always matches the logo color — they were previously independent random picks.
+
+**Scope:**
+
+- `src/lib/brand-pick.ts`: single module-level singleton (`getBrandColor()`) shared by both `RandomizedLogo` and `BrandLoader`
+- Both components now resolve their asset path through a named color map (`LOGO[color]`, `SPIDERWEB[color]`), guaranteeing they always render the same color variant within a session
+
+---
+
+## Post-hardening boundary
+
+Slices 41–53 constitute the post-hardening work completed before v0.1 onboarding of real artist users.
+
+**Applied migrations:** 0000–0021 (all current as of 2026-05-02).
+
+---
+
+## Open tasks and pending items
+
+The following items are confirmed incomplete. They are not slices — they are specific gaps within shipped slices or pre-conditions for features not yet activated.
+
+### Security and infrastructure
+
+| #     | Item                                                                                                                                 | Origin                     | Priority                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- | ------------------------------- |
+| OT-01 | Supabase Storage bucket policy: restrict `bookings` bucket writes to service role only, scope reads to artist ownership              | Slice 32 (pending)         | High                            |
+| OT-02 | Switch Stripe from test-mode to live-mode keys in Vercel (`sk_live_*`, `pk_live_*`, new webhook secret)                              | Slice 17 (still test-mode) | High — before any real payments |
+| OT-03 | Set Instagram OAuth redirect URI in Meta App dashboard (required for Flash Instagram integration to work for non-developer accounts) | Slice 43                   | Medium                          |
+| OT-04 | Upstash local dev credentials in `.env.local` (production rate limiting active; local dev silently skips it)                         | DEFERRED.md                | Low                             |
+
+### Legal and compliance
+
+| #     | Item                                                                                                    | Origin       | Priority          |
+| ----- | ------------------------------------------------------------------------------------------------------- | ------------ | ----------------- |
+| OT-05 | Legal entity for Impressum (required in Germany before real users)                                      | DECISIONS.md | High — pre-launch |
+| OT-06 | Terms of Service + Privacy Policy (template + lawyer review)                                            | DECISIONS.md | High — pre-launch |
+| OT-07 | Cookie consent disclosure (Supabase auth cookies need to be disclosed even if analytics is cookie-free) | DECISIONS.md | Medium            |
+
+### Product features not yet activated
+
+| #     | Item                                                                                                                     | Origin           | Priority             |
+| ----- | ------------------------------------------------------------------------------------------------------------------------ | ---------------- | -------------------- |
+| OT-08 | Feature intro modal copy (Flash, Waitlist, Travel modals are scaffolded but empty — no copy written)                     | Slice 48         | Medium               |
+| OT-09 | ✅ Logo upload on onboarding done page — inline upload widget added                                                      | Slice 25         | Done                 |
+| OT-10 | ✅ Dashboard bio nudge — soft prompt rendered when `profiles.bio` is null after onboarding                               | Internal backlog | Done                 |
+| OT-11 | HEIC image support for booking uploads (requires `libheif` compiled into `sharp`; not available in default Vercel build) | DECISIONS.md     | Deferred — post-v0.1 |
+
+### Admin and analytics
+
+| #     | Item                                                                                                                               | Origin   | Priority |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- |
+| OT-12 | ✅ `testerIds()` wrapped with React `cache()` — request-scoped memoization eliminates duplicate DB round-trips per admin page load | Slice 51 | Done     |
