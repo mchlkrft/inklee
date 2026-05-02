@@ -446,13 +446,23 @@ export default function BookingForm({
             />
 
             {uploadErrors.length > 0 && (
-              <ul className="space-y-1">
-                {uploadErrors.map((msg, i) => (
-                  <li key={i} className="text-sm text-destructive">
-                    {msg}
-                  </li>
-                ))}
-              </ul>
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 space-y-1"
+              >
+                <p className="text-sm font-medium text-destructive">
+                  {uploadErrors.length === 1
+                    ? "1 file couldn't be added"
+                    : `${uploadErrors.length} files couldn't be added`}
+                </p>
+                <ul className="space-y-0.5">
+                  {uploadErrors.map((msg, i) => (
+                    <li key={i} className="text-xs text-destructive/90">
+                      {msg}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {imageEntries.length > 0 && (
