@@ -6,6 +6,8 @@ import {
   validateTripLeg,
   validateTripLegsPayload,
 } from "@/lib/trip-validation";
+import { parseStudioFormData } from "@/lib/studio-validation";
+import { z } from "zod";
 
 type State = { error: string } | { success: true } | null;
 
@@ -31,6 +33,8 @@ async function validateOwnedStudios(
   return null;
 }
 
+// ─── Studio actions ───────────────────────────────────────────────────────────
+
 export async function createStudioAction(
   _prev: State,
   formData: FormData,
@@ -41,19 +45,38 @@ export async function createStudioAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "not authenticated" };
 
-  const name = (formData.get("name") as string)?.trim();
-  const city = (formData.get("city") as string)?.trim();
-  const country = (formData.get("country") as string)?.trim();
-  const address = (formData.get("address") as string)?.trim() || null;
-  const notes = (formData.get("notes") as string)?.trim() || null;
-
-  if (!name || !city || !country) {
-    return { error: "name, city and country are required" };
+  let input;
+  try {
+    input = parseStudioFormData(formData);
+  } catch (err) {
+    if (err instanceof z.ZodError)
+      return { error: err.issues[0]?.message ?? "invalid input" };
+    return { error: "invalid input" };
   }
 
-  const { error } = await supabase
-    .from("studios")
-    .insert({ artist_id: user.id, name, city, country, address, notes });
+  if (input.is_primary) {
+    await supabase
+      .from("studios")
+      .update({ is_primary: false })
+      .eq("artist_id", user.id)
+      .eq("is_primary", true);
+  }
+
+  const { error } = await supabase.from("studios").insert({
+    artist_id: user.id,
+    name: input.name,
+    city: input.city,
+    country: input.country,
+    address: input.address,
+    google_place_id: input.google_place_id,
+    formatted_address: input.formatted_address,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    google_maps_url: input.google_maps_url,
+    visibility_mode: input.visibility_mode,
+    public_note: input.public_note,
+    is_primary: input.is_primary,
+  });
 
   if (error) return { error: error.message };
   revalidatePath("/travel");
@@ -71,18 +94,43 @@ export async function updateStudioAction(
   if (!user) return { error: "not authenticated" };
 
   const id = formData.get("id") as string;
-  const name = (formData.get("name") as string)?.trim();
-  const city = (formData.get("city") as string)?.trim();
-  const country = (formData.get("country") as string)?.trim();
-  const address = (formData.get("address") as string)?.trim() || null;
+  if (!id) return { error: "studio id is required" };
 
-  if (!name || !city || !country) {
-    return { error: "name, city and country are required" };
+  let input;
+  try {
+    input = parseStudioFormData(formData);
+  } catch (err) {
+    if (err instanceof z.ZodError)
+      return { error: err.issues[0]?.message ?? "invalid input" };
+    return { error: "invalid input" };
+  }
+
+  if (input.is_primary) {
+    await supabase
+      .from("studios")
+      .update({ is_primary: false })
+      .eq("artist_id", user.id)
+      .eq("is_primary", true)
+      .neq("id", id);
   }
 
   const { error } = await supabase
     .from("studios")
-    .update({ name, city, country, address })
+    .update({
+      name: input.name,
+      city: input.city,
+      country: input.country,
+      address: input.address,
+      google_place_id: input.google_place_id,
+      formatted_address: input.formatted_address,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      google_maps_url: input.google_maps_url,
+      visibility_mode: input.visibility_mode,
+      public_note: input.public_note,
+      is_primary: input.is_primary,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .eq("artist_id", user.id);
 
@@ -108,6 +156,8 @@ export async function deleteStudioAction(id: string): Promise<State> {
   revalidatePath("/travel");
   return { success: true };
 }
+
+// ─── Trip actions ─────────────────────────────────────────────────────────────
 
 export async function createTripAction(
   _prev: State,

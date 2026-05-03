@@ -374,6 +374,39 @@ export async function submitBookingAction(
 
   const requestDate = slotDate ?? data.preferred_date ?? null;
 
+  // Capture studio snapshot from the primary public studio if provided
+  let bookingStudioId: string | null = null;
+  let studioSnapshot: Record<string, unknown> | null = null;
+  const studioIdVal = (formData.get("studio_id") as string | null)?.trim();
+  if (studioIdVal) {
+    const { data: studio } = await serviceClient
+      .from("studios")
+      .select(
+        "id, name, visibility_mode, city, country, formatted_address, address, google_maps_url, public_note",
+      )
+      .eq("id", studioIdVal)
+      .eq("artist_id", artistId)
+      .neq("visibility_mode", "hidden")
+      .single();
+
+    if (studio) {
+      bookingStudioId = studio.id;
+      const includeAddress = studio.visibility_mode === "public_exact_address";
+      studioSnapshot = {
+        id: studio.id,
+        name: studio.name,
+        visibility_mode: studio.visibility_mode,
+        city: studio.city,
+        country: studio.country,
+        formatted_address: includeAddress ? studio.formatted_address : null,
+        address: includeAddress ? studio.address : null,
+        google_maps_url: includeAddress ? studio.google_maps_url : null,
+        public_note: studio.public_note,
+        captured_at: new Date().toISOString(),
+      };
+    }
+  }
+
   const { error: insertError } = await supabase
     .from("booking_requests")
     .insert({
@@ -395,6 +428,8 @@ export async function submitBookingAction(
       customer_token_hash: data.email ? tokenHash : null,
       origin: "public_form",
       ...(tripId ? { trip_id: tripId } : {}),
+      ...(bookingStudioId ? { studio_id: bookingStudioId } : {}),
+      ...(studioSnapshot ? { studio_snapshot: studioSnapshot } : {}),
     });
 
   if (insertError) {

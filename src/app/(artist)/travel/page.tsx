@@ -19,7 +19,9 @@ export default async function TravelPage() {
       .order("created_at", { ascending: false }),
     supabase
       .from("studios")
-      .select("id, name, city, country, address")
+      .select(
+        "id, name, city, country, address, google_place_id, formatted_address, latitude, longitude, google_maps_url, visibility_mode, public_note, is_primary",
+      )
       .eq("artist_id", user!.id)
       .order("name", { ascending: true }),
   ]);
@@ -54,6 +56,22 @@ export default async function TravelPage() {
     city: s.city,
     country: s.country,
     address: s.address,
+    google_place_id: s.google_place_id,
+    formatted_address: s.formatted_address,
+    latitude: s.latitude,
+    longitude: s.longitude,
+    google_maps_url: s.google_maps_url,
+    visibility_mode: s.visibility_mode,
+    public_note: s.public_note,
+    is_primary: s.is_primary,
+  }));
+
+  // Trip manager only needs minimal studio info for leg assignment
+  const tripStudioList = studioList.map(({ id, name, city, country }) => ({
+    id,
+    name,
+    city,
+    country,
   }));
 
   return (
@@ -71,7 +89,7 @@ export default async function TravelPage() {
         <FeatureIntroModal featureKey="travel" isEmpty={trips.length === 0} />
       </div>
 
-      <TripManager trips={trips} studios={studioList} />
+      <TripManager trips={trips} studios={tripStudioList} />
 
       <StudioList studios={studioList} />
     </div>

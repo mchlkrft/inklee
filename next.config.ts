@@ -16,10 +16,10 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://plausible.io https://js.stripe.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://plausible.io https://js.stripe.com https://maps.googleapis.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co https://plausible.io https://api.stripe.com",
+      "connect-src 'self' https://*.supabase.co https://plausible.io https://api.stripe.com https://maps.googleapis.com https://places.googleapis.com",
       "font-src 'self'",
       "frame-src https://js.stripe.com",
       "frame-ancestors 'none'",

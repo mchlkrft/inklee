@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import BookingForm from "./booking-form";
 import BooksClosedBlock from "./books-closed-block";
+import StudioBlock from "./studio-block";
 import WaitlistForm from "./waitlist-form";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
@@ -147,6 +148,17 @@ export default async function ArtistPublicPage({
         .map((l) => ({ startsOn: l.starts_on, endsOn: l.ends_on })),
     }));
 
+  // Load primary public studio (never call Google API — read from saved data)
+  const { data: primaryStudio } = await serviceClient
+    .from("studios")
+    .select(
+      "id, name, city, country, formatted_address, address, google_maps_url, visibility_mode, public_note",
+    )
+    .eq("artist_id", profile.id)
+    .eq("is_primary", true)
+    .neq("visibility_mode", "hidden")
+    .maybeSingle();
+
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&
@@ -225,6 +237,8 @@ export default async function ArtistPublicPage({
           )}
         </div>
 
+        <StudioBlock studio={primaryStudio ?? null} />
+
         {activeLegData && (
           <div className="space-y-0.5 rounded-md border border-border px-4 py-3">
             <p className="text-sm text-foreground">{activeLegData.tripTitle}</p>
@@ -273,6 +287,7 @@ export default async function ArtistPublicPage({
               fieldOrder={fieldOrder}
               trips={futureTrips}
               isDemoAccount={slug === "bert-grimm"}
+              studioId={primaryStudio?.id ?? null}
             />
           )}
         </div>

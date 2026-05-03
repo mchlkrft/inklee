@@ -66,6 +66,7 @@ export default function BookingForm({
   fieldOrder,
   trips = [],
   isDemoAccount = false,
+  studioId = null,
 }: {
   artistSlug: string;
   artistFirstName: string;
@@ -76,6 +77,7 @@ export default function BookingForm({
   fieldOrder?: string[];
   trips?: TripOption[];
   isDemoAccount?: boolean;
+  studioId?: string | null;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
@@ -650,6 +652,7 @@ export default function BookingForm({
           aria-hidden="true"
           className="absolute h-px w-px overflow-hidden -left-[9999px] top-auto"
         />
+        {studioId && <input type="hidden" name="studio_id" value={studioId} />}
         {demoBlocked && (
           <div className="rounded-md border border-brand-mustard/30 bg-brand-mustard/5 px-4 py-3 space-y-1">
             <p className="text-sm font-medium text-foreground">
