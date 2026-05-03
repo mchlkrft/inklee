@@ -4,6 +4,7 @@ type SendEmailParams = {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
 };
 
 // Warn once at module load if EMAIL_FROM looks misconfigured
@@ -18,6 +19,7 @@ export async function sendEmail({
   to,
   subject,
   html,
+  replyTo,
 }: SendEmailParams): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -30,8 +32,15 @@ export async function sendEmail({
 
   const resend = new Resend(apiKey);
   const from = emailFrom;
+  const replyToAddress = replyTo ?? process.env.EMAIL_REPLY_TO;
 
-  const { data, error } = await resend.emails.send({ from, to, subject, html });
+  const { data, error } = await resend.emails.send({
+    from,
+    to,
+    subject,
+    html,
+    ...(replyToAddress ? { replyTo: replyToAddress } : {}),
+  });
 
   if (error) {
     console.error("[email] send failed", { to, subject, error });
