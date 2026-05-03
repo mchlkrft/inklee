@@ -15,7 +15,6 @@ import {
   updateStudioAction,
   deleteStudioAction,
 } from "./actions";
-import { VISIBILITY_LABELS } from "@/lib/studio-validation";
 import type { PlaceResult } from "@/components/google-places-picker";
 
 const GooglePlacesPicker = dynamic(
@@ -112,100 +111,58 @@ function StudioForm({
     setPlace(null);
   }, []);
 
+  const VISIBILITY_OPTIONS: {
+    value: string;
+    label: string;
+    description: string;
+  }[] = [
+    {
+      value: "public_exact_address",
+      label: "Full address",
+      description: "Exact address shown publicly on your booking form.",
+    },
+    {
+      value: "public_area_only",
+      label: "City / area only",
+      description: "Only city and country visible — no street address.",
+    },
+    {
+      value: "after_approval_only",
+      label: "After approval",
+      description:
+        "City shown publicly. Full address shared after you approve.",
+    },
+    {
+      value: "hidden",
+      label: "Hidden",
+      description: "Not shown on your public booking form.",
+    },
+  ];
+
   return (
     <form action={action} className="space-y-5">
       {studio && <input type="hidden" name="id" value={studio.id} />}
 
-      {/* Section 1: Basic info */}
-      <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Studio info
-        </p>
-        <div className="space-y-1">
-          <label className="text-sm text-muted-foreground">
-            Name <span className="text-destructive">*</span>
-          </label>
-          <input
-            name="name"
-            type="text"
-            required
-            value={studioName}
-            onChange={(e) => setStudioName(e.target.value)}
-            placeholder="e.g. Ink & Iron"
-            className={INPUT_CLS}
-          />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <label className="text-sm text-muted-foreground">City</label>
-            <input
-              name="city"
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Berlin"
-              className={INPUT_CLS}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm text-muted-foreground">Country</label>
-            <input
-              name="country"
-              type="text"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              placeholder="Germany"
-              className={INPUT_CLS}
-            />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm text-muted-foreground">
-            Street address{" "}
-            <span className="text-muted-foreground">(optional)</span>
-          </label>
-          <input
-            name="address"
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Street address"
-            className={INPUT_CLS}
-          />
-        </div>
-      </div>
-
-      {/* Section 2: Google location */}
+      {/* Section 1: Google location — first so auto-fill populates fields below */}
       {GOOGLE_API_KEY && (
         <div className="space-y-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Google location{" "}
-            <span className="font-normal normal-case">(optional)</span>
+            Search on Google Maps
           </p>
           <GooglePlacesPicker
             apiKey={GOOGLE_API_KEY}
             onPlaceSelect={handlePlaceSelect}
             onClear={handleClear}
           />
-          {place && (
-            <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 space-y-0.5">
-              <p className="text-sm font-medium text-foreground">
-                {place.name}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {place.formattedAddress}
-              </p>
-              {place.mapsUrl && (
-                <a
-                  href={place.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-                >
-                  Open in Google Maps
-                </a>
-              )}
-            </div>
+          {place?.mapsUrl && (
+            <a
+              href={place.mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Open in Google Maps ↗
+            </a>
           )}
           <input
             type="hidden"
@@ -268,38 +225,105 @@ function StudioForm({
         </>
       )}
 
-      {/* Section 3: Public visibility */}
+      {/* Section 2: Studio info */}
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Studio info
+        </p>
+        <div className="space-y-1">
+          <label className="text-sm text-muted-foreground">
+            Name <span className="text-destructive">*</span>
+          </label>
+          <input
+            name="name"
+            type="text"
+            required
+            value={studioName}
+            onChange={(e) => setStudioName(e.target.value)}
+            placeholder="e.g. Ink & Iron"
+            className={INPUT_CLS}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-sm text-muted-foreground">City</label>
+            <input
+              name="city"
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Berlin"
+              className={INPUT_CLS}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm text-muted-foreground">Country</label>
+            <input
+              name="country"
+              type="text"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="Germany"
+              className={INPUT_CLS}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm text-muted-foreground">
+            Address <span className="text-muted-foreground">(optional)</span>
+          </label>
+          <input
+            name="address"
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Street address"
+            className={INPUT_CLS}
+          />
+        </div>
+      </div>
+
+      {/* Section 3: Public visibility — styled radio cards */}
       <div className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Public visibility
         </p>
-        <select
-          name="visibility_mode"
-          value={visibilityMode}
-          onChange={(e) => setVisibilityMode(e.target.value)}
-          className={INPUT_CLS}
-        >
-          {(
-            Object.entries(VISIBILITY_LABELS) as [
-              keyof typeof VISIBILITY_LABELS,
-              string,
-            ][]
-          ).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        {visibilityMode === "after_approval_only" && (
-          <p className="text-xs text-muted-foreground">
-            City/area shown publicly. Exact address sent with approval email.
-          </p>
-        )}
-        {visibilityMode === "hidden" && (
-          <p className="text-xs text-muted-foreground">
-            Not shown on your public booking form.
-          </p>
-        )}
+        <div className="space-y-2">
+          {VISIBILITY_OPTIONS.map((opt) => {
+            const selected = visibilityMode === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setVisibilityMode(opt.value)}
+                className={`w-full flex items-start gap-3 rounded-md border-2 px-4 py-3 text-left transition-colors ${
+                  selected
+                    ? "border-foreground bg-muted/30"
+                    : "border-border hover:border-muted-foreground"
+                }`}
+              >
+                <span
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    selected ? "border-foreground" : "border-muted-foreground"
+                  }`}
+                >
+                  {selected && (
+                    <span className="h-2 w-2 rounded-full bg-foreground" />
+                  )}
+                </span>
+                <span className="space-y-0.5">
+                  <span className="block text-sm font-medium text-foreground">
+                    {opt.label}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {opt.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <input type="hidden" name="visibility_mode" value={visibilityMode} />
       </div>
 
       {/* Section 4: Public note */}

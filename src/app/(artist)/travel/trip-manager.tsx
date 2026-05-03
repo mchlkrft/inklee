@@ -157,6 +157,20 @@ function QuickAddStudio({
       </p>
 
       <div className="space-y-3">
+        {GOOGLE_API_KEY ? (
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">
+              Search on Google Maps{" "}
+              <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <GooglePlacesPicker
+              apiKey={GOOGLE_API_KEY}
+              onPlaceSelect={handlePlaceSelect}
+              onClear={() => setPlace(null)}
+            />
+          </div>
+        ) : null}
+
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">
             Studio name <span className="text-destructive">*</span>
@@ -169,25 +183,6 @@ function QuickAddStudio({
             className={INPUT_CLS}
           />
         </div>
-
-        {GOOGLE_API_KEY ? (
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              Search location{" "}
-              <span className="text-muted-foreground">(optional)</span>
-            </label>
-            <GooglePlacesPicker
-              apiKey={GOOGLE_API_KEY}
-              onPlaceSelect={handlePlaceSelect}
-              onClear={() => setPlace(null)}
-            />
-            {place && (
-              <p className="text-xs text-muted-foreground">
-                {place.formattedAddress}
-              </p>
-            )}
-          </div>
-        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
