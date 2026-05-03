@@ -3,10 +3,12 @@
 import {
   startTransition,
   useActionState,
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import Spinner from "@/components/spinner";
 import DateInput from "@/components/date-input";
 import { formatDateKey, localDateKey } from "@/lib/date-utils";
@@ -17,7 +19,16 @@ import {
   toggleTripVisibilityAction,
   createTripLegAction,
   deleteTripLegAction,
+  createStudioAndReturnAction,
 } from "./actions";
+import type { PlaceResult } from "@/components/google-places-picker";
+
+const GooglePlacesPicker = dynamic(
+  () => import("@/components/google-places-picker"),
+  { ssr: false },
+);
+
+const GOOGLE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 type Studio = { id: string; name: string; city: string; country: string };
 type TripLeg = {
@@ -35,6 +46,9 @@ type Trip = {
   legs: TripLeg[];
 };
 type State = { error: string } | { success: true } | null;
+
+const INPUT_CLS =
+  "w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
 
 function formatDate(dateKey: string) {
   return formatDateKey(dateKey);
@@ -71,6 +85,236 @@ function Modal({
   );
 }
 
+// ─── Inline quick-add studio panel ────────────────────────────────────────────
+
+function QuickAddStudio({
+  onSaved,
+  onCancel,
+}: {
+  onSaved: (studio: Studio) => void;
+  onCancel: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [place, setPlace] = useState<PlaceResult | null>(null);
+  const [city, setCity] = useState("");
+  const [country, setCountry] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const handlePlaceSelect = useCallback(
+    (p: PlaceResult) => {
+      setPlace(p);
+      if (!city && p.city) setCity(p.city);
+      if (!country && p.country) setCountry(p.country);
+    },
+    [city, country],
+  );
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+
+    const fd = new FormData(e.currentTarget);
+    // Inject controlled city/country
+    fd.set("city", city);
+    fd.set("country", country);
+    // Inject place data
+    if (place) {
+      fd.set("google_place_id", place.placeId);
+      fd.set("formatted_address", place.formattedAddress);
+      fd.set("latitude", place.lat?.toString() ?? "");
+      fd.set("longitude", place.lng?.toString() ?? "");
+      fd.set("google_maps_url", place.mapsUrl ?? "");
+    }
+    // Defaults for fields not shown in quick form
+    fd.set("visibility_mode", "hidden");
+    fd.set("is_primary", "false");
+
+    const result = await createStudioAndReturnAction(fd);
+    setPending(false);
+
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+
+    onSaved(result.studio);
+    formRef.current?.reset();
+    setPlace(null);
+    setCity("");
+    setCountry("");
+  }
+
+  return (
+    <div className="mt-2 rounded-md border-2 border-border bg-muted/20 px-4 py-4 space-y-3">
+      <p className="text-sm font-medium text-foreground">Add new studio</p>
+      <p className="text-xs text-muted-foreground">
+        Saved to your studio library and selected for this stop.
+      </p>
+
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">
+            Studio name <span className="text-destructive">*</span>
+          </label>
+          <input
+            name="name"
+            type="text"
+            required
+            placeholder="e.g. Sacred Point Studio"
+            className={INPUT_CLS}
+          />
+        </div>
+
+        {GOOGLE_API_KEY ? (
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">
+              Search location{" "}
+              <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <GooglePlacesPicker
+              apiKey={GOOGLE_API_KEY}
+              onPlaceSelect={handlePlaceSelect}
+              onClear={() => setPlace(null)}
+            />
+            {place && (
+              <p className="text-xs text-muted-foreground">
+                {place.formattedAddress}
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">City</label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Berlin"
+              className={INPUT_CLS}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Country</label>
+            <input
+              type="text"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="Germany"
+              className={INPUT_CLS}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">
+            Address <span className="text-muted-foreground">(optional)</span>
+          </label>
+          <input
+            name="address"
+            type="text"
+            placeholder="Street address"
+            className={INPUT_CLS}
+          />
+        </div>
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
+
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-md bg-brand-mustard px-3 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          >
+            {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Save studio"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border-2 border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── Studio select with inline add ───────────────────────────────────────────
+
+const ADD_NEW_SENTINEL = "__add_new__";
+
+function StudioSelectWithAdd({
+  studios,
+  value,
+  onChange,
+  name,
+  onNewStudio,
+}: {
+  studios: Studio[];
+  value: string;
+  onChange: (id: string) => void;
+  name?: string;
+  onNewStudio?: (studio: Studio) => void;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+
+  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    if (val === ADD_NEW_SENTINEL) {
+      setShowAdd(true);
+      // Keep current value, don't set sentinel as real selection
+      return;
+    }
+    onChange(val);
+  }
+
+  function handleSaved(studio: Studio) {
+    onNewStudio?.(studio);
+    onChange(studio.id);
+    setShowAdd(false);
+  }
+
+  return (
+    <div>
+      <select
+        name={showAdd ? undefined : name}
+        value={showAdd ? "" : value}
+        onChange={handleChange}
+        className={INPUT_CLS}
+      >
+        <option value="">None</option>
+        {studios.length > 0 && (
+          <optgroup label="Your studios">
+            {studios.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+                {s.city ? ` — ${s.city}` : ""}
+                {s.country ? `, ${s.country}` : ""}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        <optgroup label=" ">
+          <option value={ADD_NEW_SENTINEL}>+ Add studio</option>
+        </optgroup>
+      </select>
+      {/* Hidden input carries the real value when QuickAddStudio is open */}
+      {showAdd && name && <input type="hidden" name={name} value={value} />}
+      {showAdd && (
+        <QuickAddStudio
+          onSaved={handleSaved}
+          onCancel={() => setShowAdd(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Create trip modal ────────────────────────────────────────────────────────
 
 type PendingStop = {
@@ -83,7 +327,7 @@ type PendingStop = {
 
 function CreateTripModal({
   onClose,
-  studios,
+  studios: initialStudios,
 }: {
   onClose: () => void;
   studios: Studio[];
@@ -95,6 +339,8 @@ function CreateTripModal({
   const [stopTo, setStopTo] = useState("");
   const [stopStudio, setStopStudio] = useState("");
   const [stopNotes, setStopNotes] = useState("");
+  // Studios list grows as artist adds new ones inline
+  const [studios, setStudios] = useState<Studio[]>(initialStudios);
 
   const [state, action, pending] = useActionState<State, FormData>(
     createTripAction,
@@ -107,6 +353,13 @@ function CreateTripModal({
     }
     prevState.current = state;
   }, [state, onClose]);
+
+  function handleNewStudio(studio: Studio) {
+    setStudios((prev) =>
+      prev.some((s) => s.id === studio.id) ? prev : [...prev, studio],
+    );
+    setStopStudio(studio.id);
+  }
 
   function confirmStop() {
     if (!stopFrom || !stopTo) return;
@@ -219,7 +472,7 @@ function CreateTripModal({
                   <DateInput
                     value={stopFrom}
                     onChange={(e) => setStopFrom(e.target.value)}
-                    className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    className={INPUT_CLS}
                   />
                 </div>
                 <div className="space-y-1">
@@ -227,31 +480,23 @@ function CreateTripModal({
                   <DateInput
                     value={stopTo}
                     onChange={(e) => setStopTo(e.target.value)}
-                    className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    className={INPUT_CLS}
                   />
                 </div>
               </div>
 
-              {studios.length > 0 && (
-                <div className="space-y-1">
-                  <label className="text-sm text-muted-foreground">
-                    Studio{" "}
-                    <span className="text-muted-foreground">(optional)</span>
-                  </label>
-                  <select
-                    value={stopStudio}
-                    onChange={(e) => setStopStudio(e.target.value)}
-                    className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">None</option>
-                    {studios.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} — {s.city}, {s.country}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">
+                  Studio{" "}
+                  <span className="text-muted-foreground">(optional)</span>
+                </label>
+                <StudioSelectWithAdd
+                  studios={studios}
+                  value={stopStudio}
+                  onChange={setStopStudio}
+                  onNewStudio={handleNewStudio}
+                />
+              </div>
 
               <div className="space-y-1">
                 <label className="text-sm text-muted-foreground">
@@ -358,7 +603,7 @@ function CreateTripModal({
 
 function AddLegForm({
   tripId,
-  studios,
+  studios: initialStudios,
 }: {
   tripId: string;
   studios: Studio[];
@@ -368,13 +613,26 @@ function AddLegForm({
     null,
   );
   const [open, setOpen] = useState(false);
+  const [studioId, setStudioId] = useState("");
+  const [studios, setStudios] = useState<Studio[]>(initialStudios);
+
   const prevLegState = useRef(state);
   useEffect(() => {
     if (prevLegState.current !== state && state && "success" in state) {
-      startTransition(() => setOpen(false));
+      startTransition(() => {
+        setOpen(false);
+        setStudioId("");
+      });
     }
     prevLegState.current = state;
   }, [state]);
+
+  function handleNewStudio(studio: Studio) {
+    setStudios((prev) =>
+      prev.some((s) => s.id === studio.id) ? prev : [...prev, studio],
+    );
+    setStudioId(studio.id);
+  }
 
   if (!open) {
     return (
@@ -399,40 +657,26 @@ function AddLegForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <label className="text-sm text-muted-foreground">From</label>
-          <DateInput
-            name="starts_on"
-            required
-            className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+          <DateInput name="starts_on" required className={INPUT_CLS} />
         </div>
         <div className="space-y-1">
           <label className="text-sm text-muted-foreground">To</label>
-          <DateInput
-            name="ends_on"
-            required
-            className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+          <DateInput name="ends_on" required className={INPUT_CLS} />
         </div>
       </div>
 
-      {studios.length > 0 && (
-        <div className="space-y-1">
-          <label className="text-sm text-muted-foreground">
-            Studio <span className="text-muted-foreground">(optional)</span>
-          </label>
-          <select
-            name="studio_id"
-            className="w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="">None</option>
-            {studios.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} — {s.city}, {s.country}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="space-y-1">
+        <label className="text-sm text-muted-foreground">
+          Studio <span className="text-muted-foreground">(optional)</span>
+        </label>
+        <StudioSelectWithAdd
+          studios={studios}
+          value={studioId}
+          onChange={setStudioId}
+          name="studio_id"
+          onNewStudio={handleNewStudio}
+        />
+      </div>
 
       <div className="space-y-1">
         <label className="text-sm text-muted-foreground">
@@ -539,7 +783,6 @@ function EditTripModal({
         </button>
       </div>
 
-      {/* Edit form — no submit button here; button lives at the bottom */}
       <form id="edit-trip-form" action={editAction} className="space-y-4">
         <input type="hidden" name="id" value={trip.id} />
 
@@ -652,7 +895,6 @@ function EditTripModal({
         <AddLegForm tripId={trip.id} studios={studios} />
       </div>
 
-      {/* Bottom actions */}
       {editState && "error" in editState && (
         <p className="text-sm text-destructive">{editState.error}</p>
       )}
@@ -757,7 +999,6 @@ export default function TripManager({
     setModal({ type: "none" });
   }
 
-  // Derive the current trip from props so the modal always reflects latest server data
   const editTrip =
     modal.type === "edit"
       ? (trips.find((t) => t.id === modal.tripId) ?? null)
@@ -766,7 +1007,6 @@ export default function TripManager({
   return (
     <>
       <div className="space-y-3">
-        {/* New trip card */}
         <button
           type="button"
           onClick={() => setModal({ type: "create" })}
@@ -775,7 +1015,6 @@ export default function TripManager({
           New trip →
         </button>
 
-        {/* Existing trips */}
         {trips.map((trip) => (
           <TripSummaryCard
             key={trip.id}

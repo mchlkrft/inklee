@@ -157,6 +157,78 @@ export async function deleteStudioAction(id: string): Promise<State> {
   return { success: true };
 }
 
+// Creates a studio and returns its data. Deduplicates by google_place_id.
+export async function createStudioAndReturnAction(
+  formData: FormData,
+): Promise<
+  | { error: string }
+  | {
+      success: true;
+      studio: { id: string; name: string; city: string; country: string };
+    }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  let input;
+  try {
+    input = parseStudioFormData(formData);
+  } catch (err) {
+    if (err instanceof z.ZodError)
+      return { error: err.issues[0]?.message ?? "invalid input" };
+    return { error: "invalid input" };
+  }
+
+  // Dedup: if a studio with the same Google Place ID already exists, reuse it
+  if (input.google_place_id) {
+    const { data: existing } = await supabase
+      .from("studios")
+      .select("id, name, city, country")
+      .eq("artist_id", user.id)
+      .eq("google_place_id", input.google_place_id)
+      .maybeSingle();
+
+    if (existing) {
+      return { success: true, studio: existing };
+    }
+  }
+
+  if (input.is_primary) {
+    await supabase
+      .from("studios")
+      .update({ is_primary: false })
+      .eq("artist_id", user.id)
+      .eq("is_primary", true);
+  }
+
+  const { data: created, error } = await supabase
+    .from("studios")
+    .insert({
+      artist_id: user.id,
+      name: input.name,
+      city: input.city,
+      country: input.country,
+      address: input.address,
+      google_place_id: input.google_place_id,
+      formatted_address: input.formatted_address,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      google_maps_url: input.google_maps_url,
+      visibility_mode: input.visibility_mode,
+      public_note: input.public_note,
+      is_primary: input.is_primary,
+    })
+    .select("id, name, city, country")
+    .single();
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true, studio: created };
+}
+
 // ─── Trip actions ─────────────────────────────────────────────────────────────
 
 export async function createTripAction(
