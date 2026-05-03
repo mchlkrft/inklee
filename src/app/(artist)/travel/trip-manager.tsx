@@ -102,14 +102,13 @@ function QuickAddStudio({
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("");
 
-  const handlePlaceSelect = useCallback(
-    (p: PlaceResult) => {
-      setPlace(p);
-      if (!city && p.city) setCity(p.city);
-      if (!country && p.country) setCountry(p.country);
-    },
-    [city, country],
-  );
+  const handlePlaceSelect = useCallback((p: PlaceResult) => {
+    setPlace(p);
+    if (p.name) setName(p.name);
+    if (p.city) setCity(p.city);
+    if (p.country) setCountry(p.country);
+    if (p.formattedAddress) setAddress(p.formattedAddress);
+  }, []);
 
   async function handleSave() {
     if (!name.trim()) {

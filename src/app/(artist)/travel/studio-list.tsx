@@ -90,22 +90,23 @@ function StudioForm({
   onCancel: () => void;
   submitLabel: string;
 }) {
+  const [studioName, setStudioName] = useState(studio?.name ?? "");
   const [city, setCity] = useState(studio?.city ?? "");
   const [country, setCountry] = useState(studio?.country ?? "");
+  const [address, setAddress] = useState(studio?.address ?? "");
   const [place, setPlace] = useState<PlaceResult | null>(null);
   const [isPrimary, setIsPrimary] = useState(studio?.is_primary ?? false);
   const [visibilityMode, setVisibilityMode] = useState(
     studio?.visibility_mode ?? "hidden",
   );
 
-  const handlePlaceSelect = useCallback(
-    (p: PlaceResult) => {
-      setPlace(p);
-      if (!city && p.city) setCity(p.city);
-      if (!country && p.country) setCountry(p.country);
-    },
-    [city, country],
-  );
+  const handlePlaceSelect = useCallback((p: PlaceResult) => {
+    setPlace(p);
+    if (p.name) setStudioName(p.name);
+    if (p.city) setCity(p.city);
+    if (p.country) setCountry(p.country);
+    if (p.formattedAddress) setAddress(p.formattedAddress);
+  }, []);
 
   const handleClear = useCallback(() => {
     setPlace(null);
@@ -128,7 +129,8 @@ function StudioForm({
             name="name"
             type="text"
             required
-            defaultValue={studio?.name ?? ""}
+            value={studioName}
+            onChange={(e) => setStudioName(e.target.value)}
             placeholder="e.g. Ink & Iron"
             className={INPUT_CLS}
           />
@@ -165,7 +167,8 @@ function StudioForm({
           <input
             name="address"
             type="text"
-            defaultValue={studio?.address ?? ""}
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
             placeholder="Street address"
             className={INPUT_CLS}
           />
