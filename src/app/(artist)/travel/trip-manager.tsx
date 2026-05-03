@@ -97,9 +97,10 @@ function QuickAddStudio({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [place, setPlace] = useState<PlaceResult | null>(null);
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("");
-  const formRef = useRef<HTMLFormElement>(null);
 
   const handlePlaceSelect = useCallback(
     (p: PlaceResult) => {
@@ -110,16 +111,19 @@ function QuickAddStudio({
     [city, country],
   );
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleSave() {
+    if (!name.trim()) {
+      setError("Studio name is required");
+      return;
+    }
     setPending(true);
     setError(null);
 
-    const fd = new FormData(e.currentTarget);
-    // Inject controlled city/country
-    fd.set("city", city);
-    fd.set("country", country);
-    // Inject place data
+    const fd = new FormData();
+    fd.set("name", name.trim());
+    fd.set("city", city.trim());
+    fd.set("country", country.trim());
+    fd.set("address", address.trim());
     if (place) {
       fd.set("google_place_id", place.placeId);
       fd.set("formatted_address", place.formattedAddress);
@@ -127,7 +131,6 @@ function QuickAddStudio({
       fd.set("longitude", place.lng?.toString() ?? "");
       fd.set("google_maps_url", place.mapsUrl ?? "");
     }
-    // Defaults for fields not shown in quick form
     fd.set("visibility_mode", "hidden");
     fd.set("is_primary", "false");
 
@@ -140,10 +143,11 @@ function QuickAddStudio({
     }
 
     onSaved(result.studio);
-    formRef.current?.reset();
-    setPlace(null);
+    setName("");
+    setAddress("");
     setCity("");
     setCountry("");
+    setPlace(null);
   }
 
   return (
@@ -153,15 +157,15 @@ function QuickAddStudio({
         Saved to your studio library and selected for this stop.
       </p>
 
-      <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
+      <div className="space-y-3">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">
             Studio name <span className="text-destructive">*</span>
           </label>
           <input
-            name="name"
             type="text"
-            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Sacred Point Studio"
             className={INPUT_CLS}
           />
@@ -214,8 +218,9 @@ function QuickAddStudio({
             Address <span className="text-muted-foreground">(optional)</span>
           </label>
           <input
-            name="address"
             type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
             placeholder="Street address"
             className={INPUT_CLS}
           />
@@ -225,7 +230,8 @@ function QuickAddStudio({
 
         <div className="flex gap-2">
           <button
-            type="submit"
+            type="button"
+            onClick={handleSave}
             disabled={pending}
             className="rounded-md bg-brand-mustard px-3 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
@@ -239,7 +245,7 @@ function QuickAddStudio({
             Cancel
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
