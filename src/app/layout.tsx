@@ -15,22 +15,26 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Inklee — booking requests without the DM chaos",
+  title: "Inklee — Tattoo Booking Tool for Artists",
   description:
-    "A simple booking request tool for freelance and traveling tattoo artists.",
+    "Turn Instagram DMs into structured tattoo requests, approvals, deposits, and bookings without losing clients in the scroll.",
   metadataBase: new URL("https://inklee.app"),
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
-    title: "Inklee — booking requests without the DM chaos",
+    title: "Tattoo booking requests without DM chaos",
     description:
-      "A clean booking request tool for freelance tattoo artists. Replace chaotic DMs with a structured form and approval flow.",
+      "Inklee helps freelance and traveling tattoo artists turn Instagram inquiries into organized booking requests.",
     url: "https://inklee.app",
     siteName: "Inklee",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "Inklee — booking requests without the DM chaos",
-    description: "A clean booking request tool for freelance tattoo artists.",
+    title: "Tattoo booking requests without DM chaos",
+    description:
+      "Inklee helps freelance and traveling tattoo artists turn Instagram inquiries into organized booking requests.",
   },
 };
 

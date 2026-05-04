@@ -2,6 +2,62 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SiteLogo from "@/components/site-logo";
+import JsonLd from "@/components/seo/json-ld";
+import {
+  DefinitionBlock,
+  FaqSection,
+  RelatedLinksBlock,
+} from "@/components/marketing";
+import type { FaqItem, RelatedLink } from "@/lib/marketing";
+import {
+  organizationSchema,
+  websiteSchema,
+  softwareApplicationSchema,
+  faqPageSchema,
+} from "@/lib/jsonld";
+
+const HOMEPAGE_FAQ: FaqItem[] = [
+  {
+    question: "What is Inklee?",
+    answer:
+      "Inklee is a tattoo booking intake tool for freelance and traveling tattoo artists. It turns Instagram inquiries into structured tattoo booking requests you can review, approve, and organize in one place.",
+  },
+  {
+    question: "Is Inklee tattoo booking software?",
+    answer:
+      "Yes. Inklee is tattoo booking software focused on intake — a clean booking form, structured requests, approvals, deposits, waitlists, and guest spot bookings. It is built for the way tattoo artists actually work, not generic appointment software.",
+  },
+  {
+    question: "Can tattoo artists use Inklee with Instagram?",
+    answer:
+      "Inklee is designed to live next to Instagram. You drop your Inklee booking link in your bio, clients click it, and they fill in placement, size, references, and dates instead of sending Instagram DMs.",
+  },
+  {
+    question: "Does Inklee replace Instagram DMs?",
+    answer:
+      "Inklee replaces Instagram DMs as your booking channel. You still use Instagram for your work and reach, but real booking requests come through your Inklee booking form so the details and history stay together.",
+  },
+  {
+    question: "Is Inklee only for tattoo studios?",
+    answer:
+      "No. Inklee is built for solo and freelance tattoo artists, including artists who work guest spots or split time across studios. There is no studio-only mode and no team seat requirement.",
+  },
+  {
+    question: "Can traveling tattoo artists use Inklee?",
+    answer:
+      "Yes. Traveling tattoo artists can publish trips, cities, and dates on their Inklee booking page and collect location-specific tattoo booking requests for each guest spot.",
+  },
+  {
+    question: "Does Inklee support guest spot bookings?",
+    answer:
+      "Yes. Inklee supports guest spot booking with trip dates, host studios, and per-trip request collection. Clients see your travel schedule on your booking page and can request bookings for the right city and dates.",
+  },
+  {
+    question: "Can artists collect tattoo deposits with Inklee?",
+    answer:
+      "Inklee is built to make deposits part of the booking flow. Availability depends on your current setup and enabled features. The intent is to let you request a deposit on an approved request without leaving the booking workflow.",
+  },
+];
 
 export default async function Home() {
   const supabase = await createClient();
@@ -13,20 +69,59 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <JsonLd data={organizationSchema()} id="ld-organization" />
+      <JsonLd data={websiteSchema()} id="ld-website" />
+      <JsonLd data={softwareApplicationSchema()} id="ld-softwareapplication" />
+      <JsonLd data={faqPageSchema(HOMEPAGE_FAQ)} id="ld-faq" />
       <SiteHeader />
       <main className="flex-1">
         <HeroSection />
         <div className="h-[15px] bg-brand-rosa" />
+        <DefinitionBlock
+          eyebrow="What is Inklee"
+          heading="Tattoo booking software built around your real workflow."
+          body={[
+            "Inklee is a tattoo booking intake tool for freelance and traveling tattoo artists. It gives you a clean booking link for tattoo artists to drop in their Instagram bio so clients send a proper tattoo booking request instead of an Instagram DM.",
+            "You collect placement, size, references, and dates through a structured tattoo booking form, review every request in one place, and keep approvals, deposits, waitlists, and guest spot bookings organized — without spreadsheets or scattered chats.",
+          ]}
+        />
         <FeaturesSection />
         <HowItWorksSection />
         <AboutSection />
         <div className="h-[15px] bg-brand-red" />
+        <RelatedLinksBlock
+          heading="More on the way Inklee fits tattooing"
+          intro="Two short reads on the patterns Inklee is built around."
+          links={HOMEPAGE_RELATED_LINKS}
+        />
+        <FaqSection
+          eyebrow="FAQ"
+          heading="Tattoo booking, answered"
+          items={HOMEPAGE_FAQ}
+        />
         <EasyPeasySection />
       </main>
       <SiteFooter />
     </div>
   );
 }
+
+const HOMEPAGE_RELATED_LINKS: RelatedLink[] = [
+  {
+    eyebrow: "Instagram DMs",
+    title: "Tattoo booking from Instagram without DM chaos",
+    description:
+      "Why Instagram DMs break down as a tattoo booking channel and how a clean booking link in bio fixes it.",
+    href: "/dm-chaos",
+  },
+  {
+    eyebrow: "Guest spots",
+    title: "Guest spot booking for traveling tattoo artists",
+    description:
+      "How traveling tattoo artists can manage city demand, trip dates, and per-leg booking requests in one place.",
+    href: "/guest-spots",
+  },
+];
 
 /* ─── Header ─────────────────────────────────────────────────────────────── */
 
@@ -63,14 +158,16 @@ function HeroSection() {
         <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-0">
           {/* Text */}
           <div className="order-2 pb-16 pt-6 md:order-1 md:py-24 md:pr-10">
-            <h1 className="text-6xl font-black leading-[1.02] tracking-tight text-foreground md:text-7xl lg:text-8xl">
-              No more
+            <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
+              Tattoo booking
+              <br />
+              requests without
               <br />
               DM chaos
             </h1>
-            <p className="mt-5 max-w-xs text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Replace scattered Instagram DMs with a structured form, approvals,
-              and deposits
+            <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Turn Instagram inquiries into structured tattoo requests,
+              approvals, deposits, and organized bookings.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Image from "next/image";
@@ -16,6 +17,7 @@ import {
   isDateKeyBefore,
   todayInTimeZone,
 } from "@/lib/date-utils";
+import { clampDescription } from "@/lib/seo";
 
 export type SlotOption = {
   id: string;
@@ -23,6 +25,54 @@ export type SlotOption = {
   time: string;
   tz: string;
 };
+
+const FALLBACK_METADATA: Metadata = {
+  title: "Tattoo Booking · Inklee",
+  description:
+    "Send a tattoo booking request through Inklee with your idea, references, placement, size, and preferred date.",
+};
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name, location")
+    .eq("slug", slug)
+    .single();
+
+  if (!profile?.display_name) return FALLBACK_METADATA;
+
+  const name = profile.display_name as string;
+  const location = (profile.location as string | null)?.trim() || null;
+  const locationPhrase = location ? ` in ${location}` : "";
+
+  const description = clampDescription(
+    `Book a tattoo with ${name}${locationPhrase}. Send your idea, references, placement, size, and preferred date.`,
+  );
+  const ogDescription = clampDescription(
+    `Send ${name} your tattoo idea, references, placement, size, and preferred date through Inklee.`,
+  );
+
+  return {
+    title: `${name} — Tattoo Booking · Inklee`,
+    description,
+    openGraph: {
+      title: `Book a tattoo with ${name}`,
+      description: ogDescription,
+      type: "profile",
+    },
+    twitter: {
+      card: "summary",
+      title: `Book a tattoo with ${name}`,
+      description: ogDescription,
+    },
+  };
+}
 
 export default async function ArtistPublicPage({
   params,

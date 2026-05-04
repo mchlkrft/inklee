@@ -1,5 +1,28 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import SiteLogo from "@/components/site-logo";
+
+export const metadata: Metadata = {
+  title: "Guest Spot Booking Tool · Inklee",
+  description:
+    "Tattoo guest spot booking without spreadsheet chaos. Manage city demand, travel dates, and requests as a traveling tattoo artist.",
+  alternates: {
+    canonical: "/guest-spots",
+  },
+  openGraph: {
+    title: "Guest spot bookings without the chaos",
+    description:
+      "Inklee helps traveling tattoo artists organize guest spot requests, city demand, booking windows, and client details.",
+    url: "https://inklee.app/guest-spots",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Guest spot bookings without the chaos",
+    description:
+      "Inklee helps traveling tattoo artists organize guest spot requests, city demand, booking windows, and client details.",
+  },
+};
 
 /* ─── Shared CTA ──────────────────────────────────────────────────────────── */
 

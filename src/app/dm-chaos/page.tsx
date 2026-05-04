@@ -1,5 +1,28 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import SiteLogo from "@/components/site-logo";
+
+export const metadata: Metadata = {
+  title: "Stop Tattoo DM Chaos · Inklee",
+  description:
+    "Tattoo booking from Instagram without the DM mess. Stop losing tattoo requests and turn tattoo DM booking into structured requests.",
+  alternates: {
+    canonical: "/dm-chaos",
+  },
+  openGraph: {
+    title: "Booking requests without DM chaos",
+    description:
+      "Inklee helps tattoo artists stop losing requests in Instagram DMs and collect the details they need before replying.",
+    url: "https://inklee.app/dm-chaos",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Booking requests without DM chaos",
+    description:
+      "Inklee helps tattoo artists stop losing requests in Instagram DMs and collect the details they need before replying.",
+  },
+};
 
 /* ─── Shared CTA ──────────────────────────────────────────────────────────── */
 

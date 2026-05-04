@@ -9,6 +9,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      url: "https://inklee.app/dm-chaos",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: "https://inklee.app/guest-spots",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
       url: "https://inklee.app/signup",
       lastModified: new Date(),
       changeFrequency: "yearly",
