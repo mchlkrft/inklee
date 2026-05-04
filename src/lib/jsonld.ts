@@ -37,6 +37,25 @@ export function softwareApplicationSchema(): JsonLd {
   };
 }
 
+export function webPageSchema(input: {
+  name: string;
+  url: string;
+  description: string;
+}): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: input.name,
+    url: input.url,
+    description: input.description,
+    isPartOf: {
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+  };
+}
+
 /** @deprecated use FaqItem from @/lib/marketing */
 export type FaqEntry = FaqItem;
 

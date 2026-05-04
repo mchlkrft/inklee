@@ -439,7 +439,14 @@ function FinalCtaSection() {
         </h2>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
           Put one clean booking link in your bio and turn messy Instagram chats
-          into structured tattoo requests.
+          into structured tattoo requests with a{" "}
+          <Link
+            href="/tattoo-booking-software"
+            className="underline-offset-4 hover:underline"
+          >
+            tattoo booking tool built for Instagram requests
+          </Link>
+          .
         </p>
         <div className="mt-8">
           <Link

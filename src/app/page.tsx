@@ -435,6 +435,14 @@ function SiteFooter() {
               </li>
               <li>
                 <Link
+                  href="/tattoo-booking-software"
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Tattoo booking tool
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/bert-grimm"
                   target="_blank"
                   rel="noopener noreferrer"

@@ -363,8 +363,14 @@ function ArtistNativeSection() {
             works.
           </p>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            No generic appointment software. Just a cleaner booking flow that
-            fits the way traveling tattoo artists actually work.
+            No generic appointment software. Just a cleaner{" "}
+            <Link
+              href="/tattoo-booking-software"
+              className="underline-offset-4 hover:underline"
+            >
+              booking tool for traveling tattoo artists
+            </Link>{" "}
+            that fits the way they actually work.
           </p>
           <div className="mt-8">
             <CtaPrimary />
