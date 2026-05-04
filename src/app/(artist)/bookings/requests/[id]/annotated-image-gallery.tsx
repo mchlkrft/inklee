@@ -14,6 +14,7 @@ export default function AnnotatedImageGallery({
   images: ImageWithAnnotations[];
 }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [hiddenMarkers, setHiddenMarkers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (open === null) return;
@@ -29,6 +30,15 @@ export default function AnnotatedImageGallery({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, images.length]);
+
+  function toggleMarker(id: string) {
+    setHiddenMarkers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <>
@@ -90,37 +100,55 @@ export default function AnnotatedImageGallery({
               />
 
               {/* Annotation markers overlaid */}
-              {(images[open].annotations ?? []).map((ann, idx) => (
-                <div
-                  key={ann.id}
-                  style={{
-                    left: `${ann.x * 100}%`,
-                    top: `${ann.y * 100}%`,
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border-2 border-background shadow flex items-center justify-center"
-                >
-                  <span className="text-background text-xs font-bold leading-none">
-                    {idx + 1}
-                  </span>
-                </div>
-              ))}
+              {(images[open].annotations ?? []).map((ann, idx) => {
+                if (hiddenMarkers.has(ann.id)) return null;
+                return (
+                  <div
+                    key={ann.id}
+                    style={{
+                      left: `${ann.x * 100}%`,
+                      top: `${ann.y * 100}%`,
+                    }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border-2 border-background shadow flex items-center justify-center"
+                  >
+                    <span className="text-background text-xs font-bold leading-none">
+                      {idx + 1}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Annotation list */}
             {(images[open].annotations?.length ?? 0) > 0 && (
               <div className="w-full max-w-sm space-y-2 px-2">
-                {images[open].annotations!.map((ann, idx) => (
-                  <div key={ann.id} className="flex items-start gap-2">
-                    <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-white flex items-center justify-center text-background text-xs font-bold leading-none">
-                      {idx + 1}
-                    </span>
-                    <p className="text-white text-sm leading-relaxed">
-                      {ann.comment || (
-                        <span className="text-white/50 italic">no comment</span>
-                      )}
-                    </p>
-                  </div>
-                ))}
+                {images[open].annotations!.map((ann, idx) => {
+                  const hidden = hiddenMarkers.has(ann.id);
+                  return (
+                    <div key={ann.id} className="flex items-start gap-2">
+                      <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-white flex items-center justify-center text-background text-xs font-bold leading-none">
+                        {idx + 1}
+                      </span>
+                      <p
+                        className={`flex-1 text-sm leading-relaxed ${hidden ? "text-white/40" : "text-white"}`}
+                      >
+                        {ann.comment || (
+                          <span className="text-white/50 italic">
+                            no comment
+                          </span>
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => toggleMarker(ann.id)}
+                        title={hidden ? "Show marker" : "Hide marker"}
+                        className="flex-shrink-0 text-base leading-none opacity-60 hover:opacity-100 transition-opacity"
+                      >
+                        {hidden ? "🙈" : "👁"}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
