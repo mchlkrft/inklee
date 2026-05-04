@@ -10,6 +10,7 @@ export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
     null,
   );
   const [note, setNote] = useState("");
+  const [city, setCity] = useState("");
 
   if (state && "ok" in state) {
     return (
@@ -72,6 +73,27 @@ export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
         {err("email") && (
           <p className="text-xs text-destructive">{err("email")}</p>
         )}
+      </div>
+
+      <div className="space-y-1">
+        <label htmlFor="wl_city" className="text-xs text-muted-foreground">
+          Your city / location{" "}
+          <span className="text-xs text-muted-foreground">(optional)</span>
+        </label>
+        <input
+          id="wl_city"
+          name="city_text"
+          type="text"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder="Berlin, Amsterdam, New York…"
+          maxLength={100}
+          className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <p className="text-xs text-muted-foreground">
+          Tell the artist where you&apos;d like to get tattooed — helps them
+          plan future guest spots.
+        </p>
       </div>
 
       <div className="space-y-1">

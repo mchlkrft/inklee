@@ -575,6 +575,8 @@ export async function submitWaitlistAction(
   );
   const email = formData.get("email") as string;
   const note = (formData.get("note") as string) ?? "";
+  const cityRaw = ((formData.get("city_text") as string) ?? "").trim();
+  const cityText = cityRaw.length > 0 ? cityRaw.slice(0, 100) : null;
   const artistSlug = formData.get("artist_slug") as string;
 
   if (!handle || handle.length < 1)
@@ -598,6 +600,7 @@ export async function submitWaitlistAction(
     customer_email: email,
     customer_handle: handle,
     note: note || null,
+    city_text: cityText,
   });
 
   if (error) {
