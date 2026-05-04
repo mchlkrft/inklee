@@ -268,8 +268,25 @@ export async function deleteAccountPermanentlyAction(
     display_name: profile.display_name,
   });
 
-  const { error } = await serviceClient.auth.admin.deleteUser(targetUserId);
-  if (error) return { error: error.message };
+  // Delete auth user — may not exist for manually seeded/test accounts
+  const { error: authError } =
+    await serviceClient.auth.admin.deleteUser(targetUserId);
+
+  if (
+    authError &&
+    !authError.message.toLowerCase().includes("not found") &&
+    !authError.message.toLowerCase().includes("does not exist")
+  ) {
+    return { error: authError.message };
+  }
+
+  // Always clean up the profile row (handles orphaned profiles too)
+  const { error: profileError } = await serviceClient
+    .from("profiles")
+    .delete()
+    .eq("id", targetUserId);
+
+  if (profileError) return { error: profileError.message };
 
   revalidatePath("/admin");
   return {};
