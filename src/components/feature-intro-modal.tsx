@@ -88,13 +88,13 @@ const CONFIGS: Record<string, FeatureConfig> = {
   },
 
   "flash-items": {
-    title: "Flash: sell specific designs, not just time slots",
+    title: "Flash: offer specific designs, not just time slots",
     description:
-      "Create flash designs clients can claim directly. Unlike regular bookings, they pick a specific piece — not an open date.",
+      "Connect your Instagram and your posted designs become bookable flash — no separate upload needed. Clients browse your feed and claim a piece directly.",
     bullets: [
-      "Upload finished designs clients can browse and claim",
-      "Set each flash as bookable or display-only",
-      "Organise designs into flash days for event-style drops",
+      "Pull designs straight from your Instagram posts",
+      "Clients pick a specific piece, not just an open date",
+      "Set each flash as claimable or display-only",
     ],
     ctaLabel: "Create your first flash",
     ctaHref: "/flash/items/new",
@@ -103,11 +103,11 @@ const CONFIGS: Record<string, FeatureConfig> = {
   "flash-days": {
     title: "Group your flash into drops and events",
     description:
-      "Flash days let you bundle designs into a single curated event — like a studio flash day or a themed drop.",
+      "Bundle your Instagram designs into a curated flash day — like a studio event or a themed drop — and share the whole thing as a single link.",
     bullets: [
-      "Group flash items into a curated event with a date",
-      "Set a location and description for each drop",
-      "Share the whole event as a single link with clients",
+      "Group flash items into an event with a date and location",
+      "Clients see all available pieces in one place",
+      "Share the event link anywhere — story, bio, DMs",
     ],
     ctaLabel: "Create your first flash day",
     ctaHref: "/flash/days/new",
