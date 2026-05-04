@@ -157,13 +157,11 @@ function HeroSection() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-0">
           {/* Text */}
-          <div className="order-2 pb-16 pt-6 md:order-1 md:py-24 md:pr-10">
+          <div className="order-2 pb-16 pt-6 md:order-1 md:pb-24 md:pt-16 md:pr-10">
             <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
-              Tattoo booking
+              Tattoo bookings,
               <br />
-              requests without
-              <br />
-              DM chaos
+              without DM chaos
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               Turn Instagram inquiries into structured tattoo requests,
