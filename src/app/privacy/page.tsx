@@ -17,6 +17,29 @@ export default function PrivacyPage() {
           </h1>
           <p className="text-xs">Last updated: May 2026</p>
 
+          <section className="space-y-3">
+            <h2 className="text-base font-medium text-foreground">
+              Our approach
+            </h2>
+            <p>Inklee follows a privacy-first approach.</p>
+            <p>
+              As an EU-based company, Inklee takes data protection seriously. We
+              see GDPR principles not only as a compliance requirement where
+              applicable, but also as a high-quality standard for building
+              trustworthy software.
+            </p>
+            <p>
+              This means we aim to collect only necessary data, explain data
+              processing clearly, protect user information responsibly, and
+              design our workflows with privacy in mind from the beginning.
+            </p>
+            <p>
+              For Inklee, privacy is not just a legal checkbox. It is part of
+              the product standard we want to offer to tattoo artists and their
+              clients worldwide.
+            </p>
+          </section>
+
           <section className="space-y-2">
             <h2 className="text-base font-medium text-foreground">
               Data controller
