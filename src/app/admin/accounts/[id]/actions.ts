@@ -252,6 +252,29 @@ export async function setTesterFlagAction(
   return {};
 }
 
+export async function deleteAccountPermanentlyAction(
+  targetUserId: string,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "unauthorized" };
+  if (adminId === targetUserId) {
+    return { error: "you cannot delete your own account" };
+  }
+
+  const profile = await fetchTargetProfile(targetUserId);
+  if (!profile) return { error: "account not found" };
+
+  await logAdminAction(adminId, targetUserId, "permanent_delete", undefined, {
+    display_name: profile.display_name,
+  });
+
+  const { error } = await serviceClient.auth.admin.deleteUser(targetUserId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  return {};
+}
+
 export async function triggerPasswordResetAction(
   targetUserId: string,
 ): Promise<Result> {
