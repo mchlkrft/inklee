@@ -37,13 +37,6 @@ export default function ImprintPage() {
           </section>
 
           <section className="space-y-1">
-            <h2 className="text-base font-medium text-foreground">
-              Represented by
-            </h2>
-            <p>Michel Kraeft, Member of the Management Board</p>
-          </section>
-
-          <section className="space-y-1">
             <h2 className="text-base font-medium text-foreground">Contact</h2>
             <p>
               E-mail:{" "}
