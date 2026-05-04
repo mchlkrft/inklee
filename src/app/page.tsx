@@ -15,6 +15,7 @@ import {
   softwareApplicationSchema,
   faqPageSchema,
 } from "@/lib/jsonld";
+import { getRenderableFooterGroups } from "@/lib/footer-links";
 
 const HOMEPAGE_FAQ: FaqItem[] = [
   {
@@ -405,10 +406,11 @@ function EasyPeasySection() {
 /* ─── Footer ──────────────────────────────────────────────────────────────── */
 
 function SiteFooter() {
+  const groups = getRenderableFooterGroups();
   return (
     <footer className="border-t border-border">
       <div className="mx-auto max-w-7xl px-6 py-12">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <SiteLogo height={16} />
@@ -419,106 +421,29 @@ function SiteFooter() {
             </p>
           </div>
 
-          {/* Product */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Product
-            </p>
-            <ul className="mt-3 space-y-2">
-              <li>
-                <Link
-                  href="/signup"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Get started
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/tattoo-booking-software"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Tattoo booking tool
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/bert-grimm"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Live example
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/login"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Log in
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Company */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Company
-            </p>
-            <ul className="mt-3 space-y-2">
-              <li>
-                <Link
-                  href="/about"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  About
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/help"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Help
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Legal
-            </p>
-            <ul className="mt-3 space-y-2">
-              <li>
-                <Link
-                  href="/terms"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Terms
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/privacy"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Privacy
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/imprint"
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Imprint
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {groups.map((group) => (
+            <div key={group.id}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {group.label}
+              </p>
+              <ul className="mt-3 space-y-2">
+                {group.items.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      {...(item.external && {
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                      })}
+                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         {/* Bottom bar */}

@@ -223,9 +223,15 @@ function SolutionSection() {
             for life on the road.
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-brand-charcoal/70">
-            Inklee gives traveling artists one structured booking flow that
-            collects the right details upfront — so you can focus on tattooing
-            instead of sorting messages.
+            Inklee gives traveling artists one{" "}
+            <Link
+              href="/guest-spot-booking"
+              className="underline-offset-4 hover:underline"
+            >
+              guest spot booking flow
+            </Link>{" "}
+            that collects the right details upfront — so you can focus on
+            tattooing instead of sorting messages.
           </p>
         </div>
 

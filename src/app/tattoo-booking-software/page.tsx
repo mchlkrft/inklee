@@ -250,22 +250,22 @@ const SOFTWARE_FAQ: FaqItem[] = [
 
 const RELATED_LINKS: RelatedLink[] = [
   {
+    title: "Instagram booking link for tattoo artists",
+    href: "/instagram-booking-link-for-tattoo-artists",
+    description:
+      "Move serious booking requests from Instagram into a cleaner tattoo request flow.",
+  },
+  {
     title: "Booking requests without DM chaos",
     href: "/dm-chaos",
     description:
       "See how Inklee moves serious tattoo requests out of messy Instagram chats.",
   },
   {
-    title: "Guest spot bookings without the chaos",
-    href: "/guest-spots",
+    title: "Guest spot booking for traveling artists",
+    href: "/guest-spot-booking",
     description:
-      "See how traveling artists can organize city demand, travel dates, and guest spot requests.",
-  },
-  {
-    title: "Back to Inklee",
-    href: "/",
-    description:
-      "Get the full picture of how Inklee works for solo and traveling tattoo artists.",
+      "Organize city demand, travel dates, and guest spot requests without DM chaos.",
   },
 ];
 
@@ -412,8 +412,9 @@ export default function TattooBookingSoftwarePage() {
         />
         <RelatedLinksBlock
           heading="Go deeper into the booking workflow"
-          intro="Keep building the booking flow with two more reads on how Inklee fits the way tattoo artists actually work."
+          intro="Keep building the booking flow with three more reads on how Inklee fits the way tattoo artists actually work."
           links={RELATED_LINKS}
+          columns={3}
         />
         <FinalCta
           heading="Stop forcing tattoo requests through generic tools."

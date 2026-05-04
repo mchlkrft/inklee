@@ -5,12 +5,19 @@ type RelatedLinksBlockProps = {
   heading: string;
   intro?: string;
   links: RelatedLink[];
+  columns?: 2 | 3;
+};
+
+const COLUMN_CLASSES: Record<2 | 3, string> = {
+  2: "sm:grid-cols-2",
+  3: "sm:grid-cols-2 md:grid-cols-3",
 };
 
 export default function RelatedLinksBlock({
   heading,
   intro,
   links,
+  columns = 2,
 }: RelatedLinksBlockProps) {
   return (
     <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
@@ -24,7 +31,9 @@ export default function RelatedLinksBlock({
           </p>
         )}
       </div>
-      <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div
+        className={`mt-10 grid grid-cols-1 gap-5 ${COLUMN_CLASSES[columns]}`}
+      >
         {links.map((link) => (
           <Link
             key={link.href}

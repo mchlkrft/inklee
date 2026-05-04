@@ -222,9 +222,15 @@ function SolutionSection() {
             Less chaos.
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-brand-charcoal/70">
-            Inklee replaces your booking DMs with a simple flow that captures
-            the right details upfront so you can spend less time chasing and
-            more time tattooing.
+            Inklee replaces your booking DMs with a{" "}
+            <Link
+              href="/tattoo-booking-form"
+              className="underline-offset-4 hover:underline"
+            >
+              tattoo request form
+            </Link>{" "}
+            that captures the right details upfront so you can spend less time
+            chasing and more time tattooing.
           </p>
         </div>
 
@@ -359,7 +365,14 @@ function ArtistNativeSection() {
           </p>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             No generic appointment software. Just a cleaner booking flow that
-            fits tattooing.
+            fits tattooing — see how{" "}
+            <Link
+              href="/tattoo-booking-software-vs-instagram-dms"
+              className="underline-offset-4 hover:underline"
+            >
+              Instagram DMs vs a tattoo booking tool
+            </Link>{" "}
+            compare.
           </p>
           <div className="mt-8">
             <CtaPrimary />

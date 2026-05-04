@@ -15,6 +15,30 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.95,
     },
     {
+      url: "https://inklee.app/instagram-booking-link-for-tattoo-artists",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: "https://inklee.app/guest-spot-booking",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: "https://inklee.app/tattoo-booking-form",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: "https://inklee.app/tattoo-booking-software-vs-instagram-dms",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
+    {
       url: "https://inklee.app/dm-chaos",
       lastModified: new Date(),
       changeFrequency: "monthly",
