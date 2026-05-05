@@ -32,8 +32,7 @@ export default function ImprintPage() {
             <h2 className="text-base font-medium text-foreground">
               Registration
             </h2>
-            <p>Registry code: [pending]</p>
-            <p>VAT: not applicable</p>
+            <p>Registry code: 17497625</p>
           </section>
 
           <section className="space-y-1">
