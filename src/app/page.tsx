@@ -165,8 +165,9 @@ function HeroSection() {
               without DM chaos
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Turn Instagram inquiries into structured tattoo requests,
-              approvals, deposits, and organized bookings.
+              Turn Instagram DMs into structured tattoo requests.
+              <br />
+              Review ideas, manage approvals, and keep bookings organized.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
