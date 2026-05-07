@@ -19,7 +19,7 @@ export default function ProblemSolutionBlock({
 }: ProblemSolutionBlockProps) {
   return (
     <section className="border-t border-border">
-      <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+      <div className="container-marketing py-20 md:py-24">
         <div className="grid gap-12 md:grid-cols-2 md:gap-16">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">

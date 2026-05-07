@@ -15,7 +15,7 @@ export default function DefinitionBlock({
 }: DefinitionBlockProps) {
   const paragraphs = Array.isArray(body) ? body : [body];
   return (
-    <section className="mx-auto max-w-7xl px-6 py-16 md:py-20">
+    <section className="container-marketing py-16 md:py-20">
       <div className="grid gap-10 md:grid-cols-[5fr_7fr] md:gap-16">
         <div>
           {eyebrow && (

@@ -128,7 +128,7 @@ const HOMEPAGE_RELATED_LINKS: RelatedLink[] = [
 
 function SiteHeader() {
   return (
-    <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
+    <header className="container-marketing-wide flex items-center justify-between py-5">
       <Link href="/" aria-label="inklee home">
         <SiteLogo height={20} />
       </Link>
@@ -154,11 +154,11 @@ function SiteHeader() {
 
 function HeroSection() {
   return (
-    <section className="overflow-hidden">
-      <div className="mx-auto max-w-7xl px-6">
+    <section className="overflow-hidden md:flex md:min-h-[calc(100svh-87px)] md:items-center">
+      <div className="container-marketing-wide">
         <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-0">
           {/* Text */}
-          <div className="order-2 pb-16 pt-6 md:order-1 md:pb-24 md:pt-16 md:pr-10">
+          <div className="order-2 pb-16 pt-6 md:order-1 md:py-16 md:pr-10">
             <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
               Tattoo bookings,
               <br />
@@ -266,7 +266,7 @@ const FEATURES = [
 
 function FeaturesSection() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+    <section className="container-marketing py-20 md:py-24">
       <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 md:grid-cols-3 md:gap-x-12 md:gap-y-14">
         {FEATURES.map((f) => (
           <div key={f.id} className="space-y-3">
@@ -297,8 +297,8 @@ const STEPS = [
 
 function HowItWorksSection() {
   return (
-    <section className="bg-brand-mustard px-6 py-12 md:py-14">
-      <div className="mx-auto max-w-7xl">
+    <section className="bg-brand-mustard py-12 md:py-14">
+      <div className="container-marketing">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           {STEPS.map(({ n, text }) => (
             <div key={n} className="flex items-center gap-4">
@@ -322,7 +322,7 @@ function HowItWorksSection() {
 
 function AboutSection() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+    <section className="container-marketing py-20 md:py-24">
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-16">
         {/* Artist illustration */}
         <div className="flex justify-center md:justify-start">
@@ -410,7 +410,7 @@ function SiteFooter() {
   const groups = getRenderableFooterGroups();
   return (
     <footer className="border-t border-border">
-      <div className="mx-auto max-w-7xl px-6 py-12">
+      <div className="container-marketing py-12">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">

@@ -20,7 +20,7 @@ export default function RelatedLinksBlock({
   columns = 2,
 }: RelatedLinksBlockProps) {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+    <section className="container-marketing py-20 md:py-24">
       <div className="max-w-xl">
         <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground md:text-4xl">
           {heading}

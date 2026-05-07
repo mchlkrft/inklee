@@ -19,7 +19,7 @@ export default function FeatureBenefitGrid({
   columns = 3,
 }: FeatureBenefitGridProps) {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+    <section className="container-marketing py-20 md:py-24">
       {(heading || intro) && (
         <div className="mb-10 max-w-xl">
           {heading && (

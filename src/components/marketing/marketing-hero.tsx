@@ -11,10 +11,10 @@ export default function MarketingHero({
   visual,
 }: MarketingHeroProps) {
   return (
-    <section className="overflow-hidden">
-      <div className="mx-auto max-w-7xl px-6">
+    <section className="overflow-hidden md:flex md:min-h-[calc(100svh-87px)] md:items-center">
+      <div className="container-marketing-wide">
         <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-0">
-          <div className="order-2 pb-16 pt-6 md:order-1 md:py-24 md:pr-10">
+          <div className="order-2 pb-16 pt-6 md:order-1 md:py-16 md:pr-10">
             {eyebrow && (
               <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 {eyebrow}

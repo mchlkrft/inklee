@@ -267,7 +267,7 @@ const RELATED_LINKS: RelatedLink[] = [
 
 function LandingHeader() {
   return (
-    <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
+    <header className="container-marketing-wide flex items-center justify-between py-5">
       <Link href="/" aria-label="inklee home">
         <SiteLogo height={20} />
       </Link>
@@ -292,7 +292,7 @@ function LandingHeader() {
 function LandingFooter() {
   return (
     <footer className="border-t border-border">
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="container-marketing py-8">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <SiteLogo height={16} />
           <div className="flex gap-5 text-xs text-muted-foreground">

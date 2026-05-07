@@ -45,7 +45,7 @@ function CtaPrimary({
 
 function LandingHeader() {
   return (
-    <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
+    <header className="container-marketing-wide flex items-center justify-between py-5">
       <Link href="/" aria-label="inklee home">
         <SiteLogo height={20} />
       </Link>
@@ -71,11 +71,11 @@ function LandingHeader() {
 
 function HeroSection() {
   return (
-    <section className="overflow-hidden">
-      <div className="mx-auto max-w-7xl px-6">
+    <section className="overflow-hidden md:flex md:min-h-[calc(100svh-87px)] md:items-center">
+      <div className="container-marketing-wide">
         <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-0">
           {/* Text */}
-          <div className="order-2 pb-16 pt-6 md:order-1 md:py-24 md:pr-10">
+          <div className="order-2 pb-16 pt-6 md:order-1 md:py-16 md:pr-10">
             <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
               Booking requests
               <br />
@@ -149,7 +149,7 @@ const PAIN_POINTS = [
 
 function PainSection() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+    <section className="container-marketing py-20 md:py-24">
       <div className="max-w-xl">
         <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground md:text-4xl">
           Instagram gets you attention.
@@ -213,8 +213,8 @@ const SOLUTION_STEPS = [
 
 function SolutionSection() {
   return (
-    <section className="bg-brand-mustard px-6 py-16 md:py-20">
-      <div className="mx-auto max-w-7xl">
+    <section className="bg-brand-mustard py-16 md:py-20">
+      <div className="container-marketing">
         <div className="max-w-xl mb-12">
           <h2 className="text-3xl font-bold leading-tight tracking-tight text-brand-charcoal md:text-4xl">
             One link. Cleaner requests.
@@ -292,7 +292,7 @@ const PRODUCT_CARDS = [
 
 function ProductProofSection() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+    <section className="container-marketing py-20 md:py-24">
       <div className="max-w-xl mb-12">
         <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground md:text-4xl">
           See the flow before the back and forth starts
@@ -332,7 +332,7 @@ function ProductProofSection() {
 
 function ArtistNativeSection() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+    <section className="container-marketing py-20 md:py-24">
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-16">
         {/* PLACEHOLDER: artist-style visual — replace this div with an illustration or photo */}
         {/* Suggested: scene-native artist illustration, similar tone to homepage artist.svg */}
@@ -406,7 +406,7 @@ const TRUST_ITEMS = [
 function TrustSection() {
   return (
     <section className="border-t border-border">
-      <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
+      <div className="container-marketing py-16 md:py-20">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-16 items-start">
           <div>
             <h2 className="text-2xl font-bold leading-tight tracking-tight text-foreground md:text-3xl">
@@ -482,7 +482,7 @@ function FinalCtaSection() {
 function LandingFooter() {
   return (
     <footer className="border-t border-border">
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="container-marketing py-8">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <SiteLogo height={16} />
           <div className="flex gap-5 text-xs text-muted-foreground">

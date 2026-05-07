@@ -187,3 +187,22 @@ dialog[open]::backdrop {
     font-weight: 600;
   }
 }
+
+/* Marketing layout containers — fluid gutters (20→48px) with sensible caps.
+   Replaces ad-hoc `mx-auto max-w-7xl px-6` so Apple desktop sizes (1440–1728)
+   stop hitting Tailwind's 1280px ceiling and stranding content in narrow
+   columns. `-wide` is used by hero + header so they bleed slightly wider
+   than content sections. */
+@utility container-marketing {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 102.5rem; /* 1640px */
+  padding-inline: clamp(1.25rem, 4vw, 3rem);
+}
+
+@utility container-marketing-wide {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 112.5rem; /* 1800px */
+  padding-inline: clamp(1.25rem, 4vw, 3rem);
+}
