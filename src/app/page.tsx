@@ -156,20 +156,20 @@ function HeroSection() {
   return (
     <section className="overflow-hidden md:flex md:min-h-[calc(100svh-87px)] md:items-center">
       <div className="container-marketing-wide">
-        <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-0">
+        <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
           {/* Text */}
-          <div className="order-2 pb-16 pt-6 md:order-1 md:py-16 md:pr-10">
-            <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
+          <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
+            <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
               Tattoo bookings,
               <br />
               without DM chaos
             </h1>
-            <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg md:mt-5">
               Turn Instagram DMs into structured tattoo requests.
               <br />
               Review ideas, manage approvals, and keep bookings organized.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
               <Link
                 href="/signup"
                 className="rounded-md bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
@@ -185,22 +185,23 @@ function HeroSection() {
                 See a live example →
               </Link>
             </div>
-            <div className="mt-10 flex items-center gap-3">
+            <div className="mt-6 flex items-center gap-3 md:mt-10">
               <img
                 src="/branding/badges/badge-handmade.svg"
                 alt="Made by hand"
-                className="h-15 w-15"
+                className="h-12 w-12 md:h-15 md:w-15"
               />
               <img
                 src="/branding/badges/badge-gdpr.svg"
                 alt="GDPR compliant"
-                className="h-15 w-15"
+                className="h-12 w-12 md:h-15 md:w-15"
               />
             </div>
           </div>
 
-          {/* Illustration */}
-          <div className="order-1 flex justify-center md:order-2 md:justify-end md:-mr-8 lg:-mr-16">
+          {/* Illustration — pt-5 reserves room on mobile so the float
+              animation (translateY -18px) stays inside section bounds. */}
+          <div className="order-1 flex justify-center pt-5 md:order-2 md:justify-end md:pt-0 md:-mr-8 lg:-mr-16">
             <div className="animate-hero-float w-full max-w-sm md:max-w-full">
               <img
                 src="/branding/illustrations/key-visual.svg"
