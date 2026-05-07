@@ -1021,3 +1021,247 @@ The following items are confirmed incomplete. They are not slices — they are s
 | #     | Item                                                                                                                               | Origin   | Priority |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- |
 | OT-12 | ✅ `testerIds()` wrapped with React `cache()` — request-scoped memoization eliminates duplicate DB round-trips per admin page load | Slice 51 | Done     |
+
+---
+
+## Post-Launch Phase: Short Domain + Shareability Layer (inkl.ee)
+
+**Status:** ⏳ Planning only. No implementation until the post-launch checklist is met.
+
+**Where this fits:** After production stability, the core marketing site (homepage + 5 SEO pages live), the SEO/GEO foundation, working tracking, and a stable public booking flow. **Not before.** The short domain is a growth/shareability layer, not a launch blocker.
+
+**Strategic decision (locked in):**
+
+- `inklee.app` stays the **canonical** product, marketing, SEO, GEO, app, and dashboard domain. All SEO authority accumulates here.
+- `inkl.ee` is a **short link / sharing surface only** — Instagram bios, QR codes, campaign URLs, artist booking links, offline/print. Not a separate product, not a separate brand.
+- Written brand stays "Inklee". `inkl.ee` is the literal URL only — never the product name.
+- No duplicate content across both domains. Everything on `inkl.ee` is either a 301 redirect to `inklee.app` or (only if explicitly authorised in Slice 56) serves the canonical page with a strict `<link rel="canonical">` pointing back to `inklee.app`.
+
+**Pre-conditions before Slice 54 may start:**
+
+- MVP closeout complete (`project_inklee_roadmap.md` Phases B/C/D)
+- At least one real artist actively using the product
+- Plausible/analytics confirmed firing reliably across all marketing pages
+- Sitemap and canonical setup verified clean in Search Console
+
+**What must NOT be built yet:**
+
+- Any artist page served directly from `inkl.ee` (Slice 58 only — and only after redirect-only is shipped and validated first)
+- A separate sitemap or robots.txt for `inkl.ee` that introduces duplicate-content risk
+- QR generation in the dashboard (Slice 57) before campaign-redirect plumbing exists (Slice 54/55)
+- Any SEO-page content rewritten to live on `inkl.ee`
+- Auth, dashboard, customer portal, or Stripe webhook routes ever reachable via `inkl.ee`
+
+**Recommended first step after stable launch:** Slice 54 only — DNS connection plus a single root redirect `inkl.ee → inklee.app` and 2–3 named campaign shortlinks. Ship small, verify analytics attribution end-to-end on real Instagram traffic, then expand.
+
+**SEO/GEO invariants (do not silently revisit at any later point):**
+
+- `inklee.app` is the only domain in the sitemap
+- All canonical tags point to `inklee.app`
+- All `inkl.ee` paths are 301 (permanent), never 302
+- Internal links inside `inklee.app` content never point to `inkl.ee` — only outbound surfaces (bios, QR, print) use the short domain
+- Search Console configured for `inklee.app` only — no separate `inkl.ee` property
+- `inkl.ee` returns no indexable HTML — pure redirect surface
+
+**Tracking requirements (carried across all six slices):**
+
+- Every shortlink redirect target carries `utm_source` + `utm_medium=shortlink` + `utm_campaign`; QR variants additionally carry `utm_term=qr`
+- Plausible attribution must survive the 301 (verified in Slice 54 acceptance)
+- Per-artist shortlink hits trackable in Slice 58
+- Dashboard share-card interactions tracked as Plausible custom events in Slice 57
+- A pinned Goal in Plausible counts shortlink-attributed signups distinctly from organic
+
+---
+
+### Slice 54 — Short domain technical setup (Phase A)
+
+**Status:** ⏳ pending — gated by post-launch checklist above
+
+**Goal:** `inkl.ee` is connected to the existing infrastructure, the root domain 301-redirects to `inklee.app`, and analytics correctly attributes traffic that arrives via shortlinks.
+
+**Scope:**
+
+- Connect `inkl.ee` to the Vercel project as an alias domain on `mchlkrfts-projects/inklee`
+- Vercel redirect rule: `inkl.ee/* → inklee.app/*` (301), with `inkl.ee` root → `inklee.app` (301)
+- 3 hardcoded named shortlinks to validate the strategy before generalising:
+  - `inkl.ee/dm` → `inklee.app/dm-chaos?utm_source=instagram&utm_medium=shortlink&utm_campaign=dm_chaos`
+  - `inkl.ee/start` → `inklee.app/signup?utm_source=instagram&utm_medium=shortlink&utm_campaign=launch`
+  - `inkl.ee/link` → `inklee.app/instagram-booking-link-for-tattoo-artists?utm_source=instagram&utm_medium=shortlink&utm_campaign=ig_link`
+- Choose redirect implementation: `vercel.json` `redirects` config or middleware. Document the choice and the reasoning in `DECISIONS.md`. (Recommendation: `vercel.json` for the static set in Slices 54–55; revisit only if dynamic per-artist routing in Slice 58 forces middleware.)
+- Confirm Plausible attributes redirected traffic correctly — UTM params on the redirect target must survive into the page's `<script>` reading
+- Verify `inkl.ee` is NOT in the sitemap and is NOT submitted to Search Console as a separate property
+- Add a defensive `X-Robots-Tag: noindex` on any `inkl.ee` response that is not a 301 (should never trigger, but cheap insurance)
+
+**Out of scope:** Dynamic shortlink mapping system (Slice 55), campaign management UI, dashboard tools (Slice 57), artist-slug shortlinks (Slice 58).
+
+**Technical risks:**
+
+- Plausible's `data-domain="inklee.app"` lives on the destination page — UTMs must be in the redirect target URL for attribution
+- If `inkl.ee` ever resolves to a Next.js page rather than a redirect, canonical and noindex must be airtight (this is why Slice 54 ships pure-redirect first)
+- Vercel alias-domain SSL certificate provisioning can take a few minutes — plan a low-traffic window
+
+**Acceptance criteria:**
+
+- `curl -I https://inkl.ee/dm` returns 301 with the correct `Location` header
+- Plausible dashboard shows the campaign UTM source after a real test click from a phone
+- `inkl.ee` returns zero indexable pages (manual check + `site:inkl.ee` search after 7 days)
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 55 — Campaign shortlinks (Phase B)
+
+**Status:** ⏳ pending — depends on Slice 54
+
+**Goal:** Named campaign shortlinks for Instagram bios, stories, reels, conventions, and printed material are managed from a single config and follow a consistent UTM convention.
+
+**Scope:**
+
+- `src/lib/shortlinks.ts` config: array of `{ slug, target, utm: { source, medium, campaign } }` entries
+- Build-time codegen (or runtime lookup, depending on Slice 54's redirect implementation choice) that emits the redirects from this config so adding a new shortlink is a one-line PR
+- Initial set:
+  - `inkl.ee/dm` → `/dm-chaos` (already from Slice 54, now in config)
+  - `inkl.ee/guest` → `/guest-spots`
+  - `inkl.ee/form` → `/tattoo-booking-form`
+  - `inkl.ee/start` → `/signup` (from Slice 54)
+  - `inkl.ee/link` → `/instagram-booking-link-for-tattoo-artists` (from Slice 54)
+- Every shortlink carries `utm_source` + `utm_medium=shortlink` + per-campaign `utm_campaign`
+- Internal docs page `docs/shortlinks.md`: how to add/retire a campaign shortlink, naming conventions, the reserved-path collision risk with future Slice 58
+
+**Out of scope:** Dashboard UI for non-technical campaign creation, A/B variant shortlinks, time-bound campaigns.
+
+**Technical risks:**
+
+- Slug collision with future artist slugs (Slice 58) — every campaign slug added here must also be added to `RESERVED_SLUGS` in the same PR
+
+**Acceptance criteria:**
+
+- All initial shortlinks return 301 with attached UTM
+- Adding a new campaign shortlink is a one-config-entry change
+- A pinned Plausible Goal counts shortlink-attributed signups distinctly from organic
+- All campaign slugs are present in `RESERVED_SLUGS`
+
+---
+
+### Slice 56 — Artist shortlink decision (Phase C, planning only)
+
+**Status:** ⏳ planning — produces a written decision in `DECISIONS.md`, not code
+
+**Goal:** Resolve the artist-slug shortlink strategy before any implementation. Output is a decision doc; no code changes.
+
+**Decisions required (all needed before Slice 58):**
+
+- **Routing strategy:** `inkl.ee/{slug}` 301 → `inklee.app/{slug}` (recommended starting point), OR `inkl.ee/{slug}` serves the canonical artist page directly (requires strict `<link rel="canonical">` and rigorous duplicate-content handling)
+- **Indexing:** if redirect-only — non-issue. If direct-serve — `noindex` initially until artist-page SEO is intentionally pursued, and even then needs the `public_indexable` profile flag noted in `project_inklee_seo.md` decision #1
+- **Reserved-path collisions:** `inkl.ee/{slug}` collides with campaign shortlinks (`/dm`, `/start`, etc.). Define a single reserved-path list combining `RESERVED_SLUGS` + every active campaign slug from Slice 55. Add a startup check that warns if any existing artist slug overlaps
+- **Tracking:** how to differentiate `inkl.ee/{slug}` vs direct `inklee.app/{slug}` vs Instagram-referral. Options: per-artist UTM in the redirect, server-logged shortlink hit counter, both
+- **Privacy / legal:** does `inkl.ee` change anything in the privacy policy or imprint? (Likely no — same controller, same data flow — but document explicitly so the answer is on record)
+- **Auth/session separation:** `inkl.ee` must never set or read app session cookies. Document this as a hard invariant
+
+**Recommended early approach (to be confirmed in this slice):** redirect-only. `inkl.ee/{slug}` 301s to `inklee.app/{slug}`. Defer direct-serve until there is a clear product reason and the public artist SEO surface is intentionally being grown.
+
+**Out of scope:** Implementation. This slice produces a decision doc, not a feature.
+
+**Acceptance criteria:**
+
+- A new `DECISIONS.md` entry covers all six decision points above with explicit answers
+- The chosen approach is annotated as default vs reversible
+- `RESERVED_SLUGS` reservation strategy for slugs is defined (even if implementation lands in Slice 58)
+
+---
+
+### Slice 57 — Dashboard sharing tools (Phase D)
+
+**Status:** ⏳ pending — independent of Slice 56 if the short URL gracefully falls back to the canonical when `inkl.ee` per-artist routing is not yet live
+
+**Goal:** Artists have a one-screen "share your booking link" surface in the dashboard with copy buttons, a QR download, and a few starter copy snippets.
+
+**Scope:**
+
+- New "Share" card on the artist dashboard (or `/settings/sharing`):
+  - Public booking link `inklee.app/{slug}` — copy button
+  - Short booking link `inkl.ee/{slug}` if Slice 58 has shipped, else fall back to the canonical link with a tooltip "short link coming soon"
+  - QR preview (client-side, e.g. `qrcode` lib) — download as PNG
+  - Three static copy snippets to drop into Instagram bio / story / guest-spot announcement
+- Plausible custom events on each copy / download interaction
+- All UI under the existing artist-app design system (no new component patterns)
+
+**Out of scope:** Editable copy snippets, QR style customisation, Instagram API auto-post, multi-language snippets.
+
+**Tracking requirements:**
+
+- Plausible events: `share_link_copy_full`, `share_link_copy_short`, `share_link_qr_download`, `share_link_snippet_copy`
+- Each event tags `slug` (so per-artist breakdown is possible later)
+
+**Acceptance criteria:**
+
+- Artist sees the share card in the dashboard within one nav action
+- Both copy buttons populate clipboard with the right URL
+- QR download produces a working scannable PNG that resolves to the canonical artist page
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 58 — Artist public shortlinks (Phase E)
+
+**Status:** ⏳ pending — gated by Slice 56 decision and stable artist-page UX
+
+**Goal:** `inkl.ee/{artistSlug}` resolves correctly per the Slice 56 decision (redirect-only by default), with reserved-path conflict handling and per-artist analytics.
+
+**Scope:**
+
+- Implement the chosen routing strategy from Slice 56
+- Reserved-slug check: `inkl.ee/{slug}` rejects (or 404s) any slug colliding with a campaign shortlink, system reserved word, or anything in `RESERVED_SLUGS`
+- Analytics: every `inkl.ee/{slug}` hit counted as a Plausible custom event with `slug` property, separate from canonical-domain traffic
+- Tests: route resolution, reserved-slug guard, redirect target correctness, UTM persistence
+- Search Console: monitor for any inadvertent indexing of `inkl.ee/{slug}` URLs in the first 30 days post-launch
+
+**Out of scope:** Direct-serve artist pages on `inkl.ee` (only on the table if Slice 56 explicitly authorised it — and even then ship redirect first, direct-serve later as a separate slice)
+
+**Technical risks:**
+
+- Reserved-path collisions: an artist signs up with slug `dm` → `inkl.ee/dm` is now ambiguous. Mitigation already encoded in Slice 55: every campaign slug added to `RESERVED_SLUGS` at the same time. Slice 58 ships the startup check that warns if any active artist slug overlaps.
+- Magic-link customer portals (`/request/[token]`) must not be exposed via `inkl.ee` — auth/session surfaces stay strictly on `inklee.app`. Add an explicit allow-list of path prefixes the short domain serves; everything else 404s.
+
+**Acceptance criteria:**
+
+- A real artist's `inkl.ee/{slug}` resolves correctly per the chosen strategy
+- A slug colliding with a campaign returns the campaign destination, never the artist's
+- Plausible reports per-artist shortlink click counts
+- `/request/*`, `/auth/*`, `/dashboard/*`, `/admin/*`, `/api/*` all 404 when requested via `inkl.ee`
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 59 — QR + offline campaign layer (Phase F)
+
+**Status:** ⏳ pending — depends on Slice 57 + 58
+
+**Goal:** Downloadable, trackable QR codes and printable assets exist for campaign shortlinks (and per-artist links), with appropriate source-tracking parameters.
+
+**Scope:**
+
+- Campaign QR generator (internal tool, not artist-facing): generates QR codes for each campaign shortlink with `utm_term=qr` so QR-originated traffic is distinguishable from clicks
+- Asset bundle: PNG + SVG exports per campaign for stickers, flyers, convention banners
+- `docs/campaign-assets.md`: how to request a new printed asset, naming conventions, where to file requests
+- Optional: extend the dashboard share card (Slice 57) to expose `utm_term=qr` toggle when downloading the per-artist QR
+
+**Out of scope:** Print-on-demand integration, sticker fulfilment, automatic asset generation pipelines, multi-language QR variants.
+
+**Tracking requirements:**
+
+- All QR-generated links carry `utm_term=qr` so Plausible can break QR-attributed traffic out separately
+
+**Acceptance criteria:**
+
+- Each campaign shortlink has an exportable QR asset stored in the repo (or CDN)
+- A scanned QR resolves to the correct campaign page with `utm_term=qr` attached
+- Per-artist QR (from Slice 57) carries `utm_term=qr` when downloaded
+
+---
+
+## Short domain phase boundary
+
+**Sequencing rule:** 54 → 55 → 56 (decision) → 57 / 58 / 59 in any order once Slice 56 is resolved.
+
+**Roll-back rule:** every step in this phase is reversible without affecting `inklee.app`. Disconnecting the `inkl.ee` alias domain at the Vercel level is a one-click rollback if anything in Plausible attribution, indexing, or routing goes sideways.
