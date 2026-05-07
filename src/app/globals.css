@@ -136,6 +136,17 @@ dialog[open]::backdrop {
   backdrop-filter: blur(3px);
 }
 
+/* Text selection — rosa block, charcoal text. Brand accent on highlight. */
+::selection {
+  background: var(--color-brand-rosa);
+  color: var(--color-brand-charcoal);
+}
+
+::-moz-selection {
+  background: var(--color-brand-rosa);
+  color: var(--color-brand-charcoal);
+}
+
 /* Brand loader animation */
 @keyframes inklee-float {
   0%,
