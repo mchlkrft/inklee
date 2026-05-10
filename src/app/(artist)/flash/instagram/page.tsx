@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isInstagramConfigured } from "@/lib/instagram";
 import PostsBrowser from "./posts-browser";
+import AccountActions from "./account-actions";
 import {
   connectInstagramAction,
   disconnectInstagramAction,
@@ -138,24 +139,10 @@ export default async function FlashInstagramPage({
                 </p>
               )}
             </div>
-            <div className="flex gap-2">
-              <form action={syncInstagramAction}>
-                <button
-                  type="submit"
-                  className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-                >
-                  Resync
-                </button>
-              </form>
-              <form action={disconnectInstagramAction}>
-                <button
-                  type="submit"
-                  className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-                >
-                  Disconnect
-                </button>
-              </form>
-            </div>
+            <AccountActions
+              syncAction={syncInstagramAction}
+              disconnectAction={disconnectInstagramAction}
+            />
           </div>
         ) : (
           <div className="px-5 py-4 space-y-2">
