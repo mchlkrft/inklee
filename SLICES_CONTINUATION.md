@@ -1024,6 +1024,101 @@ The following items are confirmed incomplete. They are not slices — they are s
 
 ---
 
+## Pre-launch UX polish package: Slices 60–61
+
+These slices were added during the pre-launch UX walkthrough (Phase D in `project_inklee_roadmap.md`). The artist-facing surfaces work end-to-end, but real first-time use is exposing friction that wasn't obvious during feature-by-feature shipping. Both slices are scoped as **audit + targeted fixes**, not redesigns — no schema changes, no new features. They sit before the post-launch short-domain phase (Slices 54–59) because they're launch-blocking polish, not growth work.
+
+**Sequencing rule:** do the audit first, produce a written punch list, fix the highest-impact items, ship. Avoid scope creep into "redesign the whole thing".
+
+---
+
+### Slice 60 — Flash feature UX optimization
+
+**Status:** ⏳ pending — punch list to be authored during audit
+
+**Goal:** The Flash workflow — from Instagram connection through draft import, item editing, flash days scheduling, and the public flash page — feels coherent and obvious to a first-time artist. Friction points discovered during real-flow testing get fixed without expanding the feature surface.
+
+**Scope (audit phase):** walk the Flash flow as a real artist with no prior context, in this order, and produce a written punch list:
+
+- `/settings/instagram` — first connect, sync feedback, post grid scan, "Add to Flash" decision
+- `/flash/items` — list view, draft vs published states, edit modal, image preview quality
+- `/flash/items/[id]` (or edit modal) — pricing, availability, booking mode, flash day assignment
+- `/flash/days` — schedule view, status transitions (upcoming/active/past/cancelled), per-day flash assignment
+- Public `/[slug]/flash` — what a client sees when scanning available flash, request-to-book flow, "books closed" empty state
+
+**Scope (fix phase):** triage punch list by impact. Likely targets (placeholder until audit completes):
+
+- Empty-state copy + next-action prompts across the four list surfaces
+- Loading/pending feedback parity with the Instagram-resync pattern shipped 2026-05-10 (`useTransition`-driven spinner + status note)
+- Image quality on the public flash page — confirm Supabase-hosted thumbnails render at adequate resolution
+- Flash day status transitions feel intentional (upcoming → active → past automation already in place; UX clarity around manual cancel)
+- Inline help / first-encounter modal copy (already scaffolded in Slice 48 as OT-08, currently empty placeholders)
+
+**Out of scope:**
+
+- New features (e.g. flash variants, bulk pricing, custom availability rules)
+- Schema changes
+- Public flash page redesign (separate visual pass, if needed, slots into Slice 61 territory)
+- Instagram integration changes — caching layer shipped 2026-05-10, considered stable
+
+**Dependencies:** Slice 43 (Flash + Instagram), 2026-05-10 Instagram caching commit, OT-08 (feature intro modal copy — overlapping concern).
+
+**Acceptance criteria:**
+
+- Written punch list committed to repo as `docs/flash-ux-audit-slice-60.md` (or similar)
+- High-impact items shipped; deferred items re-filed as discrete OTs with explicit reasoning
+- Flash flow re-walked end-to-end after fixes; no regression on the four surfaces above
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 61 — Navigation + auth UI pass
+
+**Status:** ⏳ pending — punch list to be authored during audit
+
+**Goal:** The artist app's navigation surfaces and the auth/onboarding entry points feel like one consistent product. The pre-login moments (login, signup, forgot/reset, MFA) and the in-app navigation chrome (top nav, sub-navs, mobile bottom tabs) match the brand voice and visual system established in Slice 46 (branding) without diverging from each other.
+
+**Scope (audit phase):** review every surface below as a real first-time visitor, then as a returning artist on mobile, and produce a written punch list:
+
+- **Auth surfaces:** `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/auth/mfa`, OAuth callback transition states
+- **Top nav (NavBar):** logo, primary sections (Dashboard / Bookings / Flash / Trip Planner / Analytics / Settings), notification bell, user menu, account-status indicators
+- **Sub-navs:** BookingsNav (Requests / Calendar / Clients / Waitlist), Flash sub-nav (Items / Days / Instagram), Settings sub-nav, Trip Planner controls
+- **Mobile bottom tab bar:** primary tabs, active state, transition behaviour
+- **Branding moments:** randomized logo color (Slice 46), spiderweb loader, favicon consistency across auth pages
+
+**Scope (fix phase):** triage punch list by impact. Likely targets (placeholder until audit completes):
+
+- Auth page hierarchy and copy — first-time clarity, error-state messaging, "no account / already have one" CTAs
+- Visual consistency between auth pages and the in-app design system
+- Nav active-state legibility (selected vs hover vs unselected)
+- Mobile bottom-tab spacing and touch target sizes (Slice 47 mobile pass already covered the basics — verify no regression)
+- User-menu density, logout placement, account-status pills
+
+**Out of scope:**
+
+- New nav structure or IA changes (Slice 41 did the last restructure; no new sections)
+- Marketing site nav (separate concern, owned by the marketing layout system shipped 2026-05-07)
+- Public booking page nav (separate visual track)
+- Schema or routing changes
+
+**Dependencies:** Slice 23 (initial UI/UX redesign), Slice 41 (nav restructure), Slice 46 (branding system), Slice 47 (mobile UX), Slice 31 (2FA flows live).
+
+**Acceptance criteria:**
+
+- Written punch list committed to repo as `docs/nav-auth-ui-audit-slice-61.md` (or similar)
+- High-impact items shipped; deferred items re-filed as discrete OTs with explicit reasoning
+- Visual smoke-test pass on desktop (1280, 1440, 1920) and mobile (375, 414) — no layout regressions on existing flows
+- Auth flow re-walked end-to-end (signup → onboarding → first-login → 2FA enable → logout → login → MFA challenge) with no copy or visual stutters
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+## Pre-launch UX polish boundary
+
+Slices 60–61 must complete before public launch. They block the MVP gate (Phase D in `project_inklee_roadmap.md`) only if their audits surface critical issues; otherwise they're polish that can ship in parallel with marketing/legal closeout.
+
+---
+
 ## Post-Launch Phase: Short Domain + Shareability Layer (inkl.ee)
 
 **Status:** ⏳ Planning only. No implementation until the post-launch checklist is met.
