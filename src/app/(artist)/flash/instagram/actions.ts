@@ -10,6 +10,7 @@ import {
   fetchInstagramMedia,
   titleFromCaption,
 } from "@/lib/instagram";
+import { downloadInstagramThumbnail } from "@/lib/instagram-storage";
 import { slugify } from "@/lib/flash";
 
 export async function connectInstagramAction(): Promise<void> {
@@ -44,13 +45,24 @@ export async function syncInstagramAction(): Promise<void> {
     const media = await fetchInstagramMedia(account.access_token, 50);
 
     if (media.length > 0) {
+      const previewPaths = await Promise.all(
+        media.map((m) => {
+          const sourceUrl =
+            m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url;
+          return sourceUrl
+            ? downloadInstagramThumbnail(sourceUrl, user.id, m.id)
+            : Promise.resolve(null);
+        }),
+      );
+
       await serviceClient.from("instagram_posts").upsert(
-        media.map((m) => ({
+        media.map((m, i) => ({
           artist_id: user.id,
           instagram_media_id: m.id,
           media_type: m.media_type,
           media_url: m.media_url ?? null,
           thumbnail_url: m.thumbnail_url ?? null,
+          preview_image_path: previewPaths[i],
           permalink: m.permalink,
           caption: m.caption ?? null,
           posted_at: m.timestamp ? new Date(m.timestamp).toISOString() : null,
@@ -129,8 +141,13 @@ export async function importPostsAsFlashItemsAction(
   const rows = toImport.map((post) => {
     const rawTitle = titleFromCaption(post.caption) || "Flash Design";
     const itemId = crypto.randomUUID();
-    const previewUrl =
-      post.media_type === "VIDEO" ? post.thumbnail_url : post.media_url;
+    // Resolve Supabase-hosted preview to a public URL so flash items inherit
+    // a permanent image. Fall back to null if sync hasn't cached this post yet —
+    // artist can re-run a Resync, then re-import.
+    const previewUrl = post.preview_image_path
+      ? supabase.storage.from("logos").getPublicUrl(post.preview_image_path)
+          .data.publicUrl
+      : null;
 
     return {
       id: itemId,
@@ -140,7 +157,7 @@ export async function importPostsAsFlashItemsAction(
       slug: `${slugify(rawTitle) || "flash"}-${itemId.slice(0, 8)}`,
       status: "draft",
       instagram_post_url: post.permalink,
-      preview_image_url: previewUrl ?? null,
+      preview_image_url: previewUrl,
       short_description: null as string | null,
       price_type: "request",
       price: null as string | null,

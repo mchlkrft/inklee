@@ -6,8 +6,7 @@ import { importPostsAsFlashItemsAction } from "./actions";
 type Post = {
   id: string;
   media_type: string;
-  media_url: string | null;
-  thumbnail_url: string | null;
+  preview_url: string | null;
   permalink: string;
   caption: string | null;
   already_linked: boolean;
@@ -93,8 +92,7 @@ export default function PostsBrowser({ posts }: { posts: Post[] }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {posts.map((post) => {
-          const previewUrl =
-            post.media_type === "VIDEO" ? post.thumbnail_url : post.media_url;
+          const previewUrl = post.preview_url;
           const isSelected = selected.has(post.id);
           const caption = post.caption?.slice(0, 80) ?? "";
 

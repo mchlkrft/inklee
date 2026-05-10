@@ -7,6 +7,9 @@ import {
   syncInstagramAction,
 } from "./actions";
 
+// Resync downloads up to 50 thumbnails server-side; default 10s timeout would clip it.
+export const maxDuration = 60;
+
 export default async function FlashInstagramPage({
   searchParams,
 }: {
@@ -33,7 +36,7 @@ export default async function FlashInstagramPage({
   const { data: rawPosts } = account
     ? await supabase
         .from("instagram_posts")
-        .select("id, media_type, media_url, thumbnail_url, permalink, caption")
+        .select("id, media_type, preview_image_path, permalink, caption")
         .eq("artist_id", user!.id)
         .order("posted_at", { ascending: false })
         .limit(100)
@@ -56,7 +59,14 @@ export default async function FlashInstagramPage({
   }
 
   const enrichedPosts = posts.map((post) => ({
-    ...post,
+    id: post.id,
+    media_type: post.media_type,
+    permalink: post.permalink,
+    caption: post.caption,
+    preview_url: post.preview_image_path
+      ? supabase.storage.from("logos").getPublicUrl(post.preview_image_path)
+          .data.publicUrl
+      : null,
     already_linked: linkedSet.has(post.id),
   }));
 
