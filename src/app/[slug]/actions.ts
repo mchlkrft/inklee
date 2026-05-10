@@ -280,7 +280,12 @@ export async function submitBookingAction(
     if (!requestedSlotId)
       return { error: "please select a slot", field: "slot_id" };
 
-    const { data: locked } = await supabase
+    // Service-role atomic lock. The .eq("status", "open") WHERE clause is the
+    // concurrency guard — two concurrent submissions still race correctly at
+    // the SQL level. Service role is needed because the SELECT after UPDATE
+    // returns a row with status='locked', which the public anon SELECT policy
+    // (status='open' only) would hide, making the lock appear to fail.
+    const { data: locked } = await serviceClient
       .from("slots")
       .update({ status: "locked" })
       .eq("id", requestedSlotId)
@@ -437,7 +442,12 @@ export async function submitBookingAction(
       tags: { action: "booking_insert" },
     });
     if (slotId) {
-      await supabase.from("slots").update({ status: "open" }).eq("id", slotId);
+      // Service-role rollback: anon UPDATE policy only allows open→locked,
+      // so the inverse rollback must bypass RLS.
+      await serviceClient
+        .from("slots")
+        .update({ status: "open" })
+        .eq("id", slotId);
     }
     if (uploadedImages.length > 0) {
       await serviceClient.storage
@@ -460,7 +470,9 @@ export async function submitBookingAction(
   }
 
   if (uploadedImages.length > 0) {
-    await supabase.from("booking_images").insert(
+    // Service-role insert: storage upload already used serviceClient (Slice 32),
+    // pairing the metadata insert keeps the booking_images write path uniform.
+    await serviceClient.from("booking_images").insert(
       uploadedImages.map((img, idx) => {
         const annotations = imageAnnotations[idx];
         return {
@@ -480,7 +492,8 @@ export async function submitBookingAction(
     );
   }
 
-  await supabase.from("audit_log").insert({
+  // Service-role audit write: server-managed event log, not customer data.
+  await serviceClient.from("audit_log").insert({
     booking_id: bookingId,
     action: "booking_created",
     details: { origin: "public_form", ip },
