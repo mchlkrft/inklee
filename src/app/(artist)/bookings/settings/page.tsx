@@ -54,23 +54,23 @@ export default async function BookingSettingsPage() {
     );
 
   return (
-    <div className="space-y-12 max-w-lg">
+    <div className="space-y-10 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Booking Settings
         </h1>
-        <p className="mt-1 text-base text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           Control your booking mode and availability.
         </p>
       </div>
 
       {/* Availability */}
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Availability
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-foreground">
             Control when and how many booking requests you accept.
           </p>
         </div>
@@ -82,11 +82,11 @@ export default async function BookingSettingsPage() {
 
       {/* Booking Mode */}
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Booking mode
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-foreground">
             Choose how clients request sessions with you.
           </p>
         </div>
@@ -96,11 +96,13 @@ export default async function BookingSettingsPage() {
       {/* Slots — only in fixed_slots mode */}
       {bookingMode === "fixed_slots" && (
         <section className="space-y-4">
-          <div className="border-b-2 border-border pb-2">
-            <h2 className="text-base font-semibold text-foreground">Slots</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
+          <div className="border-b border-border pb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Slots
+            </h2>
+            <p className="mt-1.5 text-sm text-foreground">
               Publish time slots for clients to book. Times in{" "}
-              <span className="text-foreground">{timezone}</span>.
+              <span className="font-medium">{timezone}</span>.
             </p>
           </div>
           <AddSlotButton timezone={timezone} />

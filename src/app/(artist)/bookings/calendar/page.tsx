@@ -35,7 +35,14 @@ export default async function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">Calendar</h1>
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Calendar
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Approved bookings and appointments you&apos;ve added yourself.
+        </p>
+      </div>
       <CalendarView events={events} />
     </div>
   );

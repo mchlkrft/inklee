@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import BookingLinkWidget from "./booking-link-widget";
+import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import {
   Inbox,
   BookOpen,
@@ -93,21 +94,21 @@ export default async function DashboardPage() {
   const publicUrl = `${appUrl}/${profile?.slug ?? ""}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           {profile?.display_name ?? "Dashboard"}
         </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">Overview</p>
+        <p className="mt-1 text-sm text-muted-foreground">Overview</p>
       </div>
 
       {!onboardingCompleted && (
         <Link
           href="/onboarding/booking"
-          className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40"
+          className="flex items-center justify-between rounded-[20px] border border-border px-5 py-4 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
         >
           <div className="flex items-center gap-3">
-            <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <IconChip icon={Sparkles} tint="rosa" size="sm" />
             <div>
               <p className="text-sm font-medium text-foreground">
                 Finish setting up your account
@@ -124,12 +125,14 @@ export default async function DashboardPage() {
       {onboardingCompleted && !profile?.bio && (
         <Link
           href="/settings/profile"
-          className="flex items-center justify-between rounded-md border border-dashed border-border px-4 py-3 transition-colors hover:bg-muted/20"
+          className="flex items-center justify-between rounded-[20px] border-2 border-dashed border-border px-5 py-4 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
         >
           <div className="flex items-center gap-3">
-            <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <IconChip icon={Sparkles} tint="bone" size="sm" />
             <div>
-              <p className="text-sm text-foreground">Add a short bio</p>
+              <p className="text-sm font-medium text-foreground">
+                Add a short bio
+              </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Help clients understand your style before they book.
               </p>
@@ -139,30 +142,28 @@ export default async function DashboardPage() {
         </Link>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {widgets.pending_requests && (
-          <div className="space-y-3 rounded-md border border-border p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Inbox className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">
-                  Pending requests
-                </p>
-              </div>
+          <Card className="space-y-4">
+            <CardHeader>
+              <IconChip icon={Inbox} tint="mustard" />
+              <p className="text-sm font-medium text-foreground">
+                Pending requests
+              </p>
               <Link
                 href="/bookings/overview?view=requests"
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 View all
               </Link>
-            </div>
+            </CardHeader>
             {pendingCount === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No pending requests.
               </p>
             ) : (
               <>
-                <p className="text-3xl font-semibold text-foreground">
+                <p className="text-4xl font-semibold tracking-tight text-foreground">
                   {pendingCount}
                 </p>
                 <div className="space-y-1">
@@ -170,7 +171,7 @@ export default async function DashboardPage() {
                     <Link
                       key={b.id}
                       href={`/bookings/requests/${b.id}`}
-                      className="group flex items-center justify-between py-1 hover:text-foreground"
+                      className="group flex items-center justify-between rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
                     >
                       <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
                         @{b.customer_handle}
@@ -179,35 +180,34 @@ export default async function DashboardPage() {
                     </Link>
                   ))}
                   {pendingCount > 3 && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="px-2 text-xs text-muted-foreground">
                       +{pendingCount - 3} more
                     </p>
                   )}
                 </div>
               </>
             )}
-          </div>
+          </Card>
         )}
 
         {widgets.books_status && (
-          <div className="space-y-3 rounded-md border border-border p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">Books</p>
-              </div>
+          <Card className="space-y-4">
+            <CardHeader>
+              <IconChip icon={BookOpen} tint={booksOpen ? "green" : "bone"} />
+              <p className="text-sm font-medium text-foreground">Books</p>
               <Link
                 href="/bookings/settings"
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 Manage
               </Link>
-            </div>
+            </CardHeader>
             <div className="flex items-center gap-2">
               <span
-                className={`inline-block h-2 w-2 rounded-full ${booksOpen ? "bg-green-500" : "bg-muted-foreground"}`}
+                aria-hidden
+                className={`inline-block h-2 w-2 rounded-full ${booksOpen ? "bg-brand-green" : "bg-muted-foreground"}`}
               />
-              <p className="text-sm text-foreground">
+              <p className="text-sm font-medium text-foreground">
                 {booksOpen ? "Open" : "Closed"}
               </p>
             </div>
@@ -221,43 +221,41 @@ export default async function DashboardPage() {
                 &ldquo;{booksSettings.books_closed_message}&rdquo;
               </p>
             )}
-          </div>
+          </Card>
         )}
 
         {widgets.upcoming_appointments && (
-          <div className="space-y-3 rounded-md border border-border p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">Upcoming</p>
-              </div>
+          <Card className="space-y-4">
+            <CardHeader>
+              <IconChip icon={CalendarDays} tint="rosa" />
+              <p className="text-sm font-medium text-foreground">Upcoming</p>
               <Link
                 href="/bookings/calendar"
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 Calendar
               </Link>
-            </div>
+            </CardHeader>
             {upcomingBookings.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No upcoming appointments.
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {upcomingBookings.map((b) => {
                   const fd = b.form_data as Record<string, string> | null;
                   return (
                     <Link
                       key={b.id}
                       href={`/bookings/requests/${b.id}`}
-                      className="group flex items-center justify-between"
+                      className="group flex items-center justify-between rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
                     >
-                      <div>
-                        <p className="text-sm text-foreground group-hover:underline">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
                           @{b.customer_handle}
                         </p>
                         {fd?.placement && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="truncate text-xs text-muted-foreground">
                             {fd.placement}
                           </p>
                         )}
@@ -270,30 +268,28 @@ export default async function DashboardPage() {
                 })}
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         {widgets.waitlist && waitlistCount > 0 && (
-          <div className="space-y-3 rounded-md border border-border p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">Waitlist</p>
-              </div>
+          <Card className="space-y-4">
+            <CardHeader>
+              <IconChip icon={Users} tint="cobalt" />
+              <p className="text-sm font-medium text-foreground">Waitlist</p>
               <Link
                 href="/bookings/waitlist"
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 View
               </Link>
-            </div>
-            <p className="text-3xl font-semibold text-foreground">
+            </CardHeader>
+            <p className="text-4xl font-semibold tracking-tight text-foreground">
               {waitlistCount}
             </p>
             <p className="text-xs text-muted-foreground">
               {waitlistCount === 1 ? "Person" : "People"} waiting
             </p>
-          </div>
+          </Card>
         )}
 
         {widgets.booking_link && profile?.slug && (
@@ -303,12 +299,12 @@ export default async function DashboardPage() {
 
       <Link
         href="/analytics"
-        className="flex items-center justify-between rounded-md border border-border px-4 py-3 transition-colors hover:bg-muted/20"
+        className="flex items-center justify-between rounded-[20px] border border-border px-5 py-4 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
       >
         <div className="flex items-center gap-3">
-          <BarChart3 className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <IconChip icon={BarChart3} tint="bone" size="sm" />
           <div>
-            <p className="text-sm text-foreground">Analytics</p>
+            <p className="text-sm font-medium text-foreground">Analytics</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Conversion, volume, and client return rate
             </p>
@@ -322,7 +318,7 @@ export default async function DashboardPage() {
         !widgets.upcoming_appointments &&
         !widgets.waitlist &&
         !widgets.booking_link && (
-          <div className="rounded-md border border-border px-6 py-12 text-center">
+          <Card className="text-center py-12">
             <p className="text-sm text-muted-foreground">
               All widgets are hidden.{" "}
               <Link
@@ -332,7 +328,7 @@ export default async function DashboardPage() {
                 Configure dashboard
               </Link>
             </p>
-          </div>
+          </Card>
         )}
     </div>
   );

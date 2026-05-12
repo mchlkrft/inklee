@@ -4,14 +4,15 @@ import FeatureIntroModal from "@/components/feature-intro-modal";
 
 function DayStatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    upcoming: "bg-blue-500/10 text-blue-500",
-    active: "bg-green-500/10 text-green-500",
-    past: "bg-muted text-muted-foreground opacity-60",
-    cancelled: "bg-destructive/10 text-destructive opacity-60",
+    upcoming: "bg-[color:var(--color-tint-cobalt)] text-brand-charcoal",
+    active: "bg-[color:var(--color-tint-green)] text-brand-charcoal",
+    past: "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)] opacity-70",
+    cancelled:
+      "bg-[color:var(--color-tint-red)] text-brand-charcoal opacity-70",
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-muted text-muted-foreground"}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles[status] ?? "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]"}`}
     >
       {status}
     </span>
@@ -32,10 +33,12 @@ export default async function FlashDaysPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Flash Days</h1>
-          <p className="mt-1 text-base text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Flash Days
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Group flash items into a scheduled event or day.
           </p>
         </div>
@@ -54,19 +57,19 @@ export default async function FlashDaysPage() {
       </div>
 
       {!days || days.length === 0 ? (
-        <div className="rounded-md border border-border px-6 py-12 text-center space-y-3">
+        <div className="rounded-[20px] border border-border px-6 py-12 text-center space-y-3">
           <p className="text-base text-muted-foreground">
             No flash days yet. Create a day to group flash items into an event.
           </p>
           <Link
             href="/flash/days/new"
-            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground"
           >
             Create flash day
           </Link>
         </div>
       ) : (
-        <div className="rounded-md border border-border divide-y divide-border">
+        <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
           {days.map((day) => {
             const itemCount = Array.isArray(day.flash_items)
               ? day.flash_items.length
@@ -74,7 +77,7 @@ export default async function FlashDaysPage() {
             return (
               <div
                 key={day.id}
-                className="flex items-center justify-between px-4 py-4 gap-4"
+                className="flex items-center justify-between px-5 py-4 gap-4"
               >
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">

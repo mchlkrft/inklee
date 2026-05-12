@@ -14,7 +14,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Set new password
         </h1>
       </div>

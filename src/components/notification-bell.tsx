@@ -171,11 +171,11 @@ export default function NotificationBell({
       <button
         onClick={handleOpen}
         aria-label="Notifications"
-        className="relative flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-workspace-border)] bg-[color:var(--color-workspace-card)] text-[color:var(--color-workspace-fg)] transition-colors hover:border-transparent hover:bg-brand-charcoal hover:text-brand-bone focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-rosa/50"
       >
         <BellIcon />
         {hasUnread && (
-          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
+          <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-red px-1 text-[9px] font-bold leading-none text-brand-bone">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -183,7 +183,7 @@ export default function NotificationBell({
 
       {/* Panel */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-[360px] max-w-[calc(100vw-2rem)] rounded-md border border-border bg-background shadow-lg flex flex-col max-h-[520px]">
+        <div className="absolute right-0 top-full mt-2 z-50 w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-background text-foreground shadow-[var(--shadow-card)] flex flex-col max-h-[520px] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
             <p className="text-sm font-medium text-foreground">Notifications</p>
@@ -197,7 +197,7 @@ export default function NotificationBell({
             )}
           </div>
 
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 scrollbar-bone">
             {!loaded ? (
               <LoadingSkeleton />
             ) : (
@@ -273,7 +273,7 @@ function WarningRow({
 }) {
   return (
     <div
-      className={`px-4 py-3 border-b border-border/50 last:border-0 ${!n.is_read ? "bg-orange-500/5" : ""}`}
+      className={`px-4 py-3 border-b border-border/50 last:border-0 ${!n.is_read ? "bg-brand-mustard/10" : ""}`}
       onClick={onRead}
     >
       <div className="flex items-start gap-3">
@@ -287,7 +287,7 @@ function WarningRow({
             />
             <p className="text-xs font-medium text-foreground">{n.title}</p>
             {!n.is_read && (
-              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-rosa shrink-0" />
             )}
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
@@ -335,7 +335,7 @@ function ActivityRow({
 
   return (
     <div
-      className={`px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/20 transition-colors ${isUnread ? "bg-blue-500/5" : ""}`}
+      className={`px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/30 transition-colors ${isUnread ? "bg-brand-rosa/10" : ""}`}
       onClick={onRead}
     >
       <div className="flex items-start gap-3">
@@ -348,7 +348,7 @@ function ActivityRow({
               {g.count > 1 ? `${g.count}× ${n.title}` : n.title}
             </p>
             {isUnread && (
-              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-rosa shrink-0" />
             )}
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
@@ -404,11 +404,11 @@ function EmptyState() {
 function BellIcon() {
   return (
     <svg
-      className="w-5 h-5"
+      className="h-4 w-4"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={1.6}
     >
       <path
         strokeLinecap="round"

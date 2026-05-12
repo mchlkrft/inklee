@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatDate, relativeTime } from "@/lib/format";
 import StatusActions from "./status-actions";
+import StatusBadge from "@/components/status-badge";
 import AnnotatedImageGallery from "./annotated-image-gallery";
 import CommunicationSidebar from "./communication-sidebar";
 import type { Annotation } from "@/lib/annotations";
@@ -81,21 +82,31 @@ export default async function RequestDetailPage({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="space-y-8">
+      <div className="space-y-3">
         <Link
-          href="/bookings/requests"
-          className="hover:text-foreground transition-colors"
+          href="/bookings/overview"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
-          Requests
+          <span aria-hidden>&larr;</span> Booking Overview
         </Link>
-        <span>/</span>
-        <span className="text-foreground">@{booking.customer_handle}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            @{booking.customer_handle}
+          </h1>
+          <StatusBadge status={booking.status} />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Submitted {relativeTime(booking.created_at)}
+          {bookingModeLabel(bookingMode)
+            ? ` · ${bookingModeLabel(bookingMode)}`
+            : ""}
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-md border border-border divide-y divide-border">
+          <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
             {booking.flash_items && (
               <div className="flex px-4 py-3 gap-4">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">
@@ -154,8 +165,10 @@ export default async function RequestDetailPage({
           </div>
 
           {typeof fd?.description === "string" && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Description</p>
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Description
+              </p>
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                 {fd.description as string}
               </p>
@@ -163,9 +176,12 @@ export default async function RequestDetailPage({
           )}
 
           {imagesWithUrls.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Reference images ({imagesWithUrls.length})
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Reference images
+                <span className="ml-1.5 normal-case tracking-normal opacity-70">
+                  ({imagesWithUrls.length})
+                </span>
               </p>
               <AnnotatedImageGallery images={imagesWithUrls} />
             </div>
@@ -176,11 +192,11 @@ export default async function RequestDetailPage({
           <StatusActions booking={{ id: booking.id, status: booking.status }} />
 
           {booking.deposit_amount && (
-            <div className="rounded-md border border-border p-4 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="rounded-[20px] border border-border p-5 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
                 Deposit
               </p>
-              <p className="text-sm text-foreground font-medium">
+              <p className="text-base text-foreground font-medium">
                 EUR {Number(booking.deposit_amount).toFixed(2)}
               </p>
               {booking.deposit_due_at && (
@@ -196,7 +212,7 @@ export default async function RequestDetailPage({
             </div>
           )}
 
-          <div className="rounded-md border border-border divide-y divide-border text-sm">
+          <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border text-sm">
             <Row label="Submitted" value={relativeTime(booking.created_at)} />
             {booking.decided_at && (
               <Row label="Decided" value={relativeTime(booking.decided_at)} />
@@ -208,7 +224,7 @@ export default async function RequestDetailPage({
             <Row label="Origin" value={booking.origin.replace("_", " ")} />
           </div>
 
-          <div className="rounded-md border border-border p-4">
+          <div className="rounded-[20px] border border-border p-5">
             <CommunicationSidebar
               bookingId={booking.id}
               status={booking.status}

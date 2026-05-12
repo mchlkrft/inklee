@@ -252,7 +252,7 @@ export default function UnifiedFieldList({
 
   return (
     <div>
-      <div className="rounded-md border border-border overflow-hidden divide-y divide-border">
+      <div className="rounded-md overflow-hidden border border-border divide-y divide-border">
         {rows.map((row, idx) => {
           const isOver = overIdx === idx;
           const dragging = draggingIdx === idx;

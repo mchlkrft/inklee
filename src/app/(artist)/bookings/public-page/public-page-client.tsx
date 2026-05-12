@@ -18,7 +18,7 @@ export default function PublicPageClient({
       QRCode.toCanvas(canvasRef.current, publicUrl, {
         width: 96,
         margin: 1,
-        color: { dark: "#ffffff", light: "#09090b" },
+        color: { dark: "#1e1e1e", light: "#e5e1d5" },
       }).catch(console.error);
     }
   }, [publicUrl]);
@@ -65,7 +65,7 @@ export default function PublicPageClient({
 
       {/* QR row */}
       <div className="flex items-center gap-4 px-4 py-3">
-        <div className="shrink-0 rounded-md bg-[#09090b] p-2">
+        <div className="shrink-0 rounded-md bg-brand-bone p-2">
           <canvas ref={canvasRef} />
         </div>
         <div className="space-y-2">

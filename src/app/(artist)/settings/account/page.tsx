@@ -26,19 +26,21 @@ export default async function AccountPage() {
   const mfaEnabled = totpFactor?.status === "verified";
 
   return (
-    <div className="space-y-10 max-w-lg">
+    <div className="space-y-10 max-w-2xl">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Account</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Account
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Manage your identity and account security.
         </p>
       </div>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground border-b border-border pb-3">
           Booking mode
         </h2>
-        <div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
+        <div className="flex items-center justify-between rounded-[20px] border border-border px-5 py-4">
           <div>
             <p className="text-sm text-foreground">
               {profile?.booking_mode === "fixed_slots"
@@ -61,7 +63,7 @@ export default async function AccountPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground border-b border-border pb-3">
           General
         </h2>
         <GeneralForm
@@ -73,14 +75,14 @@ export default async function AccountPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground border-b border-border pb-3">
           Security
         </h2>
         <SecurityForm hasPassword={hasPassword} />
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground border-b border-border pb-3">
           Two-factor authentication
         </h2>
         <TwoFactorSection
@@ -90,7 +92,7 @@ export default async function AccountPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-medium text-foreground border-b border-border pb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground border-b border-border pb-3">
           Data export
         </h2>
         <div className="space-y-2">
@@ -101,7 +103,7 @@ export default async function AccountPage() {
           <a
             href="/settings/export"
             download
-            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground"
           >
             Download export
           </a>

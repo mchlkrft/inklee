@@ -4,6 +4,8 @@ import { relativeTime } from "@/lib/format";
 import WaitlistActions from "./waitlist-actions";
 import Link from "next/link";
 import FeatureIntroModal from "@/components/feature-intro-modal";
+import { Card, CardHeader, IconChip } from "@/components/ui/card";
+import { MapPin, Users } from "lucide-react";
 
 function buildCityDemand(
   entries: { city_text: string | null; status: string }[],
@@ -43,8 +45,10 @@ export default async function WaitlistPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Waitlist</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Waitlist
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             People who signed up while books were closed.
           </p>
         </div>
@@ -52,13 +56,13 @@ export default async function WaitlistPage() {
       </div>
 
       {list.length === 0 ? (
-        <div className="rounded-md border border-border px-5 py-10 text-center space-y-3">
+        <div className="rounded-[20px] border border-border px-6 py-12 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
             No waitlist entries yet. Close your books to start collecting them.
           </p>
           <Link
             href="/bookings/books"
-            className="inline-block text-xs rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+            className="inline-block text-xs rounded-md border border-border px-3 py-1.5 text-muted-foreground"
           >
             Manage books &rarr;
           </Link>
@@ -66,12 +70,18 @@ export default async function WaitlistPage() {
       ) : (
         <>
           {/* Demand by city */}
-          <div className="rounded-md border border-border px-5 py-4 space-y-3">
-            <p className="text-sm font-medium text-foreground">
-              Demand by city
-            </p>
+          <Card className="space-y-4">
+            <CardHeader>
+              <IconChip icon={MapPin} tint="cobalt" />
+              <p className="text-sm font-medium text-foreground">
+                Demand by city
+              </p>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {list.length} on waitlist
+              </span>
+            </CardHeader>
             {cityDemand.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 No city demand yet. New waitlist entries can now include a city
                 or location so you can plan future guest spots.
               </p>
@@ -80,7 +90,7 @@ export default async function WaitlistPage() {
                 {cityDemand.map(({ city, count }) => (
                   <li key={city} className="flex items-center gap-3">
                     <div
-                      className="h-1.5 rounded-full bg-brand-mustard shrink-0"
+                      className="h-2 rounded-full bg-brand-mustard shrink-0"
                       style={{
                         width: `${Math.round((count / cityDemand[0].count) * 120)}px`,
                         minWidth: "12px",
@@ -94,38 +104,42 @@ export default async function WaitlistPage() {
                 ))}
               </ul>
             )}
-          </div>
+          </Card>
 
           {/* Entry list */}
-          <div className="rounded-md border border-border divide-y divide-border">
+          <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
             {list.map((entry) => (
               <div
                 key={entry.id}
                 className="flex items-start justify-between gap-4 px-5 py-4"
               >
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      @{entry.customer_handle}
+                <div className="flex items-start gap-3 min-w-0">
+                  <IconChip icon={Users} tint="rosa" size="sm" />
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        @{entry.customer_handle}
+                      </p>
+                      <StatusBadge status={entry.status} />
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {entry.customer_email}
                     </p>
-                    <StatusBadge status={entry.status} />
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {entry.customer_email}
-                  </p>
-                  {entry.city_text && (
+                    {entry.city_text && (
+                      <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" strokeWidth={1.8} />
+                        {entry.city_text}
+                      </p>
+                    )}
+                    {entry.note && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {entry.note}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      📍 {entry.city_text}
+                      {relativeTime(entry.created_at)}
                     </p>
-                  )}
-                  {entry.note && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {entry.note}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {relativeTime(entry.created_at)}
-                  </p>
+                  </div>
                 </div>
                 <WaitlistActions
                   entryId={entry.id}

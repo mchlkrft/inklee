@@ -8,13 +8,15 @@ import {
 
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    published: "bg-green-500/10 text-green-500",
-    draft: "bg-muted text-muted-foreground",
-    archived: "bg-muted text-muted-foreground opacity-60",
+    published: "bg-[color:var(--color-tint-green)] text-brand-charcoal",
+    draft:
+      "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]",
+    archived:
+      "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)] opacity-70",
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-muted text-muted-foreground"}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles[status] ?? "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]"}`}
     >
       {status}
     </span>
@@ -23,13 +25,13 @@ function StatusPill({ status }: { status: string }) {
 
 function ModePill({ mode }: { mode: string }) {
   const styles: Record<string, string> = {
-    unique: "bg-amber-500/10 text-amber-500",
-    limited: "bg-blue-500/10 text-blue-500",
-    repeatable: "bg-green-500/10 text-green-500",
+    unique: "bg-[color:var(--color-tint-mustard)] text-brand-charcoal",
+    limited: "bg-[color:var(--color-tint-cobalt)] text-brand-charcoal",
+    repeatable: "bg-[color:var(--color-tint-rosa)] text-brand-charcoal",
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[mode] ?? "bg-muted text-muted-foreground"}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles[mode] ?? "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]"}`}
     >
       {mode}
     </span>
@@ -94,12 +96,12 @@ export default async function FlashItemsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
             Flash Items
           </h1>
-          <p className="mt-1 text-base text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             Bookable tattoo designs. Publish an item to make it available on
             your public flash page.
           </p>
@@ -119,38 +121,38 @@ export default async function FlashItemsPage() {
       </div>
 
       {!items || items.length === 0 ? (
-        <div className="rounded-md border border-border px-6 py-12 text-center space-y-3">
+        <div className="rounded-[20px] border border-border px-6 py-12 text-center space-y-3">
           <p className="text-base text-muted-foreground">
             No flash items yet — create your first one to get started.
           </p>
           <Link
             href="/flash/items/new"
-            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground"
           >
             Create flash item
           </Link>
         </div>
       ) : (
-        <div className="rounded-md border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-[20px] border border-border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+              <tr className="border-b border-border bg-[color:var(--color-workspace-hover)]">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Item
                 </th>
-                <th className="hidden px-4 py-3 text-left text-sm font-medium text-muted-foreground sm:table-cell">
+                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
                   Mode
                 </th>
-                <th className="hidden px-4 py-3 text-left text-sm font-medium text-muted-foreground md:table-cell">
+                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
                   Pending
                 </th>
-                <th className="hidden px-4 py-3 text-left text-sm font-medium text-muted-foreground md:table-cell">
+                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
                   Confirmed
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Availability
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Actions
                 </th>
               </tr>
@@ -163,7 +165,7 @@ export default async function FlashItemsPage() {
                 return (
                   <tr
                     key={item.id}
-                    className="hover:bg-muted/10 transition-colors"
+                    className="hover:bg-[color:var(--color-workspace-hover)] transition-colors"
                   >
                     <td className="px-4 py-3">
                       <div className="space-y-1">
@@ -192,7 +194,7 @@ export default async function FlashItemsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`text-sm ${av.bookable ? "text-green-500" : "text-muted-foreground"}`}
+                        className={`text-sm font-medium ${av.bookable ? "text-brand-green" : "text-muted-foreground"}`}
                       >
                         {formatFlashAvailabilityLabel(av)}
                       </span>

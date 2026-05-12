@@ -49,29 +49,31 @@ export default async function BookingFormPage() {
   const isOpen = booksSettings.books_open && !windowExpired;
 
   return (
-    <div className="space-y-12 max-w-2xl">
+    <div className="space-y-10 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Booking Form</h1>
-        <p className="mt-1 text-base text-muted-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Booking Form
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Manage what appears on your public form and share your booking link.
         </p>
       </div>
 
       {/* Share public page */}
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Share public page
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-foreground">
             Share this link with clients.
           </p>
         </div>
 
         <PublicPageClient publicUrl={publicUrl} slug={slug} />
 
-        <div className="rounded-md border-2 border-border divide-y divide-border">
-          <div className="flex items-center justify-between px-4 py-3">
+        <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
+          <div className="flex items-center justify-between px-5 py-4">
             <div>
               <p className="text-sm font-medium text-foreground">
                 Availability
@@ -84,8 +86,12 @@ export default async function BookingFormPage() {
             </div>
             <div className="flex items-center gap-3">
               <span
-                className={`text-sm font-medium ${isOpen ? "text-green-500" : "text-muted-foreground"}`}
+                className={`inline-flex items-center gap-1.5 text-sm font-medium ${isOpen ? "text-brand-green" : "text-muted-foreground"}`}
               >
+                <span
+                  aria-hidden
+                  className={`h-1.5 w-1.5 rounded-full ${isOpen ? "bg-brand-green" : "bg-muted-foreground"}`}
+                />
                 {isOpen ? "Open" : "Closed"}
               </span>
               <Link
@@ -101,11 +107,11 @@ export default async function BookingFormPage() {
 
       {/* Form fields */}
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Form fields
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-foreground">
             Toggle fields on or off, drag to reorder, and add custom questions.
             The order here matches what clients see.
           </p>
@@ -120,11 +126,11 @@ export default async function BookingFormPage() {
 
       {/* Form appearance */}
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Appearance
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-foreground">
             Choose the colour theme of your public booking form.
           </p>
         </div>

@@ -68,20 +68,22 @@ export default async function EmailsPage() {
   }));
 
   return (
-    <div className="space-y-12 max-w-xl">
+    <div className="space-y-10 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Emails</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Emails
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Customize email templates and configure automated reminders.
         </p>
       </div>
 
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Email templates
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-foreground">
             Click a template to edit its content.
           </p>
         </div>
@@ -92,9 +94,11 @@ export default async function EmailsPage() {
       </section>
 
       <section className="space-y-4">
-        <div className="border-b-2 border-border pb-2">
-          <h2 className="text-base font-semibold text-foreground">Reminders</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Reminders
+          </h2>
+          <p className="mt-1.5 text-sm text-foreground">
             Configure when automated emails are sent to clients.
           </p>
         </div>

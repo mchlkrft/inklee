@@ -19,19 +19,19 @@ export default async function CalendarExportPage() {
   const feedUrl = token ? `${appUrl}/api/ical/${token}` : null;
 
   return (
-    <div className="space-y-6 max-w-lg">
+    <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Calendar export
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="mt-1 text-sm text-muted-foreground">
           Subscribe to your approved bookings in any calendar app.
         </p>
       </div>
 
       {feedUrl ? (
         <div className="space-y-4">
-          <div className="rounded-md border border-border p-4 space-y-2">
+          <div className="rounded-[20px] border border-border p-5 space-y-2">
             <p className="text-xs text-muted-foreground">Your iCal feed URL</p>
             <p className="text-sm text-foreground font-mono break-all">
               {feedUrl}

@@ -18,10 +18,12 @@ export default async function DashboardSettingsPage() {
   const widgets = parseDashboardWidgets(profileSettings.dashboard_widgets);
 
   return (
-    <div className="space-y-6 max-w-lg">
+    <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Dashboard
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Choose which widgets appear on your dashboard overview.
         </p>
       </div>

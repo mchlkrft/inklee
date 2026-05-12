@@ -6,9 +6,12 @@ export default function BookingsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="-mx-4 -mt-6 md:-mx-6 md:-mt-8">
-      <BookingsNav />
-      <div className="mx-4 mt-6 md:mx-6 md:mt-8">{children}</div>
+    <div className="space-y-6">
+      {/* Mobile-only — desktop reaches sub-pages via the sidebar */}
+      <div className="md:hidden">
+        <BookingsNav />
+      </div>
+      {children}
     </div>
   );
 }

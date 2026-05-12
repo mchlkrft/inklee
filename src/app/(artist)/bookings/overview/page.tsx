@@ -122,7 +122,7 @@ async function RequestsView({
       )}
 
       {!bookings || bookings.length === 0 ? (
-        <div className="space-y-3 rounded-md border border-border px-6 py-12 text-center">
+        <div className="space-y-3 rounded-[20px] border border-border px-6 py-12 text-center">
           <p className="text-base text-muted-foreground">
             {status === "all"
               ? "No requests yet — share your booking link to get started."
@@ -135,7 +135,7 @@ async function RequestsView({
                 href={publicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground"
               >
                 Preview
               </a>
@@ -143,26 +143,26 @@ async function RequestsView({
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-md border border-border">
+        <div className="overflow-hidden rounded-[20px] border border-border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+              <tr className="border-b border-border bg-[color:var(--color-workspace-hover)]">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Handle
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Placement
                 </th>
-                <th className="hidden px-4 py-3 text-left text-sm font-medium text-muted-foreground sm:table-cell">
+                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
                   Size
                 </th>
-                <th className="hidden px-4 py-3 text-left text-sm font-medium text-muted-foreground md:table-cell">
+                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
                   Date
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Status
                 </th>
-                <th className="hidden px-4 py-3 text-right text-sm font-medium text-muted-foreground sm:table-cell">
+                <th className="hidden px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
                   Submitted
                 </th>
               </tr>
@@ -173,7 +173,7 @@ async function RequestsView({
                 return (
                   <tr
                     key={b.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/20"
+                    className="cursor-pointer transition-colors hover:bg-[color:var(--color-workspace-hover)]"
                   >
                     <td className="px-4 py-3">
                       <Link
@@ -273,7 +273,7 @@ async function ClientsView({ publicUrl }: { publicUrl: string | null }) {
       </p>
 
       {clients.length === 0 ? (
-        <div className="rounded-md border border-border px-6 py-12 text-center space-y-3">
+        <div className="rounded-[20px] border border-border px-6 py-12 text-center space-y-3">
           <p className="text-base text-muted-foreground">
             No clients yet. Share your booking link to start accepting requests.
           </p>
@@ -284,7 +284,7 @@ async function ClientsView({ publicUrl }: { publicUrl: string | null }) {
                 href={publicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                className="text-sm rounded-md border border-border px-3 py-1.5 text-muted-foreground"
               >
                 Preview &rarr;
               </a>
@@ -292,12 +292,12 @@ async function ClientsView({ publicUrl }: { publicUrl: string | null }) {
           )}
         </div>
       ) : (
-        <div className="rounded-md border border-border divide-y divide-border">
+        <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
           {clients.map((client) => (
             <Link
               key={client.email}
               href={`/bookings/clients/${encodeURIComponent(client.email)}`}
-              className="flex items-center px-4 py-3 gap-4 hover:bg-muted/20 transition-colors"
+              className="flex items-center px-4 py-3 gap-4 hover:bg-[color:var(--color-workspace-hover)] transition-colors"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-foreground">
@@ -363,33 +363,46 @@ export default async function BookingOverviewPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-foreground">
-          Booking Overview
-        </h1>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Booking Overview
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Requests, statuses, and clients in one place.
+          </p>
+        </div>
         <FeatureIntroModal
           featureKey="overview"
           isEmpty={(requestCount ?? 0) === 0}
         />
       </div>
 
-      <div className="flex gap-1 border-b border-border">
-        {tabs.map((tab) => {
-          const isActive = view === tab.value;
-          return (
-            <Link
-              key={tab.value}
-              href={`/bookings/overview?view=${tab.value}`}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                isActive
-                  ? "border-foreground text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
+      <div className="relative border-b border-border">
+        <div className="flex h-11 items-center gap-1">
+          {tabs.map((tab) => {
+            const isActive = view === tab.value;
+            return (
+              <Link
+                key={tab.value}
+                href={`/bookings/overview?view=${tab.value}`}
+                className={`relative shrink-0 h-full inline-flex items-center px-3 text-sm transition-colors ${
+                  isActive
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+                {isActive && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-0 -bottom-[1.5px] h-[1.5px] bg-brand-mustard"
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       {view === "clients" ? (

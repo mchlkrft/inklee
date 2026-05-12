@@ -14,10 +14,12 @@ export default async function ProfileSettingsPage() {
     .single();
 
   return (
-    <div className="space-y-6 max-w-lg">
+    <div className="space-y-8 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Profile</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Profile
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           This information appears on your public booking page.
         </p>
       </div>

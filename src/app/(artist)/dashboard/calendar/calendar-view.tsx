@@ -4,21 +4,21 @@ import { useState } from "react";
 import AppointmentDrawer, { type CalendarEvent } from "./appointment-drawer";
 import NewAppointmentModal from "./new-appointment-modal";
 
-const DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const MONTH_NAMES = [
-  "january",
-  "february",
-  "march",
-  "april",
-  "may",
-  "june",
-  "july",
-  "august",
-  "september",
-  "october",
-  "november",
-  "december",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 function buildMonthGrid(year: number, month: number): Date[] {
@@ -105,18 +105,18 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
             onClick={() => setShowNew(true)}
             className="rounded-md bg-brand-mustard px-3 py-1.5 text-sm font-medium text-brand-charcoal"
           >
-            + new appointment
+            + New appointment
           </button>
         </div>
 
         {/* Grid */}
-        <div className="rounded-md border border-border overflow-hidden">
+        <div className="rounded-[20px] overflow-hidden border border-border">
           {/* Day headers */}
-          <div className="grid grid-cols-7 border-b border-border">
+          <div className="grid grid-cols-7 border-b border-border bg-[color:var(--color-workspace-hover)]">
             {DAY_NAMES.map((d) => (
               <div
                 key={d}
-                className="py-2 text-center text-xs text-muted-foreground"
+                className="py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 {d}
               </div>
@@ -134,15 +134,17 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
               return (
                 <div
                   key={i}
-                  className={`min-h-[90px] p-1.5 border-b border-r border-border last:border-r-0 ${
-                    !isCurrentMonth ? "opacity-30" : ""
+                  className={`min-h-[96px] p-1.5 border-b border-r border-border ${
+                    !isCurrentMonth ? "bg-brand-mustard/[0.04]" : ""
                   } ${i % 7 === 6 ? "border-r-0" : ""} ${i >= 35 ? "border-b-0" : ""}`}
                 >
                   <span
                     className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs mb-1 ${
                       isToday
-                        ? "bg-brand-mustard text-brand-charcoal font-medium"
-                        : "text-muted-foreground"
+                        ? "bg-brand-mustard text-brand-charcoal font-semibold"
+                        : isCurrentMonth
+                          ? "text-muted-foreground"
+                          : "text-muted-foreground/45"
                     }`}
                   >
                     {date.getDate()}
@@ -153,10 +155,10 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
                       <button
                         key={ev.id}
                         onClick={() => setSelected(ev)}
-                        className={`w-full text-left truncate rounded px-1.5 py-0.5 text-xs ${
+                        className={`w-full text-left truncate rounded-md px-1.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${
                           ev.origin === "artist_created"
-                            ? "bg-amber-500/15 text-amber-400"
-                            : "bg-green-500/15 text-green-400"
+                            ? "bg-[color:var(--color-tint-mustard)] text-brand-charcoal"
+                            : "bg-[color:var(--color-tint-rosa)] text-brand-charcoal"
                         }`}
                       >
                         @{ev.handle}
@@ -177,12 +179,12 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
         {/* Legend */}
         <div className="flex gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm bg-green-500/40" />
-            booking request
+            <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-rosa)]" />
+            Booking request
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm bg-amber-500/40" />
-            added by you
+            <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-mustard)]" />
+            Added by you
           </span>
         </div>
       </div>
