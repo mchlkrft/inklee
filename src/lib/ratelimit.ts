@@ -17,7 +17,10 @@ async function check(
   rl: Ratelimit | null,
   key: string,
 ): Promise<{ allowed: boolean }> {
-  if (!rl) return { allowed: true };
+  if (!rl) {
+    if (process.env.NODE_ENV === "production") return { allowed: false };
+    return { allowed: true };
+  }
   const { success } = await rl.limit(key);
   return { allowed: success };
 }
@@ -27,8 +30,8 @@ const bookingRl = makeLimit(
   Ratelimit.slidingWindow(5, "1 h"),
   "inklee:booking",
 );
-export async function checkRateLimit(ip: string) {
-  return check(bookingRl, ip);
+export async function checkRateLimit(ip: string, artistId?: string) {
+  return check(bookingRl, `${artistId ?? "unknown-artist"}:${ip}`);
 }
 
 // Waitlist form: 3 submissions / IP / hour
@@ -36,8 +39,8 @@ const waitlistRl = makeLimit(
   Ratelimit.slidingWindow(3, "1 h"),
   "inklee:waitlist",
 );
-export async function checkWaitlistRateLimit(ip: string) {
-  return check(waitlistRl, ip);
+export async function checkWaitlistRateLimit(ip: string, artistId?: string) {
+  return check(waitlistRl, `${artistId ?? "unknown-artist"}:${ip}`);
 }
 
 // Login: 10 attempts / IP / 15 min

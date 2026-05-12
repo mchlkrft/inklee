@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { checkRateLimit } from "@/lib/ratelimit";
@@ -41,13 +41,8 @@ export async function submitFlashBookingAction(
     return { error: "invalid request origin" };
   }
 
-  // Rate limit
   const ip =
     headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const { allowed } = await checkRateLimit(ip);
-  if (!allowed) {
-    return { error: "too many requests — please wait before submitting again" };
-  }
 
   // Validate form fields
   const raw = {
@@ -65,19 +60,23 @@ export async function submitFlashBookingAction(
   }
   const data = parsed.data;
 
-  const supabase = await createClient();
   const flashItemId = formData.get("flash_item_id") as string;
   const flashDayId = (formData.get("flash_day_id") as string) || null;
   const artistSlug = formData.get("artist_slug") as string;
 
   // Look up artist
-  const { data: artistProfile } = await supabase
+  const { data: artistProfile } = await serviceClient
     .from("profiles")
     .select("id, display_name, timezone")
     .eq("slug", artistSlug)
     .single();
   if (!artistProfile) return { error: "artist not found" };
   const artistId = artistProfile.id;
+
+  const { allowed } = await checkRateLimit(ip, artistId);
+  if (!allowed) {
+    return { error: "too many requests — please wait before submitting again" };
+  }
 
   if (
     data.preferred_date <=
@@ -90,7 +89,7 @@ export async function submitFlashBookingAction(
   }
 
   // Fetch flash item and check ownership
-  const { data: flashItem } = await supabase
+  const { data: flashItem } = await serviceClient
     .from("flash_items")
     .select("*")
     .eq("id", flashItemId)
@@ -99,14 +98,18 @@ export async function submitFlashBookingAction(
 
   if (!flashItem) return { error: "flash item not found" };
 
-  // Count confirmed bookings for this item
-  const { count: confirmedCount } = await supabase
+  // Count active requests for this item so unique/limited flash cannot collect
+  // more pending requests than its intake capacity.
+  const { count: activeRequestCount } = await serviceClient
     .from("booking_requests")
     .select("*", { count: "exact", head: true })
     .eq("flash_item_id", flashItemId)
-    .eq("status", "approved");
+    .in("status", ["pending", "approved", "deposit_pending"]);
 
-  const availability = computeFlashAvailability(flashItem, confirmedCount ?? 0);
+  const availability = computeFlashAvailability(
+    flashItem,
+    activeRequestCount ?? 0,
+  );
 
   if (!availability.bookable) {
     return { error: "this flash item is no longer available for booking" };
@@ -114,7 +117,7 @@ export async function submitFlashBookingAction(
 
   // Deduplication: same email + same flash item within 60s
   const dedupeWindow = new Date(Date.now() - 60000).toISOString();
-  const { count: recentCount } = await supabase
+  const { count: recentCount } = await serviceClient
     .from("booking_requests")
     .select("id", { count: "exact", head: true })
     .eq("artist_id", artistId)
@@ -134,7 +137,7 @@ export async function submitFlashBookingAction(
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await serviceClient
     .from("booking_requests")
     .insert({
       id: bookingId,
@@ -164,7 +167,7 @@ export async function submitFlashBookingAction(
   }
 
   // Audit log
-  await supabase.from("audit_log").insert({
+  await serviceClient.from("audit_log").insert({
     booking_id: bookingId,
     action: "booking_created",
     details: { origin: "flash_form", flash_item_id: flashItemId, ip },

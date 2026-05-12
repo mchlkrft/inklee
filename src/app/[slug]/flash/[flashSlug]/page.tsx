@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
@@ -14,17 +15,16 @@ export default async function PublicFlashItemPage({
   params: Promise<{ slug: string; flashSlug: string }>;
 }) {
   const { slug, flashSlug } = await params;
-  const supabase = await createClient();
 
-  const { data: profile } = await supabase
+  const { data: profile } = await serviceClient
     .from("profiles")
-    .select("id, display_name, settings")
+    .select("id, display_name")
     .eq("slug", slug)
     .single();
 
   if (!profile) notFound();
 
-  const { data: item } = await supabase
+  const { data: item } = await serviceClient
     .from("flash_items")
     .select("*")
     .eq("slug", flashSlug)
@@ -33,14 +33,14 @@ export default async function PublicFlashItemPage({
 
   if (!item || item.status !== "published") notFound();
 
-  // Count confirmed bookings to compute live availability
-  const { count: confirmedCount } = await supabase
+  // Count active requests to compute intake availability.
+  const { count: activeRequestCount } = await serviceClient
     .from("booking_requests")
     .select("*", { count: "exact", head: true })
     .eq("flash_item_id", item.id)
-    .eq("status", "approved");
+    .in("status", ["pending", "approved", "deposit_pending"]);
 
-  const availability = computeFlashAvailability(item, confirmedCount ?? 0);
+  const availability = computeFlashAvailability(item, activeRequestCount ?? 0);
 
   // Fetch flash day details if linked
   let flashDay: {
@@ -50,7 +50,7 @@ export default async function PublicFlashItemPage({
     location: string | null;
   } | null = null;
   if (item.flash_day_id) {
-    const { data: day } = await supabase
+    const { data: day } = await serviceClient
       .from("flash_days")
       .select("id, title, scheduled_on, location")
       .eq("id", item.flash_day_id)
@@ -77,15 +77,13 @@ export default async function PublicFlashItemPage({
         <div className="space-y-5">
           {item.preview_image_url && (
             <div className="w-full max-h-80 overflow-hidden rounded-md border border-border bg-muted">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={item.preview_image_url}
                 alt={item.title}
+                width={960}
+                height={960}
+                sizes="(min-width: 1024px) 640px, 100vw"
                 className="w-full h-full object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).parentElement!.style.display =
-                    "none";
-                }}
               />
             </div>
           )}

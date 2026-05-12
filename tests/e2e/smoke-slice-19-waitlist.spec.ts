@@ -3,7 +3,7 @@ import { loginAsArtist } from "./helpers/auth";
 
 async function ensureBooksOpen(page: import("@playwright/test").Page) {
   await loginAsArtist(page);
-  await page.goto("/bookings/books");
+  await page.goto("/bookings/settings");
   const toggle = page.getByRole("switch");
   if ((await toggle.getAttribute("aria-checked")) === "false") {
     await toggle.click();
@@ -30,7 +30,7 @@ test.describe("slice 19 — waitlist core", () => {
 
     // --- Close books ---
     await loginAsArtist(page);
-    await page.goto("/bookings/books");
+    await page.goto("/bookings/settings");
     const toggle = page.getByRole("switch");
     if ((await toggle.getAttribute("aria-checked")) === "true") {
       await toggle.click();
@@ -65,7 +65,7 @@ test.describe("slice 19 — waitlist core", () => {
 
     // --- Artist views waitlist dashboard ---
     await loginAsArtist(page);
-    await page.goto("/dashboard/waitlist");
+    await page.goto("/bookings/waitlist");
     await expect(page.getByText(`@${handle}`)).toBeVisible();
 
     // --- Mark contacted ---

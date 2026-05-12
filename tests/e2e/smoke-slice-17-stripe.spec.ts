@@ -22,7 +22,7 @@ test.describe("slice 17 — stripe deposit payment", () => {
     const bookingId = await createTestBookingDirect(request, "e2e_stripe_test");
 
     await loginAsArtist(page);
-    await page.goto(`/dashboard/requests/${bookingId}`);
+    await page.goto(`/bookings/requests/${bookingId}`);
     await expect(page.getByText("pending", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "request deposit" }).click();

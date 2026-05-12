@@ -31,12 +31,13 @@ export type FlashItemRow = {
 };
 
 /**
- * Compute availability from a flash item row + confirmed booking count.
- * Only confirmed (approved) bookings reduce capacity — pending requests do not.
+ * Compute availability from a flash item row + active request count.
+ * Pending requests reduce intake capacity so unique/limited flash cannot collect
+ * more live requests than the artist can reasonably review for that design.
  */
 export function computeFlashAvailability(
   item: FlashItemRow,
-  confirmedCount: number,
+  activeRequestCount: number,
 ): FlashAvailability {
   if (item.status === "draft") return { bookable: false, reason: "draft" };
   if (item.status === "archived")
@@ -52,14 +53,14 @@ export function computeFlashAvailability(
   if (item.booking_mode === "repeatable") return { bookable: true };
 
   if (item.booking_mode === "unique") {
-    return confirmedCount >= 1
+    return activeRequestCount >= 1
       ? { bookable: false, reason: "booked" }
       : { bookable: true };
   }
 
   if (item.booking_mode === "limited") {
     const max = item.max_bookings ?? 1;
-    const remaining = Math.max(0, max - confirmedCount);
+    const remaining = Math.max(0, max - activeRequestCount);
     return remaining === 0
       ? { bookable: false, reason: "full" }
       : { bookable: true, remaining };

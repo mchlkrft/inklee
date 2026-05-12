@@ -23,10 +23,7 @@ export async function sendEmail({
 }: SendEmailParams): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("[email] RESEND_API_KEY not set — skipping send", {
-      to,
-      subject,
-    });
+    console.warn("[email] RESEND_API_KEY not set; skipping send");
     return;
   }
 
@@ -43,9 +40,9 @@ export async function sendEmail({
   });
 
   if (error) {
-    console.error("[email] send failed", { to, subject, error });
+    console.error("[email] send failed", { error });
     throw new Error(`email send failed: ${error.message}`);
   }
 
-  console.log("[email] sent", { to, subject, id: data?.id });
+  console.log("[email] sent", { id: data?.id });
 }

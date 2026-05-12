@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import Link from "next/link";
 import crypto from "crypto";
 import CustomerPortal from "./customer-portal";
@@ -30,9 +30,8 @@ export default async function RequestPortalPage({
 }) {
   const { token } = await params;
   const tokenHash = hashToken(token);
-  const supabase = await createClient();
 
-  const { data: booking } = await supabase
+  const { data: booking } = await serviceClient
     .from("booking_requests")
     .select(
       `
@@ -51,7 +50,7 @@ export default async function RequestPortalPage({
   let state: PageState;
 
   if (!booking) {
-    const { data: auditEntry } = await supabase
+    const { data: auditEntry } = await serviceClient
       .from("audit_log")
       .select("id")
       .eq("action", "token_rotated")

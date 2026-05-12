@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
   const { data: stale, error: fetchError } = await serviceClient
     .from("booking_requests")
-    .select("id")
+    .select("id, artist_id")
     .in("status", ["rejected", "cancelled"])
     .lt("updated_at", cutoff);
 
@@ -29,14 +29,15 @@ export async function GET(request: Request) {
   const ids = stale.map((r) => r.id);
 
   // Delete storage files for each booking
-  for (const id of ids) {
+  for (const booking of stale) {
+    const folder = `${booking.artist_id}/${booking.id}`;
     const { data: files } = await serviceClient.storage
       .from("bookings")
-      .list(id);
+      .list(folder);
     if (files && files.length > 0) {
       await serviceClient.storage
         .from("bookings")
-        .remove(files.map((f) => `${id}/${f.name}`));
+        .remove(files.map((f) => `${folder}/${f.name}`));
     }
   }
 

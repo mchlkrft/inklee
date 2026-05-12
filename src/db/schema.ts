@@ -9,6 +9,7 @@ import {
   date,
   boolean,
   numeric,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 
 // --- Enums ---
@@ -88,6 +89,10 @@ export const bookingRequests = pgTable("booking_requests", {
     onDelete: "set null",
   }),
   tripId: uuid("trip_id").references(() => trips.id, { onDelete: "set null" }),
+  studioId: uuid("studio_id").references(() => studios.id, {
+    onDelete: "set null",
+  }),
+  studioSnapshot: jsonb("studio_snapshot"),
   customerEmail: text("customer_email"),
   customerHandle: text("customer_handle"),
   customerTokenHash: text("customer_token_hash"),
@@ -212,9 +217,21 @@ export const studios = pgTable("studios", {
   country: text("country").notNull(),
   address: text("address"),
   notes: text("notes"),
+  googlePlaceId: text("google_place_id"),
+  formattedAddress: text("formatted_address"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
+  googleMapsUrl: text("google_maps_url"),
+  publicNote: text("public_note"),
+  visibilityMode: text("visibility_mode").notNull().default("hidden"),
+  isPrimary: boolean("is_primary").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
 });
 
 export const trips = pgTable("trips", {
@@ -261,6 +278,7 @@ export const waitlistEntries = pgTable("waitlist_entries", {
   customerEmail: text("customer_email").notNull(),
   customerHandle: text("customer_handle").notNull(),
   note: text("note"),
+  cityText: text("city_text"),
   status: waitlistStatusEnum("status").notNull().default("waiting"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -313,6 +331,7 @@ export const instagramPosts = pgTable("instagram_posts", {
   thumbnailUrl: text("thumbnail_url"),
   permalink: text("permalink").notNull(),
   caption: text("caption"),
+  previewImagePath: text("preview_image_path"),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   syncedAt: timestamp("synced_at", { withTimezone: true })
     .notNull()

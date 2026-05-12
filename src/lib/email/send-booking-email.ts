@@ -51,13 +51,15 @@ export async function sendBookingEmail({
       .single();
 
     const body = custom?.body ?? DEFAULT_BODIES[type] ?? "";
-    const subject = substituteVars(DEFAULT_SUBJECTS[type] ?? "inklee", vars);
+    const subjectTemplate =
+      custom?.subject ?? DEFAULT_SUBJECTS[type] ?? "inklee";
+    const subject = substituteVars(subjectTemplate, vars);
     const html = buildEmailHtml(body, vars, customAnswers);
 
     await sendEmail({ to, subject, html });
   } catch (err) {
     // Emails are best-effort — log and continue, never block the state change
-    console.error(`[email] failed to send ${type} to ${to}:`, err);
+    console.error(`[email] failed to send ${type}:`, err);
   }
 }
 

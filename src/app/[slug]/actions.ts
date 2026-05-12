@@ -1,6 +1,5 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { bookingSchema } from "@/lib/booking-schema";
 import { checkRateLimit, checkWaitlistRateLimit } from "@/lib/ratelimit";
@@ -54,18 +53,12 @@ export async function submitBookingAction(
     return { error: "invalid request origin" };
   }
 
-  // Rate limit by IP
   const ip =
     headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const { allowed } = await checkRateLimit(ip);
-  if (!allowed) {
-    return { error: "too many requests — please wait before submitting again" };
-  }
 
   // Load artist profile first — needed for settings, booking mode, and timezone.
   const artistSlug = formData.get("artist_slug") as string;
-  const supabase = await createClient();
-  const { data: artistProfile } = await supabase
+  const { data: artistProfile } = await serviceClient
     .from("profiles")
     .select("id, display_name, settings, booking_mode, timezone")
     .eq("slug", artistSlug)
@@ -76,6 +69,11 @@ export async function submitBookingAction(
   const artistName = artistProfile.display_name;
   const artistBookingMode = normalizeBookingMode(artistProfile.booking_mode);
   const artistTimeZone = artistProfile.timezone ?? "Europe/Berlin";
+
+  const { allowed } = await checkRateLimit(ip, artistId);
+  if (!allowed) {
+    return { error: "too many requests — please wait before submitting again" };
+  }
 
   const profileSettings = (artistProfile.settings ?? {}) as Record<
     string,
@@ -157,7 +155,7 @@ export async function submitBookingAction(
   // Fetch active custom fields and validate submitted answers
   let customAnswers: CustomAnswerSnapshot[] = [];
   {
-    const { data: activeFields } = await supabase
+    const { data: activeFields } = await serviceClient
       .from("custom_fields")
       .select("*")
       .eq("artist_id", artistId)
@@ -199,28 +197,34 @@ export async function submitBookingAction(
 
   // Validate trip ownership and that the selected trip still has future coverage.
   if (tripId && data.preferred_date && artistBookingMode !== "fixed_slots") {
-    const { data: tripOwner } = await supabase
+    const { data: tripOwner } = await serviceClient
       .from("trips")
-      .select("artist_id")
+      .select("artist_id, show_on_booking_form")
       .eq("id", tripId)
       .single();
 
-    if (!tripOwner || tripOwner.artist_id !== artistId) {
+    if (
+      !tripOwner ||
+      tripOwner.artist_id !== artistId ||
+      !tripOwner.show_on_booking_form
+    ) {
       return { error: "invalid location selection" };
     }
 
-    const { data: tripLegs } = await supabase
+    const { data: tripLegs } = await serviceClient
       .from("trip_legs")
-      .select("ends_on")
+      .select("starts_on, ends_on")
       .eq("trip_id", tripId);
 
-    const tripHasFutureLegs = (tripLegs ?? []).some(
-      (leg) => leg.ends_on >= data.preferred_date,
+    const tripHasMatchingLeg = (tripLegs ?? []).some(
+      (leg) =>
+        leg.starts_on <= data.preferred_date &&
+        leg.ends_on >= data.preferred_date,
     );
 
-    if (!tripHasFutureLegs) {
+    if (!tripHasMatchingLeg) {
       return {
-        error: "the selected location is no longer available",
+        error: "the selected location is not available on that date",
         field: "preferred_date",
       };
     }
@@ -240,7 +244,7 @@ export async function submitBookingAction(
     placement: data.placement || null,
     size: data.size || null,
   });
-  const { data: recentBookings } = await supabase
+  const { data: recentBookings } = await serviceClient
     .from("booking_requests")
     .select(
       "customer_email, customer_handle, preferred_date, slot_id, trip_id, flash_item_id, form_data",
@@ -412,7 +416,7 @@ export async function submitBookingAction(
     }
   }
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await serviceClient
     .from("booking_requests")
     .insert({
       id: bookingId,
@@ -579,8 +583,6 @@ export async function submitWaitlistAction(
   const headersList = await headers();
   const ip =
     headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const { allowed } = await checkWaitlistRateLimit(ip);
-  if (!allowed) return { error: "too many requests — try again later" };
 
   const handle = (formData.get("instagram_handle") as string)?.replace(
     /^@/,
@@ -599,14 +601,16 @@ export async function submitWaitlistAction(
   if (note.length > 280)
     return { error: "note must be 280 characters or fewer", field: "note" };
 
-  const supabase = await createClient();
-  const { data: profile } = await supabase
+  const { data: profile } = await serviceClient
     .from("profiles")
     .select("id, display_name")
     .eq("slug", artistSlug)
     .single();
 
   if (!profile) return { error: "artist not found" };
+
+  const { allowed } = await checkWaitlistRateLimit(ip, profile.id);
+  if (!allowed) return { error: "too many requests — try again later" };
 
   const { error } = await serviceClient.from("waitlist_entries").insert({
     artist_id: profile.id,

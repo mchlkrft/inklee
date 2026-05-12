@@ -48,12 +48,14 @@ type TripOption = {
 type ImageEntry = { id: string; file: File; preview: string };
 
 /**
- * Returns trips that are active on OR upcoming after `date`.
+ * Returns trips with at least one leg spanning the chosen date.
  * Uses plain ISO string comparison (YYYY-MM-DD) to avoid UTC offset issues.
  */
 function tripsForDate(date: string, allTrips: TripOption[]): TripOption[] {
   if (!date) return [];
-  return allTrips.filter((t) => t.legs.some((l) => l.endsOn >= date));
+  return allTrips.filter((t) =>
+    t.legs.some((l) => l.startsOn <= date && l.endsOn >= date),
+  );
 }
 
 export default function BookingForm({

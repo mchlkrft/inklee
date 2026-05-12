@@ -3,7 +3,7 @@ import { loginAsArtist } from "./helpers/auth";
 
 async function ensureBooksOpen(page: import("@playwright/test").Page) {
   await loginAsArtist(page);
-  await page.goto("/bookings/books");
+  await page.goto("/bookings/settings");
   const toggle = page.getByRole("switch");
   if ((await toggle.getAttribute("aria-checked")) === "false") {
     await toggle.click();
@@ -31,7 +31,7 @@ test.describe("slice 20 — books-open / wave booking mode", () => {
     await loginAsArtist(page);
 
     // --- Close books ---
-    await page.goto("/bookings/books");
+    await page.goto("/bookings/settings");
     const toggle = page.getByRole("switch");
 
     const isOpen = (await toggle.getAttribute("aria-checked")) === "true";
@@ -57,7 +57,7 @@ test.describe("slice 20 — books-open / wave booking mode", () => {
 
     // --- Reopen books ---
     await loginAsArtist(page);
-    await page.goto("/bookings/books");
+    await page.goto("/bookings/settings");
     const toggleAfter = page.getByRole("switch");
     await toggleAfter.click();
     await expect(toggleAfter).toHaveAttribute("aria-checked", "true");

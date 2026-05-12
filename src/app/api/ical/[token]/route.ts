@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 
 function icalDate(d: string) {
   return d.replace(/-/g, "");
@@ -13,9 +13,8 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const supabase = await createClient();
 
-  const { data: profile } = await supabase
+  const { data: profile } = await serviceClient
     .from("profiles")
     .select("id, display_name")
     .filter("settings->>ical_token", "eq", token)
@@ -25,7 +24,7 @@ export async function GET(
     return new Response("not found", { status: 404 });
   }
 
-  const { data: bookings } = await supabase
+  const { data: bookings } = await serviceClient
     .from("booking_requests")
     .select("id, preferred_date, customer_handle, form_data")
     .eq("artist_id", profile.id)

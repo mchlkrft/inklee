@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -38,8 +37,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data: profile } = await supabase
+  const { data: profile } = await serviceClient
     .from("profiles")
     .select("display_name, location")
     .eq("slug", slug)
@@ -80,9 +78,8 @@ export default async function ArtistPublicPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
 
-  const { data: profile } = await supabase
+  const { data: profile } = await serviceClient
     .from("profiles")
     .select(
       "id, display_name, bio, logo_url, instagram_handle, location, booking_mode, timezone, settings",
@@ -98,7 +95,7 @@ export default async function ArtistPublicPage({
   const profileSettings = (profile.settings ?? {}) as Record<string, unknown>;
   const formSettings = parseFormSettings(profileSettings.form_settings);
 
-  const { data: rawCustomFields } = await supabase
+  const { data: rawCustomFields } = await serviceClient
     .from("custom_fields")
     .select("*")
     .eq("artist_id", profile.id)
@@ -113,7 +110,7 @@ export default async function ArtistPublicPage({
     : buildDefaultFieldOrder(customFields.map((f) => f.id));
 
   if (isSlotMode) {
-    const { data: rawSlots } = await supabase
+    const { data: rawSlots } = await serviceClient
       .from("slots")
       .select("id, starts_at, duration_minutes")
       .eq("artist_id", profile.id)
@@ -134,7 +131,7 @@ export default async function ArtistPublicPage({
   const todayStr = todayInTimeZone(profile.timezone ?? "Europe/Berlin");
 
   // Fetch all visible trips with their legs
-  const { data: rawTrips } = await supabase
+  const { data: rawTrips } = await serviceClient
     .from("trips")
     .select(
       "id, title, description, show_on_booking_form, trip_legs(id, starts_on, ends_on, studio_id, studios(name))",

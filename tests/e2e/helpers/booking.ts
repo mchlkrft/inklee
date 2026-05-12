@@ -18,6 +18,10 @@ function testImageBuffer(): Buffer {
 export async function submitTestBooking(
   page: Page,
   handle = "e2e_test_customer",
+  options?: {
+    preferredDate?: string;
+    tripTitle?: string;
+  },
 ): Promise<string> {
   const slug = process.env.E2E_ARTIST_SLUG;
   if (!slug) throw new Error("E2E_ARTIST_SLUG not set");
@@ -36,7 +40,14 @@ export async function submitTestBooking(
     mimeType: "image/png",
     buffer: testImageBuffer(),
   });
-  await page.fill('[name="preferred_date"]', tomorrow());
+  await page.fill(
+    '[name="preferred_date"]',
+    options?.preferredDate ?? tomorrow(),
+  );
+  const tripSelect = page.locator('select[name="trip_id"]');
+  if (options?.tripTitle && (await tripSelect.count())) {
+    await tripSelect.selectOption({ label: options.tripTitle });
+  }
   await page.click('button[type="submit"]');
 
   await expect(page).toHaveURL(/\/request\/submitted/, { timeout: 15_000 });

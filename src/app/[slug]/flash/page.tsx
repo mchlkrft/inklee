@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
@@ -13,9 +14,8 @@ export default async function PublicFlashOverviewPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
 
-  const { data: profile } = await supabase
+  const { data: profile } = await serviceClient
     .from("profiles")
     .select("id, display_name, logo_url, instagram_handle")
     .eq("slug", slug)
@@ -23,7 +23,7 @@ export default async function PublicFlashOverviewPage({
 
   if (!profile) notFound();
 
-  const { data: items } = await supabase
+  const { data: items } = await serviceClient
     .from("flash_items")
     .select(
       "id, title, slug, preview_image_url, short_description, price_type, price, size_info, booking_mode, max_bookings, is_bookable, available_from, available_until, status",
@@ -32,31 +32,33 @@ export default async function PublicFlashOverviewPage({
     .eq("status", "published")
     .order("created_at", { ascending: false });
 
-  // Get confirmed counts for all items to compute availability
+  // Get active request counts for all items to compute intake availability.
   const itemIds = (items ?? []).map((i) => i.id);
-  const confirmedMap = new Map<string, number>();
+  const activeRequestMap = new Map<string, number>();
 
   if (itemIds.length > 0) {
-    const { data: confirmed } = await supabase
+    const { data: activeRequests } = await serviceClient
       .from("booking_requests")
       .select("flash_item_id")
       .in("flash_item_id", itemIds)
-      .eq("status", "approved");
+      .in("status", ["pending", "approved", "deposit_pending"]);
 
-    for (const b of confirmed ?? []) {
+    for (const b of activeRequests ?? []) {
       if (b.flash_item_id)
-        confirmedMap.set(
+        activeRequestMap.set(
           b.flash_item_id,
-          (confirmedMap.get(b.flash_item_id) ?? 0) + 1,
+          (activeRequestMap.get(b.flash_item_id) ?? 0) + 1,
         );
     }
   }
 
   const bookableItems = (items ?? []).filter(
-    (i) => computeFlashAvailability(i, confirmedMap.get(i.id) ?? 0).bookable,
+    (i) =>
+      computeFlashAvailability(i, activeRequestMap.get(i.id) ?? 0).bookable,
   );
   const unavailableItems = (items ?? []).filter(
-    (i) => !computeFlashAvailability(i, confirmedMap.get(i.id) ?? 0).bookable,
+    (i) =>
+      !computeFlashAvailability(i, activeRequestMap.get(i.id) ?? 0).bookable,
   );
 
   return (
@@ -93,7 +95,7 @@ export default async function PublicFlashOverviewPage({
                   {bookableItems.map((item) => {
                     const av = computeFlashAvailability(
                       item,
-                      confirmedMap.get(item.id) ?? 0,
+                      activeRequestMap.get(item.id) ?? 0,
                     );
                     return (
                       <FlashCard
@@ -117,7 +119,7 @@ export default async function PublicFlashOverviewPage({
                   {unavailableItems.map((item) => {
                     const av = computeFlashAvailability(
                       item,
-                      confirmedMap.get(item.id) ?? 0,
+                      activeRequestMap.get(item.id) ?? 0,
                     );
                     return (
                       <FlashCard
@@ -179,15 +181,13 @@ function FlashCard({
     <div className="rounded-md border border-border overflow-hidden flex gap-4 p-4 transition-colors hover:border-foreground/40">
       {item.preview_image_url && (
         <div className="w-20 h-20 shrink-0 rounded-md overflow-hidden bg-muted">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={item.preview_image_url}
             alt={item.title}
+            width={80}
+            height={80}
+            sizes="80px"
             className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).parentElement!.style.display =
-                "none";
-            }}
           />
         </div>
       )}
