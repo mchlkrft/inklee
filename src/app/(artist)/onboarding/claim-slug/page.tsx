@@ -47,7 +47,9 @@ export default function ClaimSlugPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Your profile</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Your profile
+        </h1>
         <p className="text-sm text-muted-foreground">
           This is what clients see on your booking page.
         </p>

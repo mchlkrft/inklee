@@ -34,7 +34,9 @@ export default function OnboardingBookingPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Booking mode</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Booking mode
+        </h1>
         <p className="text-sm text-muted-foreground">
           How do you want clients to request appointments?
         </p>

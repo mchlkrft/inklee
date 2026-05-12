@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Spinner from "@/components/spinner";
+import RandomizedLogo from "@/components/randomized-logo";
 import { useRecoveryCode } from "./use-recovery-code";
 
 export default function MfaPage() {
@@ -54,10 +56,13 @@ export default function MfaPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 gap-6">
+      <Link href="/" className="flex justify-center" aria-label="inklee home">
+        <RandomizedLogo height={22} />
+      </Link>
+      <div className="w-full max-w-sm rounded-[20px] border border-border p-7 space-y-6">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Two-factor authentication
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">

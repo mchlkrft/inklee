@@ -28,33 +28,30 @@ export default async function NotificationsPage() {
   const rows = (notifications ?? []) as Notification[];
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-8">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div>
-        <p className="text-sm uppercase tracking-[0.14em] text-muted-foreground">
-          Tools
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Notifications
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           Recent booking activity, client updates, and system warnings.
         </p>
       </div>
 
       {error ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-[20px] border border-destructive/30 bg-destructive/5 px-5 py-4 text-sm text-destructive">
           Notifications could not be loaded.
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-md border border-border bg-card px-6 py-12 text-center">
+        <div className="rounded-[20px] border border-border px-6 py-12 text-center">
           <p className="text-sm text-muted-foreground">No notifications yet.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-md border border-border bg-card">
+        <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
           {rows.map((notification) => (
             <div
               key={notification.id}
-              className={`border-b border-border px-5 py-4 last:border-b-0 ${
+              className={`px-5 py-4 ${
                 notification.is_read ? "" : "bg-brand-rosa/10"
               }`}
             >
@@ -65,12 +62,12 @@ export default async function NotificationsPage() {
                       {notification.title}
                     </p>
                     {!notification.is_read && (
-                      <span className="rounded-full bg-brand-red px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-bone">
+                      <span className="inline-flex items-center rounded-full bg-brand-rosa px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-charcoal">
                         Unread
                       </span>
                     )}
                     {notification.priority === "critical" && (
-                      <span className="rounded-full border border-destructive/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                      <span className="inline-flex items-center rounded-full bg-[color:var(--color-tint-red)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-charcoal">
                         Critical
                       </span>
                     )}

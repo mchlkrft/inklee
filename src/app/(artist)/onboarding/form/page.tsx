@@ -58,7 +58,9 @@ export default function OnboardingFormPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Booking form</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Booking form
+        </h1>
         <p className="text-sm text-muted-foreground">
           What should clients include in their request? These are your defaults
           — you can adjust them later in settings.

@@ -31,6 +31,42 @@ const FALLBACK_METADATA: Metadata = {
     "Send a tattoo booking request through Inklee with your idea, references, placement, size, and preferred date.",
 };
 
+// Brand-color name → hex map for cover_color in profile.settings.
+// Artists can also pass a raw hex like "#0b3d9f".
+const BRAND_COLOR_HEX: Record<string, string> = {
+  mustard: "#e9b22b",
+  rosa: "#db88b9",
+  cobalt: "#0b3d9f",
+  red: "#cf2e2c",
+  green: "#105f2d",
+  charcoal: "#1e1e1e",
+  bone: "#e5e1d5",
+};
+
+function resolveCoverColor(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim().toLowerCase();
+  if (v in BRAND_COLOR_HEX) return BRAND_COLOR_HEX[v];
+  if (/^#[0-9a-f]{3,8}$/.test(v)) return v;
+  return null;
+}
+
+function resolveCoverImage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim();
+  if (!v) return null;
+  // Permit only https://, http:// (local dev), and protocol-relative URLs.
+  // No data: or javascript: URIs.
+  if (
+    !v.startsWith("https://") &&
+    !v.startsWith("http://") &&
+    !v.startsWith("//")
+  ) {
+    return null;
+  }
+  return v;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -94,6 +130,9 @@ export default async function ArtistPublicPage({
   let customFields: CustomFieldDef[] = [];
   const profileSettings = (profile.settings ?? {}) as Record<string, unknown>;
   const formSettings = parseFormSettings(profileSettings.form_settings);
+
+  const coverImage = resolveCoverImage(profileSettings.cover_image_url);
+  const coverColor = resolveCoverColor(profileSettings.cover_color);
 
   const { data: rawCustomFields } = await serviceClient
     .from("custom_fields")
@@ -238,17 +277,26 @@ export default async function ArtistPublicPage({
     : (booksSettings.books_closed_message ?? "Books are currently closed.");
   const closedHint = isCapReached ? undefined : "Check back soon.";
 
-  const formAppearance = booksSettings.form_appearance;
+  // Header style: image > color > default charcoal
+  const headerStyle: React.CSSProperties = coverImage
+    ? {
+        backgroundImage: `url(${coverImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : coverColor
+      ? { backgroundColor: coverColor }
+      : {};
 
   return (
-    <div
-      className="flex min-h-screen flex-col bg-background text-foreground"
-      data-appearance={formAppearance !== "dark" ? formAppearance : undefined}
-    >
-      <main className="mx-auto flex-1 w-full max-w-lg space-y-10 px-6 py-12">
-        <div className="flex flex-col items-center space-y-3 text-center">
+    <div className="flex min-h-screen flex-col bg-brand-charcoal text-brand-bone">
+      <header className="relative px-6 pt-14 pb-20" style={headerStyle}>
+        {coverImage && (
+          <div aria-hidden className="absolute inset-0 bg-brand-charcoal/55" />
+        )}
+        <div className="relative z-10 mx-auto flex max-w-lg flex-col items-center space-y-3 text-center">
           {profile.logo_url && (
-            <div className="relative h-25 w-25 overflow-hidden rounded-full border border-border">
+            <div className="relative h-28 w-28 overflow-hidden rounded-full ring-2 ring-brand-bone/25">
               <Image
                 src={profile.logo_url}
                 alt={profile.display_name}
@@ -257,107 +305,121 @@ export default async function ArtistPublicPage({
               />
             </div>
           )}
-          <div className="space-y-0.5">
-            <h1 className="text-lg font-semibold text-foreground">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-brand-bone">
               {profile.display_name}
             </h1>
-            {profile.location && (
-              <p className="text-sm text-muted-foreground">
-                {profile.location}
-              </p>
-            )}
-            {profile.instagram_handle && (
-              <a
-                href={`https://instagram.com/${profile.instagram_handle}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                @{profile.instagram_handle}
-              </a>
+            {(profile.location || profile.instagram_handle) && (
+              <div className="flex items-center justify-center gap-2 text-sm text-brand-bone/65">
+                {profile.location && <span>{profile.location}</span>}
+                {profile.location && profile.instagram_handle && (
+                  <span aria-hidden>·</span>
+                )}
+                {profile.instagram_handle && (
+                  <a
+                    href={`https://instagram.com/${profile.instagram_handle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="transition-colors hover:text-brand-bone"
+                  >
+                    @{profile.instagram_handle}
+                  </a>
+                )}
+              </div>
             )}
           </div>
           {profile.bio && (
-            <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            <p className="max-w-sm text-sm leading-relaxed text-brand-bone/70">
               {profile.bio}
             </p>
           )}
         </div>
+      </header>
 
-        <StudioBlock studio={primaryStudio ?? null} />
+      <main
+        data-appearance="light"
+        className="relative -mt-8 flex-1 rounded-t-[28px] bg-[color:var(--color-workspace-bg)] px-6 pt-10 pb-12 text-foreground md:px-8"
+      >
+        <div className="mx-auto w-full max-w-lg space-y-8">
+          <StudioBlock studio={primaryStudio ?? null} />
 
-        {activeLegData && (
-          <div className="space-y-0.5 rounded-md border border-border px-4 py-3">
-            <p className="text-sm text-foreground">{activeLegData.tripTitle}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatDateKey(activeLegData.startsOn, {
-                day: "numeric",
-                month: "short",
-              })}
-              {" — "}
-              {formatDateKey(activeLegData.endsOn, {
-                day: "numeric",
-                month: "short",
-              })}
-              {activeLegData.studioName ? ` · ${activeLegData.studioName}` : ""}
-            </p>
-            {activeLegData.description && (
-              <p className="text-xs text-muted-foreground">
-                {activeLegData.description}
+          {activeLegData && (
+            <div className="space-y-1 rounded-[20px] border border-border px-5 py-4">
+              <p className="text-sm font-medium text-foreground">
+                {activeLegData.tripTitle}
               </p>
+              <p className="text-xs text-muted-foreground">
+                {formatDateKey(activeLegData.startsOn, {
+                  day: "numeric",
+                  month: "short",
+                })}
+                {" — "}
+                {formatDateKey(activeLegData.endsOn, {
+                  day: "numeric",
+                  month: "short",
+                })}
+                {activeLegData.studioName
+                  ? ` · ${activeLegData.studioName}`
+                  : ""}
+              </p>
+              {activeLegData.description && (
+                <p className="text-xs text-muted-foreground">
+                  {activeLegData.description}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                Booking request
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Fill in the details and I&apos;ll get back to you.
+              </p>
+            </div>
+
+            {isClosed ? (
+              <BooksClosedBlock message={closedMessage} hint={closedHint}>
+                <WaitlistForm artistSlug={slug} />
+              </BooksClosedBlock>
+            ) : (
+              <BookingForm
+                artistSlug={slug}
+                artistFirstName={profile.display_name.split(" ")[0]}
+                bookingMode={profile.booking_mode ?? "preferred_date"}
+                slots={slots}
+                customFields={customFields}
+                formSettings={formSettings}
+                fieldOrder={fieldOrder}
+                trips={futureTrips}
+                isDemoAccount={slug === "bert-grimm"}
+                studioId={primaryStudio?.id ?? null}
+              />
             )}
           </div>
-        )}
-
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-base font-medium text-foreground">
-              Booking request
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Fill in the details and I&apos;ll get back to you.
-            </p>
-          </div>
-
-          {isClosed ? (
-            <BooksClosedBlock message={closedMessage} hint={closedHint}>
-              <WaitlistForm artistSlug={slug} />
-            </BooksClosedBlock>
-          ) : (
-            <BookingForm
-              artistSlug={slug}
-              artistFirstName={profile.display_name.split(" ")[0]}
-              bookingMode={profile.booking_mode ?? "preferred_date"}
-              slots={slots}
-              customFields={customFields}
-              formSettings={formSettings}
-              fieldOrder={fieldOrder}
-              trips={futureTrips}
-              isDemoAccount={slug === "bert-grimm"}
-              studioId={primaryStudio?.id ?? null}
-            />
-          )}
         </div>
       </main>
 
-      <footer className="flex justify-center gap-6 px-6 py-6 text-xs text-muted-foreground">
-        <Link href="/terms" className="transition-colors hover:text-foreground">
+      <footer className="flex flex-wrap justify-center gap-x-4 gap-y-2 bg-brand-charcoal px-6 py-6 text-xs text-brand-bone/40">
+        <Link href="/terms" className="transition-colors hover:text-brand-bone">
           Terms
         </Link>
         <Link
           href="/privacy"
-          className="transition-colors hover:text-foreground"
+          className="transition-colors hover:text-brand-bone"
         >
           Privacy
         </Link>
         <Link
           href="/imprint"
-          className="transition-colors hover:text-foreground"
+          className="transition-colors hover:text-brand-bone"
         >
           Imprint
         </Link>
-        <span>·</span>
-        <Link href="/" className="transition-colors hover:text-foreground">
+        <span aria-hidden>·</span>
+        <Link href="/" className="transition-colors hover:text-brand-bone">
           Powered by inklee
         </Link>
       </footer>
