@@ -69,8 +69,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       {
         label: "Inklee vs Google Forms",
         href: "/tattoo-booking-software-vs-google-forms",
-        active: false,
-        planned: true,
+        active: true,
       },
       {
         label: "Inklee vs Calendly",

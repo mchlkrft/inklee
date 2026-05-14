@@ -39,6 +39,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.85,
     },
     {
+      url: "https://inklee.app/tattoo-booking-software-vs-google-forms",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
+    {
       url: "https://inklee.app/dm-chaos",
       lastModified: new Date(),
       changeFrequency: "monthly",
