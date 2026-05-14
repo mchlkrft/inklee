@@ -74,8 +74,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       {
         label: "Inklee vs Calendly",
         href: "/tattoo-booking-software-vs-calendly",
-        active: false,
-        planned: true,
+        active: true,
       },
       {
         label: "Best booking app for tattoo artists",

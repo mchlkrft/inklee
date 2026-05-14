@@ -45,6 +45,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.85,
     },
     {
+      url: "https://inklee.app/tattoo-booking-software-vs-calendly",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
+    {
       url: "https://inklee.app/dm-chaos",
       lastModified: new Date(),
       changeFrequency: "monthly",
