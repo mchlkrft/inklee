@@ -10,7 +10,6 @@ import {
   FaqSection,
   RelatedLinksBlock,
   FinalCta,
-  PlaceholderVisual,
 } from "@/components/marketing";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
@@ -365,10 +364,13 @@ export default function TattooBookingFormPage() {
           }}
           proof="Built for solo artists, Instagram requests, guest spots, and approval-first booking flows."
           visual={
-            <PlaceholderVisual
-              label="Product preview placeholder"
-              caption="Client idea → tattoo request form → artist review"
-              aspectRatio="wide"
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/branding/illustrations/landingpages/hero-client-request-artist-review.svg"
+              alt="Client tattoo request being reviewed by an artist through a structured form"
+              className="block h-auto w-full"
+              fetchPriority="high"
+              draggable={false}
             />
           }
         />

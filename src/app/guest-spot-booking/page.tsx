@@ -10,7 +10,6 @@ import {
   FaqSection,
   RelatedLinksBlock,
   FinalCta,
-  PlaceholderVisual,
 } from "@/components/marketing";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
@@ -355,11 +354,16 @@ export default function GuestSpotBookingPage() {
           }}
           proof="Built for traveling artists, limited booking windows, and Instagram-first guest spot announcements."
           visual={
-            <PlaceholderVisual
-              label="Product preview placeholder"
-              caption="City announcement → guest spot request → artist review"
-              aspectRatio="wide"
-            />
+            <div className="mx-auto w-full md:max-w-2xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/illustrations/landingpages/hero-artist-guestspot.svg"
+                alt="Traveling tattoo artist organizing guest spot booking requests by city"
+                className="block h-auto w-full"
+                fetchPriority="high"
+                draggable={false}
+              />
+            </div>
           }
         />
         <div className="h-[15px] bg-brand-rosa" />

@@ -10,7 +10,6 @@ import {
   FaqSection,
   RelatedLinksBlock,
   FinalCta,
-  PlaceholderVisual,
 } from "@/components/marketing";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
@@ -355,10 +354,13 @@ export default function TattooBookingVsInstagramDmsPage() {
           }}
           proof="Built for solo artists, Instagram requests, and approval-first tattoo booking flows."
           visual={
-            <PlaceholderVisual
-              label="Product preview placeholder"
-              caption="Instagram chat → booking link → structured tattoo request"
-              aspectRatio="wide"
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/branding/illustrations/landingpages/hero-chat-vs-inklee-request-form.svg"
+              alt="Messy Instagram DM chat compared with a clean Inklee tattoo request form"
+              className="block h-auto w-full"
+              fetchPriority="high"
+              draggable={false}
             />
           }
         />

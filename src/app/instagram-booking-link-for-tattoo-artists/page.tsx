@@ -10,7 +10,6 @@ import {
   FaqSection,
   RelatedLinksBlock,
   FinalCta,
-  PlaceholderVisual,
 } from "@/components/marketing";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
@@ -350,10 +349,13 @@ export default function InstagramBookingLinkPage() {
           }}
           proof="Built for solo artists, guest spots, and Instagram-first tattoo booking flows."
           visual={
-            <PlaceholderVisual
-              label="Product preview placeholder"
-              caption="Instagram bio link → tattoo request form → artist review"
-              aspectRatio="wide"
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/branding/illustrations/landingpages/hero-booking-link-tattoo-request.svg"
+              alt="Instagram booking link collecting a structured tattoo request"
+              className="block h-auto w-full"
+              fetchPriority="high"
+              draggable={false}
             />
           }
         />

@@ -10,7 +10,6 @@ import {
   FaqSection,
   RelatedLinksBlock,
   FinalCta,
-  PlaceholderVisual,
 } from "@/components/marketing";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
@@ -361,10 +360,13 @@ export default function TattooBookingSoftwarePage() {
           }}
           proof="Built for solo artists, guest spots, and Instagram-first booking flows."
           visual={
-            <PlaceholderVisual
-              label="Product preview placeholder"
-              caption="Booking link → tattoo request form → approval flow"
-              aspectRatio="wide"
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/branding/illustrations/landingpages/hero-key-visual.svg"
+              alt="Tattoo booking link turning Instagram requests into a structured booking flow"
+              className="block h-auto w-full"
+              fetchPriority="high"
+              draggable={false}
             />
           }
         />
