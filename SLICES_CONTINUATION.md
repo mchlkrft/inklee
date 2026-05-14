@@ -1360,3 +1360,339 @@ Slices 60–61 must complete before public launch. They block the MVP gate (Phas
 **Sequencing rule:** 54 → 55 → 56 (decision) → 57 / 58 / 59 in any order once Slice 56 is resolved.
 
 **Roll-back rule:** every step in this phase is reversible without affecting `inklee.app`. Disconnecting the `inkl.ee` alias domain at the Vercel level is a one-click rollback if anything in Plausible attribution, indexing, or routing goes sideways.
+
+---
+
+## Post-Launch Phase: Conversion Testing — Dark vs Bone-Light `/dm-chaos`
+
+**Status:** ⏳ Planning only. No implementation until the post-launch checklist is met and Slice 63 (Tracking Foundation) has been live for at least one full week of organic traffic.
+
+**Where this fits:** A focused conversion-optimisation phase that runs _after_ the launch is stable, _after_ the SEO foundation is in place, and _after_ analytics fire reliably. Independent of (and orthogonal to) the short-domain phase — they can run in either order.
+
+**Test question:** Does a lighter, bone-coloured Inklee theme on `/dm-chaos` improve completed-signup conversion from Instagram and Reddit traffic compared with the current dark theme?
+
+**Test page:** `/dm-chaos` only. The homepage carries broader SEO/GEO responsibility and is not a clean A/B surface. `/dm-chaos` is a single-intent landing page already wired for Instagram bio / DM traffic — the right place to test conversion-theme hypotheses.
+
+**Strategic principles (locked in):**
+
+- Both variants must share **identical copy, headlines, subheadlines, CTAs, section order, layout, offer, signup flow, and page length**. Only colour theme, background, card styling, contrast, borders/shadows, and graphic framing change.
+- `/dm-chaos` stays the **only canonical URL**. No `/dm-chaos-light`, no `/dm-chaos-dark`, no preview routes that compete for index space.
+- The bone-light theme must feel Inklee-branded, tattoo-scene-native, warm — **not generic SaaS, not luxury, not corporate**. If the light variant only "wins" by looking like every other startup, the win is not real.
+- The light theme is built as **reusable design tokens**, not a forked component tree. If light performs better on `/dm-chaos`, the same tokens can apply to other landing pages later without rewriting components.
+- Logged-in users always see dark and are excluded from conversion analysis. Internal/founder visits are excluded at three layers (cookie, admin-email list, event-time filter).
+- Plausible carries the first test. Meta Pixel ships as a **separate gated slice** (Slice 67) only when paid Instagram ads are about to start, and only after the cookie banner + privacy policy + consent gate are revised.
+
+**Pre-conditions before Slice 62 may start:**
+
+- MVP closeout complete (`project_inklee_roadmap.md` Phases B/C/D)
+- `/dm-chaos` landing page stable, with no copy edits planned during the test window
+- Signup + onboarding flow stable, no launch-critical bugs
+- At least one real artist has signed up via the production flow
+- The audit findings in `docs/analytics-audit-2026-05-14.md` have been reviewed by the owner
+
+**What must NOT be built yet:**
+
+- Variant theming or middleware before Slice 63 confirms Plausible custom events fire reliably
+- Any A/B logic that creates a second indexable URL for `/dm-chaos`
+- Meta Pixel integration before Slice 67 (consent gate)
+- Copy or layout edits to `/dm-chaos` while a test is running
+- A second test on the homepage or any other page before this one concludes
+
+**SEO/conversion-testing invariants (do not silently revisit):**
+
+- One canonical URL, one set of metadata, one JSON-LD payload for both variants
+- No cloaking — Googlebot sees the same variant-assignment logic as a real visitor
+- No 301 redirects in the test (if any redirects exist for the test infra, they must be 302/307)
+- No copy or CTA changes during the test window
+- Statistical honesty: a 50–200 EUR test is **directional learning**, not a statistically final result. The phase decision rules reflect that.
+
+**Tracking requirements (carried across all eight slices):**
+
+- Six Plausible custom events: `dm_chaos_view`, `dm_chaos_cta_click`, `signup_started`, `signup_completed`, `onboarding_started`, `booking_link_created`
+- Every event carries `variant` (`dark`|`light`), `source`, `medium`, `campaign`, `device`, `path`, `logged_in`, `internal` properties where applicable
+- `signup_completed` fires **server-side from `/onboarding/done`**, exactly once per user, guarded by a `profiles.settings.signup_event_fired` flag. Never from `/signup` — auth user exists with no profile during onboarding drop-off, that is not a real conversion.
+- UTM convention for paid + organic traffic:
+  - Instagram organic: `utm_source=instagram&utm_medium=social&utm_campaign=dm_chaos_ab_test`
+  - Instagram paid: `utm_source=instagram&utm_medium=paid_social&utm_campaign=dm_chaos_ab_test`
+  - Reddit: `utm_source=reddit&utm_medium=community&utm_campaign=dm_chaos_ab_test`
+
+**See also:** `docs/analytics-audit-2026-05-14.md` for the full pre-implementation audit, the recommended event schema, and the consent-flow analysis.
+
+---
+
+### Slice 62 — Analytics & Conversion Audit
+
+**Status:** ✅ complete (2026-05-14) — output is `docs/analytics-audit-2026-05-14.md`
+
+**Goal:** A written, evidence-backed snapshot of the current analytics state, so the implementation slices below can be scoped against reality (Plausible is installed but passive, no custom event helper exists, the cookie banner promises "no tracking cookies", etc.) rather than against assumptions.
+
+**Output:** `docs/analytics-audit-2026-05-14.md` covering the 13 audit questions, recommended implementation path, event schema, risks/guardrails, and a Slice 63 checklist.
+
+**Why this is its own slice and not just a doc:** the audit findings determine the firing point for `signup_completed`, the consent constraints on Meta Pixel, and the structure of the variant system. Without it, Slices 63–69 are over-scoped guesses.
+
+---
+
+### Slice 63 — Tracking Foundation (Plausible custom events)
+
+**Status:** ⏳ pending — gated by pre-conditions above
+
+**Goal:** Plausible fires six named custom events reliably across the marketing → signup → onboarding funnel, with internal/admin exclusion, duplicate-event prevention, and a server-side path for the most important event (`signup_completed`).
+
+**Scope:**
+
+- `src/lib/track.ts` with two helpers:
+  - `trackEvent(name, props)` — client-side, calls `window.plausible(...)` with the property bag
+  - `trackServerEvent(name, props)` — server-side, posts to the Plausible HTTP events API with the visitor's IP + UA forwarded so Plausible counts it as one session
+- `PLAUSIBLE_API_TOKEN` env var added to Vercel (Production + Preview)
+- Server-side `signup_completed` fires once from the `/onboarding/done` server action, guarded by a new `profiles.settings.signup_event_fired: boolean` flag set in the same transaction
+- Client-side events wired:
+  - `signup_started` — on the signup page mount (if attribution cookie present)
+  - `booking_link_created` — on slug claim success
+- Internal exclusion:
+  - Server-readable `inklee_internal=1` cookie, settable via visiting `/dm-chaos?internal=1` once (90-day cookie, no UI surface)
+  - `track.ts` skips firing when the cookie is set OR when the current user's email is in `ADMIN_EMAILS`
+  - Every fired event also tags `internal: false` (or `true` if the skip is overridden for testing) so analysis can filter at query time
+- UTM persistence: any UTM params present on the original `/dm-chaos` visit are written to a `inklee_attribution` cookie (30-day) and copied into `profiles.settings.signup_attribution` on slug claim
+- Meta Pixel scaffolded but **not loaded**: `NEXT_PUBLIC_META_PIXEL_ID` env var read but ignored; the script tag is conditional on a `metaPixelEnabled` flag that stays `false` until Slice 67
+
+**Out of scope:** Variant system, theme tokens, light theme, Meta Pixel actual firing.
+
+**Technical risks:**
+
+- Plausible's client-side `plausible(...)` is only available after `afterInteractive`. CTA-click handlers must guard against `window.plausible` being undefined (queue + flush, or no-op).
+- The Plausible HTTP API requires the visitor's IP + UA forwarded with the request — easy to miss, easy to silently miscount.
+- A flag in `profiles.settings` JSONB needs an atomic check-and-set; use Supabase's `update ... where signup_event_fired is null` pattern, not a read-then-write.
+
+**Acceptance criteria:**
+
+- All six events visible in the Plausible dashboard from a staging deploy
+- `signup_completed` fires exactly once for a fresh signup, verified by re-loading `/onboarding/done` (should not double-fire) and replaying the auth callback (should not double-fire)
+- An `inklee_internal=1` cookie suppresses all events from a real session
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 64 — Marketing theme tokens (dark + bone-light)
+
+**Status:** ⏳ pending — depends on Slice 63
+
+**Goal:** A reusable design-token system that lets any marketing page render in either the current dark theme or a new bone-light theme, by toggling a single attribute on the page wrapper.
+
+**Scope:**
+
+- `data-marketing-theme="dark"` (default) and `data-marketing-theme="light"` attribute selectors in `globals.css`
+- Each selector defines a complete token set: background, surface, foreground, muted-foreground, border, accent (rosa/red/mustard stay branded in both themes), card surface, shadow strength
+- Bone-light values designed against the existing Inklee brand palette — bone background, charcoal text, rosa/red/mustard accents preserved
+- Tokens applied to `/dm-chaos` first; no other page touched in this slice
+- A short visual reference at `docs/marketing-themes.md` showing the two token sets side-by-side
+- Existing components on `/dm-chaos` (Hero, Pain, Solution, ProductProof, ArtistNative, Trust, FinalCta) read from CSS vars only — no per-component dark/light branches
+- Print/screenshot the same `/dm-chaos` page in both themes for visual QA
+
+**Out of scope:** Variant assignment logic (Slice 65), graphic adaptations for the light theme (Slice 66), applying the light theme to other pages.
+
+**Technical risks:**
+
+- The existing `/dm-chaos` page uses hardcoded Tailwind colour utilities in several places (e.g., `bg-brand-charcoal`, `text-brand-bone`). These need to be migrated to CSS-var-backed utilities or to `theme()`-aware classes before the toggle works. List every offender in the slice doc.
+- Existing pages outside `/dm-chaos` (homepage, SEO pages, `/guest-spots`) MUST NOT regress — confirm via screenshot diff that the default dark tokens match current production exactly.
+
+**Acceptance criteria:**
+
+- Manually flipping `data-marketing-theme="light"` on `/dm-chaos` in DevTools renders a complete bone-light variant with no missing colours
+- All other marketing pages render unchanged with default dark tokens
+- The light variant feels Inklee-native (subjective owner sign-off) — not generic SaaS, not luxury
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 65 — `/dm-chaos` variant system (middleware-driven)
+
+**Status:** ⏳ pending — depends on Slice 64
+
+**Goal:** Anonymous, non-internal visitors to `/dm-chaos` are deterministically assigned `dark` or `light` 50/50, the assignment persists across visits, logged-in users always see dark, and `dm_chaos_view` fires on every visit with the variant attached.
+
+**Scope:**
+
+- Next.js middleware reads the `inklee_variant` cookie on `/dm-chaos`:
+  - If `inklee_internal=1` or Supabase auth session cookie present → no variant set, force `dark`
+  - If `inklee_variant` already set → use as-is (no re-randomization)
+  - Else → assign `dark`|`light` 50/50, set cookie (Secure, SameSite=Lax, 30-day, not HttpOnly so client can read for debugging)
+- `/dm-chaos` server component reads the cookie at render and applies `data-marketing-theme` accordingly
+- `dm_chaos_view` fires from a tiny client component mounted on the page, with `variant`, `source`, `medium`, `campaign`, `device`, `logged_in`, `internal` properties
+- `dm_chaos_cta_click` wired onto every signup CTA on `/dm-chaos` (HeroSection, FinalCtaSection, etc.) with `cta_label` property
+- Variant is **always rendered server-side** — no client-side flash of wrong theme
+- A debug query param `?force_variant=light` (or `dark`) overrides the cookie for owner inspection but does NOT persist and does NOT fire events with `internal: false`
+
+**Out of scope:** Building the actual light variant graphics (Slice 66), Meta Pixel (Slice 67).
+
+**Technical risks:**
+
+- Middleware adds latency to every `/dm-chaos` request — keep the assignment logic to a few statements, no DB calls
+- The Supabase auth cookie check in middleware must be a presence check only, not a full session validation (which would require a Supabase round-trip per request)
+- Variant cookie + UTM persistence cookie are separate concerns — don't conflate
+
+**Acceptance criteria:**
+
+- Anonymous first visit assigns a variant and renders correctly in SSR (HTML inspect, no client-side flip)
+- Returning anonymous visit shows the same variant
+- Logged-in visit always shows dark, no variant cookie set
+- `inklee_internal=1` cookie shows dark and fires no `dm_chaos_view` event
+- `?force_variant=light` renders light without persisting, and the corresponding event is tagged internal-test
+- Googlebot user-agent fetched against staging gets a deterministic variant (verified via curl) — no cloaking
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 66 — Bone-light `/dm-chaos` variant
+
+**Status:** ⏳ pending — depends on Slice 65
+
+**Goal:** The bone-light render of `/dm-chaos` looks intentionally Inklee — warm, scene-native, artist-friendly — and the placeholder graphics that currently live in dashed-border boxes on the dark variant are adapted to read cleanly on a light background without breaking the test (same concept, same message, same composition).
+
+**Scope:**
+
+- Walk every section of `/dm-chaos` in light mode, fix anything that reads weakly: contrast, divider lines, card edges, button states, hover affordances
+- Adapt the two dashed-border placeholder zones (Hero + one section) noted in `inklee_followup.md` follow-up #4: same conceptual composition, redrawn for a bone background
+- Keep copy, layout, section order, and CTA labels **byte-identical** to the dark variant
+- Decide and document: do the brand rosa/red dividers (`bg-brand-rosa`, `bg-brand-red`) stay or change in light mode? Strong recommendation: keep them — they're brand markers, not theming
+- Screenshot the full page in both variants at mobile (375px) and desktop (1440px) for visual QA, attach to the slice PR
+
+**Out of scope:** Editing copy, changing CTAs, restructuring sections, applying light theme to any other page.
+
+**Technical risks:**
+
+- Subjective tuning can drag — set a 1-day cap, ship the first credible version, iterate post-test if it wins
+- Tempting to "improve" copy while editing the theme. **Do not.** Copy stays frozen during the test.
+
+**Acceptance criteria:**
+
+- Owner sign-off that the bone-light page feels Inklee-native (not generic SaaS)
+- Side-by-side desktop + mobile screenshots in the slice PR
+- Contrast checked against WCAG AA for body text and CTAs
+- Copy diff between the two variants is empty
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 67 — Meta Pixel + consent gate (gated, optional)
+
+**Status:** ⏳ pending — independent of Slices 62–66, only required when paid Instagram ads are about to start
+
+**Goal:** Meta Pixel is loadable, fires `CompleteRegistration` only on real signup completion, respects an explicit opt-in consent gate, and is fully disclosed in the cookie banner and privacy policy.
+
+**Scope:**
+
+- Revise `src/components/cookie-banner.tsx` from a passive "no tracking cookies" notice to a real consent gate with explicit accept/reject buttons. Default state: rejected (Plausible-only).
+- Revise `src/app/privacy/page.tsx` to disclose Meta Pixel: what it is, what data goes to Meta, what the lawful basis is (consent), how the visitor can withdraw consent.
+- `NEXT_PUBLIC_META_PIXEL_ID` env var read at runtime; Pixel script loads only when both the env var is set AND the consent cookie is `accepted`.
+- Server-side `CompleteRegistration` fires once via the Meta Conversions API from the same `/onboarding/done` server action that fires Plausible `signup_completed` — guarded by the same `signup_event_fired` flag so the two events fire together, never duplicated. Includes hashed email per Meta's Conversions API spec.
+- CSP `connect-src` extended to include `connect.facebook.net` (only when the Pixel is enabled — gate via a build-time check)
+- The slice ships with Meta Pixel **disabled by default** (env var unset). Enabling it for production is a separate env-var flip after the consent flow is verified.
+
+**Out of scope:** Other paid-ads pixels (Reddit, TikTok), Conversions API for events other than `CompleteRegistration`, advanced matching beyond hashed email.
+
+**Technical risks:**
+
+- The current cookie banner is a passive notice, not a consent gate. Rebuilding it as a real gate is the bulk of this slice — it touches every marketing page.
+- Meta's Conversions API requires the visitor's IP + UA + a click-ID — same forwarding rigor as Plausible server events.
+- CSP changes can break other things — extend `connect-src` in a focused PR and verify the Plausible + Stripe + Supabase + Maps connections still work.
+
+**Acceptance criteria:**
+
+- Cookie banner offers explicit accept/reject; default is reject
+- Privacy page discloses Meta Pixel and consent semantics
+- With `NEXT_PUBLIC_META_PIXEL_ID` unset → no Pixel script in the page source
+- With `NEXT_PUBLIC_META_PIXEL_ID` set + consent rejected → no Pixel script
+- With `NEXT_PUBLIC_META_PIXEL_ID` set + consent accepted → Pixel loads and `CompleteRegistration` fires at `/onboarding/done`
+- `CompleteRegistration` never fires twice for the same user
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 68 — QA & data validation
+
+**Status:** ⏳ pending — depends on Slices 63–66 (Slice 67 not required)
+
+**Goal:** The test is launchable. Every exclusion, every event, every variant edge case is verified end-to-end on a staging deploy before paid traffic begins.
+
+**Scope:**
+
+- Anonymous visitor: variant assigned, persists across reload, `dm_chaos_view` fires once per visit, CTA clicks fire `dm_chaos_cta_click`
+- Returning anonymous visitor: same variant served, no re-randomization
+- Logged-in artist visiting `/dm-chaos`: always sees dark, no variant cookie set, no events fire
+- Internal user (`inklee_internal=1` cookie): always sees dark, no events fire
+- Founder admin email (`ADMIN_EMAILS` membership) completing a test signup: no `signup_completed` fires
+- Mobile rendering: both variants pass visual QA at 375px and 414px viewport widths
+- Page performance: Lighthouse score (mobile + desktop) within 5 points of the current dark baseline
+- Playwright tests: variant persistence across reload, logged-in lock to dark, `?force_variant=` override
+- Duplicate-event prevention: replay the auth callback, hit `/onboarding/done` twice, verify `signup_completed` fires exactly once
+
+**Out of scope:** Test launch (Slice 69), Meta Pixel QA (covered separately in Slice 67's acceptance).
+
+**Acceptance criteria:**
+
+- All scenarios above documented and verified, with results in the slice PR
+- Playwright suite green
+- Lighthouse delta ≤ 5 points
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 69 — Test launch, analysis & decision
+
+**Status:** ⏳ pending — depends on Slice 68
+
+**Goal:** Run the first 10-day, 150 EUR test, collect the data, make a written decision in `DECISIONS.md`, and lock in the next move (keep dark, switch to light, split by surface, hybrid, or run a larger second test).
+
+**Scope:**
+
+- **Pre-launch checklist (24 hours before traffic starts):**
+  - No copy or layout edits queued for `/dm-chaos`
+  - All six events firing reliably in the Plausible production dashboard
+  - Internal exclusion verified one last time from owner's main device
+  - UTM convention documented (Instagram organic + paid, Reddit, future inkl.ee shortlinks)
+- **Test parameters:**
+  - Duration: 10 days
+  - Budget: 150 EUR (acceptable range 50–200 EUR; below 50 = smoke test only, above 200 = stronger early signal)
+  - Sources: Instagram (organic + paid), Reddit (community), no other paid surface
+  - No edits to the landing page during the test window
+  - No edits to copy, CTAs, or section order
+- **Metrics tracked (all broken down by variant + source + device):**
+  - `signup_completed / dm_chaos_view` — primary metric
+  - `dm_chaos_cta_click / dm_chaos_view` — click-through rate
+  - `signup_started / dm_chaos_view` — intent rate
+  - `signup_completed / signup_started` — finish rate
+  - `booking_link_created / signup_completed` — onboarding quality
+  - Instagram vs Reddit performance
+  - Mobile vs desktop performance
+- **Analysis & decision options:**
+  - Keep dark
+  - Switch `/dm-chaos` to bone-light permanently
+  - Use bone-light only for paid traffic, keep dark for organic / brand pages
+  - Split themes by page surface: dark for brand pages (`/`, `/dm-chaos` if direction-of-arrival is brand), light for direct-response landing pages
+  - Build a hybrid that picks the strongest sections from each
+  - Run a second test with a larger budget if the first run is too noisy to call
+
+**Out of scope:** Implementing whichever decision wins — that becomes a new slice in its own right, scoped after the data lands.
+
+**Hard rules:**
+
+- Do **not** declare a statistically final winner from a 50–200 EUR test. Treat the result as **directional learning**.
+- Do **not** rely on CTA clicks if signup-completion data is present — CTA-click winners that don't convert are noise.
+- Do **not** fire Meta `CompleteRegistration` unless Slice 67 is shipped AND consent is granted AND signup actually completed.
+- Do **not** pollute the data with logged-in / admin / founder traffic. If pollution is detected during the run, document the contamination window and exclude it from the final analysis.
+
+**Acceptance criteria:**
+
+- Final decision entry written into `DECISIONS.md` with: hypothesis, sample sizes per variant, primary metric delta, secondary metrics, sources of bias, follow-up plan
+- Test data exported from Plausible and archived in `docs/test-results-dm-chaos-ab-1.md`
+- The chosen direction is reversible (i.e., variant infrastructure stays in place even if dark wins, so a future re-test on a different hypothesis is cheap to launch)
+
+---
+
+## Conversion testing phase boundary
+
+**Sequencing rule:** 62 → 63 → 64 → 65 → 66 → 68 → 69. Slice 67 (Meta Pixel + consent) is independent and may ship in parallel with 64/65/66 or be deferred entirely until paid Instagram ads are about to start.
+
+**Roll-back rule:** every step in this phase is reversible without touching the canonical `/dm-chaos` URL. Disabling the variant system is a middleware-revert + a CSS-var-default flip; the page stays live with the current dark theme throughout. Meta Pixel can be disabled instantly by clearing the env var.
+
+**Cross-phase guardrail:** if the short-domain phase (Slices 54–59) is also live by the time this test runs, the UTM convention here must remain compatible with the inkl.ee shortlink convention documented there (`utm_medium=shortlink` for shortlinks, `utm_medium=social|paid_social|community` for direct posts). Cross-check before launching the test.
