@@ -12,6 +12,7 @@ import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import {
+  dateKeyInTimeZone,
   formatDateKey,
   isDateKeyBefore,
   todayInTimeZone,
@@ -23,6 +24,10 @@ export type SlotOption = {
   date: string;
   time: string;
   tz: string;
+  location?: {
+    label: string;
+    tripTitle?: string;
+  };
 };
 
 const FALLBACK_METADATA: Metadata = {
@@ -148,23 +153,20 @@ export default async function ArtistPublicPage({
     ? (profileSettings.field_order as string[])
     : buildDefaultFieldOrder(customFields.map((f) => f.id));
 
+  let rawSlots: Array<{
+    id: string;
+    starts_at: string;
+    duration_minutes: number;
+  }> = [];
   if (isSlotMode) {
-    const { data: rawSlots } = await serviceClient
+    const { data } = await serviceClient
       .from("slots")
       .select("id, starts_at, duration_minutes")
       .eq("artist_id", profile.id)
       .eq("status", "open")
       .gte("starts_at", new Date().toISOString())
       .order("starts_at", { ascending: true });
-
-    slots = (rawSlots ?? []).map((s) => {
-      const d = formatSlotDisplay(
-        s.starts_at,
-        s.duration_minutes,
-        profile.timezone,
-      );
-      return { id: s.id, date: d.date, time: d.time, tz: d.tz };
-    });
+    rawSlots = data ?? [];
   }
 
   const todayStr = todayInTimeZone(profile.timezone ?? "Europe/Berlin");
@@ -173,17 +175,24 @@ export default async function ArtistPublicPage({
   const { data: rawTrips } = await serviceClient
     .from("trips")
     .select(
-      "id, title, description, show_on_booking_form, trip_legs(id, starts_on, ends_on, studio_id, studios(name))",
+      "id, title, description, show_on_booking_form, trip_legs(id, starts_on, ends_on, studio_id, studios(name, city, country, visibility_mode, public_note))",
     )
     .eq("artist_id", profile.id)
     .eq("show_on_booking_form", true);
 
+  type RawStudio = {
+    name: string;
+    city: string;
+    country: string;
+    visibility_mode: string;
+    public_note: string | null;
+  };
   type RawLeg = {
     id: string;
     starts_on: string;
     ends_on: string;
     studio_id: string | null;
-    studios: { name: string } | { name: string }[] | null;
+    studios: RawStudio | RawStudio[] | null;
   };
   type RawTrip = {
     id: string;
@@ -244,6 +253,54 @@ export default async function ArtistPublicPage({
     .eq("is_primary", true)
     .neq("visibility_mode", "hidden")
     .maybeSingle();
+
+  // Enrich slots with location info derived from overlapping trip legs.
+  // Falls back to the artist's primary public studio city for slots that sit
+  // outside any trip (home-base slots). Respects studio visibility_mode.
+  if (isSlotMode) {
+    const tz = profile.timezone ?? "Europe/Berlin";
+    slots = rawSlots.map((s) => {
+      const display = formatSlotDisplay(s.starts_at, s.duration_minutes, tz);
+      const slotDateKey = dateKeyInTimeZone(s.starts_at, tz);
+
+      let location: SlotOption["location"] | undefined;
+      outer: for (const trip of visibleTrips) {
+        for (const leg of trip.trip_legs) {
+          if (slotDateKey >= leg.starts_on && slotDateKey <= leg.ends_on) {
+            const studio = Array.isArray(leg.studios)
+              ? (leg.studios[0] ?? null)
+              : leg.studios;
+            if (studio && studio.visibility_mode !== "hidden") {
+              const cityLine = [studio.city, studio.country]
+                .filter(Boolean)
+                .join(", ");
+              const label =
+                studio.visibility_mode === "public_exact_address"
+                  ? `${studio.name} · ${cityLine}`
+                  : cityLine;
+              location = { label, tripTitle: trip.title };
+            }
+            break outer;
+          }
+        }
+      }
+
+      if (!location && primaryStudio) {
+        const cityLine = [primaryStudio.city, primaryStudio.country]
+          .filter(Boolean)
+          .join(", ");
+        if (cityLine) location = { label: cityLine };
+      }
+
+      return {
+        id: s.id,
+        date: display.date,
+        time: display.time,
+        tz: display.tz,
+        ...(location ? { location } : {}),
+      };
+    });
+  }
 
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const windowExpired =

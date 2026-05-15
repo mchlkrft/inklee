@@ -307,6 +307,26 @@ export async function submitBookingAction(
     slotDate = dateKeyInTimeZone(locked.starts_at, artistTimeZone);
   }
 
+  // Auto-tag slot-mode bookings with the trip whose leg covers the slot date.
+  // Slot bookings don't expose a trip selector — the booking dashboard's
+  // filter-by-trip relies on trip_id being set, so we derive it here.
+  // Respects the same visibility gate used for public reads (show_on_booking_form).
+  let autoTaggedTripId: string | null = null;
+  if (artistBookingMode === "fixed_slots" && slotDate) {
+    const { data: overlap } = await serviceClient
+      .from("trip_legs")
+      .select("trip_id, trips!inner(artist_id, show_on_booking_form)")
+      .lte("starts_on", slotDate)
+      .gte("ends_on", slotDate)
+      .eq("trips.artist_id", artistId)
+      .eq("trips.show_on_booking_form", true)
+      .limit(1)
+      .maybeSingle();
+    if (overlap?.trip_id) {
+      autoTaggedTripId = overlap.trip_id;
+    }
+  }
+
   // Process and upload images — resize/compress to WebP before storage
   type UploadedImage = {
     path: string;
@@ -436,7 +456,9 @@ export async function submitBookingAction(
       customer_handle: data.instagram_handle || null,
       customer_token_hash: data.email ? tokenHash : null,
       origin: "public_form",
-      ...(tripId ? { trip_id: tripId } : {}),
+      ...(tripId || autoTaggedTripId
+        ? { trip_id: tripId ?? autoTaggedTripId }
+        : {}),
       ...(bookingStudioId ? { studio_id: bookingStudioId } : {}),
       ...(studioSnapshot ? { studio_snapshot: studioSnapshot } : {}),
     });

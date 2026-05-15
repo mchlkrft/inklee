@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
@@ -109,6 +110,25 @@ export default async function BookingSettingsPage() {
           <SlotList slots={formattedSlots} />
         </section>
       )}
+
+      {/* Studios — secondary entry point to the studio library */}
+      <section className="space-y-4">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Studios
+          </h2>
+          <p className="mt-1.5 text-sm text-foreground">
+            Manage the studios where you tattoo. Slots pick up trip locations
+            automatically when a trip leg covers the slot date.
+          </p>
+        </div>
+        <Link
+          href="/travel#studios"
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+        >
+          Open studio library →
+        </Link>
+      </section>
     </div>
   );
 }

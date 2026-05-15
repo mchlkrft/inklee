@@ -35,7 +35,13 @@ const tomorrow = () => {
   return addDaysToDateKey(localDateKey(), 1);
 };
 
-type SlotOption = { id: string; date: string; time: string; tz: string };
+type SlotOption = {
+  id: string;
+  date: string;
+  time: string;
+  tz: string;
+  location?: { label: string; tripTitle?: string };
+};
 type TripLeg = { startsOn: string; endsOn: string };
 type TripOption = {
   id: string;
@@ -541,6 +547,22 @@ export default function BookingForm({
                         <p className="text-xs text-muted-foreground">
                           {slot.time} · {slot.tz}
                         </p>
+                        {slot.location && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {slot.location.tripTitle ? (
+                              <>
+                                <span className="text-foreground">
+                                  {slot.location.label}
+                                </span>
+                                <span> · {slot.location.tripTitle}</span>
+                              </>
+                            ) : (
+                              <span className="text-foreground">
+                                {slot.location.label}
+                              </span>
+                            )}
+                          </p>
+                        )}
                       </div>
                     </label>
                   ))}

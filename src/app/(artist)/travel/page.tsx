@@ -91,7 +91,9 @@ export default async function TravelPage() {
 
       <TripManager trips={trips} studios={tripStudioList} />
 
-      <StudioList studios={studioList} />
+      <section id="studios" className="scroll-mt-24">
+        <StudioList studios={studioList} />
+      </section>
     </div>
   );
 }
