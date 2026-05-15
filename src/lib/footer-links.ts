@@ -46,14 +46,12 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       {
         label: "Tattoo artist waitlist",
         href: "/tattoo-artist-waitlist",
-        active: false,
-        planned: true,
+        active: true,
       },
       {
         label: "Tattoo deposit tool",
         href: "/tattoo-deposit-tool",
-        active: false,
-        planned: true,
+        active: true,
       },
     ],
   },
@@ -79,8 +77,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       {
         label: "Best booking app for tattoo artists",
         href: "/best-booking-app-for-tattoo-artists",
-        active: false,
-        planned: true,
+        active: true,
       },
     ],
   },

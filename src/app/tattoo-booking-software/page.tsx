@@ -362,8 +362,8 @@ export default function TattooBookingSoftwarePage() {
           visual={
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src="/branding/illustrations/landingpages/hero-key-visual.svg"
-              alt="Tattoo booking link turning Instagram requests into a structured booking flow"
+              src="/branding/illustrations/landingpages/hero-dm-questions.svg"
+              alt="Tattoo client questions in Instagram DMs replaced by a structured tattoo booking request"
               className="block h-auto w-full"
               fetchPriority="high"
               draggable={false}

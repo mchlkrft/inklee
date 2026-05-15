@@ -160,10 +160,12 @@ export default function AboutPage() {
 
         <section className="container-marketing pb-12 md:pb-16">
           <div className="mx-auto max-w-xl">
-            <PlaceholderVisual
-              label="Placeholder · DM-to-request mini diagram"
-              caption="Instagram tattoo DMs turning into a structured tattoo booking request"
-              aspectRatio="video"
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/branding/illustrations/landingpages/hero-dm-to-booking-form.svg"
+              alt="Instagram tattoo DMs turning into a structured tattoo booking request"
+              className="block h-auto w-full"
+              draggable={false}
             />
           </div>
         </section>

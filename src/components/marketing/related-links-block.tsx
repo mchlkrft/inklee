@@ -34,30 +34,48 @@ export default function RelatedLinksBlock({
       <div
         className={`mt-10 grid grid-cols-1 gap-5 ${COLUMN_CLASSES[columns]}`}
       >
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="group flex flex-col justify-between rounded-xl border border-border p-6 transition-colors hover:border-foreground"
-          >
-            <div>
-              {link.eyebrow && (
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  {link.eyebrow}
+        {links.map((link) => {
+          const wrapperClass =
+            "group flex flex-col justify-between rounded-xl border border-border p-6 transition-colors hover:border-foreground";
+          const inner = (
+            <>
+              <div>
+                {link.eyebrow && (
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    {link.eyebrow}
+                  </p>
+                )}
+                <p className="mt-2 text-lg font-semibold text-foreground">
+                  {link.title}
                 </p>
-              )}
-              <p className="mt-2 text-lg font-semibold text-foreground">
-                {link.title}
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {link.description}
-              </p>
-            </div>
-            <span className="mt-6 text-sm text-muted-foreground transition-colors group-hover:text-foreground">
-              Read more →
-            </span>
-          </Link>
-        ))}
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {link.description}
+                </p>
+              </div>
+              <span className="mt-6 text-sm text-muted-foreground transition-colors group-hover:text-foreground">
+                {link.external ? "Open →" : "Read more →"}
+              </span>
+            </>
+          );
+          if (link.external) {
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={wrapperClass}
+              >
+                {inner}
+              </a>
+            );
+          }
+          return (
+            <Link key={link.href} href={link.href} className={wrapperClass}>
+              {inner}
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

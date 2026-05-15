@@ -15,6 +15,7 @@ export type RelatedLink = {
   title: string;
   description: string;
   href: string;
+  external?: boolean;
 };
 
 export type FeatureBenefitItem = {

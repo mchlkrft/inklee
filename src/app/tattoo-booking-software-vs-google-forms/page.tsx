@@ -10,7 +10,6 @@ import {
   FaqSection,
   RelatedLinksBlock,
   FinalCta,
-  PlaceholderVisual,
 } from "@/components/marketing";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
@@ -352,10 +351,13 @@ export default function TattooBookingVsGoogleFormsPage() {
           }}
           proof="Built by a tattoo artist, for tattoo artists who need more than another spreadsheet."
           visual={
-            <PlaceholderVisual
-              label="Placeholder · Google Forms vs Inklee comparison"
-              caption="Form response in a spreadsheet → tattoo booking request with review states"
-              aspectRatio="wide"
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/branding/illustrations/landingpages/hero-google-form-vs-inklee.svg"
+              alt="Google Form response in a spreadsheet compared with a structured Inklee tattoo booking request"
+              className="block h-auto w-full"
+              fetchPriority="high"
+              draggable={false}
             />
           }
         />
