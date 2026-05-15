@@ -334,18 +334,15 @@ function ArtistNativeSection() {
   return (
     <section className="container-marketing py-20 md:py-24">
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-16">
-        {/* PLACEHOLDER: artist-style visual — replace this div with an illustration or photo */}
-        {/* Suggested: scene-native artist illustration, similar tone to homepage artist.svg */}
-        <div className="flex justify-center md:justify-start">
-          <div className="flex h-72 w-full max-w-xs items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10 md:max-w-sm">
-            <div className="space-y-1 text-center px-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Visual placeholder
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Artist-native illustration
-              </p>
-            </div>
+        <div className="flex justify-center">
+          <div className="w-full max-w-xs md:max-w-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/branding/illustrations/landingpages/hero-artist-confirmed.svg"
+              alt="Tattoo artist confirming a booking request in Inklee"
+              className="block h-auto w-full"
+              draggable={false}
+            />
           </div>
         </div>
 
