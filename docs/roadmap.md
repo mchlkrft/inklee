@@ -51,12 +51,19 @@ Pre-launch closeout. Nothing else should accelerate until this horizon is clean.
 
 ### 3.2 Pre-launch UX polish
 
-| Slice | Title                         | Acceptance                                               |
-| ----- | ----------------------------- | -------------------------------------------------------- |
-| 60    | Flash feature UX optimization | `docs/flash-ux-audit-slice-60.md` + high-impact fixes    |
-| 61    | Navigation + auth UI pass     | `docs/nav-auth-ui-audit-slice-61.md` + visual/copy fixes |
+Slice 60 was expanded 2026-05-16 into a platform-wide UX audit + restructure across four sub-slices. Slice 61 (auth UI) stays distinct.
 
-Both are audit-and-targeted-fix slices, not redesigns. Ship-blocking only if their audits surface critical issues.
+| Slice | Title                                             | Acceptance                                                                          |
+| ----- | ------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 60a   | Platform-wide UX audit + IA decision doc          | `docs/platform-ux-audit-slice-60a.md` + entry in `DECISIONS.md`. No code.           |
+| 60b   | Navigation + IA restructure (implementation)      | Sidebar/top-bar/mobile-nav rewired per 60a decision; redirects for any moved routes |
+| 60c   | Onboarding wizard extension + mobile optimization | Intro slides + 375px pass + feature-intro modal copy (closes OT-08)                 |
+| 60d   | Flash feature thorough audit + flow integration   | `docs/flash-ux-audit-slice-60d.md` + flash sits cleanly in the unified booking list |
+| 61    | Auth UI pass                                      | `docs/nav-auth-ui-audit-slice-61.md` + visual/copy fixes (auth surfaces only)       |
+
+**Sequencing:** 60a must close first. 60b + 60c can run in parallel once 60a closes. 60d follows 60b. Slice 61 is independent.
+
+All five are audit-and-targeted-fix slices, not redesigns. Ship-blocking only if 60a's audit surfaces critical issues.
 
 ### 3.3 Phase D — Final MVP UX review (the gate)
 
@@ -312,7 +319,7 @@ See §4.6. Independent track. Memory: `project_inklee_template_repo.md`.
 
 ```
 [Phase 1: Free launch] ─┬─ Pre-launch blockers (OT-02, OT-05c, OT-06, OT-01)
-                        ├─ Slices 60 + 61
+                        ├─ Slices 60a–60d + 61
                         ├─ Phase D MVP gate
                         └─ First real artist + 4-week soak
                                 ↓
@@ -346,7 +353,7 @@ Independent: [Phase E: Android] (after first real artist)
 
 | If you want to ship...             | You must first complete...                                                    |
 | ---------------------------------- | ----------------------------------------------------------------------------- |
-| Public launch                      | OT-02, OT-05c, OT-06, OT-01, Slices 60 + 61, Phase D punch list               |
+| Public launch                      | OT-02, OT-05c, OT-06, OT-01, Slices 60a–60d + 61, Phase D punch list          |
 | Any Plus feature gate              | Phase 2 (pricing readiness)                                                   |
 | Public `/pricing` page             | Phase 2 + first 4 weeks of Free-tier real usage                               |
 | A/B test on `/dm-chaos`            | Slice 63 firing reliably for ≥ 1 week                                         |

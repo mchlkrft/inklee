@@ -1026,48 +1026,180 @@ The following items are confirmed incomplete. They are not slices — they are s
 
 ## Pre-launch UX polish package: Slices 60–61
 
-These slices were added during the pre-launch UX walkthrough (Phase D in `project_inklee_roadmap.md`). The artist-facing surfaces work end-to-end, but real first-time use is exposing friction that wasn't obvious during feature-by-feature shipping. Both slices are scoped as **audit + targeted fixes**, not redesigns — no schema changes, no new features. They sit before the post-launch short-domain phase (Slices 54–59) because they're launch-blocking polish, not growth work.
+These slices were added during the pre-launch UX walkthrough (Phase D in `project_inklee_roadmap.md`). The artist-facing surfaces work end-to-end, but real first-time use is exposing friction that wasn't obvious during feature-by-feature shipping. Slice 60 was **expanded 2026-05-16** from a narrow Flash UX pass into a platform-wide UX audit and restructure, split into sub-slices 60a–60d to keep each unit shippable. Slice 61 (auth UI) stays distinct. They sit before the post-launch short-domain phase (Slices 54–59) because they're launch-blocking polish, not growth work.
 
-**Sequencing rule:** do the audit first, produce a written punch list, fix the highest-impact items, ship. Avoid scope creep into "redesign the whole thing".
+**Sequencing rules:**
+
+- 60a must close before 60b–60d start (60a is the decision doc that scopes the rest).
+- 60b and 60c can run in parallel once 60a closes.
+- 60d should land after 60b (Flash needs to fit the new IA).
+- Slice 61 (auth UI) is independent and can run any time.
+
+Avoid scope creep into "redesign the whole thing". Each sub-slice is audit + targeted fixes, not a redesign.
 
 ---
 
-### Slice 60 — Flash feature UX optimization
+### Slice 60a — Platform-wide UX audit + IA decision doc
 
-**Status:** ⏳ pending — punch list to be authored during audit
+**Status:** ⏳ pending — replaces and broadens the original Slice 60 audit scope
 
-**Goal:** The Flash workflow — from Instagram connection through draft import, item editing, flash days scheduling, and the public flash page — feels coherent and obvious to a first-time artist. Friction points discovered during real-flow testing get fixed without expanding the feature surface.
+**Goal:** Produce a written analysis of friction across the entire artist app, plus a concrete recommendation for whether and how to restructure the information architecture (notably: should "Booking" become the parent for Flash, Trip Planner, Slots, Waitlist?). Output is a decision doc + punch list, no code.
+
+**Why this exists:** Real first-time use is exposing IA tension. Flash, Trip Planner, and the booking workflow live as siblings at top level today, but they're really _modes of taking bookings_. The user has flagged this as worth investigating; this slice runs the investigation and lands a decision before any code moves.
+
+**Scope (audit phase):** walk every artist-facing surface as a real first-time visitor, then as a returning artist on mobile, and produce a written analysis covering:
+
+- **Current IA snapshot** — every top-level sidebar item, its children, and what it actually contains today
+- **Pain-point inventory** — friction observed at each surface (discoverability, naming, redundancy, dead ends, mobile breakage)
+- **IA proposal (or "keep as-is" recommendation)** — at minimum, evaluate:
+  - Option A: keep current flat structure (Dashboard / Bookings / Flash / Trip Planner / Analytics / Settings)
+  - Option B: "Booking" becomes a parent (Bookings → Requests / Calendar / Flash / Trip Planner / Slots / Waitlist / Clients), reducing top-level items
+  - Option C: hybrid (Bookings stays focused, but Flash + Trip Planner get clearer cross-links)
+  - Document reasoning for the chosen option
+- **Cross-feature flow gaps** — places where the user crosses feature boundaries (e.g. flash → booking request → calendar) and the seams show
+- **Onboarding-to-real-use gap** — what first-time users miss after finishing the 5-step onboarding wizard
+- **Mobile-specific friction** — every audited surface checked at 375px
+
+**Output:** `docs/platform-ux-audit-slice-60a.md` containing:
+
+1. Current state snapshot (top-level nav + children)
+2. Friction punch list, prioritised by impact
+3. IA recommendation with explicit decision
+4. Scoped slice notes for 60b / 60c / 60d (what each one should ship based on findings)
+5. A short entry added to `DECISIONS.md` recording the IA decision
+
+**Out of scope:**
+
+- Any code changes — this slice is purely audit + decision
+- Schema changes
+- Marketing site
+- Public booking page redesign (separate track)
+
+**Dependencies:** Slice 23 (UI/UX redesign), Slice 41 (Trip Planner introduction restructured nav), Slice 46 (branding), Slice 47 (mobile pass), Slice 48 (onboarding polish), Slice 50 (booking-settings UX), UI rework commits `885f9f8` + `2a4af67`.
+
+**Acceptance criteria:**
+
+- Audit doc committed at `docs/platform-ux-audit-slice-60a.md`
+- IA decision recorded in `DECISIONS.md`
+- Scoped notes for 60b/60c/60d are concrete enough that those slices can start without re-running the audit
+
+---
+
+### Slice 60b — Navigation + IA restructure (implementation)
+
+**Status:** ⏳ pending — depends on 60a
+
+**Goal:** Implement the IA decision from 60a. If the decision is "keep as-is", this slice ships only targeted nav polish (active states, hover affordances, mobile spacing). If the decision is "restructure", this slice rewires the sidebar, top nav, mobile nav, and sub-navs accordingly without breaking existing routes.
+
+**Scope (likely, conditional on 60a):**
+
+- **Sidebar rewire** — update `src/components/app-shell/sidebar*.tsx` to reflect the new IA. Preserve the hierarchical auto-expand pattern from the UI rework.
+- **Top-bar consistency** — workspace top-bar cluster (books-status pill, bell, settings, avatar) stays; verify no new top-level items break the cluster's layout.
+- **Mobile nav** — `src/components/section-nav.tsx` + bottom-tab strip updated to match. Touch targets ≥ 44px, no horizontal scroll.
+- **Sub-navs** — `BookingsNav` (Requests / Calendar / Clients / Waitlist) likely expands if Flash + Trip Planner move under Bookings. Settings sub-nav untouched unless 60a flags it.
+- **Routes** — every existing route still resolves. If a route moves (e.g. `/flash/items` → `/bookings/flash/items`), add a permanent redirect rule in `next.config.ts` so existing links don't 404.
+- **Breadcrumbs / page titles** — update where the path display changes.
+- **Active-state legibility** — selected vs hover vs unselected. Mobile bottom-tab active state especially.
+
+**Out of scope:**
+
+- Onboarding wizard changes (Slice 60c)
+- Flash-specific surface fixes (Slice 60d)
+- Auth surfaces (Slice 61)
+- New nav features (search, command palette, etc.)
+
+**Dependencies:** Slice 60a (decision doc).
+
+**Acceptance criteria:**
+
+- Nav structure matches 60a's recommendation, or 60a documented "no change" and this slice shipped only polish items
+- All existing route paths either still resolve or are 301-redirected to their new homes
+- Mobile nav passes a smoke test at 375px and 414px — no overflow, no missed touch targets
+- Active-state legibility verified at desktop + mobile
+- `pnpm typecheck` and `pnpm lint` pass
+- No regression in the per-surface tests run during 60a (re-walk after implementation)
+
+---
+
+### Slice 60c — Onboarding wizard extension + mobile optimization
+
+**Status:** ⏳ pending — can start in parallel with 60b once 60a closes
+
+**Goal:** Extend the onboarding wizard with intro slides that explain the product before the form-heavy steps begin, and run a mobile pass across the wizard so the 5-step flow doesn't break on small viewports. Close out the empty feature-intro modal copy gaps from Slice 48 (OT-08) as part of the same pass.
+
+**Scope:**
+
+- **Intro slides at wizard start** — 1–3 lightweight slides before the existing `/onboarding/welcome` content that establish what Inklee is, what the artist is about to set up, and what the booking link will look like. Skippable. Persisted dismissal so returning users don't re-see.
+- **Mobile optimization across the wizard** — every step at 375px + 414px:
+  - `/onboarding/welcome`
+  - `/onboarding/claim-slug`
+  - `/onboarding/profile` (or equivalent — confirm against current routes)
+  - `/onboarding/booking-form` (or equivalent)
+  - `/onboarding/done`
+  - Check: keyboard interactions, autofocus behaviour, input keyboards (`type="email"` etc.), form-error visibility
+- **Feature intro modals (OT-08)** — fill in the copy for the scaffolded Flash, Waitlist, and Travel intro modals. Tattoo-native voice, scene-aware, no SaaS framing. Audit doc 60a may surface a fourth modal target (e.g. "Booking" group intro if the IA restructure consolidates).
+- **First-real-use prompts** — soft nudges on the dashboard once onboarding is done but key actions haven't happened yet (e.g. "Add your first slot" or "Set up your booking form"). Already scaffolded in Slice 48 backlog (OT-10 bio-nudge was the prototype).
+
+**Out of scope:**
+
+- New onboarding steps (don't expand from 5 → 8). Slides go _before_ the existing flow.
+- Tutorial videos, embedded help articles, chat widgets
+- Schema changes to track wizard progress (existing `onboarding_completed` flag remains)
+- Sign-up form itself (Slice 27 Google login + Slice 31 2FA cover that)
+
+**Dependencies:** Slice 25 (first-login onboarding), Slice 48 (onboarding polish), OT-08 (feature intro modal copy).
+
+**Acceptance criteria:**
+
+- Intro slides ship with skippable mechanism and persistence
+- Every onboarding step usable at 375px with no horizontal scroll, no clipped fields, no broken keyboards
+- All scaffolded feature-intro modals have real copy (OT-08 closed)
+- First-real-use dashboard nudges either shipped or explicitly deferred with reasoning in 60a's audit doc
+- `pnpm typecheck` and `pnpm lint` pass
+
+---
+
+### Slice 60d — Flash feature thorough audit + flow integration
+
+**Status:** ⏳ pending — best run after 60b lands so Flash fits the final IA
+
+**Goal:** The Flash workflow — from Instagram connection through draft import, item editing, flash days scheduling, and the public flash page — feels coherent and obvious to a first-time artist, AND integrates cleanly with whatever IA decision 60a landed. Friction points discovered during real-flow testing get fixed without expanding the feature surface.
+
+**This was the original scope of the un-expanded Slice 60.** Kept intact, with one addition: the integration step that verifies Flash sits naturally in the (possibly restructured) booking flow.
 
 **Scope (audit phase):** walk the Flash flow as a real artist with no prior context, in this order, and produce a written punch list:
 
 - `/settings/instagram` — first connect, sync feedback, post grid scan, "Add to Flash" decision
-- `/flash/items` — list view, draft vs published states, edit modal, image preview quality
+- `/flash/items` (or `/bookings/flash/items` if 60b moved it) — list view, draft vs published states, edit modal, image preview quality
 - `/flash/items/[id]` (or edit modal) — pricing, availability, booking mode, flash day assignment
-- `/flash/days` — schedule view, status transitions (upcoming/active/past/cancelled), per-day flash assignment
+- `/flash/days` (or restructured path) — schedule view, status transitions (upcoming/active/past/cancelled), per-day flash assignment
 - Public `/[slug]/flash` — what a client sees when scanning available flash, request-to-book flow, "books closed" empty state
+- **NEW: cross-feature flow** — verify that a flash request that gets approved lands in the same bookings dashboard as a custom booking, with consistent status handling, deposit options, and customer portal experience
 
-**Scope (fix phase):** triage punch list by impact. Likely targets (placeholder until audit completes):
+**Scope (fix phase):** triage punch list by impact. Likely targets (placeholder until 60a punch list informs):
 
 - Empty-state copy + next-action prompts across the four list surfaces
 - Loading/pending feedback parity with the Instagram-resync pattern shipped 2026-05-10 (`useTransition`-driven spinner + status note)
 - Image quality on the public flash page — confirm Supabase-hosted thumbnails render at adequate resolution
 - Flash day status transitions feel intentional (upcoming → active → past automation already in place; UX clarity around manual cancel)
-- Inline help / first-encounter modal copy (already scaffolded in Slice 48 as OT-08, currently empty placeholders)
+- Flash request appearing in the unified booking list with no special-case affordances (consistency over feature isolation)
 
 **Out of scope:**
 
-- New features (e.g. flash variants, bulk pricing, custom availability rules)
+- New features (flash variants, bulk pricing, custom availability rules)
 - Schema changes
-- Public flash page redesign (separate visual pass, if needed, slots into Slice 61 territory)
+- Public flash page visual redesign (separate visual pass, if needed)
 - Instagram integration changes — caching layer shipped 2026-05-10, considered stable
+- Onboarding modal copy for Flash (handled in 60c)
 
-**Dependencies:** Slice 43 (Flash + Instagram), 2026-05-10 Instagram caching commit, OT-08 (feature intro modal copy — overlapping concern).
+**Dependencies:** Slice 43 (Flash + Instagram), 2026-05-10 Instagram caching commit, Slice 60a (audit), Slice 60b (IA restructure if any), Slice 60c (Flash intro modal copy).
 
 **Acceptance criteria:**
 
-- Written punch list committed to repo as `docs/flash-ux-audit-slice-60.md` (or similar)
+- Written punch list committed to repo as `docs/flash-ux-audit-slice-60d.md`
 - High-impact items shipped; deferred items re-filed as discrete OTs with explicit reasoning
-- Flash flow re-walked end-to-end after fixes; no regression on the four surfaces above
+- Flash flow re-walked end-to-end after fixes; no regression on the audited surfaces
+- An approved flash booking and an approved custom booking sit side-by-side in the dashboard with no visual or behavioural inconsistencies
 - `pnpm typecheck` and `pnpm lint` pass
 
 ---
