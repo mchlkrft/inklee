@@ -352,7 +352,7 @@ Each phase = a stage gate. Don't enter Phase N+1 until N's checklist is met.
 
 **Slices:**
 
-- **1.1 Pre-launch closeout** — finish OT-02 (Stripe live keys), OT-05c (board confirmation), OT-06 (legal review). Tracked in `project_inklee_roadmap.md`.
+- **1.1 Pre-launch closeout** — finish OT-02 (Stripe live keys), OT-06 (legal review). OT-05c (board confirmation) closed 2026-05-18 — imprint accepted as-is. Tracked in `project_inklee_roadmap.md`.
 - **1.2 Slices 60 + 61** — Flash UX audit + nav/auth UI pass.
 - **1.3 First real artist onboarding** — at least one paying-customer-grade artist completes signup → onboarding → public booking page → first real booking. No upgrade pressure.
 - **1.4 Free tier feature freeze** — Document which features are Free, in code or in this doc. Nothing else moves.
@@ -643,7 +643,7 @@ Built by a tattoo artist, for tattoo artists. No fake testimonials. No "free for
 The current step is **Phase 1 closeout**, not Phase 2. Specifically:
 
 1. **Finish OT-02** — swap Stripe live keys when ready for first real deposit
-2. **Finish OT-05c** — board confirmation in imprint
+2. ~~**OT-05c**~~ — ✓ Closed 2026-05-18, imprint accepted as-is
 3. **Finish OT-06** — legal review of ToS and Privacy
 4. **Ship Slices 60 + 61** — Flash UX audit + nav/auth UI pass
 5. **Onboard first real artist** — anyone outside the founder
