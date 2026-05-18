@@ -1302,14 +1302,14 @@ Slices 60–61 must complete before public launch. They block the MVP gate (Phas
 
 ### Slice 54 — Short domain technical setup (Phase A)
 
-**Status:** 🟡 Code shipped (inert) 2026-05-18 — awaiting DNS connection. **Scope + timing adjusted by founder 2026-05-18** (see `DECISIONS.md`): campaign shortlinks cut; pulled forward to pre-launch deliberately, overriding the post-launch gate, to lock the `inkl.ee/{slug}` link format before beta testers start sharing links.
+**Status:** ✅ LIVE 2026-05-18 — DNS connected (Zone → Cloudflare → Vercel), domain attached to project `inklee`, both paths verified redirecting. **Scope + timing adjusted by founder 2026-05-18** (see `DECISIONS.md`): campaign shortlinks cut; pulled forward to pre-launch deliberately, overriding the post-launch gate, to lock the `inkl.ee/{slug}` link format before beta testers start sharing links.
 
-**Goal:** `inkl.ee` is connected to the existing infrastructure and 301-redirects every path (root + artist slugs) to `inklee.app`. It is a pure artist-link shortener — no content, no campaign links.
+**Goal:** `inkl.ee` is connected to the existing infrastructure and permanently redirects every path (root + artist slugs) to `inklee.app`. It is a pure artist-link shortener — no content, no campaign links. (Redirects emit HTTP 308 — Vercel's `permanent: true`; SEO-equivalent to 301, satisfies the "permanent, never 302" invariant.)
 
 **Scope (as built):**
 
 - Connect `inkl.ee` to the Vercel project as a domain on `mchlkrfts-projects/inklee` (DNS: Zone registrar → Cloudflare nameservers, A `@` → `76.76.21.21` **DNS-only/grey-cloud** → Vercel)
-- Single host-scoped `vercel.json` redirect: `inkl.ee/:path* → 301 → https://inklee.app/:path*` (covers root → homepage and every `inkl.ee/{slug}` → artist page). `has` host condition makes it inert for `inklee.app` traffic.
+- Two host-scoped `vercel.json` redirects: explicit `/` + catch-all `/:path*`, both `inkl.ee → 308 → https://inklee.app/...` (the explicit root rule is required — `/:path*` does not match the root on Vercel; without it `inkl.ee/` served the homepage 200). `has` host condition makes both inert for `inklee.app` traffic.
 - `DECISIONS.md` records the mechanism + the campaign-cut + Option A (redirect, not serve) rationale.
 
 **Cut from original scope (2026-05-18):**
@@ -1327,8 +1327,8 @@ Slices 60–61 must complete before public launch. They block the MVP gate (Phas
 
 **Acceptance criteria:**
 
-- `curl -I https://inkl.ee/` returns 301 → `https://inklee.app/`
-- `curl -I https://inkl.ee/<some-artist-slug>` returns 301 → `https://inklee.app/<slug>` (verify with a real slug post-DNS)
+- `curl -I https://inkl.ee/` returns 308 → `https://inklee.app/` ✓ verified 2026-05-18 (after explicit root-rule fix)
+- `curl -I https://inkl.ee/<some-artist-slug>` returns 308 → `https://inklee.app/<slug>` ✓ verified 2026-05-18 (`/bert-grimm`)
 - `inkl.ee` returns zero indexable pages (manual check + `site:inkl.ee` search after 7 days); NOT added to the sitemap or to Search Console as a separate property
 - `pnpm typecheck` and `pnpm lint` pass ✓ (verified 2026-05-18: typecheck clean, lint 0 errors / 11 pre-existing unrelated warnings)
 

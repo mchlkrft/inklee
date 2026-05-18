@@ -17,6 +17,12 @@
   ],
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "inkl.ee" }],
+      "destination": "https://inklee.app/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "inkl.ee" }],
       "destination": "https://inklee.app/:path*",
