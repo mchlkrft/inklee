@@ -14,5 +14,13 @@
       "path": "/api/cron/instagram-refresh",
       "schedule": "0 4 * * *"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "inkl.ee" }],
+      "destination": "https://inklee.app/:path*",
+      "permanent": true
+    }
   ]
 }

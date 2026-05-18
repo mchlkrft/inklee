@@ -1302,37 +1302,35 @@ Slices 60–61 must complete before public launch. They block the MVP gate (Phas
 
 ### Slice 54 — Short domain technical setup (Phase A)
 
-**Status:** ⏳ pending — gated by post-launch checklist above
+**Status:** 🟡 Code shipped (inert) 2026-05-18 — awaiting DNS connection. **Scope + timing adjusted by founder 2026-05-18** (see `DECISIONS.md`): campaign shortlinks cut; pulled forward to pre-launch deliberately, overriding the post-launch gate, to lock the `inkl.ee/{slug}` link format before beta testers start sharing links.
 
-**Goal:** `inkl.ee` is connected to the existing infrastructure, the root domain 301-redirects to `inklee.app`, and analytics correctly attributes traffic that arrives via shortlinks.
+**Goal:** `inkl.ee` is connected to the existing infrastructure and 301-redirects every path (root + artist slugs) to `inklee.app`. It is a pure artist-link shortener — no content, no campaign links.
 
-**Scope:**
+**Scope (as built):**
 
-- Connect `inkl.ee` to the Vercel project as an alias domain on `mchlkrfts-projects/inklee`
-- Vercel redirect rule: `inkl.ee/* → inklee.app/*` (301), with `inkl.ee` root → `inklee.app` (301)
-- 3 hardcoded named shortlinks to validate the strategy before generalising:
-  - `inkl.ee/dm` → `inklee.app/dm-chaos?utm_source=instagram&utm_medium=shortlink&utm_campaign=dm_chaos`
-  - `inkl.ee/start` → `inklee.app/signup?utm_source=instagram&utm_medium=shortlink&utm_campaign=launch`
-  - `inkl.ee/link` → `inklee.app/instagram-booking-link-for-tattoo-artists?utm_source=instagram&utm_medium=shortlink&utm_campaign=ig_link`
-- Choose redirect implementation: `vercel.json` `redirects` config or middleware. Document the choice and the reasoning in `DECISIONS.md`. (Recommendation: `vercel.json` for the static set in Slices 54–55; revisit only if dynamic per-artist routing in Slice 58 forces middleware.)
-- Confirm Plausible attributes redirected traffic correctly — UTM params on the redirect target must survive into the page's `<script>` reading
-- Verify `inkl.ee` is NOT in the sitemap and is NOT submitted to Search Console as a separate property
-- Add a defensive `X-Robots-Tag: noindex` on any `inkl.ee` response that is not a 301 (should never trigger, but cheap insurance)
+- Connect `inkl.ee` to the Vercel project as a domain on `mchlkrfts-projects/inklee` (DNS: Zone registrar → Cloudflare nameservers, A `@` → `76.76.21.21` **DNS-only/grey-cloud** → Vercel)
+- Single host-scoped `vercel.json` redirect: `inkl.ee/:path* → 301 → https://inklee.app/:path*` (covers root → homepage and every `inkl.ee/{slug}` → artist page). `has` host condition makes it inert for `inklee.app` traffic.
+- `DECISIONS.md` records the mechanism + the campaign-cut + Option A (redirect, not serve) rationale.
 
-**Out of scope:** Dynamic shortlink mapping system (Slice 55), campaign management UI, dashboard tools (Slice 57), artist-slug shortlinks (Slice 58).
+**Cut from original scope (2026-05-18):**
+
+- ❌ The 3 named campaign shortlinks (`/dm`, `/start`, `/link`) — collide with the artist-slug namespace; would need permanent slug bans. Reversibly re-addable later as named rules above the catch-all if marketing ever wants them.
+- Consequently the Plausible-UTM-attribution acceptance step no longer applies to Slice 54 (no UTM-bearing links ship here). Artist-link attribution is a Slice 57/58 concern.
+
+**Out of scope (unchanged):** Dynamic shortlink mapping system (Slice 55), campaign management UI, dashboard share tools (Slice 57), artist pages _served_ (not redirected) on `inkl.ee` (Option B / Slices 56+58).
 
 **Technical risks:**
 
-- Plausible's `data-domain="inklee.app"` lives on the destination page — UTMs must be in the redirect target URL for attribution
-- If `inkl.ee` ever resolves to a Next.js page rather than a redirect, canonical and noindex must be airtight (this is why Slice 54 ships pure-redirect first)
-- Vercel alias-domain SSL certificate provisioning can take a few minutes — plan a low-traffic window
+- If `inkl.ee` ever resolves to a Next.js page rather than a redirect, canonical and noindex must be airtight — this is why it ships pure-redirect (Option A). Option B is explicitly deferred.
+- Cloudflare proxy (orange cloud) + Vercel apex = SSL/redirect-loop risk. Mitigated: records stay **DNS-only**; Vercel terminates TLS.
+- Vercel domain SSL certificate provisioning can take a few minutes after DNS resolves — plan a low-traffic window.
 
 **Acceptance criteria:**
 
-- `curl -I https://inkl.ee/dm` returns 301 with the correct `Location` header
-- Plausible dashboard shows the campaign UTM source after a real test click from a phone
-- `inkl.ee` returns zero indexable pages (manual check + `site:inkl.ee` search after 7 days)
-- `pnpm typecheck` and `pnpm lint` pass
+- `curl -I https://inkl.ee/` returns 301 → `https://inklee.app/`
+- `curl -I https://inkl.ee/<some-artist-slug>` returns 301 → `https://inklee.app/<slug>` (verify with a real slug post-DNS)
+- `inkl.ee` returns zero indexable pages (manual check + `site:inkl.ee` search after 7 days); NOT added to the sitemap or to Search Console as a separate property
+- `pnpm typecheck` and `pnpm lint` pass ✓ (verified 2026-05-18: typecheck clean, lint 0 errors / 11 pre-existing unrelated warnings)
 
 ---
 

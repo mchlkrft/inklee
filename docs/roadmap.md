@@ -42,12 +42,12 @@ Pre-launch closeout. Nothing else should accelerate until this horizon is clean.
 
 ### 3.1 Pre-launch blockers (must close)
 
-| ID     | Item                                                                                           | Effort   | Owner                              |
-| ------ | ---------------------------------------------------------------------------------------------- | -------- | ---------------------------------- |
-| OT-02  | Swap Stripe test → live keys (`sk_live_*`, `pk_live_*`, new webhook secret)                    | 30 min   | Founder, before first real deposit |
-| OT-05c | Imprint board confirmation — confirm "Michel Kraeft, sole member of Management Board"          | 10 min   | Founder                            |
-| OT-06  | ToS + Privacy lawyer review (EU/Estonian)                                                      | External | Founder → external lawyer          |
-| OT-01  | Supabase Storage bucket policy: restrict `bookings` bucket writes to service role, scope reads | 1 day    | Engineering                        |
+| ID         | Item                                                                                                                 | Effort   | Owner                              |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- |
+| OT-02      | Swap Stripe test → live keys (`sk_live_*`, `pk_live_*`, new webhook secret)                                          | 30 min   | Founder, before first real deposit |
+| ~~OT-05c~~ | ~~Imprint board confirmation~~ — ✓ Closed 2026-05-18, current imprint accepted as-is (no board-member line required) | ✓        | Founder                            |
+| OT-06      | ToS + Privacy lawyer review (EU/Estonian)                                                                            | External | Founder → external lawyer          |
+| OT-01      | Supabase Storage bucket policy: restrict `bookings` bucket writes to service role, scope reads                       | 1 day    | Engineering                        |
 
 ### 3.2 Pre-launch UX polish
 
@@ -121,11 +121,11 @@ Slice 63 ships 6 named events: `dm_chaos_view`, `dm_chaos_cta_click`, `signup_st
 
 ### 4.3 Short domain Phase A
 
-| Slice | Title                        | Purpose                                                                                   |
-| ----- | ---------------------------- | ----------------------------------------------------------------------------------------- |
-| 54    | Short domain technical setup | `inkl.ee` connected to Vercel, root → 301 → `inklee.app`, 3 hardcoded campaign shortlinks |
+| Slice | Title                        | Purpose                                                                                                                                                                         |
+| ----- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 54    | Short domain technical setup | `inkl.ee` connected to Vercel, host-scoped catch-all `inkl.ee/:path* → 301 → inklee.app/:path*` (covers root + every artist slug). **No campaign shortlinks** (cut 2026-05-18). |
 
-Pre-conditions met when launch is stable + at least 1 real artist + Plausible firing reliably. Slice 54 is the only inkl.ee work in Horizon 2. The rest of the short-domain phase (55–59) sits in Horizon 3.
+**Scope + timing adjusted 2026-05-18 (founder call):** Slice 54 is now a pure artist-link redirect surface — the 3 campaign shortlinks were cut (they collide with the artist-slug namespace; see `DECISIONS.md`). Redirect-only (Option A); serving artist pages on `inkl.ee` (Option B / Slice 56) stays deferred. **Pulled forward to pre-launch**, overriding the post-launch gate, deliberately: locking the `inkl.ee/{slug}` link format _before_ beta so testers are never migrated to a new link structure later. Code is inert until DNS connects (Zone → Cloudflare → Vercel). Slice 54 remains the only inkl.ee work before Horizon 3; 55–59 still sit in Horizon 3.
 
 ### 4.4 Business Model Phase 2 (pricing readiness)
 
@@ -318,7 +318,7 @@ See §4.6. Independent track. Memory: `project_inklee_template_repo.md`.
 ## 8. Dependency map (critical path)
 
 ```
-[Phase 1: Free launch] ─┬─ Pre-launch blockers (OT-02, OT-05c, OT-06, OT-01)
+[Phase 1: Free launch] ─┬─ Pre-launch blockers (OT-02, OT-06, OT-01)
                         ├─ Slices 60a–60d + 61
                         ├─ Phase D MVP gate
                         └─ First real artist + 4-week soak
@@ -353,7 +353,7 @@ Independent: [Phase E: Android] (after first real artist)
 
 | If you want to ship...             | You must first complete...                                                    |
 | ---------------------------------- | ----------------------------------------------------------------------------- |
-| Public launch                      | OT-02, OT-05c, OT-06, OT-01, Slices 60a–60d + 61, Phase D punch list          |
+| Public launch                      | OT-02, OT-06, OT-01, Slices 60a–60d + 61, Phase D punch list                  |
 | Any Plus feature gate              | Phase 2 (pricing readiness)                                                   |
 | Public `/pricing` page             | Phase 2 + first 4 weeks of Free-tier real usage                               |
 | A/B test on `/dm-chaos`            | Slice 63 firing reliably for ≥ 1 week                                         |
