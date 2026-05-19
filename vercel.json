@@ -27,6 +27,11 @@
       "has": [{ "type": "host", "value": "inkl.ee" }],
       "destination": "https://inklee.app/:path*",
       "permanent": true
+    },
+    {
+      "source": "/impressum",
+      "destination": "/imprint",
+      "permanent": true
     }
   ]
 }

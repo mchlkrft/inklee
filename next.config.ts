@@ -47,13 +47,8 @@ const nextConfig: NextConfig = {
       headers: securityHeaders,
     },
   ],
-  redirects: async () => [
-    {
-      source: "/impressum",
-      destination: "/imprint",
-      permanent: true,
-    },
-  ],
+  // /impressum -> /imprint moved to vercel.json `redirects` (edge-level,
+  // consistent with the inkl.ee short-domain redirect pattern; see DECISIONS.md).
 };
 
 export default nextConfig;

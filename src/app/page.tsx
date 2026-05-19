@@ -240,7 +240,7 @@ const FEATURES = [
     illustration: "/branding/illustrations/feature-deposit.svg",
     title: "Deposit Collection",
     description:
-      "Request deposits via Stripe. Clients pay directly from their magic link — no payment details stored on your side.",
+      "Inklee is built to make deposits part of the booking flow. Availability depends on your current setup and enabled features.",
   },
   {
     id: "waitlist",
