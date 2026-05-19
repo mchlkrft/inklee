@@ -77,6 +77,38 @@ export default function SignupPage() {
           <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          By creating an account you agree to our{" "}
+          <Link
+            href="/terms"
+            className="text-foreground underline underline-offset-4"
+          >
+            Terms
+          </Link>
+          ,{" "}
+          <Link
+            href="/acceptable-use"
+            className="text-foreground underline underline-offset-4"
+          >
+            Acceptable Use Policy
+          </Link>
+          , and{" "}
+          <Link
+            href="/dpa"
+            className="text-foreground underline underline-offset-4"
+          >
+            Data Processing Agreement
+          </Link>
+          , and have read our{" "}
+          <Link
+            href="/privacy"
+            className="text-foreground underline underline-offset-4"
+          >
+            Privacy Policy
+          </Link>
+          .
+        </p>
+
         <button
           type="submit"
           disabled={pending}
