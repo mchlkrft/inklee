@@ -39,7 +39,9 @@ Shipped this session (rendered verbatim from the draft via a markdown pipeline; 
 
 **Item D is RESOLVED.** Founder confirmed with counsel that the passive informational consent notice on `/signup` (links to Terms / AUP / DPA / Privacy, no checkbox, no recorded acceptance) is **sufficient** for contract formation including the Article 28 DPA. Consequently: E1 and R2 are **closed**; the handoff hard-stop _"do not onboard real artists beyond demo accounts until DPA click-accept is shipped"_ is **lifted** — real-artist onboarding is no longer blocked on a recorded click-accept. The `legal_acceptances` table + RLS migration + back-fill are **no longer required** (not merely deferred) and the "optimize legal compliances" backlog item is obsolete/closed.
 
-Scope note: this counsel confirmation covers the **consent mechanism only**. It is **not** blanket counsel sign-off of the legal _texts_ — the "draft pending legal review" footnote (`NEXT_PUBLIC_LEGAL_PENDING_REVIEW`) stays on until the texts themselves are signed off. Item E (deposit UX surfaces) is unaffected and still open.
+Scope note: this counsel confirmation covers the **consent mechanism only**. Item E (deposit UX surfaces) is unaffected and still open.
+
+**Legal texts CLEARED by counsel — 2026-05-20.** Founder confirmed counsel has signed off the legal texts themselves (imprint / terms / DPA / AUP), not just the consent mechanism. Accordingly the "draft pending legal review" footnote is **disabled in Production** by setting `NEXT_PUBLIC_LEGAL_PENDING_REVIEW=false` in the Vercel Production environment (effective on the next production build). Preview environment intentionally left at the default (footnote still shown) — conservative for internal builds; the non-interactive CLI also blocked the all-Preview write. The "Approvals Needed → Estonian/EU counsel" row below is satisfied as of 2026-05-20 for the published scope (imprint, terms, DPA, AUP). Privacy/cookies/subprocessors and the other next-sprint texts are still unwritten and out of this sign-off.
 
 ### Status by item
 
