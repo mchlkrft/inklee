@@ -18,6 +18,7 @@ import type { BookingMode } from "@/lib/booking-domain";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { compressImageInBrowser } from "@/lib/image-compress";
+import { PublicBookingLegalNotice } from "@/components/public-booking/legal-notice";
 
 type State = { error: string; field?: string } | null;
 
@@ -95,6 +96,7 @@ export default function BookingForm({
   const [demoBlocked, setDemoBlocked] = useState(false);
   const [preferredDate, setPreferredDate] = useState("");
   const [description, setDescription] = useState("");
+  const [legalExpanded, setLegalExpanded] = useState(false);
 
   // Image management — stable IDs decouple annotation tracking from array order
   const [imageEntries, setImageEntries] = useState<ImageEntry[]>([]);
@@ -716,8 +718,19 @@ export default function BookingForm({
           <Link href="/acceptable-use" className="underline underline-offset-4">
             Acceptable Use Policy
           </Link>
-          .
+          .{" "}
+          <button
+            type="button"
+            onClick={() => setLegalExpanded((v) => !v)}
+            aria-expanded={legalExpanded}
+            aria-controls="public-booking-legal-notice"
+            className="align-baseline text-xs underline underline-offset-4"
+          >
+            {legalExpanded ? "Show less" : "Learn more"}
+          </button>
         </p>
+
+        {legalExpanded && <PublicBookingLegalNotice />}
       </form>
 
       {/* Annotation modal — rendered outside the form to avoid nested form issues */}

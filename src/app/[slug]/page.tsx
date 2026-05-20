@@ -6,7 +6,6 @@ import BookingForm from "./booking-form";
 import BooksClosedBlock from "./books-closed-block";
 import StudioBlock from "./studio-block";
 import WaitlistForm from "./waitlist-form";
-import { PublicBookingLegalNotice } from "@/components/public-booking/legal-notice";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
@@ -457,8 +456,6 @@ export default async function ArtistPublicPage({
               />
             )}
           </div>
-
-          <PublicBookingLegalNotice />
         </div>
       </main>
 

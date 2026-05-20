@@ -2,19 +2,21 @@ import Link from "next/link";
 
 /**
  * Public Booking Page Client Notice — verbatim from legal/LEGAL-PACKAGE-DRAFT.md
- * Section 8. Rendered at the bottom of every `/[slug]` public artist page above
- * the page footer. Contains the exact required deposit wording.
+ * Section 8. Counsel-cleared 2026-05-20 under the global sign-off umbrella.
  *
- * Counsel-cleared 2026-05-20 under the global sign-off umbrella.
+ * Rendered conditionally inside `src/app/[slug]/booking-form.tsx`, behind a
+ * "Learn more" / "Show less" toggle in the by-submitting paragraph below the
+ * submit button (founder call 2026-05-20 — the always-on notice was visually
+ * heavy on the public artist page). The toggle uses `aria-controls` to point
+ * at the `id="public-booking-legal-notice"` below, so keep that id in place.
  *
- * Not a standalone route — this notice intentionally lives on the booking page,
- * not at `/public-booking-notice` etc. If a `/data-requests` route ships later,
- * §3 should gain a `/data-requests` link per the legal-package implementation
- * notes (Section 17.2).
+ * Not a standalone route — embedded only. If a `/data-requests` route ships
+ * later, §3 should gain a `/data-requests` link per implementation notes §17.2.
  */
 export function PublicBookingLegalNotice() {
   return (
     <section
+      id="public-booking-legal-notice"
       aria-labelledby="public-booking-legal-notice-heading"
       className="space-y-4 border-t border-border pt-6 text-sm leading-relaxed text-muted-foreground"
     >
