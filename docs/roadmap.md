@@ -1,9 +1,9 @@
 # Inklee Roadmap (Unified View)
 
-**Last updated:** 2026-05-16
-**Current prod commit:** `8ba71e5`
+**Last updated:** 2026-05-20
+**Current prod commit:** `d5e9db1`
 **Migrations applied:** 0000–0031
-**Status:** MVP feature-complete as a solo-artist tool. Pre-launch closeout in flight. No subscription/monetization layer in code yet.
+**Status:** MVP feature-complete as a solo-artist tool. Pre-launch closeout in flight. Legal package shipped + counsel-cleared; `inkl.ee` short domain live. No subscription/monetization layer in code yet.
 
 **Purpose.** This is the single high-level view. For slice-level details see `SLICES_CONTINUATION.md`. For strategy and pricing details see `docs/business-model.md`. For the public template repo cadence see the memory file `project_inklee_template_repo.md`. This doc supersedes informal "what's next" summaries scattered across other places.
 
@@ -11,7 +11,7 @@
 
 ## 1. Current snapshot
 
-10 SEO/GEO marketing pages live. Reworked About page. Public booking flow, trip planner, deposits (Stripe test mode), waitlist, slot mode, customer portal — all shipped. Stripe is deposit-only, not subscriptions. No plan/tier model in the schema. Studio multi-tenancy does NOT exist. Public template repo at `mchlkrft/tattoo-booking-form-template` v1.0.0 shipped 2026-05-15.
+10 SEO/GEO marketing pages live. Reworked About page. Public booking flow, trip planner, deposits (Stripe test mode), waitlist, slot mode, customer portal — all shipped. Stripe is deposit-only, not subscriptions. No plan/tier model in the schema. Studio multi-tenancy does NOT exist. Public template repo at `mchlkrft/tattoo-booking-form-template` v1.0.0 shipped 2026-05-15. Legal package (imprint/terms/dpa/AUP) shipped 2026-05-19 and counsel-cleared 2026-05-20 (Art. 28 satisfied by passive signup notice per counsel — no `legal_acceptances` table needed). `inkl.ee` short-domain pure-redirect surface live since 2026-05-18.
 
 **The honest summary:** product is ready to launch in free mode. Monetization architecture starts after launch + first real artist + 4 weeks of clean data.
 
@@ -19,20 +19,26 @@
 
 ## 2. What's already shipped
 
-| Milestone                                          | Status               | Reference                                           |
-| -------------------------------------------------- | -------------------- | --------------------------------------------------- |
-| MVP product slices 0–23                            | ✓ Shipped            | `SLICES.md`                                         |
-| Pre-v0.1 extension (Slices 24–31)                  | ✓ Shipped            | `SLICES_CONTINUATION.md`                            |
-| Hardening package (Slices 32–40)                   | ✓ Shipped            | RLS, rate limiting, payment hardening               |
-| Post-hardening work (Slices 41–53)                 | ✓ Shipped            | Trip Planner, Flash, admin, branding                |
-| Security incident recovery (2026-05-10)            | ✓ Closed             | Migrations 0026–0031                                |
-| UI rework (app shell + page polish)                | ✓ Shipped            | Commits `885f9f8` + `2a4af67`                       |
-| Slot location auto-tagging + studio library access | ✓ Shipped            | Commit `f42f2d2`                                    |
-| 10 SEO/GEO pages live                              | ✓ Shipped            | Slices 5–8, 11–16                                   |
-| Public template repo v1.0.0                        | ✓ Shipped            | github.com/mchlkrft/tattoo-booking-form-template    |
-| Reworked About page                                | ✓ Shipped            | Editorial SEO layout                                |
-| Analytics + roadmap A/B test docs                  | ✓ Shipped            | `docs/analytics-audit-2026-05-14.md` + Slices 62–69 |
-| Business model strategy doc v0.1                   | ✓ Shipped 2026-05-16 | `docs/business-model.md`                            |
+| Milestone                                                | Status                                           | Reference                                                                                                                                                                                                  |
+| -------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MVP product slices 0–23                                  | ✓ Shipped                                        | `SLICES.md`                                                                                                                                                                                                |
+| Pre-v0.1 extension (Slices 24–31)                        | ✓ Shipped                                        | `SLICES_CONTINUATION.md`                                                                                                                                                                                   |
+| Hardening package (Slices 32–40)                         | ✓ Shipped                                        | RLS, rate limiting, payment hardening                                                                                                                                                                      |
+| Post-hardening work (Slices 41–53)                       | ✓ Shipped                                        | Trip Planner, Flash, admin, branding                                                                                                                                                                       |
+| Security incident recovery (2026-05-10)                  | ✓ Closed                                         | Migrations 0026–0031                                                                                                                                                                                       |
+| UI rework (app shell + page polish)                      | ✓ Shipped                                        | Commits `885f9f8` + `2a4af67`                                                                                                                                                                              |
+| Slot location auto-tagging + studio library access       | ✓ Shipped                                        | Commit `f42f2d2`                                                                                                                                                                                           |
+| 10 SEO/GEO pages live                                    | ✓ Shipped                                        | Slices 5–8, 11–16                                                                                                                                                                                          |
+| Public template repo v1.0.0                              | ✓ Shipped                                        | github.com/mchlkrft/tattoo-booking-form-template                                                                                                                                                           |
+| Reworked About page                                      | ✓ Shipped                                        | Editorial SEO layout                                                                                                                                                                                       |
+| Analytics + roadmap A/B test docs                        | ✓ Shipped                                        | `docs/analytics-audit-2026-05-14.md` + Slices 62–69                                                                                                                                                        |
+| Business model strategy doc v0.1                         | ✓ Shipped 2026-05-16                             | `docs/business-model.md`                                                                                                                                                                                   |
+| `inkl.ee` short-domain redirect surface (Slice 54)       | ✓ Shipped 2026-05-18                             | Commits `d8cf2b2` + `7d58f3d`; DNS Zone→Cloudflare→Vercel; 308 catch-all to `inklee.app`                                                                                                                   |
+| Legal package — imprint/terms/dpa/acceptable-use         | ✓ Shipped 2026-05-19, counsel-cleared 2026-05-20 | Verbatim from `legal/LEGAL-PACKAGE-DRAFT.md`; `src/app/(legal)/` + markdown pipeline; commits `421e91f` + `d5e9db1`; pending-review footnote disabled in prod via `NEXT_PUBLIC_LEGAL_PENDING_REVIEW=false` |
+| Signup passive consent notice                            | ✓ Shipped 2026-05-19                             | Commit `3d13394`; counsel-confirmed sufficient for Art. 28 in lieu of recorded click-accept                                                                                                                |
+| Homepage deposit feature card — exact required wording   | ✓ Shipped 2026-05-19                             | Closes the H1/K2 launch-blocker on the homepage surface                                                                                                                                                    |
+| `/impressum` → `/imprint` 308 relocated to `vercel.json` | ✓ Shipped 2026-05-19                             | Edge-level, consistent with the inkl.ee redirect pattern                                                                                                                                                   |
+| OT-05c imprint board confirmation                        | ✓ Closed 2026-05-18                              | Current imprint accepted as-is                                                                                                                                                                             |
 
 ---
 
@@ -42,28 +48,29 @@ Pre-launch closeout. Nothing else should accelerate until this horizon is clean.
 
 ### 3.1 Pre-launch blockers (must close)
 
-| ID         | Item                                                                                                                 | Effort   | Owner                              |
-| ---------- | -------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- |
-| OT-02      | Swap Stripe test → live keys (`sk_live_*`, `pk_live_*`, new webhook secret)                                          | 30 min   | Founder, before first real deposit |
-| ~~OT-05c~~ | ~~Imprint board confirmation~~ — ✓ Closed 2026-05-18, current imprint accepted as-is (no board-member line required) | ✓        | Founder                            |
-| OT-06      | ToS + Privacy lawyer review (EU/Estonian)                                                                            | External | Founder → external lawyer          |
-| OT-01      | Supabase Storage bucket policy: restrict `bookings` bucket writes to service role, scope reads                       | 1 day    | Engineering                        |
+| ID         | Item                                                                                                                                                                   | Effort | Owner                              |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------- |
+| OT-02      | Swap Stripe test → live keys (`sk_live_*`, `pk_live_*`, new webhook secret)                                                                                            | 30 min | Founder, before first real deposit |
+| OT-01      | Supabase Storage bucket policy: restrict `bookings` bucket writes to service role, scope reads                                                                         | 1 day  | Engineering                        |
+| ~~OT-05c~~ | ~~Imprint board confirmation~~ — ✓ Closed 2026-05-18 (see §2)                                                                                                          | ✓      | Founder                            |
+| ~~OT-06~~  | ~~ToS lawyer review~~ — ✓ Closed 2026-05-20 for the published scope (imprint/terms/DPA/AUP). Privacy lawyer review moves to §3.5 once `/privacy` Section 4 is shipped. | ✓      | Founder → external lawyer          |
 
 ### 3.2 Pre-launch UX polish
 
-Slice 60 was expanded 2026-05-16 into a platform-wide UX audit + restructure across four sub-slices. Slice 61 (auth UI) stays distinct.
+Slice 60 was expanded 2026-05-16 into a platform-wide UX audit + restructure across four sub-slices (60a–60d). Slice 60e was added 2026-05-20 for the deposit UX surfaces flagged by the legal package (item E). Slice 61 (auth UI) stays distinct.
 
-| Slice | Title                                             | Acceptance                                                                          |
-| ----- | ------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 60a   | Platform-wide UX audit + IA decision doc          | `docs/platform-ux-audit-slice-60a.md` + entry in `DECISIONS.md`. No code.           |
-| 60b   | Navigation + IA restructure (implementation)      | Sidebar/top-bar/mobile-nav rewired per 60a decision; redirects for any moved routes |
-| 60c   | Onboarding wizard extension + mobile optimization | Intro slides + 375px pass + feature-intro modal copy (closes OT-08)                 |
-| 60d   | Flash feature thorough audit + flow integration   | `docs/flash-ux-audit-slice-60d.md` + flash sits cleanly in the unified booking list |
-| 61    | Auth UI pass                                      | `docs/nav-auth-ui-audit-slice-61.md` + visual/copy fixes (auth surfaces only)       |
+| Slice | Title                                             | Acceptance                                                                                                                                                                                                                                                                                                                         |
+| ----- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 60a   | Platform-wide UX audit + IA decision doc          | `docs/platform-ux-audit-slice-60a.md` + entry in `DECISIONS.md`. No code.                                                                                                                                                                                                                                                          |
+| 60b   | Navigation + IA restructure (implementation)      | Sidebar/top-bar/mobile-nav rewired per 60a decision; redirects for any moved routes                                                                                                                                                                                                                                                |
+| 60c   | Onboarding wizard extension + mobile optimization | Intro slides + 375px pass + feature-intro modal copy (closes OT-08)                                                                                                                                                                                                                                                                |
+| 60d   | Flash feature thorough audit + flow integration   | `docs/flash-ux-audit-slice-60d.md` + flash sits cleanly in the unified booking list                                                                                                                                                                                                                                                |
+| 60e   | Deposit UX surfaces (new, from legal item E)      | Artist deposit-settings UI + public booking-page deposit section + Stripe test-mode banner (yellow, when `pk_test_*`). Required exact wording present on each surface: _"Inklee is built to make deposits part of the booking flow. Availability depends on your current setup and enabled features."_ Homepage card already done. |
+| 61    | Auth UI pass                                      | `docs/nav-auth-ui-audit-slice-61.md` + visual/copy fixes (auth surfaces only)                                                                                                                                                                                                                                                      |
 
-**Sequencing:** 60a must close first. 60b + 60c can run in parallel once 60a closes. 60d follows 60b. Slice 61 is independent.
+**Sequencing:** 60a must close first. 60b + 60c can run in parallel once 60a closes. 60d follows 60b. Slices 60e and 61 are independent and can run in parallel with the rest.
 
-All five are audit-and-targeted-fix slices, not redesigns. Ship-blocking only if 60a's audit surfaces critical issues.
+60a–60d + 61 are audit-and-targeted-fix slices, not redesigns; ship-blocking only if 60a's audit surfaces critical issues. 60e is a build-the-surface slice (the artist deposit-settings UI and the public booking-page deposit section do not exist today) and is ship-blocking only for any environment that still runs Stripe in test mode (the test-mode banner gate).
 
 ### 3.3 Phase D — Final MVP UX review (the gate)
 
@@ -95,6 +102,35 @@ After punch list closes:
 
 This is the gate that closes Business Model Phase 1 and unblocks Phase 2.
 
+### 3.5 Legal next-sprint (not launch-blocking, ship in launch-week sprint)
+
+The launch-blocker legal package (imprint/terms/dpa/AUP) shipped and was counsel-cleared on 2026-05-20. These are the remaining items from `legal/HANDOFF-TO-CLAUDE-CODE.md` §3 and `legal/COMPLIANCE-CHECK.md` §"Next-sprint fixes" — not launch-blocking, but should ship in the launch-week sprint or shortly after.
+
+| ID  | Item                                                    | Source                                       | Notes                                                                                                                                                                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L-1 | Replace `/privacy` with the new copy + counsel review   | Draft Section 4                              | Adds legal bases per activity, controller/processor split, full subprocessor list (Stripe, Sentry, Upstash, Cloudflare, Google OAuth), international-transfers paragraph, minors, UK GDPR, magic-link disclosure, breach commitment, AKI/ICO complaint right. Slot the lawyer review (former OT-06 Privacy half) immediately after the text is shipped. |
+| L-2 | Publish `/cookies`                                      | Draft Section 6                              | List Supabase auth cookies by name and expiry; remove the planned-flag from the footer Cookies entry.                                                                                                                                                                                                                                                   |
+| L-3 | Publish `/subprocessors`                                | Draft Section 15                             | Confirm region and transfer mechanism per provider.                                                                                                                                                                                                                                                                                                     |
+| L-4 | Section 8 `/[slug]` client notice                       | Draft Section 8                              | Notice block at the bottom of every public artist page incl. exact deposit wording and "artist is the seller, not Inklee" framing. Dovetails with Slice 60e.                                                                                                                                                                                            |
+| L-5 | DSA notice-and-action route `/legal/report` (or `/dsa`) | Handoff §3 item 9 + draft `legal/report` row | Form + structured email acceptance; document internal moderation procedure.                                                                                                                                                                                                                                                                             |
+| L-6 | Soften homepage "GDPR compliant" badge                  | Compliance R8/K1                             | Replace with "EU-hosted, GDPR-aligned" until a third-party assessment exists.                                                                                                                                                                                                                                                                           |
+
+### 3.6 Counsel + founder open items (track to closure)
+
+Open items from `legal/HANDOFF-TO-CLAUDE-CODE.md` §5 — these are _track to closure_ rather than build tasks. Most need counsel input; some are founder-side compliance hygiene.
+
+| ID   | Item                                                                                      | Owner                    |
+| ---- | ----------------------------------------------------------------------------------------- | ------------------------ |
+| LO-1 | DPO confirmation under GDPR Art. 37 (current assumption: not required)                    | Counsel                  |
+| LO-2 | PSD2 / merchant-of-record analysis for Stripe Connect deposit flow                        | Counsel                  |
+| LO-3 | DSA Art. 19 micro/small-enterprise exemption scope                                        | Counsel                  |
+| LO-4 | Liability-cap enforceability against sole-trader artists in Estonia                       | Counsel                  |
+| LO-5 | DPIA for booking-image processing, magic-link tokens, Stripe deposit flow                 | Founder + technical lead |
+| LO-6 | CCPA / CPRA monitoring threshold (when US traffic triggers a review)                      | Founder                  |
+| LO-7 | Estonian VAT threshold tracking (re-issue imprint + invoicing when EUR 40k/yr is reached) | Founder                  |
+| LO-8 | Marketing-claim substantiation for the "GDPR compliant" badge (closes with L-6 above)     | Founder                  |
+| LO-9 | Trademark clearance for "Inklee" and "inkl.ee" (also in `DECISIONS.md` open)              | Founder                  |
+
 ---
 
 ## 4. Horizon 2 — Next (1–3 months post-launch)
@@ -119,13 +155,9 @@ Three parallel tracks once launch is stable. They don't compete much — differe
 
 Slice 63 ships 6 named events: `dm_chaos_view`, `dm_chaos_cta_click`, `signup_started`, `signup_completed`, `onboarding_started`, `booking_link_created`. Server-side `signup_completed` fires once at `/onboarding/done`. Internal exclusion via `ADMIN_EMAILS` + `inklee_internal=1` cookie. Meta Pixel scaffolded but disabled.
 
-### 4.3 Short domain Phase A
+### 4.3 Short domain Phase A — ✅ COMPLETE
 
-| Slice  | Title                        | Purpose                                                                                                                                                                              |
-| ------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ~~54~~ | Short domain technical setup | ✅ **LIVE 2026-05-18.** `inkl.ee` on Vercel; host-scoped `/` + `/:path*` rules `inkl.ee → 308 → inklee.app` (root + every artist slug). **No campaign shortlinks** (cut 2026-05-18). |
-
-**✅ Shipped & verified 2026-05-18 (founder call, pulled forward to pre-launch).** Pure artist-link redirect surface — 3 campaign shortlinks cut (collide with artist-slug namespace; see `DECISIONS.md`). Redirect-only (Option A); serving artist pages on `inkl.ee` (Option B / Slice 56) stays deferred. Pulled forward overriding the post-launch gate, deliberately: locks the `inkl.ee/{slug}` link format _before_ beta so testers are never migrated. DNS = Zone → Cloudflare (grey-cloud A → `76.76.21.21`) → Vercel. Redirects are HTTP **308** (Vercel `permanent:true`; SEO-equivalent to 301). Commits `d8cf2b2` + `7d58f3d`. 55–59 still sit in Horizon 3. **Open:** 7-day `site:inkl.ee` indexability check (~2026-05-25); `www.inkl.ee` not set up (apex only).
+Slice 54 shipped 2026-05-18 (see §2). Pure artist-link redirect surface (Option A; campaign shortlinks cut); `inkl.ee/:path* → 308 → inklee.app/:path*`. Open follow-ups: scheduled 7-day `site:inkl.ee` indexability check (~2026-05-25, routine `trig_01RSxBg76SUpnRHybR6mLUnR`); `www.inkl.ee` not set up (apex only). Slices 55–59 remain in Horizon 3.
 
 ### 4.4 Business Model Phase 2 (pricing readiness)
 
@@ -294,18 +326,20 @@ See §4.6. Independent track. Memory: `project_inklee_template_repo.md`.
 
 ### 7.2 Open follow-ups (low-priority backlog)
 
-| ID    | Item                                                                                  | Origin                                                                                                           |
-| ----- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| FU-1  | Public artist page round 2 mockup                                                     | UI rework Phase 3                                                                                                |
-| FU-2  | Outline doubling at corners (1.5px border alpha-overlap at T-junctions)               | UI rework Phase 3. Five fixes tried + rolled back. Recommended next attempt: solid (non-alpha) `--border` color. |
-| FU-3  | Sidebar nav sub-item font-size tuning                                                 | UI rework Phase 3                                                                                                |
-| FU-4  | Fixed-slots in-flow onboarding (link directly to slot creation from onboarding done)  | Low priority                                                                                                     |
-| FU-5  | Instagram app secret rotation                                                         | Pasted in chat 2026-05-10; founder committed to rotating later                                                   |
-| FU-6  | Storage logos public-listing                                                          | Security Advisor warning, deferred. Files are intentionally public, just shouldn't be enumerable.                |
-| FU-7  | Marketing components don't accept `ReactNode` in body fields                          | Blocks inline cross-links. Fix path: widen body types to `ReactNode`.                                            |
-| FU-8  | SEO-page footers use local `LandingFooter`, not config-driven                         | Build `<MinimalFooter />` variant reading only Legal group                                                       |
-| FU-9  | Homepage footer grid fixed at `md:grid-cols-5`                                        | Make responsive to `groups.length` before activating Resources                                                   |
-| FU-10 | OT-08: Feature intro modal copy (Flash, Waitlist, Travel modals scaffolded but empty) | Slice 48                                                                                                         |
+| ID    | Item                                                                                  | Origin                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| FU-1  | Public artist page round 2 mockup                                                     | UI rework Phase 3                                                                                                                       |
+| FU-2  | Outline doubling at corners (1.5px border alpha-overlap at T-junctions)               | UI rework Phase 3. Five fixes tried + rolled back. Recommended next attempt: solid (non-alpha) `--border` color.                        |
+| FU-3  | Sidebar nav sub-item font-size tuning                                                 | UI rework Phase 3                                                                                                                       |
+| FU-4  | Fixed-slots in-flow onboarding (link directly to slot creation from onboarding done)  | Low priority                                                                                                                            |
+| FU-5  | Instagram app secret rotation                                                         | Pasted in chat 2026-05-10; founder committed to rotating later                                                                          |
+| FU-6  | Storage logos public-listing                                                          | Security Advisor warning, deferred. Files are intentionally public, just shouldn't be enumerable.                                       |
+| FU-7  | Marketing components don't accept `ReactNode` in body fields                          | Blocks inline cross-links. Fix path: widen body types to `ReactNode`.                                                                   |
+| FU-8  | SEO-page footers use local `LandingFooter`, not config-driven                         | Build `<MinimalFooter />` variant reading only Legal group                                                                              |
+| FU-9  | Homepage footer grid fixed at `md:grid-cols-5`                                        | Make responsive to `groups.length` before activating Resources                                                                          |
+| FU-10 | OT-08: Feature intro modal copy (Flash, Waitlist, Travel modals scaffolded but empty) | Slice 48                                                                                                                                |
+| FU-11 | `www.inkl.ee` not set up (apex only)                                                  | Slice 54 follow-up. One Cloudflare CNAME + one Vercel domain add when wanted.                                                           |
+| FU-12 | `NEXT_PUBLIC_LEGAL_PENDING_REVIEW` Preview env not written                            | Non-interactive Vercel CLI blocked the all-Preview write 2026-05-20; Production is set. Add via dashboard if a preview must look final. |
 
 ### 7.3 Marketing asset delivery (founder-driven)
 
@@ -318,8 +352,8 @@ See §4.6. Independent track. Memory: `project_inklee_template_repo.md`.
 ## 8. Dependency map (critical path)
 
 ```
-[Phase 1: Free launch] ─┬─ Pre-launch blockers (OT-02, OT-06, OT-01)
-                        ├─ Slices 60a–60d + 61
+[Phase 1: Free launch] ─┬─ Pre-launch blockers (OT-02, OT-01)
+                        ├─ Slices 60a–60d + 60e + 61
                         ├─ Phase D MVP gate
                         └─ First real artist + 4-week soak
                                 ↓
@@ -353,7 +387,7 @@ Independent: [Phase E: Android] (after first real artist)
 
 | If you want to ship...             | You must first complete...                                                    |
 | ---------------------------------- | ----------------------------------------------------------------------------- |
-| Public launch                      | OT-02, OT-06, OT-01, Slices 60a–60d + 61, Phase D punch list                  |
+| Public launch                      | OT-02, OT-01, Slices 60a–60d + 60e + 61, Phase D punch list                   |
 | Any Plus feature gate              | Phase 2 (pricing readiness)                                                   |
 | Public `/pricing` page             | Phase 2 + first 4 weeks of Free-tier real usage                               |
 | A/B test on `/dm-chaos`            | Slice 63 firing reliably for ≥ 1 week                                         |
