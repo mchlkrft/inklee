@@ -707,10 +707,14 @@ export default function BookingForm({
           By submitting, you agree to our{" "}
           <Link href="/terms" className="underline underline-offset-4">
             Terms
-          </Link>{" "}
-          and{" "}
+          </Link>
+          ,{" "}
           <Link href="/privacy" className="underline underline-offset-4">
             Privacy Policy
+          </Link>
+          , and{" "}
+          <Link href="/acceptable-use" className="underline underline-offset-4">
+            Acceptable Use Policy
           </Link>
           .
         </p>

@@ -41,6 +41,10 @@ Shipped this session (rendered verbatim from the draft via a markdown pipeline; 
 
 Scope note: this counsel confirmation covers the **consent mechanism only**. Item E (deposit UX surfaces) is unaffected and still open.
 
+**L-4 CLOSED — 2026-05-20.** Section 8 client notice now renders at the bottom of every `/[slug]` public artist page via a new server component `src/components/public-booking/legal-notice.tsx` (verbatim from draft Section 8; counsel-cleared under the global umbrella). Booking-form's "By submitting…" line widened to include the Acceptable Use Policy alongside Terms + Privacy. Closes G1 (Art. 13 collection notice), G2 (artist-is-the-seller framing), G3 (exact deposit wording on the public booking surface), G4 (magic-link cancel pre-submission explanation). G5 (marketing/transactional opt-in stance) remains a confirm-item, not blocking. Also satisfies the public-booking-page surface of legal item E (Slice 60e narrows accordingly).
+
+**L-6 DROPPED — 2026-05-20.** Founder decided to leave the homepage "GDPR compliant" badge as-is. The underlying R8/K1 UCPD-substantiation concern remains a founder-accepted residual until/unless a third-party assessment exists. Tracked as LO-8 in `docs/roadmap.md` §3.6, no longer in §3.5.
+
 **L-3 CLOSED — 2026-05-20.** `/subprocessors` shipped verbatim from draft Section 15 via the same markdown pipeline (`src/app/(legal)/subprocessors/`). Footer Subprocessors entry added as active; `LEGAL_FOOTER_LINKS` updated. Counsel-cleared under the global sign-off umbrella. Closes C6 (subprocessor list complete) and E4 (subprocessor authorisation surface).
 
 **L-2 CLOSED — 2026-05-20.** `/cookies` shipped verbatim from draft Section 6 via the same markdown pipeline (`src/app/(legal)/cookies/`). Footer Cookies entry flipped from `planned` to `active`; `LEGAL_FOOTER_LINKS` updated. Counsel-cleared under the global sign-off umbrella. Closes D1, D3. D4 (vendor-specific cookie list with name/expiry detail per provider) remains as a documentation enrichment, not a launch issue.
