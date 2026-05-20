@@ -3,7 +3,6 @@ title: Privacy Policy
 version: "2026-05-19"
 lastUpdated: "2026-05-19"
 requiresAccept: false
-pendingReview: true
 ---
 
 This policy explains what data we collect about you, why we collect it, and what your rights are. It applies to the Inklee website, the Inklee web app, public artist pages hosted by Inklee, and the booking-request workflow.
