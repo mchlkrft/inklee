@@ -12,6 +12,7 @@ const LEGAL_FOOTER_LINKS: { label: string; href: string }[] = [
   { label: "DPA", href: "/dpa" },
   { label: "Acceptable Use", href: "/acceptable-use" },
   { label: "Cookies", href: "/cookies" },
+  { label: "Subprocessors", href: "/subprocessors" },
 ];
 
 const markdownComponents: Components = {

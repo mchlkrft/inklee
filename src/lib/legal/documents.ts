@@ -9,7 +9,8 @@ export type LegalDocId =
   | "dpa"
   | "acceptable-use"
   | "privacy"
-  | "cookies";
+  | "cookies"
+  | "subprocessors";
 
 const CONTENT_DIR = path.join(process.cwd(), "content", "legal");
 
