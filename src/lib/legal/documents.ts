@@ -3,7 +3,12 @@ import path from "node:path";
 import crypto from "node:crypto";
 import matter from "gray-matter";
 
-export type LegalDocId = "imprint" | "terms" | "dpa" | "acceptable-use";
+export type LegalDocId =
+  | "imprint"
+  | "terms"
+  | "dpa"
+  | "acceptable-use"
+  | "privacy";
 
 const CONTENT_DIR = path.join(process.cwd(), "content", "legal");
 
@@ -16,6 +21,12 @@ export type LegalDoc = {
   lastUpdated: string;
   /** Whether this document must be click-accepted (used by the deferred signup flow). */
   requiresAccept: boolean;
+  /**
+   * Per-document override forcing the "draft pending legal review" footnote
+   * ON for this page, regardless of NEXT_PUBLIC_LEGAL_PENDING_REVIEW. Set on
+   * documents that haven't been counsel-cleared yet while others have.
+   */
+  pendingReview?: boolean;
   /** Markdown body (frontmatter stripped). */
   body: string;
   /**
@@ -49,6 +60,7 @@ export function getLegalDoc(id: LegalDocId): LegalDoc {
     version,
     lastUpdated: String(data.lastUpdated),
     requiresAccept: Boolean(data.requiresAccept),
+    pendingReview: data.pendingReview === true ? true : undefined,
     body: content,
     versionHash,
   };

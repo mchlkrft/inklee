@@ -52,8 +52,13 @@ const markdownComponents: Components = {
 };
 
 export function LegalPageLayout({ doc }: { doc: LegalDoc }) {
-  // Default true: the footnote shows unless explicitly disabled by counsel.
+  // Show the "draft pending legal review" footnote when EITHER:
+  // - the doc has a per-page override forcing it on (used when this specific
+  //   doc isn't counsel-cleared yet while others are), OR
+  // - the global env flag isn't explicitly "false" (default-on; counsel sets
+  //   `NEXT_PUBLIC_LEGAL_PENDING_REVIEW=false` after broad sign-off).
   const pendingReview =
+    doc.pendingReview === true ||
     process.env.NEXT_PUBLIC_LEGAL_PENDING_REVIEW !== "false";
 
   return (

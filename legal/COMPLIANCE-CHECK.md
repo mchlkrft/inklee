@@ -41,6 +41,8 @@ Shipped this session (rendered verbatim from the draft via a markdown pipeline; 
 
 Scope note: this counsel confirmation covers the **consent mechanism only**. Item E (deposit UX surfaces) is unaffected and still open.
 
+**L-1 shipped — 2026-05-20.** `/privacy` replaced with draft Section 4 verbatim (placeholders filled: `[DATE]` → 2026-05-19, `[RETENTION default X]` → X) via the same markdown pipeline. New per-document `pendingReview: true` frontmatter override keeps the "draft pending legal review" footnote ON for `/privacy` specifically even though the global env disables it elsewhere — because this text has NOT been counsel-reviewed yet (the Privacy half of OT-06). Lawyer review of `/privacy` is the next L-1 step. Closes C1, C3, C4, C6 (subprocessor list deferred to L-3), C7, C8, C9, C10, C11, C12, C13, C14, R5 once counsel signs off; structurally addressed now.
+
 **Legal texts CLEARED by counsel — 2026-05-20.** Founder confirmed counsel has signed off the legal texts themselves (imprint / terms / DPA / AUP), not just the consent mechanism. Accordingly the "draft pending legal review" footnote is **disabled in Production** by setting `NEXT_PUBLIC_LEGAL_PENDING_REVIEW=false` in the Vercel Production environment (effective on the next production build). Preview environment intentionally left at the default (footnote still shown) — conservative for internal builds; the non-interactive CLI also blocked the all-Preview write. The "Approvals Needed → Estonian/EU counsel" row below is satisfied as of 2026-05-20 for the published scope (imprint, terms, DPA, AUP). Privacy/cookies/subprocessors and the other next-sprint texts are still unwritten and out of this sign-off.
 
 ### Status by item
