@@ -41,6 +41,8 @@ Shipped this session (rendered verbatim from the draft via a markdown pipeline; 
 
 Scope note: this counsel confirmation covers the **consent mechanism only**. Item E (deposit UX surfaces) is unaffected and still open.
 
+**OT-01 CLOSED — 2026-05-20 (audit closure, not a code ship).** The original work shipped in migration `0022_storage_policies.sql` (slice 32 follow-up, header explicitly tagged "OT-01"). 2026-05-20 audit confirms the `bookings` and `logos` buckets have no client-write policies (writes flow only through `serviceClient`), bookings reads are scoped to the owning artist via `auth.uid() = (storage.foldername(name))[1]`, and every storage write site in `src/` uses `serviceClient`. The one regular-client storage call (`createSignedUrl` on `bookings/requests/[id]/page.tsx:73`) is RLS-bound and only succeeds for the owning artist — correct. Bucket-level concerns now closed; FU-6 (logos public-listing enumeration) is a distinct deferred follow-up, not OT-01.
+
 **L-5 CLOSED — 2026-05-20.** DSA notice-and-action route shipped at `/legal/report`:
 
 - `src/app/legal/report/page.tsx` — static page hosting the form, with intro text and links back to AUP / Imprint / Privacy.
