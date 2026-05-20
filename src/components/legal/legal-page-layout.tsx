@@ -3,14 +3,15 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { LegalDoc } from "@/lib/legal/documents";
 
-// Live legal routes only. /cookies and /acceptable-use land as they ship;
-// keep this in sync with the Legal group in src/lib/footer-links.ts.
+// Live legal routes only. Keep in sync with the Legal group in
+// src/lib/footer-links.ts (add a row here when that group's `active` flips to true).
 const LEGAL_FOOTER_LINKS: { label: string; href: string }[] = [
   { label: "Terms", href: "/terms" },
   { label: "Privacy", href: "/privacy" },
   { label: "Imprint", href: "/imprint" },
   { label: "DPA", href: "/dpa" },
   { label: "Acceptable Use", href: "/acceptable-use" },
+  { label: "Cookies", href: "/cookies" },
 ];
 
 const markdownComponents: Components = {

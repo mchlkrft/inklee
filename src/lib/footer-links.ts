@@ -130,7 +130,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
       { label: "Terms", href: "/terms", active: true },
       { label: "DPA", href: "/dpa", active: true },
       { label: "Acceptable Use", href: "/acceptable-use", active: true },
-      { label: "Cookies", href: "/cookies", active: false, planned: true },
+      { label: "Cookies", href: "/cookies", active: true },
     ],
   },
 ];
