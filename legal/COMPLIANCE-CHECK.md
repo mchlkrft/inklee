@@ -41,6 +41,16 @@ Shipped this session (rendered verbatim from the draft via a markdown pipeline; 
 
 Scope note: this counsel confirmation covers the **consent mechanism only**. Item E (deposit UX surfaces) is unaffected and still open.
 
+**L-5 CLOSED — 2026-05-20.** DSA notice-and-action route shipped at `/legal/report`:
+
+- `src/app/legal/report/page.tsx` — static page hosting the form, with intro text and links back to AUP / Imprint / Privacy.
+- `src/app/legal/report/report-form.tsx` — client form: category (6 options), URL(s), description (min 20 / max 5000 chars), reporter name + email, good-faith declaration, honeypot.
+- `src/app/legal/report/actions.ts` — server action; validates, generates a `DSA-{ts}-{rand}` reference, emails the operator at `support@inklee.app` (with reply-to = reporter) and sends a confirmation copy to the reporter (Art. 16(5)). Honeypot silently absorbs bot fills.
+- `docs/dsa-moderation-procedure.md` — internal, non-user-facing procedure covering intake, triage, action + statement-of-reasons (Art. 17), SLAs, records retention, and CSAM escalation handling.
+- Footer Legal group + `LEGAL_FOOTER_LINKS` add a "Report content" entry.
+
+Closes J2 (Art. 16 notice-and-action mechanism). J3 (Art. 17 statement of reasons) is **documented** in the moderation procedure but **not automated** — it remains an operational/manual practice in v1; revisit when notice volume warrants tooling.
+
 **L-4 CLOSED — 2026-05-20.** Section 8 client notice now renders at the bottom of every `/[slug]` public artist page via a new server component `src/components/public-booking/legal-notice.tsx` (verbatim from draft Section 8; counsel-cleared under the global umbrella). Booking-form's "By submitting…" line widened to include the Acceptable Use Policy alongside Terms + Privacy. Closes G1 (Art. 13 collection notice), G2 (artist-is-the-seller framing), G3 (exact deposit wording on the public booking surface), G4 (magic-link cancel pre-submission explanation). G5 (marketing/transactional opt-in stance) remains a confirm-item, not blocking. Also satisfies the public-booking-page surface of legal item E (Slice 60e narrows accordingly).
 
 **L-6 DROPPED — 2026-05-20.** Founder decided to leave the homepage "GDPR compliant" badge as-is. The underlying R8/K1 UCPD-substantiation concern remains a founder-accepted residual until/unless a third-party assessment exists. Tracked as LO-8 in `docs/roadmap.md` §3.6, no longer in §3.5.
