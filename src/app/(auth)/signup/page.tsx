@@ -79,31 +79,19 @@ export default function SignupPage() {
 
         <p className="text-xs text-muted-foreground">
           By creating an account you agree to our{" "}
-          <Link
-            href="/terms"
-            className="text-foreground underline underline-offset-4"
-          >
+          <Link href="/terms" className="text-foreground no-underline">
             Terms
           </Link>
           ,{" "}
-          <Link
-            href="/acceptable-use"
-            className="text-foreground underline underline-offset-4"
-          >
+          <Link href="/acceptable-use" className="text-foreground no-underline">
             Acceptable Use Policy
           </Link>
           , and{" "}
-          <Link
-            href="/dpa"
-            className="text-foreground underline underline-offset-4"
-          >
+          <Link href="/dpa" className="text-foreground no-underline">
             Data Processing Agreement
           </Link>
           , and have read our{" "}
-          <Link
-            href="/privacy"
-            className="text-foreground underline underline-offset-4"
-          >
+          <Link href="/privacy" className="text-foreground no-underline">
             Privacy Policy
           </Link>
           .
