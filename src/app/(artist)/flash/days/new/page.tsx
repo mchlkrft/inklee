@@ -1,6 +1,18 @@
+import { createClient } from "@/lib/supabase/server";
 import FlashDayForm from "../flash-day-form";
 
-export default function NewFlashDayPage() {
+export default async function NewFlashDayPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: studios } = await supabase
+    .from("studios")
+    .select("id, name, city, country")
+    .eq("artist_id", user!.id)
+    .order("name", { ascending: true });
+
   return (
     <div className="space-y-6">
       <div>
@@ -11,7 +23,7 @@ export default function NewFlashDayPage() {
           Group flash items into a scheduled event.
         </p>
       </div>
-      <FlashDayForm />
+      <FlashDayForm studios={studios ?? []} />
     </div>
   );
 }

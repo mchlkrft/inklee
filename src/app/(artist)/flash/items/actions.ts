@@ -237,3 +237,22 @@ export async function toggleFlashBookableAction(
   revalidatePath("/flash/items");
   return { success: true };
 }
+
+export async function publishFlashItemAction(id: string): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not authenticated" };
+
+  const { error } = await supabase
+    .from("flash_items")
+    .update({ status: "published" })
+    .eq("id", id)
+    .eq("artist_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/flash/items");
+  revalidatePath(`/flash/items/${id}`);
+  return { success: true };
+}

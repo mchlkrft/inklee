@@ -54,8 +54,8 @@ export const SIDEBAR_NAV: NavGroup[] = [
         icon: Zap,
         match: ["/flash"],
         children: [
-          { label: "Flash Items", href: "/flash/items" },
-          { label: "Flash Days", href: "/flash/days" },
+          { label: "Designs", href: "/flash/items" },
+          { label: "Days", href: "/flash/days" },
           { label: "Instagram", href: "/flash/instagram" },
         ],
       },

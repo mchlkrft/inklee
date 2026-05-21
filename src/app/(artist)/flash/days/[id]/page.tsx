@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import FlashDayForm from "../flash-day-form";
+import FlashDayItemsManager from "./flash-day-items-manager";
 
 export default async function FlashDayDetailPage({
   params,
@@ -14,21 +15,48 @@ export default async function FlashDayDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: day } = await supabase
-    .from("flash_days")
-    .select("*")
-    .eq("id", id)
-    .eq("artist_id", user!.id)
-    .single();
+  const [{ data: day }, { data: studios }, { data: allItems }] =
+    await Promise.all([
+      supabase
+        .from("flash_days")
+        .select("*")
+        .eq("id", id)
+        .eq("artist_id", user!.id)
+        .single(),
+      supabase
+        .from("studios")
+        .select("id, name, city, country")
+        .eq("artist_id", user!.id)
+        .order("name", { ascending: true }),
+      // Pull all flash items for the artist; we'll split into linked /
+      // unattached client-side so the attach UI can show every option.
+      supabase
+        .from("flash_items")
+        .select("id, title, status, preview_image_url, flash_day_id")
+        .eq("artist_id", user!.id)
+        .neq("status", "archived")
+        .order("created_at", { ascending: false }),
+    ]);
 
   if (!day) notFound();
 
-  const { data: linkedItems } = await supabase
-    .from("flash_items")
-    .select("id, title, status, booking_mode")
-    .eq("flash_day_id", id)
-    .eq("artist_id", user!.id)
-    .order("created_at", { ascending: true });
+  const items = allItems ?? [];
+  const linked = items
+    .filter((i) => i.flash_day_id === id)
+    .map(({ id, title, status, preview_image_url }) => ({
+      id,
+      title,
+      status,
+      preview_image_url,
+    }));
+  const unattached = items
+    .filter((i) => i.flash_day_id === null)
+    .map(({ id, title, status, preview_image_url }) => ({
+      id,
+      title,
+      status,
+      preview_image_url,
+    }));
 
   return (
     <div className="space-y-8 max-w-lg">
@@ -37,7 +65,7 @@ export default async function FlashDayDetailPage({
           href="/flash/days"
           className="hover:text-foreground transition-colors"
         >
-          Flash Days
+          Days
         </Link>
         <span>/</span>
         <span className="text-foreground">{day.title}</span>
@@ -48,40 +76,20 @@ export default async function FlashDayDetailPage({
           id: day.id,
           title: day.title,
           scheduledOn: day.scheduled_on,
+          studioId: day.studio_id,
           location: day.location,
           description: day.description,
           status: day.status,
+          isPublic: day.is_public,
         }}
+        studios={studios ?? []}
       />
 
-      {linkedItems && linkedItems.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-base font-semibold text-foreground border-b border-border pb-2">
-            Linked flash items ({linkedItems.length})
-          </h2>
-          <div className="rounded-md border border-border divide-y divide-border">
-            {linkedItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm text-foreground">{item.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {item.status} · {item.booking_mode}
-                  </p>
-                </div>
-                <Link
-                  href={`/flash/items/${item.id}`}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Edit
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <FlashDayItemsManager
+        dayId={day.id}
+        linked={linked}
+        unattached={unattached}
+      />
     </div>
   );
 }

@@ -1,42 +1,27 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import FeatureIntroModal from "@/components/feature-intro-modal";
+import { isInstagramConfigured } from "@/lib/instagram";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
 } from "@/lib/flash";
+import FlashTile from "./flash-tile";
+import FlashNewItemButton from "./flash-new-item-button";
 
-function StatusPill({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    published: "bg-[color:var(--color-tint-green)] text-brand-charcoal",
-    draft:
-      "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]",
-    archived:
-      "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)] opacity-70",
-  };
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles[status] ?? "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]"}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-function ModePill({ mode }: { mode: string }) {
-  const styles: Record<string, string> = {
-    unique: "bg-[color:var(--color-tint-mustard)] text-brand-charcoal",
-    limited: "bg-[color:var(--color-tint-cobalt)] text-brand-charcoal",
-    repeatable: "bg-[color:var(--color-tint-rosa)] text-brand-charcoal",
-  };
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles[mode] ?? "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]"}`}
-    >
-      {mode}
-    </span>
-  );
-}
+type FlashItem = {
+  id: string;
+  title: string;
+  status: string;
+  preview_image_url: string | null;
+  booking_mode: string;
+  max_bookings: number | null;
+  is_bookable: boolean;
+  available_from: string | null;
+  available_until: string | null;
+  slug: string;
+};
 
 export default async function FlashItemsPage() {
   const supabase = await createClient();
@@ -44,52 +29,56 @@ export default async function FlashItemsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: items } = await supabase
-    .from("flash_items")
-    .select("*")
-    .eq("artist_id", user!.id)
-    .order("created_at", { ascending: false });
+  const [
+    { data: items },
+    { data: profile },
+    { data: igAccount },
+    { count: igPostCount },
+  ] = await Promise.all([
+    supabase
+      .from("flash_items")
+      .select(
+        "id, title, status, preview_image_url, booking_mode, max_bookings, is_bookable, available_from, available_until, slug",
+      )
+      .eq("artist_id", user!.id)
+      .order("created_at", { ascending: false }),
+    supabase.from("profiles").select("slug").eq("id", user!.id).single(),
+    supabase
+      .from("instagram_accounts")
+      .select("username")
+      .eq("artist_id", user!.id)
+      .eq("connected", true)
+      .maybeSingle(),
+    supabase
+      .from("instagram_posts")
+      .select("*", { count: "exact", head: true })
+      .eq("artist_id", user!.id),
+  ]);
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("slug")
-    .eq("id", user!.id)
-    .single();
-
+  const itemList = (items ?? []) as FlashItem[];
+  const hasItems = itemList.length > 0;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+  const flashPreviewUrl = profile?.slug
+    ? `${appUrl}/${profile.slug}/flash`
+    : null;
+  const igConnected = !!igAccount;
+  const igPosts = igPostCount ?? 0;
 
-  // Get confirmed + pending counts per flash item in two queries
-  const flashIds = (items ?? []).map((i) => i.id);
+  // Only query active request counts when there are items to score.
+  const activeRequestMap = new Map<string, number>();
+  if (hasItems) {
+    const itemIds = itemList.map((i) => i.id);
+    const { data: activeRequests } = await supabase
+      .from("booking_requests")
+      .select("flash_item_id")
+      .in("flash_item_id", itemIds)
+      .in("status", ["pending", "approved", "deposit_pending"]);
 
-  const confirmedMap = new Map<string, number>();
-  const pendingMap = new Map<string, number>();
-
-  if (flashIds.length > 0) {
-    const [{ data: confirmed }, { data: pending }] = await Promise.all([
-      supabase
-        .from("booking_requests")
-        .select("flash_item_id")
-        .in("flash_item_id", flashIds)
-        .eq("status", "approved"),
-      supabase
-        .from("booking_requests")
-        .select("flash_item_id")
-        .in("flash_item_id", flashIds)
-        .eq("status", "pending"),
-    ]);
-
-    for (const b of confirmed ?? []) {
+    for (const b of activeRequests ?? []) {
       if (b.flash_item_id)
-        confirmedMap.set(
+        activeRequestMap.set(
           b.flash_item_id,
-          (confirmedMap.get(b.flash_item_id) ?? 0) + 1,
-        );
-    }
-    for (const b of pending ?? []) {
-      if (b.flash_item_id)
-        pendingMap.set(
-          b.flash_item_id,
-          (pendingMap.get(b.flash_item_id) ?? 0) + 1,
+          (activeRequestMap.get(b.flash_item_id) ?? 0) + 1,
         );
     }
   }
@@ -97,135 +86,196 @@ export default async function FlashItemsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Flash Items
+            Designs
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Bookable tattoo designs. Publish an item to make it available on
-            your public flash page.
+          <p className="text-sm text-muted-foreground">
+            Bookable tattoo designs. Published items appear on your public flash
+            page.
           </p>
+          {hasItems && flashPreviewUrl && (
+            <a
+              href={flashPreviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              View flash page &rarr;
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <FeatureIntroModal
-            featureKey="flash-items"
-            isEmpty={!items || items.length === 0}
-          />
-          <Link
-            href="/flash/items/new"
-            className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
-          >
-            New item
-          </Link>
+          <FeatureIntroModal featureKey="flash-items" isEmpty={!hasItems} />
+          {hasItems && (
+            <FlashNewItemButton
+              igConnected={igConnected}
+              igPostCount={igPosts}
+            />
+          )}
         </div>
       </div>
 
-      {!items || items.length === 0 ? (
-        <div className="rounded-[20px] border border-border px-6 py-12 text-center space-y-3">
-          <p className="text-base text-muted-foreground">
-            No flash items yet — create your first one to get started.
-          </p>
+      {!hasItems ? (
+        <FlashEmptyState
+          igAccountUsername={igAccount?.username ?? null}
+          igPostCount={igPosts}
+        />
+      ) : (
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {itemList.map((item) => {
+            const av = computeFlashAvailability(
+              item,
+              activeRequestMap.get(item.id) ?? 0,
+            );
+            return (
+              <li key={item.id}>
+                <FlashTile
+                  item={item}
+                  availabilityLabel={
+                    // Show availability only when the item isn't simply
+                    // "published + bookable + available" (which is the default
+                    // happy path — keep tiles uncluttered for the common case)
+                    av.bookable && av.remaining === undefined
+                      ? null
+                      : formatFlashAvailabilityLabel(av)
+                  }
+                />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function FlashEmptyState({
+  igAccountUsername,
+  igPostCount,
+}: {
+  igAccountUsername: string | null;
+  igPostCount: number;
+}) {
+  const configured = isInstagramConfigured();
+  const hasPosts = igPostCount > 0;
+  const igConnected = !!igAccountUsername;
+
+  // Three empty-state variants, ordered by what the artist needs to do next.
+  if (igConnected && hasPosts) {
+    // IG connected + posts synced: nudge toward picking from existing posts.
+    return (
+      <div className="space-y-4 rounded-[20px] border border-border p-8">
+        <div className="flex items-start gap-3">
+          <Sparkles
+            className="mt-0.5 h-5 w-5 shrink-0 text-brand-mustard"
+            strokeWidth={2}
+          />
+          <div className="space-y-1">
+            <p className="text-base font-medium text-foreground">
+              You have {igPostCount} synced Instagram post
+              {igPostCount === 1 ? "" : "s"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Pick the ones you want to make bookable. They show up as flash
+              designs on your public page.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/flash/instagram"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
+          >
+            Pick from Instagram
+          </Link>
           <Link
             href="/flash/items/new"
-            className="inline-block rounded-md border border-border px-4 py-2 text-sm text-muted-foreground"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            Create flash item
+            Or upload a design manually
           </Link>
         </div>
-      ) : (
-        <div className="overflow-hidden rounded-[20px] border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-[color:var(--color-workspace-hover)]">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Item
-                </th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
-                  Mode
-                </th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
-                  Pending
-                </th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
-                  Confirmed
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Availability
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {items.map((item) => {
-                const confirmed = confirmedMap.get(item.id) ?? 0;
-                const pending = pendingMap.get(item.id) ?? 0;
-                const av = computeFlashAvailability(item, confirmed);
-                return (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-[color:var(--color-workspace-hover)] transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">
-                          {item.title}
-                        </p>
-                        <StatusPill status={item.status} />
-                      </div>
-                    </td>
-                    <td className="hidden px-4 py-3 sm:table-cell">
-                      <div className="space-y-0.5">
-                        <ModePill mode={item.booking_mode} />
-                        {item.booking_mode === "limited" &&
-                          item.max_bookings && (
-                            <p className="text-xs text-muted-foreground">
-                              max {item.max_bookings}
-                            </p>
-                          )}
-                      </div>
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                      {pending}
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                      {confirmed}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-sm font-medium ${av.bookable ? "text-brand-green" : "text-muted-foreground"}`}
-                      >
-                        {formatFlashAvailabilityLabel(av)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <Link
-                          href={`/flash/items/${item.id}`}
-                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Edit
-                        </Link>
-                        {item.status === "published" && profile?.slug && (
-                          <a
-                            href={`${appUrl}/${profile.slug}/flash/${item.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            View ↗
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      </div>
+    );
+  }
+
+  if (igConnected && !hasPosts) {
+    // IG connected but nothing synced yet (rare).
+    return (
+      <div className="space-y-4 rounded-[20px] border border-border p-8">
+        <div className="flex items-start gap-3">
+          <Sparkles
+            className="mt-0.5 h-5 w-5 shrink-0 text-brand-mustard"
+            strokeWidth={2}
+          />
+          <div className="space-y-1">
+            <p className="text-base font-medium text-foreground">
+              Instagram connected as @{igAccountUsername}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              No posts synced yet — open Instagram settings to fetch your latest
+              posts, then come back to pick which ones to make bookable.
+            </p>
+          </div>
         </div>
-      )}
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/flash/instagram"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
+          >
+            Open Instagram settings
+          </Link>
+          <Link
+            href="/flash/items/new"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Or upload a design manually
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Default: no IG connected. Promote connect as primary path.
+  return (
+    <div className="space-y-4 rounded-[20px] border border-border p-8">
+      <div className="flex items-start gap-3">
+        <Sparkles
+          className="mt-0.5 h-5 w-5 shrink-0 text-brand-mustard"
+          strokeWidth={2}
+        />
+        <div className="space-y-1">
+          <p className="text-base font-medium text-foreground">
+            Start with Instagram
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Connect your account and your posts become bookable flash designs.
+            Faster than uploading each one.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        {configured ? (
+          <Link
+            href="/flash/instagram"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
+          >
+            Connect Instagram
+          </Link>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Instagram integration isn&apos;t configured for this environment
+            yet. You can still upload designs manually.
+          </p>
+        )}
+        <Link
+          href="/flash/items/new"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Or upload a design manually
+        </Link>
+      </div>
     </div>
   );
 }

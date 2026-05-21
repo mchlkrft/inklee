@@ -68,7 +68,17 @@ export default function MobileTopBar({
                     className="block px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                     role="menuitem"
                   >
-                    View public page ↗
+                    View booking form ↗
+                  </Link>
+                  <Link
+                    href={`/${slug}/flash`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpen(false)}
+                    className="block px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                    role="menuitem"
+                  >
+                    View flash page ↗
                   </Link>
                   <div className="my-1 h-px bg-border" />
                   <form action={logoutAction}>

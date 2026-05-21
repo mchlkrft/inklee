@@ -68,7 +68,18 @@ export default function SidebarAccount({
               className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--color-shell-fg-dim)] transition-colors hover:bg-[color:var(--color-shell-hover)] hover:text-brand-bone"
               role="menuitem"
             >
-              <ExternalLink className="h-4 w-4" strokeWidth={1.6} /> View public
+              <ExternalLink className="h-4 w-4" strokeWidth={1.6} /> View
+              booking form
+            </Link>
+            <Link
+              href={`/${slug}/flash`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--color-shell-fg-dim)] transition-colors hover:bg-[color:var(--color-shell-hover)] hover:text-brand-bone"
+              role="menuitem"
+            >
+              <ExternalLink className="h-4 w-4" strokeWidth={1.6} /> View flash
               page
             </Link>
             <div className="my-1 h-px bg-[color:var(--color-shell-border)]" />
