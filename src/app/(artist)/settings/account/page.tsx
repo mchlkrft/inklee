@@ -32,7 +32,7 @@ export default async function AccountPage() {
           Account
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage your identity and account security.
+          Your account details and security settings.
         </p>
       </div>
 
@@ -57,7 +57,7 @@ export default async function AccountPage() {
             href="/bookings/settings"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
-            Edit in Booking Settings &rarr;
+            Edit in Books & Availability &rarr;
           </Link>
         </div>
       </section>

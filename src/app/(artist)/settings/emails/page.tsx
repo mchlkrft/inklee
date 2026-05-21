@@ -99,7 +99,7 @@ export default async function EmailsPage() {
             Reminders
           </h2>
           <p className="mt-1.5 text-sm text-foreground">
-            Configure when automated emails are sent to clients.
+            Choose when automated emails go out to clients.
           </p>
         </div>
         <RemindersForm settings={reminderSettings} />

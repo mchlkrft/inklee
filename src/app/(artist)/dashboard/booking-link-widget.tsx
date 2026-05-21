@@ -27,10 +27,10 @@ export default function BookingLinkWidget({
         <IconChip icon={Link2} tint="bone" />
         <p className="text-sm font-medium text-foreground">Booking link</p>
         <Link
-          href="/bookings/public-page"
+          href="/bookings/booking-form"
           className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          Manage
+          Edit
         </Link>
       </CardHeader>
       <p className="truncate font-mono text-sm text-muted-foreground">

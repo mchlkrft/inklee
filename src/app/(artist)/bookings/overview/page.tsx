@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import { relativeTime, formatDate } from "@/lib/format";
+import { humanStatusLabel } from "@/lib/status-labels";
 import CopyButton from "@/components/copy-button";
 import FeatureIntroModal from "@/components/feature-intro-modal";
 
@@ -126,7 +127,7 @@ async function RequestsView({
           <p className="text-base text-muted-foreground">
             {status === "all"
               ? "No requests yet — share your booking link to get started."
-              : `No ${status.replace("_", " ")} requests.`}
+              : `No ${humanStatusLabel(status).toLowerCase()} requests.`}
           </p>
           {status === "all" && publicUrl && (
             <div className="flex items-center justify-center gap-2">
@@ -143,92 +144,137 @@ async function RequestsView({
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-[20px] border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-[color:var(--color-workspace-hover)]">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Handle
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Placement
-                </th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
-                  Size
-                </th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
-                  Date
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Status
-                </th>
-                <th className="hidden px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
-                  Submitted
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {bookings.map((b) => {
-                const fd = b.form_data as Record<string, string> | null;
-                return (
-                  <tr
-                    key={b.id}
-                    className="cursor-pointer transition-colors hover:bg-[color:var(--color-workspace-hover)]"
+        <>
+          <ul className="md:hidden space-y-2">
+            {bookings.map((b) => {
+              const fd = b.form_data as Record<string, string> | null;
+              const meta = [
+                fd?.size,
+                b.preferred_date ? formatDate(b.preferred_date) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <li key={b.id}>
+                  <Link
+                    href={`/bookings/requests/${b.id}`}
+                    className="block rounded-[20px] border border-border p-4 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
                   >
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/bookings/requests/${b.id}`}
-                        className="block text-foreground"
-                      >
-                        @{b.customer_handle}
-                      </Link>
-                    </td>
-                    <td className="max-w-[180px] truncate px-4 py-3 text-muted-foreground">
-                      <Link
-                        href={`/bookings/requests/${b.id}`}
-                        className="block"
-                      >
-                        {fd?.placement ?? "-"}
-                      </Link>
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
-                      <Link
-                        href={`/bookings/requests/${b.id}`}
-                        className="block"
-                      >
-                        {fd?.size ?? "-"}
-                      </Link>
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                      <Link
-                        href={`/bookings/requests/${b.id}`}
-                        className="block"
-                      >
-                        {b.preferred_date ? formatDate(b.preferred_date) : "-"}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/bookings/requests/${b.id}`}
-                        className="block"
-                      >
-                        <StatusBadge status={b.status} />
-                      </Link>
-                    </td>
-                    <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
-                      <Link
-                        href={`/bookings/requests/${b.id}`}
-                        className="block"
-                      >
-                        {relativeTime(b.created_at)}
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          @{b.customer_handle}
+                        </p>
+                        {fd?.placement && (
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {fd.placement}
+                          </p>
+                        )}
+                        {meta && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {meta}
+                          </p>
+                        )}
+                      </div>
+                      <StatusBadge status={b.status} />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {relativeTime(b.created_at)}
+                    </p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden md:block overflow-hidden rounded-[20px] border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-[color:var(--color-workspace-hover)]">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Handle
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Placement
+                  </th>
+                  <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                    Size
+                  </th>
+                  <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="hidden px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                    Submitted
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {bookings.map((b) => {
+                  const fd = b.form_data as Record<string, string> | null;
+                  return (
+                    <tr
+                      key={b.id}
+                      className="cursor-pointer transition-colors hover:bg-[color:var(--color-workspace-hover)]"
+                    >
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/bookings/requests/${b.id}`}
+                          className="block text-foreground"
+                        >
+                          @{b.customer_handle}
+                        </Link>
+                      </td>
+                      <td className="max-w-[180px] truncate px-4 py-3 text-muted-foreground">
+                        <Link
+                          href={`/bookings/requests/${b.id}`}
+                          className="block"
+                        >
+                          {fd?.placement ?? "-"}
+                        </Link>
+                      </td>
+                      <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
+                        <Link
+                          href={`/bookings/requests/${b.id}`}
+                          className="block"
+                        >
+                          {fd?.size ?? "-"}
+                        </Link>
+                      </td>
+                      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
+                        <Link
+                          href={`/bookings/requests/${b.id}`}
+                          className="block"
+                        >
+                          {b.preferred_date
+                            ? formatDate(b.preferred_date)
+                            : "-"}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/bookings/requests/${b.id}`}
+                          className="block"
+                        >
+                          <StatusBadge status={b.status} />
+                        </Link>
+                      </td>
+                      <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
+                        <Link
+                          href={`/bookings/requests/${b.id}`}
+                          className="block"
+                        >
+                          {relativeTime(b.created_at)}
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -297,24 +343,26 @@ async function ClientsView({ publicUrl }: { publicUrl: string | null }) {
             <Link
               key={client.email}
               href={`/bookings/clients/${encodeURIComponent(client.email)}`}
-              className="flex items-center px-4 py-3 gap-4 hover:bg-[color:var(--color-workspace-hover)] transition-colors"
+              className="flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-[color:var(--color-workspace-hover)] md:flex-row md:items-center md:gap-4"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-foreground">
                   {client.handle ? `@${client.handle}` : client.email}
                 </p>
-                <p className="text-sm text-muted-foreground truncate">
+                <p className="truncate text-sm text-muted-foreground">
                   {client.email}
                 </p>
               </div>
-              <span className="text-sm text-muted-foreground shrink-0">
-                {client.bookingCount}{" "}
-                {client.bookingCount === 1 ? "booking" : "bookings"}
-              </span>
-              <StatusBadge status={client.latestStatus} />
-              <span className="text-sm text-muted-foreground shrink-0 hidden sm:block">
-                {relativeTime(client.lastBookingAt)}
-              </span>
+              <div className="flex flex-wrap items-center gap-3 md:shrink-0">
+                <span className="text-sm text-muted-foreground">
+                  {client.bookingCount}{" "}
+                  {client.bookingCount === 1 ? "booking" : "bookings"}
+                </span>
+                <StatusBadge status={client.latestStatus} />
+                <span className="hidden text-sm text-muted-foreground sm:block">
+                  {relativeTime(client.lastBookingAt)}
+                </span>
+              </div>
             </Link>
           ))}
         </div>
@@ -366,7 +414,7 @@ export default async function BookingOverviewPage({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Booking Overview
+            Bookings
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Requests, statuses, and clients in one place.

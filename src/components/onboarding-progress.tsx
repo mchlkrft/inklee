@@ -1,4 +1,4 @@
-const STEPS = ["Profile", "Booking", "Availability", "Form", "Done"];
+const STEPS = ["Link", "Booking", "Availability", "Form", "Done"];
 
 export default function OnboardingProgress({
   current,

@@ -13,15 +13,27 @@ export default async function ProfileSettingsPage() {
     .eq("id", user!.id)
     .single();
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+
   return (
     <div className="space-y-8 max-w-2xl">
-      <div>
+      <div className="space-y-1">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Profile
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           This information appears on your public booking page.
         </p>
+        {profile?.slug && (
+          <a
+            href={`${appUrl}/${profile.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Preview public page &rarr;
+          </a>
+        )}
       </div>
       <ProfileForm profile={profile} />
     </div>

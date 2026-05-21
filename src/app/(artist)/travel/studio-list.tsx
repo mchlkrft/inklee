@@ -501,7 +501,8 @@ export default function StudioList({ studios }: { studios: Studio[] }) {
               Studio library
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Manage studios and control what clients see on your booking form.
+              Your studios. Toggle visibility to control what clients see on
+              your booking form.
             </p>
           </div>
           <button

@@ -61,10 +61,10 @@ export default async function WaitlistPage() {
             No waitlist entries yet. Close your books to start collecting them.
           </p>
           <Link
-            href="/bookings/books"
+            href="/bookings/settings"
             className="inline-block text-xs rounded-md border border-border px-3 py-1.5 text-muted-foreground"
           >
-            Manage books &rarr;
+            Open Books & Availability &rarr;
           </Link>
         </div>
       ) : (
@@ -86,23 +86,31 @@ export default async function WaitlistPage() {
                 or location so you can plan future guest spots.
               </p>
             ) : (
-              <ul className="space-y-1.5">
-                {cityDemand.map(({ city, count }) => (
-                  <li key={city} className="flex items-center gap-3">
-                    <div
-                      className="h-2 rounded-full bg-brand-mustard shrink-0"
-                      style={{
-                        width: `${Math.round((count / cityDemand[0].count) * 120)}px`,
-                        minWidth: "12px",
-                      }}
-                    />
-                    <span className="text-sm text-foreground">{city}</span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {count} {count === 1 ? "person" : "people"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="space-y-1.5">
+                  {cityDemand.map(({ city, count }) => (
+                    <li key={city} className="flex items-center gap-3">
+                      <div
+                        className="h-2 rounded-full bg-brand-mustard shrink-0"
+                        style={{
+                          width: `${Math.round((count / cityDemand[0].count) * 120)}px`,
+                          minWidth: "12px",
+                        }}
+                      />
+                      <span className="text-sm text-foreground">{city}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {count} {count === 1 ? "person" : "people"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/travel"
+                  className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Plan a guest spot for this demand &rarr;
+                </Link>
+              </>
             )}
           </Card>
 
@@ -111,7 +119,7 @@ export default async function WaitlistPage() {
             {list.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-start justify-between gap-4 px-5 py-4"
+                className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
               >
                 <div className="flex items-start gap-3 min-w-0">
                   <IconChip icon={Users} tint="rosa" size="sm" />

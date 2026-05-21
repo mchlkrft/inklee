@@ -88,7 +88,7 @@ export default async function RequestDetailPage({
           href="/bookings/overview"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
-          <span aria-hidden>&larr;</span> Booking Overview
+          <span aria-hidden>&larr;</span> Bookings
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -102,6 +102,12 @@ export default async function RequestDetailPage({
             ? ` · ${bookingModeLabel(bookingMode)}`
             : ""}
         </p>
+      </div>
+
+      {/* Mobile/tablet: actions sit above the dense detail block so artists */}
+      {/* can decide without scrolling. On lg+ they live in the right column. */}
+      <div className="lg:hidden">
+        <StatusActions booking={{ id: booking.id, status: booking.status }} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
@@ -189,7 +195,11 @@ export default async function RequestDetailPage({
         </div>
 
         <div className="space-y-6">
-          <StatusActions booking={{ id: booking.id, status: booking.status }} />
+          <div className="hidden lg:block">
+            <StatusActions
+              booking={{ id: booking.id, status: booking.status }}
+            />
+          </div>
 
           {booking.deposit_amount && (
             <div className="rounded-[20px] border border-border p-5 space-y-2">

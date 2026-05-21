@@ -38,17 +38,17 @@ export const STD_FIELD_IDS = [
 
 export type StdFieldId = (typeof STD_FIELD_IDS)[number];
 
-/** Default field order matching the original hardcoded public form sequence. */
+/** Default field order: contact → description → placement → size → references → date. */
 export function buildDefaultFieldOrder(customFieldIds: string[]): string[] {
-  // Custom fields slot in between description and image_upload — matches old behavior
+  // Existing per-artist `field_order` overrides this — only affects fresh accounts.
   return [
     "instagram_handle",
     "email",
-    "reference_link",
+    "description",
     "placement",
     "size",
-    "description",
     ...customFieldIds,
+    "reference_link",
     "image_upload",
     "preferred_date",
   ];

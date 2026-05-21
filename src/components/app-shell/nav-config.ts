@@ -41,11 +41,11 @@ export const SIDEBAR_NAV: NavGroup[] = [
         icon: Inbox,
         match: ["/bookings"],
         children: [
-          { label: "Overview", href: "/bookings/overview" },
+          { label: "Bookings", href: "/bookings/overview" },
           { label: "Calendar", href: "/bookings/calendar" },
           { label: "Waitlist", href: "/bookings/waitlist" },
-          { label: "Booking Settings", href: "/bookings/settings" },
-          { label: "Booking Form", href: "/bookings/booking-form" },
+          { label: "Books & Availability", href: "/bookings/settings" },
+          { label: "Booking Link & Form", href: "/bookings/booking-form" },
         ],
       },
       {
@@ -59,7 +59,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
           { label: "Instagram", href: "/flash/instagram" },
         ],
       },
-      { label: "Travel", href: "/travel", icon: MapPin },
+      { label: "Guest Spots", href: "/travel", icon: MapPin },
     ],
   },
   {
@@ -76,7 +76,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
           { label: "Profile", href: "/settings/profile" },
           { label: "Emails", href: "/settings/emails" },
           { label: "Calendar", href: "/settings/calendar" },
-          { label: "Dashboard", href: "/settings/dashboard" },
+          { label: "Home widgets", href: "/settings/dashboard" },
           { label: "Account", href: "/settings/account" },
         ],
       },
@@ -99,7 +99,7 @@ export const MOBILE_BOTTOM_NAV: {
     match: ["/bookings"],
   },
   { label: "Flash", href: "/flash", icon: Zap, match: ["/flash"] },
-  { label: "Travel", href: "/travel", icon: MapPin },
+  { label: "Guest Spots", href: "/travel", icon: MapPin },
   {
     label: "Settings",
     href: "/settings/profile",

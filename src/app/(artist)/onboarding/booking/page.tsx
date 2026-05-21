@@ -12,13 +12,13 @@ const MODES = [
     value: "preferred_date",
     icon: CalendarDays,
     title: "Preferred date",
-    desc: "Clients suggest a date. You review and approve each request. Best for open booking.",
+    desc: "Choose this if you want to review ideas first and propose a date together. Clients suggest a date; you decide each request.",
   },
   {
     value: "fixed_slots",
     icon: Clock,
     title: "Fixed slots",
-    desc: "You publish specific time slots and clients pick one. Best for booking rounds.",
+    desc: "Choose this if you want clients to pick from exact times you publish. You'll need to post at least one slot before sharing.",
   },
 ] as const;
 
@@ -95,8 +95,9 @@ export default function OnboardingBookingPage() {
                 Your booking page will be closed until you publish slots
               </p>
               <p className="text-xs text-orange-400/80">
-                After setup, go to <strong>Bookings → Booking Settings</strong>{" "}
-                to add your first time slots before sharing your link.
+                After setup, go to{" "}
+                <strong>Bookings → Books & Availability</strong> to add your
+                first time slots before sharing your link.
               </p>
             </div>
           </div>

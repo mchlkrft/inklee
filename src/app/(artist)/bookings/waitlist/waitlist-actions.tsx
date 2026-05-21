@@ -25,7 +25,7 @@ export default function WaitlistActions({
   if (status === "converted" || status === "dismissed") return null;
 
   return (
-    <div className="flex items-center gap-2 shrink-0">
+    <div className="flex flex-wrap items-center gap-3 sm:shrink-0 sm:gap-2">
       {status === "waiting" && (
         <button
           onClick={() => startTransition(() => markWaitlistContacted(entryId))}
@@ -49,7 +49,7 @@ export default function WaitlistActions({
         disabled={pending}
         className="text-xs text-foreground hover:text-muted-foreground transition-colors disabled:opacity-50"
       >
-        convert
+        move to booking
       </button>
       <button
         onClick={() => startTransition(() => dismissWaitlistEntry(entryId))}

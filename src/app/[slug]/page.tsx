@@ -310,7 +310,8 @@ export default async function ArtistPublicPage({
       todayInTimeZone(profile.timezone ?? "Europe/Berlin"),
     );
 
-  const isManuallyClosed = !booksSettings.books_open || windowExpired;
+  const isManualClose = !booksSettings.books_open;
+  const isManuallyClosed = isManualClose || windowExpired;
   const isSlotsClosed = isSlotMode && slots.length === 0;
 
   let isCapReached = false;
@@ -329,10 +330,25 @@ export default async function ArtistPublicPage({
 
   const isClosed = isManuallyClosed || isSlotsClosed || isCapReached;
 
-  const closedMessage = isCapReached
-    ? "This round of bookings is full."
-    : (booksSettings.books_closed_message ?? "Books are currently closed.");
-  const closedHint = isCapReached ? undefined : "Check back soon.";
+  // Reason-specific closed-book copy (D19). Precedence:
+  // window expired > manual close > fixed-slots-no-slots > cap reached.
+  const artistFirstName = profile.display_name.split(" ")[0];
+  let closedMessage = "Books are currently closed.";
+  let closedHint: string | undefined = "Check back soon.";
+  if (windowExpired && booksSettings.booking_window_ends_at) {
+    closedMessage = `Books were open until ${formatDateKey(
+      booksSettings.booking_window_ends_at,
+    )} and are now closed.`;
+  } else if (isManualClose) {
+    closedMessage =
+      booksSettings.books_closed_message ?? "Books are currently closed.";
+  } else if (isSlotsClosed) {
+    closedMessage = `${artistFirstName} hasn't posted slots yet.`;
+    closedHint = "Check back soon.";
+  } else if (isCapReached) {
+    closedMessage = `${artistFirstName} is fully booked for now.`;
+    closedHint = undefined;
+  }
 
   // Header style: image > color > default charcoal
   const headerStyle: React.CSSProperties = coverImage

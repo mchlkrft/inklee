@@ -250,9 +250,6 @@ export default async function StartPage() {
                 <CalendarPreview />
               </ProofCard>
             </div>
-            <p className="mt-6 text-xs text-muted-foreground">
-              ↑ Replace these with real screenshots once available.
-            </p>
           </div>
         </section>
 

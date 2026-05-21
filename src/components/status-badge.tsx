@@ -1,3 +1,5 @@
+import { humanStatusLabel } from "@/lib/status-labels";
+
 // All statuses use the same shape: a soft pastel tint of a brand color
 // behind charcoal text. Neutral statuses (pending, waiting, cancelled,
 // dismissed) use the workspace card-2 surface so they sit quietly in lists.
@@ -20,24 +22,12 @@ const STYLES: Record<string, string> = {
     "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)] opacity-70",
 };
 
-const LABELS: Record<string, string> = {
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  deposit_pending: "Deposit pending",
-  cancelled: "Cancelled",
-  waiting: "Waiting",
-  contacted: "Contacted",
-  converted: "Waitlist Request",
-  dismissed: "Dismissed",
-};
-
 export default function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STYLES[status] ?? "bg-[color:var(--color-workspace-card-2)] text-[color:var(--color-workspace-fg-dim)]"}`}
     >
-      {LABELS[status] ?? status}
+      {humanStatusLabel(status)}
     </span>
   );
 }

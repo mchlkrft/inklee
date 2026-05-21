@@ -343,10 +343,10 @@ export default function BookingForm({
                       required
                       className="accent-foreground"
                     />
-                    <span>
-                      {SIZE_LABELS[s].label}
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        {SIZE_LABELS[s].hint}
+                    <span className="inline-flex items-baseline gap-1.5">
+                      <span>{SIZE_LABELS[s].label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        · {SIZE_LABELS[s].hint}
                       </span>
                     </span>
                   </div>
@@ -676,7 +676,7 @@ export default function BookingForm({
           tabIndex={-1}
           autoComplete="off"
           aria-hidden="true"
-          className="absolute h-px w-px overflow-hidden -left-[9999px] top-auto"
+          className="sr-only"
         />
         {studioId && <input type="hidden" name="studio_id" value={studioId} />}
         {demoBlocked && (
@@ -693,29 +693,44 @@ export default function BookingForm({
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={pending || compressing}
-          className="w-full rounded-md bg-brand-mustard px-4 py-3 text-base font-medium text-brand-charcoal disabled:opacity-50"
-        >
-          {compressing
-            ? "Preparing photos..."
-            : pending
-              ? "Sending..."
-              : `Send request to ${artistFirstName}`}
-        </button>
+        <div className="space-y-2">
+          <p className="text-center text-xs text-muted-foreground">
+            You&apos;ll get a confirmation email with a link to edit or cancel
+            before {artistFirstName} replies.
+          </p>
+          <button
+            type="submit"
+            disabled={pending || compressing}
+            className="w-full rounded-md bg-brand-mustard px-4 py-3 text-base font-medium text-brand-charcoal disabled:opacity-50"
+          >
+            {compressing
+              ? "Preparing photos..."
+              : pending
+                ? "Sending..."
+                : `Send request to ${artistFirstName}`}
+          </button>
+        </div>
 
         <p className="text-center text-xs text-muted-foreground">
           By submitting, you agree to our{" "}
-          <Link href="/terms" className="underline underline-offset-4">
+          <Link
+            href="/terms"
+            className="hover:underline hover:underline-offset-4"
+          >
             Terms
           </Link>
           ,{" "}
-          <Link href="/privacy" className="underline underline-offset-4">
+          <Link
+            href="/privacy"
+            className="hover:underline hover:underline-offset-4"
+          >
             Privacy Policy
           </Link>
           , and{" "}
-          <Link href="/acceptable-use" className="underline underline-offset-4">
+          <Link
+            href="/acceptable-use"
+            className="hover:underline hover:underline-offset-4"
+          >
             Acceptable Use Policy
           </Link>
           .{" "}

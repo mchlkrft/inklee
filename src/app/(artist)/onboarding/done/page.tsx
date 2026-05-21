@@ -19,7 +19,7 @@ const OPTIONAL_FEATURES = [
   },
   {
     icon: Plane,
-    label: "Travel / guest spots",
+    label: "Guest spots",
     href: "/travel",
   },
   {

@@ -14,19 +14,25 @@ export default async function BookingFormPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: fields }, { data: profile }] = await Promise.all([
-    supabase
-      .from("custom_fields")
-      .select("*")
-      .eq("artist_id", user!.id)
-      .is("deleted_at", null)
-      .order("position", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("slug, settings, timezone")
-      .eq("id", user!.id)
-      .single(),
-  ]);
+  const [{ data: fields }, { data: profile }, { count: openSlotCount }] =
+    await Promise.all([
+      supabase
+        .from("custom_fields")
+        .select("*")
+        .eq("artist_id", user!.id)
+        .is("deleted_at", null)
+        .order("position", { ascending: true }),
+      supabase
+        .from("profiles")
+        .select("slug, settings, timezone, booking_mode")
+        .eq("id", user!.id)
+        .single(),
+      supabase
+        .from("slots")
+        .select("*", { count: "exact", head: true })
+        .eq("artist_id", user!.id)
+        .eq("status", "open"),
+    ]);
 
   const profileSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   const formSettings = parseFormSettings(profileSettings.form_settings);
@@ -47,15 +53,18 @@ export default async function BookingFormPage() {
       todayInTimeZone(timezone),
     );
   const isOpen = booksSettings.books_open && !windowExpired;
+  const isFixedSlotsWithoutSlots =
+    (profile?.booking_mode ?? "preferred_date") === "fixed_slots" &&
+    (openSlotCount ?? 0) === 0;
 
   return (
     <div className="space-y-10 max-w-2xl">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Booking Form
+          Booking Link & Form
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage what appears on your public form and share your booking link.
+          Share your booking link and edit the public form clients see.
         </p>
       </div>
 
@@ -71,6 +80,27 @@ export default async function BookingFormPage() {
         </div>
 
         <PublicPageClient publicUrl={publicUrl} slug={slug} />
+
+        {isFixedSlotsWithoutSlots && (
+          <div className="flex items-start gap-2.5 rounded-md border border-orange-400/40 bg-orange-400/5 px-4 py-3">
+            <span className="mt-0.5 shrink-0 text-sm text-orange-400">⚠</span>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-orange-400">
+                Your booking link will appear closed until you post slots
+              </p>
+              <p className="text-xs text-orange-400/80">
+                You&apos;re in fixed-slots mode with no open slots.{" "}
+                <Link
+                  href="/bookings/settings"
+                  className="underline underline-offset-2"
+                >
+                  Add slots in Books &amp; Availability
+                </Link>{" "}
+                before sharing.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
           <div className="flex items-center justify-between px-5 py-4">

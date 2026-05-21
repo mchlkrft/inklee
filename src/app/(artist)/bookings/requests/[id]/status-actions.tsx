@@ -88,23 +88,34 @@ export default function StatusActions({ booking }: { booking: Booking }) {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {isDepositPending && (
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => run(markDepositReceived, "approved")}
-            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
-          >
-            Mark deposit received
-          </button>
-          {!confirmReject ? (
+        <div className="flex flex-col gap-3">
+          <div className="space-y-1">
             <button
-              onClick={() => setConfirmReject(true)}
-              className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+              onClick={() => run(markDepositReceived, "approved")}
+              className="w-full rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
             >
-              Reject
+              Mark deposit received
             </button>
+            <p className="text-xs text-muted-foreground">
+              Marks the deposit as paid and confirms the booking.
+            </p>
+          </div>
+
+          {!confirmReject ? (
+            <div className="space-y-1">
+              <button
+                onClick={() => setConfirmReject(true)}
+                className="w-full rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+              >
+                Pass
+              </button>
+              <p className="text-xs text-muted-foreground">
+                Sends the client a polite decline by email.
+              </p>
+            </div>
           ) : (
             <div className="rounded-md border border-destructive/50 p-3 space-y-2">
-              <p className="text-sm text-foreground">Reject this request?</p>
+              <p className="text-sm text-foreground">Pass on this request?</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
@@ -113,7 +124,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                   }}
                   className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                 >
-                  Yes, reject
+                  Yes, pass
                 </button>
                 <button
                   onClick={() => setConfirmReject(false)}
@@ -128,21 +139,32 @@ export default function StatusActions({ booking }: { booking: Booking }) {
       )}
 
       {!isDone && !isDepositPending && (
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => run(approveBooking, "approved")}
-            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
-          >
-            Approve
-          </button>
+        <div className="flex flex-col gap-3">
+          <div className="space-y-1">
+            <button
+              onClick={() => run(approveBooking, "approved")}
+              className="w-full rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
+            >
+              Accept
+            </button>
+            <p className="text-xs text-muted-foreground">
+              Sends the client an approval email with a link to confirm details.
+            </p>
+          </div>
 
           {!showDepositForm ? (
-            <button
-              onClick={() => setShowDepositForm(true)}
-              className="rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
-            >
-              Request deposit
-            </button>
+            <div className="space-y-1">
+              <button
+                onClick={() => setShowDepositForm(true)}
+                className="w-full rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
+              >
+                Request deposit
+              </button>
+              <p className="text-xs text-muted-foreground">
+                Marks the booking as awaiting deposit. The client pays via the
+                link in their booking email.
+              </p>
+            </div>
           ) : (
             <div className="rounded-md border border-border p-4 space-y-3">
               <p className="text-sm font-medium text-foreground">
@@ -215,15 +237,20 @@ export default function StatusActions({ booking }: { booking: Booking }) {
           )}
 
           {!confirmReject ? (
-            <button
-              onClick={() => setConfirmReject(true)}
-              className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
-            >
-              Reject
-            </button>
+            <div className="space-y-1">
+              <button
+                onClick={() => setConfirmReject(true)}
+                className="w-full rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+              >
+                Pass
+              </button>
+              <p className="text-xs text-muted-foreground">
+                Sends the client a polite decline by email.
+              </p>
+            </div>
           ) : (
             <div className="rounded-md border border-destructive/50 p-3 space-y-2">
-              <p className="text-sm text-foreground">Reject this request?</p>
+              <p className="text-sm text-foreground">Pass on this request?</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
@@ -232,7 +259,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                   }}
                   className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                 >
-                  Yes, reject
+                  Yes, pass
                 </button>
                 <button
                   onClick={() => setConfirmReject(false)}

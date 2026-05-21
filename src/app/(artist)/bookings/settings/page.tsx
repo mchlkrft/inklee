@@ -58,10 +58,10 @@ export default async function BookingSettingsPage() {
     <div className="space-y-10 max-w-2xl">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Booking Settings
+          Books & Availability
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Control your booking mode and availability.
+          Control your booking mode, availability, and cap.
         </p>
       </div>
 
@@ -118,8 +118,8 @@ export default async function BookingSettingsPage() {
             Studios
           </h2>
           <p className="mt-1.5 text-sm text-foreground">
-            Manage the studios where you tattoo. Slots pick up trip locations
-            automatically when a trip leg covers the slot date.
+            The studios where you tattoo. Slots auto-pick up trip locations when
+            a trip leg covers the slot date.
           </p>
         </div>
         <Link

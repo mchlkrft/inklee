@@ -70,7 +70,7 @@ const CONFIGS: Record<string, FeatureConfig> = {
       "Convert waitlist entries into bookings when you're ready",
       "Keep your pipeline warm between booking rounds",
     ],
-    ctaLabel: "Manage booking settings",
+    ctaLabel: "Open Books & Availability",
     ctaHref: "/bookings/settings",
   },
 

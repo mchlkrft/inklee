@@ -6,6 +6,7 @@ import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
+import CopyButton from "@/components/copy-button";
 import BookingLinkWidget from "./booking-link-widget";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import {
@@ -15,6 +16,7 @@ import {
   Users,
   BarChart3,
   Sparkles,
+  Link2,
 } from "lucide-react";
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -39,52 +41,67 @@ export default async function DashboardPage() {
     isDateKeyBefore(booksSettings.booking_window_ends_at, today);
   const booksOpen = booksSettings.books_open && !windowExpired;
 
-  const [pendingResult, upcomingResult, waitlistResult, capResult] =
-    await Promise.all([
-      widgets.pending_requests
-        ? supabase
-            .from("booking_requests")
-            .select("id, customer_handle, created_at", { count: "exact" })
-            .eq("artist_id", user!.id)
-            .eq("status", "pending")
-            .order("created_at", { ascending: false })
-            .limit(3)
-        : Promise.resolve({ data: null, count: null }),
+  const [
+    pendingResult,
+    upcomingResult,
+    waitlistResult,
+    capResult,
+    totalReceivedResult,
+  ] = await Promise.all([
+    widgets.pending_requests
+      ? supabase
+          .from("booking_requests")
+          .select("id, customer_handle, created_at, form_data", {
+            count: "exact",
+          })
+          .eq("artist_id", user!.id)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(3)
+      : Promise.resolve({ data: null, count: null }),
 
-      widgets.upcoming_appointments
-        ? supabase
-            .from("booking_requests")
-            .select("id, customer_handle, preferred_date, form_data")
-            .eq("artist_id", user!.id)
-            .eq("status", "approved")
-            .not("preferred_date", "is", null)
-            .gte("preferred_date", today)
-            .order("preferred_date", { ascending: true })
-            .limit(3)
-        : Promise.resolve({ data: null }),
+    widgets.upcoming_appointments
+      ? supabase
+          .from("booking_requests")
+          .select("id, customer_handle, preferred_date, form_data")
+          .eq("artist_id", user!.id)
+          .eq("status", "approved")
+          .not("preferred_date", "is", null)
+          .gte("preferred_date", today)
+          .order("preferred_date", { ascending: true })
+          .limit(3)
+      : Promise.resolve({ data: null }),
 
-      widgets.waitlist
-        ? supabase
-            .from("waitlist_entries")
-            .select("*", { count: "exact", head: true })
-            .eq("artist_id", user!.id)
-            .eq("status", "waiting")
-        : Promise.resolve({ count: null }),
+    widgets.waitlist
+      ? supabase
+          .from("waitlist_entries")
+          .select("*", { count: "exact", head: true })
+          .eq("artist_id", user!.id)
+          .eq("status", "waiting")
+      : Promise.resolve({ count: null }),
 
-      widgets.books_status && booksSettings.booking_cap !== null
-        ? serviceClient
-            .from("booking_requests")
-            .select("*", { count: "exact", head: true })
-            .eq("artist_id", user!.id)
-            .in("status", ["pending", "approved", "deposit_pending"])
-        : Promise.resolve({ count: null }),
-    ]);
+    widgets.books_status && booksSettings.booking_cap !== null
+      ? serviceClient
+          .from("booking_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("artist_id", user!.id)
+          .in("status", ["pending", "approved", "deposit_pending"])
+      : Promise.resolve({ count: null }),
+
+    onboardingCompleted
+      ? supabase
+          .from("booking_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("artist_id", user!.id)
+      : Promise.resolve({ count: null }),
+  ]);
 
   const pendingBookings = pendingResult.data ?? [];
   const pendingCount = pendingResult.count ?? 0;
   const upcomingBookings = upcomingResult.data ?? [];
   const waitlistCount = waitlistResult.count ?? 0;
   const activeCount = capResult.count ?? 0;
+  const totalReceivedCount = totalReceivedResult.count ?? 0;
   const capRemaining =
     booksSettings.booking_cap !== null
       ? Math.max(0, booksSettings.booking_cap - activeCount)
@@ -92,6 +109,11 @@ export default async function DashboardPage() {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const publicUrl = `${appUrl}/${profile?.slug ?? ""}`;
+
+  // Zero-request post-onboarding artists get a prominent share-your-link card
+  // (D13) and an always-visible BookingLinkWidget regardless of the toggle (D12).
+  const isZeroRequest =
+    onboardingCompleted && !!profile?.slug && totalReceivedCount === 0;
 
   return (
     <div className="space-y-8">
@@ -120,6 +142,41 @@ export default async function DashboardPage() {
           </div>
           <span className="text-sm text-muted-foreground">&rarr;</span>
         </Link>
+      )}
+
+      {isZeroRequest && (
+        <Card className="space-y-4 border-brand-mustard/40 bg-brand-mustard/5">
+          <CardHeader>
+            <IconChip icon={Link2} tint="mustard" />
+            <p className="text-sm font-medium text-foreground">
+              Your booking link is live
+            </p>
+          </CardHeader>
+          <p className="text-sm text-muted-foreground">
+            Share it in your Instagram bio. Most artists get their first request
+            within a week of sharing.
+          </p>
+          <p className="truncate font-mono text-sm text-foreground">
+            {publicUrl.replace(/^https?:\/\//, "")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <CopyButton text={publicUrl} />
+            <a
+              href={`/${profile.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded border border-border bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+            >
+              Preview
+            </a>
+            <Link
+              href="/help"
+              className="rounded border border-border bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+            >
+              Help
+            </Link>
+          </div>
+        </Card>
       )}
 
       {onboardingCompleted && !profile?.bio && (
@@ -167,18 +224,28 @@ export default async function DashboardPage() {
                   {pendingCount}
                 </p>
                 <div className="space-y-1">
-                  {pendingBookings.map((b) => (
-                    <Link
-                      key={b.id}
-                      href={`/bookings/requests/${b.id}`}
-                      className="group flex items-center justify-between rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
-                    >
-                      <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
-                        @{b.customer_handle}
-                      </span>
-                      <StatusBadge status="pending" />
-                    </Link>
-                  ))}
+                  {pendingBookings.map((b) => {
+                    const fd = b.form_data as Record<string, string> | null;
+                    return (
+                      <Link
+                        key={b.id}
+                        href={`/bookings/requests/${b.id}`}
+                        className="group flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-muted-foreground transition-colors group-hover:text-foreground">
+                            @{b.customer_handle}
+                          </p>
+                          {fd?.placement && (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {fd.placement}
+                            </p>
+                          )}
+                        </div>
+                        <StatusBadge status="pending" />
+                      </Link>
+                    );
+                  })}
                   {pendingCount > 3 && (
                     <p className="px-2 text-xs text-muted-foreground">
                       +{pendingCount - 3} more
@@ -199,7 +266,7 @@ export default async function DashboardPage() {
                 href="/bookings/settings"
                 className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                Manage
+                Edit
               </Link>
             </CardHeader>
             <div className="flex items-center gap-2">
@@ -292,7 +359,7 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-        {widgets.booking_link && profile?.slug && (
+        {(widgets.booking_link || isZeroRequest) && profile?.slug && (
           <BookingLinkWidget publicUrl={publicUrl} slug={profile.slug} />
         )}
       </div>
@@ -317,7 +384,8 @@ export default async function DashboardPage() {
         !widgets.books_status &&
         !widgets.upcoming_appointments &&
         !widgets.waitlist &&
-        !widgets.booking_link && (
+        !widgets.booking_link &&
+        !isZeroRequest && (
           <Card className="text-center py-12">
             <p className="text-sm text-muted-foreground">
               All widgets are hidden.{" "}
@@ -325,7 +393,7 @@ export default async function DashboardPage() {
                 href="/settings/dashboard"
                 className="underline hover:text-foreground"
               >
-                Configure dashboard
+                Show some widgets again &rarr;
               </Link>
             </p>
           </Card>
