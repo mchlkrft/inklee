@@ -51,23 +51,23 @@ const CONFIGS: Record<string, FeatureConfig> = {
   overview: {
     title: "Your booking requests live here",
     description:
-      "Once clients submit your booking form, every request shows up here — ready to review, approve, or decline.",
+      "Once clients submit your booking form, every request shows up here — ready to review, accept, or pass on.",
     bullets: [
       "See each request with placement, size, and reference images",
-      "Approve, decline, or request a deposit in one click",
+      "Accept, pass, or request a deposit in one click",
       "Clients are notified automatically at every step",
     ],
-    ctaLabel: "Go to your booking form",
+    ctaLabel: "Open your booking form",
     ctaHref: "/bookings/booking-form",
   },
 
   waitlist: {
     title: "Let clients queue while your books are closed",
     description:
-      "When books are closed, clients can join a waitlist instead of hitting a dead end. Re-open any time and convert them into real bookings.",
+      "When books are closed, clients can join a waitlist instead of hitting a dead end. Re-open any time and move them into real bookings.",
     bullets: [
       "Collect interest while you're fully booked",
-      "Convert waitlist entries into bookings when you're ready",
+      "Move waitlist entries into bookings when you're ready",
       "Keep your pipeline warm between booking rounds",
     ],
     ctaLabel: "Open Books & Availability",

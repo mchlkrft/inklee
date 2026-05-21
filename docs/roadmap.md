@@ -1,9 +1,9 @@
 # Inklee Roadmap (Unified View)
 
 **Last updated:** 2026-05-21
-**Current prod commit:** `8a5ea32`
-**Migrations applied:** 0000–0031
-**Status:** MVP feature-complete as a solo-artist tool. Pre-launch closeout in flight. Legal package shipped + counsel-cleared; `inkl.ee` short domain live; platform UX audit pass landed (Slices 60a + 60b ✓ closed, 60c partial). No subscription/monetization layer in code yet.
+**Current prod commit:** `4d14eb6`
+**Migrations applied:** 0000–0032
+**Status:** MVP feature-complete as a solo-artist tool. Pre-launch closeout in flight. Legal package shipped + counsel-cleared; `inkl.ee` short domain live; platform UX audit pass landed (Slices 60a + 60b ✓ closed, 60c partial); onboarding RLS gap closed via migration 0032 (own-profile INSERT — had been silently broken for new signups since the 2026-05-10 RLS recovery). No subscription/monetization layer in code yet.
 
 **Purpose.** This is the single high-level view. For slice-level details see `SLICES_CONTINUATION.md`. For strategy and pricing details see `docs/business-model.md`. For the public template repo cadence see the memory file `project_inklee_template_repo.md`. This doc supersedes informal "what's next" summaries scattered across other places.
 
