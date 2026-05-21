@@ -5,7 +5,7 @@ const ITEMS = [
   { label: "Calendar", href: "/bookings/calendar" },
   { label: "Waitlist", href: "/bookings/waitlist" },
   { label: "Books & Availability", href: "/bookings/settings" },
-  { label: "Booking Link & Form", href: "/bookings/booking-form" },
+  { label: "My Booking Form", href: "/bookings/booking-form" },
 ];
 
 export default function BookingsNav() {

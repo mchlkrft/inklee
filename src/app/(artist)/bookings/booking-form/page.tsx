@@ -61,7 +61,7 @@ export default async function BookingFormPage() {
     <div className="space-y-10 max-w-2xl">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Booking Link & Form
+          My Booking Form
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Share your booking link and edit the public form clients see.

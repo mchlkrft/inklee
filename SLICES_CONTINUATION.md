@@ -1041,7 +1041,19 @@ Avoid scope creep into "redesign the whole thing". Each sub-slice is audit + tar
 
 ### Slice 60a — Platform-wide UX audit + IA decision doc
 
-**Status:** ⏳ pending — replaces and broadens the original Slice 60 audit scope
+**Status:** ✅ shipped 2026-05-21 (commit `8a5ea32`)
+
+**What landed (diverged from the original spec):** the audit ran as a multi-agent process — Claude + Codex did independent passes, then cross-reviewed each other, then a final synthesized plan combined the findings. Five artifacts now live at `docs/ux-audit/`:
+
+- `claude-independent-ux-audit.md` (Phase 1)
+- `codex-independent-ux-audit.md` (Phase 1)
+- `claude-response-to-other-agent.md` (Phase 2 — cross-review)
+- `codex-response-to-other-agent.md` (Phase 2 — cross-review)
+- `final-ux-optimization-plan.md` (Phase 3 — implementation plan: U1–U5 + optional U6)
+
+**IA decision: Option A — keep current flat structure.** Both audits converged independently on the same conclusion: Inklee has the right modules; the connective tissue is what's weak. Restructuring Bookings to parent over Flash / Trip Planner / Slots / Waitlist would create churn without proportional benefit at this stage. Decision should be back-filled into `DECISIONS.md` (not yet done as of `8a5ea32`).
+
+**Why the artifact filename diverged from `docs/platform-ux-audit-slice-60a.md`:** the deeper multi-agent process produced 5 files instead of 1. The final plan in `docs/ux-audit/final-ux-optimization-plan.md` is the canonical deliverable for 60a's "audit + decision + scoped notes" outputs.
 
 **Goal:** Produce a written analysis of friction across the entire artist app, plus a concrete recommendation for whether and how to restructure the information architecture (notably: should "Booking" become the parent for Flash, Trip Planner, Slots, Waitlist?). Output is a decision doc + punch list, no code.
 
@@ -1087,7 +1099,17 @@ Avoid scope creep into "redesign the whole thing". Each sub-slice is audit + tar
 
 ### Slice 60b — Navigation + IA restructure (implementation)
 
-**Status:** ⏳ pending — depends on 60a
+**Status:** ✅ shipped 2026-05-21 (commit `8a5ea32`)
+
+**What landed:** 60a's decision was "keep flat" so this slice collapsed from a structural rewire to a label rename pass. Changes:
+
+- Sidebar labels: **Travel → Guest Spots**
+- Bookings sub-nav: **Booking Settings → Books & Availability**; **Booking Form → Booking Link & Form**; first sub-item label changed to **Bookings** (was "Overview"; redundant given parent "Bookings")
+- Page H1s match: `/bookings/overview` ("Bookings"), `/bookings/settings` ("Books & Availability"), `/bookings/booking-form` ("Booking Link & Form"), `/travel` ("Guest Spots")
+- Sidebar Settings sub-item **"Dashboard" → "Home widgets"** (avoids name collision with top-level Dashboard)
+- References in chrome updated: request-detail back link, `/settings/account` "Edit in" link, onboarding fixed-slots warning, onboarding-done feature item, FeatureIntroModal waitlist CTA
+- Zero-request post-onboarding artists get a mustard-tinted **"Your booking link is live"** Card on `/dashboard` (Copy / Preview / Help); `BookingLinkWidget` force-rendered for that same condition regardless of the `widgets.booking_link` toggle
+- "All widgets are hidden" fallback now reads "Show some widgets again →" and is suppressed when the zero-request setup card is present
 
 **Goal:** Implement the IA decision from 60a. If the decision is "keep as-is", this slice ships only targeted nav polish (active states, hover affordances, mobile spacing). If the decision is "restructure", this slice rewires the sidebar, top nav, mobile nav, and sub-navs accordingly without breaking existing routes.
 
@@ -1123,7 +1145,22 @@ Avoid scope creep into "redesign the whole thing". Each sub-slice is audit + tar
 
 ### Slice 60c — Onboarding wizard extension + mobile optimization
 
-**Status:** ⏳ pending — can start in parallel with 60b once 60a closes
+**Status:** 🔄 partial — commit `8a5ea32` shipped the mobile pass + onboarding microcopy; intro slides + OT-08 modal copy still open
+
+**What landed (2026-05-21):**
+
+- Mobile pass on the daily-work surface (covers what was crammed on small viewports): `md:hidden` card list on `/bookings/overview` Requests view; stacked rows on `/bookings/overview` Clients view; `/bookings/waitlist` card stacking on `<sm`; **StatusActions rendered above the dense detail block on `<lg`** for `/bookings/requests/[id]` (replaces the originally-planned sticky-bottom action bar — Codex flagged safe-area + keyboard conflicts; actions-at-top solves the underlying "scroll through dense content to decide" goal more cleanly)
+- Onboarding step 1 progress label "Profile" → "Link"
+- Booking-mode picker copy reframed as "Choose this if…" framing for both preferred_date and fixed_slots
+- Public booking form's "what happens next" hint above the submit button: _"You'll get a confirmation email with a link to edit or cancel before {artistFirstName} replies."_
+- New default field order for fresh accounts: contact (Instagram + email) → description → placement → size → references → date
+
+**Still open (originally-scoped, not in `8a5ea32`):**
+
+- 1–3 skippable intro slides BEFORE `/onboarding/welcome` (skippable + persisted dismissal)
+- 375px pass across every onboarding step — keyboard interactions, autofocus, input keyboards, form-error visibility
+- **OT-08:** real copy for the scaffolded Flash, Waitlist, Travel intro modals (the modals exist; their `description`/`bullets`/`ctaLabel` were filled in `feature-intro-modal.tsx` 2026-05-21 BUT the Flash/Waitlist/Travel entries should be re-reviewed for tattoo-native voice)
+- First-real-use dashboard nudges beyond the zero-request "Your booking link is live" card (e.g. "Add your first slot" if fixed-slots mode is selected but 0 slots posted — partially addressed by the share-section warning shipped in `8a5ea32`, but not on `/dashboard`)
 
 **Goal:** Extend the onboarding wizard with intro slides that explain the product before the form-heavy steps begin, and run a mobile pass across the wizard so the 5-step flow doesn't break on small viewports. Close out the empty feature-intro modal copy gaps from Slice 48 (OT-08) as part of the same pass.
 
