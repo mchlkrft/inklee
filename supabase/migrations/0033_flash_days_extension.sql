@@ -8,7 +8,14 @@
 -- Backwards-compat: the existing `location` TEXT column stays as the
 -- "external venue not in my studio library" fallback. UI prefers structured
 -- `studio_id` when set, falls back to `location` text when not.
+--
+-- `IF NOT EXISTS` makes this safe to re-run against environments where one or
+-- both columns were already added manually (e.g., the prod 2026-05-21 apply
+-- where `studio_id` had been added in an earlier attempt before this file
+-- shipped).
 
 ALTER TABLE flash_days
-  ADD COLUMN studio_id UUID REFERENCES studios(id) ON DELETE SET NULL,
-  ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS studio_id UUID REFERENCES studios(id) ON DELETE SET NULL;
+
+ALTER TABLE flash_days
+  ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
