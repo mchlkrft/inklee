@@ -8,18 +8,32 @@ type State = { error: string } | null;
 
 export async function checkSlugAvailability(
   slug: string,
-): Promise<{ available: boolean; error: string | null }> {
+): Promise<{ available: boolean; owned: boolean; error: string | null }> {
   const error = validateSlug(slug);
-  if (error) return { available: false, error };
+  if (error) return { available: false, owned: false, error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data } = await supabase
     .from("profiles")
-    .select("slug")
+    .select("id")
     .eq("slug", slug)
-    .single();
+    .maybeSingle();
 
-  return { available: !data, error: null };
+  // Free to claim.
+  if (!data) return { available: true, owned: false, error: null };
+
+  // Already the current user's slug — re-claiming it is fine (e.g. they
+  // stepped back to this step). Treat as available so the form stays usable.
+  if (user && data.id === user.id) {
+    return { available: true, owned: true, error: null };
+  }
+
+  // Taken by someone else.
+  return { available: false, owned: false, error: null };
 }
 
 export async function claimSlugAction(

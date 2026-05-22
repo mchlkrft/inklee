@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
           appUrl,
           token_hash,
           "signup",
-          redirect_to || "/onboarding/claim-slug",
+          redirect_to || "/onboarding/welcome",
         );
         await sendEmail({
           to,

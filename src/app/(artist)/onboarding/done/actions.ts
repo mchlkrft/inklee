@@ -22,20 +22,43 @@ export async function uploadOnboardingLogoAction(
   if (!user) return { error: "not authenticated" };
 
   const logoFile = formData.get("logo") as File | null;
-  if (!logoFile || logoFile.size === 0) return { error: "no file selected" };
+  if (!logoFile || logoFile.size === 0) return { error: "No file selected." };
 
+  const name = logoFile.name.toLowerCase();
+  if (
+    logoFile.type === "image/heic" ||
+    logoFile.type === "image/heif" ||
+    name.endsWith(".heic") ||
+    name.endsWith(".heif")
+  ) {
+    return {
+      error:
+        "iPhone HEIC photos aren’t supported. Choose a JPG or PNG instead.",
+    };
+  }
   if (!ALLOWED_TYPES.includes(logoFile.type)) {
-    return { error: "logo must be png, jpg, or webp" };
+    return {
+      error: "That file isn’t supported — use a PNG, JPG, or WebP image.",
+    };
   }
   if (logoFile.size > MAX_SIZE) {
-    return { error: "logo must be under 2mb" };
+    return { error: "That image is too large — please keep it under 2 MB." };
   }
 
-  const buffer = Buffer.from(await logoFile.arrayBuffer());
-  const resized = await sharp(buffer)
-    .resize(512, 512, { fit: "cover", position: "centre" })
-    .webp({ quality: 85 })
-    .toBuffer();
+  // Image decoding can throw on corrupt or unexpected input; keep it from
+  // bubbling up into a full-screen error boundary.
+  let resized: Buffer;
+  try {
+    const buffer = Buffer.from(await logoFile.arrayBuffer());
+    resized = await sharp(buffer)
+      .resize(512, 512, { fit: "cover", position: "centre" })
+      .webp({ quality: 85 })
+      .toBuffer();
+  } catch {
+    return {
+      error: "We couldn’t process that image — try a different PNG or JPG.",
+    };
+  }
 
   const path = `${user.id}/logo.webp`;
   const { error: uploadError } = await serviceClient.storage
@@ -45,7 +68,7 @@ export async function uploadOnboardingLogoAction(
       upsert: true,
     });
 
-  if (uploadError) return { error: "logo upload failed — try again" };
+  if (uploadError) return { error: "Logo upload failed — please try again." };
 
   const { data: urlData } = serviceClient.storage
     .from("logos")

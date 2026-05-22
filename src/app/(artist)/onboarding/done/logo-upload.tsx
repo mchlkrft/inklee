@@ -8,14 +8,65 @@ import { uploadOnboardingLogoAction } from "./actions";
 
 type State = { error: string } | { success: true } | null;
 
+const MAX_SIZE = 2 * 1024 * 1024;
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
 export default function LogoUpload({ logoUrl }: { logoUrl: string | null }) {
   const [state, action, pending] = useActionState<State, FormData>(
     uploadOnboardingLogoAction,
     null,
   );
   const [preview, setPreview] = useState<string | null>(logoUrl);
+  // Validation that happens before we ever submit — keeps oversized /
+  // unsupported files (e.g. a 10 MB iPhone HEIC photo) from hitting the
+  // server action, where they'd be rejected as an unhandled 500.
+  const [clientError, setClientError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setClientError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const name = file.name.toLowerCase();
+    const isHeic =
+      file.type === "image/heic" ||
+      file.type === "image/heif" ||
+      name.endsWith(".heic") ||
+      name.endsWith(".heif");
+
+    if (isHeic) {
+      setClientError(
+        "iPhone HEIC photos aren’t supported. Choose a JPG or PNG — a screenshot of the photo works too.",
+      );
+      e.target.value = "";
+      return;
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setClientError(
+        "That file isn’t supported — please choose a PNG, JPG, or WebP image.",
+      );
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      setClientError(
+        `That image is ${mb} MB — too large. Please choose one under 2 MB.`,
+      );
+      e.target.value = "";
+      return;
+    }
+
+    setPreview(URL.createObjectURL(file));
+    formRef.current?.requestSubmit();
+  }
+
+  // Client validation takes precedence; otherwise surface the server result.
+  const errorMessage =
+    clientError ?? (state && "error" in state ? state.error : null);
+  const showSuccess = !clientError && state !== null && "success" in state;
 
   return (
     <form
@@ -64,21 +115,13 @@ export default function LogoUpload({ logoUrl }: { logoUrl: string | null }) {
           type="file"
           accept="image/png,image/jpeg,image/webp"
           className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              setPreview(URL.createObjectURL(file));
-              formRef.current?.requestSubmit();
-            }
-          }}
+          onChange={handleFileChange}
         />
       </div>
-      {state && "error" in state && (
-        <p className="text-xs text-destructive">{state.error}</p>
+      {errorMessage && (
+        <p className="text-xs text-destructive">{errorMessage}</p>
       )}
-      {state && "success" in state && (
-        <p className="text-xs text-green-500">Logo saved.</p>
-      )}
+      {showSuccess && <p className="text-xs text-green-500">Logo saved.</p>}
     </form>
   );
 }

@@ -32,7 +32,8 @@ export async function GET(request: Request) {
         .eq("id", user.id)
         .single();
       if (!profile) {
-        return NextResponse.redirect(`${origin}/onboarding/claim-slug`);
+        // New artist — start at the intro slides, not mid-wizard.
+        return NextResponse.redirect(`${origin}/onboarding/welcome`);
       }
     }
   }

@@ -6,7 +6,12 @@ import { checkSlugAvailability, claimSlugAction } from "./actions";
 import OnboardingProgress from "@/components/onboarding-progress";
 
 type State = { error: string } | null;
-type AvailResult = { slug: string; available: boolean; error: string | null };
+type AvailResult = {
+  slug: string;
+  available: boolean;
+  owned: boolean;
+  error: string | null;
+};
 
 export default function ClaimSlugPage() {
   const [state, action, pending] = useActionState<State, FormData>(
@@ -39,6 +44,8 @@ export default function ClaimSlugPage() {
       return { text: "Checking…", color: "text-muted-foreground" };
     if (!result) return null;
     if (result.error) return { text: result.error, color: "text-destructive" };
+    if (result.owned)
+      return { text: "This is your current link", color: "text-green-500" };
     if (result.available)
       return { text: "Available ✓", color: "text-green-500" };
     return { text: "Already taken", color: "text-destructive" };
