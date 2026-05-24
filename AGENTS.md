@@ -25,3 +25,15 @@ The 2026-04-20 repair masked an unrun `0001_rls_policies.sql` for ~3 weeks until
 - For tables: `select tablename from pg_tables where schemaname='public';`
 
 If the expected effects are missing, the migration has not actually run. Apply it manually (SQL editor or `supabase db push`) before repairing the bookkeeping.
+
+## Copy rules (user-visible strings)
+
+These apply to every string the artist or a public visitor can read: page copy, button labels, helper text, modal bodies, action error messages, email copy. They do NOT apply to code comments, log lines, or commit messages (where em-dashes etc. are fine for readability).
+
+- **No em-dashes (—).** Founder rule: em-dashes read as AI-generated. Use a period, comma, colon, or parentheses instead. Hyphens in compound modifiers (`display-only`, `well-known`) are fine; those are hyphens, not em-dashes.
+- **Sentence case.** "Books open", not "books open" or "Books Open". First letter of each sentence capitalised, rest lowercase except proper nouns and brand terms (Instagram, Stripe, Inklee, GDPR, etc.).
+- **Terminal punctuation** on full sentences in error messages and longer helper text. Single labels (button text, chip text, column headers) take no period.
+- **Action verbs are Accept / Pass** in the booking flow, not Approve / Reject. Marketing or industry-standard surfaces can argue for the latter; the in-app verbs were unified during Slice 60a.
+- **Brand vocabulary** lives in `src/lib/status-labels.ts` (`humanStatusLabel`) and the post-Slice-60b nav labels (`nav-config.ts` + `bookings-nav.tsx`). Use them rather than re-inventing copy.
+
+Quick check before shipping a new user-visible string: search the diff for `—`. If found, replace.

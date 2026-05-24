@@ -6,7 +6,6 @@ import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
-import CopyButton from "@/components/copy-button";
 import BookingLinkWidget from "./booking-link-widget";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import {
@@ -16,7 +15,6 @@ import {
   Users,
   BarChart3,
   Sparkles,
-  Link2,
 } from "lucide-react";
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -144,40 +142,11 @@ export default async function DashboardPage() {
         </Link>
       )}
 
-      {isZeroRequest && (
-        <Card className="space-y-4 border-brand-mustard/40 bg-brand-mustard/5">
-          <CardHeader>
-            <IconChip icon={Link2} tint="mustard" />
-            <p className="text-sm font-medium text-foreground">
-              Your booking link is live
-            </p>
-          </CardHeader>
-          <p className="text-sm text-muted-foreground">
-            Share it in your Instagram bio. Most artists get their first request
-            within a week of sharing.
-          </p>
-          <p className="truncate font-mono text-sm text-foreground">
-            {publicUrl.replace(/^https?:\/\//, "")}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <CopyButton text={publicUrl} />
-            <a
-              href={`/${profile.slug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded border border-border bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
-            >
-              Preview
-            </a>
-            <Link
-              href="/help"
-              className="rounded border border-border bg-transparent px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
-            >
-              Help
-            </Link>
-          </div>
-        </Card>
-      )}
+      {/* isZeroRequest used to render a dedicated "Your booking link is live"
+          card here. Removed 2026-05-24 because it duplicated the
+          BookingLinkWidget below (sharing, preview, copy all live there).
+          Books open/closed status is now surfaced as a compact pill in the
+          mobile top bar — matches the desktop pattern. */}
 
       {onboardingCompleted && !profile?.bio && (
         <Link
@@ -344,7 +313,7 @@ export default async function DashboardPage() {
               <IconChip icon={Users} tint="cobalt" />
               <p className="text-sm font-medium text-foreground">Waitlist</p>
               <Link
-                href="/bookings/waitlist"
+                href="/bookings/overview?view=waitlist"
                 className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 View

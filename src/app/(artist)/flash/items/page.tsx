@@ -9,6 +9,7 @@ import {
 } from "@/lib/flash";
 import FlashTile from "./flash-tile";
 import FlashNewItemButton from "./flash-new-item-button";
+import FlashUploadManuallyLink from "./flash-upload-manually-link";
 
 type FlashItem = {
   id: string;
@@ -34,6 +35,7 @@ export default async function FlashItemsPage() {
     { data: profile },
     { data: igAccount },
     { count: igPostCount },
+    { data: flashDays },
   ] = await Promise.all([
     supabase
       .from("flash_items")
@@ -53,6 +55,11 @@ export default async function FlashItemsPage() {
       .from("instagram_posts")
       .select("*", { count: "exact", head: true })
       .eq("artist_id", user!.id),
+    supabase
+      .from("flash_days")
+      .select("id, title, scheduled_on")
+      .eq("artist_id", user!.id)
+      .order("scheduled_on", { ascending: true, nullsFirst: false }),
   ]);
 
   const itemList = (items ?? []) as FlashItem[];
@@ -111,6 +118,7 @@ export default async function FlashItemsPage() {
             <FlashNewItemButton
               igConnected={igConnected}
               igPostCount={igPosts}
+              flashDays={flashDays ?? []}
             />
           )}
         </div>
@@ -120,6 +128,7 @@ export default async function FlashItemsPage() {
         <FlashEmptyState
           igAccountUsername={igAccount?.username ?? null}
           igPostCount={igPosts}
+          flashDays={flashDays ?? []}
         />
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -153,9 +162,11 @@ export default async function FlashItemsPage() {
 function FlashEmptyState({
   igAccountUsername,
   igPostCount,
+  flashDays,
 }: {
   igAccountUsername: string | null;
   igPostCount: number;
+  flashDays: { id: string; title: string; scheduled_on: string | null }[];
 }) {
   const configured = isInstagramConfigured();
   const hasPosts = igPostCount > 0;
@@ -189,12 +200,7 @@ function FlashEmptyState({
           >
             Pick from Instagram
           </Link>
-          <Link
-            href="/flash/items/new"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Or upload a design manually
-          </Link>
+          <FlashUploadManuallyLink flashDays={flashDays} />
         </div>
       </div>
     );
@@ -226,12 +232,7 @@ function FlashEmptyState({
           >
             Open Instagram settings
           </Link>
-          <Link
-            href="/flash/items/new"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Or upload a design manually
-          </Link>
+          <FlashUploadManuallyLink flashDays={flashDays} />
         </div>
       </div>
     );

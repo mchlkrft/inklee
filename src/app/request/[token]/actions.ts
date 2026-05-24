@@ -29,11 +29,11 @@ export async function editCustomerBookingAction(
   formData: FormData,
 ): Promise<State> {
   const token = formData.get("_token") as string;
-  if (!token) return { error: "invalid link" };
+  if (!token) return { error: "Invalid link." };
 
   const tokenHash = hashToken(token);
   const { allowed } = await checkPortalRateLimit(tokenHash);
-  if (!allowed) return { error: "too many requests — please try again later" };
+  if (!allowed) return { error: "Too many requests. Please try again later." };
 
   const { data: booking } = await serviceClient
     .from("booking_requests")
@@ -43,8 +43,8 @@ export async function editCustomerBookingAction(
     .eq("customer_token_hash", tokenHash)
     .single();
 
-  if (!booking) return { error: "this link is no longer valid" };
-  if (isExpired(booking.created_at)) return { error: "this link has expired" };
+  if (!booking) return { error: "This link is no longer valid." };
+  if (isExpired(booking.created_at)) return { error: "This link has expired." };
 
   const support = portalEditSupport({
     status: booking.status,
@@ -117,7 +117,7 @@ export async function editCustomerBookingAction(
     .eq("id", booking.id)
     .eq("customer_token_hash", tokenHash);
 
-  if (updateError) return { error: "something went wrong — try again" };
+  if (updateError) return { error: "Something went wrong. Try again." };
 
   await serviceClient.from("audit_log").insert({
     booking_id: booking.id,
@@ -154,11 +154,11 @@ export async function cancelCustomerBookingAction(
   formData: FormData,
 ): Promise<State> {
   const token = formData.get("_token") as string;
-  if (!token) return { error: "invalid link" };
+  if (!token) return { error: "Invalid link." };
 
   const tokenHash = hashToken(token);
   const { allowed } = await checkPortalRateLimit(tokenHash);
-  if (!allowed) return { error: "too many requests — please try again later" };
+  if (!allowed) return { error: "Too many requests. Please try again later." };
 
   const { data: booking } = await serviceClient
     .from("booking_requests")
@@ -168,8 +168,8 @@ export async function cancelCustomerBookingAction(
     .eq("customer_token_hash", tokenHash)
     .single();
 
-  if (!booking) return { error: "this link is no longer valid" };
-  if (isExpired(booking.created_at)) return { error: "this link has expired" };
+  if (!booking) return { error: "This link is no longer valid." };
+  if (isExpired(booking.created_at)) return { error: "This link has expired." };
 
   const guard = canTransition(booking.status, "cancelled");
   if (!guard.ok) return { error: guard.reason };
@@ -181,7 +181,7 @@ export async function cancelCustomerBookingAction(
     .eq("id", booking.id)
     .eq("customer_token_hash", tokenHash);
 
-  if (updateError) return { error: "something went wrong — try again" };
+  if (updateError) return { error: "Something went wrong. Try again." };
 
   if (booking.slot_id) {
     const { error: slotError } = await serviceClient
@@ -197,7 +197,7 @@ export async function cancelCustomerBookingAction(
           updated_at: new Date().toISOString(),
         })
         .eq("id", booking.id);
-      return { error: "the slot could not be released — please try again" };
+      return { error: "The slot could not be released. Please try again." };
     }
   }
 

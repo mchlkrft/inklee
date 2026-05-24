@@ -197,7 +197,7 @@ const SOLUTION_STEPS = [
   {
     n: "2",
     title: "They send a proper tattoo request",
-    body: "Size, placement, description, references — all in one go.",
+    body: "Size, placement, description, references. All in one go.",
   },
   {
     n: "3",
@@ -362,7 +362,7 @@ function ArtistNativeSection() {
           </p>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             No generic appointment software. Just a cleaner booking flow that
-            fits tattooing — see how{" "}
+            fits tattooing. See how{" "}
             <Link
               href="/tattoo-booking-software-vs-instagram-dms"
               className="underline-offset-4 hover:underline"

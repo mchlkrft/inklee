@@ -79,6 +79,17 @@ export default async function ArtistLayout({
       windowEndDate={booksSettings.booking_window_ends_at}
     />
   );
+  // Compact variant for the mobile top bar — just dot + Open/Closed, no
+  // "Books " prefix and no trailing detail, so it fits next to the bell
+  // and account menu on narrow screens.
+  const mobileStatusPill = (
+    <BooksStatusPill
+      open={booksOpen}
+      remaining={booksRemaining}
+      windowEndDate={booksSettings.booking_window_ends_at}
+      compact
+    />
+  );
 
   return (
     <div className="min-h-screen bg-[color:var(--color-shell-bg)] text-brand-bone md:p-3">
@@ -92,6 +103,7 @@ export default async function ArtistLayout({
           slug={slug}
           displayName={displayName}
           unreadCount={unreadCount}
+          statusPill={mobileStatusPill}
         />
 
         <div className="flex-1 flex flex-col min-w-0">

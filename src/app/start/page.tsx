@@ -5,13 +5,13 @@ import { redirect } from "next/navigation";
 import StickyCTA from "./sticky-cta";
 
 export const metadata: Metadata = {
-  title: "Inklee — Your DMs are not a booking system",
+  title: "Inklee · Your DMs are not a booking system",
   description:
     "Put one clean booking link in your Instagram bio. Turn messy DM chats into structured tattoo booking requests.",
   openGraph: {
     title: "Stop losing tattoo requests in Instagram DMs.",
     description:
-      "Inklee gives you a clean booking link for your bio. Clients send structured requests — you review them in one place.",
+      "Inklee gives you a clean booking link for your bio. Clients send structured requests, you review them in one place.",
   },
 };
 
@@ -192,11 +192,11 @@ export default async function StartPage() {
               <p className="mt-4 text-base leading-relaxed text-muted-foreground">
                 Inklee gives you a clean booking link for your Instagram bio.
                 Clients click it, fill in the details you actually need, and
-                send a proper request — not a DM.
+                send a proper request. Not a DM.
               </p>
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">
                 You get every request in one place, with everything already
-                filled in. Review it, accept it, or pass — no back-and-forth
+                filled in. Review it, accept it, or pass. No back-and-forth
                 required.
               </p>
             </div>
@@ -269,7 +269,7 @@ export default async function StartPage() {
               </p>
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">
                 Whether you work from a studio, run guest spots, or travel
-                between cities — you get a booking flow that fits.
+                between cities. You get a booking flow that fits.
               </p>
             </div>
             <div className="mt-8 flex flex-wrap gap-2">

@@ -71,7 +71,7 @@ export async function saveDepositDefaultsAction(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/settings/deposits");
+  revalidatePath("/bookings/deposits");
   revalidatePath("/bookings/requests", "layout");
   return { success: true };
 }

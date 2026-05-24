@@ -1,10 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { MapPin, Users } from "lucide-react";
 import StatusBadge from "@/components/status-badge";
 import { relativeTime, formatDate } from "@/lib/format";
 import { humanStatusLabel } from "@/lib/status-labels";
 import CopyButton from "@/components/copy-button";
 import FeatureIntroModal from "@/components/feature-intro-modal";
+import { Card, CardHeader, IconChip } from "@/components/ui/card";
+import WaitlistActions from "../waitlist/waitlist-actions";
+import FilterRow, { type FilterGroup } from "./filter-row";
 
 // Labels mirror the StatusBadge / humanStatusLabel vocabulary so the chip
 // row and the row badges below speak the same language. URL `value`s stay
@@ -30,10 +34,14 @@ async function RequestsView({
   status,
   trip,
   publicUrl,
+  totalRequestCount,
 }: {
   status: string;
   trip: string;
   publicUrl: string | null;
+  /** Used as the filter-row visibility threshold — chips only render when
+   *  there are at least 8 total bookings so short lists don't get cluttered. */
+  totalRequestCount: number;
 }) {
   const supabase = await createClient();
   const {
@@ -59,71 +67,47 @@ async function RequestsView({
 
   const { data: bookings } = await query;
 
+  // Build filter groups. Hrefs always preserve the other group's active
+  // value so toggling status doesn't drop the trip filter and vice versa.
+  // ?view=requests is kept so the Bookings tab stays selected on return.
+  const buildHref = (nextStatus: string, nextTrip: string) => {
+    const params = new URLSearchParams({ view: "requests" });
+    if (nextStatus !== "all") params.set("status", nextStatus);
+    if (nextTrip !== "all") params.set("trip", nextTrip);
+    return `/bookings/overview?${params.toString()}`;
+  };
+
+  const filterGroups: FilterGroup[] = [
+    {
+      heading: "Status",
+      options: STATUS_FILTERS.map((f) => ({
+        label: f.label,
+        value: f.value,
+        href: buildHref(f.value, trip),
+      })),
+      activeValue: status,
+      resetValue: "all",
+    },
+  ];
+  if (trips && trips.length > 0) {
+    filterGroups.push({
+      heading: "Trip",
+      options: [
+        { label: "All trips", value: "all", href: buildHref(status, "all") },
+        ...trips.map((t) => ({
+          label: t.title,
+          value: t.id,
+          href: buildHref(status, t.id),
+        })),
+      ],
+      activeValue: trip,
+      resetValue: "all",
+    });
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-1.5">
-        {STATUS_FILTERS.map((f) => {
-          const href =
-            f.value === "all"
-              ? trip !== "all"
-                ? `/bookings/overview?trip=${trip}`
-                : "/bookings/overview"
-              : trip !== "all"
-                ? `/bookings/overview?status=${f.value}&trip=${trip}`
-                : `/bookings/overview?status=${f.value}`;
-          return (
-            <Link
-              key={f.value}
-              href={href}
-              className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                status === f.value
-                  ? "bg-brand-mustard text-brand-charcoal"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {trips && trips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          <Link
-            href={
-              status !== "all"
-                ? `/bookings/overview?status=${status}`
-                : "/bookings/overview"
-            }
-            className={`rounded-full px-3 py-1 text-sm transition-colors ${
-              trip === "all"
-                ? "bg-brand-mustard text-brand-charcoal"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            All trips
-          </Link>
-          {trips.map((t) => {
-            const href =
-              status !== "all"
-                ? `/bookings/overview?status=${status}&trip=${t.id}`
-                : `/bookings/overview?trip=${t.id}`;
-            return (
-              <Link
-                key={t.id}
-                href={href}
-                className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                  trip === t.id
-                    ? "bg-brand-mustard text-brand-charcoal"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.title}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      <FilterRow count={totalRequestCount} groups={filterGroups} />
 
       {!bookings || bookings.length === 0 ? (
         <div className="space-y-3 rounded-[20px] border border-border px-6 py-12 text-center">
@@ -374,6 +358,194 @@ async function ClientsView({ publicUrl }: { publicUrl: string | null }) {
   );
 }
 
+function buildCityDemand(
+  entries: { city_text: string | null }[],
+): { city: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    if (!entry.city_text?.trim()) continue;
+    const key = entry.city_text.trim().toLowerCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([key, count]) => ({
+      city: key.charAt(0).toUpperCase() + key.slice(1),
+      count,
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+async function WaitlistView({
+  publicUrl,
+  waitlistPublicUrl,
+}: {
+  publicUrl: string | null;
+  waitlistPublicUrl: string | null;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: entries } = await supabase
+    .from("waitlist_entries")
+    .select(
+      "id, customer_handle, customer_email, note, status, created_at, city_text",
+    )
+    .eq("artist_id", user!.id)
+    .order("created_at", { ascending: false });
+
+  const list = entries ?? [];
+  const cityDemand = buildCityDemand(list);
+
+  return (
+    <div className="space-y-5">
+      {/* Always-available share link — the public /[slug]/waitlist URL
+          works regardless of books-open state, so artists can collect
+          city-specific signups while travelling without flipping books
+          closed first. */}
+      {waitlistPublicUrl && (
+        <div className="rounded-[20px] border border-border px-5 py-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <IconChip icon={MapPin} tint="cobalt" size="sm" />
+            <p className="text-sm font-medium text-foreground">
+              Shareable waitlist link
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Always accepts signups — even while your books are open. Share it
+            when you’re collecting interest from a specific city.
+          </p>
+          <p className="font-mono text-sm text-foreground break-all">
+            {waitlistPublicUrl.replace(/^https?:\/\//, "")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <CopyButton text={waitlistPublicUrl} />
+            <a
+              href={waitlistPublicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+            >
+              Preview
+            </a>
+          </div>
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        <div className="rounded-[20px] border border-border px-6 py-12 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Waitlist signups appear here when someone joins from your public
+            booking page or the shareable link above.
+          </p>
+          {publicUrl && (
+            <Link
+              href="/bookings/settings"
+              className="inline-block text-xs rounded-md border border-border px-3 py-1.5 text-muted-foreground"
+            >
+              Open Booking Settings →
+            </Link>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Demand by city */}
+          <Card className="space-y-4">
+            <CardHeader>
+              <IconChip icon={MapPin} tint="cobalt" />
+              <p className="text-sm font-medium text-foreground">
+                Demand by city
+              </p>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {list.length} on waitlist
+              </span>
+            </CardHeader>
+            {cityDemand.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No city demand yet. New waitlist entries can include a city so
+                you can plan future guest spots.
+              </p>
+            ) : (
+              <>
+                <ul className="space-y-1.5">
+                  {cityDemand.map(({ city, count }) => (
+                    <li key={city} className="flex items-center gap-3">
+                      <div
+                        className="h-2 rounded-full bg-brand-mustard shrink-0"
+                        style={{
+                          width: `${Math.round((count / cityDemand[0].count) * 120)}px`,
+                          minWidth: "12px",
+                        }}
+                      />
+                      <span className="text-sm text-foreground">{city}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {count} {count === 1 ? "person" : "people"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/travel"
+                  className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Plan a guest spot for this demand →
+                </Link>
+              </>
+            )}
+          </Card>
+
+          {/* Entry list */}
+          <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
+            {list.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <IconChip icon={Users} tint="rosa" size="sm" />
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        @{entry.customer_handle}
+                      </p>
+                      <StatusBadge status={entry.status} />
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {entry.customer_email}
+                    </p>
+                    {entry.city_text && (
+                      <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" strokeWidth={1.8} />
+                        {entry.city_text}
+                      </p>
+                    )}
+                    {entry.note && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {entry.note}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {relativeTime(entry.created_at)}
+                    </p>
+                  </div>
+                </div>
+                <WaitlistActions
+                  entryId={entry.id}
+                  status={entry.status}
+                  customerEmail={entry.customer_email}
+                  customerHandle={entry.customer_handle}
+                  note={entry.note ?? ""}
+                />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default async function BookingOverviewPage({
   searchParams,
 }: {
@@ -406,10 +578,14 @@ export default async function BookingOverviewPage({
   const publicUrl = profile?.slug
     ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/${profile.slug}`
     : null;
+  const waitlistPublicUrl = profile?.slug
+    ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/${profile.slug}/waitlist`
+    : null;
 
   const tabs = [
     { label: "Requests", value: "requests" },
     { label: "Clients", value: "clients" },
+    { label: "Waitlist", value: "waitlist" },
   ];
 
   return (
@@ -458,8 +634,18 @@ export default async function BookingOverviewPage({
 
       {view === "clients" ? (
         <ClientsView publicUrl={publicUrl} />
+      ) : view === "waitlist" ? (
+        <WaitlistView
+          publicUrl={publicUrl}
+          waitlistPublicUrl={waitlistPublicUrl}
+        />
       ) : (
-        <RequestsView status={status} trip={trip} publicUrl={publicUrl} />
+        <RequestsView
+          status={status}
+          trip={trip}
+          publicUrl={publicUrl}
+          totalRequestCount={requestCount ?? 0}
+        />
       )}
     </div>
   );

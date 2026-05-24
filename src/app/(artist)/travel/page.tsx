@@ -117,7 +117,7 @@ export default async function TravelPage() {
 
       {(waitlistCount ?? 0) > 0 && (
         <Link
-          href="/bookings/waitlist"
+          href="/bookings/overview?view=waitlist"
           className="flex items-center justify-between rounded-md border border-border px-5 py-3 text-sm text-muted-foreground transition-colors hover:bg-[color:var(--color-workspace-hover)] hover:text-foreground"
         >
           <span>See waitlist demand by city to plan your next trip</span>

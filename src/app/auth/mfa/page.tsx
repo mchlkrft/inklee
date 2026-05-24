@@ -37,7 +37,10 @@ export default function MfaPage() {
       const { data: challenge, error: cErr } =
         await supabase.auth.mfa.challenge({ factorId: totp.id });
       if (cErr || !challenge) {
-        setError(cErr?.message ?? "Challenge failed");
+        setError(
+          cErr?.message ??
+            "We couldn’t reach the authenticator service. Try again.",
+        );
         return;
       }
       const { error: vErr } = await supabase.auth.mfa.verify({

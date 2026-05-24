@@ -1,30 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import FlashItemForm from "../flash-item-form";
+import { redirect } from "next/navigation";
 
-export default async function NewFlashItemPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: flashDays } = await supabase
-    .from("flash_days")
-    .select("id, title, scheduled_on")
-    .eq("artist_id", user!.id)
-    .in("status", ["upcoming", "active"])
-    .order("scheduled_on", { ascending: true });
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">
-          New flash item
-        </h1>
-        <p className="mt-1 text-base text-muted-foreground">
-          Create a bookable design offer for your flash page.
-        </p>
-      </div>
-      <FlashItemForm flashDays={flashDays ?? []} />
-    </div>
-  );
+// New-flash-item creation moved 2026-05-24 from this dedicated subpage to a
+// lightweight modal (`flash-quick-create-modal.tsx`) on /flash/items. The
+// old route stays as a redirect so any cached bookmarks or in-app links
+// still land in the right place; an artist who opens the modal can still
+// access the full field set via the "More settings" disclosure.
+export default function NewFlashItemRedirect() {
+  redirect("/flash/items");
 }

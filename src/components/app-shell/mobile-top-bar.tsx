@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import RandomizedLogo from "@/components/randomized-logo";
 import NotificationBell from "@/components/notification-bell";
 import { logoutAction } from "@/app/(auth)/signup/actions";
@@ -10,14 +11,21 @@ interface MobileTopBarProps {
   slug: string;
   displayName: string;
   unreadCount: number;
+  /** Books-status pill, same component as the desktop top bar but compact. */
+  statusPill?: ReactNode;
 }
 
 export default function MobileTopBar({
   slug,
   displayName,
   unreadCount,
+  statusPill,
 }: MobileTopBarProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // Hide all app chrome during onboarding to keep the wizard focused.
+  if (pathname.startsWith("/onboarding")) return null;
 
   return (
     <header className="md:hidden sticky top-0 z-20 bg-[color:var(--color-workspace-bg)]">
@@ -27,6 +35,7 @@ export default function MobileTopBar({
         </Link>
 
         <div className="flex items-center gap-1">
+          {statusPill}
           <NotificationBell initialUnreadCount={unreadCount} />
           <div className="relative">
             <button

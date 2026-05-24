@@ -7,7 +7,7 @@ const FAQ = [
   },
   {
     q: "Do customers need to create an account?",
-    a: "No. Customers fill in the form and submit. They get a magic link by email to edit or cancel their request - no account required.",
+    a: "No. Customers fill in the form and submit. They get a magic link by email to edit or cancel their request, no account required.",
   },
   {
     q: "What's the difference between preferred date and fixed slots?",
@@ -23,19 +23,19 @@ const FAQ = [
   },
   {
     q: "How do I export my bookings to Google Calendar or Apple Calendar?",
-    a: "Go to Settings -> Calendar export, generate a feed link, and paste it into any calendar app that supports iCal subscriptions.",
+    a: "In Settings → Calendar Export, generate a feed link and paste it into any calendar app that supports iCal subscriptions.",
   },
   {
     q: "Can customers edit their request after submitting?",
-    a: "Yes, but only while the request is still pending (before you approve or reject it). After that, they can only cancel.",
+    a: "Yes, but only while the request is still pending (before you accept or pass on it). After that, they can only cancel.",
   },
   {
-    q: "What emails does inklee send?",
-    a: "Customers receive a confirmation when they submit, and an email when you approve, reject, or cancel. You receive a notification for each new request. You can customize the email body in Settings -> Email templates.",
+    q: "What emails does Inklee send?",
+    a: "Customers receive a confirmation when they submit, and an email when you accept, pass, or cancel. You receive a notification for each new request. You can customize the email body in Settings → Emails.",
   },
   {
     q: "Is my data stored in Europe?",
-    a: "Yes. inklee runs on Supabase (Frankfurt) and Vercel (EU region). Emails go through Resend's EU infrastructure.",
+    a: "Yes. Inklee runs on Supabase (Frankfurt) and Vercel (EU region). Emails go through Resend's EU infrastructure.",
   },
   {
     q: "How do I delete my account?",

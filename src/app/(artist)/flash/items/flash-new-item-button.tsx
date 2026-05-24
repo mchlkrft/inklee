@@ -2,36 +2,41 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import FlashQuickCreateModal from "./flash-quick-create-modal";
+
+type FlashDay = { id: string; title: string; scheduled_on: string | null };
 
 /**
  * "+ New design" entry point on /flash/items.
  *
- * Clicking opens a modal that forks the creation path:
- * - "Pick from Instagram" → /flash/instagram (which handles connect / sync /
- *   pick states based on the artist's current setup)
- * - "Upload manually" → /flash/items/new (the existing full form)
- *
- * The modal subtitle for the Instagram option adapts to the artist's IG state
- * so the artist knows what they're walking into before tapping.
+ * Two-step flow:
+ * 1. Click → fork modal asks "Pick from Instagram" vs "Upload manually".
+ * 2a. Instagram  → navigates to /flash/instagram.
+ * 2b. Manually   → opens the lightweight `FlashQuickCreateModal` inline,
+ *                   no navigation. Image-first, optional title/price,
+ *                   everything else behind a "More settings" disclosure.
  */
 export default function FlashNewItemButton({
   igConnected,
   igPostCount,
+  flashDays,
 }: {
   igConnected: boolean;
   igPostCount: number;
+  flashDays: FlashDay[];
 }) {
-  const [open, setOpen] = useState(false);
+  const [forkOpen, setForkOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
-  // Escape dismisses
+  // Escape dismisses the fork modal (quick-create handles its own).
   useEffect(() => {
-    if (!open) return;
+    if (!forkOpen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") setForkOpen(false);
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [forkOpen]);
 
   const instagramSubtitle = igConnected
     ? igPostCount > 0
@@ -43,18 +48,18 @@ export default function FlashNewItemButton({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setForkOpen(true)}
         className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
       >
         + New design
       </button>
 
-      {open && (
+      {forkOpen && (
         <>
           <div
             aria-hidden
             className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
+            onClick={() => setForkOpen(false)}
           />
           <div
             role="dialog"
@@ -78,7 +83,7 @@ export default function FlashNewItemButton({
               <div className="space-y-3 px-6 pb-6">
                 <Link
                   href="/flash/instagram"
-                  onClick={() => setOpen(false)}
+                  onClick={() => setForkOpen(false)}
                   className="block rounded-md border border-border p-4 transition-colors hover:border-foreground/40 hover:bg-[color:var(--color-workspace-hover)]"
                 >
                   <p className="text-sm font-medium text-foreground">
@@ -89,10 +94,13 @@ export default function FlashNewItemButton({
                   </p>
                 </Link>
 
-                <Link
-                  href="/flash/items/new"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md border border-border p-4 transition-colors hover:border-foreground/40 hover:bg-[color:var(--color-workspace-hover)]"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForkOpen(false);
+                    setQuickOpen(true);
+                  }}
+                  className="block w-full rounded-md border border-border p-4 text-left transition-colors hover:border-foreground/40 hover:bg-[color:var(--color-workspace-hover)]"
                 >
                   <p className="text-sm font-medium text-foreground">
                     Upload manually
@@ -100,13 +108,13 @@ export default function FlashNewItemButton({
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Add a custom design with your own image and details.
                   </p>
-                </Link>
+                </button>
               </div>
 
               <div className="flex justify-end border-t border-border px-6 py-3">
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={() => setForkOpen(false)}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Cancel
@@ -115,6 +123,13 @@ export default function FlashNewItemButton({
             </div>
           </div>
         </>
+      )}
+
+      {quickOpen && (
+        <FlashQuickCreateModal
+          onClose={() => setQuickOpen(false)}
+          flashDays={flashDays}
+        />
       )}
     </>
   );

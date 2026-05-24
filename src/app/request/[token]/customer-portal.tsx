@@ -7,6 +7,7 @@ import {
   cancelCustomerBookingAction,
 } from "./actions";
 import { SIZES } from "@/lib/booking-schema";
+import { SIZE_LABELS } from "@/app/[slug]/booking-form";
 import { formatDate } from "@/lib/format";
 import StatusBadge from "@/components/status-badge";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
@@ -148,7 +149,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                       defaultChecked={booking.size === s}
                       className="accent-foreground"
                     />
-                    {s}
+                    {SIZE_LABELS[s].label}
                   </div>
                 </label>
               ))}

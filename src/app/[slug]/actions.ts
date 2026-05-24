@@ -50,7 +50,7 @@ export async function submitBookingAction(
   const origin = headersList.get("origin") ?? "";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   if (appUrl && origin && origin !== appUrl) {
-    return { error: "invalid request origin" };
+    return { error: "Invalid request origin." };
   }
 
   const ip =
@@ -64,7 +64,7 @@ export async function submitBookingAction(
     .eq("slug", artistSlug)
     .single();
 
-  if (!artistProfile) return { error: "artist not found" };
+  if (!artistProfile) return { error: "Artist not found." };
   const artistId = artistProfile.id;
   const artistName = artistProfile.display_name;
   const artistBookingMode = normalizeBookingMode(artistProfile.booking_mode);
@@ -72,7 +72,9 @@ export async function submitBookingAction(
 
   const { allowed } = await checkRateLimit(ip, artistId);
   if (!allowed) {
-    return { error: "too many requests — please wait before submitting again" };
+    return {
+      error: "Too many requests. Please wait before submitting again.",
+    };
   }
 
   const profileSettings = (artistProfile.settings ?? {}) as Record<
@@ -94,22 +96,25 @@ export async function submitBookingAction(
 
   // Presence checks — only enforce optional fields when the artist has enabled them.
   if (formSettings.show_instagram_handle && !raw.instagram_handle) {
-    return { error: "instagram handle is required", field: "instagram_handle" };
+    return {
+      error: "Instagram handle is required.",
+      field: "instagram_handle",
+    };
   }
   if (formSettings.show_email && !raw.email) {
-    return { error: "valid email required", field: "email" };
+    return { error: "A valid email is required.", field: "email" };
   }
   if (formSettings.show_placement && !raw.placement) {
-    return { error: "placement is required", field: "placement" };
+    return { error: "Placement is required.", field: "placement" };
   }
   if (formSettings.show_size && !raw.size) {
-    return { error: "please select a size", field: "size" };
+    return { error: "Please select a size.", field: "size" };
   }
   if (artistBookingMode === "preferred_date" && !raw.preferred_date) {
-    return { error: "preferred date is required", field: "preferred_date" };
+    return { error: "Preferred date is required.", field: "preferred_date" };
   }
   if (!raw.description && formSettings.require_description) {
-    return { error: "description is required", field: "description" };
+    return { error: "Description is required.", field: "description" };
   }
 
   const parsed = bookingSchema.safeParse(raw);
@@ -139,7 +144,7 @@ export async function submitBookingAction(
       todayInTimeZone(artistTimeZone),
     );
   if (!booksSettings.books_open || windowExpired) {
-    return { error: "booking requests are currently closed" };
+    return { error: "Booking requests are currently closed." };
   }
   if (booksSettings.booking_cap !== null) {
     const { count } = await serviceClient
@@ -148,7 +153,7 @@ export async function submitBookingAction(
       .eq("artist_id", artistId)
       .in("status", ["pending", "approved", "deposit_pending"]);
     if ((count ?? 0) >= booksSettings.booking_cap) {
-      return { error: "this round of bookings is full" };
+      return { error: "This round of bookings is full." };
     }
   }
 
@@ -180,13 +185,13 @@ export async function submitBookingAction(
   const realImages = imageFiles.filter((f) => f.size > 0);
 
   if (realImages.length > MAX_IMAGES) {
-    return { error: `maximum ${MAX_IMAGES} images` };
+    return { error: `Maximum ${MAX_IMAGES} images.` };
   }
   for (const file of realImages) {
     if (file.size > MAX_IMAGE_SIZE)
-      return { error: "each image must be under 10mb" };
+      return { error: "Each image must be under 10 MB." };
     if (!ALLOWED_IMAGE_TYPES.includes(file.type))
-      return { error: "images must be jpg, png, or webp" };
+      return { error: "Images must be JPG, PNG, or WebP." };
   }
 
   const tripId = (formData.get("trip_id") as string) || null;
@@ -208,7 +213,7 @@ export async function submitBookingAction(
       tripOwner.artist_id !== artistId ||
       !tripOwner.show_on_booking_form
     ) {
-      return { error: "invalid location selection" };
+      return { error: "Invalid location selection." };
     }
 
     const { data: tripLegs } = await serviceClient
@@ -282,7 +287,7 @@ export async function submitBookingAction(
   let slotDate: string | null = null;
   if (artistBookingMode === "fixed_slots") {
     if (!requestedSlotId)
-      return { error: "please select a slot", field: "slot_id" };
+      return { error: "Please select a slot.", field: "slot_id" };
 
     // Service-role atomic lock. The .eq("status", "open") WHERE clause is the
     // concurrency guard — two concurrent submissions still race correctly at
@@ -353,7 +358,7 @@ export async function submitBookingAction(
           .from("bookings")
           .remove(uploadedImages.map((u) => u.path));
       }
-      return { error: "image processing failed — try a different file" };
+      return { error: "Image processing failed. Try a different file." };
     }
 
     try {
@@ -372,7 +377,7 @@ export async function submitBookingAction(
             .from("bookings")
             .remove(uploadedImages.map((u) => u.path));
         }
-        return { error: "image upload failed — try again" };
+        return { error: "Image upload failed. Try again." };
       }
     } catch (error) {
       Sentry.captureException(error, {
@@ -384,7 +389,7 @@ export async function submitBookingAction(
           .from("bookings")
           .remove(uploadedImages.map((u) => u.path));
       }
-      return { error: "image upload failed — try again" };
+      return { error: "Image upload failed. Try again." };
     }
 
     uploadedImages.push({
@@ -480,7 +485,7 @@ export async function submitBookingAction(
         .from("bookings")
         .remove(uploadedImages.map((u) => u.path));
     }
-    return { error: "something went wrong — try again" };
+    return { error: "Something went wrong. Try again." };
   }
 
   let imageAnnotations: unknown[][] = [];
@@ -617,11 +622,17 @@ export async function submitWaitlistAction(
   const artistSlug = formData.get("artist_slug") as string;
 
   if (!handle || handle.length < 1)
-    return { error: "instagram handle is required", field: "instagram_handle" };
+    return {
+      error: "Instagram handle is required.",
+      field: "instagram_handle",
+    };
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    return { error: "valid email is required", field: "email" };
+    return { error: "A valid email is required.", field: "email" };
   if (note.length > 280)
-    return { error: "note must be 280 characters or fewer", field: "note" };
+    return {
+      error: "Note must be 280 characters or fewer.",
+      field: "note",
+    };
 
   const { data: profile } = await serviceClient
     .from("profiles")
@@ -629,10 +640,10 @@ export async function submitWaitlistAction(
     .eq("slug", artistSlug)
     .single();
 
-  if (!profile) return { error: "artist not found" };
+  if (!profile) return { error: "Artist not found." };
 
   const { allowed } = await checkWaitlistRateLimit(ip, profile.id);
-  if (!allowed) return { error: "too many requests — try again later" };
+  if (!allowed) return { error: "Too many requests. Try again later." };
 
   const { error } = await serviceClient.from("waitlist_entries").insert({
     artist_id: profile.id,
@@ -644,7 +655,7 @@ export async function submitWaitlistAction(
 
   if (error) {
     Sentry.captureException(error, { tags: { action: "waitlist_insert" } });
-    return { error: "something went wrong — try again" };
+    return { error: "Something went wrong. Try again." };
   }
 
   await sendWaitlistConfirmation({

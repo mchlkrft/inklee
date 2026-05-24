@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import {
   Settings as SettingsIcon,
   ExternalLink,
@@ -44,8 +45,12 @@ export default function WorkspaceTopBar({
   unreadCount,
   statusPill,
 }: WorkspaceTopBarProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const initial = displayName.trim().charAt(0).toUpperCase() || "?";
+
+  // Hide all app chrome during onboarding to keep the wizard focused.
+  if (pathname.startsWith("/onboarding")) return null;
 
   return (
     <div className="hidden md:flex items-center justify-end gap-2 px-8 pt-6">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
   Link2,
@@ -124,7 +124,7 @@ const SLIDES = [
     bg: "bg-brand-mustard",
     eyebrow: "Your booking link",
     title: "One link. Every booking.",
-    body: "Drop a single Inklee link in your Instagram bio. Clients tap it to start a request — no more booking chaos buried in your DMs.",
+    body: "Drop a single Inklee link in your Instagram bio. Clients tap it to start a request. No more booking chaos buried in your DMs.",
     Visual: LinkVisual,
   },
   {
@@ -138,28 +138,76 @@ const SLIDES = [
     bg: "bg-brand-green",
     eyebrow: "Your calendar",
     title: "Review, approve, done.",
-    body: "Accept or pass with a tap. Approved bookings move straight to your calendar — so you stay in control and organised.",
+    body: "Accept or pass with a tap. Accepted bookings move straight to your calendar, so you stay in control and organised.",
     Visual: ApproveVisual,
   },
 ] as const;
 
-/** Active timer segment — fills 0→100% over SLIDE_DURATION, remounts per slide. */
-function SegmentFill() {
-  const [width, setWidth] = useState(0);
+/** Active timer segment — runs its own rAF tick, fills 0→100% over
+ *  SLIDE_DURATION, respects the parent's `isHeldRef` for press-and-hold
+ *  pause (Instagram-story behaviour). Remounted via `key={index}` on
+ *  the parent so each new slide starts fresh at 0%. */
+function ActiveSegment({
+  isLast,
+  isHeldRef,
+  onComplete,
+}: {
+  isLast: boolean;
+  isHeldRef: React.RefObject<boolean>;
+  onComplete: () => void;
+}) {
+  const [progress, setProgress] = useState(0);
+  // Keep the latest onComplete reachable from the rAF closure without
+  // making the timer effect re-run (which would reset elapsed time
+  // mid-slide). Updated in its own effect so we never mutate a ref
+  // during render.
+  const onCompleteRef = useRef(onComplete);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setWidth(100));
-    return () => cancelAnimationFrame(id);
-  }, []);
+    onCompleteRef.current = onComplete;
+  });
+
+  useEffect(() => {
+    let raf = 0;
+    const startedAt = performance.now();
+    let pausedAccum = 0;
+    let pauseStartedAt: number | null = null;
+
+    const tick = (now: number) => {
+      if (isHeldRef.current) {
+        if (pauseStartedAt === null) pauseStartedAt = now;
+      } else if (pauseStartedAt !== null) {
+        pausedAccum += now - pauseStartedAt;
+        pauseStartedAt = null;
+      }
+
+      const elapsed = now - startedAt - pausedAccum;
+      const p = Math.min(1, elapsed / SLIDE_DURATION);
+      setProgress(p);
+
+      if (p >= 1) {
+        // Last slide: fill to 100% and stop. Otherwise advance.
+        if (!isLast) onCompleteRef.current();
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isLast, isHeldRef]);
+
   return (
     <div
       className="h-full rounded-full bg-foreground"
-      style={{
-        width: `${width}%`,
-        transition: `width ${SLIDE_DURATION}ms linear`,
-      }}
+      style={{ width: `${progress * 100}%` }}
     />
   );
 }
+
+// Tap vs hold threshold — releases under this duration count as a tap and
+// trigger navigation; over it, the press was a deliberate pause and release
+// just resumes the timer.
+const TAP_MS = 300;
 
 export default function WelcomeSlides() {
   const [index, setIndex] = useState(0);
@@ -167,15 +215,36 @@ export default function WelcomeSlides() {
   const slide = SLIDES[index];
   const { Visual } = slide;
 
-  // Auto-advance — the last slide holds, waiting for an explicit choice.
-  useEffect(() => {
-    if (isLast) return;
-    const timer = setTimeout(() => setIndex((i) => i + 1), SLIDE_DURATION);
-    return () => clearTimeout(timer);
-  }, [index, isLast]);
+  // Pause state lives in a ref so toggling it doesn't restart the rAF
+  // tick effect. The tick reads `isHeldRef.current` each frame.
+  const isHeldRef = useRef(false);
+  const pressStartTimeRef = useRef<number | null>(null);
 
+  const advance = useCallback(() => {
+    setIndex((i) => Math.min(i + 1, SLIDES.length - 1));
+  }, []);
   const goNext = () => setIndex((i) => Math.min(i + 1, SLIDES.length - 1));
   const goPrev = () => setIndex((i) => Math.max(i - 1, 0));
+
+  // Press-and-hold UX — Instagram-story style. Press start pauses the
+  // timer; release within TAP_MS counts as a tap and navigates; longer
+  // press is a deliberate hold and release just resumes the timer.
+  const handlePressStart = () => {
+    pressStartTimeRef.current = performance.now();
+    isHeldRef.current = true;
+  };
+  const handlePressEnd = (direction: "prev" | "next" | null) => {
+    const startedAt = pressStartTimeRef.current;
+    pressStartTimeRef.current = null;
+    isHeldRef.current = false;
+    if (startedAt !== null && direction !== null) {
+      const dur = performance.now() - startedAt;
+      if (dur < TAP_MS) {
+        if (direction === "prev") goPrev();
+        else goNext();
+      }
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -189,7 +258,14 @@ export default function WelcomeSlides() {
             {i < index && (
               <div className="h-full w-full rounded-full bg-foreground" />
             )}
-            {i === index && <SegmentFill key={index} />}
+            {i === index && (
+              <ActiveSegment
+                key={index}
+                isLast={isLast}
+                isHeldRef={isHeldRef}
+                onComplete={advance}
+              />
+            )}
           </div>
         ))}
       </div>
@@ -206,21 +282,30 @@ export default function WelcomeSlides() {
             <Visual />
           </div>
         </div>
-        {/* Tap zones — story gesture. Excluded from tab order since the
-            visible Back / Next controls below cover the same actions. */}
+        {/* Tap zones — story gesture. Press-and-hold pauses the timer;
+            quick release (<TAP_MS) counts as a tap and navigates. Pointer
+            events fire on touch + mouse + pen. Excluded from tab order
+            because the visible Back / Next controls below cover the same
+            actions for keyboard users. */}
         <button
           type="button"
           tabIndex={-1}
           aria-hidden
-          onClick={goPrev}
-          className="absolute inset-y-0 left-0 w-1/3 cursor-default focus:outline-none"
+          onPointerDown={handlePressStart}
+          onPointerUp={() => handlePressEnd("prev")}
+          onPointerLeave={() => handlePressEnd(null)}
+          onPointerCancel={() => handlePressEnd(null)}
+          className="absolute inset-y-0 left-0 w-1/3 cursor-default touch-none select-none focus:outline-none"
         />
         <button
           type="button"
           tabIndex={-1}
           aria-hidden
-          onClick={goNext}
-          className="absolute inset-y-0 right-0 w-2/3 cursor-default focus:outline-none"
+          onPointerDown={handlePressStart}
+          onPointerUp={() => handlePressEnd("next")}
+          onPointerLeave={() => handlePressEnd(null)}
+          onPointerCancel={() => handlePressEnd(null)}
+          className="absolute inset-y-0 right-0 w-2/3 cursor-default touch-none select-none focus:outline-none"
         />
       </div>
 

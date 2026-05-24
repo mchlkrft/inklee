@@ -55,7 +55,9 @@ export default function TwoFactorSection({
         friendlyName: "Inklee authenticator",
       });
       if (err || !data) {
-        setError(err?.message ?? "Enrollment failed");
+        setError(
+          err?.message ?? "We couldn’t start two-factor enrolment. Try again.",
+        );
         return;
       }
       setQrCode(data.totp.qr_code);

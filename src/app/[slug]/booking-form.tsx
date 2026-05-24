@@ -22,7 +22,7 @@ import { PublicBookingLegalNotice } from "@/components/public-booking/legal-noti
 
 type State = { error: string; field?: string } | null;
 
-const SIZE_LABELS: Record<
+export const SIZE_LABELS: Record<
   (typeof SIZES)[number],
   { label: string; hint: string }
 > = {
@@ -409,7 +409,7 @@ export default function BookingForm({
                 </span>
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Up to 5 files — JPG, PNG, or WebP — max 10 MB each.
+                Up to 5 files. JPG, PNG, or WebP, max 10 MB each.
                 {annotationsEnabled &&
                   " You can add notes to photos after uploading."}
               </p>
@@ -441,7 +441,7 @@ export default function BookingForm({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {imageEntries.length > 0
-                      ? `${imageEntries.length} of ${MAX_FILES} added — ${MAX_FILES - imageEntries.length} more allowed`
+                      ? `${imageEntries.length} of ${MAX_FILES} added · ${MAX_FILES - imageEntries.length} more allowed`
                       : `Up to ${MAX_FILES} images`}
                   </p>
                 </div>
@@ -499,7 +499,7 @@ export default function BookingForm({
                           className="absolute top-1 left-1 rounded-full bg-black/60 px-1.5 py-0.5 text-white text-xs leading-none hover:bg-black/80 transition-colors"
                           title={
                             entryAnnotations.length > 0
-                              ? `${entryAnnotations.length} note${entryAnnotations.length > 1 ? "s" : ""} — click to edit`
+                              ? `${entryAnnotations.length} note${entryAnnotations.length > 1 ? "s" : ""} · click to edit`
                               : "Add notes"
                           }
                         >
@@ -603,7 +603,7 @@ export default function BookingForm({
               <>
                 {validLocations.length === 0 ? (
                   <p className="text-base text-muted-foreground">
-                    No guest spots are scheduled for that date — your request
+                    No guest spots are scheduled for that date. Your request
                     will be treated as a home studio booking.
                   </p>
                 ) : validLocations.length === 1 ? (
@@ -682,7 +682,7 @@ export default function BookingForm({
         {demoBlocked && (
           <div className="rounded-md border border-brand-mustard/30 bg-brand-mustard/5 px-4 py-3 space-y-1">
             <p className="text-sm font-medium text-foreground">
-              Demo account — for illustration only
+              Demo account · for illustration only
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               This page is a live example showing how Inklee works. It&apos;s

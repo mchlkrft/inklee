@@ -42,7 +42,7 @@ async function getAuthorisedBooking(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: booking } = await supabase
     .from("booking_requests")
@@ -52,8 +52,8 @@ async function getAuthorisedBooking(
     .eq("id", bookingId)
     .single();
 
-  if (!booking) return { error: "booking not found" };
-  if (booking.artist_id !== user.id) return { error: "not authorised" };
+  if (!booking) return { error: "Booking not found." };
+  if (booking.artist_id !== user.id) return { error: "Not authorised." };
 
   return {
     supabase,
@@ -136,7 +136,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
 
     if (slotError) {
       await restoreBookingAfterSlotFailure(supabase, id, booking);
-      return { error: "the slot could not be confirmed - please try again" };
+      return { error: "The slot could not be confirmed. Please try again." };
     }
   }
 
@@ -208,7 +208,7 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
 
     if (slotError) {
       await restoreBookingAfterSlotFailure(supabase, id, booking);
-      return { error: "the slot could not be released - please try again" };
+      return { error: "The slot could not be released. Please try again." };
     }
   }
 
@@ -375,7 +375,7 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
       await restoreBookingAfterSlotFailure(supabase, id, booking, {
         deposit_paid_at: null,
       });
-      return { error: "the slot could not be confirmed - please try again" };
+      return { error: "The slot could not be confirmed. Please try again." };
     }
   }
 
@@ -405,7 +405,7 @@ export async function markWaitlistContacted(entryId: string): Promise<void> {
     .eq("id", entryId)
     .eq("artist_id", user.id);
 
-  revalidatePath("/bookings/waitlist");
+  revalidatePath("/bookings/overview");
 }
 
 export async function dismissWaitlistEntry(entryId: string): Promise<void> {
@@ -421,7 +421,7 @@ export async function dismissWaitlistEntry(entryId: string): Promise<void> {
     .eq("id", entryId)
     .eq("artist_id", user.id);
 
-  revalidatePath("/bookings/waitlist");
+  revalidatePath("/bookings/overview");
 }
 
 export async function convertWaitlistEntry({
@@ -439,7 +439,7 @@ export async function convertWaitlistEntry({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -481,6 +481,6 @@ export async function convertWaitlistEntry({
     customerHandle,
   });
 
-  revalidatePath("/bookings/waitlist");
+  revalidatePath("/bookings/overview");
   return { success: true };
 }

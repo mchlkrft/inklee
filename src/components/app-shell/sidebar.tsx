@@ -14,6 +14,9 @@ interface SidebarProps {
 export default function Sidebar({ unreadCount }: SidebarProps) {
   const pathname = usePathname();
 
+  // Hide all app chrome during onboarding to keep the wizard focused.
+  if (pathname.startsWith("/onboarding")) return null;
+
   return (
     <aside className="hidden md:flex w-[228px] shrink-0 m-3 rounded-[22px] bg-[color:var(--color-shell-bg)] text-brand-bone flex-col">
       {/* Inner sticky container — items pin to the viewport while the

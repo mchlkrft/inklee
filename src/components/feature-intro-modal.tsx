@@ -47,13 +47,18 @@ interface FeatureConfig {
   ctaHref: string;
 }
 
+// Copy rules for this file (apply to every config below):
+//  • Sentence case, terminal punctuation.
+//  • No em-dashes (—). Use a period, comma, colon, or parens instead.
+//  • Description = one short sentence. Bullets carry the detail.
+//  • Bullets are short fragments, not paragraphs.
 const CONFIGS: Record<string, FeatureConfig> = {
   overview: {
     title: "Your booking requests live here",
     description:
-      "Once clients submit your booking form, every request shows up here — ready to review, accept, or pass on.",
+      "When clients submit your booking form, every request lands on this page.",
     bullets: [
-      "See each request with placement, size, and reference images",
+      "See placement, size, and reference images at a glance",
       "Accept, pass, or request a deposit in one click",
       "Clients are notified automatically at every step",
     ],
@@ -64,23 +69,23 @@ const CONFIGS: Record<string, FeatureConfig> = {
   waitlist: {
     title: "Let clients queue while your books are closed",
     description:
-      "When books are closed, clients can join a waitlist instead of hitting a dead end. Re-open any time and move them into real bookings.",
+      "When your books close, clients can sign up here instead of hitting a dead end.",
     bullets: [
       "Collect interest while you're fully booked",
       "Move waitlist entries into bookings when you're ready",
       "Keep your pipeline warm between booking rounds",
     ],
-    ctaLabel: "Open Books & Availability",
+    ctaLabel: "Open Booking Settings",
     ctaHref: "/bookings/settings",
   },
 
   travel: {
     title: "Planning a guest spot? Add it here.",
     description:
-      "Add trips and your city, dates, and studio automatically appear on your booking page — no manual updates or extra DMs needed.",
+      "Add a trip and your city, dates, and studio show up on your booking page automatically.",
     bullets: [
       "List upcoming guest spots with city, dates, and studio",
-      "Clients see your travel schedule directly on your booking page",
+      "Clients see your travel schedule on your booking page",
       "Take location-specific bookings for each trip",
     ],
     ctaLabel: "Add your first trip",
@@ -90,24 +95,24 @@ const CONFIGS: Record<string, FeatureConfig> = {
   "flash-items": {
     title: "Flash: offer specific designs, not just time slots",
     description:
-      "Connect your Instagram and your posted designs become bookable flash — no separate upload needed. Clients browse your feed and claim a piece directly.",
+      "Turn your Instagram posts into bookable flash. Clients claim a piece directly, no separate upload needed.",
     bullets: [
-      "Pull designs straight from your Instagram posts",
-      "Clients pick a specific piece, not just an open date",
-      "Set each flash as claimable or display-only",
+      "Pull designs from your Instagram",
+      "Clients pick a piece, not just a date",
+      "Mark each flash claimable or display-only",
     ],
     ctaLabel: "Create your first flash",
-    ctaHref: "/flash/items/new",
+    ctaHref: "/flash/items",
   },
 
   "flash-days": {
     title: "Group your flash into drops and events",
     description:
-      "Bundle your Instagram designs into a curated flash day — like a studio event or a themed drop — and share the whole thing as a single link.",
+      "Bundle your Instagram designs into a curated flash day (a studio event, a themed drop) and share it as one link.",
     bullets: [
       "Group flash items into an event with a date and location",
       "Clients see all available pieces in one place",
-      "Share the event link anywhere — story, bio, DMs",
+      "Share the event link anywhere: story, bio, DMs",
     ],
     ctaLabel: "Create your first flash day",
     ctaHref: "/flash/days/new",

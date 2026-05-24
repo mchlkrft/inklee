@@ -19,6 +19,11 @@ export default function NewAppointmentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailEnabled, setEmailEnabled] = useState(false);
+  // Controlled date input — `defaultValue` alone only applies on first mount
+  // and can be quietly cleared by the browser if it sees the value as below
+  // the `min` constraint mid-render. Tracking the value in state guarantees
+  // the field reflects the date the user clicked.
+  const [dateValue, setDateValue] = useState(defaultDate ?? "");
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -81,7 +86,8 @@ export default function NewAppointmentModal({
                 name="preferred_date"
                 required
                 min={tomorrow()}
-                defaultValue={defaultDate ?? undefined}
+                value={dateValue}
+                onChange={(e) => setDateValue(e.target.value)}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>

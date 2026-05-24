@@ -26,7 +26,7 @@ const HOMEPAGE_FAQ: FaqItem[] = [
   {
     question: "Is Inklee tattoo booking software?",
     answer:
-      "Yes. Inklee is tattoo booking software focused on intake — a clean booking form, structured requests, approvals, deposits, waitlists, and guest spot bookings. It is built for the way tattoo artists actually work, not generic appointment software.",
+      "Yes. Inklee is tattoo booking software focused on intake: a clean booking form, structured requests, approvals, deposits, waitlists, and guest spot bookings. It is built for the way tattoo artists actually work, not generic appointment software.",
   },
   {
     question: "Can tattoo artists use Inklee with Instagram?",
@@ -83,7 +83,7 @@ export default async function Home() {
           heading="Tattoo booking software built around your real workflow."
           body={[
             "Inklee is a tattoo booking intake tool for freelance and traveling tattoo artists. It gives you a clean booking link for tattoo artists to drop in their Instagram bio so clients send a proper tattoo booking request instead of an Instagram DM.",
-            "You collect placement, size, references, and dates through a structured tattoo booking form, review every request in one place, and keep approvals, deposits, waitlists, and guest spot bookings organized — without spreadsheets or scattered chats.",
+            "You collect placement, size, references, and dates through a structured tattoo booking form, review every request in one place, and keep approvals, deposits, waitlists, and guest spot bookings organized, without spreadsheets or scattered chats.",
           ]}
         />
         <FeaturesSection />
@@ -226,7 +226,7 @@ const FEATURES = [
     illustration: "/branding/illustrations/feature-booking-form.svg",
     title: "Structured Booking Form",
     description:
-      "Clients submit placement, size, description, and reference images — no back-and-forth to gather the basics.",
+      "Clients submit placement, size, description, and reference images. No back-and-forth to gather the basics.",
   },
   {
     id: "requests",
@@ -392,7 +392,7 @@ function EasyPeasySection() {
           Your booking link in under 5 minutes
         </h2>
         <p className="mt-3 text-muted-foreground">
-          No payment required — free to get started.
+          No payment required. Free to get started.
         </p>
         <Link
           href="/signup"

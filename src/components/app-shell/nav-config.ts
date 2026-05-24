@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Inbox,
-  Zap,
   MapPin,
   BarChart3,
   Bell,
@@ -10,6 +9,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import Spiderweb from "@/components/icons/spiderweb";
 
 export type SubNavItem = {
   label: string;
@@ -40,18 +40,24 @@ export const SIDEBAR_NAV: NavGroup[] = [
         href: "/bookings/overview",
         icon: Inbox,
         match: ["/bookings"],
+        // Waitlist used to be a separate sub-nav item — it's now a tab on
+        // /bookings/overview (Requests · Clients · Waitlist). Deposits
+        // moved here from /settings/deposits because deposits are part
+        // of the booking workflow, not account configuration. Booking
+        // Settings (formerly "Books & Availability") sits last as the
+        // configuration surface for this group.
         children: [
-          { label: "Bookings", href: "/bookings/overview" },
+          { label: "Overview", href: "/bookings/overview" },
           { label: "Calendar", href: "/bookings/calendar" },
-          { label: "Waitlist", href: "/bookings/waitlist" },
-          { label: "Books & Availability", href: "/bookings/settings" },
+          { label: "Deposits", href: "/bookings/deposits" },
           { label: "My Booking Form", href: "/bookings/booking-form" },
+          { label: "Booking Settings", href: "/bookings/settings" },
         ],
       },
       {
         label: "Flash",
         href: "/flash",
-        icon: Zap,
+        icon: Spiderweb,
         match: ["/flash"],
         children: [
           { label: "Designs", href: "/flash/items" },
@@ -74,7 +80,6 @@ export const SIDEBAR_NAV: NavGroup[] = [
         match: ["/settings"],
         children: [
           { label: "Profile", href: "/settings/profile" },
-          { label: "Deposits", href: "/settings/deposits" },
           { label: "Emails", href: "/settings/emails" },
           { label: "Calendar", href: "/settings/calendar" },
           { label: "Home widgets", href: "/settings/dashboard" },
@@ -85,21 +90,23 @@ export const SIDEBAR_NAV: NavGroup[] = [
   },
 ];
 
-// Mobile bottom-nav keeps the existing 5-tab IA (validated by Slice 41)
+// Mobile bottom-nav — 5-tab IA from Slice 41, with Bookings reordered to
+// the middle slot (index 2) so it can render as the raised "exposed-above"
+// FAB-style item in `mobile-bottom-nav.tsx`.
 export const MOBILE_BOTTOM_NAV: {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon: LucideIcon | typeof Spiderweb;
   match?: string[];
 }[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Flash", href: "/flash", icon: Spiderweb, match: ["/flash"] },
   {
     label: "Bookings",
     href: "/bookings/overview",
     icon: Inbox,
     match: ["/bookings"],
   },
-  { label: "Flash", href: "/flash", icon: Zap, match: ["/flash"] },
   { label: "Guest Spots", href: "/travel", icon: MapPin },
   {
     label: "Settings",

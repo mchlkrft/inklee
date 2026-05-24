@@ -55,27 +55,37 @@ export async function createFlashItemAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "not authenticated" };
 
-  const title = parseString(formData, "title");
-  if (!title) return { error: "title is required" };
+  const itemId = crypto.randomUUID();
 
-  const rawSlug = parseString(formData, "slug") ?? slugify(title);
-  const slug = slugify(rawSlug);
-  if (!slug) return { error: "invalid slug" };
+  // Title is optional in the quick-create flow — image is the centrepiece.
+  // Fall back to a placeholder so the DB's not-null constraint holds; the
+  // artist can rename later from the edit page.
+  const titleInput = parseString(formData, "title");
+  const title = titleInput ?? "Untitled flash";
 
-  const bookingMode = formData.get("booking_mode") as string;
-  if (!["unique", "limited", "repeatable"].includes(bookingMode))
-    return { error: "invalid booking mode" };
+  const rawSlug =
+    parseString(formData, "slug") ??
+    (titleInput ? slugify(titleInput) : `flash-${itemId.slice(0, 8)}`);
+  const slug = slugify(rawSlug) || `flash-${itemId.slice(0, 8)}`;
+
+  // Booking mode + price type both default sensibly so the quick-create
+  // modal doesn't have to render every control to satisfy validation.
+  const bookingModeInput = (formData.get("booking_mode") as string) || "unique";
+  const bookingMode = ["unique", "limited", "repeatable"].includes(
+    bookingModeInput,
+  )
+    ? bookingModeInput
+    : "unique";
 
   const maxBookings =
     bookingMode === "limited" ? parseNumeric(formData, "max_bookings") : null;
   if (bookingMode === "limited" && (!maxBookings || maxBookings < 1))
     return { error: "max bookings must be at least 1 for limited mode" };
 
-  const priceType = formData.get("price_type") as string;
-  if (!["fixed", "from", "request"].includes(priceType))
-    return { error: "invalid price type" };
-
-  const itemId = crypto.randomUUID();
+  const priceTypeInput = (formData.get("price_type") as string) || "request";
+  const priceType = ["fixed", "from", "request"].includes(priceTypeInput)
+    ? priceTypeInput
+    : "request";
 
   // Handle preview image upload
   const imageFile = formData.get("preview_image") as File | null;
@@ -138,23 +148,33 @@ export async function updateFlashItemAction(
     .single();
   if (!existing) return { error: "not found" };
 
-  const title = parseString(formData, "title");
-  if (!title) return { error: "title is required" };
+  // Same lenient rules as createFlashItemAction — keeps create / edit
+  // symmetric so an artist can save an Untitled draft from the modal
+  // and then revisit the edit page to refine.
+  const titleInput = parseString(formData, "title");
+  const title = titleInput ?? "Untitled flash";
 
-  const rawSlug = parseString(formData, "slug") ?? slugify(title);
-  const slug = slugify(rawSlug);
-  if (!slug) return { error: "invalid slug" };
+  const rawSlug =
+    parseString(formData, "slug") ??
+    (titleInput ? slugify(titleInput) : `flash-${id.slice(0, 8)}`);
+  const slug = slugify(rawSlug) || `flash-${id.slice(0, 8)}`;
 
-  const bookingMode = formData.get("booking_mode") as string;
-  if (!["unique", "limited", "repeatable"].includes(bookingMode))
-    return { error: "invalid booking mode" };
+  const bookingModeInput = (formData.get("booking_mode") as string) || "unique";
+  const bookingMode = ["unique", "limited", "repeatable"].includes(
+    bookingModeInput,
+  )
+    ? bookingModeInput
+    : "unique";
 
   const maxBookings =
     bookingMode === "limited" ? parseNumeric(formData, "max_bookings") : null;
   if (bookingMode === "limited" && (!maxBookings || maxBookings < 1))
     return { error: "max bookings must be at least 1 for limited mode" };
 
-  const priceType = formData.get("price_type") as string;
+  const priceTypeInput = (formData.get("price_type") as string) || "request";
+  const priceType = ["fixed", "from", "request"].includes(priceTypeInput)
+    ? priceTypeInput
+    : "request";
 
   // Handle preview image upload
   const imageFile = formData.get("preview_image") as File | null;

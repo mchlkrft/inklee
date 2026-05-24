@@ -167,7 +167,8 @@ export default function StatusActions({
               Accept
             </button>
             <p className="text-xs text-muted-foreground">
-              Sends the client an approval email with a link to confirm details.
+              Sends the client an acceptance email with a link to confirm
+              details.
             </p>
           </div>
 
