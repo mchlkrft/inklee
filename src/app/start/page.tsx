@@ -134,10 +134,10 @@ export default async function StartPage() {
               </div>
               <div className="mt-4 flex gap-2 border-t border-border pt-3">
                 <div className="flex-1 rounded-md bg-foreground/10 px-3 py-1.5 text-center text-[11px] font-medium text-foreground">
-                  Approve
+                  Accept
                 </div>
                 <div className="flex-1 rounded-md border border-border px-3 py-1.5 text-center text-[11px] text-muted-foreground">
-                  Decline
+                  Pass
                 </div>
               </div>
             </div>
@@ -196,7 +196,7 @@ export default async function StartPage() {
               </p>
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">
                 You get every request in one place, with everything already
-                filled in. Review it, approve it, or pass — no back-and-forth
+                filled in. Review it, accept it, or pass — no back-and-forth
                 required.
               </p>
             </div>
@@ -222,8 +222,8 @@ export default async function StartPage() {
               />
               <Step
                 number="03"
-                title="You review and approve"
-                text="Every request lands in your dashboard. Approve, decline, or request a deposit. Approved bookings go straight to your calendar."
+                title="You review and accept"
+                text="Every request lands in your dashboard. Accept, pass, or request a deposit. Accepted bookings go straight to your calendar."
               />
             </div>
           </div>
@@ -246,7 +246,7 @@ export default async function StartPage() {
               <ProofCard label="Review requests without DM chaos">
                 <DashboardPreview />
               </ProofCard>
-              <ProofCard label="Keep approved bookings in one view">
+              <ProofCard label="Keep accepted bookings in one view">
                 <CalendarPreview />
               </ProofCard>
             </div>
@@ -297,30 +297,15 @@ export default async function StartPage() {
         {/* ─── Trust ───────────────────────────────────────────────────── */}
         <section className="border-t border-border">
           <div className="mx-auto max-w-5xl px-6 py-20">
-            <div className="grid grid-cols-1 gap-14 sm:grid-cols-2">
-              <div className="space-y-8">
-                <Quote
-                  text="Finally a tool that handles the boring parts — I just focus on the tattooing."
-                  author="Tattoo artist, Berlin"
-                />
-                <Quote
-                  text="My clients love it. They fill in the form and I get everything I need in one place."
-                  author="Freelance artist, Amsterdam"
-                />
-                <p className="text-xs text-muted-foreground">
-                  ↑ Replace with real quotes when available.
-                </p>
-              </div>
-              <div className="space-y-5">
-                <h3 className="text-base font-semibold text-foreground">
-                  Structured like a professional tool. Built with tattoo artists
-                  in mind.
-                </h3>
-                <TrustPoint text="Your booking link is ready in under 5 minutes." />
-                <TrustPoint text="GDPR-compliant. Client data stays on European servers." />
-                <TrustPoint text="No technical setup. No plugins, no integrations to manage." />
-                <TrustPoint text="Free to get started." />
-              </div>
+            <div className="max-w-xl space-y-5">
+              <h3 className="text-base font-semibold text-foreground">
+                Structured like a professional tool. Built with tattoo artists
+                in mind.
+              </h3>
+              <TrustPoint text="Your booking link is ready in under 5 minutes." />
+              <TrustPoint text="GDPR-compliant. Client data stays on European servers." />
+              <TrustPoint text="No technical setup. No plugins, no integrations to manage." />
+              <TrustPoint text="Free to get started." />
             </div>
           </div>
         </section>
@@ -429,17 +414,6 @@ function ProofCard({
   );
 }
 
-function Quote({ text, author }: { text: string; author: string }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-sm leading-relaxed text-foreground">
-        &ldquo;{text}&rdquo;
-      </p>
-      <p className="text-xs text-muted-foreground">— {author}</p>
-    </div>
-  );
-}
-
 function TrustPoint({ text }: { text: string }) {
   return (
     <div className="flex items-start gap-2.5">
@@ -522,14 +496,31 @@ function DashboardPreview() {
 }
 
 function CalendarPreview() {
-  // May 2025 — starts Thursday (index 3, Mon=0)
+  // Render the current month at request time so this illustration doesn't
+  // go stale — server component, so `new Date()` is the request timestamp.
+  const now = new Date();
+  const monthName = now.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  // JS Date: 0 = Sunday … 6 = Saturday. Convert to Monday-first index 0–6.
+  const firstDayOfWeek = (firstOfMonth.getDay() + 6) % 7;
+  const daysInMonth = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    0,
+  ).getDate();
+
+  // Illustrative "busy schedule" — keeps the 6-bookings caption honest;
+  // 28 always exists since every month has ≥ 28 days.
   const booked = new Set([7, 8, 14, 15, 21, 28]);
   const days = ["M", "T", "W", "T", "F", "S", "S"];
 
   return (
     <div className="select-none p-4 pointer-events-none">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-medium text-foreground">May 2025</p>
+        <p className="text-xs font-medium text-foreground">{monthName}</p>
         <p className="text-[10px] text-muted-foreground">6 bookings</p>
       </div>
       <div className="grid grid-cols-7 gap-y-1">
@@ -541,11 +532,10 @@ function CalendarPreview() {
             {d}
           </p>
         ))}
-        {/* padding: May 1 is Thursday = 3 empty cells (Mon, Tue, Wed) */}
-        {[0, 1, 2].map((i) => (
+        {Array.from({ length: firstDayOfWeek }, (_, i) => (
           <div key={`pad-${i}`} />
         ))}
-        {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
           <div
             key={day}
             className={`flex h-6 items-center justify-center rounded text-[10px] ${

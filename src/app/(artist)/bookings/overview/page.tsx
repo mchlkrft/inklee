@@ -6,12 +6,15 @@ import { humanStatusLabel } from "@/lib/status-labels";
 import CopyButton from "@/components/copy-button";
 import FeatureIntroModal from "@/components/feature-intro-modal";
 
+// Labels mirror the StatusBadge / humanStatusLabel vocabulary so the chip
+// row and the row badges below speak the same language. URL `value`s stay
+// as the DB enum (`approved` / `rejected`) — bookmarks + deep links survive.
 const STATUS_FILTERS = [
   { label: "All", value: "all" },
   { label: "Pending", value: "pending" },
-  { label: "Approved", value: "approved" },
+  { label: "Accepted", value: "approved" },
   { label: "Deposit pending", value: "deposit_pending" },
-  { label: "Rejected", value: "rejected" },
+  { label: "Passed", value: "rejected" },
   { label: "Cancelled", value: "cancelled" },
 ] as const;
 

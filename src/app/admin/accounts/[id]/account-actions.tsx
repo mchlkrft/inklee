@@ -410,7 +410,7 @@ function ConfirmPanel({
               : "bg-foreground text-background"
           }`}
         >
-          {pending ? "Deleting…" : "Confirm"}
+          {pending ? actionPendingLabel(action) : "Confirm"}
         </button>
         <button
           onClick={onCancel}
@@ -432,6 +432,18 @@ function actionLabel(action: ActionId): string {
     reset_onboarding: "Reset onboarding",
     password_reset: "Trigger password reset",
     delete: "Delete account permanently",
+  };
+  return map[action];
+}
+
+function actionPendingLabel(action: ActionId): string {
+  const map: Record<ActionId, string> = {
+    suspend: "Suspending…",
+    reactivate: "Reactivating…",
+    archive: "Archiving…",
+    reset_onboarding: "Resetting…",
+    password_reset: "Sending…",
+    delete: "Deleting…",
   };
   return map[action];
 }
