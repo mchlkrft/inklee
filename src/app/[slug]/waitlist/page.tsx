@@ -4,12 +4,9 @@ import Link from "next/link";
 import { serviceClient } from "@/lib/supabase/service";
 import WaitlistForm from "../waitlist-form";
 
-// noindex — this is a sharing surface for the artist, not a public
-// search-engine target. Main discovery happens via /[slug].
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-};
-
+// `generateMetadata` below sets robots: noindex per-request — Next.js
+// rejects exporting both a static `metadata` and `generateMetadata` from
+// the same file, so the noindex lives in the dynamic version.
 export async function generateMetadata({
   params,
 }: {
