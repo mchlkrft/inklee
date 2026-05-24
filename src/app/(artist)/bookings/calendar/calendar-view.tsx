@@ -2,6 +2,7 @@
 
 import { localDateKey } from "@/lib/date-utils";
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import AppointmentDrawer, { type CalendarEvent } from "./appointment-drawer";
 import NewAppointmentModal from "./new-appointment-modal";
 
@@ -53,6 +54,9 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
   const [month, setMonth] = useState(now.getMonth());
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
   const [showNew, setShowNew] = useState(false);
+  // Pre-fills the modal date when a date cell is clicked. Null for the header
+  // "+ New appointment" button so the user picks fresh.
+  const [newDate, setNewDate] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
 
   const visibleEvents = events.filter((e) => !cancelled.has(e.id));
@@ -103,7 +107,10 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
             </button>
           </div>
           <button
-            onClick={() => setShowNew(true)}
+            onClick={() => {
+              setNewDate(null);
+              setShowNew(true);
+            }}
             className="rounded-md bg-brand-mustard px-3 py-1.5 text-sm font-medium text-brand-charcoal"
           >
             + New appointment
@@ -132,15 +139,46 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
               const isToday = key === TODAY;
               const dayEvents = byDate[key] ?? [];
 
+              // Border logic: only EMIT `border-r`/`border-b` for cells that
+              // need them. Setting `border-r-0`/`border-b-0` on the last
+              // column / row doesn't work — globals.css `.border-r:not(.border-transparent)`
+              // has higher specificity (`:not()` bumps to (0,2,0)) than the
+              // `.border-r-0` utility (0,1,0), so the override loses. The
+              // resulting unwanted right + bottom borders on edge cells were
+              // visible as a double line + rounded-corner mismatch against the
+              // outer container's border.
+              const isPastOrToday = key <= TODAY;
               return (
                 <div
                   key={i}
-                  className={`min-h-[96px] p-1.5 border-b border-r border-border ${
+                  className={`group relative min-h-[96px] p-1.5 border-border ${
                     !isCurrentMonth ? "bg-brand-mustard/[0.04]" : ""
-                  } ${i % 7 === 6 ? "border-r-0" : ""} ${i >= 35 ? "border-b-0" : ""}`}
+                  } ${i % 7 !== 6 ? "border-r" : ""} ${i < 35 ? "border-b" : ""}`}
                 >
+                  {/* Background click target — clicking anywhere on the cell
+                      (except an event button) opens the add-appointment modal
+                      pre-filled with this date. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Past/today dates open the modal with no default — the
+                      // input's `min={tomorrow()}` would otherwise leave the
+                      // form in an invalid state.
+                      setNewDate(isPastOrToday ? null : key);
+                      setShowNew(true);
+                    }}
+                    aria-label={`Add appointment on ${date.toLocaleDateString()}`}
+                    className="absolute inset-0 z-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-mustard focus-visible:ring-inset"
+                  />
+
+                  {/* Hover hint — desktop only; touch users tap the cell directly. */}
+                  <Plus
+                    aria-hidden
+                    className="pointer-events-none absolute right-1.5 top-1.5 z-10 h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70"
+                  />
+
                   <span
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs mb-1 ${
+                    className={`pointer-events-none relative z-10 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs mb-1 ${
                       isToday
                         ? "bg-brand-mustard text-brand-charcoal font-semibold"
                         : isCurrentMonth
@@ -151,7 +189,7 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
                     {date.getDate()}
                   </span>
 
-                  <div className="space-y-0.5">
+                  <div className="relative z-10 space-y-0.5">
                     {dayEvents.slice(0, 3).map((ev) => (
                       <button
                         key={ev.id}
@@ -199,7 +237,15 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
         }}
       />
 
-      {showNew && <NewAppointmentModal onClose={() => setShowNew(false)} />}
+      {showNew && (
+        <NewAppointmentModal
+          defaultDate={newDate}
+          onClose={() => {
+            setShowNew(false);
+            setNewDate(null);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -10,8 +10,11 @@ const tomorrow = () => addDaysToDateKey(localDateKey(), 1);
 
 export default function NewAppointmentModal({
   onClose,
+  defaultDate,
 }: {
   onClose: () => void;
+  /** Pre-fills the date field when the modal is opened from a date-cell click. */
+  defaultDate?: string | null;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +81,7 @@ export default function NewAppointmentModal({
                 name="preferred_date"
                 required
                 min={tomorrow()}
+                defaultValue={defaultDate ?? undefined}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
