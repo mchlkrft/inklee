@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import DateInput from "@/components/date-input";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { useOptimistic, useState, useTransition } from "react";
@@ -10,6 +11,11 @@ import {
   markDepositReceived,
 } from "../../actions";
 import StatusBadge from "@/components/status-badge";
+import {
+  DEPOSIT_DEFAULTS_FALLBACK,
+  type DepositDefaults,
+  type StripeMode,
+} from "@/lib/deposit-settings";
 
 type Booking = {
   id: string;
@@ -20,15 +26,28 @@ function tomorrow(): string {
   return addDaysToDateKey(localDateKey(), 1);
 }
 
-export default function StatusActions({ booking }: { booking: Booking }) {
+export default function StatusActions({
+  booking,
+  depositDefaults = DEPOSIT_DEFAULTS_FALLBACK,
+  stripeMode = "missing",
+}: {
+  booking: Booking;
+  depositDefaults?: DepositDefaults;
+  stripeMode?: StripeMode;
+}) {
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(booking.status);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const [showDepositForm, setShowDepositForm] = useState(false);
-  const [depositAmount, setDepositAmount] = useState("");
-  const [depositDueAt, setDepositDueAt] = useState(tomorrow());
-  const [depositNote, setDepositNote] = useState("");
+  // Pre-fill from per-artist defaults (configured at /settings/deposits).
+  const [depositAmount, setDepositAmount] = useState(
+    depositDefaults.amount !== null ? String(depositDefaults.amount) : "",
+  );
+  const [depositDueAt, setDepositDueAt] = useState(
+    addDaysToDateKey(localDateKey(), depositDefaults.due_days),
+  );
+  const [depositNote, setDepositNote] = useState(depositDefaults.note);
   const [confirmReject, setConfirmReject] = useState(false);
 
   const run = async (
@@ -170,6 +189,18 @@ export default function StatusActions({ booking }: { booking: Booking }) {
               <p className="text-sm font-medium text-foreground">
                 Request deposit
               </p>
+              {stripeMode === "test" && (
+                // Yellow test-mode banner — warns the artist this request
+                // will NOT process a real payment. Only fires when
+                // pk_test_* keys are configured (dev/preview).
+                <div className="flex items-start gap-2 rounded-md border border-orange-400/40 bg-orange-400/[0.07] px-3 py-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" />
+                  <p className="text-xs leading-snug text-orange-400">
+                    Stripe is in test mode — no real payment will be taken. Live
+                    keys aren’t configured in this environment.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">

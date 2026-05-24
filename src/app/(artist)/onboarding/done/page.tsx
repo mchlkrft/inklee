@@ -30,7 +30,7 @@ const OPTIONAL_FEATURES = [
   {
     icon: CreditCard,
     label: "Deposit collection",
-    href: "/bookings/overview",
+    href: "/settings/deposits",
   },
 ] as const;
 

@@ -74,6 +74,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
         match: ["/settings"],
         children: [
           { label: "Profile", href: "/settings/profile" },
+          { label: "Deposits", href: "/settings/deposits" },
           { label: "Emails", href: "/settings/emails" },
           { label: "Calendar", href: "/settings/calendar" },
           { label: "Home widgets", href: "/settings/dashboard" },

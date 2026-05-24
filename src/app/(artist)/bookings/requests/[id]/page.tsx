@@ -12,6 +12,7 @@ import { formatCustomAnswer } from "@/lib/custom-fields";
 import { bookingModeFromRequest, bookingModeLabel } from "@/lib/booking-domain";
 import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
+import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
 
 export default async function RequestDetailPage({
   params,
@@ -27,7 +28,7 @@ export default async function RequestDetailPage({
   const { data: booking } = await supabase
     .from("booking_requests")
     .select(
-      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status), trips(title), slots(starts_at, duration_minutes), profiles!artist_id(timezone)",
+      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status), trips(title), slots(starts_at, duration_minutes), profiles!artist_id(timezone, settings)",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
@@ -45,6 +46,13 @@ export default async function RequestDetailPage({
   const artistTimeZone =
     (artistProfile as { timezone?: string } | null)?.timezone ??
     "Europe/Berlin";
+  const artistSettings = ((
+    artistProfile as { settings?: Record<string, unknown> } | null
+  )?.settings ?? {}) as Record<string, unknown>;
+  const depositDefaults = parseDepositDefaults(artistSettings.deposit_defaults);
+  const stripeMode = detectStripeMode(
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+  );
   const slotInfo =
     booking.slot_id && booking.slots
       ? formatSlotDisplay(
@@ -107,7 +115,11 @@ export default async function RequestDetailPage({
       {/* Mobile/tablet: actions sit above the dense detail block so artists */}
       {/* can decide without scrolling. On lg+ they live in the right column. */}
       <div className="lg:hidden">
-        <StatusActions booking={{ id: booking.id, status: booking.status }} />
+        <StatusActions
+          booking={{ id: booking.id, status: booking.status }}
+          depositDefaults={depositDefaults}
+          stripeMode={stripeMode}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
@@ -198,6 +210,8 @@ export default async function RequestDetailPage({
           <div className="hidden lg:block">
             <StatusActions
               booking={{ id: booking.id, status: booking.status }}
+              depositDefaults={depositDefaults}
+              stripeMode={stripeMode}
             />
           </div>
 
