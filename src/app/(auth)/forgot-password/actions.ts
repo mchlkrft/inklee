@@ -11,7 +11,7 @@ export async function forgotPasswordAction(
   formData: FormData,
 ): Promise<State> {
   const email = (formData.get("email") as string).trim();
-  if (!email) return { error: "email is required" };
+  if (!email) return { error: "Email is required." };
 
   // Rate limit by both IP and email to prevent targeted abuse
   const ip = (await headers()).get("x-forwarded-for") ?? "unknown";
@@ -26,7 +26,7 @@ export async function forgotPasswordAction(
     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/reset-password`,
   });
 
-  if (error) return { error: error.message.toLowerCase() };
+  if (error) return { error: error.message };
 
   return { sent: true };
 }

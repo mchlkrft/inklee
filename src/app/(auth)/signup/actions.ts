@@ -12,9 +12,9 @@ export async function signUpAction(
   const email = (formData.get("email") as string).trim();
   const password = formData.get("password") as string;
 
-  if (!email || !password) return { error: "email and password are required" };
+  if (!email || !password) return { error: "Email and password are required." };
   if (password.length < 8)
-    return { error: "password must be at least 8 characters" };
+    return { error: "Password must be at least 8 characters." };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
@@ -27,9 +27,9 @@ export async function signUpAction(
 
   if (error) {
     if (error.message.toLowerCase().includes("already registered")) {
-      return { error: "an account with that email already exists" };
+      return { error: "An account with that email already exists." };
     }
-    return { error: error.message.toLowerCase() };
+    return { error: error.message };
   }
 
   const {

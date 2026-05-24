@@ -12,15 +12,15 @@ export async function resetPasswordAction(
   const password = formData.get("password") as string;
   const confirm = formData.get("confirm") as string;
 
-  if (!password) return { error: "password is required" };
+  if (!password) return { error: "Password is required." };
   if (password.length < 8)
-    return { error: "password must be at least 8 characters" };
-  if (password !== confirm) return { error: "passwords don't match" };
+    return { error: "Password must be at least 8 characters." };
+  if (password !== confirm) return { error: "Passwords don’t match." };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password });
 
-  if (error) return { error: error.message.toLowerCase() };
+  if (error) return { error: error.message };
 
   redirect("/dashboard");
 }

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
+import { Mail } from "lucide-react";
 import { forgotPasswordAction } from "./actions";
 
 type State = { error: string } | { sent: true } | null;
@@ -14,10 +15,25 @@ export default function ForgotPasswordPage() {
 
   if (state && "sent" in state) {
     return (
-      <div className="text-center space-y-2">
-        <p className="text-foreground font-medium">Check your email</p>
-        <p className="text-sm text-muted-foreground">
-          If that address is registered, a reset link is on its way.
+      <div className="space-y-4 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-mustard/15">
+          <Mail className="h-5 w-5 text-brand-mustard" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-base font-medium text-foreground">
+            Check your email
+          </p>
+          <p className="text-sm text-muted-foreground">
+            If that address is registered, a reset link is on its way.
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          <Link
+            href="/login"
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Back to sign in
+          </Link>
         </p>
       </div>
     );
@@ -27,15 +43,11 @@ export default function ForgotPasswordPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Reset password
+          Forgot password?
         </h1>
         <p className="text-sm text-muted-foreground">
-          <Link
-            href="/login"
-            className="text-foreground underline underline-offset-4"
-          >
-            Back to sign in
-          </Link>
+          Enter the email on your account and we’ll send you a link to set a new
+          one.
         </p>
       </div>
 
@@ -63,9 +75,18 @@ export default function ForgotPasswordPage() {
           disabled={pending}
           className="w-full rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
-          {pending ? "Sending..." : "Send reset link"}
+          {pending ? "Sending…" : "Send reset link"}
         </button>
       </form>
+
+      <p className="text-center text-sm text-muted-foreground">
+        <Link
+          href="/login"
+          className="text-foreground underline underline-offset-4"
+        >
+          Back to sign in
+        </Link>
+      </p>
     </div>
   );
 }

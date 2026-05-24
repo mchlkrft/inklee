@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { resetPasswordAction } from "./actions";
+import PasswordInput from "@/components/password-input";
 
 type State = { error: string } | null;
 
@@ -15,8 +16,11 @@ export default function ResetPasswordPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Set new password
+          Set a new password
         </h1>
+        <p className="text-sm text-muted-foreground">
+          Enter a new password for your account. You’ll be signed in afterwards.
+        </p>
       </div>
 
       <form action={action} className="space-y-4">
@@ -28,28 +32,25 @@ export default function ResetPasswordPage() {
           <label htmlFor="password" className="text-sm text-muted-foreground">
             New password
           </label>
-          <input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="new-password"
             required
             minLength={8}
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
+          <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
         </div>
 
         <div className="space-y-1.5">
           <label htmlFor="confirm" className="text-sm text-muted-foreground">
             Confirm password
           </label>
-          <input
+          <PasswordInput
             id="confirm"
             name="confirm"
-            type="password"
             autoComplete="new-password"
             required
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 

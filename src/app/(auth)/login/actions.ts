@@ -14,18 +14,20 @@ export async function loginAction(
   const ip = (await headers()).get("x-forwarded-for") ?? "unknown";
   const { allowed } = await checkLoginRateLimit(ip);
   if (!allowed)
-    return { error: "too many login attempts — please wait a few minutes" };
+    return {
+      error: "Too many login attempts — please wait a few minutes.",
+    };
 
   const email = (formData.get("email") as string).trim();
   const password = formData.get("password") as string;
 
-  if (!email || !password) return { error: "email and password are required" };
+  if (!email || !password) return { error: "Email and password are required." };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { error: "invalid email or password" };
+    return { error: "Invalid email or password." };
   }
 
   const { data: profile } = await supabase

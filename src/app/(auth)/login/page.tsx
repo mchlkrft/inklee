@@ -1,11 +1,28 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { loginAction } from "./actions";
 import GoogleAuthButton from "@/components/google-auth-button";
+import PasswordInput from "@/components/password-input";
+import { authErrorMessage } from "@/lib/auth-error";
 
 type State = { error: string } | null;
+
+// Surfaces a URL-redirected auth error (e.g. expired confirmation link).
+// Split into a Suspense-wrapped child because `useSearchParams` opts the
+// page out of static rendering otherwise.
+function UrlErrorBanner() {
+  const params = useSearchParams();
+  const msg = authErrorMessage(params.get("error"));
+  if (!msg) return null;
+  return (
+    <div className="rounded-md border border-destructive/40 bg-destructive/[0.06] px-3 py-2">
+      <p className="text-sm text-destructive">{msg}</p>
+    </div>
+  );
+}
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState<State, FormData>(
@@ -31,8 +48,14 @@ export default function LoginPage() {
       </div>
 
       <form action={action} className="space-y-4">
-        {state?.error && (
-          <p className="text-sm text-destructive">{state.error}</p>
+        {state?.error ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/[0.06] px-3 py-2">
+            <p className="text-sm text-destructive">{state.error}</p>
+          </div>
+        ) : (
+          <Suspense fallback={null}>
+            <UrlErrorBanner />
+          </Suspense>
         )}
 
         <div className="space-y-1.5">
@@ -53,13 +76,11 @@ export default function LoginPage() {
           <label htmlFor="password" className="text-sm text-muted-foreground">
             Password
           </label>
-          <input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="current-password"
             required
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 
@@ -77,7 +98,7 @@ export default function LoginPage() {
           disabled={pending}
           className="w-full rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
-          {pending ? "Signing in..." : "Sign in"}
+          {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
 

@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
+import { Mail } from "lucide-react";
 import { signUpAction } from "./actions";
 import GoogleAuthButton from "@/components/google-auth-button";
+import PasswordInput from "@/components/password-input";
 
 type State = { error: string } | { sent: true } | null;
 
@@ -12,14 +14,41 @@ export default function SignupPage() {
     signUpAction,
     null,
   );
+  // Track the email so we can show it back in the success view, and let the
+  // user dismiss the success view to try a different address.
+  const [email, setEmail] = useState("");
+  const [dismissedSuccess, setDismissedSuccess] = useState(false);
 
-  if (state && "sent" in state) {
+  const sent = state !== null && "sent" in state && !dismissedSuccess;
+
+  if (sent) {
     return (
-      <div className="text-center space-y-2">
-        <p className="text-foreground font-medium">Check your email</p>
-        <p className="text-sm text-muted-foreground">
-          We sent a confirmation link. Check your spam folder if it doesn&apos;t
-          arrive.
+      <div className="space-y-5 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-mustard/15">
+          <Mail className="h-5 w-5 text-brand-mustard" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-base font-medium text-foreground">
+            Check your email
+          </p>
+          <p className="text-sm text-muted-foreground">
+            We sent a confirmation link to{" "}
+            <span className="text-foreground">{email || "your inbox"}</span>.
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Didn&apos;t get it? Check your spam folder, or{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setDismissedSuccess(true);
+              setEmail("");
+            }}
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            use a different email
+          </button>
+          .
         </p>
       </div>
     );
@@ -57,6 +86,8 @@ export default function SignupPage() {
             type="email"
             autoComplete="email"
             required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
@@ -65,14 +96,12 @@ export default function SignupPage() {
           <label htmlFor="password" className="text-sm text-muted-foreground">
             Password
           </label>
-          <input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="new-password"
             required
             minLength={8}
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
         </div>
@@ -102,7 +131,7 @@ export default function SignupPage() {
           disabled={pending}
           className="w-full rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
-          {pending ? "Creating account..." : "Create account"}
+          {pending ? "Creating account…" : "Create account"}
         </button>
       </form>
 
