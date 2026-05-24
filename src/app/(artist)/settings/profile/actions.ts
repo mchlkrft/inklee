@@ -37,7 +37,7 @@ export async function updateProfileAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const displayName = (formData.get("display_name") as string).trim();
   const instagramHandle = (formData.get("instagram_handle") as string | null)
@@ -55,18 +55,18 @@ export async function updateProfileAction(
   const removeCoverImage = formData.get("remove_cover_image") === "1";
   const coverColorRaw = formData.get("cover_color") as string | null;
 
-  if (!displayName) return { error: "display name is required" };
+  if (!displayName) return { error: "Display name is required." };
   if (bio && bio.length > 280)
-    return { error: "bio must be 280 characters or fewer" };
+    return { error: "Bio must be 280 characters or fewer." };
 
   let logoUrl: string | undefined;
 
   if (logoFile && logoFile.size > 0) {
     if (!ALLOWED_TYPES.includes(logoFile.type)) {
-      return { error: "logo must be png, jpg, or webp" };
+      return { error: "Logo must be PNG, JPG, or WebP." };
     }
     if (logoFile.size > MAX_SIZE) {
-      return { error: "logo must be under 2mb" };
+      return { error: "Logo must be under 2 MB." };
     }
 
     const buffer = Buffer.from(await logoFile.arrayBuffer());
@@ -83,7 +83,7 @@ export async function updateProfileAction(
         upsert: true,
       });
 
-    if (uploadError) return { error: "logo upload failed — try again" };
+    if (uploadError) return { error: "Logo upload failed. Try again." };
 
     const { data: urlData } = serviceClient.storage
       .from("logos")
@@ -102,10 +102,10 @@ export async function updateProfileAction(
     coverImageUrl = null;
   } else if (coverFile && coverFile.size > 0) {
     if (!ALLOWED_TYPES.includes(coverFile.type)) {
-      return { error: "cover image must be png, jpg, or webp" };
+      return { error: "Cover image must be PNG, JPG, or WebP." };
     }
     if (coverFile.size > MAX_COVER_SIZE) {
-      return { error: "cover image must be under 5mb" };
+      return { error: "Cover image must be under 5 MB." };
     }
     const buffer = Buffer.from(await coverFile.arrayBuffer());
     const resized = await sharp(buffer)
@@ -119,7 +119,7 @@ export async function updateProfileAction(
         contentType: "image/webp",
         upsert: true,
       });
-    if (uploadError) return { error: "cover image upload failed — try again" };
+    if (uploadError) return { error: "Cover image upload failed. Try again." };
     const { data: urlData } = serviceClient.storage
       .from("logos")
       .getPublicUrl(path);

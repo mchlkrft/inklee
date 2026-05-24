@@ -13,7 +13,7 @@ export async function saveBooksSettingsAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const booksOpen = formData.get("books_open") === "true";
 
@@ -29,7 +29,7 @@ export async function saveBooksSettingsAction(
   const closedMessage =
     (formData.get("books_closed_message") as string)?.trim() || null;
   if (closedMessage && closedMessage.length > 280) {
-    return { error: "closed message must be 280 characters or fewer" };
+    return { error: "Closed message must be 280 characters or fewer." };
   }
 
   const { data: existing } = await supabase

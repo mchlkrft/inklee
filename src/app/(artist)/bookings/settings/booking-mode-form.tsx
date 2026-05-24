@@ -9,7 +9,7 @@ const MODES = [
   {
     value: "preferred_date",
     label: "Preferred date",
-    description: "Clients suggest a date — you confirm or negotiate.",
+    description: "Clients suggest a date. You confirm or negotiate.",
   },
   {
     value: "fixed_slots",
@@ -131,7 +131,7 @@ export default function BookingModeForm({
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Fixed slots mode is active. Add time slots now so clients can
-                  start booking — or skip and set them up later.
+                  start booking, or skip and set them up later.
                 </p>
               </div>
 
@@ -149,7 +149,7 @@ export default function BookingModeForm({
                 >
                   {skipping
                     ? "Saving…"
-                    : "Skip for now — I'll set up slots later"}
+                    : "Skip for now. I'll set up slots later"}
                 </button>
               </div>
             </div>

@@ -14,7 +14,7 @@ export async function saveFormSettingsAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: profile } = await supabase
     .from("profiles")

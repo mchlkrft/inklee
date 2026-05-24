@@ -62,8 +62,8 @@ export default function OnboardingFormPage() {
           Booking form
         </h1>
         <p className="text-sm text-muted-foreground">
-          What should clients include in their request? These are your defaults
-          — you can adjust them later in settings.
+          What should clients include in their request? These are your defaults.
+          You can adjust them later in settings.
         </p>
       </div>
 

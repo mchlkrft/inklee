@@ -14,7 +14,7 @@ export async function saveOnboardingAvailabilityAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const booksOpen = formData.get("books_open") !== "false";
   const closedMessage =

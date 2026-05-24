@@ -33,10 +33,10 @@ export async function createFlashDayAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const title = parseString(formData, "title");
-  if (!title) return { error: "title is required" };
+  if (!title) return { error: "Title is required." };
 
   const { studio_id, location } = resolveLocationFields(formData);
 
@@ -68,11 +68,11 @@ export async function updateFlashDayAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const id = formData.get("id") as string;
   const title = parseString(formData, "title");
-  if (!title) return { error: "title is required" };
+  if (!title) return { error: "Title is required." };
 
   const { studio_id, location } = resolveLocationFields(formData);
 
@@ -110,7 +110,7 @@ export async function attachFlashItemsToDayAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   // Confirm ownership of the day to avoid attaching items into a stranger's day
   const { data: day } = await supabase
@@ -119,7 +119,7 @@ export async function attachFlashItemsToDayAction(
     .eq("id", dayId)
     .eq("artist_id", user.id)
     .maybeSingle();
-  if (!day) return { error: "day not found" };
+  if (!day) return { error: "Day not found." };
 
   const { error } = await supabase
     .from("flash_items")
@@ -145,7 +145,7 @@ export async function detachFlashItemFromDayAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("flash_items")

@@ -20,7 +20,7 @@ export async function createFieldAction(
   formData: FormData,
 ): Promise<State> {
   const { supabase, user } = await getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const raw = {
     key: (formData.get("key") as string).trim(),
@@ -81,10 +81,10 @@ export async function updateFieldAction(
   formData: FormData,
 ): Promise<State> {
   const { supabase, user } = await getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const id = formData.get("id") as string;
-  if (!id) return { error: "missing field id" };
+  if (!id) return { error: "Missing field id." };
 
   const raw = {
     key: (formData.get("key") as string).trim(),
@@ -132,7 +132,7 @@ export async function toggleFieldActiveAction(
   active: boolean,
 ): Promise<State> {
   const { supabase, user } = await getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("custom_fields")
@@ -151,7 +151,7 @@ export async function reorderFieldAction(
   direction: "up" | "down",
 ): Promise<State> {
   const { supabase, user } = await getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: fields } = await supabase
     .from("custom_fields")
@@ -160,10 +160,10 @@ export async function reorderFieldAction(
     .is("deleted_at", null)
     .order("position", { ascending: true });
 
-  if (!fields) return { error: "not found" };
+  if (!fields) return { error: "Not found." };
 
   const idx = fields.findIndex((f) => f.id === id);
-  if (idx === -1) return { error: "not found" };
+  if (idx === -1) return { error: "Not found." };
 
   const swapIdx = direction === "up" ? idx - 1 : idx + 1;
   if (swapIdx < 0 || swapIdx >= fields.length) return { success: true };
@@ -181,7 +181,7 @@ export async function reorderFieldAction(
 
 export async function deleteFieldAction(id: string): Promise<State> {
   const { supabase, user } = await getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: field } = await supabase
     .from("custom_fields")
@@ -190,7 +190,7 @@ export async function deleteFieldAction(id: string): Promise<State> {
     .eq("artist_id", user.id)
     .single();
 
-  if (!field) return { error: "not found" };
+  if (!field) return { error: "Not found." };
 
   // Check if any booking has a custom answer with this key
   const { count } = await serviceClient

@@ -139,7 +139,7 @@ export default function GeneralForm({
                 className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <p className="text-xs text-muted-foreground">
-                A confirmation link will be sent to the new address — your email
+                A confirmation link will be sent to the new address. Your email
                 won&apos;t change until you click it.
               </p>
             </div>
@@ -149,7 +149,7 @@ export default function GeneralForm({
             )}
             {emailState && "success" in emailState && (
               <p className="text-sm text-muted-foreground">
-                Confirmation sent — check your new email inbox.
+                Confirmation sent. Check your new email inbox.
               </p>
             )}
 

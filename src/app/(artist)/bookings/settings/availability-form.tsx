@@ -101,7 +101,7 @@ export default function AvailabilityForm({
             min="1"
             step="1"
             defaultValue={settings.booking_cap ?? ""}
-            placeholder="e.g. 20 — auto-closes when reached"
+            placeholder="e.g. 20 (auto-closes when reached)"
             className="w-full rounded-md border-2 border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <p className="text-sm text-muted-foreground">

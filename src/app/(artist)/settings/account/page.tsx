@@ -50,7 +50,7 @@ export default async function AccountPage() {
             <p className="mt-0.5 text-xs text-muted-foreground">
               {profile?.booking_mode === "fixed_slots"
                 ? "You publish specific time slots for clients to pick."
-                : "Clients suggest a date — you confirm or negotiate."}
+                : "Clients suggest a date. You confirm or negotiate."}
             </p>
           </div>
           <Link

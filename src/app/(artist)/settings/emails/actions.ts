@@ -25,7 +25,7 @@ export async function saveTemplateAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const type = formData.get("type") as EmailType;
   const body = (formData.get("body") as string).trim();
@@ -60,7 +60,7 @@ export async function resetTemplateAction(type: EmailType): Promise<State> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("email_templates")
@@ -89,7 +89,7 @@ export async function toggleTemplateAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: profile } = await supabase
     .from("profiles")

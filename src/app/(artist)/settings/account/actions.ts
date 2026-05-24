@@ -15,13 +15,13 @@ export async function saveGeneralAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const firstName = (formData.get("first_name") as string).trim();
   const lastName = (formData.get("last_name") as string).trim();
   const displayName = (formData.get("display_name") as string).trim();
 
-  if (!displayName) return { error: "artist name is required" };
+  if (!displayName) return { error: "Artist name is required." };
 
   const { error } = await supabase
     .from("profiles")
@@ -48,12 +48,12 @@ export async function requestEmailChangeAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const newEmail = (formData.get("new_email") as string).trim().toLowerCase();
   if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail))
-    return { error: "enter a valid email address" };
-  if (newEmail === user.email) return { error: "this is already your email" };
+    return { error: "Enter a valid email address." };
+  if (newEmail === user.email) return { error: "This is already your email." };
 
   const { error } = await supabase.auth.updateUser({ email: newEmail });
   if (error) return { error: error.message.toLowerCase() };
@@ -69,20 +69,22 @@ export async function changePasswordAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || !user.email) return { error: "not authenticated" };
+  if (!user || !user.email) return { error: "Not authenticated." };
 
   const currentPassword = formData.get("current_password") as string;
   const newPassword = formData.get("new_password") as string;
   const confirmPassword = formData.get("confirm_password") as string;
 
   if (!currentPassword || !newPassword || !confirmPassword)
-    return { error: "all fields are required" };
+    return { error: "All fields are required." };
   if (newPassword.length < 8)
-    return { error: "new password must be at least 8 characters" };
+    return { error: "New password must be at least 8 characters." };
   if (newPassword !== confirmPassword)
-    return { error: "passwords do not match" };
+    return { error: "Passwords do not match." };
   if (newPassword === currentPassword)
-    return { error: "new password must be different from current password" };
+    return {
+      error: "New password must be different from current password.",
+    };
 
   // Verify current password before allowing change.
   // signInWithPassword refreshes the session as a side-effect, which is acceptable here.
@@ -90,7 +92,7 @@ export async function changePasswordAction(
     email: user.email,
     password: currentPassword,
   });
-  if (signInError) return { error: "current password is incorrect" };
+  if (signInError) return { error: "Current password is incorrect." };
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) return { error: error.message.toLowerCase() };
@@ -135,7 +137,7 @@ export async function saveMfaRecoveryCodesAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const hashes = await Promise.all(codes.map(sha256));
 

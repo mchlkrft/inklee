@@ -14,7 +14,7 @@ export async function createAppointmentAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const handle = (formData.get("customer_handle") as string)
     .replace(/^@/, "")
@@ -28,10 +28,10 @@ export async function createAppointmentAction(
     (formData.get("customer_email") as string | null)?.trim() || null;
   const sendEmail = formData.get("send_email") === "on";
 
-  if (!handle) return { error: "instagram handle is required" };
-  if (!date) return { error: "date is required" };
-  if (!placement) return { error: "placement is required" };
-  if (!size) return { error: "size is required" };
+  if (!handle) return { error: "Instagram handle is required." };
+  if (!date) return { error: "Date is required." };
+  if (!placement) return { error: "Placement is required." };
+  if (!size) return { error: "Size is required." };
 
   const bookingId = crypto.randomUUID();
   const token = crypto.randomBytes(32).toString("hex");
@@ -97,7 +97,7 @@ export async function editAppointmentAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: booking } = await supabase
     .from("booking_requests")
@@ -105,7 +105,7 @@ export async function editAppointmentAction(
     .eq("id", id)
     .single();
 
-  if (!booking || booking.artist_id !== user.id) return { error: "not found" };
+  if (!booking || booking.artist_id !== user.id) return { error: "Not found." };
 
   const fd = booking.form_data as Record<string, string> | null;
   const handle = (formData.get("customer_handle") as string)
@@ -152,7 +152,7 @@ export async function cancelAppointmentAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: booking } = await supabase
     .from("booking_requests")
@@ -160,7 +160,7 @@ export async function cancelAppointmentAction(
     .eq("id", id)
     .single();
 
-  if (!booking || booking.artist_id !== user.id) return { error: "not found" };
+  if (!booking || booking.artist_id !== user.id) return { error: "Not found." };
 
   const updatedAt = new Date().toISOString();
   const { error } = await supabase
@@ -181,7 +181,7 @@ export async function cancelAppointmentAction(
         .from("booking_requests")
         .update({ status: "approved", updated_at: new Date().toISOString() })
         .eq("id", id);
-      return { error: "the slot could not be released - please try again" };
+      return { error: "The slot could not be released. Please try again." };
     }
   }
 

@@ -14,7 +14,7 @@ export async function saveOnboardingFormAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const showImageUpload = formData.get("show_image_upload") === "true";
   const requireDescription = formData.get("require_description") === "true";

@@ -13,12 +13,12 @@ export async function saveOnboardingBookingAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const bookingMode = formData.get("booking_mode") as
     | "preferred_date"
     | "fixed_slots";
-  if (!bookingMode) return { error: "select a booking mode" };
+  if (!bookingMode) return { error: "Select a booking mode." };
 
   const { error } = await supabase
     .from("profiles")

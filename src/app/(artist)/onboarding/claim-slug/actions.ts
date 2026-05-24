@@ -50,14 +50,14 @@ export async function claimSlugAction(
 
   const validationError = validateSlug(slug);
   if (validationError) return { error: validationError };
-  if (!displayName) return { error: "artist name is required" };
+  if (!displayName) return { error: "Artist name is required." };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: currentProfile } = await supabase
     .from("profiles")
@@ -72,7 +72,7 @@ export async function claimSlugAction(
     .neq("id", user.id)
     .single();
 
-  if (existing) return { error: "that slug is already taken" };
+  if (existing) return { error: "That slug is already taken." };
 
   const { error } = await supabase.from("profiles").upsert({
     id: user.id,

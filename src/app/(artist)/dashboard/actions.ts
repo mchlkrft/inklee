@@ -37,7 +37,7 @@ async function getAuthorisedBooking(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: booking } = await supabase
     .from("booking_requests")
@@ -47,8 +47,8 @@ async function getAuthorisedBooking(
     .eq("id", bookingId)
     .single();
 
-  if (!booking) return { error: "booking not found" };
-  if (booking.artist_id !== user.id) return { error: "not authorised" };
+  if (!booking) return { error: "Booking not found." };
+  if (booking.artist_id !== user.id) return { error: "Not authorised." };
 
   return {
     supabase,
@@ -354,7 +354,7 @@ export async function convertWaitlistEntry({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: profile } = await supabase
     .from("profiles")

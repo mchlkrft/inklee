@@ -14,7 +14,7 @@ export async function createSlotAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -27,7 +27,7 @@ export async function createSlotAction(
   const time = formData.get("time") as string;
   const duration = parseInt(formData.get("duration") as string, 10);
 
-  if (!date || !time || !duration) return { error: "all fields are required" };
+  if (!date || !time || !duration) return { error: "All fields are required." };
 
   const startsAt = localToUTC(date, time, timezone);
   const endsAt = new Date(
@@ -55,7 +55,7 @@ export async function createSlotBlockAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -70,12 +70,12 @@ export async function createSlotBlockAction(
   const duration = parseInt(formData.get("duration") as string, 10);
 
   if (!date || !startTime || !endTime || !duration) {
-    return { error: "all fields are required" };
+    return { error: "All fields are required." };
   }
 
   const slots = generateSubSlots(date, startTime, endTime, duration, timezone);
   if (slots.length === 0)
-    return { error: "no slots can fit in that time range" };
+    return { error: "No slots can fit in that time range." };
 
   const { error } = await supabase.from("slots").insert(
     slots.map((s) => ({
@@ -100,7 +100,7 @@ export async function createSlotsFromPatternAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -114,7 +114,7 @@ export async function createSlotsFromPatternAction(
   try {
     windows = JSON.parse(formData.get("windows_json") as string);
     if (!Array.isArray(windows) || windows.length === 0)
-      return { error: "at least one time window is required" };
+      return { error: "At least one time window is required." };
     for (const w of windows) {
       if (!w.start || !w.end || w.end <= w.start)
         return {
@@ -122,7 +122,7 @@ export async function createSlotsFromPatternAction(
         };
     }
   } catch {
-    return { error: "invalid window data" };
+    return { error: "Invalid window data." };
   }
 
   // Generate date list
@@ -134,13 +134,13 @@ export async function createSlotsFromPatternAction(
     try {
       weekdays = JSON.parse(formData.get("weekdays_json") as string);
       if (!Array.isArray(weekdays) || weekdays.length === 0)
-        return { error: "select at least one weekday" };
+        return { error: "Select at least one weekday." };
     } catch {
-      return { error: "invalid weekday data" };
+      return { error: "Invalid weekday data." };
     }
     const fromDate = formData.get("from_date") as string;
     const toDate = formData.get("to_date") as string;
-    if (!fromDate || !toDate) return { error: "date range is required" };
+    if (!fromDate || !toDate) return { error: "Date range is required." };
 
     for (
       let dateKey = fromDate;
@@ -157,16 +157,16 @@ export async function createSlotsFromPatternAction(
     try {
       parsed = JSON.parse(formData.get("dates_json") as string);
       if (!Array.isArray(parsed) || parsed.length === 0)
-        return { error: "add at least one date" };
+        return { error: "Add at least one date." };
       dates.push(...parsed);
     } catch {
-      return { error: "invalid date data" };
+      return { error: "Invalid date data." };
     }
   } else {
-    return { error: "invalid apply mode" };
+    return { error: "Invalid apply mode." };
   }
 
-  if (dates.length === 0) return { error: "no matching dates in that range" };
+  if (dates.length === 0) return { error: "No matching dates in that range." };
 
   // Build slot records — each window on each date is one slot
   const slots = [];
@@ -199,7 +199,7 @@ export async function deleteSlotAction(slotId: string): Promise<ActionResult> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("slots")

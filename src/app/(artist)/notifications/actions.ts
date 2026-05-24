@@ -41,7 +41,7 @@ export async function markReadAction(ids: string[]): Promise<MutationResult> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("notifications")
@@ -65,7 +65,7 @@ export async function markAllReadAction(): Promise<MutationResult> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("notifications")
@@ -90,7 +90,7 @@ export async function resolveWarningAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("notifications")

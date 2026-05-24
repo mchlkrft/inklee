@@ -74,7 +74,7 @@ export default function OnboardingAvailabilityPage() {
               <p
                 className={`text-sm font-medium ${!booksOpen ? "text-foreground" : "text-muted-foreground"}`}
               >
-                Not yet — open later
+                Not yet, open later
               </p>
               <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
                 Your page exists but clients cannot submit requests until you
@@ -91,13 +91,13 @@ export default function OnboardingAvailabilityPage() {
               className="text-sm text-muted-foreground"
             >
               Closed message{" "}
-              <span className="text-xs">(optional — shown to visitors)</span>
+              <span className="text-xs">(optional, shown to visitors)</span>
             </label>
             <input
               id="books_closed_message"
               name="books_closed_message"
               type="text"
-              placeholder="e.g. Books opening soon — check my Instagram for updates"
+              placeholder="e.g. Books opening soon. Check my Instagram for updates"
               maxLength={280}
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />

@@ -17,11 +17,11 @@ export async function saveBookingModeAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const mode = formData.get("booking_mode") as string;
   if (mode !== "preferred_date" && mode !== "fixed_slots") {
-    return { error: "invalid booking mode" };
+    return { error: "Invalid booking mode." };
   }
 
   const { error } = await supabase
@@ -49,7 +49,7 @@ export async function toggleBooksOpenAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: existing } = await supabase
     .from("profiles")
@@ -90,7 +90,7 @@ export async function skipSlotSetupAction(): Promise<
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   // Deduplicate — only create if no unresolved warning of this type exists
   const { count } = await serviceClient
@@ -131,7 +131,7 @@ export async function saveAvailabilityAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const capRaw = formData.get("booking_cap") as string;
   const bookingCap =
@@ -187,7 +187,7 @@ export async function saveFormAppearanceAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const appearance = formData.get("form_appearance") as string;
   if (

@@ -108,9 +108,9 @@ export async function importPostsAsFlashItemsAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
-  if (!postIds.length) return { error: "no posts selected" };
+  if (!postIds.length) return { error: "No posts selected." };
 
   const { data: posts } = await supabase
     .from("instagram_posts")
@@ -118,7 +118,7 @@ export async function importPostsAsFlashItemsAction(
     .in("id", postIds)
     .eq("artist_id", user.id);
 
-  if (!posts?.length) return { error: "posts not found" };
+  if (!posts?.length) return { error: "Posts not found." };
 
   // Exclude posts already linked to a flash item
   const { data: linked } = await supabase

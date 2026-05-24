@@ -53,7 +53,7 @@ export async function createFlashItemAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const itemId = crypto.randomUUID();
 
@@ -80,7 +80,7 @@ export async function createFlashItemAction(
   const maxBookings =
     bookingMode === "limited" ? parseNumeric(formData, "max_bookings") : null;
   if (bookingMode === "limited" && (!maxBookings || maxBookings < 1))
-    return { error: "max bookings must be at least 1 for limited mode" };
+    return { error: "Max bookings must be at least 1 for limited mode." };
 
   const priceTypeInput = (formData.get("price_type") as string) || "request";
   const priceType = ["fixed", "from", "request"].includes(priceTypeInput)
@@ -118,7 +118,7 @@ export async function createFlashItemAction(
 
   if (error) {
     if (error.message.includes("unique"))
-      return { error: "a flash item with this slug already exists" };
+      return { error: "A flash item with this slug already exists." };
     return { error: error.message };
   }
 
@@ -134,10 +134,10 @@ export async function updateFlashItemAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const id = formData.get("id") as string;
-  if (!id) return { error: "missing id" };
+  if (!id) return { error: "Missing id." };
 
   // Ownership check
   const { data: existing } = await supabase
@@ -146,7 +146,7 @@ export async function updateFlashItemAction(
     .eq("id", id)
     .eq("artist_id", user.id)
     .single();
-  if (!existing) return { error: "not found" };
+  if (!existing) return { error: "Not found." };
 
   // Same lenient rules as createFlashItemAction — keeps create / edit
   // symmetric so an artist can save an Untitled draft from the modal
@@ -169,7 +169,7 @@ export async function updateFlashItemAction(
   const maxBookings =
     bookingMode === "limited" ? parseNumeric(formData, "max_bookings") : null;
   if (bookingMode === "limited" && (!maxBookings || maxBookings < 1))
-    return { error: "max bookings must be at least 1 for limited mode" };
+    return { error: "Max bookings must be at least 1 for limited mode." };
 
   const priceTypeInput = (formData.get("price_type") as string) || "request";
   const priceType = ["fixed", "from", "request"].includes(priceTypeInput)
@@ -210,7 +210,7 @@ export async function updateFlashItemAction(
 
   if (error) {
     if (error.message.includes("unique"))
-      return { error: "a flash item with this slug already exists" };
+      return { error: "A flash item with this slug already exists." };
     return { error: error.message };
   }
 
@@ -224,7 +224,7 @@ export async function archiveFlashItemAction(id: string): Promise<State> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("flash_items")
@@ -245,7 +245,7 @@ export async function toggleFlashBookableAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("flash_items")
@@ -263,7 +263,7 @@ export async function publishFlashItemAction(id: string): Promise<State> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("flash_items")

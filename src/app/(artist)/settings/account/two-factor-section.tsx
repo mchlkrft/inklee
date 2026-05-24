@@ -79,7 +79,7 @@ export default function TwoFactorSection({
         code: totpCode.replace(/\s/g, ""),
       });
       if (err) {
-        setError("Invalid code — try again.");
+        setError("Invalid code. Try again.");
         return;
       }
       const newCodes = generateCodes();
@@ -108,7 +108,7 @@ export default function TwoFactorSection({
         code: totpCode.replace(/\s/g, ""),
       });
       if (err) {
-        setError("Invalid code — try again.");
+        setError("Invalid code. Try again.");
         return;
       }
       await supabase.auth.mfa.unenroll({ factorId });
@@ -176,7 +176,7 @@ export default function TwoFactorSection({
           onClick={() => setStep("idle")}
           className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
-          Done — 2FA is active
+          Done. 2FA is active
         </button>
       </div>
     );
@@ -286,7 +286,7 @@ export default function TwoFactorSection({
           <p className="text-sm text-foreground">Two-factor authentication</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {enabled
-              ? "Active — your account requires a code at each login."
+              ? "Active. Your account requires a code at each login."
               : "Protect your account with an authenticator app."}
           </p>
         </div>

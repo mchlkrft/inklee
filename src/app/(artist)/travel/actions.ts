@@ -43,7 +43,7 @@ export async function createStudioAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   let input;
   try {
@@ -51,7 +51,7 @@ export async function createStudioAction(
   } catch (err) {
     if (err instanceof z.ZodError)
       return { error: err.issues[0]?.message ?? "invalid input" };
-    return { error: "invalid input" };
+    return { error: "Invalid input." };
   }
 
   if (input.is_primary) {
@@ -91,10 +91,10 @@ export async function updateStudioAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const id = formData.get("id") as string;
-  if (!id) return { error: "studio id is required" };
+  if (!id) return { error: "Studio id is required." };
 
   let input;
   try {
@@ -102,7 +102,7 @@ export async function updateStudioAction(
   } catch (err) {
     if (err instanceof z.ZodError)
       return { error: err.issues[0]?.message ?? "invalid input" };
-    return { error: "invalid input" };
+    return { error: "Invalid input." };
   }
 
   if (input.is_primary) {
@@ -144,7 +144,7 @@ export async function deleteStudioAction(id: string): Promise<State> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("studios")
@@ -158,9 +158,7 @@ export async function deleteStudioAction(id: string): Promise<State> {
 }
 
 // Creates a studio and returns its data. Deduplicates by google_place_id.
-export async function createStudioAndReturnAction(
-  formData: FormData,
-): Promise<
+export async function createStudioAndReturnAction(formData: FormData): Promise<
   | { error: string }
   | {
       success: true;
@@ -171,7 +169,7 @@ export async function createStudioAndReturnAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   let input;
   try {
@@ -179,7 +177,7 @@ export async function createStudioAndReturnAction(
   } catch (err) {
     if (err instanceof z.ZodError)
       return { error: err.issues[0]?.message ?? "invalid input" };
-    return { error: "invalid input" };
+    return { error: "Invalid input." };
   }
 
   // Dedup: if a studio with the same Google Place ID already exists, reuse it
@@ -239,13 +237,13 @@ export async function createTripAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
   const showOnBookingForm = formData.get("show_on_booking_form") !== "false";
 
-  if (!title) return { error: "title is required" };
+  if (!title) return { error: "Title is required." };
 
   let legs;
   try {
@@ -307,14 +305,14 @@ export async function updateTripAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const id = formData.get("id") as string;
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
   const showOnBookingForm = formData.get("show_on_booking_form") === "true";
 
-  if (!title) return { error: "title is required" };
+  if (!title) return { error: "Title is required." };
 
   const { error } = await supabase
     .from("trips")
@@ -335,7 +333,7 @@ export async function toggleTripVisibilityAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("trips")
@@ -353,7 +351,7 @@ export async function deleteTripAction(id: string): Promise<State> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
     .from("trips")
@@ -374,11 +372,11 @@ export async function createTripLegAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const tripId = formData.get("trip_id") as string;
   const notes = (formData.get("notes") as string)?.trim() || null;
-  if (!tripId) return { error: "trip, start date and end date are required" };
+  if (!tripId) return { error: "Trip, start date, and end date are required." };
 
   let leg;
   try {
@@ -401,7 +399,7 @@ export async function createTripLegAction(
     .eq("artist_id", user.id)
     .single();
 
-  if (!trip) return { error: "trip not found" };
+  if (!trip) return { error: "Trip not found." };
 
   const studioError = await validateOwnedStudios(
     supabase,
@@ -428,7 +426,7 @@ export async function deleteTripLegAction(id: string): Promise<State> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const { data: leg } = await supabase
     .from("trip_legs")
@@ -437,7 +435,7 @@ export async function deleteTripLegAction(id: string): Promise<State> {
     .eq("trips.artist_id", user.id)
     .single();
 
-  if (!leg) return { error: "trip stop not found" };
+  if (!leg) return { error: "Trip stop not found." };
 
   const { error } = await supabase.from("trip_legs").delete().eq("id", id);
 

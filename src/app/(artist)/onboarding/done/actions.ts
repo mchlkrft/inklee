@@ -19,7 +19,7 @@ export async function uploadOnboardingLogoAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "not authenticated" };
+  if (!user) return { error: "Not authenticated." };
 
   const logoFile = formData.get("logo") as File | null;
   if (!logoFile || logoFile.size === 0) return { error: "No file selected." };
