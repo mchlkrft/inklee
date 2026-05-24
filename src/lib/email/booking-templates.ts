@@ -66,7 +66,7 @@ You can edit or cancel your request using the link below. It's valid for 30 days
 
   customer_booking_approved: `Hi @{{customer_handle}},
 
-Great news - {{artist_name}} has approved your booking.
+Good news. {{artist_name}} accepted your booking.
 
 Details:
 - Placement: {{placement}}
@@ -95,13 +95,13 @@ If you have any questions, reach out to them directly on Instagram.`,
 - Size: {{size}}
 - Preferred date: {{date}}
 
-Review it in your dashboard:
-https://inklee.app/dashboard`,
+Review it in Bookings:
+https://inklee.app/bookings/overview`,
 };
 
 export const DEFAULT_SUBJECTS: Record<string, string> = {
   customer_booking_submitted: "Booking request received",
-  customer_booking_approved: "Your booking has been approved",
+  customer_booking_approved: "Your booking has been accepted",
   customer_booking_rejected: "About your booking request",
   customer_booking_cancelled_by_artist: "Your booking has been cancelled",
   artist_new_booking_request: "New booking request from @{{customer_handle}}",
@@ -149,7 +149,7 @@ export function buildEmailHtml(
           </tr>
           <tr>
             <td style="padding:20px 40px;border-top:1px solid #f3f4f6;">
-              <p style="margin:0;font-size:12px;color:#9ca3af;">inklee - Booking requests without the DM chaos</p>
+              <p style="margin:0;font-size:12px;color:#9ca3af;">inklee · Booking requests without the DM chaos</p>
             </td>
           </tr>
         </table>

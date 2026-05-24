@@ -43,7 +43,7 @@ function base({
           <tr>
             <td style="padding:20px 40px;border-top:1px solid #ebebeb;">
               <p style="margin:0;font-size:12px;color:#9ca3af;">
-                You're receiving this because you signed up for inklee.
+                You're receiving this because you signed up for Inklee.
                 If you didn't, ignore this email.
               </p>
             </td>
@@ -59,7 +59,7 @@ function base({
 export function confirmationEmail(confirmUrl: string) {
   return base({
     headline: "Confirm your email",
-    body: "Click the button below to confirm your email address and activate your inklee account.",
+    body: "Click the button below to confirm your email address and activate your Inklee account.",
     ctaText: "Confirm email",
     ctaUrl: confirmUrl,
   });
@@ -76,7 +76,7 @@ export function passwordResetEmail(resetUrl: string) {
 
 export function magicLinkEmail(magicUrl: string) {
   return base({
-    headline: "Sign in to inklee",
+    headline: "Sign in to Inklee",
     body: "Click the button below to sign in. This link expires in 1 hour and can only be used once.",
     ctaText: "Sign in",
     ctaUrl: magicUrl,

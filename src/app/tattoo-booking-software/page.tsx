@@ -76,7 +76,7 @@ const PROBLEM_POINTS: ProblemPoint[] = [
   {
     title: "Generic schedulers push clients toward picking a time too early",
     description:
-      "Most appointment tools assume the service is fixed. Tattoo work is the opposite — the time slot is the last thing you decide, not the first.",
+      "Most appointment tools assume the service is fixed. Tattoo work is the opposite: the time slot is the last thing you decide, not the first.",
   },
 ];
 

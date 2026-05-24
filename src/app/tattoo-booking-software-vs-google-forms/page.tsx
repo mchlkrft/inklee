@@ -380,7 +380,7 @@ export default function TattooBookingVsGoogleFormsPage() {
         />
         <ComparisonTable
           heading="Google Forms vs a tattoo booking flow"
-          intro="Google Forms is a real, useful tool. It is just not built for the way tattoo bookings actually work — request review, approval states, deposits, waitlists, and travel-based guest spots."
+          intro="Google Forms is a real, useful tool. It is just not built for the way tattoo bookings actually work: request review, approval states, deposits, waitlists, and travel-based guest spots."
           alternativeLabel="Google Forms"
           inkleeLabel="Inklee"
           rows={COMPARISON_ROWS}

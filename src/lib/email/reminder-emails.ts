@@ -28,7 +28,7 @@ ${note ? `Payment instructions from ${artistName}:\n${note}\n\n` : ""}Please arr
 
   await sendEmail({
     to,
-    subject: `Deposit overdue - booking with ${artistName}`,
+    subject: `Deposit overdue: booking with ${artistName}`,
     html: html(body),
   });
 }
@@ -48,12 +48,12 @@ export async function sendDepositOverdueArtist({
 
 You may want to follow up or cancel the booking.
 
-View your dashboard:
-https://inklee.app/dashboard`;
+Open Bookings:
+https://inklee.app/bookings/overview`;
 
   await sendEmail({
     to,
-    subject: `Deposit overdue - @${customerHandle}`,
+    subject: `Deposit overdue: @${customerHandle}`,
     html: html(body),
   });
 }
@@ -73,7 +73,7 @@ export async function sendAppointmentReminder({
 }): Promise<void> {
   const body = `Hi @${customerHandle},
 
-A quick reminder - your tattoo appointment with ${artistName} is in 3 days.
+A quick reminder: your tattoo appointment with ${artistName} is in 3 days.
 
 - Date: ${date}
 - Placement: ${placement}
@@ -82,7 +82,7 @@ If anything changes, get in touch with ${artistName} directly.`;
 
   await sendEmail({
     to,
-    subject: `Reminder - appointment with ${artistName} in 3 days`,
+    subject: `Reminder: appointment with ${artistName} in 3 days`,
     html: html(body),
   });
 }
@@ -106,7 +106,7 @@ export async function sendReconfirmationRequest({
 
 Your tattoo with ${artistName} is coming up on ${date} (${placement}).
 
-Just checking in - are you still good to go? No action needed if everything is fine.
+Just checking in: are you still good to go? No action needed if everything is fine.
 
 If your plans have changed, please cancel using the link below so ${artistName} can offer the slot to someone else.
 
@@ -114,7 +114,7 @@ ${magicLink}`;
 
   await sendEmail({
     to,
-    subject: `Upcoming appointment with ${artistName} - confirming in 2 weeks`,
+    subject: `Upcoming appointment with ${artistName}: confirming in 2 weeks`,
     html: html(body),
   });
 }

@@ -71,17 +71,17 @@ export async function sendWaitlistConfirmation({
   artistName: string;
 }): Promise<void> {
   try {
-    const body = `hi,
+    const body = `Hi,
 
-you're on the waitlist for ${artistName}.
+You're on the waitlist for ${artistName}.
 
-we'll be in touch when books open.
+We'll email you when there's an opening.
 
-— inklee`;
+Inklee`;
     const { buildEmailHtml: build } = await import("./booking-templates");
     await sendEmail({
       to,
-      subject: `you're on the waitlist for ${artistName}`,
+      subject: `You're on the waitlist for ${artistName}`,
       html: build(body, {}),
     });
   } catch (err) {
@@ -101,11 +101,11 @@ export async function sendWaitlistConversionEmail({
   customerHandle: string;
 }): Promise<void> {
   try {
-    const body = `hi @${customerHandle},
+    const body = `Hi @${customerHandle},
 
-good news — ${artistName} has a spot for you.
+Good news. ${artistName} has a spot for you.
 
-use the link below to view your booking details. it's valid for 30 days.
+Use the link below to view your booking details. It's valid for 30 days.
 
 ${magicLink}`;
     const { buildEmailHtml: build } = await import("./booking-templates");
@@ -134,11 +134,11 @@ export async function sendArtistCancellationByCustomer({
   try {
     const body = `@${customerHandle} has cancelled their booking request.
 
-— placement: ${placement}
-— date: ${date}
+- Placement: ${placement}
+- Date: ${date}
 
-view your dashboard:
-https://inklee.app/dashboard`;
+Open Bookings:
+https://inklee.app/bookings/overview`;
 
     const { buildEmailHtml: build } = await import("./booking-templates");
     await sendEmail({

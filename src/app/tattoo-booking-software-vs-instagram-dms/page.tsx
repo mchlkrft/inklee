@@ -61,7 +61,7 @@ const PROBLEM_POINTS: ProblemPoint[] = [
   {
     title: "Reference images get separated from the actual idea",
     description:
-      "A screenshot in one thread, a description in another, and a question in a third — three pieces of the same request, scattered.",
+      "A screenshot in one thread, a description in another, and a question in a third. Three pieces of the same request, scattered.",
   },
   {
     title: "Serious requests sit next to reactions, memes, and casual chats",
@@ -71,7 +71,7 @@ const PROBLEM_POINTS: ProblemPoint[] = [
   {
     title: "Guest spot requests mix with local requests",
     description:
-      "Berlin, your home studio, and last year's trip all live in the same DM list — sorting them turns into manual admin.",
+      "Berlin, your home studio, and last year's trip all live in the same DM list, and sorting them turns into manual admin.",
   },
   {
     title: "Artists repeat the same intake questions again and again",
