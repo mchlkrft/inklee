@@ -1,9 +1,9 @@
 # Inklee Roadmap (Unified View)
 
-**Last updated:** 2026-05-22
-**Current prod commit:** `42ed7d9`
+**Last updated:** 2026-05-24
+**Current prod commit:** `49ce728`
 **Migrations applied:** 0000–0033
-**Status:** MVP feature-complete as a solo-artist tool. Pre-launch closeout in flight. Legal package shipped + counsel-cleared; `inkl.ee` short domain live; platform UX audit pass landed (Slices 60a–60d ✓ closed; 60e + 61 still open); onboarding wizard polished (real 3-slide intro, progress-bar back-nav, hardened logo upload). No subscription/monetization layer in code yet.
+**Status:** MVP feature-complete as a solo-artist tool. **All pre-launch hard blockers + all UX-polish slices (60a–60e + 61) are closed.** Legal package counsel-cleared; `inkl.ee` short domain live; deposit-settings + auth UI polish landed. Phase D (final MVP UX review) is the only remaining gate before public launch. No subscription/monetization layer in code yet.
 
 **Purpose.** This is the single high-level view. For slice-level details see `SLICES_CONTINUATION.md`. For strategy and pricing details see `docs/business-model.md`. For the public template repo cadence see the memory file `project_inklee_template_repo.md`. This doc supersedes informal "what's next" summaries scattered across other places.
 
@@ -91,11 +91,13 @@ Slice 60 was expanded 2026-05-16 into a platform-wide UX audit + restructure acr
 
 ### 3.3 Phase D — Final MVP UX review (the gate)
 
-Three options, run in order:
+**Plan locked 2026-05-24: option 3 (Both).** Next session runs the agent sweep first to produce a systematic punch list, then walks the critical flows live together to catch the subtle UX issues an agent won't notice.
+
+Three execution modes (kept for reference):
 
 1. **Agent sweep** (10–15 min) — Explore subagent walks every public surface, returns a punch list.
 2. **Together live** — founder describes flows, I sit alongside catching subtle UX problems.
-3. **Both** (recommended).
+3. **Both** — agent first, then live pass. The chosen mode.
 
 Critical surfaces:
 
@@ -309,16 +311,24 @@ Optional. Only if Studio MVP gets ≥ 10 paying studios and clear demand for adv
 
 Research only. Output is `docs/payments-strategy.md` decision doc, version 1. NOT implementation. Open questions in `business-model.md` §5 Phase 6.
 
-### 6.4 Phase E — v0.1 Android app
+### 6.4 Phase E — v0.1 mobile app (iOS + Android)
+
+**Scope expanded 2026-05-24:** originally Android-only; now dual-platform. Output of the dedicated scoping session is a `docs/mobile-strategy.md` decision doc, NOT implementation.
 
 Pre-conditions: Phase D punch list closed + ≥ 1 real artist on the web product.
 
-Decision points:
+The scoping lens is **transferability from the current Next.js web app** — how much of the existing codebase can be reused versus rewritten. Updated tech-stack candidates:
 
-- Tech stack (React Native + Expo / TWA / native Kotlin)
+- **Capacitor / Ionic** — wraps the existing Next.js app in a native iOS + Android shell. Highest web-code reuse, lowest engineering effort, but app-store UX and gesture-feel trade-offs. The cleanest path if "transfer the web app" is the goal.
+- **React Native + Expo** — separate native UI tree (no JSX/Tailwind reuse) but reuses business logic, hooks, and `@/lib/*`. Better app feel, more rewriting.
+- **PWA install + App Store / Play Store wrapper** — keep the web app, install-to-home-screen on iOS, TWA on Android. Lowest cost; weakest store presence; iOS install UX is poor.
+- **Native Swift + Kotlin** — two codebases, most polish, most work. Only if Capacitor/RN turn out to block a critical feature.
+
+Other decision points (unchanged):
+
 - Audience (artist-only vs artist + customer)
 - Push notifications for requests/reminders/deposits
-- Distribution (Play Store identity tied to Inklee OÜ → OT-05 must be complete)
+- Distribution (App Store + Play Store identity tied to Inklee OÜ → OT-05 must be complete)
 - Offline support (which flows, if any)
 
 ### 6.5 Business Model Phase 7 — Retention and expansion (continuous from Horizon 3)
