@@ -392,36 +392,52 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
-export async function markWaitlistContacted(entryId: string): Promise<void> {
+export async function markWaitlistContacted(
+  entryId: string,
+): Promise<ActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return { error: "Not authenticated." };
 
-  await supabase
+  const { error } = await supabase
     .from("waitlist_entries")
     .update({ status: "contacted" })
     .eq("id", entryId)
     .eq("artist_id", user.id);
 
+  if (error) {
+    Sentry.captureException(error, { tags: { action: "waitlist_contacted" } });
+    return { error: "Could not mark this entry as contacted. Try again." };
+  }
+
   revalidatePath("/bookings/overview");
+  return { success: true };
 }
 
-export async function dismissWaitlistEntry(entryId: string): Promise<void> {
+export async function dismissWaitlistEntry(
+  entryId: string,
+): Promise<ActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return { error: "Not authenticated." };
 
-  await supabase
+  const { error } = await supabase
     .from("waitlist_entries")
     .update({ status: "dismissed" })
     .eq("id", entryId)
     .eq("artist_id", user.id);
 
+  if (error) {
+    Sentry.captureException(error, { tags: { action: "waitlist_dismiss" } });
+    return { error: "Could not dismiss this entry. Try again." };
+  }
+
   revalidatePath("/bookings/overview");
+  return { success: true };
 }
 
 export async function convertWaitlistEntry({

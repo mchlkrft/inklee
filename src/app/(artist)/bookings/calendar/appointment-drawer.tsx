@@ -83,11 +83,13 @@ export default function AppointmentDrawer({
             @{event.handle}
           </span>
           <button
+            type="button"
             onClick={() => {
               setEditing(false);
               setConfirmCancel(false);
               onClose();
             }}
+            aria-label="Close"
             className="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             ✕
