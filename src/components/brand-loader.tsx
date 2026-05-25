@@ -3,12 +3,10 @@
 import { useSyncExternalStore } from "react";
 import { getBrandColor } from "@/lib/brand-pick";
 
+// Palette reduced 2026-05-25 to bone / mustard / rosa. See `lib/brand-pick.ts`.
 const SPIDERWEB: Record<string, string> = {
-  blue: "/branding/illustrations/spiderweb/spiderweb-blue.svg",
   bone: "/branding/illustrations/spiderweb/spiderweb-bone.svg",
-  green: "/branding/illustrations/spiderweb/spiderweb-green.svg",
   mustard: "/branding/illustrations/spiderweb/spiderweb-mustard.svg",
-  red: "/branding/illustrations/spiderweb/spiderweb-red.svg",
   rosa: "/branding/illustrations/spiderweb/spiderweb-rosa.svg",
 };
 

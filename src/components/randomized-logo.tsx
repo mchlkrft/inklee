@@ -3,12 +3,10 @@
 import { useSyncExternalStore } from "react";
 import { getBrandColor } from "@/lib/brand-pick";
 
+// Palette reduced 2026-05-25 to bone / mustard / rosa. See `lib/brand-pick.ts`.
 const LOGO: Record<string, string> = {
-  blue: "/logo/inklee-0b3d9f.svg",
   bone: "/logo/inklee-f5f5f6.svg",
-  green: "/logo/inklee-105f2d.svg",
   mustard: "/logo/inklee-e9b22b.svg",
-  red: "/logo/inklee-cf2e2c.svg",
   rosa: "/logo/inklee-db88b9.svg",
 };
 
