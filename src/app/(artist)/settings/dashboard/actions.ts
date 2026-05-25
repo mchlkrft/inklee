@@ -27,7 +27,7 @@ export async function saveDashboardWidgetsAction(
   const widgets: DashboardWidgets = {
     pending_requests: formData.get("pending_requests") === "true",
     upcoming_appointments: formData.get("upcoming_appointments") === "true",
-    books_status: formData.get("books_status") === "true",
+    guest_spots: formData.get("guest_spots") === "true",
     waitlist: formData.get("waitlist") === "true",
     booking_link: formData.get("booking_link") === "true",
   };

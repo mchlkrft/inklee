@@ -9,7 +9,7 @@ type State = { error: string } | { success: true } | null;
 const WIDGET_LABELS: Record<keyof DashboardWidgets, string> = {
   pending_requests: "Pending requests",
   upcoming_appointments: "Upcoming appointments",
-  books_status: "Books status",
+  guest_spots: "Upcoming guest spots",
   waitlist: "Waitlist",
   booking_link: "Booking link",
 };

@@ -1,2 +1,7 @@
 pnpm typecheck
 pnpm lint-staged
+# `next build` catches Next.js-specific runtime constraints that tsc + eslint
+# don't — e.g. exporting both `metadata` and `generateMetadata` from the same
+# route. Adds ~30s but prevents deploy-time errors that we'd otherwise only
+# see on Vercel.
+pnpm build

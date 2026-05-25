@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { serviceClient } from "@/lib/supabase/service";
-import { parseBooksSettings } from "@/lib/books-settings";
 import { parseDashboardWidgets } from "@/lib/dashboard-settings";
-import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
+import { todayInTimeZone } from "@/lib/date-utils";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
@@ -10,8 +8,8 @@ import BookingLinkWidget from "./booking-link-widget";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import {
   Inbox,
-  BookOpen,
   CalendarDays,
+  MapPin,
   Users,
   BarChart3,
   Sparkles,
@@ -30,21 +28,16 @@ export default async function DashboardPage() {
 
   const profileSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   const onboardingCompleted = profileSettings.onboarding_completed === true;
-  const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const widgets = parseDashboardWidgets(profileSettings.dashboard_widgets);
 
   const today = todayInTimeZone(profile?.timezone ?? "Europe/Berlin");
-  const windowExpired =
-    booksSettings.booking_window_ends_at !== null &&
-    isDateKeyBefore(booksSettings.booking_window_ends_at, today);
-  const booksOpen = booksSettings.books_open && !windowExpired;
 
   const [
     pendingResult,
     upcomingResult,
     waitlistResult,
-    capResult,
     totalReceivedResult,
+    guestSpotsResult,
   ] = await Promise.all([
     widgets.pending_requests
       ? supabase
@@ -78,32 +71,60 @@ export default async function DashboardPage() {
           .eq("status", "waiting")
       : Promise.resolve({ count: null }),
 
-    widgets.books_status && booksSettings.booking_cap !== null
-      ? serviceClient
-          .from("booking_requests")
-          .select("*", { count: "exact", head: true })
-          .eq("artist_id", user!.id)
-          .in("status", ["pending", "approved", "deposit_pending"])
-      : Promise.resolve({ count: null }),
-
     onboardingCompleted
       ? supabase
           .from("booking_requests")
           .select("*", { count: "exact", head: true })
           .eq("artist_id", user!.id)
       : Promise.resolve({ count: null }),
+
+    // Upcoming guest spots — trip legs that haven't ended yet, with their
+    // parent trip + studio for display. Filtered + sorted in JS so the
+    // widget toggle controls whether we run the join at all.
+    widgets.guest_spots
+      ? supabase
+          .from("trips")
+          .select("id, title, trip_legs(id, starts_on, ends_on, studios(name))")
+          .eq("artist_id", user!.id)
+      : Promise.resolve({ data: null }),
   ]);
 
   const pendingBookings = pendingResult.data ?? [];
   const pendingCount = pendingResult.count ?? 0;
   const upcomingBookings = upcomingResult.data ?? [];
   const waitlistCount = waitlistResult.count ?? 0;
-  const activeCount = capResult.count ?? 0;
   const totalReceivedCount = totalReceivedResult.count ?? 0;
-  const capRemaining =
-    booksSettings.booking_cap !== null
-      ? Math.max(0, booksSettings.booking_cap - activeCount)
-      : null;
+
+  // Flatten the trips × trip_legs join into a list of upcoming legs, sorted
+  // by start date, with the parent trip's title carried along for display.
+  type RawTripLeg = {
+    id: string;
+    starts_on: string;
+    ends_on: string;
+    studios: { name: string } | null;
+  };
+  type UpcomingLeg = {
+    id: string;
+    tripId: string;
+    tripTitle: string;
+    startsOn: string;
+    endsOn: string;
+    studioName: string | null;
+  };
+  const upcomingGuestSpots: UpcomingLeg[] = (guestSpotsResult.data ?? [])
+    .flatMap((t) =>
+      ((t.trip_legs as unknown as RawTripLeg[]) ?? []).map((l) => ({
+        id: l.id,
+        tripId: t.id,
+        tripTitle: t.title,
+        startsOn: l.starts_on,
+        endsOn: l.ends_on,
+        studioName: l.studios?.name ?? null,
+      })),
+    )
+    .filter((l) => l.endsOn >= today)
+    .sort((a, b) => a.startsOn.localeCompare(b.startsOn))
+    .slice(0, 3);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const publicUrl = `${appUrl}/${profile?.slug ?? ""}`;
@@ -226,36 +247,52 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-        {widgets.books_status && (
+        {widgets.guest_spots && (
+          // Used to be a Books-open/closed status card; that lives in the
+          // top-bar `BooksStatusPill` now. Pivoted 2026-05-25 to upcoming
+          // guest spots — most artists wanted a quick glance at their
+          // travel pipeline from the dashboard, not a duplicate status.
           <Card className="space-y-4">
             <CardHeader>
-              <IconChip icon={BookOpen} tint={booksOpen ? "green" : "bone"} />
-              <p className="text-sm font-medium text-foreground">Books</p>
+              <IconChip icon={MapPin} tint="cobalt" />
+              <p className="text-sm font-medium text-foreground">Guest Spots</p>
               <Link
-                href="/bookings/settings"
+                href="/travel"
                 className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                Edit
+                Plan
               </Link>
             </CardHeader>
-            <div className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className={`inline-block h-2 w-2 rounded-full ${booksOpen ? "bg-brand-green" : "bg-muted-foreground"}`}
-              />
-              <p className="text-sm font-medium text-foreground">
-                {booksOpen ? "Open" : "Closed"}
+            {upcomingGuestSpots.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No upcoming guest spots.
               </p>
-            </div>
-            {capRemaining !== null && booksOpen && (
-              <p className="text-xs text-muted-foreground">
-                {capRemaining} spots remaining
-              </p>
-            )}
-            {booksSettings.books_closed_message && !booksOpen && (
-              <p className="text-xs italic text-muted-foreground">
-                &ldquo;{booksSettings.books_closed_message}&rdquo;
-              </p>
+            ) : (
+              <div className="space-y-1">
+                {upcomingGuestSpots.map((leg) => (
+                  <Link
+                    key={leg.id}
+                    href="/travel"
+                    className="group flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {leg.studioName ?? leg.tripTitle}
+                      </p>
+                      {leg.studioName && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {leg.tripTitle}
+                        </p>
+                      )}
+                    </div>
+                    <p className="shrink-0 text-xs text-muted-foreground">
+                      {leg.startsOn === leg.endsOn
+                        ? formatDate(leg.startsOn)
+                        : `${formatDate(leg.startsOn)} – ${formatDate(leg.endsOn)}`}
+                    </p>
+                  </Link>
+                ))}
+              </div>
             )}
           </Card>
         )}
@@ -350,7 +387,7 @@ export default async function DashboardPage() {
       </Link>
 
       {!widgets.pending_requests &&
-        !widgets.books_status &&
+        !widgets.guest_spots &&
         !widgets.upcoming_appointments &&
         !widgets.waitlist &&
         !widgets.booking_link &&
