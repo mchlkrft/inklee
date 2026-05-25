@@ -270,9 +270,14 @@ export default async function DashboardPage() {
             ) : (
               <div className="space-y-1">
                 {upcomingGuestSpots.map((leg) => (
+                  // Row deep-links into /bookings/overview pre-filtered to this
+                  // leg's parent trip — lets the artist see requests for the
+                  // guest spot at a glance instead of bouncing through /travel.
+                  // FilterRow keeps the active trip visible in its collapsed
+                  // pill even when there are < 8 bookings.
                   <Link
                     key={leg.id}
-                    href="/travel"
+                    href={`/bookings/overview?view=requests&trip=${leg.tripId}`}
                     className="group flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
                   >
                     <div className="min-w-0">

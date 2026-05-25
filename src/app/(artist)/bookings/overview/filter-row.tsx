@@ -39,8 +39,6 @@ export default function FilterRow({
 }) {
   const [open, setOpen] = useState(false);
 
-  if (count < threshold) return null;
-
   // Summary of active selections for the collapsed pill — only includes
   // groups where the active value differs from the reset value.
   const activeLabels = groups
@@ -50,6 +48,12 @@ export default function FilterRow({
       return found ? found.label : null;
     })
     .filter((s): s is string => Boolean(s));
+
+  // Hide the chip on short lists ONLY if no filter is currently active.
+  // If the page was reached via a deep link with `?trip=…` or `?status=…`
+  // (e.g. from the dashboard Guest Spots card), the user needs to see what
+  // they're filtered to and how to clear it, regardless of list length.
+  if (count < threshold && activeLabels.length === 0) return null;
 
   return (
     <div className="space-y-3">
