@@ -317,10 +317,10 @@ export default function TattooBookingFormPage() {
                 </div>
               </div>
               <div className="order-1 flex justify-center pt-5 md:order-2 md:pt-0">
-                <div className="animate-hero-float w-full max-w-2xs md:max-w-sm">
+                <div className="animate-hero-float w-full max-w-sm md:max-w-lg">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/branding/illustrations/mixed/inklee-_Artist-with-Flash-Background.svg"
+                    src="/branding/illustrations/mixed/inklee-_Artist-with-Flash-Background-2.svg"
                     alt=""
                     aria-hidden="true"
                     className="h-auto w-full"
