@@ -320,7 +320,7 @@ export default function TattooBookingFormPage() {
                 <div className="animate-hero-float w-full max-w-2xs md:max-w-sm">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/branding/illustrations/mixed/inklee-_contact-form.svg"
+                    src="/branding/illustrations/mixed/inklee-_Artist-with-Flash-Background.svg"
                     alt=""
                     aria-hidden="true"
                     className="h-auto w-full"
