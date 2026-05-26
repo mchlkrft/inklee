@@ -130,14 +130,13 @@ export const FOOTER_GROUPS: FooterGroup[] = [
     id: "legal",
     label: "Legal",
     items: [
+      // DPA, Acceptable Use, Cookies, Subprocessors, and Report content are
+      // intentionally not in the site-wide footer. They are linked from
+      // within the legal pages themselves (Privacy, Terms) so they stay
+      // discoverable without bloating every page footer.
       { label: "Imprint", href: "/imprint", active: true },
       { label: "Privacy", href: "/privacy", active: true },
       { label: "Terms", href: "/terms", active: true },
-      { label: "DPA", href: "/dpa", active: true },
-      { label: "Acceptable Use", href: "/acceptable-use", active: true },
-      { label: "Cookies", href: "/cookies", active: true },
-      { label: "Subprocessors", href: "/subprocessors", active: true },
-      { label: "Report content", href: "/legal/report", active: true },
     ],
   },
 ];

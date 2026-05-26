@@ -145,26 +145,30 @@ function PillNav() {
 
 function HeroSection() {
   return (
-    <section className="relative flex min-h-[calc(100svh-80px)] items-center overflow-hidden pb-16 pt-24 md:pb-24 md:pt-28">
-      <div className="container-marketing w-full">
-        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[6fr_6fr] md:gap-12">
-          <div>
-            {/* Headline — entire "without DM chaos." phrase in mustard so
-                the highlighted concept is the value ("without"), not the
-                chaos itself. */}
-            <h1 className="text-5xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-[88px]">
+    // Reverted to the original prod layout per founder direction. Restored:
+    // container-marketing-wide (vs the narrower marketing container), the
+    // 5fr/7fr grid (graphic takes the larger column), mobile-order reversed
+    // (illustration above text), text-7xl headline cap (vs the redesign's
+    // text-[88px]), and the negative right-margin bleed on the illustration
+    // (-mr-8 / lg:-mr-16). Kept from the redesign: the mustard accent on
+    // "without DM chaos.", the rounded-full button style (the locked
+    // platform design language), and the badge row.
+    <section className="overflow-hidden md:flex md:min-h-[calc(100svh-80px)] md:items-center">
+      <div className="container-marketing-wide">
+        <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
+          {/* Text */}
+          <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
+            <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
               <span className="block">Tattoo bookings,</span>
               <span className="block text-brand-mustard">
                 without DM chaos.
               </span>
             </h1>
-
-            <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
+            <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg md:mt-5">
               Turn Instagram DMs into structured tattoo requests. Review ideas,
               manage approvals, and keep bookings organized in one booking link.
             </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
               <Link
                 href="/signup"
                 className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
@@ -180,10 +184,7 @@ function HeroSection() {
                 See a live example →
               </Link>
             </div>
-
-            {/* Quality badges — same pattern the original homepage carried,
-                restored after the redesign accidentally dropped them. */}
-            <div className="mt-8 flex items-center gap-3">
+            <div className="mt-6 flex items-center gap-3 md:mt-10">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/branding/badges/badge-handmade.svg"
@@ -201,9 +202,12 @@ function HeroSection() {
             </div>
           </div>
 
-          {/* Hero illustration */}
-          <div className="flex justify-center md:justify-end">
-            <div className="animate-hero-float w-full max-w-md md:max-w-full">
+          {/* Illustration — pt-5 reserves room on mobile so the float
+              animation (translateY -18px) stays inside section bounds.
+              md:-mr-8 / lg:-mr-16 lets the visual bleed past the
+              container edge on desktop. */}
+          <div className="order-1 flex justify-center pt-5 md:order-2 md:-mr-8 md:justify-end md:pt-0 lg:-mr-16">
+            <div className="animate-hero-float w-full max-w-sm md:max-w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/branding/illustrations/key-visual.svg"
