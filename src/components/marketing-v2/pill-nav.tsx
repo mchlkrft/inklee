@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
  *  desktop the button stays its default size at all scroll positions
  *  (sm: prefixes lock the size back). */
 
-const SCROLL_THRESHOLD = 80;
+const SCROLL_THRESHOLD = 60;
 
 export default function PillNav() {
   const [scrolled, setScrolled] = useState(false);
@@ -66,13 +66,15 @@ export default function PillNav() {
             Log in
           </Link>
           {/* Get started CTA. Mobile-only scroll-grown state — past
-              80px scroll the button bumps padding + font-size. The
-              sm:* triplet locks back to the default sizing on desktop
-              so the grow effect only fires on mobile. */}
+              60px scroll the button scales up via CSS transform.
+              origin-right anchors the scale to the right edge of the
+              pill so the button grows inward instead of pushing the
+              pill's right edge off-screen. sm:scale-100 locks the
+              scale back to 1 on desktop so the effect is mobile-only. */}
           <Link
             href="/signup"
-            className={`rounded-full bg-brand-mustard font-bold text-brand-charcoal transition-all duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm ${
-              scrolled ? "px-5 py-2.5 text-base" : "px-4 py-1.5 text-sm"
+            className={`origin-right rounded-full bg-brand-mustard px-4 py-1.5 text-sm font-bold text-brand-charcoal transition-transform duration-300 ease-out hover:opacity-90 sm:scale-100 ${
+              scrolled ? "scale-[1.18]" : "scale-100"
             }`}
           >
             Get started
