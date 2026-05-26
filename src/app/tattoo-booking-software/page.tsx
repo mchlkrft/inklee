@@ -357,11 +357,10 @@ function HeroSection() {
               Tattoo booking tool for artists
             </p>
             <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
-              <span className="block">Tattoo booking</span>
-              <span className="block">
-                <span className="text-brand-mustard">software</span>, built
+              <span className="block">Tattoo booking software,</span>
+              <span className="block text-brand-mustard">
+                built for tattoo artists.
               </span>
-              <span className="block">for tattoo artists.</span>
             </h1>
             <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
               Inklee turns Instagram chats and inquiries into structured tattoo
