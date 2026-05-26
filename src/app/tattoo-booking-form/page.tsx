@@ -275,9 +275,9 @@ export default function TattooBookingFormPage() {
                   Tattoo booking form for artists
                 </p>
                 <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
-                  <span className="block">A tattoo booking form</span>
+                  <span className="block">A tattoo booking form for real</span>
                   <span className="block text-brand-mustard">
-                    for real tattoo requests.
+                    tattoo requests.
                   </span>
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
