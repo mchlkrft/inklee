@@ -56,6 +56,67 @@ export default async function StartPage() {
           </div>
         </section>
 
+        {/* Credibility / Made for tattoo artists (bone) — pulled up to
+            section 2 per founder direction so the audience-fit message
+            lands directly after the hero, before the pain framing. */}
+        <section
+          data-appearance="light"
+          className="bg-brand-bone text-brand-charcoal"
+        >
+          <div className="container-marketing py-20 md:py-28">
+            <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
+              <div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/branding/illustrations/mixed/inklee-_artist-using-inklee.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="mx-auto h-auto w-full max-w-sm md:mx-0 md:max-w-md"
+                  draggable={false}
+                />
+              </div>
+              <div>
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
+                  Made for tattoo artists
+                </p>
+                <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
+                  Made for tattoo artists,
+                  <br />
+                  not generic booking software.
+                </h2>
+                <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+                  Inklee is built around the way freelance tattoo artists
+                  actually work. Not adapted from a dental appointment tool. Not
+                  trying to be an all-in-one platform.
+                </p>
+                <p className="mt-3 max-w-xl text-base leading-relaxed text-brand-charcoal/75">
+                  Whether you work from a studio, run guest spots, or travel
+                  between cities, you get a booking flow that fits.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-2">
+                  {[
+                    "Solo artists",
+                    "Fine line",
+                    "Blackwork",
+                    "Traditional",
+                    "Realism",
+                    "Neo-trad",
+                    "Guest spot artists",
+                    "Traveling artists",
+                  ].map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border-[1.5px] border-brand-charcoal/15 px-3 py-1 text-xs font-semibold text-brand-charcoal/75"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Pain (bone) */}
         <section
           data-appearance="light"
@@ -249,65 +310,6 @@ export default async function StartPage() {
               >
                 <CalendarPreview />
               </ProofCard>
-            </div>
-          </div>
-        </section>
-
-        {/* Credibility (bone) */}
-        <section
-          data-appearance="light"
-          className="bg-brand-bone text-brand-charcoal"
-        >
-          <div className="container-marketing py-20 md:py-28">
-            <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
-              <div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/branding/illustrations/mixed/inklee-_artist-using-inklee.svg"
-                  alt=""
-                  aria-hidden="true"
-                  className="mx-auto h-auto w-full max-w-sm md:mx-0 md:max-w-md"
-                  draggable={false}
-                />
-              </div>
-              <div>
-                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                  Made for tattoo artists
-                </p>
-                <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-                  Made for tattoo artists,
-                  <br />
-                  not generic booking software.
-                </h2>
-                <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                  Inklee is built around the way freelance tattoo artists
-                  actually work. Not adapted from a dental appointment tool. Not
-                  trying to be an all-in-one platform.
-                </p>
-                <p className="mt-3 max-w-xl text-base leading-relaxed text-brand-charcoal/75">
-                  Whether you work from a studio, run guest spots, or travel
-                  between cities, you get a booking flow that fits.
-                </p>
-                <div className="mt-8 flex flex-wrap gap-2">
-                  {[
-                    "Solo artists",
-                    "Fine line",
-                    "Blackwork",
-                    "Traditional",
-                    "Realism",
-                    "Neo-trad",
-                    "Guest spot artists",
-                    "Traveling artists",
-                  ].map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border-[1.5px] border-brand-charcoal/15 px-3 py-1 text-xs font-semibold text-brand-charcoal/75"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </section>
