@@ -76,3 +76,14 @@ const portalRl = makeLimit(Ratelimit.slidingWindow(5, "1 h"), "inklee:portal");
 export async function checkPortalRateLimit(tokenHash: string) {
   return check(portalRl, tokenHash);
 }
+
+// Mobile-app launch waitlist (/download): 3 submissions / IP / hour.
+// Same shape as the artist-side waitlist limit — low ceiling because the
+// form is a one-off signup, not a recurring action.
+const mobileWaitlistRl = makeLimit(
+  Ratelimit.slidingWindow(3, "1 h"),
+  "inklee:mobile-waitlist",
+);
+export async function checkMobileWaitlistRateLimit(ip: string) {
+  return check(mobileWaitlistRl, ip);
+}
