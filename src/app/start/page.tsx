@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import StickyCTA from "./sticky-cta";
+import ClaimSlugForm from "./claim-slug-form";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
 export const metadata: Metadata = {
@@ -45,95 +46,11 @@ export default async function StartPage() {
                 Put one clean booking link in your bio and turn messy chats into
                 structured tattoo booking requests.
               </p>
-              <div className="mt-8 flex flex-col items-center gap-3">
-                <Link
-                  href="/signup"
-                  className="inline-flex items-center rounded-full bg-brand-mustard px-8 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
-                >
-                  Create your booking link
-                </Link>
-                <p className="text-xs text-muted-foreground">
-                  Built for tattoo artists who want less back-and-forth and more
-                  real bookings.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Before/After cards (charcoal, on a slightly raised charcoal card
-            surface). The page's key visual moment: messy DMs vs clean
-            booking request. */}
-        <section className="overflow-hidden pb-16 md:pb-24">
-          <div className="container-marketing-wide">
-            <div className="mx-auto grid max-w-4xl gap-4 sm:grid-cols-2 sm:gap-6">
-              <div className="rounded-3xl border-[1.5px] border-shell-border bg-[#252525] p-5 sm:p-6">
-                <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-shell-fg-dim">
-                  Your DMs right now
-                </p>
-                <div className="space-y-3">
-                  {[
-                    { msg: "hey do u have space next month?? 🙏", ago: "2d" },
-                    { msg: "how much for a small wrist tattoo", ago: "1d" },
-                    {
-                      msg: "hii!! love ur work, can u do mine? i have a pic",
-                      ago: "6h",
-                    },
-                    { msg: "still waiting to hear back…", ago: "3h" },
-                  ].map(({ msg, ago }, i) => (
-                    <div key={i} className="flex items-start gap-2.5">
-                      <div className="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-shell-fg/15" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs leading-snug text-shell-fg">
-                          {msg}
-                        </p>
-                        <p className="mt-0.5 text-[10px] text-shell-fg-dim">
-                          {ago} ago
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-4 border-t border-shell-border pt-3 text-[10px] text-shell-fg-dim">
-                  + 34 more messages
-                </p>
-              </div>
-
-              <div className="rounded-3xl bg-brand-mustard p-5 sm:p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-charcoal/70">
-                    Booking request
-                  </p>
-                  <span className="rounded-full bg-brand-charcoal px-2 py-0.5 text-[10px] font-bold text-brand-mustard">
-                    NEW
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {[
-                    ["Placement", "Inner forearm, right arm"],
-                    ["Style", "Fineline, botanical"],
-                    ["Size", "approx. 10 × 6 cm"],
-                    ["Description", "Single stem rose, minimal shading"],
-                  ].map(([k, v]) => (
-                    <div key={k}>
-                      <p className="text-[10px] font-semibold text-brand-charcoal/70">
-                        {k}
-                      </p>
-                      <p className="text-xs leading-snug text-brand-charcoal">
-                        {v}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-2 border-t border-brand-charcoal/15 pt-3">
-                  <div className="flex-1 rounded-full bg-brand-charcoal px-3 py-1.5 text-center text-[11px] font-bold text-brand-bone">
-                    Accept
-                  </div>
-                  <div className="flex-1 rounded-full border-[1.5px] border-brand-charcoal/30 px-3 py-1.5 text-center text-[11px] font-semibold text-brand-charcoal">
-                    Pass
-                  </div>
-                </div>
-              </div>
+              <ClaimSlugForm />
+              <p className="mt-4 text-xs text-muted-foreground">
+                Built for tattoo artists who want less back-and-forth and more
+                real bookings.
+              </p>
             </div>
           </div>
         </section>

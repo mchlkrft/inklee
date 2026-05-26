@@ -13,6 +13,11 @@ type AvailResult = {
   error: string | null;
 };
 
+// Set by the /start landing page when the artist enters a handle in the
+// Linktr.ee-style claim-your-link field. We read it once on mount and
+// pre-fill the slug input so they don't have to retype.
+const STORAGE_KEY = "inklee_intended_slug";
+
 export default function ClaimSlugPage() {
   const [state, action, pending] = useActionState<State, FormData>(
     claimSlugAction,
@@ -20,6 +25,26 @@ export default function ClaimSlugPage() {
   );
   const [slug, setSlug] = useState("");
   const [result, setResult] = useState<AvailResult | null>(null);
+
+  // Pre-fill from /start landing-page input. Runs once on mount; we
+  // don't clear localStorage here — if they navigate away and come
+  // back, the intended slug should still be there. The lint rule
+  // disable is intentional: setState-in-effect is the standard pattern
+  // for "read external store after hydration" and useSyncExternalStore
+  // doesn't help here because we want the value to seed local state
+  // that the user can then edit.
+  useEffect(() => {
+    try {
+      const stashed = localStorage.getItem(STORAGE_KEY);
+      if (stashed) {
+        const clean = stashed.toLowerCase().replace(/[^a-z0-9-]/g, "");
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (clean) setSlug(clean);
+      }
+    } catch {
+      // Storage unavailable — no prefill, harmless.
+    }
+  }, []);
 
   const debouncedSlug = useDebounce(slug, 300);
 
