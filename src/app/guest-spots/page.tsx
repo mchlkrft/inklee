@@ -444,7 +444,7 @@ export default function GuestSpotsPage() {
                   src="/branding/illustrations/mixed/inklee-_travel-tag.svg"
                   alt=""
                   aria-hidden="true"
-                  className="h-auto w-full max-w-sm md:max-w-md"
+                  className="h-auto w-full max-w-2xs md:max-w-sm"
                   draggable={false}
                 />
               </div>

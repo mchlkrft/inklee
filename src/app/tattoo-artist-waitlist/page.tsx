@@ -274,7 +274,7 @@ export default function WaitlistPage() {
                 <div className="animate-hero-float w-full max-w-2xs md:max-w-sm">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/branding/illustrations/mixed/inklee-_Client-Question-Conversation.svg"
+                    src="/branding/illustrations/mixed/inklee-_artist-shows-inklee-app.svg"
                     alt=""
                     aria-hidden="true"
                     className="h-auto w-full"
