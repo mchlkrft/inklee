@@ -135,19 +135,22 @@ function StoreButtonRow({
   );
 }
 
-/* ─── Floating pill nav ─────────────────────────────────────────────────── */
+/* ─── Floating pill nav — two separate pills (logo + nav/CTA) ────────────
+   The single-wide pill read as a too-large bar with a small centered
+   wordmark. Splitting into a left logo pill and a right nav pill keeps
+   each pill sized to its content and matches the design language the
+   broader redesign will adopt. */
 
 function PillNav() {
   return (
     <header className="pointer-events-none sticky top-4 z-50 px-4">
-      <nav className="pointer-events-auto mx-auto flex max-w-3xl items-center justify-between gap-4 rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 px-3 py-2 shadow-shell backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+        {/* Logo pill — left */}
         <Link
           href="/"
           aria-label="Inklee home"
-          className="flex items-center rounded-full px-3 py-1.5 transition-colors hover:bg-shell-hover"
+          className="pointer-events-auto inline-flex items-center rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 px-5 py-3 shadow-shell backdrop-blur transition-colors hover:bg-brand-charcoal"
         >
-          {/* Wordmark only — Inklee uses the font logo as the brand mark.
-              Bone variant because the nav pill is always charcoal. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/branding/logos/inklee-logo-bone.svg"
@@ -158,27 +161,29 @@ function PillNav() {
             draggable={false}
           />
         </Link>
-        <div className="flex items-center gap-1 text-sm text-shell-fg-dim">
+
+        {/* Nav + CTA pill — right */}
+        <nav className="pointer-events-auto flex items-center gap-1 rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 p-1.5 shadow-shell backdrop-blur">
           <Link
             href="/"
-            className="hidden rounded-full px-3 py-1.5 transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
+            className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
           >
             Web
           </Link>
           <Link
             href="/about"
-            className="hidden rounded-full px-3 py-1.5 transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
+            className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
           >
             About
           </Link>
-        </div>
-        <Link
-          href="/signup"
-          className="rounded-full bg-brand-mustard px-4 py-1.5 text-sm font-bold text-brand-charcoal transition-opacity hover:opacity-90"
-        >
-          Get started
-        </Link>
-      </nav>
+          <Link
+            href="/signup"
+            className="rounded-full bg-brand-mustard px-4 py-1.5 text-sm font-bold text-brand-charcoal transition-opacity hover:opacity-90"
+          >
+            Get started
+          </Link>
+        </nav>
+      </div>
     </header>
   );
 }
@@ -220,37 +225,38 @@ function MarketingFooter() {
   );
 }
 
-/* ─── Feature card (used inside the charcoal section) ───────────────────── */
+/* ─── Feature card — full-color variants on the charcoal section.
+   Switched from monochrome dark cards to bone/mustard/rosa fills so the
+   charcoal section reads with energy rather than flatness. All cards
+   carry charcoal text for high contrast on every fill colour. */
 
 function FeatureCard({
   number,
   title,
   body,
-  accent,
+  variant,
 }: {
   number: string;
   title: string;
   body: string;
-  accent: "mustard" | "rosa" | "bone";
+  variant: "bone" | "mustard" | "rosa";
 }) {
-  const accentClass =
-    accent === "mustard"
-      ? "text-brand-mustard"
-      : accent === "rosa"
-        ? "text-brand-rosa"
-        : "text-brand-bone";
+  const bgClass =
+    variant === "mustard"
+      ? "bg-brand-mustard"
+      : variant === "rosa"
+        ? "bg-brand-rosa"
+        : "bg-brand-bone";
   return (
-    <div className="flex h-full flex-col gap-6 rounded-3xl border-[1.5px] border-shell-border bg-[#252525] p-7">
-      <span
-        className={`text-xs font-black uppercase tracking-[0.18em] ${accentClass}`}
-      >
+    <div className={`flex h-full flex-col gap-6 rounded-3xl p-7 ${bgClass}`}>
+      <span className="text-xs font-black uppercase tracking-[0.18em] text-brand-charcoal/70">
         {number}
       </span>
       <div className="space-y-3">
-        <h3 className="text-2xl font-black leading-tight text-shell-fg">
+        <h3 className="text-2xl font-black leading-tight text-brand-charcoal">
           {title}
         </h3>
-        <p className="text-sm leading-relaxed text-shell-fg-dim">{body}</p>
+        <p className="text-sm leading-relaxed text-brand-charcoal/75">{body}</p>
       </div>
     </div>
   );
@@ -367,13 +373,13 @@ export default function DownloadPage() {
 
       <main className="flex-1">
         {/* ── Hero (bone) ──────────────────────────────────────────────────
-            All hero content above the fold at typical viewport heights.
-            Email capture removed; store badge buttons are the primary CTA.
-            Eyebrow + subhead + buttons are all that sits below the
-            headline so the column stays compact. */}
-        <section className="relative overflow-hidden pb-12 pt-6 md:pb-20 md:pt-10">
-          <div className="container-marketing">
-            <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[7fr_5fr] md:gap-12">
+            Bone bg explicit (so the section is unambiguous even if a
+            future global change shifts the default). Vertically centered
+            inside the viewport so content doesn't crowd the nav, with
+            generous top padding to clear the two floating nav pills. */}
+        <section className="relative flex min-h-[calc(100svh-80px)] items-center overflow-hidden bg-background pb-16 pt-24 md:pb-24 md:pt-28">
+          <div className="container-marketing w-full">
+            <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[7fr_5fr] md:gap-12">
               <div>
                 {/* Eyebrow pill */}
                 <div className="mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-border bg-background/60 px-3 py-1.5">
@@ -435,19 +441,19 @@ export default function DownloadPage() {
                 number="01"
                 title="Booking control, in your hand"
                 body="See incoming requests with placement, size, and references the moment they land. Accept, pass, or open and close your books with one tap. Two of your most-used screens, where your phone is."
-                accent="mustard"
+                variant="mustard"
               />
               <FeatureCard
                 number="02"
                 title="Trip planner on the road"
                 body="Add a guest spot from the studio, set the city and dates, and your booking link updates so the next client sees where you'll be. No spreadsheets, no DMs to rewrite."
-                accent="rosa"
+                variant="bone"
               />
               <FeatureCard
                 number="03"
                 title="Flash booking organizer"
                 body="Snap a flash on the spot, add a title and price, and clients can claim it from your booking page. No more screenshots, captions, or 'DM to claim'."
-                accent="bone"
+                variant="rosa"
               />
             </div>
           </div>
@@ -466,7 +472,7 @@ export default function DownloadPage() {
                 aria-hidden="true"
                 className="mx-auto mb-8 w-full max-w-[280px] md:max-w-[360px]"
               />
-              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
                 How it fits together
               </p>
               <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
@@ -527,7 +533,7 @@ export default function DownloadPage() {
           <div className="container-marketing py-24 md:py-32">
             <div className="mx-auto max-w-3xl">
               <div className="mb-12 text-center">
-                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
                   FAQ
                 </p>
                 <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl">

@@ -120,21 +120,6 @@ export default function DevicePreview() {
           </div>
         </div>
       </div>
-
-      {/* Floating "Coming soon" pill — top right, tilted */}
-      <div className="absolute -right-2 top-10 rotate-6 rounded-full border-[1.5px] border-brand-charcoal bg-brand-mustard px-3 py-1 text-[10px] font-black uppercase tracking-widest text-brand-charcoal shadow-card md:-right-4">
-        Coming soon
-      </div>
-
-      {/* Easy peasy brand badge — bottom left, tilted the other way.
-          Decorative, hides the placeholder feel of the faux device. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/branding/illustrations/easy-peasy.svg"
-        alt=""
-        aria-hidden="true"
-        className="absolute -bottom-6 -left-6 w-24 -rotate-12 md:-bottom-8 md:-left-10 md:w-28"
-      />
     </div>
   );
 }
