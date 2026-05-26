@@ -97,10 +97,15 @@ export default function PillNav() {
           >
             Log in
           </Link>
+          {/* DEBUG: bg color swaps mustard↔rosa on scroll so we can
+              tell at a glance whether scroll state updates at all.
+              Remove this once we confirm the scroll-grow works. */}
           <Link
             href="/signup"
             style={fabStyle}
-            className="rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm sm:shadow-none"
+            className={`rounded-full px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm sm:shadow-none ${
+              scrolled ? "bg-brand-rosa" : "bg-brand-mustard"
+            }`}
           >
             Get started
           </Link>
