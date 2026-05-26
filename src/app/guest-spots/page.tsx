@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import SiteLogo from "@/components/site-logo";
+import JsonLd from "@/components/seo/json-ld";
+import { webPageSchema } from "@/lib/jsonld";
+import { absoluteUrl } from "@/lib/seo";
+import { PillNav, SiteFooter } from "@/components/marketing-v2";
+
+const PAGE_PATH = "/guest-spots";
+const PAGE_TITLE = "Guest Spot Booking Tool · Inklee";
+const PAGE_DESCRIPTION =
+  "Tattoo guest spot booking without spreadsheet chaos. Manage city demand, travel dates, and requests as a traveling tattoo artist.";
 
 export const metadata: Metadata = {
-  title: "Guest Spot Booking Tool · Inklee",
-  description:
-    "Tattoo guest spot booking without spreadsheet chaos. Manage city demand, travel dates, and requests as a traveling tattoo artist.",
-  alternates: {
-    canonical: "/guest-spots",
-  },
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  alternates: { canonical: PAGE_PATH },
   openGraph: {
     title: "Guest spot bookings without the chaos",
     description:
       "Inklee helps traveling tattoo artists organize guest spot requests, city demand, booking windows, and client details.",
-    url: "https://inklee.app/guest-spots",
+    url: absoluteUrl(PAGE_PATH),
     type: "website",
   },
   twitter: {
@@ -24,513 +29,504 @@ export const metadata: Metadata = {
   },
 };
 
-/* ─── Shared CTA ──────────────────────────────────────────────────────────── */
-
-function CtaPrimary({
-  label = "Create your guest spot link",
-}: {
-  label?: string;
-}) {
-  return (
-    <Link
-      href="/signup"
-      className="inline-block rounded-md bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
-    >
-      {label}
-    </Link>
-  );
-}
-
-/* ─── Header ─────────────────────────────────────────────────────────────── */
-
-function LandingHeader() {
-  return (
-    <header className="container-marketing-wide flex items-center justify-between py-5">
-      <Link href="/" aria-label="inklee home">
-        <SiteLogo height={20} />
-      </Link>
-      <nav className="flex items-center gap-5">
-        <Link
-          href="/login"
-          className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Log in
-        </Link>
-        <Link
-          href="/signup"
-          className="rounded-md bg-foreground px-4 py-2 text-base font-bold text-background transition-opacity hover:opacity-85"
-        >
-          Get started free
-        </Link>
-      </nav>
-    </header>
-  );
-}
-
-/* ─── Hero ────────────────────────────────────────────────────────────────── */
-
-function HeroSection() {
-  return (
-    <section className="overflow-hidden md:flex md:min-h-[calc(100svh-87px)] md:items-center">
-      <div className="container-marketing-wide">
-        <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
-          {/* Text */}
-          <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
-            <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
-              Guest spot bookings
-              <br />
-              without the chaos
-            </h1>
-            <p className="mt-4 max-w-xs text-base leading-relaxed text-muted-foreground sm:text-lg md:mt-5">
-              Collect structured tattoo requests for the right city and dates
-              with one clean booking flow built for traveling artists.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
-              <CtaPrimary />
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Made for artists moving between cities, studios, and booking
-              waves.
-            </p>
-          </div>
-
-          {/* Hero visual placeholder */}
-          <div className="order-1 flex justify-center md:order-2 md:justify-end md:-mr-8 lg:-mr-16">
-            <div className="w-full max-w-sm md:max-w-full">
-              {/* PLACEHOLDER: hero visual — two-panel contrast composition showing scattered
-                  guest spot DMs mixed across cities on the left, clean city/date-based
-                  booking flow on the right. Suggested size: ~600×480px.
-                  Replace this block with <img> or <Image> pointing to final asset. */}
-              <div className="flex h-80 w-full items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10 md:h-[420px]">
-                <div className="space-y-2 text-center px-6">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Hero visual placeholder
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Scattered city DMs → clean guest spot booking flow
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── Pain section ────────────────────────────────────────────────────────── */
-
-const PAIN_POINTS = [
+const PAIN_POINTS: Array<{
+  title: string;
+  body: string;
+  variant: "mustard" | "bone-card" | "rosa";
+}> = [
   {
-    id: "mixed",
-    icon: "🌀",
     title: "Requests from different cities end up in the same DMs",
-    body: "Berlin, Amsterdam, London — all mixed together. You spend time just figuring out who is asking about which trip.",
+    body: "Berlin, Amsterdam, London, all mixed together. You spend time just figuring out who is asking about which trip.",
+    variant: "mustard",
   },
   {
-    id: "dates",
-    icon: "📅",
     title: "Travel dates and booking windows get mixed up",
-    body: "Clients ask about dates that have already passed, or city windows you haven't announced yet. Nothing lines up.",
+    body: "Clients ask about dates that have already passed, or city windows you have not announced yet. Nothing lines up.",
+    variant: "bone-card",
   },
   {
-    id: "backforth",
-    icon: "🔁",
-    title: "Too much back and forth before a spot is even booked",
+    title: "Too much back and forth before a spot is booked",
     body: "Before anything is confirmed you have already answered the same questions five times across three different DM threads.",
+    variant: "rosa",
   },
   {
-    id: "volume",
-    icon: "📈",
     title: "High booking volume makes everything harder to track",
     body: "The more cities you add, the more requests you get, and the harder it is to keep an overview of what is actually confirmed.",
+    variant: "bone-card",
   },
 ];
 
-function PainSection() {
-  return (
-    <section className="container-marketing py-20 md:py-24">
-      <div className="max-w-xl">
-        <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground md:text-4xl">
-          Three cities, one inbox,
-          <br />
-          too much mess.
-        </h2>
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          When you run guest spots, requests from different cities pile into the
-          same DMs. Travel dates and client expectations get confused. You sort
-          it all manually. The admin starts stacking up before the trip even
-          begins.
-        </p>
-      </div>
-
-      <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {PAIN_POINTS.map((p) => (
-          <div
-            key={p.id}
-            className="rounded-xl border border-border bg-card px-5 py-5 space-y-2"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-xl leading-none" aria-hidden="true">
-                {p.icon}
-              </span>
-              <p className="text-sm font-semibold text-foreground">{p.title}</p>
-            </div>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {p.body}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ─── Solution section ────────────────────────────────────────────────────── */
-
 const SOLUTION_STEPS = [
   {
-    n: "1",
     title: "Share your guest spot booking link",
     body: "One link in bio. Clients know exactly where to send their request.",
   },
   {
-    n: "2",
     title: "They send a request for the right city and dates",
-    body: "Size, placement, description, references — and the location they want. All in one go.",
+    body: "Size, placement, description, references, and the location they want. All in one go.",
   },
   {
-    n: "3",
     title: "You review everything in one place",
-    body: "No inbox digging. Every request is organised and waiting for you.",
+    body: "No inbox digging. Every request is organized and waiting for you.",
   },
   {
-    n: "4",
     title: "Approved bookings stay easier to plan",
     body: "Know what is confirmed for which city before you even pack your bags.",
   },
 ];
 
-function SolutionSection() {
-  return (
-    <section className="bg-brand-mustard py-16 md:py-20">
-      <div className="container-marketing">
-        <div className="max-w-xl mb-12">
-          <h2 className="text-3xl font-bold leading-tight tracking-tight text-brand-charcoal md:text-4xl">
-            A cleaner booking flow
-            <br />
-            for life on the road.
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-brand-charcoal/70">
-            Inklee gives traveling artists one{" "}
-            <Link
-              href="/guest-spot-booking"
-              className="underline-offset-4 hover:underline"
-            >
-              guest spot booking flow
-            </Link>{" "}
-            that collects the right details upfront — so you can focus on
-            tattooing instead of sorting messages.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {SOLUTION_STEPS.map(({ n, title, body }) => (
-            <div
-              key={n}
-              className="rounded-xl bg-white px-5 py-5 shadow-sm space-y-2"
-            >
-              <span className="text-4xl font-black leading-none text-brand-mustard">
-                {n}
-              </span>
-              <p className="text-sm font-semibold text-brand-charcoal">
-                {title}
-              </p>
-              <p className="text-sm leading-relaxed text-brand-charcoal/60">
-                {body}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-10">
-          <Link
-            href="/signup"
-            className="inline-block rounded-md bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-85"
-          >
-            Create your guest spot link
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── Product proof ───────────────────────────────────────────────────────── */
-
-const PRODUCT_CARDS = [
+const PRODUCT_CARDS: Array<{
+  label: string;
+  benefit: string;
+  variant: "mustard" | "bone" | "rosa";
+  Faux: () => React.ReactElement;
+}> = [
   {
-    id: "form",
     label: "Guest spot booking page",
     benefit: "Collect the right details from the start",
-    // PLACEHOLDER: replace with screenshot of the guest spot booking form
-    // Suggested: dark-mode screenshot, ~600×400px, cropped to form area
+    variant: "mustard",
+    Faux: () => <FauxGuestSpotForm />,
   },
   {
-    id: "dashboard",
     label: "Request overview",
-    benefit: "Review requests without city/date confusion",
-    // PLACEHOLDER: replace with screenshot of request dashboard / review view
+    benefit: "Review requests without city or date confusion",
+    variant: "bone",
+    Faux: () => <FauxRequestOverview />,
   },
   {
-    id: "calendar",
-    label: "Calendar & date overview",
+    label: "Calendar overview",
     benefit: "Keep guest spot bookings in one clear view",
-    // PLACEHOLDER: replace with calendar or date/city overview screenshot
+    variant: "rosa",
+    Faux: () => <FauxTripCalendar />,
   },
 ];
 
-function ProductProofSection() {
+function FauxGuestSpotForm() {
   return (
-    <section className="container-marketing py-20 md:py-24">
-      <div className="max-w-xl mb-12">
-        <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground md:text-4xl">
-          See the guest spot flow
-          <br />
-          before the inbox fills up
-        </h2>
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Every request comes in structured, sorted, and ready to act on. No
-          chasing. No confusion about which city or which dates.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        {PRODUCT_CARDS.map((card) => (
-          <div key={card.id} className="space-y-3">
-            {/* PLACEHOLDER: product screenshot — replace this div with <img> or <Image> */}
-            <div className="flex aspect-[4/3] w-full items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10">
-              <div className="space-y-1 text-center px-4">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Screenshot placeholder
-                </p>
-                <p className="text-xs text-muted-foreground">{card.label}</p>
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                {card.label}
-              </p>
-              <p className="text-sm text-muted-foreground">{card.benefit}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ─── Artist-native section ───────────────────────────────────────────────── */
-
-function ArtistNativeSection() {
-  return (
-    <section className="container-marketing py-20 md:py-24">
-      <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-16">
-        {/* PLACEHOLDER: travel/scene-native visual — replace this div with an illustration
-            or photo that fits the traveling artist context. Similar visual tone to
-            homepage artist.svg. Suggested size: up to ~400×480px. */}
-        <div className="flex justify-center md:justify-start">
-          <div className="flex h-72 w-full max-w-xs items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10 md:max-w-sm">
-            <div className="space-y-1 text-center px-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Visual placeholder
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Travel artist illustration
-              </p>
-            </div>
-          </div>
-        </div>
-
+    <div className="rounded-2xl bg-brand-bone p-4 shadow-card">
+      <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-brand-charcoal/60">
+        Guest spot request
+      </p>
+      <div className="space-y-2.5">
         <div>
-          <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground md:text-4xl">
-            Built by tattoo artists,
-            <br />
-            for tattoo artists.
-          </h2>
-          <p className="mt-5 text-sm font-semibold text-foreground">
-            Inklee is built around the real workflow behind tattooing.
+          <p className="mb-1 text-[10px] font-semibold text-brand-charcoal/70">
+            City
           </p>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Guest spots, travel dates, booking waves, Instagram messages,
-            reference pictures, and all the admin that starts stacking up when
-            you move between cities. Inklee is built around how that actually
-            works.
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            No generic appointment software. Just a cleaner{" "}
-            <Link
-              href="/tattoo-booking-software"
-              className="underline-offset-4 hover:underline"
-            >
-              booking tool for traveling tattoo artists
-            </Link>{" "}
-            that fits the way they actually work.
-          </p>
-          <div className="mt-8">
-            <CtaPrimary />
+          <div className="rounded-lg border-[1.5px] border-brand-charcoal/15 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-charcoal">
+            Berlin · Aug 12–16
           </div>
         </div>
+        <div>
+          <p className="mb-1 text-[10px] font-semibold text-brand-charcoal/70">
+            Placement
+          </p>
+          <div className="rounded-lg border-[1.5px] border-brand-charcoal/15 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-charcoal">
+            Right thigh
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-[10px] font-semibold text-brand-charcoal/70">
+            Size
+          </p>
+          <div className="rounded-lg border-[1.5px] border-brand-charcoal/15 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-charcoal">
+            Large
+          </div>
+        </div>
+        <div className="mt-1 rounded-full bg-brand-charcoal py-1.5 text-center text-[11px] font-bold text-brand-bone">
+          Send request
+        </div>
       </div>
-    </section>
+    </div>
   );
 }
 
-/* ─── Trust section ───────────────────────────────────────────────────────── */
-
-const TRUST_ITEMS = [
-  {
-    id: "setup",
-    label: "Simple onboarding",
-    body: "Guest spot booking link ready in under 5 minutes.",
-  },
-  {
-    id: "friendly",
-    label: "Artist-friendly setup",
-    body: "No tech skills needed. No complicated settings to figure out.",
-  },
-  {
-    id: "gdpr",
-    label: "GDPR-conscious foundation",
-    body: "Built with a responsible approach to handling client data.",
-  },
-];
-
-function TrustSection() {
+function FauxRequestOverview() {
   return (
-    <section className="border-t border-border">
-      <div className="container-marketing py-16 md:py-20">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-16 items-start">
-          <div>
-            <h2 className="text-2xl font-bold leading-tight tracking-tight text-foreground md:text-3xl">
-              Clean setup.
-              <br />
-              Privacy-conscious foundation.
-            </h2>
-            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Inklee helps artists run a more professional booking process while
-              keeping things simple. Built with privacy-conscious infrastructure
-              and a responsible approach to handling client data.
-            </p>
-          </div>
-
-          <div className="space-y-5">
-            {TRUST_ITEMS.map((item) => (
-              <div key={item.id} className="flex gap-3">
-                <div className="mt-0.5 h-4 w-4 shrink-0 rounded-full bg-brand-mustard" />
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {item.label}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{item.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── Final CTA ───────────────────────────────────────────────────────────── */
-
-function FinalCtaSection() {
-  return (
-    <section className="px-6 py-24 text-center">
-      <div className="mx-auto max-w-md">
-        <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-          Running guest spots?
-          <br />
-          Put one clear booking link in bio.
-        </h2>
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Inklee helps traveling tattoo artists collect structured requests,
-          stay organised across cities and dates, and spend less time sorting
-          out booking chaos in DMs.
+    <div className="space-y-2 rounded-2xl bg-brand-charcoal p-3 shadow-card">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-bone/60">
+          Berlin · 5 requests
         </p>
-        <div className="mt-8">
-          <Link
-            href="/signup"
-            className="inline-block rounded-md border border-brand-rosa px-8 py-3 text-base font-bold text-brand-rosa transition-colors hover:bg-brand-rosa hover:text-brand-charcoal"
-          >
-            Create your guest spot link
-          </Link>
-        </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Free to get started. No payment required.
-        </p>
+        <span className="rounded-full bg-brand-mustard px-1.5 py-0.5 text-[9px] font-black text-brand-charcoal">
+          NEW
+        </span>
       </div>
-    </section>
-  );
-}
-
-/* ─── Footer ──────────────────────────────────────────────────────────────── */
-
-function LandingFooter() {
-  return (
-    <footer className="border-t border-border">
-      <div className="container-marketing py-8">
-        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <SiteLogo height={16} />
-          <div className="flex gap-5 text-xs text-muted-foreground">
-            <Link
-              href="/terms"
-              className="transition-colors hover:text-foreground"
-            >
-              Terms
-            </Link>
-            <Link
-              href="/privacy"
-              className="transition-colors hover:text-foreground"
-            >
-              Privacy
-            </Link>
-            <Link
-              href="/imprint"
-              className="transition-colors hover:text-foreground"
-            >
-              Imprint
-            </Link>
+      {["@joana.ink", "@max_inks", "@nadia.t"].map((handle, i) => (
+        <div
+          key={handle}
+          className={`rounded-xl border-[1.5px] border-shell-border bg-[#252525] px-3 py-2 ${i === 2 ? "opacity-60" : ""}`}
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className={`h-6 w-6 rounded-full ${i === 0 ? "bg-brand-rosa" : i === 1 ? "bg-brand-mustard" : "bg-brand-bone/40"}`}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-bold text-brand-bone">
+                {handle}
+              </p>
+              <p className="truncate text-[10px] text-brand-bone/60">
+                Aug 14 · Forearm
+              </p>
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} inklee
-          </span>
         </div>
-      </div>
-    </footer>
+      ))}
+    </div>
   );
 }
 
-/* ─── Page ────────────────────────────────────────────────────────────────── */
+function FauxTripCalendar() {
+  return (
+    <div className="rounded-2xl bg-brand-bone p-3 shadow-card">
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-brand-charcoal/60">
+        Trips · 2026
+      </p>
+      <div className="space-y-2">
+        <div className="rounded-xl border-[1.5px] border-brand-charcoal/15 bg-white/55 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-charcoal/60">
+            Berlin
+          </p>
+          <p className="text-xs font-bold text-brand-charcoal">Aug 12 – 16</p>
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className="h-1.5 w-12 rounded-full bg-brand-mustard" />
+            <span className="text-[10px] font-semibold text-brand-charcoal/60">
+              5 booked
+            </span>
+          </div>
+        </div>
+        <div className="rounded-xl border-[1.5px] border-brand-charcoal/15 bg-white/55 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-charcoal/60">
+            Amsterdam
+          </p>
+          <p className="text-xs font-bold text-brand-charcoal">Sep 4 – 8</p>
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className="h-1.5 w-8 rounded-full bg-brand-rosa" />
+            <span className="text-[10px] font-semibold text-brand-charcoal/60">
+              3 booked
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function GuestSpotsPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <LandingHeader />
+      <JsonLd
+        data={webPageSchema({
+          name: PAGE_TITLE,
+          url: absoluteUrl(PAGE_PATH),
+          description: PAGE_DESCRIPTION,
+        })}
+        id="ld-webpage"
+      />
+      <PillNav />
       <main className="flex-1">
-        <HeroSection />
-        <div className="h-[15px] bg-brand-rosa" />
-        <PainSection />
-        <SolutionSection />
-        <ProductProofSection />
-        <ArtistNativeSection />
-        <div className="h-[15px] bg-brand-red" />
-        <TrustSection />
-        <FinalCtaSection />
+        {/* Hero (charcoal) */}
+        <section className="overflow-hidden md:flex md:min-h-[calc(100svh-80px)] md:items-center">
+          <div className="container-marketing-wide">
+            <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
+              <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-shell-fg-dim">
+                  Guest spot booking tool
+                </p>
+                <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
+                  <span className="block">Guest spot bookings</span>
+                  <span className="block text-brand-mustard">
+                    without the chaos.
+                  </span>
+                </h1>
+                <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
+                  Collect structured tattoo requests for the right city and
+                  dates with one clean booking flow built for traveling artists.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
+                  <Link
+                    href="/signup"
+                    className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
+                  >
+                    Create your guest spot link
+                  </Link>
+                  <Link
+                    href="/guest-spot-booking"
+                    className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
+                  >
+                    See the booking flow →
+                  </Link>
+                </div>
+                <div className="mt-6 flex items-center gap-3 md:mt-10">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/branding/badges/badge-handmade.svg"
+                    alt="Made by hand"
+                    className="h-12 w-12 md:h-14 md:w-14"
+                    draggable={false}
+                  />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/branding/badges/badge-gdpr.svg"
+                    alt="GDPR compliant"
+                    className="h-12 w-12 md:h-14 md:w-14"
+                    draggable={false}
+                  />
+                </div>
+              </div>
+              <div className="order-1 flex justify-center pt-5 md:order-2 md:pt-0">
+                <div className="animate-hero-float w-full max-w-sm md:max-w-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/branding/illustrations/mixed/inklee-_artist-guestspot.svg"
+                    alt=""
+                    aria-hidden="true"
+                    className="h-auto w-full"
+                    draggable={false}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Pain (bone, stacked cards on right) */}
+        <section
+          data-appearance="light"
+          className="bg-brand-bone text-brand-charcoal"
+        >
+          <div className="container-marketing py-20 md:py-28">
+            <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
+              <div>
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
+                  The guest spot problem
+                </p>
+                <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
+                  Three cities, one inbox,
+                  <br />
+                  too much mess.
+                </h2>
+                <p className="mt-6 max-w-md text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+                  When you run guest spots, requests from different cities pile
+                  into the same DMs. Travel dates and client expectations get
+                  confused. You sort it all manually. The admin starts stacking
+                  up before the trip even begins.
+                </p>
+              </div>
+              <div className="space-y-4 md:space-y-5">
+                {PAIN_POINTS.map((p) => {
+                  const bg =
+                    p.variant === "mustard"
+                      ? "bg-brand-mustard"
+                      : p.variant === "rosa"
+                        ? "bg-brand-rosa"
+                        : "bg-[#d9d4c7]";
+                  return (
+                    <div
+                      key={p.title}
+                      className={`flex flex-col gap-2 rounded-3xl p-6 md:p-7 ${bg}`}
+                    >
+                      <h3 className="text-lg font-black leading-tight text-brand-charcoal md:text-xl">
+                        {p.title}
+                      </h3>
+                      <p className="text-sm leading-relaxed text-brand-charcoal/75">
+                        {p.body}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Solution (mustard) */}
+        <section className="bg-brand-mustard">
+          <div className="container-marketing py-20 md:py-28">
+            <div className="mb-12 max-w-2xl">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
+                The Inklee guest spot flow
+              </p>
+              <h2 className="text-4xl font-black leading-tight tracking-tight text-brand-charcoal md:text-5xl lg:text-6xl">
+                A cleaner booking flow
+                <br />
+                for life on the road.
+              </h2>
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+                One{" "}
+                <Link
+                  href="/guest-spot-booking"
+                  className="font-bold underline-offset-4 hover:underline"
+                >
+                  guest spot booking flow
+                </Link>{" "}
+                that collects the right details upfront, so you can focus on
+                tattooing instead of sorting messages.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {SOLUTION_STEPS.map((step, i) => (
+                <div
+                  key={step.title}
+                  className="flex flex-col gap-3 rounded-3xl bg-brand-charcoal/8 p-5"
+                >
+                  <span className="text-4xl font-black leading-none text-brand-charcoal">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="text-base font-black leading-tight text-brand-charcoal">
+                    {step.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-brand-charcoal/75">
+                    {step.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Product proof (charcoal, faux UI) */}
+        <section className="bg-shell-bg text-shell-fg">
+          <div className="container-marketing py-24 md:py-32">
+            <div className="mb-12 max-w-3xl md:mb-16">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
+                What it looks like
+              </p>
+              <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
+                See the guest spot flow
+                <br />
+                before the inbox fills up.
+              </h2>
+              <p className="mt-6 max-w-2xl text-base leading-relaxed text-shell-fg-dim">
+                Every request comes in structured, sorted, and ready to act on.
+                No chasing. No confusion about which city or which dates.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-6">
+              {PRODUCT_CARDS.map((card) => {
+                const bg =
+                  card.variant === "mustard"
+                    ? "bg-brand-mustard"
+                    : card.variant === "rosa"
+                      ? "bg-brand-rosa"
+                      : "bg-brand-bone";
+                const { Faux } = card;
+                return (
+                  <div
+                    key={card.label}
+                    className={`flex h-full flex-col gap-5 rounded-3xl p-6 ${bg}`}
+                  >
+                    <Faux />
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-black leading-tight text-brand-charcoal">
+                        {card.label}
+                      </h3>
+                      <p className="text-sm leading-relaxed text-brand-charcoal/75">
+                        {card.benefit}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* Artist native (bone) */}
+        <section
+          data-appearance="light"
+          className="bg-brand-bone text-brand-charcoal"
+        >
+          <div className="container-marketing py-20 md:py-28">
+            <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
+              <div className="flex justify-center md:justify-start">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/branding/illustrations/mixed/inklee-_travel-tag.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="h-auto w-full max-w-sm md:max-w-md"
+                  draggable={false}
+                />
+              </div>
+              <div>
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
+                  Built by a tattoo artist
+                </p>
+                <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
+                  By tattoo artists.
+                  <br />
+                  For tattoo artists.
+                </h2>
+                <p className="mt-6 max-w-xl text-base font-semibold leading-relaxed text-brand-charcoal md:text-lg">
+                  Inklee is built around the real workflow behind tattooing.
+                </p>
+                <p className="mt-3 max-w-xl text-base leading-relaxed text-brand-charcoal/75">
+                  Guest spots, travel dates, booking waves, Instagram messages,
+                  reference pictures, and all the admin that starts stacking up
+                  when you move between cities. Inklee is built around how that
+                  actually works.
+                </p>
+                <p className="mt-3 max-w-xl text-base leading-relaxed text-brand-charcoal/75">
+                  No generic appointment software. Just a cleaner{" "}
+                  <Link
+                    href="/tattoo-booking-software"
+                    className="font-bold underline-offset-4 hover:underline"
+                  >
+                    booking tool for traveling tattoo artists
+                  </Link>{" "}
+                  that fits the way they actually work.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <Link
+                    href="/signup"
+                    className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
+                  >
+                    Create your guest spot link
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA (rosa) */}
+        <section className="bg-brand-rosa">
+          <div className="container-marketing py-20 md:py-28">
+            <div className="mx-auto max-w-3xl text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/illustrations/easy-peasy.svg"
+                alt=""
+                aria-hidden="true"
+                className="mx-auto mb-8 h-28 w-auto md:h-36"
+                draggable={false}
+              />
+              <h2 className="text-4xl font-black leading-tight tracking-tight text-brand-charcoal md:text-6xl lg:text-7xl">
+                Running guest spots?
+                <br />
+                Put one booking link in bio.
+              </h2>
+              <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+                Inklee helps traveling tattoo artists collect structured
+                requests, stay organized across cities and dates, and spend less
+                time sorting out booking chaos in DMs.
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
+                >
+                  Create your guest spot link
+                </Link>
+              </div>
+              <p className="mx-auto mt-4 text-xs text-brand-charcoal/70">
+                Free to get started. No payment required.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
-      <LandingFooter />
+      <SiteFooter />
     </div>
   );
 }
