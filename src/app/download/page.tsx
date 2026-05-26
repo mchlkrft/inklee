@@ -143,8 +143,10 @@ function StoreButtonRow({
 
 function PillNav() {
   return (
-    <header className="pointer-events-none sticky top-4 z-50 px-4">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+    <header className="pointer-events-none sticky top-4 z-50">
+      {/* Same container as the body sections so the pills sit on the same
+          left/right margin as the hero content. */}
+      <div className="container-marketing flex items-center justify-between gap-3">
         {/* Logo pill — left */}
         <Link
           href="/"
