@@ -1,27 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import SiteLogo from "@/components/site-logo";
-import {
-  MarketingHero,
-  DefinitionBlock,
-  ProblemSolutionBlock,
-  FeatureBenefitGrid,
-  ComparisonTable,
-  FaqSection,
-  RelatedLinksBlock,
-  FinalCta,
-} from "@/components/marketing";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
-import type {
-  ComparisonRow,
-  FaqItem,
-  FeatureBenefitItem,
-  ProblemPoint,
-  RelatedLink,
-  SolutionPoint,
-} from "@/lib/marketing";
+import {
+  PillNav,
+  SiteFooter,
+  ComparePageContent,
+} from "@/components/marketing-v2";
 
 const PAGE_PATH = "/tattoo-booking-software-vs-instagram-dms";
 const PAGE_TITLE = "Tattoo Booking Tool vs Instagram DMs · Inklee";
@@ -34,9 +19,7 @@ const OG_DESCRIPTION =
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  alternates: {
-    canonical: PAGE_PATH,
-  },
+  alternates: { canonical: PAGE_PATH },
   openGraph: {
     title: OG_TITLE,
     description: OG_DESCRIPTION,
@@ -50,155 +33,7 @@ export const metadata: Metadata = {
   },
 };
 
-/* ─── Content data ────────────────────────────────────────────────────────── */
-
-const PROBLEM_POINTS: ProblemPoint[] = [
-  {
-    title: "Clients send “how much?” without enough context",
-    description:
-      "The price question lands first, before idea, placement, or size. You ask back. They answer tomorrow. Nothing moves.",
-  },
-  {
-    title: "Reference images get separated from the actual idea",
-    description:
-      "A screenshot in one thread, a description in another, and a question in a third. Three pieces of the same request, scattered.",
-  },
-  {
-    title: "Serious requests sit next to reactions, memes, and casual chats",
-    description:
-      "A real tattoo inquiry shares the inbox with story replies, voice notes, and people just saying hello.",
-  },
-  {
-    title: "Guest spot requests mix with local requests",
-    description:
-      "Berlin, your home studio, and last year's trip all live in the same DM list, and sorting them turns into manual admin.",
-  },
-  {
-    title: "Artists repeat the same intake questions again and again",
-    description:
-      "Placement, size, references, timing, contact. Same questions, copy-pasted into a different DM, every single week.",
-  },
-  {
-    title: "Good requests disappear because the next step is unclear",
-    description:
-      "When the path from “I'm interested” to “send your request” is fuzzy, motivated clients lose momentum before anything is booked.",
-  },
-];
-
-const SOLUTION_POINTS: SolutionPoint[] = [
-  {
-    title: "One link for bio, stories, replies, and booking prompts",
-    description:
-      "A single Inklee link covers every place clients already look. No more “DM me to book” without a clear next step.",
-  },
-  {
-    title:
-      "Tattoo request form for idea, placement, size, references, and timing",
-    description:
-      "The structured form gathers the basics before the conversation even starts.",
-  },
-  {
-    title: "Artist review before anything becomes a booking",
-    description:
-      "Decide whether the idea fits before any time slot is offered. The form is the first step, not the last.",
-  },
-  {
-    title: "Cleaner overview for guest spots and future demand",
-    description:
-      "Travel requests stay tagged to a city and trip window. Future demand stays visible after a city fills up.",
-  },
-  {
-    title: "Less repeated admin inside DMs",
-    description:
-      "Stop typing the same intake questions into different threads. The form does it once, every time.",
-  },
-];
-
-const COMPARISON_ROWS: ComparisonRow[] = [
-  {
-    feature: "First contact",
-    alternative: "Fast, familiar, and already where clients are",
-    inklee: "Starts from Instagram, then moves serious requests into structure",
-  },
-  {
-    feature: "Request details",
-    alternative: "Spread across multiple messages",
-    inklee: "Collected in one tattoo request form",
-  },
-  {
-    feature: "Reference images",
-    alternative: "Easy to lose above or below the main message",
-    inklee: "Attached to the request context",
-  },
-  {
-    feature: "Artist approval",
-    alternative: "Hard to track what is ready, answered, or still missing",
-    inklee: "Artist reviews before confirming anything",
-  },
-  {
-    feature: "Guest spots",
-    alternative: "City and travel requests mix with normal chats",
-    inklee: "Easier to separate city demand and trip-specific requests",
-  },
-  {
-    feature: "Waitlist",
-    alternative: "Future demand disappears after books close",
-    inklee: "Requests and waitlist interest stay easier to read",
-  },
-  {
-    feature: "Client next step",
-    alternative: "Often unclear unless the artist manually explains it",
-    inklee: "One clear request link for serious inquiries",
-  },
-];
-
-const DM_USEFUL_CARDS: FeatureBenefitItem[] = [
-  {
-    title: "Use DMs for trust",
-    description:
-      "Quick questions, vibe checks, and casual replies can stay in Instagram.",
-  },
-  {
-    title: "Use posts and stories for attention",
-    description:
-      "Instagram is still the place where clients discover your work and learn when books open.",
-  },
-  {
-    title: "Use a booking link for serious requests",
-    description:
-      "When someone wants to book, the link collects the details you need before you answer properly.",
-  },
-  {
-    title: "Use Inklee for request structure",
-    description:
-      "The request stays organized enough to review, approve, waitlist, or follow up.",
-  },
-];
-
-const DM_OVERLOAD_CARDS: FeatureBenefitItem[] = [
-  {
-    title: "You ask the same questions every week",
-    description:
-      "Placement, size, references, dates, and contact details should not need to be rebuilt from scratch every time.",
-  },
-  {
-    title: "You lose track of serious clients",
-    description:
-      "When good requests sit between reactions and casual messages, follow-up gets messy.",
-  },
-  {
-    title: "You cannot read demand clearly",
-    description:
-      "Closed books, waitlists, and guest spots are hard to judge when everything is just a chat thread.",
-  },
-  {
-    title: "You confirm too late or too early",
-    description:
-      "Without structure, requests stay vague for too long or move toward booking before the idea is clear.",
-  },
-];
-
-const COMPARE_FAQ: FaqItem[] = [
+const FAQ = [
   {
     question: "Are Instagram DMs enough for tattoo bookings?",
     answer:
@@ -241,91 +76,7 @@ const COMPARE_FAQ: FaqItem[] = [
   },
 ];
 
-const RELATED_LINKS: RelatedLink[] = [
-  {
-    title: "Tattoo booking tool for artists",
-    href: "/tattoo-booking-software",
-    description:
-      "See the broader booking tool page and how Inklee fits tattoo workflows.",
-  },
-  {
-    title: "Instagram booking link for tattoo artists",
-    href: "/instagram-booking-link-for-tattoo-artists",
-    description:
-      "Turn Instagram bio clicks and DM replies into structured tattoo requests.",
-  },
-  {
-    title: "Tattoo booking form",
-    href: "/tattoo-booking-form",
-    description:
-      "See what a tattoo request form should collect before the artist replies.",
-  },
-];
-
-/* ─── Header / Footer ─────────────────────────────────────────────────────── */
-
-function LandingHeader() {
-  return (
-    <header className="container-marketing-wide flex items-center justify-between py-5">
-      <Link href="/" aria-label="inklee home">
-        <SiteLogo height={20} />
-      </Link>
-      <nav className="flex items-center gap-5">
-        <Link
-          href="/login"
-          className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Log in
-        </Link>
-        <Link
-          href="/signup"
-          className="rounded-md bg-foreground px-4 py-2 text-base font-bold text-background transition-opacity hover:opacity-85"
-        >
-          Get started free
-        </Link>
-      </nav>
-    </header>
-  );
-}
-
-function LandingFooter() {
-  return (
-    <footer className="border-t border-border">
-      <div className="container-marketing py-8">
-        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <SiteLogo height={16} />
-          <div className="flex gap-5 text-xs text-muted-foreground">
-            <Link
-              href="/terms"
-              className="transition-colors hover:text-foreground"
-            >
-              Terms
-            </Link>
-            <Link
-              href="/privacy"
-              className="transition-colors hover:text-foreground"
-            >
-              Privacy
-            </Link>
-            <Link
-              href="/imprint"
-              className="transition-colors hover:text-foreground"
-            >
-              Imprint
-            </Link>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} inklee
-          </span>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-/* ─── Page ────────────────────────────────────────────────────────────────── */
-
-export default function TattooBookingVsInstagramDmsPage() {
+export default function ComparePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <JsonLd
@@ -336,99 +87,210 @@ export default function TattooBookingVsInstagramDmsPage() {
         })}
         id="ld-webpage"
       />
-      <JsonLd data={faqPageSchema(COMPARE_FAQ)} id="ld-faq" />
-      <LandingHeader />
+      <JsonLd data={faqPageSchema(FAQ)} id="ld-faq" />
+      <PillNav />
       <main className="flex-1">
-        <MarketingHero
-          eyebrow="Tattoo booking tool vs Instagram DMs"
-          heading="Instagram DMs are not a booking system"
-          subhead="Keep Instagram for attention and conversation. Move serious tattoo requests into a structured flow before the idea, placement, references, and timing disappear in the scroll."
-          primaryCta={{
-            label: "Create your booking link",
-            href: "/signup",
-          }}
-          secondaryCta={{
-            label: "See the DM chaos page",
-            href: "/dm-chaos",
-            variant: "secondary",
-          }}
-          proof="Built for solo artists, Instagram requests, and approval-first tattoo booking flows."
-          visual={
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src="/branding/illustrations/landingpages/hero-chat-vs-inklee-request-form.svg"
-              alt="Messy Instagram DM chat compared with a clean Inklee tattoo request form"
-              className="block h-auto w-full"
-              fetchPriority="high"
-              draggable={false}
-            />
-          }
-        />
-        <div className="h-[15px] bg-brand-rosa" />
-        <DefinitionBlock
-          eyebrow="The real comparison"
-          heading="DMs start the conversation. They should not hold the whole booking."
-          body={[
-            "Instagram DMs are useful because clients already use them. They are quick, familiar, and good for building trust. The problem is that tattoo requests need more than a casual message thread.",
-            "A serious tattoo request needs the idea, placement, size, references, timing, contact details, and artist approval. Inklee gives that request a cleaner place to land while Instagram stays the front door.",
-          ]}
-        />
-        <ProblemSolutionBlock
-          problemHeading="Where Instagram DMs break down"
-          problemBody="DMs are built for conversation, not intake. Once a tattoo request needs references, dates, size, placement, and follow-up, the thread can turn into admin work fast."
-          problemPoints={PROBLEM_POINTS}
-          solutionHeading="A booking link turns interest into a real request."
-          solutionBody="With Inklee, artists can keep Instagram as the place where people find them, then send serious clients to one booking link where the important details are collected properly."
-          solutionPoints={SOLUTION_POINTS}
-        />
-        <ComparisonTable
-          heading="Instagram DMs vs a tattoo booking flow"
-          intro="Instagram is not the enemy. It is just not built to manage tattoo requests from first message to booking decision."
+        <ComparePageContent
+          alternativeName="Instagram DMs"
           alternativeLabel="Instagram DMs"
-          inkleeLabel="Inklee booking flow"
-          rows={COMPARISON_ROWS}
-          note="The point is not to stop talking to clients. The point is to stop making DMs carry every booking detail."
-        />
-        <FeatureBenefitGrid
-          heading="When DMs are still useful"
-          intro="This page is not saying tattoo artists should leave Instagram. The better setup is knowing which job DMs should do and which job they should not do."
-          items={DM_USEFUL_CARDS}
-          columns={2}
-        />
-        <FeatureBenefitGrid
-          heading="Signs your DMs are doing too much"
-          intro="You probably do not need a heavier system because you love software. You need one because the same booking problems keep repeating."
-          items={DM_OVERLOAD_CARDS}
-          columns={2}
-        />
-        <div className="h-[15px] bg-brand-red" />
-        <FaqSection
-          eyebrow="FAQ"
-          heading="Instagram DMs vs Inklee, answered"
-          items={COMPARE_FAQ}
-        />
-        <RelatedLinksBlock
-          heading="More ways to clean up tattoo requests"
-          intro="Keep the booking flow connected with three more reads on how Inklee fits the way tattoo artists actually work."
-          links={RELATED_LINKS}
-          columns={3}
-        />
-        <FinalCta
-          heading="Keep Instagram. Stop booking from the chaos."
-          subhead="Give serious clients one link for the tattoo details you actually need."
-          primaryCta={{
-            label: "Create your booking link",
-            href: "/signup",
-          }}
-          secondaryCta={{
-            label: "See a live example",
-            href: "/bert-grimm",
-            variant: "secondary",
-            external: true,
-          }}
+          inkleeLabel="Inklee"
+          eyebrow="Inklee vs Instagram DMs"
+          heroHeadBlack="Instagram DMs"
+          heroHeadMustard="vs a tattoo booking tool."
+          subline="Use Instagram for attention. Use Inklee for the booking. The two work together, but only one is built for tattoo intake."
+          heroIllustration="/branding/illustrations/mixed/inklee-_chat-vs-inklee-request-form.svg"
+          definitionHeading={[
+            "DMs are for talking.",
+            "Bookings need structure.",
+          ]}
+          definitionBody={[
+            "Instagram DMs are great when the goal is conversation. They are not built for tattoo intake, approval, references, deposits, or guest spot demand.",
+            "A booking link does not replace the chat. It gives serious tattoo requests a cleaner place to land while DMs stay where the casual conversation already happens.",
+          ]}
+          definitionIllustration="/branding/illustrations/mixed/inklee-_DM-to-Booking-Form.svg"
+          problemHeading={["Six ways DMs", "lose the request."]}
+          problemBody="DMs are good for trust and conversation. They are bad for keeping a tattoo request together."
+          problemPoints={[
+            {
+              title: "Clients send “how much?” without enough context",
+              description:
+                "The price question lands first, before idea, placement, or size. You ask back. They answer tomorrow. Nothing moves.",
+            },
+            {
+              title: "Reference images get separated from the actual idea",
+              description:
+                "A screenshot in one thread, a description in another, and a question in a third. Three pieces of the same request, scattered.",
+            },
+            {
+              title: "Serious requests sit next to reactions and casual chats",
+              description:
+                "A real tattoo inquiry shares the inbox with story replies, voice notes, and people just saying hello.",
+            },
+            {
+              title: "Guest spot requests mix with local requests",
+              description:
+                "Berlin, your home studio, and last year's trip all live in the same DM list, and sorting them turns into manual admin.",
+            },
+            {
+              title: "Artists repeat the same intake questions every week",
+              description:
+                "Placement, size, references, timing, contact. Same questions, copy-pasted into a different DM, every single week.",
+            },
+            {
+              title: "Good requests disappear because the next step is unclear",
+              description:
+                "When the path from interest to request is fuzzy, motivated clients lose momentum before anything is booked.",
+            },
+          ]}
+          solutionHeading={[
+            "Inklee gives serious requests",
+            "a structured next step.",
+          ]}
+          solutionBody="DMs stay for trust and chat. Inklee handles the actual booking request."
+          solutionPoints={[
+            {
+              title: "One link for bio, stories, and replies",
+              description:
+                "A single Inklee link covers every place clients already look. Serious requests land in structure, not in another DM thread.",
+            },
+            {
+              title: "Tattoo request form for the basics",
+              description:
+                "Idea, placement, size, references, and timing land together before the conversation even starts.",
+            },
+            {
+              title: "Artist review before booking",
+              description:
+                "Decide whether the idea fits before any time slot is offered. The form is the first step, not the last.",
+            },
+            {
+              title: "Cleaner overview for guest spots",
+              description:
+                "Travel requests stay tagged to a city and trip window. Future demand stays visible after a city fills up.",
+            },
+            {
+              title: "Less repeated admin",
+              description:
+                "Stop typing the same intake questions into different threads. The form does it once, every time.",
+            },
+          ]}
+          comparisonRows={[
+            {
+              feature: "First contact",
+              alt: "Fast, familiar, already where clients are",
+              inklee:
+                "Starts from Instagram, moves serious requests into structure",
+            },
+            {
+              feature: "Request details",
+              alt: "Spread across multiple messages",
+              inklee: "Collected in one tattoo request form",
+            },
+            {
+              feature: "Reference images",
+              alt: "Easy to lose above or below the main message",
+              inklee: "Attached to the request context",
+            },
+            {
+              feature: "Artist approval",
+              alt: "Hard to track what is ready, answered, or missing",
+              inklee: "Artist reviews before confirming anything",
+            },
+            {
+              feature: "Guest spots",
+              alt: "City and travel requests mix with normal chats",
+              inklee:
+                "Easier to separate city demand and trip-specific requests",
+            },
+            {
+              feature: "Waitlist",
+              alt: "Future demand disappears after books close",
+              inklee: "Requests and waitlist interest stay easier to read",
+            },
+            {
+              feature: "Client next step",
+              alt: "Often unclear unless the artist explains it",
+              inklee: "One clear request link for serious inquiries",
+            },
+          ]}
+          usefulHeading={["DMs still belong", "in the booking flow."]}
+          usefulBody="The booking link does not replace Instagram. It just takes the parts DMs are bad at."
+          usefulCards={[
+            {
+              title: "Use DMs for trust",
+              description:
+                "Quick questions, vibe checks, and casual replies can stay in Instagram.",
+              variant: "mustard",
+            },
+            {
+              title: "Use posts and stories for attention",
+              description:
+                "Instagram is still the place where clients discover your work and learn when books open.",
+              variant: "bone",
+            },
+            {
+              title: "Use the booking link for serious requests",
+              description:
+                "When someone wants to book, the link collects the details you need before you answer.",
+              variant: "rosa",
+            },
+            {
+              title: "Use Inklee for request structure",
+              description:
+                "The request stays organized enough to review, approve, waitlist, or follow up.",
+              variant: "bone",
+            },
+          ]}
+          wrongJobHeading={["When DMs alone", "stop working."]}
+          wrongJobBody="If any of these sound familiar, you are running tattoo intake on the wrong tool."
+          wrongJobCards={[
+            {
+              title: "You ask the same questions every week",
+              description:
+                "Placement, size, references, dates, and contact details should not be rebuilt from scratch every time.",
+            },
+            {
+              title: "You lose track of serious clients",
+              description:
+                "When good requests sit between reactions and casual messages, follow-up gets messy.",
+            },
+            {
+              title: "You cannot read demand clearly",
+              description:
+                "Closed books, waitlists, and guest spots are hard to judge when everything is just a chat thread.",
+            },
+            {
+              title: "You confirm too late or too early",
+              description:
+                "Without structure, requests stay vague for too long or move toward booking before the idea is clear.",
+            },
+          ]}
+          faq={FAQ}
+          related={[
+            {
+              title: "Tattoo booking tool for artists",
+              href: "/tattoo-booking-software",
+              description:
+                "See the broader booking tool page and how Inklee fits tattoo workflows.",
+            },
+            {
+              title: "Instagram booking link for tattoo artists",
+              href: "/instagram-booking-link-for-tattoo-artists",
+              description:
+                "Turn Instagram bio clicks and DM replies into structured tattoo requests.",
+            },
+            {
+              title: "Tattoo booking form",
+              href: "/tattoo-booking-form",
+              description:
+                "See what a tattoo request form should collect before the artist replies.",
+            },
+          ]}
+          finalCtaHead={["Keep the chat.", "Move the booking."]}
+          finalCtaBody="Inklee gives serious tattoo requests a structured next step, without taking the conversation out of Instagram."
         />
       </main>
-      <LandingFooter />
+      <SiteFooter />
     </div>
   );
 }
