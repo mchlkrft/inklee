@@ -117,23 +117,21 @@ export default async function StartPage() {
           </div>
         </section>
 
-        {/* Pain (bone) */}
-        <section
-          data-appearance="light"
-          className="bg-brand-bone text-brand-charcoal"
-        >
+        {/* Pain (charcoal) — shifted from bone to charcoal to break the
+            bone-on-bone seam with the Credibility section above. */}
+        <section className="bg-shell-bg text-shell-fg">
           <div className="container-marketing py-20 md:py-28">
             <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
               <div>
-                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
                   The DM problem
                 </p>
-                <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
+                <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
                   Instagram gets you attention.
                   <br />
                   It does not give you structure.
                 </h2>
-                <p className="mt-6 max-w-md text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+                <p className="mt-6 max-w-md text-base leading-relaxed text-shell-fg-dim md:text-lg">
                   Managing tattoo bookings through DMs is chaotic by design. It
                   was never built for this.
                 </p>
