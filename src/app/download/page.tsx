@@ -360,16 +360,7 @@ function FaqRow({
 
 export default function DownloadPage() {
   return (
-    // data-appearance="light" scopes the page out of the global html.dark
-    // theme. Bone/charcoal tokens (bg-background, text-foreground,
-    // text-muted-foreground) now resolve to their light-mode values
-    // inside this subtree. Explicit bg-shell-bg / bg-brand-mustard /
-    // text-shell-fg on the dark sections stay charcoal regardless,
-    // since they are literal palette tokens, not theme-dependent.
-    <div
-      data-appearance="light"
-      className="flex min-h-screen flex-col bg-background text-foreground"
-    >
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       <JsonLd
         data={webPageSchema({
           name: PAGE_TITLE,
