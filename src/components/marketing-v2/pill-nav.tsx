@@ -29,8 +29,13 @@ const MOBILE_MQ = "(max-width: 639px)";
 export default function PillNav() {
   const [scrolled, setScrolled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  // DEBUG: confirms client hydration. Remove once verified.
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+
     const mql = window.matchMedia(MOBILE_MQ);
     const updateMobile = () => setIsMobile(mql.matches);
     updateMobile();
@@ -57,6 +62,14 @@ export default function PillNav() {
 
   return (
     <header className="pointer-events-none sticky top-4 z-50">
+      {/* DEBUG: only renders post-hydration. If you see a small red
+          dot bottom-right, client JS is running. Remove once verified. */}
+      {mounted && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed bottom-4 right-4 z-[100] h-3 w-3 rounded-full bg-red-500 shadow-lg"
+        />
+      )}
       <div className="container-marketing flex items-center justify-between gap-3">
         {/* Logo pill — body-button height (px-5 py-3 baseline) */}
         <Link
