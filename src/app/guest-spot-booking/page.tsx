@@ -311,7 +311,7 @@ export default function GuestSpotBookingPage() {
                 </div>
               </div>
               <div className="order-1 flex justify-center pt-5 md:order-2 md:pt-0">
-                <div className="animate-hero-float w-full max-w-md md:max-w-xl">
+                <div className="animate-hero-float w-full max-w-lg md:max-w-2xl">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/branding/illustrations/mixed/inklee-_artist-guestspot.svg"
