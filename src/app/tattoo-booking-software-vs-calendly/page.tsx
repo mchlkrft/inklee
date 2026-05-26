@@ -98,7 +98,7 @@ export default function ComparePage() {
           heroHeadBlack="A scheduler"
           heroHeadMustard="vs a tattoo booking tool."
           subline="Calendly is great when the task is to book a time slot. Tattoo bookings usually need idea review before any slot makes sense. Here is when each fits."
-          heroIllustration="/branding/illustrations/mixed/inklee-_login-desktop.svg"
+          heroIllustration="/branding/illustrations/mixed/inklee-_Artist-with-Flash-Background-2.svg"
           definitionHeading={["Tattoo bookings", "do not start with a slot."]}
           definitionBody={[
             "Calendly is built around picking an available time. For a tattoo, the artist usually needs to see the idea, placement, size, references, and timing first.",

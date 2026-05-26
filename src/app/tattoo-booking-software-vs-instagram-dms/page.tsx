@@ -99,6 +99,7 @@ export default function ComparePage() {
           heroHeadMustard="vs a tattoo booking tool."
           subline="Use Instagram for attention. Use Inklee for the booking. The two work together, but only one is built for tattoo intake."
           heroIllustration="/branding/illustrations/mixed/inklee-_chat-vs-inklee-request-form.svg"
+          heroSize="large"
           definitionHeading={[
             "DMs are for talking.",
             "Bookings need structure.",

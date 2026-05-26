@@ -21,6 +21,9 @@ export type ComparePageProps = {
   heroHeadMustard: string;
   subline: string;
   heroIllustration: string;
+  /** Hero illustration max-width preset. "default" = small (xs/sm),
+   *  "large" = one notch up (sm/lg). Per-page override. */
+  heroSize?: "default" | "large";
   definitionEyebrow?: string;
   definitionHeading: [string, string];
   definitionBody: string[];
@@ -96,7 +99,13 @@ export default function ComparePageContent(p: ComparePageProps) {
               </div>
             </div>
             <div className="order-1 flex justify-center pt-5 md:order-2 md:pt-0">
-              <div className="animate-hero-float w-full max-w-2xs md:max-w-sm">
+              <div
+                className={`animate-hero-float w-full ${
+                  p.heroSize === "large"
+                    ? "max-w-sm md:max-w-lg"
+                    : "max-w-2xs md:max-w-sm"
+                }`}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={p.heroIllustration}
