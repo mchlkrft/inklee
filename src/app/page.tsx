@@ -180,6 +180,25 @@ function HeroSection() {
                 See a live example →
               </Link>
             </div>
+
+            {/* Quality badges — same pattern the original homepage carried,
+                restored after the redesign accidentally dropped them. */}
+            <div className="mt-8 flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/badges/badge-handmade.svg"
+                alt="Made by hand"
+                className="h-12 w-12 md:h-14 md:w-14"
+                draggable={false}
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/badges/badge-gdpr.svg"
+                alt="GDPR compliant"
+                className="h-12 w-12 md:h-14 md:w-14"
+                draggable={false}
+              />
+            </div>
           </div>
 
           {/* Hero illustration */}
@@ -221,7 +240,7 @@ function DefinitionSection() {
               src="/branding/illustrations/mixed/inklee-_booking-link-tattoo-request.svg"
               alt=""
               aria-hidden="true"
-              className="mx-auto h-auto w-full max-w-md md:mx-0"
+              className="mx-auto h-auto w-full max-w-lg md:mx-0"
               draggable={false}
             />
           </div>
@@ -269,11 +288,15 @@ const FEATURES: Array<{
     illustration: "/branding/illustrations/feature-booking-form.svg",
     variant: "mustard",
   },
+  // Content swapped with position 4 ("Request management") per founder
+  // direction: the request graphic reads better on rosa than bone, the
+  // waitlist graphic reads better on bone than rosa. Variant rotation
+  // (mustard/bone/rosa/rosa/mustard/bone) stays the same.
   {
-    title: "Request management",
+    title: "Waitlist",
     description:
-      "Review, approve, pass, or request a deposit from a clean dashboard. Every decision is logged.",
-    illustration: "/branding/illustrations/feature-requests.svg",
+      "When books are closed, clients join the waitlist. Open a new round and move waitlist entries into bookings.",
+    illustration: "/branding/illustrations/feature-waitlist.svg",
     variant: "bone",
   },
   {
@@ -284,10 +307,10 @@ const FEATURES: Array<{
     variant: "rosa",
   },
   {
-    title: "Waitlist",
+    title: "Request management",
     description:
-      "When books are closed, clients join the waitlist. Open a new round and move waitlist entries into bookings.",
-    illustration: "/branding/illustrations/feature-waitlist.svg",
+      "Review, approve, pass, or request a deposit from a clean dashboard. Every decision is logged.",
+    illustration: "/branding/illustrations/feature-requests.svg",
     variant: "rosa",
   },
   {
@@ -542,10 +565,19 @@ function FaqHomeSection() {
           <div className="rounded-3xl border-[1.5px] border-shell-border bg-[#252525] px-6 md:px-10">
             {HOMEPAGE_FAQ.map((item, idx) => {
               const number = String(idx + 1).padStart(2, "0");
+              const isLast = idx === HOMEPAGE_FAQ.length - 1;
+              // JSX conditional instead of `last:border-b-0`: the global
+              // `.border-b:not(.border-transparent)` rule in globals.css
+              // wins source-order against the Tailwind last: utility, so
+              // the last row's border still rendered next to the card's
+              // outer border (visually a doubled 3px line). Not adding
+              // the class at all is the only robust fix.
               return (
                 <details
                   key={item.question}
-                  className="group border-b border-shell-border py-5 last:border-b-0"
+                  className={`group py-5 ${
+                    isLast ? "" : "border-b border-shell-border"
+                  }`}
                 >
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
                     <div className="flex items-baseline gap-5">
