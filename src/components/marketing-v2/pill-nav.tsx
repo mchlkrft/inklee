@@ -1,10 +1,33 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 /** Floating two-pill nav shared across all redesigned marketing pages.
  *  Logo pill top-left, nav + CTA pill top-right, both on the same
  *  container-marketing grid so they align with the body content's
- *  left/right margins. */
+ *  left/right margins.
+ *
+ *  Mobile-only scroll affordance: once the visitor scrolls past
+ *  SCROLL_THRESHOLD pixels, the mustard "Get started" button grows a
+ *  touch. Small focus-pull without redesigning the whole nav. On
+ *  desktop the button stays its default size at all scroll positions
+ *  (sm: prefixes lock the size back). */
+
+const SCROLL_THRESHOLD = 80;
+
 export default function PillNav() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > SCROLL_THRESHOLD);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll(); // capture initial state if page loads scrolled
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <header className="pointer-events-none sticky top-4 z-50">
       <div className="container-marketing flex items-center justify-between gap-3">
@@ -42,9 +65,15 @@ export default function PillNav() {
           >
             Log in
           </Link>
+          {/* Get started CTA. Mobile-only scroll-grown state — past
+              80px scroll the button bumps padding + font-size. The
+              sm:* triplet locks back to the default sizing on desktop
+              so the grow effect only fires on mobile. */}
           <Link
             href="/signup"
-            className="rounded-full bg-brand-mustard px-4 py-1.5 text-sm font-bold text-brand-charcoal transition-opacity hover:opacity-90"
+            className={`rounded-full bg-brand-mustard font-bold text-brand-charcoal transition-all duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm ${
+              scrolled ? "px-5 py-2.5 text-base" : "px-4 py-1.5 text-sm"
+            }`}
           >
             Get started
           </Link>

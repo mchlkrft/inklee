@@ -155,9 +155,9 @@ function HeroSection() {
     // platform design language), and the badge row.
     <section className="overflow-hidden md:flex md:min-h-[calc(100svh-80px)] md:items-center">
       <div className="container-marketing-wide">
-        <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
+        <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[5fr_7fr] md:gap-0">
           {/* Text */}
-          <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
+          <div className="order-2 pb-10 md:order-1 md:py-16 md:pr-10">
             <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
               <span className="block">Tattoo bookings,</span>
               <span className="block text-brand-mustard">
@@ -206,7 +206,7 @@ function HeroSection() {
               animation (translateY -18px) stays inside section bounds.
               md:-mr-8 / lg:-mr-16 lets the visual bleed past the
               container edge on desktop. */}
-          <div className="order-1 flex justify-center pt-5 md:order-2 md:-mr-8 md:justify-end md:pt-0 lg:-mr-16">
+          <div className="order-1 flex justify-center pt-12 md:order-2 md:-mr-8 md:justify-end md:pt-0 lg:-mr-16">
             <div className="animate-hero-float w-full max-w-sm md:max-w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -357,7 +357,7 @@ function FeatureCard({
         src={illustration}
         alt=""
         aria-hidden="true"
-        className="h-20 w-auto"
+        className="h-20 w-auto self-start"
         draggable={false}
       />
       <div className="space-y-2">
