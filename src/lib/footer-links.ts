@@ -53,6 +53,11 @@ export const FOOTER_GROUPS: FooterGroup[] = [
         href: "/tattoo-deposit-tool",
         active: true,
       },
+      {
+        label: "Mobile app",
+        href: "/download",
+        active: true,
+      },
     ],
   },
   {
