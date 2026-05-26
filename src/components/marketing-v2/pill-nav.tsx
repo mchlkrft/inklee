@@ -1,77 +1,41 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
 
 /** Floating two-pill nav shared across all redesigned marketing pages.
  *
- *  Mobile layout: only the logo (left) and the mustard "Get started"
- *  FAB (right) are visible. The right nav container is a transparent
- *  flex wrapper on mobile — the FAB itself IS the pill, sized to match
- *  the logo pill at body-button height (px-5 py-3 text-base).
+ *  Mobile layout: logo pill (left) + mustard "Get started" FAB (right).
+ *  The right nav container is a transparent flex wrapper on mobile —
+ *  the FAB itself IS the pill, sized to match the logo pill at
+ *  body-button height (px-5 py-3 text-base).
  *
- *  Desktop layout: the right pill becomes a multi-button container
+ *  Desktop layout (sm+): the right pill becomes a multi-button container
  *  with App / About / Log in / Get started inside. The FAB shrinks to
- *  nav-link sizing (px-4 py-1.5 text-sm) via sm:* overrides.
+ *  nav-link sizing via sm:* overrides.
  *
- *  Mobile scroll affordance: the FAB starts visibly smaller (scale
- *  0.82) and grows to full size (scale 1) once the visitor scrolls
- *  past SCROLL_THRESHOLD. Applied via INLINE STYLE so Tailwind class
- *  generation order can't break it — earlier attempts using
- *  conditional `scale-90` / `scale-100` Tailwind classes did not
- *  render visibly, suggesting a class-order conflict with the
- *  sm:scale-100 desktop lock. matchMedia gates the inline transform
- *  so it never applies on desktop, even without an sm: override. */
-
-const SCROLL_THRESHOLD = 60;
-const MOBILE_MQ = "(max-width: 639px)";
+ *  Mobile scroll affordance: the FAB starts visibly smaller and grows
+ *  to full size once the visitor scrolls past 60px. Implemented in pure
+ *  CSS via a `data-scrolled` attribute on <html>, set by a tiny vanilla
+ *  inline script. This bypasses React hydration entirely — earlier
+ *  attempts to drive the same effect via useState/useEffect in a client
+ *  component never fired (the client boundary wasn't hydrating). The
+ *  inline script is server-rendered and runs unconditionally on every
+ *  page load, then attaches a passive scroll listener. */
 
 export default function PillNav() {
-  const [scrolled, setScrolled] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  // DEBUG: confirms client hydration. Remove once verified.
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-
-    const mql = window.matchMedia(MOBILE_MQ);
-    const updateMobile = () => setIsMobile(mql.matches);
-    updateMobile();
-    mql.addEventListener("change", updateMobile);
-
-    const onScroll = () => setScrolled(window.scrollY > SCROLL_THRESHOLD);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-
-    return () => {
-      mql.removeEventListener("change", updateMobile);
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, []);
-
-  // Inline transform only when mobile AND unscrolled. Otherwise no
-  // transform — desktop and mobile-scrolled both end up at scale 1.
-  // Inline style overrides any Tailwind transform classes so this is
-  // the most reliable path.
-  const fabStyle: CSSProperties | undefined =
-    isMobile && !scrolled
-      ? { transform: "scale(0.82)", transformOrigin: "right center" }
-      : undefined;
-
   return (
     <header className="pointer-events-none sticky top-4 z-50">
-      {/* DEBUG: only renders post-hydration. If you see a small red
-          dot bottom-right, client JS is running. Remove once verified. */}
-      {mounted && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed bottom-4 right-4 z-[100] h-3 w-3 rounded-full bg-red-500 shadow-lg"
-        />
-      )}
+      {/* Vanilla scroll-state tracker. Sets <html data-scrolled="1">
+          when the page is scrolled past 60px, otherwise "0". CSS in
+          globals.css uses this attribute to drive the mobile FAB
+          scroll-grow. Inline + IIFE so it runs immediately, no React
+          hydration needed. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            '(function(){function s(){document.documentElement.dataset.scrolled=window.scrollY>60?"1":"0"}s();window.addEventListener("scroll",s,{passive:true})})();',
+        }}
+      />
       <div className="container-marketing flex items-center justify-between gap-3">
-        {/* Logo pill — body-button height (px-5 py-3 baseline) */}
+        {/* Logo pill — body-button height (px-5 py-3) */}
         <Link
           href="/"
           aria-label="Inklee home"
@@ -88,8 +52,8 @@ export default function PillNav() {
           />
         </Link>
 
-        {/* Right nav. On mobile: transparent flex container, FAB is the
-            pill. On desktop: full pill treatment with multi-button
+        {/* Right nav. On mobile: transparent flex container, FAB is
+            the pill. On desktop: full pill treatment with multi-button
             container. */}
         <nav className="pointer-events-auto flex items-center gap-1 rounded-full sm:border-[1.5px] sm:border-shell-border sm:bg-brand-charcoal/95 sm:p-1.5 sm:shadow-shell sm:backdrop-blur">
           <Link
@@ -110,15 +74,14 @@ export default function PillNav() {
           >
             Log in
           </Link>
-          {/* DEBUG: bg color swaps mustard↔rosa on scroll so we can
-              tell at a glance whether scroll state updates at all.
-              Remove this once we confirm the scroll-grow works. */}
+          {/* FAB. data-fab-cta is the hook that globals.css uses to
+              scale the button down when html[data-scrolled="0"] on
+              mobile. Without the attribute the button stays at its
+              default size on every breakpoint. */}
           <Link
             href="/signup"
-            style={fabStyle}
-            className={`rounded-full px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm sm:shadow-none ${
-              scrolled ? "bg-brand-rosa" : "bg-brand-mustard"
-            }`}
+            data-fab-cta=""
+            className="rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm sm:shadow-none"
           >
             Get started
           </Link>

@@ -384,6 +384,22 @@ dialog[open]::backdrop {
   }
 }
 
+/* Mobile FAB scroll-grow — works with the marketing-v2 PillNav.
+   A vanilla inline script in PillNav sets html[data-scrolled] to "0"
+   or "1" based on window.scrollY. On mobile (max-width: 639px),
+   when not scrolled, the FAB scales down to 0.82 so it looks visibly
+   smaller than the logo pill. When scrolled past the threshold, the
+   attribute flips to "1", this rule no longer matches, and the FAB
+   returns to scale 1 (matching the logo pill height). The
+   transition-transform Tailwind class on the FAB animates the
+   change. Desktop and scrolled state both get no transform. */
+@media (max-width: 639px) {
+  html[data-scrolled="0"] [data-fab-cta] {
+    transform: scale(0.82);
+    transform-origin: right center;
+  }
+}
+
 /* Marketing layout containers — fluid gutters (20→48px) with sensible caps.
    Replaces ad-hoc `mx-auto max-w-7xl px-6` so Apple desktop sizes (1440–1728)
    stop hitting Tailwind's 1280px ceiling and stranding content in narrow
