@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import StickyCTA from "./sticky-cta";
@@ -327,11 +328,15 @@ export default async function StartPage() {
                   "No technical setup. No plugins, no integrations to manage.",
                   "Free to get started.",
                 ].map((text) => (
-                  <div key={text} className="flex items-start gap-3">
-                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-mustard text-[11px] font-black text-brand-charcoal">
-                      →
+                  <div key={text} className="flex items-start gap-4">
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-mustard text-brand-charcoal">
+                      <Check
+                        className="h-5 w-5"
+                        strokeWidth={3}
+                        aria-hidden="true"
+                      />
                     </span>
-                    <p className="text-base leading-relaxed text-shell-fg-dim">
+                    <p className="pt-2 text-base leading-relaxed text-shell-fg-dim">
                       {text}
                     </p>
                   </div>
