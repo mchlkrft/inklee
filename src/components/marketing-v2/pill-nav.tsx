@@ -1,43 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 /** Floating two-pill nav shared across all redesigned marketing pages.
  *
  *  Mobile layout: only the logo (left) and the mustard "Get started"
- *  FAB (right) are visible. Both pills sit at body-button height
- *  (px-5 py-3 / text-base) so the FAB matches the logo pill visually.
+ *  FAB (right) are visible. The right nav container is a transparent
+ *  flex wrapper on mobile — the FAB itself IS the pill, sized to match
+ *  the logo pill at body-button height (px-5 py-3 text-base).
  *
  *  Desktop layout: the right pill becomes a multi-button container
- *  (App / About / Log in / Get started) with smaller nav-link sizing
- *  (px-4 py-1.5 text-sm) and a charcoal pill background around all of
- *  them. The FAB shrinks to match the nav-link sizing on desktop too.
+ *  with App / About / Log in / Get started inside. The FAB shrinks to
+ *  nav-link sizing (px-4 py-1.5 text-sm) via sm:* overrides.
  *
- *  Mobile scroll affordance: the FAB starts at scale-90 (slightly
- *  shrunken) and grows to scale-100 once the visitor scrolls past
- *  SCROLL_THRESHOLD pixels. Transform-based animation = single
- *  property change, GPU-accelerated, no layout shift. Locked to
- *  scale-100 on desktop via sm:scale-100. */
+ *  Mobile scroll affordance: the FAB starts visibly smaller (scale
+ *  0.82) and grows to full size (scale 1) once the visitor scrolls
+ *  past SCROLL_THRESHOLD. Applied via INLINE STYLE so Tailwind class
+ *  generation order can't break it — earlier attempts using
+ *  conditional `scale-90` / `scale-100` Tailwind classes did not
+ *  render visibly, suggesting a class-order conflict with the
+ *  sm:scale-100 desktop lock. matchMedia gates the inline transform
+ *  so it never applies on desktop, even without an sm: override. */
 
 const SCROLL_THRESHOLD = 60;
+const MOBILE_MQ = "(max-width: 639px)";
 
 export default function PillNav() {
   const [scrolled, setScrolled] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    function onScroll() {
-      setScrolled(window.scrollY > SCROLL_THRESHOLD);
-    }
-    onScroll(); // initial check
+    const mql = window.matchMedia(MOBILE_MQ);
+    const updateMobile = () => setIsMobile(mql.matches);
+    updateMobile();
+    mql.addEventListener("change", updateMobile);
+
+    const onScroll = () => setScrolled(window.scrollY > SCROLL_THRESHOLD);
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+
+    return () => {
+      mql.removeEventListener("change", updateMobile);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
+
+  // Inline transform only when mobile AND unscrolled. Otherwise no
+  // transform — desktop and mobile-scrolled both end up at scale 1.
+  // Inline style overrides any Tailwind transform classes so this is
+  // the most reliable path.
+  const fabStyle: CSSProperties | undefined =
+    isMobile && !scrolled
+      ? { transform: "scale(0.82)", transformOrigin: "right center" }
+      : undefined;
 
   return (
     <header className="pointer-events-none sticky top-4 z-50">
       <div className="container-marketing flex items-center justify-between gap-3">
-        {/* Logo pill — body-button height (py-3 text-base baseline) */}
+        {/* Logo pill — body-button height (px-5 py-3 baseline) */}
         <Link
           href="/"
           aria-label="Inklee home"
@@ -54,10 +75,9 @@ export default function PillNav() {
           />
         </Link>
 
-        {/* Right nav. On mobile this is a transparent flex container —
-            the FAB itself is the pill. On desktop (sm+) the container
-            gets the full pill treatment (border, bg, padding, shadow)
-            and houses the additional nav links. */}
+        {/* Right nav. On mobile: transparent flex container, FAB is the
+            pill. On desktop: full pill treatment with multi-button
+            container. */}
         <nav className="pointer-events-auto flex items-center gap-1 rounded-full sm:border-[1.5px] sm:border-shell-border sm:bg-brand-charcoal/95 sm:p-1.5 sm:shadow-shell sm:backdrop-blur">
           <Link
             href="/download"
@@ -77,16 +97,10 @@ export default function PillNav() {
           >
             Log in
           </Link>
-          {/* Get started FAB. Mobile defaults to body-button sizing
-              (px-5 py-3 text-base shadow-shell) so it matches the logo
-              pill. Scroll effect: starts scale-90, grows to scale-100
-              past SCROLL_THRESHOLD. sm:* overrides shrink it on
-              desktop to nav-link sizing inside the wider pill. */}
           <Link
             href="/signup"
-            className={`origin-right rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:scale-100 sm:px-4 sm:py-1.5 sm:text-sm sm:shadow-none ${
-              scrolled ? "scale-100" : "scale-90"
-            }`}
+            style={fabStyle}
+            className="rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm sm:shadow-none"
           >
             Get started
           </Link>
