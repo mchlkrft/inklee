@@ -208,45 +208,49 @@ function PainSection() {
       className="bg-brand-bone text-brand-charcoal"
     >
       <div className="container-marketing py-20 md:py-28">
-        <div className="max-w-2xl">
-          <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-            The DM problem
-          </p>
-          <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-            Instagram gets you attention.
-            <br />
-            It does not give you structure.
-          </h2>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-            Clients message in whatever way feels natural to them. Important
-            details go missing. Chats get buried. And you end up repeating the
-            same questions again and again just to understand what someone
-            actually wants.
-          </p>
-        </div>
+        <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
+          {/* Left: heading + intro */}
+          <div>
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
+              The DM problem
+            </p>
+            <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
+              Instagram gets you attention.
+              <br />
+              It does not give you structure.
+            </h2>
+            <p className="mt-6 max-w-md text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+              Clients message in whatever way feels natural to them. Important
+              details go missing. Chats get buried. And you end up repeating the
+              same questions again and again just to understand what someone
+              actually wants.
+            </p>
+          </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2">
-          {PAIN_POINTS.map((p) => {
-            const bgClass =
-              p.variant === "mustard"
-                ? "bg-brand-mustard"
-                : p.variant === "rosa"
-                  ? "bg-brand-rosa"
-                  : "bg-[#d9d4c7]";
-            return (
-              <div
-                key={p.title}
-                className={`flex flex-col gap-3 rounded-3xl p-6 md:p-7 ${bgClass}`}
-              >
-                <h3 className="text-lg font-black leading-tight text-brand-charcoal md:text-xl">
-                  {p.title}
-                </h3>
-                <p className="text-sm leading-relaxed text-brand-charcoal/75">
-                  {p.body}
-                </p>
-              </div>
-            );
-          })}
+          {/* Right: 4 cards stacked vertically */}
+          <div className="space-y-4 md:space-y-5">
+            {PAIN_POINTS.map((p) => {
+              const bgClass =
+                p.variant === "mustard"
+                  ? "bg-brand-mustard"
+                  : p.variant === "rosa"
+                    ? "bg-brand-rosa"
+                    : "bg-[#d9d4c7]";
+              return (
+                <div
+                  key={p.title}
+                  className={`flex flex-col gap-2 rounded-3xl p-6 md:p-7 ${bgClass}`}
+                >
+                  <h3 className="text-lg font-black leading-tight text-brand-charcoal md:text-xl">
+                    {p.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-brand-charcoal/75">
+                    {p.body}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>
@@ -340,32 +344,161 @@ function SolutionSection() {
 
 /* ─── Product proof (charcoal) ──────────────────────────────────────────── */
 
+/* Faux-UI panels. Each approximates an Inklee screen using brand tokens
+   so the card actually communicates the feature it names, instead of
+   loaning a brand illustration that doesn't match the surface. Same
+   pattern the /download device-preview uses. */
+
+function FauxBookingForm() {
+  return (
+    <div className="rounded-2xl bg-brand-bone p-4 shadow-card">
+      <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-brand-charcoal/60">
+        Tattoo request
+      </p>
+      <div className="space-y-2.5">
+        <div>
+          <p className="mb-1 text-[10px] font-semibold text-brand-charcoal/70">
+            Placement
+          </p>
+          <div className="rounded-lg border-[1.5px] border-brand-charcoal/15 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-charcoal">
+            Left forearm
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-[10px] font-semibold text-brand-charcoal/70">
+            Size
+          </p>
+          <div className="rounded-lg border-[1.5px] border-brand-charcoal/15 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-charcoal">
+            Medium · 10–15 cm
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-[10px] font-semibold text-brand-charcoal/70">
+            References
+          </p>
+          <div className="flex gap-1.5">
+            <div className="h-8 w-8 rounded-md bg-brand-charcoal/20" />
+            <div className="h-8 w-8 rounded-md bg-brand-charcoal/30" />
+            <div className="h-8 w-8 rounded-md bg-brand-charcoal/15" />
+          </div>
+        </div>
+        <div className="mt-1 rounded-full bg-brand-charcoal py-1.5 text-center text-[11px] font-bold text-brand-bone">
+          Send request
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FauxRequestReview() {
+  return (
+    <div className="space-y-2 rounded-2xl bg-brand-charcoal p-3 shadow-card">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-bone/60">
+          Requests · 3
+        </p>
+        <span className="rounded-full bg-brand-mustard px-1.5 py-0.5 text-[9px] font-black text-brand-charcoal">
+          NEW
+        </span>
+      </div>
+      <div className="rounded-xl border-[1.5px] border-shell-border bg-[#252525] px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-full bg-brand-rosa" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[11px] font-bold text-brand-bone">
+              @joana.ink
+            </p>
+            <p className="truncate text-[10px] text-brand-bone/60">
+              Forearm sleeve · Medium
+            </p>
+          </div>
+        </div>
+        <div className="mt-2 flex gap-1.5">
+          <div className="flex-1 rounded-full bg-brand-mustard py-1 text-center text-[10px] font-bold text-brand-charcoal">
+            Accept
+          </div>
+          <div className="rounded-full border-[1.5px] border-shell-border px-2 py-1 text-center text-[10px] font-semibold text-brand-bone/70">
+            Pass
+          </div>
+        </div>
+      </div>
+      <div className="rounded-xl border-[1.5px] border-shell-border bg-[#252525] px-3 py-2.5 opacity-60">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-full bg-brand-mustard" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[11px] font-bold text-brand-bone">
+              @max_inks
+            </p>
+            <p className="truncate text-[10px] text-brand-bone/60">
+              Calf piece · Large
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FauxBookingCalendar() {
+  return (
+    <div className="rounded-2xl bg-brand-bone p-3 shadow-card">
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-brand-charcoal/60">
+        Calendar · June
+      </p>
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: 28 }).map((_, i) => {
+          const day = i + 1;
+          const isToday = day === 12;
+          const isBooked = [4, 8, 12, 18, 24].includes(day);
+          return (
+            <div
+              key={i}
+              className={`flex aspect-square items-center justify-center rounded-md text-[9px] font-bold ${
+                isToday
+                  ? "bg-brand-charcoal text-brand-bone"
+                  : isBooked
+                    ? "bg-brand-mustard text-brand-charcoal"
+                    : "bg-white/40 text-brand-charcoal/60"
+              }`}
+            >
+              {day}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex items-center gap-2 rounded-lg bg-white/55 p-2">
+        <span className="h-2 w-2 rounded-full bg-brand-mustard" />
+        <p className="text-[10px] font-semibold text-brand-charcoal">
+          5 booked this month
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const PRODUCT_CARDS: Array<{
   label: string;
   benefit: string;
-  illustration: string;
   variant: "bone" | "mustard" | "rosa";
+  Faux: () => React.ReactElement;
 }> = [
   {
     label: "Booking form",
     benefit: "Get the details before you reply",
-    illustration:
-      "/branding/illustrations/mixed/inklee-_inklee-form-yellow.svg",
     variant: "mustard",
+    Faux: FauxBookingForm,
   },
   {
     label: "Request review",
     benefit: "Review requests without DM chaos",
-    illustration:
-      "/branding/illustrations/mixed/inklee-_chat-vs-inklee-request-form.svg",
     variant: "bone",
+    Faux: FauxRequestReview,
   },
   {
-    label: "Booking page",
+    label: "Booking calendar",
     benefit: "Keep approved bookings in one clear view",
-    illustration:
-      "/branding/illustrations/mixed/inklee-_artist-shows-inklee-app.svg",
     variant: "rosa",
+    Faux: FauxBookingCalendar,
   },
 ];
 
@@ -396,19 +529,13 @@ function ProductProofSection() {
                 : card.variant === "rosa"
                   ? "bg-brand-rosa"
                   : "bg-brand-bone";
+            const { Faux } = card;
             return (
               <div
                 key={card.label}
-                className={`flex h-full flex-col gap-5 rounded-3xl p-7 ${bgClass}`}
+                className={`flex h-full flex-col gap-5 rounded-3xl p-6 ${bgClass}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={card.illustration}
-                  alt=""
-                  aria-hidden="true"
-                  className="h-32 w-auto self-start"
-                  draggable={false}
-                />
+                <Faux />
                 <div className="space-y-2">
                   <h3 className="text-xl font-black leading-tight text-brand-charcoal">
                     {card.label}
