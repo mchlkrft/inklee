@@ -244,9 +244,9 @@ export default function AboutPage() {
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
                 In one sentence
               </p>
-              <h2 className="text-3xl font-black leading-tight tracking-tight md:text-4xl lg:text-5xl">
+              <h2 className="text-3xl font-black leading-tight tracking-tight text-brand-rosa md:text-4xl lg:text-5xl">
                 Inklee is a{" "}
-                <span className="text-brand-charcoal/50">
+                <span className="text-brand-charcoal">
                   tattoo booking request tool
                 </span>{" "}
                 that helps tattoo artists collect structured client requests,
