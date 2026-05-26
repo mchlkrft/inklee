@@ -149,19 +149,13 @@ function HeroSection() {
       <div className="container-marketing w-full">
         <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[6fr_6fr] md:gap-12">
           <div>
-            {/* Eyebrow pill */}
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/40 px-3 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-brand-mustard" />
-              <span className="text-xs font-bold uppercase tracking-widest text-shell-fg-dim">
-                Built for tattoo artists
-              </span>
-            </div>
-
-            {/* Headline — mustard accent on "DM chaos" */}
+            {/* Headline — entire "without DM chaos." phrase in mustard so
+                the highlighted concept is the value ("without"), not the
+                chaos itself. */}
             <h1 className="text-5xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-[88px]">
               <span className="block">Tattoo bookings,</span>
-              <span className="block">
-                without <span className="text-brand-mustard">DM chaos.</span>
+              <span className="block text-brand-mustard">
+                without DM chaos.
               </span>
             </h1>
 
@@ -217,31 +211,40 @@ function DefinitionSection() {
     >
       <div className="container-marketing py-20 md:py-28">
         <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-[6fr_6fr] md:gap-16">
+          {/* Illustration left, text right (per founder layout direction).
+              SEO-heavy body copy: tattoo booking software / tattoo booking
+              intake tool / tattoo booking form / freelance and traveling
+              tattoo artists / Instagram bio / guest spot bookings. */}
+          <div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/branding/illustrations/mixed/inklee-_booking-link-tattoo-request.svg"
+              alt=""
+              aria-hidden="true"
+              className="mx-auto h-auto w-full max-w-md md:mx-0"
+              draggable={false}
+            />
+          </div>
           <div>
             <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
               What is Inklee
             </p>
             <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-              Booking software
+              Tattoo booking software,
               <br />
               shaped like a studio.
             </h2>
-            <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/70 md:text-lg">
-              A clean booking link to drop in your bio, a structured form for
-              placement, size, and references, and a dashboard that keeps
-              approvals, deposits, waitlists, and guest spots in one place.
-              Built for the way tattoo artists actually work.
+            <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+              Inklee is a tattoo booking intake tool for freelance and traveling
+              tattoo artists. A clean booking link for your Instagram bio, a
+              structured tattoo booking form for placement, size, and
+              references, and a dashboard that keeps approvals, deposits,
+              waitlists, and guest spot bookings in one place.
             </p>
-          </div>
-          <div className="order-first md:order-last">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/branding/illustrations/mixed/inklee-_DM-to-Booking-Form.svg"
-              alt=""
-              aria-hidden="true"
-              className="mx-auto h-auto w-full max-w-md"
-              draggable={false}
-            />
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+              Built for the way tattoo artists actually work, not generic
+              appointment software.
+            </p>
           </div>
         </div>
       </div>
@@ -452,9 +455,9 @@ function AboutSection() {
               Built by a tattoo artist
             </p>
             <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-              Made for the
+              By tattoo artists.
               <br />
-              real workflow.
+              For tattoo artists.
             </h2>
             <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
               Instagram DMs, too much back and forth, missing details, guest
