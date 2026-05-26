@@ -14,7 +14,7 @@ import Spiderweb from "@/components/icons/spiderweb";
 
 export default function DevicePreview() {
   return (
-    <div className="relative mx-auto w-full max-w-[280px] md:max-w-[320px]">
+    <div className="relative mx-auto w-full max-w-[220px] md:max-w-[260px]">
       {/* Phone outer frame */}
       <div className="relative aspect-[9/19] rounded-[44px] border-[10px] border-brand-charcoal bg-brand-charcoal p-1 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)]">
         {/* Screen */}
@@ -121,10 +121,20 @@ export default function DevicePreview() {
         </div>
       </div>
 
-      {/* Floating "Coming soon" pill */}
+      {/* Floating "Coming soon" pill — top right, tilted */}
       <div className="absolute -right-2 top-10 rotate-6 rounded-full border-[1.5px] border-brand-charcoal bg-brand-mustard px-3 py-1 text-[10px] font-black uppercase tracking-widest text-brand-charcoal shadow-card md:-right-4">
         Coming soon
       </div>
+
+      {/* Easy peasy brand badge — bottom left, tilted the other way.
+          Decorative, hides the placeholder feel of the faux device. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/illustrations/easy-peasy.svg"
+        alt=""
+        aria-hidden="true"
+        className="absolute -bottom-6 -left-6 w-24 -rotate-12 md:-bottom-8 md:-left-10 md:w-28"
+      />
     </div>
   );
 }

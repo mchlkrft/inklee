@@ -274,13 +274,17 @@ export default function DownloadPage() {
       <PillNav />
 
       <main className="flex-1">
-        {/* ── Hero (bone) ──────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden pb-20 pt-12 md:pb-32 md:pt-20">
+        {/* ── Hero (bone) ──────────────────────────────────────────────────
+            Sized so the entire left column (eyebrow + headline + subhead +
+            form + secondary line) fits above the fold at a typical 720px
+            viewport. Grid is items-start so a taller device-preview column
+            doesn't vertical-center the form below the fold. */}
+        <section className="relative overflow-hidden pb-12 pt-6 md:pb-20 md:pt-10">
           <div className="container-marketing">
-            <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-[7fr_5fr] md:gap-8">
+            <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[7fr_5fr] md:gap-12">
               <div>
                 {/* Eyebrow pill */}
-                <div className="mb-6 inline-flex items-center gap-2 rounded-full border-[1.5px] border-border bg-background/60 px-3 py-1.5">
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-border bg-background/60 px-3 py-1.5">
                   <span className="h-2 w-2 rounded-full bg-brand-mustard" />
                   <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                     Coming to iOS and Android
@@ -288,7 +292,7 @@ export default function DownloadPage() {
                 </div>
 
                 {/* Hero headline — three lines, mustard accent on key words */}
-                <h1 className="text-5xl font-black leading-[0.95] tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-[112px]">
+                <h1 className="text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl">
                   <span className="block">
                     Run your <span className="text-brand-mustard">books.</span>
                   </span>
@@ -298,17 +302,17 @@ export default function DownloadPage() {
                   <span className="block">Without the chaos.</span>
                 </h1>
 
-                <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:mt-8 md:text-lg">
+                <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:mt-6 md:text-lg">
                   Coming to iOS and Android. Same account, same booking link,
                   same client requests. Now in your pocket while you tattoo,
                   travel, and live offline.
                 </p>
 
-                <div className="mt-8 max-w-md">
+                <div className="mt-6 max-w-md md:mt-7">
                   <MobileWaitlistForm formId="mobile-waitlist-hero" />
                 </div>
 
-                <p className="mt-6 text-sm text-muted-foreground">
+                <p className="mt-5 text-sm text-muted-foreground">
                   Built by a tattoo artist. The web app is already live at{" "}
                   <Link
                     href="/"
@@ -349,20 +353,20 @@ export default function DownloadPage() {
             <div className="grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-6">
               <FeatureCard
                 number="01"
-                title="Requests in hand"
-                body="See booking requests as they land, with the client's references, placement, and size visible at a glance. Accept, pass, or request a deposit without opening a laptop."
+                title="Booking control, in your hand"
+                body="See incoming requests with placement, size, and references the moment they land. Accept, pass, or open and close your books with one tap. Two of your most-used screens, where your phone is."
                 accent="mustard"
               />
               <FeatureCard
                 number="02"
                 title="Trip planner on the road"
-                body="Add a guest spot while you are still in the city, set the dates, and your booking link updates so the next client sees it instantly. No spreadsheets, no DMs to update."
+                body="Add a guest spot from the studio, set the city and dates, and your booking link updates so the next client sees where you'll be. No spreadsheets, no DMs to rewrite."
                 accent="rosa"
               />
               <FeatureCard
                 number="03"
-                title="Books status, one tap"
-                body="Close your books when the day is full. Reopen them when you are ready for more. No more closed-books DMs you have to write yourself."
+                title="Flash booking organizer"
+                body="Snap a flash on the spot, add a title and price, and clients can claim it from your booking page. No more screenshots, captions, or 'DM to claim'."
                 accent="bone"
               />
             </div>
@@ -373,6 +377,15 @@ export default function DownloadPage() {
         <section className="bg-background">
           <div className="container-marketing py-24 md:py-32">
             <div className="mb-12 text-center md:mb-20">
+              {/* Inklee key visual — small decorative brand moment above the
+                  section heading. aria-hidden because it carries no info. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/illustrations/key-visual.svg"
+                alt=""
+                aria-hidden="true"
+                className="mx-auto mb-8 w-full max-w-[280px] md:max-w-[360px]"
+              />
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 How it fits together
               </p>
@@ -403,18 +416,29 @@ export default function DownloadPage() {
           </div>
         </section>
 
-        {/* ── Mustard accent block — the one bold color section ─────────── */}
+        {/* ── Mustard accent block — the one bold color section.
+            Two-column on desktop: artist illustration on the left, the
+            "built by a tattoo artist" claim on the right. The illustration
+            grounds the proof line in a face, not just words. */}
         <section className="bg-brand-mustard">
-          <div className="container-marketing py-20 md:py-28">
-            <div className="mx-auto max-w-4xl text-center">
-              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                Built by a tattoo artist
-              </p>
-              <p className="text-3xl font-black leading-tight tracking-tight text-brand-charcoal md:text-5xl">
-                Inklee was started in a studio,
-                <br className="hidden md:block" /> not a startup office. The app
-                is the same idea, on your phone.
-              </p>
+          <div className="container-marketing py-16 md:py-24">
+            <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-12">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/illustrations/artist.svg"
+                alt=""
+                aria-hidden="true"
+                className="mx-auto w-full max-w-[220px] md:max-w-[300px]"
+              />
+              <div className="text-center md:text-left">
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
+                  Built by a tattoo artist
+                </p>
+                <p className="text-2xl font-black leading-tight tracking-tight text-brand-charcoal sm:text-3xl md:text-4xl lg:text-5xl">
+                  Inklee was started in a studio, not a startup office. The app
+                  is the same idea, on your phone.
+                </p>
+              </div>
             </div>
           </div>
         </section>
