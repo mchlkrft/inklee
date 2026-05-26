@@ -356,14 +356,14 @@ function HeroSection() {
             <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-shell-fg-dim">
               Tattoo booking tool for artists
             </p>
-            <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-6xl lg:text-7xl">
+            <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
               <span className="block">Tattoo booking</span>
               <span className="block">
                 <span className="text-brand-mustard">software</span>, built
               </span>
               <span className="block">for tattoo artists.</span>
             </h1>
-            <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg md:mt-5">
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
               Inklee turns Instagram chats and inquiries into structured tattoo
               requests, so solo and traveling artists can review the idea before
               it becomes a booking.
