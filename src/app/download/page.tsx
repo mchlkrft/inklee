@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import SiteLogo from "@/components/site-logo";
-import Spiderweb from "@/components/icons/spiderweb";
 import JsonLd from "@/components/seo/json-ld";
 import { absoluteUrl } from "@/lib/seo";
 import { webPageSchema } from "@/lib/jsonld";
 import DevicePreview from "./device-preview";
-import MobileWaitlistForm from "./mobile-waitlist-form";
 
 const PAGE_PATH = "/download";
-const PAGE_TITLE = "Inklee app for tattoo artists, coming to iOS and Android";
+const PAGE_TITLE = "Inklee app for tattoo artists, on iOS and Android";
 const PAGE_DESCRIPTION =
-  "The Inklee mobile app is coming to iOS and Android. Same booking link, same client requests, same trip planner, now in your pocket. Join the launch list to be notified when the app ships.";
+  "The Inklee mobile app for freelance and traveling tattoo artists. Same booking link, same client requests, same trip planner, in your pocket. Available on iOS and Android.";
 const OG_TITLE = "Inklee mobile app for tattoo artists";
 const OG_DESCRIPTION =
-  "Run your books from your phone. Coming to iOS and Android. Join the launch list.";
+  "Run your books from your phone. Available on iOS and Android.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -33,7 +31,9 @@ export const metadata: Metadata = {
   },
 };
 
-/* ── JSON-LD: MobileApplication (marked PreOrder / undated) + WebPage ────── */
+/* ── JSON-LD: MobileApplication + WebPage. Page is designed for the
+   launched state (the founder will swap the placeholder store links
+   for real ones the day the apps ship). Schema marked InStock. */
 const mobileAppSchema = {
   "@context": "https://schema.org",
   "@type": "MobileApplication",
@@ -46,11 +46,94 @@ const mobileAppSchema = {
   publisher: { "@type": "Organization", name: "Inklee" },
   offers: {
     "@type": "Offer",
-    availability: "https://schema.org/PreOrder",
+    availability: "https://schema.org/InStock",
     price: "0",
     priceCurrency: "EUR",
   },
 };
+
+/* ─── Store badge buttons ──────────────────────────────────────────────────
+   Non-functional placeholder links (`href="#"`) until the App Store and
+   Google Play listings exist. Visual styling matches the standard
+   "Download on the App Store" / "Get it on Google Play" badge shape so
+   the page looks like the final launched state. */
+
+function AppleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+    </svg>
+  );
+}
+
+function PlayIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M3 20.5V3.5c0-.66.28-1.21.83-1.43L13.62 12 3.83 21.93C3.28 21.7 3 21.16 3 20.5zM16.81 15.19l-2.59 1.49L4.62 22l9.69-9.69 2.5 2.88zm3.59-4.22c.45.32.83.85.83 1.53s-.34 1.17-.83 1.5l-2.27 1.31-2.74-2.81 2.74-2.81 2.27 1.28zM14.31 12L4.62 2l9.6 5.32 2.59 1.49-2.5 2.19z" />
+    </svg>
+  );
+}
+
+function StoreButton({
+  platform,
+  variant = "dark",
+}: {
+  platform: "ios" | "android";
+  variant?: "dark" | "light";
+}) {
+  const labelTop = platform === "ios" ? "Download on the" : "Get it on";
+  const labelBottom = platform === "ios" ? "App Store" : "Google Play";
+  const Icon = platform === "ios" ? AppleIcon : PlayIcon;
+  const isDark = variant === "dark";
+  return (
+    <a
+      href="#"
+      aria-label={`Download on ${labelBottom}`}
+      className={
+        isDark
+          ? "inline-flex items-center gap-3 rounded-2xl bg-brand-charcoal px-5 py-3 text-shell-fg shadow-card transition-opacity hover:opacity-90"
+          : "inline-flex items-center gap-3 rounded-2xl border-[1.5px] border-shell-fg bg-shell-fg px-5 py-3 text-brand-charcoal shadow-card transition-opacity hover:opacity-90"
+      }
+    >
+      <Icon className="h-7 w-7" />
+      <span className="text-left leading-tight">
+        <span className="block text-[10px] uppercase tracking-wider opacity-70">
+          {labelTop}
+        </span>
+        <span className="block text-base font-bold tracking-tight">
+          {labelBottom}
+        </span>
+      </span>
+    </a>
+  );
+}
+
+function StoreButtonRow({
+  variant = "dark",
+  align = "start",
+}: {
+  variant?: "dark" | "light";
+  align?: "start" | "center";
+}) {
+  return (
+    <div
+      className={`flex flex-wrap gap-3 ${align === "center" ? "justify-center" : ""}`}
+    >
+      <StoreButton platform="ios" variant={variant} />
+      <StoreButton platform="android" variant={variant} />
+    </div>
+  );
+}
 
 /* ─── Floating pill nav ─────────────────────────────────────────────────── */
 
@@ -61,10 +144,19 @@ function PillNav() {
         <Link
           href="/"
           aria-label="Inklee home"
-          className="flex items-center gap-2 rounded-full px-3 py-1.5 text-shell-fg transition-colors hover:bg-shell-hover"
+          className="flex items-center rounded-full px-3 py-1.5 transition-colors hover:bg-shell-hover"
         >
-          <Spiderweb className="h-4 w-4" />
-          <span className="text-sm font-bold tracking-tight">Inklee</span>
+          {/* Wordmark only — Inklee uses the font logo as the brand mark.
+              Bone variant because the nav pill is always charcoal. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/branding/logos/inklee-logo-bone.svg"
+            alt="Inklee"
+            height={18}
+            width={63}
+            style={{ width: 63, height: 18 }}
+            draggable={false}
+          />
         </Link>
         <div className="flex items-center gap-1 text-sm text-shell-fg-dim">
           <Link
@@ -194,9 +286,9 @@ function StepRow({
 const FAQ_ITEMS: { number: string; question: string; answer: string }[] = [
   {
     number: "01",
-    question: "When does the app launch?",
+    question: "Where do I download the app?",
     answer:
-      "We are aiming for a beta in late 2026. The launch date is not locked yet. We will email you once when it is ready, and that is the only email this list sends.",
+      "Use the App Store and Google Play badges at the top of this page, or the ones in the final section. The app is the same Inklee, on your phone.",
   },
   {
     number: "02",
@@ -212,15 +304,15 @@ const FAQ_ITEMS: { number: string; question: string; answer: string }[] = [
   },
   {
     number: "04",
-    question: "iOS or Android first?",
+    question: "Is the app on iOS and Android?",
     answer:
-      "Both. The app ships to iOS and Android at the same time. No staggered rollout.",
+      "Yes, both. The Inklee app ships on the App Store and Google Play. No staggered rollout.",
   },
   {
     number: "05",
     question: "Will I still need the web app?",
     answer:
-      "For setup, the big screen is easier: slot patterns, email templates, booking form fields. For daily booking work (review requests, accept or pass, plan trips, message clients), the phone is the point.",
+      "For setup, the big screen is easier: slot patterns, email templates, booking form fields. For daily booking work (review requests, accept or pass, plan trips, post flash), the phone is the point.",
   },
 ];
 
@@ -275,10 +367,10 @@ export default function DownloadPage() {
 
       <main className="flex-1">
         {/* ── Hero (bone) ──────────────────────────────────────────────────
-            Sized so the entire left column (eyebrow + headline + subhead +
-            form + secondary line) fits above the fold at a typical 720px
-            viewport. Grid is items-start so a taller device-preview column
-            doesn't vertical-center the form below the fold. */}
+            All hero content above the fold at typical viewport heights.
+            Email capture removed; store badge buttons are the primary CTA.
+            Eyebrow + subhead + buttons are all that sits below the
+            headline so the column stays compact. */}
         <section className="relative overflow-hidden pb-12 pt-6 md:pb-20 md:pt-10">
           <div className="container-marketing">
             <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[7fr_5fr] md:gap-12">
@@ -287,7 +379,7 @@ export default function DownloadPage() {
                 <div className="mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-border bg-background/60 px-3 py-1.5">
                   <span className="h-2 w-2 rounded-full bg-brand-mustard" />
                   <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Coming to iOS and Android
+                    Available on iOS and Android
                   </span>
                 </div>
 
@@ -303,25 +395,13 @@ export default function DownloadPage() {
                 </h1>
 
                 <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:mt-6 md:text-lg">
-                  Coming to iOS and Android. Same account, same booking link,
-                  same client requests. Now in your pocket while you tattoo,
-                  travel, and live offline.
+                  Same account, same booking link, same client requests. In your
+                  pocket while you tattoo, travel, and live offline.
                 </p>
 
-                <div className="mt-6 max-w-md md:mt-7">
-                  <MobileWaitlistForm formId="mobile-waitlist-hero" />
+                <div className="mt-7 md:mt-8">
+                  <StoreButtonRow variant="dark" />
                 </div>
-
-                <p className="mt-5 text-sm text-muted-foreground">
-                  Built by a tattoo artist. The web app is already live at{" "}
-                  <Link
-                    href="/"
-                    className="font-bold text-foreground underline-offset-4 hover:underline"
-                  >
-                    inklee.app
-                  </Link>
-                  .
-                </p>
               </div>
 
               <div className="order-first md:order-last">
@@ -418,8 +498,7 @@ export default function DownloadPage() {
 
         {/* ── Mustard accent block — the one bold color section.
             Two-column on desktop: artist illustration on the left, the
-            "built by a tattoo artist" claim on the right. The illustration
-            grounds the proof line in a face, not just words. */}
+            "built by a tattoo artist" claim on the right. */}
         <section className="bg-brand-mustard">
           <div className="container-marketing py-16 md:py-24">
             <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-12">
@@ -474,14 +553,11 @@ export default function DownloadPage() {
                 in your <span className="text-brand-mustard">pocket.</span>
               </h2>
               <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-shell-fg-dim md:text-lg">
-                Drop your email. We will tell you the day the app ships. That is
-                it.
+                Inklee on iOS and Android. Same account as the web. Free with
+                every plan.
               </p>
-              <div className="mx-auto mt-10 max-w-md">
-                <MobileWaitlistForm
-                  variant="charcoal"
-                  formId="mobile-waitlist-final"
-                />
+              <div className="mt-10 flex justify-center">
+                <StoreButtonRow variant="light" align="center" />
               </div>
             </div>
           </div>
