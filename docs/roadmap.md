@@ -1,9 +1,9 @@
 # Inklee Roadmap (Unified View)
 
-**Last updated:** 2026-05-27
-**Current prod commit:** `151aff4` (Slice 71 code on master, not yet deployed)
+**Last updated:** 2026-05-27 (post-Slice-71 activation)
+**Current prod commit:** `ed18192` (Slice 71 merge) — redeployed `inklee-fms9d7nib` with `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN=inkl.ee` env active
 **Migrations applied:** 0000–0034
-**Status:** MVP feature-complete as a solo-artist tool. All pre-launch hard blockers + every UX-polish slice (60a–60e + 61) closed. **Phase D agent sweep done** (`docs/phase-d-audit-2026-05-24.md` — 6 H / 18 M / 11 L); all Highs closed (`ee6c714`); ~half the Mediums closed across three copy sweeps. Mobile chrome fully redesigned. Brand palette reduced to bone / mustard / rosa. **Marketing redesign (Slice 70) shipped 2026-05-26** — all 16 marketing surfaces migrated to the new bone/charcoal/mustard/rosa design language, new `/download` mobile-waitlist page, shared `marketing-v2` components, Linktr.ee-style slug carryover from `/start` to onboarding (`feat/download-page` → merged in `9ca25af`; migration 0034 applied to prod). Mobile-strategy scoping doc shipped (`docs/mobile-strategy.md`, recommends Capacitor for v0.1). **Slice 71 (artist subdomain bio link layer) code complete on master 2026-05-27** — host parser, middleware rewrite, `publicArtistUrl()` helper across 10 surfaces, canonical metadata, deployment runbook + QA checklist. Behind `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` env flag — activates after wildcard DNS work. Slice 56 (decision doc) closed; Slice 58 (path-based shortlinks) dropped as superseded. **Two remaining pre-launch gates: Phase D live walkthrough + Slice 71 DNS provisioning / env flip per `docs/subdomain-deployment.md`.** No subscription/monetization layer in code yet.
+**Status:** MVP feature-complete as a solo-artist tool. All pre-launch hard blockers + every UX-polish slice (60a–60e + 61) closed. **Phase D agent sweep done** (`docs/phase-d-audit-2026-05-24.md` — 6 H / 18 M / 11 L); all Highs closed (`ee6c714`); ~half the Mediums closed across three copy sweeps. Mobile chrome fully redesigned. Brand palette reduced to bone / mustard / rosa. **Marketing redesign (Slice 70) shipped 2026-05-26** — all 16 marketing surfaces migrated to the new bone/charcoal/mustard/rosa design language, new `/download` mobile-waitlist page, shared `marketing-v2` components, Linktr.ee-style slug carryover from `/start` to onboarding (`feat/download-page` → merged in `9ca25af`; migration 0034 applied to prod). Mobile-strategy scoping doc shipped (`docs/mobile-strategy.md`, recommends Capacitor for v0.1). **Slice 71 (artist subdomain bio link layer) FULLY LIVE 2026-05-27** — host parser + middleware rewrite + `publicArtistUrl()` across 10 surfaces + canonical metadata all active in prod. `*.inkl.ee` wildcard SSL issued by Let's Encrypt; `inkl.ee` zone migrated Cloudflare → Vercel DNS (Zone.ee registrar). `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN=inkl.ee` set on Production. Dashboards + share-link UI + canonical tags emit `<slug>.inkl.ee`. Slice 56 (decision doc) closed; Slice 58 (path-based shortlinks) dropped as superseded. Deployment runbook `docs/subdomain-deployment.md` corrected post-rollout to document the NS-migration path that actually works (the original Cloudflare-A-record approach doesn't issue wildcard SSL — see §9.1 of that doc). **One remaining pre-launch gate: Phase D live walkthrough.** No subscription/monetization layer in code yet.
 
 **Purpose.** This is the single high-level view. For slice-level details see `SLICES_CONTINUATION.md`. For strategy and pricing details see `docs/business-model.md`. For the public template repo cadence see the memory file `project_inklee_template_repo.md`. This doc supersedes informal "what's next" summaries scattered across other places.
 
@@ -109,7 +109,7 @@ Slice 60 was expanded 2026-05-16 into a platform-wide UX audit + restructure acr
 | ~~60e~~ | Deposit UX surfaces (narrowed; legal item E)      | ✓ Closed 2026-05-24            | New `/settings/deposits` page — required disclaimer verbatim, Stripe status (live/test/missing), default amount + due-window + customer-note form (stored in `profiles.settings.deposit_defaults`, no migration). Defaults pre-fill the per-booking deposit form on request detail. Inline yellow test-mode banner fires inside the deposit form when `pk_test_*` is detected (dev/preview safeguard now that prod runs live keys).       |
 | ~~61~~  | Auth UI pass                                      | ✓ Closed 2026-05-24            | Audit + targeted fixes shipped: login surfaces `?error=` redirected codes (was silent); reusable `PasswordInput` with show/hide on login + signup + reset; sentence-case error copy across all auth actions; forgot-password heading + context copy; reset-password context copy; signup "Check your email" success state shows the address + mail icon + use-a-different-email reset. Audit doc at `docs/nav-auth-ui-audit-slice-61.md`. |
 
-**Sequencing now:** Pre-launch UX polish complete. Slice 70 marketing redesign also complete (shipped 2026-05-26). Slice 71 artist subdomain layer code complete on master 2026-05-27 (see §3.7 for the DNS work that activates it). Two remaining pre-launch gates: Phase D live walkthrough (§3.3) and Slice 71 DNS provisioning (§3.7).
+**Sequencing now:** Pre-launch UX polish complete. Slice 70 marketing redesign complete (shipped 2026-05-26). Slice 71 artist subdomain layer fully live (activated 2026-05-27 via NS migration + redeploy; see §3.7 for the now-closed rollout log). **One remaining pre-launch gate: Phase D live walkthrough (§3.3).**
 
 ### 3.3 Phase D — Final MVP UX review (the gate)
 
@@ -157,25 +157,23 @@ The launch-blocker legal package (imprint/terms/dpa/AUP) shipped and was counsel
 | ~~L-5~~ | ~~DSA notice-and-action route `/legal/report`~~ | Handoff §3 item 9 | ✅ **Closed 2026-05-20.** Form + server action sending operator + reporter emails (Art. 16(5)); honeypot-protected; reference IDs `DSA-…`. Internal procedure at `docs/dsa-moderation-procedure.md` covers intake/triage/action/Art. 17 statement-of-reasons/CSAM escalation. Footer "Report content" added. Art. 17 SoR documented but not automated (manual in v1). See §2. |
 | ~~L-6~~ | ~~Soften homepage "GDPR compliant" badge~~      | Compliance R8/K1  | ❌ **Dropped 2026-05-20** (founder decision: badge stays as-is). Underlying R8/K1 UCPD substantiation concern remains a founder-accepted residual — see LO-8.                                                                                                                                                                                                                 |
 
-### 3.7 Slice 71 DNS provisioning + env flip (pre-launch gate)
+### 3.7 Slice 71 DNS provisioning + env flip — ✅ CLOSED 2026-05-27
 
-Code for the artist subdomain bio link layer is on master (`*.inkl.ee` routes to the artist's public page; canonical URLs, share buttons, QR codes, OG metadata all switch to the subdomain form once the env flag is set). What remains is the DNS + env work documented in `docs/subdomain-deployment.md`.
+Wildcard `*.inkl.ee` is live in production. Activation walked through the path documented (and now corrected) in `docs/subdomain-deployment.md`:
 
-| Step | Action                                                                                                                                                | Owner   |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 1    | Verify Vercel project plan supports wildcard custom domains (`*.inkl.ee` as a single entry)                                                           | Founder |
-| 2    | Add `*.inkl.ee` in Vercel → Domains                                                                                                                   | Founder |
-| 3    | Cloudflare → DNS → wildcard CNAME `*` → `cname.vercel-dns.com`, **DNS only (grey cloud)**                                                             | Founder |
-| 4    | Wait for Vercel SSL "Issued" state (typical 2–15 minutes, max ~1h)                                                                                    | Founder |
-| 5    | Smoke test routing on Production: `bert-grimm.inkl.ee`, `bert-grimm.inkl.ee/waitlist`, unclaimed slug → claim page, `app.inkl.ee` → 308 to inklee.app | Founder |
-| 6    | Confirm `inklee.app` auth flows still work (login, dashboard gate, MFA)                                                                               | Founder |
-| 7    | Set `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN=inkl.ee` in Vercel env (Production + Preview), trigger redeploy                                                    | Founder |
-| 8    | Walk the 33-row manual QA at `docs/subdomain-qa-checklist.md`                                                                                         | Founder |
-| 9    | Announce + delete the QA checklist file                                                                                                               | Founder |
+1. ✅ Vercel plan supports wildcards (Hobby was sufficient).
+2. ✅ `*.inkl.ee` + `www.inkl.ee` attached to the inklee project via `vercel domains add`. Wildcard ALIAS + apex ALIAS + CAAs auto-created in Vercel DNS.
+3. ❌ **First attempt:** Cloudflare A record `* → 76.76.21.21` with grey cloud, per Vercel CLI's "recommended" output. Routing worked, SSL never issued. Vercel can't run DNS-01 ACME challenge for wildcards while a third party owns the zone. ~30 min lost to this dead end.
+4. ✅ **Working path:** migrated `inkl.ee` nameservers from Cloudflare to `ns1/ns2.vercel-dns.com` at Zone.ee (the registrar). NS propagation completed at T+45 min; Let's Encrypt wildcard cert issued at T+49 min.
+5. ✅ Smoke tested 4/4 routing branches (artist subdomain, claim page, reserved subdomain, apex redirect).
+6. ✅ Auth flows on `inklee.app` confirmed unaffected.
+7. ✅ `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN=inkl.ee` set on Production scope; production redeployed (`inklee-fms9d7nib`).
+8. ✅ Canonical metadata verified: `<link rel="canonical" href="https://<slug>.inkl.ee"/>` emitted on both path-form and subdomain-form requests.
+9. ⏳ 33-row manual QA at `docs/subdomain-qa-checklist.md` still useful for the dashboard / settings / email-content surfaces a logged-in walkthrough exposes. Not a launch blocker — base behavior verified end-to-end.
 
-Rollback: unset the env var, redeploy. Single-knob revert. DNS + SSL stay in place harmlessly.
+Rollback: unset `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN`, redeploy. Single-knob revert. DNS + SSL stay in place harmlessly.
 
-This work is independent of Phase D — the two gates can close in either order or in parallel.
+Cloudflare zone for `inkl.ee` is now inactive (NS no longer points there). Safe to delete from the Cloudflare account, or leave it (no cost on Free plan).
 
 ### 3.6 Counsel + founder open items (track to closure)
 

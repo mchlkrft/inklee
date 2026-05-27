@@ -1,158 +1,232 @@
 # Artist subdomain deployment runbook
 
-How to take the Slice 71 code (already on master) from "ready in app" to "live on `*.inkl.ee`". The app-level work was finished in Slice 71a–71c; everything below is DNS / SSL / Vercel domain configuration plus the env flag flip that activates the new URL form across the product.
+How to take the Slice 71 code (already on master) from "ready in app" to "live on `*.inkl.ee`". The app-level work was finished in Slice 71a–71c; everything below is DNS + Vercel domain attachment + env flag flip. The actual end-to-end rollout was done 2026-05-27; this doc reflects what worked, not the original assumptions.
 
-**Read this in order.** Steps 0–6 are the prep + provisioning path. Step 7 is the env flip that actually makes artists see subdomain URLs in their dashboard. Step 8 is verification. Section 9 lists failure modes.
+**The constraint that drives the whole design.** Wildcard SSL certificates can only be issued through Let's Encrypt's **DNS-01 ACME challenge** — HTTP-01 isn't allowed by Let's Encrypt for wildcards. DNS-01 means the cert issuer must set a `_acme-challenge.inkl.ee` TXT record at issuance and again at every ~60-day renewal. As long as a third-party DNS provider (Cloudflare in our case before Slice 71) owns the `inkl.ee` zone, Vercel can't do this automatically and the cert never gets issued. The sustainable answer is: **move the inkl.ee zone's nameservers to Vercel**. (inklee.app stays untouched on its own DNS — it doesn't need wildcard SSL.)
+
+Read sections 0–8 in order. They are the rollout path.
 
 ---
 
 ## 0. Verify the Vercel plan supports wildcard subdomains
 
-Before adding any DNS records, confirm the Inklee Vercel project's plan allows wildcard custom domains (`*.inkl.ee` as a single domain entry).
-
-- Vercel dashboard → Project settings → Domains → "Add domain". If the UI accepts a `*.inkl.ee` entry and shows a regular pending/verifying state (not a "this requires a Pro plan" upsell), the plan is fine.
-- Otherwise: upgrade the project to a plan that allows wildcard custom domains, then continue.
-
-The rest of this runbook assumes the plan check passed.
+Before changing anything, confirm the Inklee Vercel project can take `*.inkl.ee` as a single domain entry. Vercel dashboard → Project settings → Domains → "Add domain". If the UI accepts a `*.inkl.ee` entry without a paywall, you're fine. Otherwise upgrade the project's plan first.
 
 ---
 
 ## 1. Pre-flight checklist
 
-Confirm before starting:
-
 - [ ] Slice 71a–71c code is on master and deployed to Production (`pnpm test` green, `pnpm build` green, middleware shows `Proxy (Middleware)` in the build output).
-- [ ] `inkl.ee` apex is still on the existing redirect setup from Slice 54 (308 → `inklee.app`). The `vercel.json` rules from 2026-05-18 stay in place — they only match the apex host, not subdomains.
-- [ ] Cloudflare access for the `inkl.ee` zone is available.
-- [ ] You can edit Vercel project env vars (Production + Preview scopes).
-- [ ] You have at least one test artist slug that resolves locally — `bert-grimm` is the conventional demo slug.
+- [ ] `vercel` CLI is authenticated to `mchlkrfts-projects`. Confirm with `vercel project ls`.
+- [ ] You can edit Vercel env vars (Production scope minimum).
+- [ ] You have admin access to the **domain registrar** (Zone.ee, in our setup), not just the Cloudflare account. Nameserver changes happen at the registrar, not at Cloudflare.
+- [ ] At least one real artist slug exists in Production for smoke testing — `bert-grimm` is the conventional demo.
 
 ---
 
-## 2. Add the wildcard domain in Vercel
+## 2. Attach `*.inkl.ee` and `www.inkl.ee` to the project
 
-1. Vercel dashboard → `mchlkrfts-projects/inklee` → **Settings → Domains**.
-2. **Add domain** → enter `*.inkl.ee` → Add.
-3. Vercel will display the DNS records it expects (CNAME or A — see Step 3).
-4. Leave the apex `inkl.ee` entry untouched. It already serves the 308-redirect rules from `vercel.json`; do not delete it.
+From inside the repo (so the CLI's linked-project shorthand applies):
 
-Vercel issues a wildcard SSL certificate via Let's Encrypt using the DNS-01 challenge — the certificate is provisioned automatically once the wildcard DNS record points at Vercel. No manual cert upload is required.
+```bash
+vercel domains add "*.inkl.ee"
+vercel domains add "www.inkl.ee"
+```
 
----
+These two commands pre-create the right Vercel DNS records (wildcard ALIAS, apex ALIAS, CAAs for Let's Encrypt / Sectigo / Google) so the moment NS migrates, every record resolves cleanly.
 
-## 3. Configure the wildcard DNS record in Cloudflare
+Verify:
 
-In the Cloudflare dashboard for the `inkl.ee` zone:
+```bash
+vercel dns ls inkl.ee
+```
 
-1. **DNS → Records → Add record.**
-2. **Type:** CNAME
-3. **Name:** `*` (just the asterisk — Cloudflare expands this to `*.inkl.ee`)
-4. **Target:** the value Vercel showed in step 2 (typically `cname.vercel-dns.com`).
-5. **Proxy status:** **DNS only** (grey cloud). Cloudflare's orange-cloud proxy must be **off** for this record. If it is on, Vercel cannot complete the DNS-01 ACME challenge and the wildcard certificate stays in a stuck "pending" state. The Slice 54 short-domain guardrails memo and the apex `inkl.ee` record use the same DNS-only setting.
-6. **TTL:** Auto (Cloudflare default) is fine.
-7. Save.
+Expected output includes the wildcard ALIAS and apex ALIAS pointing at a Vercel-managed `vercel-dns-*.com` target plus three CAA records.
 
-Verification: from a terminal, run `dig +short cname.vercel-dns.com` and `dig +short anyslug.inkl.ee`. The latter should resolve to a Vercel IP within a minute or two of the record being saved (Cloudflare propagation is usually faster than the public TTL suggests).
+The Vercel domains panel will show `*.inkl.ee` as "Invalid Configuration" at this stage — that's expected and doesn't block the next steps.
 
 ---
 
-## 4. Wait for SSL provisioning
+## 3. Migrate `inkl.ee` nameservers to Vercel — at the registrar
 
-In Vercel → Domains, the `*.inkl.ee` entry will move from "Pending verification" → "Valid configuration" → SSL certificate "Issued" once Cloudflare propagation and the ACME DNS-01 challenge both complete. Typical wait: 2–15 minutes. Longest reasonable wait: 1 hour.
+Log in to **Zone.ee** (or whichever registrar holds `inkl.ee`). Find the inkl.ee domain's nameserver settings and replace the current Cloudflare nameservers with:
 
-Do not flip the production env var until the SSL row reads "Issued" — until then, `https://<slug>.inkl.ee` will throw a browser certificate error.
+```
+ns1.vercel-dns.com
+ns2.vercel-dns.com
+```
 
----
+Save. The registrar pushes the change to the `.ee` TLD registry almost instantly.
 
-## 5. Smoke test the routing layer (no env flip yet)
+Observed timings from the 2026-05-27 rollout, useful for setting expectations:
 
-With wildcard DNS live and SSL issued, the middleware from Slice 71b is already serving artist subdomains correctly — but no UI surface has switched to advertising the subdomain URLs yet. Confirm the plumbing works before flipping the env var:
+| Event                                            | Elapsed                                 |
+| ------------------------------------------------ | --------------------------------------- |
+| NS change saved at Zone.ee                       | T+0                                     |
+| `.ee` TLD root reflects Vercel NS                | within seconds                          |
+| Google 8.8.8.8 sees Vercel NS                    | within minutes                          |
+| Cloudflare 1.1.1.1 still cached on Cloudflare NS | took ~45 minutes (its own resolver TTL) |
+| Vercel control plane confirms NS ownership       | T+~45 min                               |
+| Let's Encrypt wildcard cert issued and served    | T+49 min                                |
 
-1. Pick an existing artist slug that has a Production profile row (e.g. `bert-grimm`).
-2. In a browser, visit `https://bert-grimm.inkl.ee`. Expected: the artist's public booking page renders identically to `https://inklee.app/bert-grimm`. URL bar stays on the subdomain form.
-3. Visit `https://bert-grimm.inkl.ee/waitlist`. Expected: the public waitlist form renders identically to `https://inklee.app/bert-grimm/waitlist`.
-4. Visit `https://unclaimed-name.inkl.ee` (a slug that does not exist in Production). Expected: the "This name is still free — Claim {slug}" page from `src/app/[slug]/not-found.tsx` (subdomain mode) renders, with a "Claim {slug}" CTA pointing to `https://inklee.app/signup`. The slug is stashed in `localStorage["inklee_intended_slug"]` so the carryover into onboarding works.
-5. Visit `https://app.inkl.ee/`. Expected: 308 redirect to `https://inklee.app/` (reserved-subdomain path in the middleware decision).
-6. Visit `https://inkl.ee/` (apex). Expected: still 308 redirects to `https://inklee.app/` via the `vercel.json` rules from Slice 54.
-
-If any of these fail, stop here and check Section 9 before continuing.
-
----
-
-## 6. Verify the marketing app + auth still work on `inklee.app`
-
-The subdomain rewrites are scoped strictly to `*.inkl.ee` hosts. Confirm the marketing+app surface is unaffected:
-
-1. Visit `https://inklee.app/` → marketing homepage.
-2. Visit `https://inklee.app/dashboard` while logged out → redirects to `/login` (the auth gate still fires for `inklee.app` hosts).
-3. Log in. Visit `/dashboard` while logged in → loads.
-4. Log out. Visit `/about`, `/download`, `/dm-chaos` → all marketing pages render.
-
-If any of these regresses, the middleware change is implicated. Roll back by reverting Slice 71b's commit.
+The slowest part is third-party resolver caches catching up. Vercel itself is fast once it can see the new NS.
 
 ---
 
-## 7. Flip the env var
+## 4. Pre-stage the env var
 
-Vercel dashboard → Project settings → **Environment Variables**.
+Add the bio-domain env to Production. The activation only happens at the next deploy, so this is safe to do at any point before step 7:
 
-Add a new env var:
+```bash
+printf "%s" "inkl.ee" | vercel env add NEXT_PUBLIC_PUBLIC_BIO_DOMAIN production
+```
 
-- **Key:** `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN`
-- **Value:** `inkl.ee`
-- **Scopes:** Production **and** Preview (leave Development unset so local dev keeps using path-mode by default — see `docs/subdomain-local-dev.md` for switching it on locally).
+Why `printf "%s"` instead of `echo`: PowerShell's pipe and `echo` both add a trailing `\r\n` which Vercel stores as part of the value. The helper in `src/lib/public-url.ts` does `.trim()` so it survives, but cleaner to store a clean value. Verify byte-by-byte:
 
-Trigger a redeploy (Vercel → Deployments → re-deploy the latest Production deploy, or push any commit).
+```bash
+vercel env pull .env.tmp --environment production --yes
+grep "NEXT_PUBLIC_PUBLIC_BIO_DOMAIN" .env.tmp | od -c | head -3
+rm .env.tmp
+```
 
-Once the redeploy is live, every public-URL surface across the dashboard, settings, onboarding-done, admin, flash items + days, travel preview, booking-form share card, and the `/[slug]` canonical metadata switches to emitting `https://<slug>.inkl.ee` URLs. No code change required — this is the single rollout knob.
+Expected: the value reads exactly `inkl.ee` with no leading BOM (`\357\273\277`) and no trailing whitespace.
 
----
-
-## 8. Post-flip verification
-
-Within 5 minutes of the redeploy:
-
-1. Log in as the founder. Visit `/dashboard`. The BookingLinkWidget share-link should now read `<slug>.inkl.ee`, not `inklee.app/<slug>`.
-2. Visit `/bookings/booking-form`. The PublicPageClient share box should show the subdomain form. The QR code regenerates automatically — scan it; it should resolve to `https://<slug>.inkl.ee`.
-3. Visit `/bookings/overview?view=clients`. Empty-state CTA shows the subdomain share URL.
-4. Visit `/bookings/overview?view=waitlist`. Waitlist share URL ends in `/waitlist` under the subdomain form.
-5. Visit `/onboarding/done` (force-navigate from `/dashboard`). Share-your-link section shows the subdomain URL.
-6. View `<slug>.inkl.ee/` in an incognito tab. View page source. Find the `<link rel="canonical">` tag — it should point at `https://<slug>.inkl.ee`. The OpenGraph `og:url` should match.
-7. Submit the subdomain URL to Google Search Console as a separate property (`https://*.inkl.ee` isn't a property type — submit at least the canonical `https://inklee.app` property keeps signals consolidated; the canonical tag from step 6 does the consolidation).
+**Preview scope was skipped in our rollout** because the Claude-wrapped Vercel CLI on Windows refused the all-preview-branches form (`--value <v> --yes`) regardless of flag ordering. This doesn't matter operationally — preview deploys run on `*.vercel.app` hosts which don't intersect with subdomain routing. If you ever need the Preview scope, add via the Vercel dashboard manually.
 
 ---
 
-## 9. Failure modes
+## 5. Wait for SSL "Issued"
 
-### 9.1 SSL certificate stuck in "pending"
+Probe the wildcard TLS handshake every 30s on a throwaway subdomain that doesn't correspond to any real artist slug:
 
-Most common cause: Cloudflare proxy is on (orange cloud) for the wildcard record. Vercel's DNS-01 ACME challenge can't reach the origin. Fix: set the wildcard CNAME to DNS only (grey cloud), wait 5 minutes for re-validation.
+```bash
+while true; do
+  if curl -sI --max-time 8 "https://probe.inkl.ee/" 2>&1 | grep -qE "^HTTP/"; then
+    echo "SSL READY"
+    break
+  fi
+  date +%H:%M:%S
+  sleep 30
+done
+```
 
-Second most common cause: a conflicting wildcard A record. If a previous `A` record for `*` exists in Cloudflare, the CNAME may have been rejected. Delete the A record and re-add the CNAME.
+Empty curl output (with `schannel: failed to receive handshake` on Windows or `SSL_ERROR_*` on Linux) means cert hasn't issued yet. An HTTP response (any status code, even 404 for the claim page) means SSL is live.
 
-### 9.2 Subdomain returns 308 to inklee.app for a real artist
+Final verification — inspect the actual cert subject + issuer:
 
-Cause: middleware doesn't recognize the slug as an artist subdomain. Either:
+```bash
+echo Q | openssl s_client -servername probe.inkl.ee -connect probe.inkl.ee:443 2>&1 \
+  | grep -E "subject=|issuer="
+```
 
-- Slug fails the format check (`isValidSlugFormat` in `src/lib/slug.ts`) — verify the slug matches `^[a-z][a-z0-9]*(-[a-z0-9]+)*$` and is 3–30 chars.
-- Slug is in `RESERVED_SLUGS` — verify against the list in `src/lib/slug.ts`. If a real artist somehow has a reserved name (shouldn't be possible because `validateSlug` gates creation, but check), the reserved list needs editing.
+Expected:
 
-The 308 target indicates a `shortlink-reserved-subdomain` or `shortlink-invalid-subdomain` host-routing decision. Console-log `parseHost` in the middleware to confirm which.
+```
+subject=CN=*.inkl.ee
+issuer=C=US, O=Let's Encrypt, CN=R12
+```
+
+Once both lines appear, the cert is real and trusted.
+
+---
+
+## 6. Smoke test routing (before redeploy)
+
+The middleware is already live on master and doesn't depend on the env var. These four cases should work the moment SSL is up:
+
+| Test                                                   | Expected                                                                                                                                                    |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `https://<existing-slug>.inkl.ee/`                     | 200, artist's public booking page renders                                                                                                                   |
+| `https://<existing-slug>.inkl.ee/waitlist`             | 200, waitlist signup form                                                                                                                                   |
+| `https://probe-nonexistent-slug.inkl.ee/`              | 404, "This name is still free, Claim {slug}" subdomain claim page (look for `x-host-routing: subdomain` request handling in `src/app/[slug]/not-found.tsx`) |
+| `https://app.inkl.ee/`                                 | 308 → `https://inklee.app/`                                                                                                                                 |
+| `https://ab.inkl.ee/` (slug too short, invalid format) | 308 → `https://inklee.app/`                                                                                                                                 |
+| `https://inkl.ee/` (apex)                              | 308 → `https://inklee.app/` (Slice 54 vercel.json rule, unchanged)                                                                                          |
+
+A failure here points to a middleware bug — the env var isn't involved yet. Most likely a `parseHost` regression or a missing reserved-slug entry.
+
+---
+
+## 7. Trigger the activation redeploy
+
+This is the one-click flip. The redeploy uses the same git commit on master but builds with the new env var so all share-link / canonical / OG / dashboard surfaces switch to emitting `<slug>.inkl.ee` URLs.
+
+```bash
+PROD_URL=$(vercel ls 2>&1 | grep "https://" | grep "Production" | head -1 | grep -oE "https://[^ ]+vercel\.app")
+echo "Redeploying: $PROD_URL"
+vercel redeploy "$PROD_URL" --target production
+```
+
+Build + alias swap takes ~2 minutes. The CLI prints `Aliased: https://inkl.ee` (and `https://inklee.app`) when the new build is live.
+
+---
+
+## 8. Post-deploy verification
+
+Quickest visual check — canonical metadata should now point at the subdomain form:
+
+```bash
+curl -s --max-time 8 "https://inklee.app/<your-slug>" | grep -oE '<link rel="canonical"[^>]*>'
+```
+
+Expected: `<link rel="canonical" href="https://<your-slug>.inkl.ee"/>`
+
+The same canonical appears whether you fetch the path form (`inklee.app/<slug>`) or the subdomain form (`<slug>.inkl.ee/`) — that's the point. Search engines consolidate ranking signals on the subdomain.
+
+Then walk the 33-row matrix in `docs/subdomain-qa-checklist.md` for the dashboard / settings / email surfaces that require a logged-in browser to inspect.
+
+---
+
+## 9. Rollback
+
+Single knob: unset the env var, redeploy. Path-mode URLs return everywhere; the wildcard SSL and middleware routing stay live and harmless.
+
+```bash
+vercel env rm NEXT_PUBLIC_PUBLIC_BIO_DOMAIN production --yes
+PROD_URL=$(vercel ls 2>&1 | grep "https://" | grep "Production" | head -1 | grep -oE "https://[^ ]+vercel\.app")
+vercel redeploy "$PROD_URL" --target production
+```
+
+For a deeper rollback (also kill the middleware path): revert the Slice 71b commit. Slices 71a + 71c are passive when the env var is unset; they can stay shipped indefinitely.
+
+---
+
+## Failure modes seen in practice
+
+### 9.1 The Cloudflare-A-record dead end (what we tried first)
+
+Our first attempt followed Vercel CLI's "recommended" output from `vercel domains add "*.inkl.ee"`:
+
+> Set the following record on your DNS provider to continue: `A *.inkl.ee 76.76.21.21` [recommended]
+
+We added that A record in Cloudflare with DNS-only proxy (grey cloud). Routing worked immediately — `test.inkl.ee` resolved and reached Vercel's anycast. **But SSL never issued.** After 30 minutes the Vercel dashboard still showed `*.inkl.ee` as "Invalid Configuration" with the only remediation being a nameserver change.
+
+The reason: the A record satisfies routing only. Wildcard SSL needs DNS-01 challenge which needs ongoing TXT-record write access. Vercel's CLI message understates this — the A record alone is sufficient for `inkl.ee` apex (HTTP-01 challenge works for non-wildcard hosts) but **not for `*.inkl.ee` wildcards**. Vercel's dashboard hides the manual-TXT alternative because cert renewal every 60 days without DNS automation is a footgun.
+
+The only sustainable path is NS migration. This runbook reflects that path; don't bother with the A record / grey-cloud variant.
+
+### 9.2 SSL still pending after 30 minutes
+
+Check NS from multiple resolvers — propagation isn't uniform:
+
+```bash
+nslookup -type=NS inkl.ee 1.1.1.1                # Cloudflare resolver
+nslookup -type=NS inkl.ee 8.8.8.8                # Google resolver
+nslookup -type=NS inkl.ee ns.tld.ee              # .ee TLD authoritative
+```
+
+If `.ee` TLD already shows Vercel NS but `1.1.1.1` is still on Cloudflare NS, that's just resolver TTL — wait. Vercel uses its own resolution path and usually completes cert issuance within ~5 minutes after detecting NS ownership, regardless of slow public resolvers.
+
+If `.ee` TLD itself still shows the old NS, the registrar didn't push the change. Re-save at Zone.ee.
 
 ### 9.3 Subdomain renders apex 404 instead of "Claim this name" page
 
-Cause: the request rewrote successfully (`/<slug>` route fired), but `/[slug]/page.tsx` couldn't find a profile and triggered the global root not-found instead of the custom `src/app/[slug]/not-found.tsx`. Check that `src/app/[slug]/not-found.tsx` exists and exports a default function. If it does, confirm the middleware set the `x-host-routing: subdomain` header — without it the page renders apex-mode copy.
+The middleware rewrote correctly, `/[slug]/page.tsx` called `notFound()`, but the root `not-found.tsx` fired instead of the `[slug]/not-found.tsx`. Confirm `src/app/[slug]/not-found.tsx` exists in the build output. Then check that the middleware set the `x-host-routing: subdomain` header on the rewritten request — that's the signal `not-found.tsx` reads to choose the subdomain rendering.
 
-### 9.4 Dashboard still shows `inklee.app/<slug>` after env flip
+### 9.4 Customer magic-link email shows `<slug>.inkl.ee/request/...`
 
-Cache. Trigger a redeploy (not just a re-publish) so the new env value is baked into server-rendered output. Hard-refresh the browser to bust any local cache.
+Should never happen. Customer portal links are intentionally `${NEXT_PUBLIC_APP_URL}/request/${token}` and were not migrated to `publicArtistUrl` in Slice 71c. If you find a subdomain in such an email, an email template was changed in error — grep for `publicArtistUrl` usage under `src/lib/email/` and revert anything that doesn't belong.
 
-### 9.5 Customer magic-link email points to `<slug>.inkl.ee`
+### 9.5 Need to back out the entire migration
 
-Should not happen. The Slice 71c helper `publicArtistUrl` is only used for the artist's public bio URL. Customer portal links (`${appUrl}/request/${token}`) were intentionally left on `${NEXT_PUBLIC_APP_URL}`. If a customer email contains a subdomain magic-link, an email template was modified by mistake — grep for `publicArtistUrl` usage in `src/lib/email/` and revert any that aren't supposed to be there.
-
-### 9.6 Need to roll back
-
-Unset `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` in Vercel env (Production + Preview), trigger a redeploy. The app reverts to emitting path-mode URLs (`inklee.app/<slug>`) across every surface within one deploy cycle. The wildcard DNS + SSL stay in place — leaving them up is harmless because the subdomain middleware keeps working; only the UI's choice of URL changes.
-
-For a deeper rollback (also turning off the subdomain middleware): revert the Slice 71b commit. Slices 71a and 71c are passive when the env var is unset and can stay shipped.
+You can return inkl.ee NS to Cloudflare at Zone.ee, which immediately reverts authoritative DNS. The Vercel wildcard cert will silently fail to renew (no DNS-01 path back), and after the current cert expires (~60-90 days) `*.inkl.ee` traffic loses TLS. Long before that point, manually unset `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` and redeploy to switch all UI surfaces back to path-mode `inklee.app/<slug>` URLs.
