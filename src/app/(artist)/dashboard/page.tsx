@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import BookingLinkWidget from "./booking-link-widget";
+import { publicArtistUrl } from "@/lib/public-url";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import {
   Inbox,
@@ -126,8 +127,7 @@ export default async function DashboardPage() {
     .sort((a, b) => a.startsOn.localeCompare(b.startsOn))
     .slice(0, 3);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  const publicUrl = `${appUrl}/${profile?.slug ?? ""}`;
+  const publicUrl = publicArtistUrl(profile?.slug);
 
   // Zero-request post-onboarding artists get a prominent share-your-link card
   // (D13) and an always-visible BookingLinkWidget regardless of the toggle (D12).

@@ -18,6 +18,7 @@ import {
   todayInTimeZone,
 } from "@/lib/date-utils";
 import { clampDescription } from "@/lib/seo";
+import { publicArtistUrl } from "@/lib/public-url";
 
 export type SlotOption = {
   id: string;
@@ -97,13 +98,22 @@ export async function generateMetadata({
     `Send ${name} your tattoo idea, references, placement, size, and preferred date through Inklee.`,
   );
 
+  // Canonical points at the preferred public URL — subdomain form when
+  // NEXT_PUBLIC_PUBLIC_BIO_DOMAIN is set, path form otherwise. The page
+  // is reachable via both shapes (path on inklee.app, subdomain on
+  // inkl.ee) and we want search engines to consolidate ranking signals
+  // on a single canonical URL.
+  const canonical = publicArtistUrl(slug);
+
   return {
     title: `${name} — Tattoo Booking · Inklee`,
     description,
+    alternates: { canonical },
     openGraph: {
       title: `Book a tattoo with ${name}`,
       description: ogDescription,
       type: "profile",
+      url: canonical,
     },
     twitter: {
       card: "summary",

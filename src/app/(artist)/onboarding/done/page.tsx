@@ -10,6 +10,7 @@ import {
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import LogoUpload from "./logo-upload";
+import { publicArtistUrl } from "@/lib/public-url";
 
 const OPTIONAL_FEATURES = [
   {
@@ -72,8 +73,7 @@ export default async function OnboardingDonePage() {
     profile.booking_mode !== "fixed_slots" || (slotCount ?? 0) > 0;
   const isReadyToShare = hasRequiredAvailability;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  const publicUrl = `${appUrl}/${profile.slug}`;
+  const publicUrl = publicArtistUrl(profile.slug);
 
   const completedItems = [
     { label: "Profile set up", detail: profile.display_name },

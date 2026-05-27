@@ -3,14 +3,13 @@ import Link from "next/link";
 import TripManager from "./trip-manager";
 import StudioList from "./studio-list";
 import FeatureIntroModal from "@/components/feature-intro-modal";
+import { publicArtistUrl } from "@/lib/public-url";
 
 export default async function TravelPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -103,7 +102,7 @@ export default async function TravelPage() {
           </p>
           {profile?.slug && (
             <a
-              href={`${appUrl}/${profile.slug}`}
+              href={publicArtistUrl(profile.slug)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
