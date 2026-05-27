@@ -7,6 +7,7 @@ import UnifiedFieldList from "../form/unified-field-list";
 import PublicPageClient from "../public-page/public-page-client";
 import FormAppearanceForm from "../settings/form-appearance-form";
 import Link from "next/link";
+import { publicArtistUrl } from "@/lib/public-url";
 
 export default async function BookingFormPage() {
   const supabase = await createClient();
@@ -43,8 +44,7 @@ export default async function BookingFormPage() {
     : buildDefaultFieldOrder(customFieldIds);
   const slug = profile?.slug ?? "";
   const timezone = profile?.timezone ?? "Europe/Berlin";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  const publicUrl = `${appUrl}/${slug}`;
+  const publicUrl = publicArtistUrl(slug);
 
   const windowExpired =
     booksSettings.booking_window_ends_at !== null &&

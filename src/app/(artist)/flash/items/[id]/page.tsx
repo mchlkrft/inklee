@@ -8,6 +8,7 @@ import {
   formatFlashAvailabilityLabel,
   formatPrice,
 } from "@/lib/flash";
+import { publicArtistUrl } from "@/lib/public-url";
 
 export default async function FlashItemDetailPage({
   params,
@@ -55,10 +56,11 @@ export default async function FlashItemDetailPage({
   const confirmedCount = confirmed?.length ?? 0;
   const pendingCount = pending?.length ?? 0;
   const av = computeFlashAvailability(item, confirmedCount);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const publicUrl =
     item.status === "published" && profile?.slug
-      ? `${appUrl}/${profile.slug}/flash/${item.slug}`
+      ? publicArtistUrl(profile.slug, {
+          subpath: `/flash/${item.slug}`,
+        })
       : null;
 
   return (

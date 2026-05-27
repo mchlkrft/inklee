@@ -5,6 +5,7 @@ import { getAccountDetail } from "@/lib/admin-queries";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { parseFormSettings } from "@/lib/form-settings";
 import AccountActions from "./account-actions";
+import { publicArtistUrl } from "@/lib/public-url";
 
 function relTime(iso: string | null | undefined): string {
   if (!iso) return "never";
@@ -89,8 +90,7 @@ export default async function AccountDetailPage({
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   const formSettings = parseFormSettings(profileSettings.form_settings);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  const publicUrl = `${appUrl}/${profile.slug}`;
+  const publicUrl = publicArtistUrl(profile.slug);
 
   const accountStatus = (profile.account_status as string) ?? "active";
   const isSelf = adminId === profile.id;

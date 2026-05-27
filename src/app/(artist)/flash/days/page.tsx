@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import FeatureIntroModal from "@/components/feature-intro-modal";
 import CopyButton from "@/components/copy-button";
+import { publicArtistUrl } from "@/lib/public-url";
 
 function DayStatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -47,7 +48,6 @@ export default async function FlashDaysPage() {
     supabase.from("profiles").select("slug").eq("id", user!.id).single(),
   ]);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const slug = profile?.slug ?? null;
 
   return (
@@ -101,7 +101,9 @@ export default async function FlashDaysPage() {
             const locationLabel = resolveLocationLabel(studio, day.location);
             const publicUrl =
               day.is_public && slug
-                ? `${appUrl}/${slug}/flash/days/${day.id}`
+                ? publicArtistUrl(slug, {
+                    subpath: `/flash/days/${day.id}`,
+                  })
                 : null;
 
             return (

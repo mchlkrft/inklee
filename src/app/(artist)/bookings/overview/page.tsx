@@ -9,6 +9,7 @@ import FeatureIntroModal from "@/components/feature-intro-modal";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import WaitlistActions from "../waitlist/waitlist-actions";
 import FilterRow, { type FilterGroup } from "./filter-row";
+import { publicArtistUrl } from "@/lib/public-url";
 
 // Labels mirror the StatusBadge / humanStatusLabel vocabulary so the chip
 // row and the row badges below speak the same language. URL `value`s stay
@@ -575,11 +576,9 @@ export default async function BookingOverviewPage({
       .select("id", { count: "exact", head: true })
       .eq("artist_id", user!.id),
   ]);
-  const publicUrl = profile?.slug
-    ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/${profile.slug}`
-    : null;
+  const publicUrl = profile?.slug ? publicArtistUrl(profile.slug) : null;
   const waitlistPublicUrl = profile?.slug
-    ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/${profile.slug}/waitlist`
+    ? publicArtistUrl(profile.slug, { subpath: "/waitlist" })
     : null;
 
   const tabs = [
