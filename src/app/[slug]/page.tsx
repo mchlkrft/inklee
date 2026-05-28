@@ -32,6 +32,7 @@ import {
   toPriceNumber,
   type PublicProduct,
 } from "@/lib/goods";
+import { canUseGoods } from "@/lib/features";
 
 export type SlotOption = {
   id: string;
@@ -171,7 +172,7 @@ export default async function ArtistPublicPage({
   // visible. Sold-out products still show (greyed). The public card is
   // informational — no standalone checkout (that arrives with add-ons, Slice 74).
   let shopProducts: PublicProduct[] = [];
-  if (isModuleVisible(bioPage, "shop")) {
+  if (isModuleVisible(bioPage, "shop") && canUseGoods(profileSettings)) {
     const { data: rawProducts } = await serviceClient
       .from("products")
       .select(

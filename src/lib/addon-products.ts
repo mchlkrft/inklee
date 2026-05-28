@@ -9,6 +9,7 @@ import {
   toPriceNumber,
   type ProductStatus,
 } from "@/lib/goods";
+import { canUseCheckoutAddons } from "@/lib/features";
 import type { AddonProduct } from "@/lib/orders";
 
 export type AddonProductRow = AddonProduct & { imageUrl: string | null };
@@ -37,6 +38,15 @@ type RawProduct = {
 export async function getAddonProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {
+  // Paywall-readiness gate (Slice 76). Defaults on; centralizing it here gates
+  // both the portal selector and prepareCheckoutAction in one place.
+  const { data: artist } = await serviceClient
+    .from("profiles")
+    .select("settings")
+    .eq("id", artistId)
+    .single();
+  if (!canUseCheckoutAddons(artist?.settings)) return [];
+
   const { data } = await serviceClient
     .from("products")
     .select(
