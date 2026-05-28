@@ -13,6 +13,8 @@ import { bookingModeFromRequest, bookingModeLabel } from "@/lib/booking-domain";
 import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
+import { formatPrice } from "@/lib/goods";
+import GoodsPickupButton from "./goods-pickup-button";
 
 export default async function RequestDetailPage({
   params,
@@ -71,6 +73,36 @@ export default async function RequestDetailPage({
     .eq("booking_id", id)
     .order("timestamp", { ascending: false })
     .limit(30);
+
+  // Attached goods order (Slice 75). Most recent order for this booking.
+  const { data: orderRow } = await supabase
+    .from("orders")
+    .select(
+      "id, status, goods_amount, fulfillment_status, order_items(type, title_snapshot, variant_snapshot, quantity, total_amount)",
+    )
+    .eq("booking_id", id)
+    .eq("artist_id", user!.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  type OrderItemRow = {
+    type: string;
+    title_snapshot: string;
+    variant_snapshot: string | null;
+    quantity: number;
+    total_amount: string | number;
+  };
+  const goodsOrder = orderRow as unknown as {
+    id: string;
+    status: string;
+    goods_amount: string | number;
+    fulfillment_status: string;
+    order_items: OrderItemRow[] | null;
+  } | null;
+  const goodsItems = (goodsOrder?.order_items ?? []).filter(
+    (i) => i.type === "product",
+  );
 
   type ImageRow = { storage_path: string; annotations: unknown };
   const imagesWithUrls: { url: string; annotations: Annotation[] | null }[] =
@@ -233,6 +265,50 @@ export default async function RequestDetailPage({
                   {booking.deposit_note}
                 </p>
               )}
+            </div>
+          )}
+
+          {goodsOrder && goodsItems.length > 0 && (
+            <div className="rounded-[20px] border border-border p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
+                  Goods
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {goodsOrder.fulfillment_status === "picked_up"
+                    ? "Picked up"
+                    : goodsOrder.status === "paid"
+                      ? "Paid · awaiting pickup"
+                      : "Pending payment"}
+                </span>
+              </div>
+              <ul className="space-y-1.5">
+                {goodsItems.map((i, idx) => (
+                  <li key={idx} className="flex justify-between gap-3 text-sm">
+                    <span className="text-foreground">
+                      {i.title_snapshot}
+                      {i.variant_snapshot ? ` · ${i.variant_snapshot}` : ""}
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ×{i.quantity}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {formatPrice(Number(i.total_amount))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex justify-between border-t border-border pt-2 text-sm">
+                <span className="text-muted-foreground">Goods total</span>
+                <span className="font-medium text-foreground">
+                  {formatPrice(Number(goodsOrder.goods_amount))}
+                </span>
+              </div>
+              {goodsOrder.status === "paid" &&
+                goodsOrder.fulfillment_status === "pending_pickup" && (
+                  <GoodsPickupButton orderId={goodsOrder.id} />
+                )}
             </div>
           )}
 

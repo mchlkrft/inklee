@@ -408,6 +408,41 @@ export async function markWaitlistContacted(entryId: string): Promise<void> {
   revalidatePath("/bookings/overview");
 }
 
+// Slice 75 — mark a paid order's goods as collected at the appointment.
+export async function markGoodsPickedUp(
+  orderId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, booking_id, status")
+    .eq("id", orderId)
+    .eq("artist_id", user.id)
+    .single();
+  if (!order) return { error: "Order not found." };
+  if (order.status !== "paid") {
+    return { error: "Only paid orders can be marked picked up." };
+  }
+
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      fulfillment_status: "picked_up",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId)
+    .eq("artist_id", user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/bookings/requests/${order.booking_id}`);
+  return { success: true };
+}
+
 export async function dismissWaitlistEntry(entryId: string): Promise<void> {
   const supabase = await createClient();
   const {

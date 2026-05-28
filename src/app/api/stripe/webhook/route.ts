@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { serviceClient } from "@/lib/supabase/service";
-import { sendBookingEmail } from "@/lib/email/send-booking-email";
+import {
+  sendBookingEmail,
+  sendGoodsOrderConfirmation,
+} from "@/lib/email/send-booking-email";
+import {
+  decrementInventory,
+  type PaidOrderItem,
+} from "@/lib/order-fulfillment";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 
@@ -171,11 +179,12 @@ export async function POST(request: Request) {
       },
     });
 
-    // Mark the order paid (Slice 74). Inventory decrement + itemized
-    // confirmation emails land in Slice 75. Guarded on status so webhook
-    // retries stay idempotent.
+    // Mark the order paid (Slice 74) + run fulfillment side effects (Slice 75):
+    // decrement inventory, email the goods confirmation, notify the artist.
+    // The `.select()` tells us whether THIS call performed the flip, so the side
+    // effects run exactly once even if Stripe retries the webhook.
     if (order && order.status !== "paid") {
-      await serviceClient
+      const { data: flipped } = await serviceClient
         .from("orders")
         .update({
           status: "paid",
@@ -183,7 +192,61 @@ export async function POST(request: Request) {
           updated_at: now,
         })
         .eq("id", order.id)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .select("id");
+
+      if (flipped && flipped.length > 0) {
+        const { data: itemRows } = await serviceClient
+          .from("order_items")
+          .select(
+            "product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
+          )
+          .eq("order_id", order.id);
+        const items = (itemRows ?? []) as PaidOrderItem[];
+
+        await decrementInventory(items);
+
+        const goodsLines = items
+          .filter((r) => r.type === "product")
+          .map((r) => ({
+            title: r.title_snapshot,
+            variant: r.variant_snapshot,
+            quantity: Number(r.quantity),
+            total: Number(r.total_amount),
+          }));
+
+        if (goodsLines.length > 0) {
+          const { data: ap } = await serviceClient
+            .from("profiles")
+            .select("display_name")
+            .eq("id", booking.artist_id)
+            .single();
+          const artistName = ap?.display_name ?? "the artist";
+
+          if (booking.customer_email) {
+            await sendGoodsOrderConfirmation({
+              to: booking.customer_email,
+              artistName,
+              lines: goodsLines,
+              total: Number(order.subtotal_amount),
+              currency: "eur",
+            });
+          }
+
+          const itemCount = goodsLines.reduce((n, l) => n + l.quantity, 0);
+          await createNotification({
+            artistId: booking.artist_id,
+            type: "goods_reserved",
+            category: "client_update",
+            priority: "medium",
+            title: "Goods reserved for pickup",
+            message: `@${booking.customer_handle ?? "client"} reserved ${itemCount} item${itemCount === 1 ? "" : "s"} for pickup at their appointment.`,
+            ctaLabel: "View booking",
+            ctaHref: `/bookings/requests/${bookingId}`,
+            metadata: { booking_id: bookingId, order_id: order.id },
+          });
+        }
+      }
     }
 
     // Send approval email to customer

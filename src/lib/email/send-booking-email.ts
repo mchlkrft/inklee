@@ -119,6 +119,56 @@ ${magicLink}`;
   }
 }
 
+// Goods order confirmation (Slice 75) — sent to the customer after a combined
+// deposit + goods payment succeeds. Standalone (not artist-customisable),
+// built on the shared branded HTML wrapper. No em-dashes in customer copy.
+export async function sendGoodsOrderConfirmation({
+  to,
+  artistName,
+  lines,
+  total,
+  currency,
+}: {
+  to: string;
+  artistName: string;
+  lines: {
+    title: string;
+    variant: string | null;
+    quantity: number;
+    total: number;
+  }[];
+  total: number;
+  currency: string;
+}): Promise<void> {
+  try {
+    const code = currency.toUpperCase();
+    const itemsText = lines
+      .map(
+        (l) =>
+          `- ${l.title}${l.variant ? ` (${l.variant})` : ""} x${l.quantity}: ${code} ${l.total.toFixed(2)}`,
+      )
+      .join("\n");
+    const body = `Your payment to ${artistName} is confirmed.
+
+Goods reserved for pickup at your appointment:
+${itemsText}
+
+Total paid: ${code} ${total.toFixed(2)}
+
+Your goods will be waiting for you at your appointment.
+
+Inklee`;
+    const { buildEmailHtml: build } = await import("./booking-templates");
+    await sendEmail({
+      to,
+      subject: `Your goods are reserved with ${artistName}`,
+      html: build(body, {}),
+    });
+  } catch (err) {
+    console.error("[email] failed to send goods order confirmation:", err);
+  }
+}
+
 // Hardcoded system notification — not artist-customisable
 export async function sendArtistCancellationByCustomer({
   artistEmail,
