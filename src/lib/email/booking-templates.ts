@@ -112,7 +112,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
 // works in clients that strip styled buttons. Everything else is escaped text.
 function ctaButton(url: string, label: string): string {
   return (
-    `<a href="${url}" style="display:inline-block;margin:10px 0 6px;background:#e9b22b;color:#1e1e1e;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:8px;">${label}</a>` +
+    `<a href="${url}" style="display:inline-block;margin:10px 0 6px;background:#e9b22b;color:#1e1e1e;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:9999px;">${label}</a>` +
     `<br/><span style="font-size:12px;color:#9ca3af;">Or paste this link into your browser:</span>` +
     `<br/><a href="${url}" style="font-size:12px;color:#6b7280;word-break:break-all;">${url}</a>`
   );

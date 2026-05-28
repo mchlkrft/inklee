@@ -16,6 +16,14 @@ type EmailType =
   | "customer_booking_cancelled_by_artist"
   | "artist_new_booking_request";
 
+// Warmer, action-specific button labels per email type (used for the link
+// button). Types without a link (rejected/cancelled) are omitted.
+const CTA_LABELS: Partial<Record<EmailType, string>> = {
+  customer_booking_submitted: "View my request",
+  customer_booking_approved: "View my booking",
+  artist_new_booking_request: "Open bookings",
+};
+
 export async function sendBookingEmail({
   type,
   to,
@@ -54,7 +62,9 @@ export async function sendBookingEmail({
     const subjectTemplate =
       custom?.subject ?? DEFAULT_SUBJECTS[type] ?? "inklee";
     const subject = substituteVars(subjectTemplate, vars);
-    const html = buildEmailHtml(body, vars, customAnswers);
+    const html = buildEmailHtml(body, vars, customAnswers, {
+      ctaLabel: CTA_LABELS[type],
+    });
 
     await sendEmail({ to, subject, html });
   } catch (err) {
@@ -112,7 +122,7 @@ ${magicLink}`;
     await sendEmail({
       to,
       subject: `${artistName} has a spot for you`,
-      html: build(body, {}),
+      html: build(body, {}, undefined, { ctaLabel: "View my booking" }),
     });
   } catch (err) {
     console.error("[email] failed to send waitlist conversion email:", err);
@@ -261,7 +271,7 @@ https://inklee.app/bookings/overview`;
         goodsLines.length > 0
           ? `@${customerHandle} paid their deposit and reserved goods`
           : `@${customerHandle} paid their deposit`,
-      html: build(body, {}),
+      html: build(body, {}, undefined, { ctaLabel: "Open bookings" }),
     });
   } catch (err) {
     console.error("[email] failed to send artist deposit-paid email:", err);
@@ -293,7 +303,7 @@ https://inklee.app/bookings/overview`;
     await sendEmail({
       to: artistEmail,
       subject: `@${customerHandle} cancelled their booking`,
-      html: build(body, {}),
+      html: build(body, {}, undefined, { ctaLabel: "Open bookings" }),
     });
   } catch (err) {
     console.error("[email] failed to send artist cancellation notice:", err);
