@@ -214,6 +214,60 @@ Inklee`;
   }
 }
 
+// Deposit paid — sent to the ARTIST when a customer's deposit (+ any goods)
+// payment succeeds. Standalone system email. No em-dashes in copy.
+export async function sendArtistDepositPaidEmail({
+  artistEmail,
+  customerHandle,
+  amountEur,
+  goodsLines,
+  goodsTotal,
+  placement,
+  date,
+}: {
+  artistEmail: string;
+  customerHandle: string;
+  amountEur: number;
+  goodsLines: {
+    title: string;
+    variant: string | null;
+    quantity: number;
+    total: number;
+  }[];
+  goodsTotal: number;
+  placement: string;
+  date: string;
+}): Promise<void> {
+  try {
+    const goodsBlock =
+      goodsLines.length > 0
+        ? `\n\nGoods reserved for pickup:\n${goodsLines
+            .map(
+              (l) =>
+                `- ${l.title}${l.variant ? ` (${l.variant})` : ""} x${l.quantity}: EUR ${l.total.toFixed(2)}`,
+            )
+            .join("\n")}\nGoods total: EUR ${goodsTotal.toFixed(2)}`
+        : "";
+    const body = `@${customerHandle} paid their deposit. The booking is confirmed.
+
+Deposit: EUR ${amountEur.toFixed(2)}${placement ? `\nPlacement: ${placement}` : ""}${date ? `\nDate: ${date}` : ""}${goodsBlock}
+
+Open Bookings:
+https://inklee.app/bookings/overview`;
+    const { buildEmailHtml: build } = await import("./booking-templates");
+    await sendEmail({
+      to: artistEmail,
+      subject:
+        goodsLines.length > 0
+          ? `@${customerHandle} paid their deposit and reserved goods`
+          : `@${customerHandle} paid their deposit`,
+      html: build(body, {}),
+    });
+  } catch (err) {
+    console.error("[email] failed to send artist deposit-paid email:", err);
+  }
+}
+
 // Hardcoded system notification — not artist-customisable
 export async function sendArtistCancellationByCustomer({
   artistEmail,

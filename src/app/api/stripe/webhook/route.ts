@@ -4,6 +4,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import {
   sendBookingEmail,
   sendGoodsOrderConfirmation,
+  sendArtistDepositPaidEmail,
 } from "@/lib/email/send-booking-email";
 import {
   decrementInventory,
@@ -179,10 +180,15 @@ export async function POST(request: Request) {
       },
     });
 
-    // Mark the order paid (Slice 74) + run fulfillment side effects (Slice 75):
-    // decrement inventory, email the goods confirmation, notify the artist.
-    // The `.select()` tells us whether THIS call performed the flip, so the side
-    // effects run exactly once even if Stripe retries the webhook.
+    // Order + fulfillment side effects (Slice 74/75). The whole handler is
+    // skipped on Stripe retries (deposit_paid audit guard above), so this runs
+    // once; the order flip is additionally `.select()`-gated for inventory.
+    let goodsLines: {
+      title: string;
+      variant: string | null;
+      quantity: number;
+      total: number;
+    }[] = [];
     if (order && order.status !== "paid") {
       const { data: flipped } = await serviceClient
         .from("orders")
@@ -203,10 +209,8 @@ export async function POST(request: Request) {
           )
           .eq("order_id", order.id);
         const items = (itemRows ?? []) as PaidOrderItem[];
-
         await decrementInventory(items);
-
-        const goodsLines = items
+        goodsLines = items
           .filter((r) => r.type === "product")
           .map((r) => ({
             title: r.title_snapshot,
@@ -214,39 +218,67 @@ export async function POST(request: Request) {
             quantity: Number(r.quantity),
             total: Number(r.total_amount),
           }));
-
-        if (goodsLines.length > 0) {
-          const { data: ap } = await serviceClient
-            .from("profiles")
-            .select("display_name")
-            .eq("id", booking.artist_id)
-            .single();
-          const artistName = ap?.display_name ?? "the artist";
-
-          if (booking.customer_email) {
-            await sendGoodsOrderConfirmation({
-              to: booking.customer_email,
-              artistName,
-              lines: goodsLines,
-              total: Number(order.subtotal_amount),
-              currency: "eur",
-            });
-          }
-
-          const itemCount = goodsLines.reduce((n, l) => n + l.quantity, 0);
-          await createNotification({
-            artistId: booking.artist_id,
-            type: "goods_reserved",
-            category: "client_update",
-            priority: "medium",
-            title: "Goods reserved for pickup",
-            message: `@${booking.customer_handle ?? "client"} reserved ${itemCount} item${itemCount === 1 ? "" : "s"} for pickup at their appointment.`,
-            ctaLabel: "View booking",
-            ctaHref: `/bookings/requests/${bookingId}`,
-            metadata: { booking_id: bookingId, order_id: order.id },
-          });
-        }
       }
+    }
+
+    // Artist display name for the emails/notification below.
+    const { data: artistProfile } = await serviceClient
+      .from("profiles")
+      .select("display_name")
+      .eq("id", booking.artist_id)
+      .single();
+    const artistDisplayName = artistProfile?.display_name ?? "the artist";
+    const depositEur = booking.deposit_amount
+      ? Number(booking.deposit_amount)
+      : 0;
+    const goodsCount = goodsLines.reduce((n, l) => n + l.quantity, 0);
+
+    // Customer: itemized goods confirmation (only when goods were added).
+    if (goodsLines.length > 0 && booking.customer_email) {
+      await sendGoodsOrderConfirmation({
+        to: booking.customer_email,
+        artistName: artistDisplayName,
+        lines: goodsLines,
+        total: order ? Number(order.subtotal_amount) : depositEur,
+        currency: "eur",
+      });
+    }
+
+    // Artist: deposit paid (+ goods) — system notification + email. Fires on
+    // every successful deposit payment, not just orders with goods.
+    const goodsSuffix =
+      goodsCount > 0
+        ? ` and reserved ${goodsCount} item${goodsCount === 1 ? "" : "s"} for pickup`
+        : "";
+    await createNotification({
+      artistId: booking.artist_id,
+      type: "deposit_received",
+      category: "booking_activity",
+      priority: "high",
+      title: "Deposit paid",
+      message: `@${booking.customer_handle ?? "client"} paid their EUR ${depositEur.toFixed(2)} deposit${goodsSuffix}. Booking confirmed.`,
+      ctaLabel: "View booking",
+      ctaHref: `/bookings/requests/${bookingId}`,
+      metadata: {
+        booking_id: bookingId,
+        ...(order ? { order_id: order.id } : {}),
+      },
+    });
+
+    const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
+      booking.artist_id,
+    );
+    if (artistAuth?.user?.email) {
+      const afd = booking.form_data as Record<string, string> | null;
+      await sendArtistDepositPaidEmail({
+        artistEmail: artistAuth.user.email,
+        customerHandle: booking.customer_handle ?? "client",
+        amountEur: depositEur,
+        goodsLines,
+        goodsTotal: goodsLines.reduce((n, l) => n + l.total, 0),
+        placement: afd?.placement ?? "",
+        date: booking.preferred_date ?? "",
+      });
     }
 
     // Send approval email to customer
