@@ -169,6 +169,51 @@ Inklee`;
   }
 }
 
+// Deposit requested — sent to the customer when the artist requests a deposit,
+// carrying a fresh magic link to the payment page. Standalone (not artist-
+// customisable in v1). No em-dashes in customer copy.
+export async function sendDepositRequestedEmail({
+  to,
+  artistName,
+  customerHandle,
+  amountEur,
+  dueDate,
+  depositNote,
+  magicLink,
+}: {
+  to: string;
+  artistName: string;
+  customerHandle: string;
+  amountEur: number;
+  dueDate: string | null;
+  depositNote: string | null;
+  magicLink: string;
+}): Promise<void> {
+  try {
+    const handle = customerHandle ? `@${customerHandle}` : "there";
+    const dueLine = dueDate ? `\nPlease pay by ${dueDate}.` : "";
+    const noteLine = depositNote ? `\n\n${depositNote}` : "";
+    const body = `Hi ${handle},
+
+${artistName} has requested a deposit to confirm your booking.
+
+Deposit due: EUR ${amountEur.toFixed(2)}${dueLine}${noteLine}
+
+Pay securely through the link below. It is valid for 30 days:
+${magicLink}
+
+Inklee`;
+    const { buildEmailHtml: build } = await import("./booking-templates");
+    await sendEmail({
+      to,
+      subject: `Pay your deposit to confirm with ${artistName}`,
+      html: build(body, {}),
+    });
+  } catch (err) {
+    console.error("[email] failed to send deposit requested email:", err);
+  }
+}
+
 // Hardcoded system notification — not artist-customisable
 export async function sendArtistCancellationByCustomer({
   artistEmail,

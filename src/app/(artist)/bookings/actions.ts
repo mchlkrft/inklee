@@ -9,6 +9,7 @@ import { canTransition } from "@/lib/booking-fsm";
 import {
   sendBookingEmail,
   sendWaitlistConversionEmail,
+  sendDepositRequestedEmail,
 } from "@/lib/email/send-booking-email";
 import { stripe } from "@/lib/stripe";
 
@@ -242,6 +243,61 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
+// Notify the customer that a deposit was requested, with a fresh payment link.
+// Rotates the magic-link token (only the hash is stored, so the old link can't
+// be reused) — same pattern as approveBooking. Best-effort: never blocks the
+// deposit request itself.
+async function notifyDepositRequested(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  bookingId: string,
+  artistId: string,
+  booking: AuthorisedBooking,
+  amount: number,
+  dueAt: string,
+  note: string | null,
+): Promise<void> {
+  if (!booking.customer_email) return;
+
+  const newToken = crypto.randomBytes(32).toString("hex");
+  const newHash = crypto.createHash("sha256").update(newToken).digest("hex");
+  const { error: rotateError } = await supabase
+    .from("booking_requests")
+    .update({
+      customer_token_hash: newHash,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId);
+  if (rotateError) return;
+
+  await supabase.from("audit_log").insert({
+    booking_id: bookingId,
+    action: "token_rotated",
+    actor: artistId,
+    details: {
+      old_hash: booking.customer_token_hash,
+      new_hash: newHash,
+      by: "deposit_request",
+    },
+  });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", artistId)
+    .single();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+
+  await sendDepositRequestedEmail({
+    to: booking.customer_email,
+    artistName: profile?.display_name ?? "the artist",
+    customerHandle: booking.customer_handle ?? "",
+    amountEur: amount,
+    dueDate: dueAt,
+    depositNote: note,
+    magicLink: `${appUrl}/request/${newToken}`,
+  });
+}
+
 export async function requestDeposit(
   id: string,
   amount: number,
@@ -276,6 +332,15 @@ export async function requestDeposit(
       .eq("id", id);
     if (reuseError) return { error: reuseError.message };
 
+    await notifyDepositRequested(
+      supabase,
+      id,
+      user.id,
+      booking,
+      amount,
+      dueAt,
+      note,
+    );
     revalidatePath(`/bookings/requests/${id}`);
     return { success: true };
   }
@@ -340,6 +405,15 @@ export async function requestDeposit(
     },
   });
 
+  await notifyDepositRequested(
+    supabase,
+    id,
+    user.id,
+    booking,
+    amount,
+    dueAt,
+    note,
+  );
   revalidatePath("/dashboard");
   revalidatePath("/bookings/requests");
   revalidatePath(`/bookings/requests/${id}`);
