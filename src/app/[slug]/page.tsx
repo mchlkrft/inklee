@@ -8,7 +8,7 @@ import StudioBlock from "./studio-block";
 import WaitlistForm from "./waitlist-form";
 import BookingPolicyBlock from "./booking-policy-block";
 import CustomLinksBlock from "./custom-links-block";
-import ShopBlock from "./shop-block";
+import ShopTeaser from "./shop-teaser";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
@@ -522,6 +522,13 @@ export default async function ArtistPublicPage({
               </p>
             </div>
 
+            {shopProducts.length > 0 && (
+              <ShopTeaser
+                products={shopProducts}
+                artistFirstName={artistFirstName}
+              />
+            )}
+
             {isClosed ? (
               <BooksClosedBlock message={closedMessage} hint={closedHint}>
                 <WaitlistForm artistSlug={slug} />
@@ -556,9 +563,7 @@ export default async function ArtistPublicPage({
                 />
               ) : null;
             }
-            if (key === "shop") {
-              return <ShopBlock key="shop" products={shopProducts} />;
-            }
+            // Shop renders as a teaser above the booking form, not here.
             return null;
           })}
         </div>
