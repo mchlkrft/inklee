@@ -66,7 +66,16 @@ export const SIDEBAR_NAV: NavGroup[] = [
           { label: "Instagram", href: "/flash/instagram" },
         ],
       },
-      { label: "Goods", href: "/goods", icon: ShoppingBag, match: ["/goods"] },
+      {
+        label: "Goods",
+        href: "/goods",
+        icon: ShoppingBag,
+        match: ["/goods"],
+        children: [
+          { label: "Products", href: "/goods" },
+          { label: "Sales", href: "/goods/sales" },
+        ],
+      },
       { label: "Guest Spots", href: "/travel", icon: MapPin },
     ],
   },
