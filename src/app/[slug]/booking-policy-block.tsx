@@ -1,0 +1,15 @@
+// Bio Page module (Slice 72) — the artist's booking / deposit / cancellation
+// policy, free text edited at /settings/bio-page. Renders below the booking
+// section. Server component; only mounted when the policy is set and the module
+// is visible.
+
+export default function BookingPolicyBlock({ policy }: { policy: string }) {
+  return (
+    <section className="space-y-2 rounded-[20px] border border-border px-5 py-4">
+      <h2 className="text-sm font-semibold text-foreground">Booking policy</h2>
+      <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+        {policy}
+      </p>
+    </section>
+  );
+}

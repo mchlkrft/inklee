@@ -6,6 +6,9 @@ import BookingForm from "./booking-form";
 import BooksClosedBlock from "./books-closed-block";
 import StudioBlock from "./studio-block";
 import WaitlistForm from "./waitlist-form";
+import BookingPolicyBlock from "./booking-policy-block";
+import CustomLinksBlock from "./custom-links-block";
+import ShopBlock from "./shop-block";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
@@ -19,6 +22,7 @@ import {
 } from "@/lib/date-utils";
 import { clampDescription } from "@/lib/seo";
 import { publicArtistUrl } from "@/lib/public-url";
+import { parseBioPageSettings, visibleModules } from "@/lib/bio-page-settings";
 
 export type SlotOption = {
   id: string;
@@ -148,6 +152,11 @@ export default async function ArtistPublicPage({
 
   const coverImage = resolveCoverImage(profileSettings.cover_image_url);
   const coverColor = resolveCoverColor(profileSettings.cover_color);
+
+  // Bio Page modules (Slice 72) — optional sections rendered below the booking
+  // section. Defaults to nothing configured, so existing pages are unchanged.
+  const bioPage = parseBioPageSettings(profileSettings.bio_page);
+  const activeLinks = bioPage.customLinks.filter((l) => l.isActive);
 
   const { data: rawCustomFields } = await serviceClient
     .from("custom_fields")
@@ -482,6 +491,26 @@ export default async function ArtistPublicPage({
               />
             )}
           </div>
+
+          {/* Bio Page modules — render below the booking section, in order,
+              skipping any the artist hid. Booking stays the primary action. */}
+          {visibleModules(bioPage).map((key) => {
+            if (key === "links") {
+              return <CustomLinksBlock key="links" links={activeLinks} />;
+            }
+            if (key === "policy") {
+              return bioPage.bookingPolicy ? (
+                <BookingPolicyBlock
+                  key="policy"
+                  policy={bioPage.bookingPolicy}
+                />
+              ) : null;
+            }
+            if (key === "shop") {
+              return <ShopBlock key="shop" products={[]} />;
+            }
+            return null;
+          })}
         </div>
       </main>
 
