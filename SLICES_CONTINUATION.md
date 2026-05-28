@@ -1863,3 +1863,74 @@ Slices 60–61 must complete before public launch. They block the MVP gate (Phas
 **Roll-back rule:** every step in this phase is reversible without touching the canonical `/dm-chaos` URL. Disabling the variant system is a middleware-revert + a CSS-var-default flip; the page stays live with the current dark theme throughout. Meta Pixel can be disabled instantly by clearing the env var.
 
 **Cross-phase guardrail:** if the short-domain phase (Slices 54–59) is also live by the time this test runs, the UTM convention here must remain compatible with the inkl.ee shortlink convention documented there (`utm_medium=shortlink` for shortlinks, `utm_medium=social|paid_social|community` for direct posts). Cross-check before launching the test.
+
+---
+
+## Pre-Launch Phase: Bio Page + Goods + Appointment Add-ons (Slices 72–76)
+
+**Status:** ⏳ Planning locked 2026-05-28. Build Slice 72 only after the plan is approved. Full design, audit, DB/Stripe/UI plan, legal caution, and QA checklist live in `docs/bio-page-goods-plan.md` — this section is the slice-level summary; do not duplicate the detail.
+
+**Why pre-launch:** founder decision (2026-05-28) to ship the whole cluster before public launch. It reshapes booking/payment/webhook logic, is the headline differentiator, and is cheaper to land before any real artist has data. Sits after the Phase D gate, before Phase E mobile. See `docs/roadmap.md` §3.8.
+
+**Locked decisions (do not re-litigate without updating the plan doc + `DECISIONS.md`):**
+
+- **D1** — whole cluster ships before public launch.
+- **D2** — keep the existing embedded **PaymentIntent** flow. One combined intent (deposit + goods), itemized in Inklee's own `order_items`. No Stripe Checkout Session in v1 (`stripe_checkout_session_id` kept nullable for forward-compat only).
+- **D3** — **Stripe Connect gates production goods money** (roadmap OT-12). Build + test in Stripe test mode without Connect; `checkout_addons` stays OFF in production until Connect is live and artists are onboarded as connected accounts.
+- **D4** — add-ons attach to the deposit-payment moment in `/request/[token]`, when `status === deposit_pending` and the artist has `is_checkout_addon` goods.
+- **D5** — appointment pickup only; one artist + one booking per checkout; no shipping, cart, buyer accounts, discounts, multi-artist cart, global discovery, or reviews.
+- **D6** — paywall **readiness** only: `profiles.settings.features` flags + `canUseGoods()` helper returning true for everyone. No subscription billing, no public pricing copy.
+
+**Hard invariants:** deposit safe wording (7 files) verbatim; existing `/[slug]` route + deposit-only payment path unchanged for artists with no goods; honeypot + RLS service-role pattern + webhook idempotency intact; no em-dashes in public copy.
+
+### Slice 72 — Bio Page modular structure
+
+**Status:** ⏳ next to build (lowest risk; pre-launch-safe).
+
+Refactor `src/app/[slug]/page.tsx` from a monolithic page into an ordered list of modules driven by `profiles.settings.bio_page` (module order + per-module visibility). Modules: `BookingCta` (wraps existing booking form / books-closed — primary conversion, unchanged behavior), `GuestSpots`, `Flash`, `Waitlist` (each wraps existing data — do not fake), `BookingPolicy` (NEW — editable text), `CustomLinks` (NEW), `Shop` (NEW — placeholder card only this slice, real products land in 73). Settings surface (`/settings/bio-page` or extend `/bookings/booking-form`) for show/hide + order + custom-link CRUD + booking-policy text.
+
+Custom links in `profiles.settings.bio_page.custom_links[]` (`label`, `url`, `icon?`, `sort_order`, `is_active`). URL safety: allow `http`/`https` (+ optional `mailto`); reject `javascript:`/`data:`/other schemes — reuse the `resolveCoverImage` validation shape already in `[slug]/page.tsx`.
+
+**Acceptance:** existing public page renders identically when no new modules are configured; custom links + booking policy render and are editable; shop placeholder shows; opinionated structure, no drag-drop page builder; existing booking flow untouched.
+
+**No DB change** (JSONB only).
+
+### Slice 73 — Goods data model + dashboard CRUD
+
+**Status:** ⏳ pending — depends on 72.
+
+Migration **0035** (`products`, `product_variants` + enums `product_category`, `product_status`, `product_fulfillment`). New "Goods" nav item in the General group; routes `/goods` (grid), `/goods/new`, `/goods/[id]` (edit + variants). Create / edit / hide / mark sold-out, image upload (reuse the `sharp` + logo/booking upload pipeline), shirt variants (S/M/L/XL with optional price override + optional stock), pickup note, `is_public_visible` + `is_checkout_addon` toggles, sort order. Public Shop cards replace the Slice 72 placeholder. Delete only if safe, otherwise archive/hide. Reuse the Flash designs-grid layout language.
+
+**Acceptance:** artist can create a product + variants, hide, mark sold-out; hidden products never render publicly; public Shop shows active visible products; no variant matrix / SKU / shipping / tax-category complexity. Column spec in `docs/bio-page-goods-plan.md` §4.
+
+### Slice 74 — Pre-checkout add-ons page
+
+**Status:** ⏳ pending — depends on 73.
+
+Enhance `src/app/request/[token]/customer-portal.tsx`: when `deposit_pending` and the artist has `is_checkout_addon` goods, show a goods selector + booking summary + required deposit + live total above the existing payment form. Server-side total recompute (never trust client amounts). On "Pay deposit and selected items," a server action upserts an `orders` row (`pending`) + `order_items` (deposit + product lines, snapshotted), updates the existing PaymentIntent amount to the combined subtotal and sets `metadata.order_id`, returns the client secret. Existing `DepositPaymentForm` / `PaymentElement` confirm unchanged.
+
+**Acceptance:** client can pay deposit only (no goods) exactly as today; client can pay deposit + goods; total is correct and server-computed; combined amount is reflected in the PaymentIntent before confirmation. Copy examples in the plan doc, em-dash-free.
+
+**No new DB this slice** (orders/order_items land in 75's migration, but the action in 74 writes to them — sequence the migration with 75 or fold 0036 into 74's start; the plan doc treats 0036 as the orders migration. Build order: apply 0036 before wiring 74's action).
+
+### Slice 75 — Order + webhook + inventory + fulfillment
+
+**Status:** ⏳ pending — depends on 74. **Highest risk — touches live money + the webhook.**
+
+Migration **0036** (`orders`, `order_items`, optional `inventory_movements` + enums). Extend `/api/stripe/webhook`: on `payment_intent.succeeded`, if `metadata.order_id` present → verify `intent.amount === order.subtotal*100`, mark order `paid`, decrement inventory per product line items, run the existing booking-approval path, send itemized emails. If no `order_id` → existing deposit-only path untouched. Idempotency via order-status guard + existing audit_log guard. Booking detail (`/bookings/requests/[id]`) shows attached goods (variants, qty, fulfillment) + "Mark goods as picked up" + cancelled/refunded state mirroring Stripe. Itemized confirmation emails (customer + artist) extend the existing Resend templates minimally.
+
+**Inventory rule:** decrement ONLY in the webhook after success. Never on page view or intent creation. Null quantity = unlimited. Overselling under concurrent checkout is accepted + documented for v1 (no reservation system).
+
+**Acceptance:** webhook creates/updates the order correctly; inventory decreases only after successful payment and never before; order-item snapshots captured; booking confirms with and without goods; sold-out/hidden/unknown product cannot be purchased; webhook idempotent; existing booking + public routes still work.
+
+### Slice 76 — Paywall readiness + analytics + QA hardening
+
+**Status:** ⏳ pending — depends on 75.
+
+`profiles.settings.features` flags (`bio_page_modules`, `goods_module`, `checkout_addons`) defaulting on; a single `canUseGoods(profile)` helper as the future gate point; a note in `business-model.md` mapping the future Free/Plus split. Optional Plausible events (`public_bio_page_view`, `shop_section_view`, `product_view`, `addon_selected`, `addon_removed`, `checkout_started`, `checkout_paid`, `goods_picked_up`). Full unit/utility test pass + the manual QA checklist in the plan doc §10.
+
+**Acceptance:** no subscription billing, no public pricing copy, no plan ladder; flags are non-breaking and reversible; tests + manual QA pass; `checkout_addons` confirmed OFF in production pending OT-12 (Stripe Connect).
+
+## Bio Page + Goods phase boundary
+
+**Sequencing rule:** 72 → 73 → 74 → 75 → 76. Slice 72 is independently shippable and lowest-risk. Production goods checkout (real money) is gated on OT-12 (Stripe Connect) regardless of slice completion. Re-confirm scope at each slice boundary; do not implement more than one slice without checking back.
