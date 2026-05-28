@@ -1,3 +1,13 @@
+# Block real Stripe secret/restricted keys (sk_/rk_) from being committed.
+# The {20,} key-body requirement means bare "sk_test_"/"pk_..." prefixes in code
+# or docs (e.g. the stripe-mode checks) don't false-positive — only actual keys.
+if git diff --cached -U0 | grep -E '^\+' | grep -E '(sk|rk)_(live|test)_[0-9a-zA-Z]{20,}' >/dev/null; then
+  echo "x Commit blocked: a Stripe secret/restricted key (sk_/rk_) is in staged changes."
+  echo "  Remove it and use an env var or a restricted key (rk_) instead."
+  git diff --cached -U0 | grep -nE '(sk|rk)_(live|test)_[0-9a-zA-Z]{20,}'
+  exit 1
+fi
+
 pnpm typecheck
 pnpm lint-staged
 # `next build` catches Next.js-specific runtime constraints that tsc + eslint

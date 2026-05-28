@@ -284,12 +284,19 @@ export async function requestDeposit(
   let clientSecret: string | null = null;
   if (stripe && amount > 0) {
     try {
-      const intent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100),
-        currency: "eur",
-        metadata: { booking_id: id, artist_id: user.id },
-        description: `Tattoo deposit - booking ${id}`,
-      });
+      const intent = await stripe.paymentIntents.create(
+        {
+          amount: Math.round(amount * 100),
+          currency: "eur",
+          // Omit payment_method_types; this keeps dynamic payment methods on
+          // explicitly + version-independently (Stripe best practice).
+          automatic_payment_methods: { enabled: true },
+          metadata: { booking_id: id, artist_id: user.id },
+          description: `Tattoo deposit - booking ${id}`,
+        },
+        // One intent per booking even under rapid re-submits / retries.
+        { idempotencyKey: `deposit-intent-${id}` },
+      );
       paymentIntentId = intent.id;
       clientSecret = intent.client_secret;
     } catch (stripeErr) {
