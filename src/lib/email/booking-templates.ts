@@ -107,17 +107,36 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   artist_new_booking_request: "New booking request from @{{customer_handle}}",
 };
 
-function renderBody(plainText: string): string {
-  return escapeHtml(plainText);
+// Render a plain-text body to HTML. Each standalone URL line becomes a tappable
+// rounded button (brand mustard) PLUS the raw link beneath it, so the link still
+// works in clients that strip styled buttons. Everything else is escaped text.
+function ctaButton(url: string, label: string): string {
+  return (
+    `<a href="${url}" style="display:inline-block;margin:10px 0 6px;background:#e9b22b;color:#1e1e1e;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:8px;">${label}</a>` +
+    `<br/><span style="font-size:12px;color:#9ca3af;">Or paste this link into your browser:</span>` +
+    `<br/><a href="${url}" style="font-size:12px;color:#6b7280;word-break:break-all;">${url}</a>`
+  );
+}
+
+function renderBody(plainText: string, ctaLabel: string): string {
+  return plainText
+    .split("\n")
+    .map((line) =>
+      /^https?:\/\/\S+$/.test(line.trim())
+        ? ctaButton(line.trim(), ctaLabel)
+        : escapeHtml(line),
+    )
+    .join("<br/>");
 }
 
 export function buildEmailHtml(
   body: string,
   vars: TemplateVars,
   customAnswers?: CustomAnswerSnapshot[],
+  opts?: { ctaLabel?: string },
 ): string {
   const substituted = substituteVars(body, vars);
-  let rendered = renderBody(substituted);
+  let rendered = renderBody(substituted, opts?.ctaLabel ?? "View details");
 
   if (customAnswers && customAnswers.length > 0) {
     const lines = customAnswers.map(
@@ -149,7 +168,7 @@ export function buildEmailHtml(
           </tr>
           <tr>
             <td style="padding:20px 40px;border-top:1px solid #f3f4f6;">
-              <p style="margin:0;font-size:12px;color:#9ca3af;">inklee · Booking requests without the DM chaos</p>
+              <p style="margin:0;font-size:12px;color:#9ca3af;">inklee · Tattoo bookings, clearly organized.</p>
             </td>
           </tr>
         </table>

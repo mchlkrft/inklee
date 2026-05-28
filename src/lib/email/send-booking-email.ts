@@ -207,7 +207,7 @@ Inklee`;
     await sendEmail({
       to,
       subject: `Pay your deposit to confirm with ${artistName}`,
-      html: build(body, {}),
+      html: build(body, {}, undefined, { ctaLabel: "Pay your deposit" }),
     });
   } catch (err) {
     console.error("[email] failed to send deposit requested email:", err);
