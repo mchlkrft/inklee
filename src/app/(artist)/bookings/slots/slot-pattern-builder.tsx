@@ -295,7 +295,7 @@ export default function SlotPatternBuilder({
               <button
                 type="button"
                 onClick={addDate}
-                className="shrink-0 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="shrink-0 rounded-full border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Add
               </button>
@@ -345,7 +345,7 @@ export default function SlotPatternBuilder({
       <button
         type="submit"
         disabled={saving || slotCount === 0}
-        className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+        className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {saving
           ? "Creating…"

@@ -352,7 +352,7 @@ export default function ProductFormFields({
             <button
               type="button"
               onClick={addRow}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/30"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/30"
             >
               <Plus className="h-4 w-4" aria-hidden />
               Add option

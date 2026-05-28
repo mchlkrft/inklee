@@ -148,7 +148,7 @@ export default async function FlashItemDetailPage({
               href={publicUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block w-full text-center rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+              className="block w-full text-center rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
             >
               View public page ↗
             </a>

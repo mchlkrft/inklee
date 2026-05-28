@@ -158,7 +158,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
               <button
                 type="button"
                 onClick={() => coverFileRef.current?.click()}
-                className="rounded-md bg-brand-bone px-3 py-1.5 text-xs font-medium text-brand-charcoal"
+                className="rounded-full bg-brand-bone px-3 py-1.5 text-xs font-medium text-brand-charcoal"
               >
                 {coverPreview && !removeCover ? "Replace" : "Upload"}
               </button>
@@ -170,7 +170,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
                     setCoverPreview(null);
                     if (coverFileRef.current) coverFileRef.current.value = "";
                   }}
-                  className="rounded-md bg-brand-charcoal/60 px-3 py-1.5 text-xs font-medium text-brand-bone"
+                  className="rounded-full bg-brand-charcoal/60 px-3 py-1.5 text-xs font-medium text-brand-bone"
                 >
                   Remove
                 </button>
@@ -338,7 +338,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-brand-mustard px-5 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+        className="rounded-full bg-brand-mustard px-5 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Save profile"}
       </button>

@@ -243,7 +243,7 @@ export default function FeatureIntroModal({
                 <Link
                   href={config.ctaHref}
                   onClick={dismiss}
-                  className="rounded-md bg-brand-mustard px-5 py-2 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90"
+                  className="rounded-full bg-brand-mustard px-5 py-2 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90"
                 >
                   {config.ctaLabel}
                 </Link>

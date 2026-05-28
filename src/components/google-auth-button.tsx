@@ -41,7 +41,7 @@ export default function GoogleAuthButton({
         type="button"
         onClick={handleGoogleSignIn}
         disabled={loading}
-        className="flex w-full items-center justify-center gap-2.5 rounded-md border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2.5 rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50"
       >
         {loading ? (
           <span className="text-muted-foreground">Redirecting...</span>

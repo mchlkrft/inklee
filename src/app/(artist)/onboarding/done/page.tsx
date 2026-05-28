@@ -165,7 +165,7 @@ export default async function OnboardingDonePage() {
 
       <Link
         href={isReadyToShare ? "/dashboard" : "/bookings/settings"}
-        className="block w-full rounded-md bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
+        className="block w-full rounded-full bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
       >
         {isReadyToShare ? "Go to dashboard" : "Set up availability"}
       </Link>
@@ -183,7 +183,7 @@ export default async function OnboardingDonePage() {
             <Link
               key={label}
               href={href}
-              className="flex items-center gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+              className="flex items-center gap-2.5 rounded-full border border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
             >
               <Icon className="h-3.5 w-3.5 shrink-0" />
               {label}

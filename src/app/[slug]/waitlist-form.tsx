@@ -125,7 +125,7 @@ export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-foreground transition-colors hover:border-foreground disabled:opacity-50"
+        className="w-full rounded-full border border-border px-4 py-2.5 text-sm text-foreground transition-colors hover:border-foreground disabled:opacity-50"
       >
         {pending ? "Joining..." : "Join the waitlist"}
       </button>

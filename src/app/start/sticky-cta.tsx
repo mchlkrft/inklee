@@ -22,7 +22,7 @@ export default function StickyCTA() {
     >
       <Link
         href="/signup"
-        className="block w-full rounded-md bg-brand-mustard py-3.5 text-center text-sm font-medium text-brand-charcoal"
+        className="block w-full rounded-full bg-brand-mustard py-3.5 text-center text-sm font-medium text-brand-charcoal"
       >
         Create your booking link
       </Link>

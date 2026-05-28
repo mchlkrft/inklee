@@ -174,7 +174,7 @@ export default function TwoFactorSection({
         <button
           disabled={!codesConfirmed}
           onClick={() => setStep("idle")}
-          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           Done. 2FA is active
         </button>
@@ -222,7 +222,7 @@ export default function TwoFactorSection({
           <button
             disabled={pending || totpCode.length < 6}
             onClick={verifyEnroll}
-            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+            className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
             {pending ? (
               <Spinner className="w-4 h-4 mx-auto" />
@@ -232,7 +232,7 @@ export default function TwoFactorSection({
           </button>
           <button
             onClick={() => setStep("idle")}
-            className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
@@ -263,13 +263,13 @@ export default function TwoFactorSection({
           <button
             disabled={pending || totpCode.length < 6}
             onClick={confirmDisable}
-            className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-full bg-destructive px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Disable 2FA"}
           </button>
           <button
             onClick={() => setStep("idle")}
-            className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
@@ -312,7 +312,7 @@ export default function TwoFactorSection({
         <button
           disabled={pending}
           onClick={startEnroll}
-          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Enable 2FA"}
         </button>

@@ -426,7 +426,7 @@ async function WaitlistView({
               href={waitlistPublicUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+              className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
             >
               Preview
             </a>

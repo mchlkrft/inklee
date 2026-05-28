@@ -92,14 +92,14 @@ export default function StatusActions({ booking }: { booking: Booking }) {
         <div className="flex flex-col gap-2">
           <button
             onClick={() => run(markDepositReceived, "approved")}
-            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
+            className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
           >
             Mark deposit received
           </button>
           {!confirmReject ? (
             <button
               onClick={() => setConfirmReject(true)}
-              className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+              className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
             >
               Reject
             </button>
@@ -112,13 +112,13 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                     run(rejectBooking, "rejected");
                     setConfirmReject(false);
                   }}
-                  className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
+                  className="rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                 >
                   Yes, reject
                 </button>
                 <button
                   onClick={() => setConfirmReject(false)}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Cancel
                 </button>
@@ -132,7 +132,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
         <div className="flex flex-col gap-2">
           <button
             onClick={() => run(approveBooking, "approved")}
-            className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
+            className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
           >
             Approve
           </button>
@@ -140,7 +140,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
           {!showDepositForm ? (
             <button
               onClick={() => setShowDepositForm(true)}
-              className="rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
+              className="rounded-full border border-border px-4 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
             >
               Request deposit
             </button>
@@ -198,7 +198,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
               <div className="flex gap-2">
                 <button
                   onClick={handleRequestDeposit}
-                  className="flex-1 rounded-md bg-brand-mustard px-3 py-1.5 text-xs font-medium text-brand-charcoal"
+                  className="flex-1 rounded-full bg-brand-mustard px-3 py-1.5 text-xs font-medium text-brand-charcoal"
                 >
                   Send deposit request
                 </button>
@@ -207,7 +207,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                     setShowDepositForm(false);
                     setError(null);
                   }}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Cancel
                 </button>
@@ -218,7 +218,7 @@ export default function StatusActions({ booking }: { booking: Booking }) {
           {!confirmReject ? (
             <button
               onClick={() => setConfirmReject(true)}
-              className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+              className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
             >
               Reject
             </button>
@@ -231,13 +231,13 @@ export default function StatusActions({ booking }: { booking: Booking }) {
                     run(rejectBooking, "rejected");
                     setConfirmReject(false);
                   }}
-                  className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
+                  className="rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                 >
                   Yes, reject
                 </button>
                 <button
                   onClick={() => setConfirmReject(false)}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Cancel
                 </button>

@@ -89,7 +89,7 @@ function ApproveVisual() {
           </div>
         </div>
         <div className="flex gap-2">
-          <div className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg bg-brand-mustard text-[10px] font-semibold text-brand-charcoal">
+          <div className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full bg-brand-mustard text-[10px] font-semibold text-brand-charcoal">
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
             Accept
           </div>
@@ -330,7 +330,7 @@ export default function WelcomeSlides() {
         <div className="space-y-3">
           <Link
             href={CLAIM_HREF}
-            className="block w-full rounded-md bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
+            className="block w-full rounded-full bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
           >
             Start setup →
           </Link>
@@ -358,7 +358,7 @@ export default function WelcomeSlides() {
           <button
             type="button"
             onClick={goNext}
-            className="rounded-md border border-border px-5 py-2.5 text-sm font-medium text-foreground"
+            className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-foreground"
           >
             Next →
           </button>

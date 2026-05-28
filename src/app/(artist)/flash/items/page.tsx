@@ -196,7 +196,7 @@ function FlashEmptyState({
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/flash/instagram"
-            className="inline-flex items-center gap-2 rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
+            className="inline-flex items-center gap-2 rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
           >
             Pick from Instagram
           </Link>
@@ -228,7 +228,7 @@ function FlashEmptyState({
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/flash/instagram"
-            className="inline-flex items-center gap-2 rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
+            className="inline-flex items-center gap-2 rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
           >
             Open Instagram settings
           </Link>
@@ -260,7 +260,7 @@ function FlashEmptyState({
         {configured ? (
           <Link
             href="/flash/instagram"
-            className="inline-flex items-center gap-2 rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
+            className="inline-flex items-center gap-2 rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
           >
             Connect Instagram
           </Link>

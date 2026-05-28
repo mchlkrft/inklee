@@ -41,7 +41,7 @@ export default function FlashItemActions({ item }: { item: Item }) {
       <button
         type="button"
         onClick={handleToggle}
-        className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+        className="w-full rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
       >
         {bookable ? "Pause bookings" : "Resume bookings"}
       </button>
@@ -49,7 +49,7 @@ export default function FlashItemActions({ item }: { item: Item }) {
         type="button"
         onClick={handleArchive}
         disabled={archiving}
-        className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-destructive hover:border-destructive transition-colors disabled:opacity-50"
+        className="w-full rounded-full border border-border px-4 py-2.5 text-sm text-destructive hover:border-destructive transition-colors disabled:opacity-50"
       >
         {archiving ? "Archiving…" : "Archive item"}
       </button>

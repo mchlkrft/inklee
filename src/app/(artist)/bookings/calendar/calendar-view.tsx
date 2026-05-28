@@ -167,7 +167,7 @@ export default function CalendarView({
               setNewDate(null);
               setShowNew(true);
             }}
-            className="rounded-md bg-brand-mustard px-3 py-1.5 text-sm font-medium text-brand-charcoal"
+            className="rounded-full bg-brand-mustard px-3 py-1.5 text-sm font-medium text-brand-charcoal"
           >
             + New appointment
           </button>

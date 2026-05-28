@@ -40,14 +40,14 @@ export default function SlotsPromptModal({
           <div className="flex flex-col gap-2">
             <Link
               href="/bookings/slots"
-              className="w-full rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal text-center transition-opacity hover:opacity-80"
+              className="w-full rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal text-center transition-opacity hover:opacity-80"
               onClick={onSkip}
             >
               Create slots now →
             </Link>
             <button
               onClick={onSkip}
-              className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors text-center"
+              className="w-full rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors text-center"
             >
               I&apos;ll do it later
             </button>

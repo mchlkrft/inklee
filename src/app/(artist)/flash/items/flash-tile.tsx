@@ -189,7 +189,7 @@ type ActionButtonProps = {
 
 function ActionButton(props: ActionButtonProps) {
   const baseClasses =
-    "inline-flex w-32 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60";
+    "inline-flex w-32 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60";
 
   const variantClasses: Record<Variant, string> = {
     primary: "bg-brand-mustard text-brand-charcoal hover:opacity-90",

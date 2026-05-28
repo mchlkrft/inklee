@@ -208,7 +208,7 @@ export default function FlashDayForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? (
             <Spinner className="mx-auto h-4 w-4" />
@@ -220,7 +220,7 @@ export default function FlashDayForm({
         </button>
         <Link
           href="/flash/days"
-          className="rounded-md border border-border px-5 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="rounded-full border border-border px-5 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </Link>

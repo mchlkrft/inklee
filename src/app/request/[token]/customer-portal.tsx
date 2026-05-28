@@ -216,7 +216,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           <button
             type="submit"
             disabled={editPending}
-            className="w-full rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+            className="w-full rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
             {editPending ? "Saving..." : "Save changes"}
           </button>
@@ -339,7 +339,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           {isPending && booking.canEdit && (
             <button
               onClick={() => setMode("edit")}
-              className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted/30"
+              className="w-full rounded-full border border-border px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted/30"
             >
               Edit request
             </button>
@@ -354,7 +354,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           {!confirmCancel ? (
             <button
               onClick={() => setConfirmCancel(true)}
-              className="w-full rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+              className="w-full rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
             >
               Cancel request
             </button>
@@ -369,7 +369,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                 <button
                   type="submit"
                   disabled={cancelPending}
-                  className="rounded-md bg-destructive px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                  className="rounded-full bg-destructive px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {cancelPending ? "Cancelling..." : "Yes, cancel"}
                 </button>

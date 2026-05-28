@@ -227,7 +227,7 @@ function QuickAddStudio({
             type="button"
             onClick={handleSave}
             disabled={pending}
-            className="rounded-md bg-brand-mustard px-3 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+            className="rounded-full bg-brand-mustard px-3 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
             {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Save studio"}
           </button>
@@ -517,7 +517,7 @@ function CreateTripModal({
                   type="button"
                   onClick={confirmStop}
                   disabled={!stopFrom || !stopTo}
-                  className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
+                  className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
                 >
                   Add stop
                 </button>
@@ -582,7 +582,7 @@ function CreateTripModal({
           <button
             type="submit"
             disabled={pending}
-            className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+            className="rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
             {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Create trip"}
           </button>
@@ -698,7 +698,7 @@ function AddLegForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Add stop"}
         </button>
@@ -912,7 +912,7 @@ function EditTripModal({
           type="submit"
           form="edit-trip-form"
           disabled={editPending || deleting}
-          className="rounded-md bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {editPending ? (
             <Spinner className="mx-auto h-4 w-4" />

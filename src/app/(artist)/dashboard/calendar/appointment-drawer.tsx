@@ -123,7 +123,7 @@ export default function AppointmentDrawer({
             <div className="flex flex-col gap-2 pt-2">
               <button
                 onClick={() => setEditing(true)}
-                className="rounded-md border border-border px-4 py-2.5 text-sm text-foreground hover:bg-muted/30 transition-colors"
+                className="rounded-full border border-border px-4 py-2.5 text-sm text-foreground hover:bg-muted/30 transition-colors"
               >
                 Edit
               </button>
@@ -131,7 +131,7 @@ export default function AppointmentDrawer({
               {!confirmCancel ? (
                 <button
                   onClick={() => setConfirmCancel(true)}
-                  className="rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+                  className="rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
                 >
                   Cancel appointment
                 </button>
@@ -148,7 +148,7 @@ export default function AppointmentDrawer({
                   <div className="flex gap-2">
                     <button
                       onClick={handleCancel}
-                      className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white"
+                      className="rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-white"
                     >
                       Yes, cancel
                     </button>
@@ -223,7 +223,7 @@ export default function AppointmentDrawer({
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+                className="flex-1 rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save"}
               </button>

@@ -97,7 +97,7 @@ export default function GeneralForm({
         <button
           type="submit"
           disabled={namePending}
-          className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {namePending ? "Saving…" : "Save"}
         </button>
@@ -157,14 +157,14 @@ export default function GeneralForm({
               <button
                 type="submit"
                 disabled={emailPending}
-                className="rounded-md bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+                className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
               >
                 {emailPending ? "Sending…" : "Send confirmation"}
               </button>
               <button
                 type="button"
                 onClick={() => setShowEmailForm(false)}
-                className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Cancel
               </button>

@@ -207,7 +207,7 @@ export default function AccountActions({
             <button
               onClick={() => startConfirm("archive")}
               disabled={pending}
-              className="rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+              className="rounded-full border border-destructive/40 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
             >
               Archive account
             </button>
@@ -234,7 +234,7 @@ export default function AccountActions({
             <button
               onClick={() => startConfirm("delete")}
               disabled={pending}
-              className="rounded-md bg-destructive/90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-destructive disabled:opacity-50"
+              className="rounded-full bg-destructive/90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-destructive disabled:opacity-50"
             >
               Delete permanently
             </button>
@@ -319,7 +319,7 @@ function ActionRow({
       <button
         onClick={onTrigger}
         disabled={disabled}
-        className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
           variant === "warning"
             ? "border border-orange-400/40 text-orange-500 hover:bg-orange-400/10"
             : "border border-border text-muted-foreground hover:text-foreground hover:border-foreground"
@@ -404,7 +404,7 @@ function ConfirmPanel({
             (needsReason && action === "archive" && !reason.trim()) ||
             (isDelete && !deleteConfirmed)
           }
-          className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+          className={`rounded-full px-4 py-2 text-sm font-medium disabled:opacity-50 ${
             isDanger
               ? "bg-destructive text-white"
               : "bg-foreground text-background"
@@ -415,7 +415,7 @@ function ConfirmPanel({
         <button
           onClick={onCancel}
           disabled={pending}
-          className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </button>

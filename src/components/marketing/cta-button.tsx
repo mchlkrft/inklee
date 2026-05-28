@@ -3,9 +3,9 @@ import type { CtaLink } from "@/lib/marketing";
 
 const VARIANT_CLASSES: Record<NonNullable<CtaLink["variant"]>, string> = {
   primary:
-    "rounded-md bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90",
+    "rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90",
   secondary:
-    "rounded-md border border-foreground/20 px-6 py-3 text-base font-bold text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground",
+    "rounded-full border border-foreground/20 px-6 py-3 text-base font-bold text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground",
 };
 
 export default function CtaButton({ cta }: { cta: CtaLink }) {

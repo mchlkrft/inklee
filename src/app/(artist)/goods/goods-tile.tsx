@@ -98,7 +98,7 @@ export default function GoodsTile({ item }: { item: GoodsTileItem }) {
           onClick={toggleSoldOut}
           disabled={pending}
           aria-label={soldOut ? "Mark available" : "Mark sold out"}
-          className="inline-flex w-32 items-center justify-center gap-1.5 rounded-md border border-white/60 bg-black/45 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-black/65 disabled:opacity-60"
+          className="inline-flex w-32 items-center justify-center gap-1.5 rounded-full border border-white/60 bg-black/45 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-black/65 disabled:opacity-60"
         >
           {soldOut ? (
             <>
@@ -113,7 +113,7 @@ export default function GoodsTile({ item }: { item: GoodsTileItem }) {
         <Link
           href={`/goods/${item.id}`}
           onClickCapture={(e) => e.stopPropagation()}
-          className="inline-flex w-32 items-center justify-center gap-1.5 rounded-md bg-brand-mustard px-3 py-1.5 text-xs font-semibold text-brand-charcoal transition-colors hover:opacity-90"
+          className="inline-flex w-32 items-center justify-center gap-1.5 rounded-full bg-brand-mustard px-3 py-1.5 text-xs font-semibold text-brand-charcoal transition-colors hover:opacity-90"
         >
           <Pencil className="h-3.5 w-3.5" strokeWidth={2.5} /> Edit
         </Link>
