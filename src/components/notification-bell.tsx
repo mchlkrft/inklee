@@ -175,7 +175,7 @@ export default function NotificationBell({
       >
         <BellIcon />
         {hasUnread && (
-          <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-red px-1 text-[9px] font-bold leading-none text-brand-bone">
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-rosa px-1 text-[9px] font-bold leading-none text-brand-charcoal ring-2 ring-[color:var(--color-workspace-bg)]">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
