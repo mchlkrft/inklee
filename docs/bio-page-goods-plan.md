@@ -151,3 +151,13 @@ Manual QA checklist:
 - Existing public `/[slug]` route and the deposit-only payment path keep working unchanged for artists with no goods.
 - Honeypot (`inklee_hp_check`), RLS service-role write pattern, and the webhook idempotency guards stay intact.
 - No em-dashes in public-facing copy; sentence case; tattoo-native wording.
+
+## 13. Open tasks (deferred polish)
+
+### Form optimization (open — founder, 2026-05-28)
+
+The public booking page layout needs a refinement pass. Deferred deliberately; functional now, not yet polished:
+
+- **Shop teaser placement** — moving the shop from the end-of-page slot to a clickable note above the booking form is better, but the exact position/styling still needs work.
+- **Studio information placement** — `StudioBlock` + the active-leg block currently render above the booking heading and read a bit off; reposition within the form.
+- **Goods item presentation** — the product cards inside the full-screen shop overlay (now a 40% charcoal scrim) need a proper design pass (card styling, layout, contrast on the charcoal).

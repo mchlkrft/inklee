@@ -66,22 +66,22 @@ export default function ShopTeaser({
           role="dialog"
           aria-modal="true"
           aria-label="Shop"
-          className="fixed inset-0 z-50 overflow-y-auto bg-background"
+          className="fixed inset-0 z-50 overflow-y-auto bg-brand-charcoal/40 backdrop-blur-sm"
         >
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-6 py-4 backdrop-blur">
-            <h2 className="text-base font-semibold text-foreground">Shop</h2>
+          <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4">
+            <h2 className="text-base font-semibold text-brand-bone">Shop</h2>
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-brand-bone/80 transition-colors hover:bg-brand-bone/10 hover:text-brand-bone"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           <div className="mx-auto w-full max-w-lg px-6 py-6">
-            <p className="mb-4 text-sm text-muted-foreground">
+            <p className="mb-4 text-sm text-brand-bone/80">
               Available for pickup at your appointment. Add them when you
               confirm your booking.
             </p>
