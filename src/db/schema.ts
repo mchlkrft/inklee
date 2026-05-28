@@ -415,3 +415,72 @@ export const adminActionLog = pgTable("admin_action_log", {
     .notNull()
     .defaultNow(),
 });
+
+// Goods module (Slice 73) — artist products + simple variants.
+
+export const productCategoryEnum = pgEnum("product_category", [
+  "print",
+  "shirt",
+  "sticker",
+  "zine",
+  "flash_sheet",
+  "original",
+  "patch",
+  "other",
+]);
+
+export const productStatusEnum = pgEnum("product_status", [
+  "active",
+  "hidden",
+  "sold_out",
+]);
+
+export const productFulfillmentEnum = pgEnum("product_fulfillment", [
+  "appointment_pickup",
+]);
+
+export const products = pgTable("products", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: productCategoryEnum("category").notNull().default("other"),
+  imageUrl: text("image_url"),
+  priceAmount: numeric("price_amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("eur"),
+  status: productStatusEnum("status").notNull().default("active"),
+  fulfillmentType: productFulfillmentEnum("fulfillment_type")
+    .notNull()
+    .default("appointment_pickup"),
+  pickupNote: text("pickup_note"),
+  isPublicVisible: boolean("is_public_visible").notNull().default(true),
+  isCheckoutAddon: boolean("is_checkout_addon").notNull().default(true),
+  quantity: integer("quantity"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const productVariants = pgTable("product_variants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  priceAmountOverride: numeric("price_amount_override", {
+    precision: 10,
+    scale: 2,
+  }),
+  stockQuantity: integer("stock_quantity"),
+  status: productStatusEnum("status").notNull().default("active"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

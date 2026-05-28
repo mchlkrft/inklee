@@ -22,7 +22,16 @@ import {
 } from "@/lib/date-utils";
 import { clampDescription } from "@/lib/seo";
 import { publicArtistUrl } from "@/lib/public-url";
-import { parseBioPageSettings, visibleModules } from "@/lib/bio-page-settings";
+import {
+  parseBioPageSettings,
+  visibleModules,
+  isModuleVisible,
+} from "@/lib/bio-page-settings";
+import {
+  isProductCategory,
+  toPriceNumber,
+  type PublicProduct,
+} from "@/lib/goods";
 
 export type SlotOption = {
   id: string;
@@ -157,6 +166,46 @@ export default async function ArtistPublicPage({
   // section. Defaults to nothing configured, so existing pages are unchanged.
   const bioPage = parseBioPageSettings(profileSettings.bio_page);
   const activeLinks = bioPage.customLinks.filter((l) => l.isActive);
+
+  // Public shop products (Slice 73). Only queried when the shop module is
+  // visible. Sold-out products still show (greyed). The public card is
+  // informational — no standalone checkout (that arrives with add-ons, Slice 74).
+  let shopProducts: PublicProduct[] = [];
+  if (isModuleVisible(bioPage, "shop")) {
+    const { data: rawProducts } = await serviceClient
+      .from("products")
+      .select(
+        "id, title, category, image_url, price_amount, currency, status, pickup_note",
+      )
+      .eq("artist_id", profile.id)
+      .eq("is_public_visible", true)
+      .in("status", ["active", "sold_out"])
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    type RawProduct = {
+      id: string;
+      title: string;
+      category: string;
+      image_url: string | null;
+      price_amount: string | number;
+      currency: string | null;
+      status: string;
+      pickup_note: string | null;
+    };
+
+    const rows = (rawProducts ?? []) as unknown as RawProduct[];
+    shopProducts = rows.map((p) => ({
+      id: p.id,
+      title: p.title,
+      category: isProductCategory(p.category) ? p.category : "other",
+      imageUrl: p.image_url,
+      price: toPriceNumber(p.price_amount),
+      currency: typeof p.currency === "string" ? p.currency : "eur",
+      soldOut: p.status === "sold_out",
+      pickupNote: p.pickup_note,
+    }));
+  }
 
   const { data: rawCustomFields } = await serviceClient
     .from("custom_fields")
@@ -507,7 +556,7 @@ export default async function ArtistPublicPage({
               ) : null;
             }
             if (key === "shop") {
-              return <ShopBlock key="shop" products={[]} />;
+              return <ShopBlock key="shop" products={shopProducts} />;
             }
             return null;
           })}
