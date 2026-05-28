@@ -3,6 +3,7 @@
 import { localDateKey } from "@/lib/date-utils";
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import Link from "next/link";
 import AppointmentDrawer, { type CalendarEvent } from "./appointment-drawer";
 import NewAppointmentModal from "./new-appointment-modal";
 
@@ -48,7 +49,43 @@ function toDateKey(d: Date) {
 
 const TODAY = localDateKey();
 
-export default function CalendarView({ events }: { events: CalendarEvent[] }) {
+export type CalendarTripLeg = {
+  id: string;
+  startsOn: string;
+  endsOn: string;
+  label: string;
+};
+export type CalendarFlashDay = { id: string; date: string; title: string };
+
+type CellMarker =
+  | { k: "trip"; id: string; label: string }
+  | { k: "booking"; ev: CalendarEvent }
+  | { k: "flash"; id: string; title: string };
+
+// Inclusive list of YYYY-MM-DD keys between two dates (capped for safety).
+function eachDayKey(startKey: string, endKey: string): string[] {
+  const [sy, sm, sd] = startKey.split("-").map(Number);
+  const [ey, em, ed] = endKey.split("-").map(Number);
+  const cur = new Date(sy, sm - 1, sd);
+  const end = new Date(ey, em - 1, ed);
+  const out: string[] = [];
+  let guard = 0;
+  while (cur <= end && guard++ < 400) {
+    out.push(localDateKey(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+export default function CalendarView({
+  events,
+  tripLegs = [],
+  flashDays = [],
+}: {
+  events: CalendarEvent[];
+  tripLegs?: CalendarTripLeg[];
+  flashDays?: CalendarFlashDay[];
+}) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -68,6 +105,25 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
     },
     {},
   );
+
+  const flashByDate = flashDays.reduce<Record<string, CalendarFlashDay[]>>(
+    (acc, f) => {
+      (acc[f.date] ??= []).push(f);
+      return acc;
+    },
+    {},
+  );
+
+  // Trip legs become a faint background band across their days; the leg's start
+  // day also gets a label chip. This keeps multi-day spans from cluttering the
+  // chip stack.
+  const tripDays = new Set<string>();
+  const tripStartByKey = new Map<string, CalendarTripLeg>();
+  for (const leg of tripLegs) {
+    if (!leg.startsOn || !leg.endsOn) continue;
+    for (const k of eachDayKey(leg.startsOn, leg.endsOn)) tripDays.add(k);
+    tripStartByKey.set(leg.startsOn, leg);
+  }
 
   const grid = buildMonthGrid(year, month);
 
@@ -138,6 +194,28 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
               const isCurrentMonth = date.getMonth() === month;
               const isToday = key === TODAY;
               const dayEvents = byDate[key] ?? [];
+              const dayFlash = flashByDate[key] ?? [];
+              const tripStart = tripStartByKey.get(key) ?? null;
+              const isTripDay = tripDays.has(key);
+              const markers: CellMarker[] = [
+                ...(tripStart
+                  ? [
+                      {
+                        k: "trip" as const,
+                        id: tripStart.id,
+                        label: tripStart.label,
+                      },
+                    ]
+                  : []),
+                ...dayEvents.map((ev) => ({ k: "booking" as const, ev })),
+                ...dayFlash.map((f) => ({
+                  k: "flash" as const,
+                  id: f.id,
+                  title: f.title,
+                })),
+              ];
+              const shownMarkers = markers.slice(0, 3);
+              const extraMarkers = markers.length - shownMarkers.length;
 
               // Border logic: only EMIT `border-r`/`border-b` for cells that
               // need them. Setting `border-r-0`/`border-b-0` on the last
@@ -152,7 +230,11 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
                 <div
                   key={i}
                   className={`group relative min-h-[96px] p-1.5 border-border ${
-                    !isCurrentMonth ? "bg-brand-mustard/[0.04]" : ""
+                    isTripDay
+                      ? "bg-brand-cobalt/[0.08]"
+                      : !isCurrentMonth
+                        ? "bg-brand-mustard/[0.04]"
+                        : ""
                   } ${i % 7 !== 6 ? "border-r" : ""} ${i < 35 ? "border-b" : ""}`}
                 >
                   {/* Background click target — clicking anywhere on the cell
@@ -190,22 +272,48 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
                   </span>
 
                   <div className="relative z-10 space-y-0.5">
-                    {dayEvents.slice(0, 3).map((ev) => (
-                      <button
-                        key={ev.id}
-                        onClick={() => setSelected(ev)}
-                        className={`w-full text-left truncate rounded-md px-1.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${
-                          ev.origin === "artist_created"
-                            ? "bg-[color:var(--color-tint-mustard)] text-brand-charcoal"
-                            : "bg-[color:var(--color-tint-rosa)] text-brand-charcoal"
-                        }`}
-                      >
-                        @{ev.handle}
-                      </button>
-                    ))}
-                    {dayEvents.length > 3 && (
+                    {shownMarkers.map((m) => {
+                      if (m.k === "booking") {
+                        return (
+                          <button
+                            key={`b-${m.ev.id}`}
+                            onClick={() => setSelected(m.ev)}
+                            className={`w-full truncate rounded-md px-1.5 py-0.5 text-left text-xs font-medium transition-opacity hover:opacity-80 ${
+                              m.ev.origin === "artist_created"
+                                ? "bg-[color:var(--color-tint-mustard)] text-brand-charcoal"
+                                : "bg-[color:var(--color-tint-rosa)] text-brand-charcoal"
+                            }`}
+                          >
+                            @{m.ev.handle}
+                          </button>
+                        );
+                      }
+                      if (m.k === "flash") {
+                        return (
+                          <Link
+                            key={`f-${m.id}`}
+                            href={`/flash/days/${m.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="block truncate rounded-md bg-[color:var(--color-tint-green)] px-1.5 py-0.5 text-xs font-medium text-brand-charcoal transition-opacity hover:opacity-80"
+                          >
+                            {m.title}
+                          </Link>
+                        );
+                      }
+                      return (
+                        <Link
+                          key={`t-${m.id}`}
+                          href="/travel"
+                          onClick={(e) => e.stopPropagation()}
+                          className="block truncate rounded-md bg-[color:var(--color-tint-cobalt)] px-1.5 py-0.5 text-xs font-medium text-brand-charcoal transition-opacity hover:opacity-80"
+                        >
+                          {m.label}
+                        </Link>
+                      );
+                    })}
+                    {extraMarkers > 0 && (
                       <p className="text-xs text-muted-foreground px-1">
-                        +{dayEvents.length - 3} more
+                        +{extraMarkers} more
                       </p>
                     )}
                   </div>
@@ -216,7 +324,7 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
         </div>
 
         {/* Legend */}
-        <div className="flex gap-4 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-rosa)]" />
             Booking request
@@ -224,6 +332,14 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-mustard)]" />
             Added by you
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-cobalt)]" />
+            Guest spot
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-green)]" />
+            Flash day
           </span>
         </div>
       </div>
