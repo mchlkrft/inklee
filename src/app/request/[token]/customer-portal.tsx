@@ -12,10 +12,13 @@ import { formatDate } from "@/lib/format";
 import StatusBadge from "@/components/status-badge";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import type { AddonProductView } from "./addons-checkout";
 
 const DepositPaymentForm = lazy(
   () => import("@/components/deposit-payment-form"),
 );
+
+const AddonsCheckout = lazy(() => import("./addons-checkout"));
 
 type Booking = {
   id: string;
@@ -37,6 +40,7 @@ type Booking = {
   depositNote: string | null;
   depositClientSecret: string | null;
   stripePublishableKey: string | null;
+  addonProducts: AddonProductView[];
 };
 
 const tomorrow = () => {
@@ -278,11 +282,22 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                 </p>
               }
             >
-              <DepositPaymentForm
-                publishableKey={booking.stripePublishableKey}
-                clientSecret={booking.depositClientSecret}
-                amountEur={booking.depositAmount}
-              />
+              {booking.addonProducts.length > 0 ? (
+                <AddonsCheckout
+                  token={booking.token}
+                  depositAmount={booking.depositAmount}
+                  currency="eur"
+                  clientSecret={booking.depositClientSecret}
+                  publishableKey={booking.stripePublishableKey}
+                  products={booking.addonProducts}
+                />
+              ) : (
+                <DepositPaymentForm
+                  publishableKey={booking.stripePublishableKey}
+                  clientSecret={booking.depositClientSecret}
+                  amountEur={booking.depositAmount}
+                />
+              )}
             </Suspense>
           ) : (
             <div className="space-y-2 rounded-md border border-border p-4">

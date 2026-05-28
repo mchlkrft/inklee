@@ -13,6 +13,13 @@ import { checkPortalRateLimit } from "@/lib/ratelimit";
 import { canTransition } from "@/lib/booking-fsm";
 import { portalEditSupport } from "@/lib/booking-domain";
 import { isDateKeyOnOrBefore, todayInTimeZone } from "@/lib/date-utils";
+import { stripe } from "@/lib/stripe";
+import { getAddonProducts } from "@/lib/addon-products";
+import {
+  computeAddonLines,
+  DEPOSIT_LINE_TITLE,
+  type AddonSelection,
+} from "@/lib/orders";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -243,4 +250,162 @@ export async function cancelCustomerBookingAction(
   redirect(
     `/request/submitted?id=${booking.id}&cancelled=1&email=${booking.customer_email ? "1" : "0"}`,
   );
+}
+
+// Slice 74 — pre-checkout add-ons. Called from the portal right before the
+// customer confirms payment. Recomputes the authoritative total server-side,
+// (re)creates the pending order + items, and syncs the existing deposit
+// PaymentIntent's amount + metadata so confirmPayment charges exactly the
+// current selection. Passing an empty selection resets it to deposit-only.
+type PrepareResult = { ok: true; totalEur: number } | { error: string };
+
+export async function prepareCheckoutAction(
+  token: string,
+  selectionsJson: string,
+): Promise<PrepareResult> {
+  if (!token) return { error: "Invalid link." };
+  const tokenHash = hashToken(token);
+  const { allowed } = await checkPortalRateLimit(tokenHash);
+  if (!allowed) return { error: "Too many requests. Please try again later." };
+
+  const { data: booking } = await serviceClient
+    .from("booking_requests")
+    .select(
+      "id, status, created_at, deposit_amount, deposit_payment_intent_id, artist_id, customer_email",
+    )
+    .eq("customer_token_hash", tokenHash)
+    .single();
+
+  if (!booking) return { error: "This link is no longer valid." };
+  if (isExpired(booking.created_at)) return { error: "This link has expired." };
+  if (booking.status !== "deposit_pending") {
+    return { error: "This booking is not awaiting a deposit." };
+  }
+
+  const depositAmount = booking.deposit_amount
+    ? Number(booking.deposit_amount)
+    : null;
+  if (!depositAmount || depositAmount <= 0) {
+    return { error: "No deposit is set for this booking." };
+  }
+  if (!stripe || !booking.deposit_payment_intent_id) {
+    return { error: "Payment isn’t available for this booking yet." };
+  }
+  const intentId = booking.deposit_payment_intent_id;
+  const baseMeta = { booking_id: booking.id, artist_id: booking.artist_id };
+
+  let selections: AddonSelection[] = [];
+  try {
+    const arr = JSON.parse(selectionsJson);
+    if (Array.isArray(arr)) {
+      selections = arr
+        .filter(
+          (s): s is Record<string, unknown> => !!s && typeof s === "object",
+        )
+        .map((s) => ({
+          productId: String(s.productId ?? ""),
+          variantId: s.variantId ? String(s.variantId) : null,
+          quantity: Number(s.quantity ?? 0),
+        }))
+        .filter((s) => s.productId && s.quantity > 0);
+    }
+  } catch {
+    return { error: "Could not read your selection. Try again." };
+  }
+
+  // No goods selected → reset the intent to the deposit-only amount and drop the
+  // order, so the deposit-only webhook path runs.
+  if (selections.length === 0) {
+    await serviceClient
+      .from("orders")
+      .delete()
+      .eq("booking_id", booking.id)
+      .eq("status", "pending");
+    try {
+      await stripe.paymentIntents.update(intentId, {
+        amount: Math.round(depositAmount * 100),
+        metadata: { ...baseMeta, order_id: "" },
+      });
+    } catch {
+      return { error: "Could not prepare the payment. Try again." };
+    }
+    return { ok: true, totalEur: depositAmount };
+  }
+
+  const products = await getAddonProducts(booking.artist_id);
+  const computed = computeAddonLines(products, selections);
+  if (!computed.ok) return { error: computed.error };
+
+  const subtotal =
+    Math.round((depositAmount + computed.goodsAmount) * 100) / 100;
+
+  // Replace any prior pending order for this booking (idempotent re-prepare).
+  await serviceClient
+    .from("orders")
+    .delete()
+    .eq("booking_id", booking.id)
+    .eq("status", "pending");
+
+  const { data: order, error: orderErr } = await serviceClient
+    .from("orders")
+    .insert({
+      artist_id: booking.artist_id,
+      booking_id: booking.id,
+      client_email: booking.customer_email,
+      stripe_payment_intent_id: intentId,
+      status: "pending",
+      deposit_amount: depositAmount,
+      goods_amount: computed.goodsAmount,
+      subtotal_amount: subtotal,
+      currency: "eur",
+    })
+    .select("id")
+    .single();
+  if (orderErr || !order)
+    return { error: "Could not create the order. Try again." };
+  const orderId = order.id as string;
+
+  const itemRows = [
+    {
+      order_id: orderId,
+      type: "deposit",
+      title_snapshot: DEPOSIT_LINE_TITLE,
+      variant_snapshot: null,
+      quantity: 1,
+      unit_amount: depositAmount,
+      total_amount: depositAmount,
+      currency: "eur",
+    },
+    ...computed.lines.map((l) => ({
+      order_id: orderId,
+      type: "product",
+      product_id: l.productId,
+      variant_id: l.variantId,
+      title_snapshot: l.titleSnapshot,
+      variant_snapshot: l.variantSnapshot,
+      quantity: l.quantity,
+      unit_amount: l.unitAmount,
+      total_amount: l.totalAmount,
+      currency: "eur",
+    })),
+  ];
+  const { error: itemsErr } = await serviceClient
+    .from("order_items")
+    .insert(itemRows);
+  if (itemsErr) {
+    await serviceClient.from("orders").delete().eq("id", orderId);
+    return { error: "Could not save the items. Try again." };
+  }
+
+  try {
+    await stripe.paymentIntents.update(intentId, {
+      amount: Math.round(subtotal * 100),
+      metadata: { ...baseMeta, order_id: orderId },
+    });
+  } catch {
+    await serviceClient.from("orders").delete().eq("id", orderId);
+    return { error: "Could not prepare the payment. Try again." };
+  }
+
+  return { ok: true, totalEur: subtotal };
 }

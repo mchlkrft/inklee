@@ -85,9 +85,34 @@ export async function POST(request: Request) {
       );
     }
 
-    const expectedAmount = booking.deposit_amount
-      ? Math.round(Number(booking.deposit_amount) * 100)
-      : null;
+    // Combined deposit + goods order (Slice 74). When metadata carries an
+    // order_id, the intent amount equals the order subtotal, not the deposit.
+    const orderId = intent.metadata?.order_id || null;
+    let order: {
+      id: string;
+      status: string;
+      subtotal_amount: string | number;
+    } | null = null;
+    if (orderId) {
+      const { data: orderRow } = await serviceClient
+        .from("orders")
+        .select("id, status, booking_id, subtotal_amount")
+        .eq("id", orderId)
+        .single();
+      if (!orderRow || orderRow.booking_id !== bookingId) {
+        return NextResponse.json(
+          { error: "order does not match this booking" },
+          { status: 409 },
+        );
+      }
+      order = orderRow;
+    }
+
+    const expectedAmount = order
+      ? Math.round(Number(order.subtotal_amount) * 100)
+      : booking.deposit_amount
+        ? Math.round(Number(booking.deposit_amount) * 100)
+        : null;
 
     if (expectedAmount === null || Number.isNaN(expectedAmount)) {
       return NextResponse.json(
@@ -145,6 +170,21 @@ export async function POST(request: Request) {
         via: "stripe_webhook",
       },
     });
+
+    // Mark the order paid (Slice 74). Inventory decrement + itemized
+    // confirmation emails land in Slice 75. Guarded on status so webhook
+    // retries stay idempotent.
+    if (order && order.status !== "paid") {
+      await serviceClient
+        .from("orders")
+        .update({
+          status: "paid",
+          fulfillment_status: "pending_pickup",
+          updated_at: now,
+        })
+        .eq("id", order.id)
+        .eq("status", "pending");
+    }
 
     // Send approval email to customer
     if (booking.customer_email) {

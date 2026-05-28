@@ -484,3 +484,83 @@ export const productVariants = pgTable("product_variants", {
     .notNull()
     .defaultNow(),
 });
+
+// Orders (Slice 74) — one order per booking: deposit + appointment add-ons.
+
+export const orderStatusEnum = pgEnum("order_status", [
+  "pending",
+  "paid",
+  "cancelled",
+  "refunded",
+  "partially_refunded",
+]);
+
+export const orderFulfillmentStatusEnum = pgEnum("order_fulfillment_status", [
+  "pending_pickup",
+  "picked_up",
+  "cancelled",
+]);
+
+export const orderItemTypeEnum = pgEnum("order_item_type", [
+  "deposit",
+  "product",
+]);
+
+export const orders = pgTable("orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  bookingId: uuid("booking_id")
+    .notNull()
+    .references(() => bookingRequests.id, { onDelete: "cascade" }),
+  clientEmail: text("client_email"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  status: orderStatusEnum("status").notNull().default("pending"),
+  depositAmount: numeric("deposit_amount", {
+    precision: 10,
+    scale: 2,
+  }).notNull(),
+  goodsAmount: numeric("goods_amount", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0"),
+  subtotalAmount: numeric("subtotal_amount", {
+    precision: 10,
+    scale: 2,
+  }).notNull(),
+  platformFeeAmount: numeric("platform_fee_amount", {
+    precision: 10,
+    scale: 2,
+  }),
+  currency: text("currency").notNull().default("eur"),
+  fulfillmentStatus: orderFulfillmentStatusEnum("fulfillment_status")
+    .notNull()
+    .default("pending_pickup"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const orderItems = pgTable("order_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderId: uuid("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  type: orderItemTypeEnum("type").notNull(),
+  productId: uuid("product_id").references(() => products.id, {
+    onDelete: "set null",
+  }),
+  variantId: uuid("variant_id").references(() => productVariants.id, {
+    onDelete: "set null",
+  }),
+  titleSnapshot: text("title_snapshot").notNull(),
+  variantSnapshot: text("variant_snapshot"),
+  quantity: integer("quantity").notNull().default(1),
+  unitAmount: numeric("unit_amount", { precision: 10, scale: 2 }).notNull(),
+  totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("eur"),
+});

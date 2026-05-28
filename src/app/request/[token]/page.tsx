@@ -7,6 +7,8 @@ import {
   bookingModeLabel,
   portalEditSupport,
 } from "@/lib/booking-domain";
+import { getAddonProducts } from "@/lib/addon-products";
+import type { AddonProductView } from "./addons-checkout";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -35,7 +37,7 @@ export default async function RequestPortalPage({
     .from("booking_requests")
     .select(
       `
-      id, status, created_at,
+      id, status, created_at, artist_id,
       customer_handle, customer_email,
       preferred_date, form_data,
       slot_id, trip_id, flash_item_id,
@@ -80,6 +82,27 @@ export default async function RequestPortalPage({
     });
     const bookingMode = bookingModeFromRequest({ slot_id: booking.slot_id });
 
+    // Pre-checkout add-ons (Slice 74): the artist's goods, shown only at the
+    // deposit-payment moment. Empty for every other state, so the deposit-only
+    // flow is untouched.
+    let addonProducts: AddonProductView[] = [];
+    if (booking.status === "deposit_pending" && booking.artist_id) {
+      const rows = await getAddonProducts(booking.artist_id as string);
+      addonProducts = rows.map((p) => ({
+        id: p.id,
+        title: p.title,
+        imageUrl: p.imageUrl,
+        price: p.price,
+        stock: p.quantity,
+        variants: p.variants.map((v) => ({
+          id: v.id,
+          name: v.name,
+          price: v.priceOverride ?? p.price,
+          stock: v.stock,
+        })),
+      }));
+    }
+
     state = {
       type: "active",
       booking: {
@@ -107,6 +130,7 @@ export default async function RequestPortalPage({
         depositClientSecret: booking.deposit_client_secret ?? null,
         stripePublishableKey:
           process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null,
+        addonProducts,
       },
     };
   }
