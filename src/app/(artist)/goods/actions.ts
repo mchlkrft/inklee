@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
@@ -10,6 +9,8 @@ import {
   parseOptionalPriceInput,
   isProductCategory,
   isProductStatus,
+  isCurrency,
+  DEFAULT_CURRENCY,
   MAX_PRODUCT_TITLE,
   MAX_PRODUCT_DESCRIPTION,
   MAX_PICKUP_NOTE,
@@ -27,6 +28,7 @@ const MAX_VARIANTS = 20;
 type ProductFields = {
   title: string;
   price: number;
+  currency: string;
   category: ProductCategory;
   status: ProductStatus;
   description: string | null;
@@ -65,6 +67,11 @@ function parseProductFields(
   const priceRes = parsePriceInput(formData.get("price") as string | null);
   if ("error" in priceRes) return priceRes;
 
+  const currencyRaw = formData.get("currency");
+  const currency = isCurrency(currencyRaw)
+    ? String(currencyRaw).toLowerCase()
+    : DEFAULT_CURRENCY;
+
   const categoryRaw = formData.get("category");
   const category: ProductCategory = isProductCategory(categoryRaw)
     ? categoryRaw
@@ -91,6 +98,7 @@ function parseProductFields(
     value: {
       title,
       price: priceRes.value,
+      currency,
       category,
       status,
       description,
@@ -234,6 +242,7 @@ export async function createProductAction(
       description: f.description,
       category: f.category,
       price_amount: f.price,
+      currency: f.currency,
       status: f.status,
       pickup_note: f.pickupNote,
       is_public_visible: f.isPublicVisible,
@@ -262,7 +271,7 @@ export async function createProductAction(
 
   revalidatePath("/goods");
   await revalidatePublicPage(user.id);
-  redirect("/goods");
+  return { success: true };
 }
 
 export async function updateProductAction(
@@ -316,6 +325,7 @@ export async function updateProductAction(
       description: f.description,
       category: f.category,
       price_amount: f.price,
+      currency: f.currency,
       status: f.status,
       pickup_note: f.pickupNote,
       is_public_visible: f.isPublicVisible,
@@ -356,6 +366,31 @@ export async function deleteProductAction(id: string): Promise<State> {
     .from("logos")
     .remove([`${user.id}/goods/${id}.webp`])
     .catch(() => undefined);
+
+  revalidatePath("/goods");
+  await revalidatePublicPage(user.id);
+  return { success: true };
+}
+
+// Quick status toggle from the Goods grid tile (Slice 73 follow-up): mark a
+// product sold out / active / hidden without opening the editor.
+export async function setProductStatusAction(
+  id: string,
+  status: ProductStatus,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+  if (!isProductStatus(status)) return { error: "Invalid status." };
+
+  const { error } = await supabase
+    .from("products")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("artist_id", user.id);
+  if (error) return { error: error.message };
 
   revalidatePath("/goods");
   await revalidatePublicPage(user.id);

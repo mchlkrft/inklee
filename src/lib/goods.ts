@@ -34,6 +34,40 @@ export const PRODUCT_STATUS_LABELS: Record<ProductStatus, string> = {
   sold_out: "Sold out",
 };
 
+// Currencies an artist can price goods in (lowercase ISO codes, stored as-is;
+// formatPrice uppercases for display). A traveling artist can price in the local
+// currency. NOTE: appointment add-ons only combine goods that match the deposit
+// currency (EUR today) because a Stripe PaymentIntent is single-currency — see
+// getAddonProducts. Non-matching-currency goods still show on the public shop.
+export const CURRENCIES = [
+  "eur",
+  "usd",
+  "gbp",
+  "thb",
+  "aud",
+  "cad",
+  "chf",
+  "jpy",
+  "sek",
+  "nok",
+  "dkk",
+  "pln",
+  "czk",
+  "sgd",
+  "nzd",
+  "mxn",
+  "brl",
+] as const;
+export type Currency = (typeof CURRENCIES)[number];
+export const DEFAULT_CURRENCY: Currency = "eur";
+
+export function isCurrency(v: unknown): v is Currency {
+  return (
+    typeof v === "string" &&
+    (CURRENCIES as readonly string[]).includes(v.toLowerCase())
+  );
+}
+
 export const MAX_PRODUCT_TITLE = 80;
 export const MAX_PRODUCT_DESCRIPTION = 500;
 export const MAX_PICKUP_NOTE = 200;

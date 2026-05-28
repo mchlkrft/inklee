@@ -55,6 +55,10 @@ export async function getAddonProducts(
     .eq("artist_id", artistId)
     .eq("is_checkout_addon", true)
     .eq("status", "active")
+    // A Stripe PaymentIntent is single-currency, and the deposit is EUR, so only
+    // EUR goods can be combined into the appointment checkout. Other-currency
+    // goods still appear on the public shop — just not as add-ons.
+    .eq("currency", "eur")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 

@@ -19,6 +19,7 @@ type RawProduct = {
   category: string;
   image_url: string | null;
   price_amount: string | number;
+  currency: string | null;
   status: string;
   pickup_note: string | null;
   quantity: number | null;
@@ -46,7 +47,7 @@ export default async function EditProductPage({
   const { data: rawProduct } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, price_amount, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
+      "id, title, description, category, image_url, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
@@ -68,6 +69,7 @@ export default async function EditProductPage({
       ? row.category
       : "other") as ProductCategory,
     price: String(toPriceNumber(row.price_amount)),
+    currency: typeof row.currency === "string" ? row.currency : "eur",
     status: (isProductStatus(row.status)
       ? row.status
       : "active") as ProductStatus,
@@ -108,7 +110,7 @@ export default async function EditProductPage({
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Edit product
       </h1>
-      <ProductForm mode="edit" product={product} variants={variants} />
+      <ProductForm product={product} variants={variants} />
       <div className="max-w-2xl border-t border-border pt-6">
         <DeleteProductButton id={row.id} />
       </div>
