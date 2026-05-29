@@ -175,4 +175,33 @@ describe("computeAddonLines", () => {
     ]);
     expect(r.ok).toBe(false);
   });
+
+  it("merges duplicate selections into one line with summed quantity", () => {
+    const r = ok(
+      computeAddonLines(products, [
+        { productId: "p-print", variantId: null, quantity: 1 },
+        { productId: "p-print", variantId: null, quantity: 2 },
+      ]),
+    );
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0]).toMatchObject({ quantity: 3, totalAmount: 45 });
+    expect(r.goodsAmount).toBe(45);
+  });
+
+  it("applies stock to the combined quantity of duplicate lines (no split oversell)", () => {
+    // v-s stock is 2; two lines of 2 must not pass as 2+2.
+    const r = computeAddonLines(products, [
+      { productId: "p-shirt", variantId: "v-s", quantity: 2 },
+      { productId: "p-shirt", variantId: "v-s", quantity: 2 },
+    ]);
+    expect(r.ok).toBe(false);
+  });
+
+  it("applies the per-item max to the combined quantity of duplicate lines", () => {
+    const r = computeAddonLines(products, [
+      { productId: "p-print", variantId: null, quantity: 6 },
+      { productId: "p-print", variantId: null, quantity: 6 },
+    ]);
+    expect(r.ok).toBe(false);
+  });
 });

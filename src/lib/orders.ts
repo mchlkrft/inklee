@@ -64,7 +64,25 @@ export function computeAddonLines(
   const byId = new Map(products.map((p) => [p.id, p]));
   const lines: OrderLine[] = [];
 
-  for (const sel of selections) {
+  // Aggregate duplicate (product, variant) selections so stock + max-quantity
+  // checks apply to the combined quantity and the order gets one line per
+  // product/variant. Prevents a crafted client from splitting a quantity across
+  // entries to oversell or slip past MAX_ADDON_QUANTITY.
+  const aggregated = new Map<string, AddonSelection>();
+  for (const s of selections) {
+    const key = `${s.productId}::${s.variantId ?? ""}`;
+    const add = Math.max(0, Math.trunc(Number(s.quantity) || 0));
+    const existing = aggregated.get(key);
+    if (existing) existing.quantity += add;
+    else
+      aggregated.set(key, {
+        productId: s.productId,
+        variantId: s.variantId,
+        quantity: add,
+      });
+  }
+
+  for (const sel of aggregated.values()) {
     const qty = Math.trunc(sel.quantity);
     if (!Number.isFinite(qty) || qty <= 0) continue; // skip / ignore unselected
     if (qty > MAX_ADDON_QUANTITY) {
