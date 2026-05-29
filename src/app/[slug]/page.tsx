@@ -273,6 +273,20 @@ export default async function ArtistPublicPage({
 
   const visibleTrips = (rawTrips as unknown as RawTrip[]) ?? [];
 
+  // Public-facing location label for a leg's studio, honoring visibility_mode:
+  // exact-address studios show "Name · City, Country", city-only studios show
+  // "City, Country", hidden studios (or none set) show nothing.
+  const studioLabelFromLeg = (
+    studios: RawStudio | RawStudio[] | null,
+  ): string | null => {
+    const studio = Array.isArray(studios) ? (studios[0] ?? null) : studios;
+    if (!studio || studio.visibility_mode === "hidden") return null;
+    const cityLine = [studio.city, studio.country].filter(Boolean).join(", ");
+    return studio.visibility_mode === "public_exact_address"
+      ? `${studio.name} · ${cityLine}`
+      : cityLine || null;
+  };
+
   // Active trip: a trip that has at least one leg spanning today
   const activeTrip =
     visibleTrips.find((t) =>
@@ -309,7 +323,11 @@ export default async function ArtistPublicPage({
       // Include only legs that haven't fully ended yet
       legs: t.trip_legs
         .filter((l) => l.ends_on >= todayStr)
-        .map((l) => ({ startsOn: l.starts_on, endsOn: l.ends_on })),
+        .map((l) => ({
+          startsOn: l.starts_on,
+          endsOn: l.ends_on,
+          locationLabel: studioLabelFromLeg(l.studios),
+        })),
     }));
 
   // Load primary public studio (never call Google API — read from saved data)
@@ -336,19 +354,8 @@ export default async function ArtistPublicPage({
       outer: for (const trip of visibleTrips) {
         for (const leg of trip.trip_legs) {
           if (slotDateKey >= leg.starts_on && slotDateKey <= leg.ends_on) {
-            const studio = Array.isArray(leg.studios)
-              ? (leg.studios[0] ?? null)
-              : leg.studios;
-            if (studio && studio.visibility_mode !== "hidden") {
-              const cityLine = [studio.city, studio.country]
-                .filter(Boolean)
-                .join(", ");
-              const label =
-                studio.visibility_mode === "public_exact_address"
-                  ? `${studio.name} · ${cityLine}`
-                  : cityLine;
-              location = { label, tripTitle: trip.title };
-            }
+            const label = studioLabelFromLeg(leg.studios);
+            if (label) location = { label, tripTitle: trip.title };
             break outer;
           }
         }

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { formatDate, relativeTime } from "@/lib/format";
 import StatusActions from "./status-actions";
 import StatusBadge from "@/components/status-badge";
@@ -9,7 +10,6 @@ import CommunicationSidebar from "./communication-sidebar";
 import type { Annotation } from "@/lib/annotations";
 import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { formatCustomAnswer } from "@/lib/custom-fields";
-import { bookingModeFromRequest, bookingModeLabel } from "@/lib/booking-domain";
 import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
@@ -30,7 +30,7 @@ export default async function RequestDetailPage({
   const { data: booking } = await supabase
     .from("booking_requests")
     .select(
-      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status), trips(title), slots(starts_at, duration_minutes), profiles!artist_id(timezone, settings)",
+      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status), trips(title, trip_legs(starts_on, ends_on, studios(name, city))), slots(starts_at, duration_minutes), profiles!artist_id(timezone, settings)",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
@@ -41,7 +41,6 @@ export default async function RequestDetailPage({
   const fd = booking.form_data as Record<string, unknown> | null;
   const customAnswers =
     (fd?.custom_answers as CustomAnswerSnapshot[] | undefined) ?? [];
-  const bookingMode = bookingModeFromRequest({ slot_id: booking.slot_id });
   const artistProfile = Array.isArray(booking.profiles)
     ? booking.profiles[0]
     : booking.profiles;
@@ -63,9 +62,33 @@ export default async function RequestDetailPage({
           artistTimeZone,
         )
       : null;
-  const tripTitle = Array.isArray(booking.trips)
-    ? booking.trips[0]?.title
-    : ((booking.trips as { title?: string } | null)?.title ?? null);
+  // Location = the studio at the trip stop whose date range contains the
+  // booking's preferred date (falls back to the trip title only when that stop
+  // has no studio set). No matching stop -> no location row.
+  type LegStudio = { name: string; city: string };
+  const tripData = (
+    Array.isArray(booking.trips) ? booking.trips[0] : booking.trips
+  ) as {
+    title?: string;
+    trip_legs?: {
+      starts_on: string;
+      ends_on: string;
+      studios: LegStudio | LegStudio[] | null;
+    }[];
+  } | null;
+  let locationLabel: string | null = null;
+  if (tripData && booking.preferred_date) {
+    const date = booking.preferred_date as string;
+    const leg = (tripData.trip_legs ?? []).find(
+      (l) => l.starts_on <= date && l.ends_on >= date,
+    );
+    if (leg) {
+      const studio = Array.isArray(leg.studios)
+        ? (leg.studios[0] ?? null)
+        : leg.studios;
+      locationLabel = studio?.name ?? tripData.title ?? null;
+    }
+  }
 
   const { data: reminderLog } = await supabase
     .from("audit_log")
@@ -138,9 +161,7 @@ export default async function RequestDetailPage({
         </div>
         <p className="text-sm text-muted-foreground">
           Submitted {relativeTime(booking.created_at)}
-          {bookingModeLabel(bookingMode)
-            ? ` · ${bookingModeLabel(bookingMode)}`
-            : ""}
+          {booking.origin === "artist_created" ? " · Added by you" : ""}
         </p>
       </div>
 
@@ -171,7 +192,6 @@ export default async function RequestDetailPage({
               </div>
             )}
             <Row label="Instagram" value={`@${booking.customer_handle}`} />
-            <Row label="Booking type" value={bookingModeLabel(bookingMode)} />
             <Row label="Email" value={booking.customer_email ?? "-"} />
             <Row label="Placement" value={(fd?.placement as string) ?? "-"} />
             <Row label="Size" value={(fd?.size as string) ?? "-"} />
@@ -189,7 +209,7 @@ export default async function RequestDetailPage({
                 value={`${slotInfo.date} · ${slotInfo.time}`}
               />
             )}
-            {tripTitle && <Row label="Location" value={tripTitle} />}
+            {locationLabel && <Row label="Location" value={locationLabel} />}
             {typeof fd?.reference_link === "string" && (
               <div className="flex px-4 py-3 gap-4">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">
@@ -312,18 +332,6 @@ export default async function RequestDetailPage({
             </div>
           )}
 
-          <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border text-sm">
-            <Row label="Submitted" value={relativeTime(booking.created_at)} />
-            {booking.decided_at && (
-              <Row label="Decided" value={relativeTime(booking.decided_at)} />
-            )}
-            <Row
-              label="Magic link"
-              value={booking.customer_token_hash ? "Active" : "None"}
-            />
-            <Row label="Origin" value={booking.origin.replace("_", " ")} />
-          </div>
-
           <div className="rounded-[20px] border border-border p-5">
             <CommunicationSidebar
               bookingId={booking.id}
@@ -344,6 +352,26 @@ export default async function RequestDetailPage({
               }))}
             />
           </div>
+
+          {/* Low-signal metadata (submitted / decided / magic link / origin) */}
+          {/* tucked into a collapsible below Communication — rarely needed. */}
+          <details className="group overflow-hidden rounded-[20px] border border-border">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 text-sm text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+              Show more details
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="divide-y divide-border border-t border-border text-sm">
+              <Row label="Submitted" value={relativeTime(booking.created_at)} />
+              {booking.decided_at && (
+                <Row label="Decided" value={relativeTime(booking.decided_at)} />
+              )}
+              <Row
+                label="Magic link"
+                value={booking.customer_token_hash ? "Active" : "None"}
+              />
+              <Row label="Origin" value={booking.origin.replace("_", " ")} />
+            </div>
+          </details>
         </div>
       </div>
     </div>

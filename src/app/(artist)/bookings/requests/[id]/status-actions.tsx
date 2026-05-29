@@ -10,7 +10,6 @@ import {
   requestDeposit,
   markDepositReceived,
 } from "../../actions";
-import StatusBadge from "@/components/status-badge";
 import {
   DEPOSIT_DEFAULTS_FALLBACK,
   type DepositDefaults,
@@ -99,11 +98,6 @@ export default function StatusActions({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Status</span>
-        <StatusBadge status={optimisticStatus} />
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {isDepositPending && (
@@ -111,7 +105,7 @@ export default function StatusActions({
           <div className="space-y-1">
             <button
               onClick={() => run(markDepositReceived, "approved")}
-              className="w-full rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
+              className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-semibold text-brand-charcoal"
             >
               Mark deposit received
             </button>
@@ -162,7 +156,7 @@ export default function StatusActions({
           <div className="space-y-1">
             <button
               onClick={() => run(approveBooking, "approved")}
-              className="w-full rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
+              className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-semibold text-brand-charcoal"
             >
               Accept
             </button>

@@ -43,7 +43,11 @@ type SlotOption = {
   tz: string;
   location?: { label: string; tripTitle?: string };
 };
-type TripLeg = { startsOn: string; endsOn: string };
+type TripLeg = {
+  startsOn: string;
+  endsOn: string;
+  locationLabel: string | null;
+};
 type TripOption = {
   id: string;
   title: string;
@@ -55,14 +59,21 @@ type TripOption = {
 type ImageEntry = { id: string; file: File; preview: string };
 
 /**
- * Returns trips with at least one leg spanning the chosen date.
- * Uses plain ISO string comparison (YYYY-MM-DD) to avoid UTC offset issues.
+ * For the chosen date, returns one entry per trip that has a leg spanning it,
+ * carrying that leg's studio location label (null when the studio is hidden or
+ * unset). Plain ISO string comparison (YYYY-MM-DD) avoids UTC offset issues.
  */
-function tripsForDate(date: string, allTrips: TripOption[]): TripOption[] {
+function locationsForDate(
+  date: string,
+  allTrips: TripOption[],
+): { id: string; label: string | null }[] {
   if (!date) return [];
-  return allTrips.filter((t) =>
-    t.legs.some((l) => l.startsOn <= date && l.endsOn >= date),
-  );
+  const out: { id: string; label: string | null }[] = [];
+  for (const t of allTrips) {
+    const leg = t.legs.find((l) => l.startsOn <= date && l.endsOn >= date);
+    if (leg) out.push({ id: t.id, label: leg.locationLabel });
+  }
+  return out;
 }
 
 export default function BookingForm({
@@ -217,7 +228,7 @@ export default function BookingForm({
 
   // Location availability — derived from selected date
   const hasTrips = trips.length > 0;
-  const validLocations = tripsForDate(preferredDate, trips);
+  const validLocations = locationsForDate(preferredDate, trips);
 
   const annotatingEntry = annotatingId
     ? (imageEntries.find((e) => e.id === annotatingId) ?? null)
@@ -598,53 +609,53 @@ export default function BookingForm({
               </div>
             )}
 
-            {/* Location selector — preferred_date mode only, reactive to chosen date */}
-            {bookingMode !== "fixed_slots" && hasTrips && preferredDate && (
-              <>
-                {validLocations.length === 0 ? (
-                  <p className="text-base text-muted-foreground">
-                    No guest spots are scheduled for that date. Your request
-                    will be treated as a home studio booking.
-                  </p>
-                ) : validLocations.length === 1 ? (
-                  <>
-                    <input
-                      type="hidden"
-                      name="trip_id"
-                      value={validLocations[0].id}
-                    />
+            {/* Location — preferred_date mode only, reactive to the chosen */}
+            {/* date. Shows the studio of the trip stop matching the date. When */}
+            {/* no guest spot covers the date, nothing renders (avoids exposing */}
+            {/* home-studio / guest-spot internals to the customer). */}
+            {bookingMode !== "fixed_slots" &&
+              hasTrips &&
+              preferredDate &&
+              validLocations.length > 0 &&
+              (validLocations.length === 1 ? (
+                <>
+                  <input
+                    type="hidden"
+                    name="trip_id"
+                    value={validLocations[0].id}
+                  />
+                  {validLocations[0].label && (
                     <p className="text-base text-muted-foreground">
                       Location:{" "}
                       <span className="text-foreground">
-                        {validLocations[0].title}
+                        {validLocations[0].label}
                       </span>
                     </p>
-                  </>
-                ) : (
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor="trip_id"
-                      className="text-base text-muted-foreground"
-                    >
-                      Location
-                    </label>
-                    <select
-                      key={preferredDate}
-                      id="trip_id"
-                      name="trip_id"
-                      className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="">No preference</option>
-                      {validLocations.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="trip_id"
+                    className="text-base text-muted-foreground"
+                  >
+                    Location
+                  </label>
+                  <select
+                    key={preferredDate}
+                    id="trip_id"
+                    name="trip_id"
+                    className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">No preference</option>
+                    {validLocations.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label ?? "Other location"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
           </>
         );
 
