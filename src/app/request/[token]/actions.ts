@@ -8,6 +8,7 @@ import {
 } from "@/lib/email/send-booking-email";
 import crypto from "crypto";
 import { redirect } from "next/navigation";
+import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { createNotification } from "@/lib/notifications";
 import { checkPortalRateLimit } from "@/lib/ratelimit";
 import { canTransition } from "@/lib/booking-fsm";
@@ -153,6 +154,7 @@ export async function editCustomerBookingAction(
     },
   });
 
+  revalidateBookingViews(booking.id);
   redirect(`/request/submitted?id=${booking.id}&edited=1&email=1`);
 }
 
@@ -247,6 +249,8 @@ export async function cancelCustomerBookingAction(
     });
   }
 
+  // Drop the cancelled booking out of the artist's calendar + overview.
+  revalidateBookingViews(booking.id);
   redirect(
     `/request/submitted?id=${booking.id}&cancelled=1&email=${booking.customer_email ? "1" : "0"}`,
   );

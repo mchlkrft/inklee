@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
-import { revalidatePath } from "next/cache";
+import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import crypto from "crypto";
 
 type ActionResult = { error: string } | { success: true };
@@ -81,8 +81,7 @@ export async function createAppointmentAction(
     });
   }
 
-  revalidatePath("/dashboard/calendar");
-  revalidatePath("/dashboard");
+  revalidateBookingViews(bookingId);
   return { success: true };
 }
 
@@ -138,9 +137,7 @@ export async function editAppointmentAction(
 
   // No dedicated "artist edited" template — skip email on artist edit
 
-  revalidatePath("/dashboard/calendar");
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -209,7 +206,6 @@ export async function cancelAppointmentAction(
       .eq("id", booking.slot_id);
   }
 
-  revalidatePath("/dashboard/calendar");
-  revalidatePath("/dashboard");
+  revalidateBookingViews(id);
   return { success: true };
 }

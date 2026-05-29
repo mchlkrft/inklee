@@ -11,6 +11,7 @@ import {
   type PaidOrderItem,
 } from "@/lib/order-fulfillment";
 import { createNotification } from "@/lib/notifications";
+import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 
 export const runtime = "nodejs";
 
@@ -307,6 +308,10 @@ export async function POST(request: Request) {
         },
       });
     }
+
+    // Keep the artist's calendar + overview (and detail) in lockstep with the
+    // status flip to "approved" now that the deposit is paid.
+    revalidateBookingViews(bookingId);
   }
 
   return NextResponse.json({ received: true });

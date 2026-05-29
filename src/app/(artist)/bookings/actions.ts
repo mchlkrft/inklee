@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { canTransition } from "@/lib/booking-fsm";
 import {
   sendBookingEmail,
@@ -170,9 +171,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
     });
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/bookings/requests");
-  revalidatePath(`/bookings/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -237,9 +236,7 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
     });
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/bookings/requests");
-  revalidatePath(`/bookings/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -341,7 +338,7 @@ export async function requestDeposit(
       dueAt,
       note,
     );
-    revalidatePath(`/bookings/requests/${id}`);
+    revalidateBookingViews(id);
     return { success: true };
   }
 
@@ -414,9 +411,7 @@ export async function requestDeposit(
     dueAt,
     note,
   );
-  revalidatePath("/dashboard");
-  revalidatePath("/bookings/requests");
-  revalidatePath(`/bookings/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -467,9 +462,7 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
     details: { from: booking.status, to: "approved", via: "deposit_received" },
   });
 
-  revalidatePath("/dashboard");
-  revalidatePath("/bookings/requests");
-  revalidatePath(`/bookings/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -597,6 +590,6 @@ export async function convertWaitlistEntry({
     customerHandle,
   });
 
-  revalidatePath("/bookings/overview");
+  revalidateBookingViews();
   return { success: true };
 }

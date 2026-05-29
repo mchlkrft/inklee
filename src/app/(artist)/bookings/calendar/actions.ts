@@ -1,9 +1,9 @@
 "use server";
 
 import crypto from "crypto";
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
+import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 
 type ActionResult = { error: string } | { success: true };
 
@@ -84,8 +84,7 @@ export async function createAppointmentAction(
     });
   }
 
-  revalidatePath("/bookings/calendar");
-  revalidatePath("/dashboard");
+  revalidateBookingViews(bookingId);
   return { success: true };
 }
 
@@ -139,9 +138,7 @@ export async function editAppointmentAction(
     details: { by: "artist" },
   });
 
-  revalidatePath("/bookings/calendar");
-  revalidatePath("/dashboard");
-  revalidatePath(`/bookings/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -219,7 +216,6 @@ export async function cancelAppointmentAction(
     });
   }
 
-  revalidatePath("/bookings/calendar");
-  revalidatePath("/dashboard");
+  revalidateBookingViews(id);
   return { success: true };
 }

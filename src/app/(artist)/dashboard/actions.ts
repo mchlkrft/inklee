@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import {
   sendBookingEmail,
   sendWaitlistConversionEmail,
@@ -133,8 +134,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
       .eq("id", booking.slot_id);
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -196,8 +196,7 @@ export async function rejectBooking(id: string): Promise<ActionResult> {
       .eq("id", booking.slot_id);
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -272,8 +271,7 @@ export async function requestDeposit(
     },
   });
 
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -310,8 +308,7 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
     details: { from: booking.status, to: "approved", via: "deposit_received" },
   });
 
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/requests/${id}`);
+  revalidateBookingViews(id);
   return { success: true };
 }
 
@@ -399,6 +396,7 @@ export async function convertWaitlistEntry({
     customerHandle,
   });
 
+  revalidateBookingViews();
   revalidatePath("/dashboard/waitlist");
   return { success: true };
 }
