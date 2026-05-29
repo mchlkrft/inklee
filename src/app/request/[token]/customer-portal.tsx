@@ -107,7 +107,6 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
             name="instagram_handle"
             defaultValue={booking.handle}
             prefix="@"
-            required
             err={err("instagram_handle")}
           />
           <Field

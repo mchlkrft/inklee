@@ -249,13 +249,26 @@ export default function BookingForm({
   const err = (field: string) =>
     state && "field" in state && state.field === field ? state.error : null;
 
+  // Required marker vs "(optional)" suffix for a field label.
+  const reqMark = (required: boolean) =>
+    required ? (
+      <span className="text-foreground">*</span>
+    ) : (
+      <span className="text-xs text-muted-foreground">(optional)</span>
+    );
+
   // Location availability — derived from selected date
   const hasTrips = trips.length > 0;
-  // Instagram and email are each optional when BOTH are offered — one is enough,
-  // so clients without Instagram aren't excluded. When only one field is shown,
-  // that one stays required.
-  const bothContactShown =
-    formSettings.show_instagram_handle && formSettings.show_email;
+  // Email is always required. Every other field is required only when the
+  // artist enabled it AND marked it required in the form editor.
+  const igRequired =
+    formSettings.show_instagram_handle && formSettings.require_instagram_handle;
+  const placementRequired = formSettings.require_placement;
+  const sizeRequired = formSettings.require_size;
+  const descRequired = formSettings.require_description;
+  const refRequired = formSettings.require_reference_link;
+  const imageRequired =
+    formSettings.show_image_upload && formSettings.require_image_upload;
 
   // Per-control completion — drives the in-field checkmarks.
   const igDone = igVal.trim() !== "";
@@ -283,74 +296,28 @@ export default function BookingForm({
   function renderField(key: string) {
     switch (key) {
       case "instagram_handle":
-        // When BOTH contact methods are offered, render them together as one
-        // "Your contact" area (Instagram left, email right) with completion
-        // feedback. Falls through to a standalone field when only one is shown.
-        if (bothContactShown) {
-          return (
-            <div className="space-y-2">
-              <label className="text-base text-muted-foreground">
-                Your contact <span className="text-foreground">*</span>
-              </label>
-              <div className="grid items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
-                <div className="flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-3 text-base focus-within:ring-1 focus-within:ring-ring">
-                  <span className="select-none text-muted-foreground">@</span>
-                  <input
-                    id="instagram_handle"
-                    name="instagram_handle"
-                    type="text"
-                    autoComplete="off"
-                    placeholder="instagram"
-                    value={igVal}
-                    onChange={(e) => setIgVal(e.target.value)}
-                    className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
-                  />
-                  {igDone && <CheckBadge />}
-                </div>
-                <span className="text-center text-sm font-medium text-muted-foreground">
-                  or
-                </span>
-                <div className="relative">
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="email"
-                    value={emailVal}
-                    onChange={(e) => setEmailVal(e.target.value)}
-                    className="w-full rounded-md border border-border bg-transparent py-3 pl-3 pr-10 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                  {emailDone && (
-                    <CheckBadge className="absolute right-2.5 top-1/2 -translate-y-1/2" />
-                  )}
-                </div>
-              </div>
-              {(err("instagram_handle") || err("email")) && (
-                <p className="text-sm text-destructive">
-                  {err("instagram_handle") ?? err("email")}
-                </p>
-              )}
-            </div>
-          );
-        }
         return formSettings.show_instagram_handle ? (
           <div className="space-y-1.5">
             <label
               htmlFor="instagram_handle"
               className="text-base text-muted-foreground"
             >
-              Instagram handle <span className="text-foreground">*</span>
+              Instagram handle {reqMark(igRequired)}
             </label>
-            <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
+            <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2.5 text-base focus-within:ring-1 focus-within:ring-ring">
               <span className="select-none text-muted-foreground">@</span>
               <input
                 id="instagram_handle"
                 name="instagram_handle"
                 type="text"
-                required
+                required={igRequired}
                 autoComplete="off"
+                placeholder="instagram"
+                value={igVal}
+                onChange={(e) => setIgVal(e.target.value)}
                 className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
               />
+              {igDone && <CheckBadge />}
             </div>
             {err("instagram_handle") && (
               <p className="text-sm text-destructive">
@@ -361,26 +328,33 @@ export default function BookingForm({
         ) : null;
 
       case "email":
-        // Rendered inside the combined "Your contact" area above when both
-        // methods are shown; standalone only when it's the sole contact field.
-        if (bothContactShown) return null;
-        return formSettings.show_email ? (
+        // Email is always shown and always required — the primary way the
+        // artist reaches the client.
+        return (
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-base text-muted-foreground">
               Email <span className="text-foreground">*</span>
             </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
+            <div className="relative">
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="you@email.com"
+                value={emailVal}
+                onChange={(e) => setEmailVal(e.target.value)}
+                className="w-full rounded-md border border-border bg-transparent py-3 pl-3 pr-10 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {emailDone && (
+                <CheckBadge className="absolute right-2.5 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
             {err("email") && (
               <p className="text-sm text-destructive">{err("email")}</p>
             )}
           </div>
-        ) : null;
+        );
 
       case "reference_link":
         return formSettings.show_reference_link ? (
@@ -389,14 +363,14 @@ export default function BookingForm({
               htmlFor="reference_link"
               className="text-base text-muted-foreground"
             >
-              Reference link{" "}
-              <span className="text-xs text-muted-foreground">(optional)</span>
+              Reference link {reqMark(refRequired)}
             </label>
             <div className="relative">
               <input
                 id="reference_link"
                 name="reference_link"
                 type="url"
+                required={refRequired}
                 placeholder="instagram.com/p/... or any link"
                 value={refVal}
                 onChange={(e) => setRefVal(e.target.value)}
@@ -421,14 +395,14 @@ export default function BookingForm({
               htmlFor="placement"
               className="text-base text-muted-foreground"
             >
-              Placement <span className="text-foreground">*</span>
+              Placement {reqMark(placementRequired)}
             </label>
             <div className="relative">
               <input
                 id="placement"
                 name="placement"
                 type="text"
-                required
+                required={placementRequired}
                 placeholder="Left forearm, inner wrist..."
                 value={placementVal}
                 onChange={(e) => setPlacementVal(e.target.value)}
@@ -448,7 +422,7 @@ export default function BookingForm({
         return formSettings.show_size ? (
           <div className="space-y-2">
             <p className="text-base text-muted-foreground">
-              Size <span className="text-foreground">*</span>
+              Size {reqMark(sizeRequired)}
             </p>
             <div className="grid grid-cols-2 gap-2">
               {SIZES.map((s) => (
@@ -460,7 +434,7 @@ export default function BookingForm({
                     type="radio"
                     name="size"
                     value={s}
-                    required
+                    required={sizeRequired}
                     className="peer accent-foreground"
                   />
                   <span className="inline-flex items-baseline gap-1.5">
@@ -482,21 +456,14 @@ export default function BookingForm({
         ) : null;
 
       case "description":
-        return (
+        return formSettings.show_description ? (
           <div className="space-y-1.5">
             <div className="flex justify-between">
               <label
                 htmlFor="description"
                 className="text-base text-muted-foreground"
               >
-                Description{" "}
-                {formSettings.require_description ? (
-                  <span className="text-foreground">*</span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    (optional)
-                  </span>
-                )}
+                Description {reqMark(descRequired)}
               </label>
               <span
                 className={`text-xs ${description.length > 1000 ? "text-destructive" : "text-muted-foreground"}`}
@@ -508,7 +475,7 @@ export default function BookingForm({
               <textarea
                 id="description"
                 name="description"
-                required={formSettings.require_description}
+                required={descRequired}
                 rows={5}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -521,17 +488,14 @@ export default function BookingForm({
               <p className="text-sm text-destructive">{err("description")}</p>
             )}
           </div>
-        );
+        ) : null;
 
       case "image_upload":
         return formSettings.show_image_upload ? (
           <div className="space-y-2">
             <div>
               <p className="text-base text-muted-foreground">
-                Reference images{" "}
-                <span className="text-xs text-muted-foreground">
-                  (optional)
-                </span>
+                Reference images {reqMark(imageRequired)}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Up to 5 files. JPG, PNG, or WebP, max 10 MB each.

@@ -14,19 +14,14 @@ import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
-const flashBookingSchema = z
-  .object({
-    instagram_handle: z.string().transform((s) => s.replace(/^@/, "").trim()),
-    email: z.union([z.string().email("valid email required"), z.literal("")]),
-    placement: z.string().min(1, "placement is required").max(200),
-    preferred_date: z.string().min(1, "preferred date is required"),
-    notes: z.string().max(500).optional(),
-  })
-  // Instagram OR email — at least one so the artist can reach the client.
-  .refine((d) => d.instagram_handle.length > 0 || d.email.length > 0, {
-    message: "Add your Instagram or email so the artist can reach you.",
-    path: ["instagram_handle"],
-  });
+const flashBookingSchema = z.object({
+  // Instagram is optional; email is always required (Inklee runs over email).
+  instagram_handle: z.string().transform((s) => s.replace(/^@/, "").trim()),
+  email: z.string().email("valid email required"),
+  placement: z.string().min(1, "placement is required").max(200),
+  preferred_date: z.string().min(1, "preferred date is required"),
+  notes: z.string().max(500).optional(),
+});
 
 type State = { error: string; field?: string } | null;
 
@@ -119,8 +114,8 @@ export async function submitFlashBookingAction(
     return { error: "this flash item is no longer available for booking" };
   }
 
-  // Deduplication: same email + same flash item within 60s. Only meaningful
-  // when an email was provided — Instagram-only requests skip this guard.
+  // Deduplication: same email + same flash item within 60s. Email is always
+  // required now, so this guard always runs.
   if (data.email) {
     const dedupeWindow = new Date(Date.now() - 60000).toISOString();
     const { count: recentCount } = await serviceClient

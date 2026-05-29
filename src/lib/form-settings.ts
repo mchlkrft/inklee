@@ -1,14 +1,23 @@
 export interface FormSettings {
-  // Standard fields (all default on)
+  // Visibility — whether each field appears on the public form. Email and
+  // preferred date are always shown (forced true in the parser).
   show_instagram_handle: boolean;
   show_email: boolean;
   show_placement: boolean;
   show_size: boolean;
+  show_description: boolean;
   show_preferred_date: boolean;
-  // Configurable fields
   show_reference_link: boolean;
   show_image_upload: boolean;
+  // Required — whether a shown field must be filled. Email is always required
+  // (enforced in code, not stored). Preferred date follows the booking mode.
+  require_instagram_handle: boolean;
+  require_placement: boolean;
+  require_size: boolean;
   require_description: boolean;
+  require_reference_link: boolean;
+  require_image_upload: boolean;
+  // Misc
   allow_photo_annotations: boolean;
 }
 
@@ -17,10 +26,18 @@ export const DEFAULT_FORM_SETTINGS: FormSettings = {
   show_email: true,
   show_placement: true,
   show_size: true,
+  show_description: true,
   show_preferred_date: true,
   show_reference_link: true,
   show_image_upload: true,
+  // Defaults preserve prior behavior: placement/size/description required when
+  // shown; instagram/reference/images optional. Email is always required.
+  require_instagram_handle: false,
+  require_placement: true,
+  require_size: true,
   require_description: true,
+  require_reference_link: false,
+  require_image_upload: false,
   allow_photo_annotations: false,
 };
 
@@ -75,13 +92,19 @@ export function parseFormSettings(raw: unknown): FormSettings {
   }
   return {
     show_instagram_handle: bool("show_instagram_handle"),
-    show_email: bool("show_email"),
+    show_email: true, // email is mandatory — always shown
     show_placement: bool("show_placement"),
     show_size: bool("show_size"),
+    show_description: bool("show_description"),
     show_preferred_date: true,
     show_reference_link: bool("show_reference_link"),
     show_image_upload: bool("show_image_upload"),
+    require_instagram_handle: bool("require_instagram_handle"),
+    require_placement: bool("require_placement"),
+    require_size: bool("require_size"),
     require_description: bool("require_description"),
+    require_reference_link: bool("require_reference_link"),
+    require_image_upload: bool("require_image_upload"),
     allow_photo_annotations: bool("allow_photo_annotations"),
   };
 }

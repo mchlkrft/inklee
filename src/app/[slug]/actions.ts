@@ -95,36 +95,48 @@ export async function submitBookingAction(
     preferred_date: (formData.get("preferred_date") as string) ?? "",
   };
 
-  // Presence checks — only enforce optional fields when the artist has enabled them.
-  // Contact: Instagram OR email. When both fields are offered, at least one
-  // must be filled so clients without Instagram aren't excluded. When only one
-  // field is shown, that one is required.
-  if (formSettings.show_instagram_handle && formSettings.show_email) {
-    if (!raw.instagram_handle && !raw.email) {
-      return {
-        error: "Add your Instagram or email so the artist can reach you.",
-        field: "instagram_handle",
-      };
-    }
-  } else if (formSettings.show_instagram_handle && !raw.instagram_handle) {
+  // Presence checks. Email is always required (Inklee's flow runs over email).
+  // Every other field is required only when the artist has both shown it and
+  // marked it required.
+  if (!raw.email) {
+    return { error: "A valid email is required.", field: "email" };
+  }
+  if (
+    formSettings.show_instagram_handle &&
+    formSettings.require_instagram_handle &&
+    !raw.instagram_handle
+  ) {
     return {
       error: "Instagram handle is required.",
       field: "instagram_handle",
     };
-  } else if (formSettings.show_email && !raw.email) {
-    return { error: "A valid email is required.", field: "email" };
   }
-  if (formSettings.show_placement && !raw.placement) {
+  if (
+    formSettings.show_placement &&
+    formSettings.require_placement &&
+    !raw.placement
+  ) {
     return { error: "Placement is required.", field: "placement" };
   }
-  if (formSettings.show_size && !raw.size) {
+  if (formSettings.show_size && formSettings.require_size && !raw.size) {
     return { error: "Please select a size.", field: "size" };
   }
   if (artistBookingMode === "preferred_date" && !raw.preferred_date) {
     return { error: "Preferred date is required.", field: "preferred_date" };
   }
-  if (!raw.description && formSettings.require_description) {
+  if (
+    formSettings.show_description &&
+    formSettings.require_description &&
+    !raw.description
+  ) {
     return { error: "Description is required.", field: "description" };
+  }
+  if (
+    formSettings.show_reference_link &&
+    formSettings.require_reference_link &&
+    !raw.reference_link
+  ) {
+    return { error: "Reference link is required.", field: "reference_link" };
   }
 
   const parsed = bookingSchema.safeParse(raw);
@@ -196,6 +208,13 @@ export async function submitBookingAction(
 
   if (realImages.length > MAX_IMAGES) {
     return { error: `Maximum ${MAX_IMAGES} images.` };
+  }
+  if (
+    formSettings.show_image_upload &&
+    formSettings.require_image_upload &&
+    realImages.length === 0
+  ) {
+    return { error: "Please add at least one reference image." };
   }
   for (const file of realImages) {
     if (file.size > MAX_IMAGE_SIZE)

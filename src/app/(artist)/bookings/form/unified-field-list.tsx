@@ -12,12 +12,14 @@ import FieldForm from "./field-form";
 
 // ── Standard field config ─────────────────────────────────────────────────────
 
+type SubToggle = { key: keyof FormSettings; label: string };
 type StdConfig = {
   id: string;
   label: string;
-  toggleKey?: keyof FormSettings; // undefined = always visible (description)
-  subKey?: keyof FormSettings; // secondary in-row toggle
-  subLabel?: string;
+  toggleKey?: keyof FormSettings; // visibility toggle; omitted = always shown
+  requiredKey?: keyof FormSettings; // "Required" toggle; omitted = none
+  lockedRequired?: boolean; // email: always shown + always required
+  extraSubs?: SubToggle[]; // additional in-row toggles (e.g. photo annotations)
 };
 
 const STD: StdConfig[] = [
@@ -25,27 +27,39 @@ const STD: StdConfig[] = [
     id: "instagram_handle",
     label: "Instagram handle",
     toggleKey: "show_instagram_handle",
+    requiredKey: "require_instagram_handle",
   },
-  { id: "email", label: "Email", toggleKey: "show_email" },
+  { id: "email", label: "Email", lockedRequired: true },
   {
     id: "reference_link",
     label: "Reference link",
     toggleKey: "show_reference_link",
+    requiredKey: "require_reference_link",
   },
-  { id: "placement", label: "Placement", toggleKey: "show_placement" },
-  { id: "size", label: "Size", toggleKey: "show_size" },
+  {
+    id: "placement",
+    label: "Placement",
+    toggleKey: "show_placement",
+    requiredKey: "require_placement",
+  },
+  {
+    id: "size",
+    label: "Size",
+    toggleKey: "show_size",
+    requiredKey: "require_size",
+  },
   {
     id: "description",
     label: "Description",
-    subKey: "require_description",
-    subLabel: "Required",
+    toggleKey: "show_description",
+    requiredKey: "require_description",
   },
   {
     id: "image_upload",
     label: "Reference images",
     toggleKey: "show_image_upload",
-    subKey: "allow_photo_annotations",
-    subLabel: "Photo annotations",
+    requiredKey: "require_image_upload",
+    extraSubs: [{ key: "allow_photo_annotations", label: "Photo annotations" }],
   },
   {
     id: "preferred_date",
@@ -184,18 +198,7 @@ export default function UnifiedFieldList({
 
   // ── Setting updates ─────────────────────────────────────────────────────────
 
-  // At least one contact method (Instagram or email) must stay enabled so
-  // clients always have a way to reach the artist.
-  const isLastContact = (key: keyof FormSettings) =>
-    (key === "show_instagram_handle" &&
-      settings.show_instagram_handle &&
-      !settings.show_email) ||
-    (key === "show_email" &&
-      settings.show_email &&
-      !settings.show_instagram_handle);
-
   function updateSetting(key: keyof FormSettings, value: boolean) {
-    if (!value && isLastContact(key)) return; // never disable the last contact
     setSettings((prev) => ({ ...prev, [key]: value }));
     startTransition(async () => {
       await saveFormSettingsAction(key, value);
@@ -271,8 +274,16 @@ export default function UnifiedFieldList({
           // ── Standard field row ──────────────────────────────────────────────
           if (row.kind === "std") {
             const cfg = STD_MAP.get(row.id)!;
-            const alwaysOn = !cfg.toggleKey;
-            const isOn = alwaysOn || settings[cfg.toggleKey!];
+            const hasShow = !!cfg.toggleKey;
+            const isOn = hasShow ? settings[cfg.toggleKey!] : true;
+            // Sub-toggles shown beneath the label when the field is on: the
+            // per-field "Required" toggle first, then any extras (annotations).
+            const subs: SubToggle[] = [
+              ...(cfg.requiredKey
+                ? [{ key: cfg.requiredKey, label: "Required" }]
+                : []),
+              ...(cfg.extraSubs ?? []),
+            ];
 
             return (
               <div
@@ -285,7 +296,7 @@ export default function UnifiedFieldList({
                 onDragEnd={onDragEnd}
                 className={`flex items-center gap-3 px-3 py-3 transition-colors ${
                   isOver ? "bg-muted/40" : "bg-background"
-                } ${dragging ? "opacity-40" : ""} ${!isOn && !alwaysOn ? "opacity-60" : ""}`}
+                } ${dragging ? "opacity-40" : ""} ${!isOn ? "opacity-60" : ""}`}
               >
                 <div className="cursor-grab active:cursor-grabbing shrink-0 text-muted-foreground/40 hover:text-muted-foreground transition-colors">
                   <GripIcon />
@@ -294,43 +305,45 @@ export default function UnifiedFieldList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-sm ${isOn || alwaysOn ? "text-foreground" : "text-muted-foreground"}`}
+                      className={`text-sm ${isOn ? "text-foreground" : "text-muted-foreground"}`}
                     >
                       {cfg.label}
                     </span>
                     <span className="text-xs text-muted-foreground/50 border border-border/50 rounded px-1.5 py-0.5 leading-none">
                       Standard
                     </span>
-                  </div>
-                  {cfg.subKey && (isOn || alwaysOn) && (
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-xs text-muted-foreground">
-                        {cfg.subLabel}
+                    {cfg.lockedRequired && (
+                      <span className="text-xs text-muted-foreground/60">
+                        Always required
                       </span>
-                      <Toggle
-                        checked={settings[cfg.subKey]}
-                        onChange={(v) => updateSetting(cfg.subKey!, v)}
-                      />
+                    )}
+                  </div>
+                  {isOn && subs.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      {subs.map((s) => (
+                        <div key={s.key} className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {s.label}
+                          </span>
+                          <Toggle
+                            checked={settings[s.key]}
+                            onChange={(v) => updateSetting(s.key, v)}
+                          />
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                {alwaysOn ? (
-                  <span className="text-xs text-muted-foreground/50 shrink-0">
-                    Always on
-                  </span>
-                ) : isLastContact(cfg.toggleKey!) ? (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-muted-foreground/50">
-                      Required
-                    </span>
-                    <Toggle checked onChange={() => {}} />
-                  </div>
-                ) : (
+                {hasShow ? (
                   <Toggle
                     checked={settings[cfg.toggleKey!]}
                     onChange={(v) => updateSetting(cfg.toggleKey!, v)}
                   />
+                ) : (
+                  <span className="text-xs text-muted-foreground/50 shrink-0">
+                    Always on
+                  </span>
                 )}
               </div>
             );
