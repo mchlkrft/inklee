@@ -29,10 +29,14 @@ export default function StatusActions({
   booking,
   depositDefaults = DEPOSIT_DEFAULTS_FALLBACK,
   stripeMode = "missing",
+  confirmStudio = null,
 }: {
   booking: Booking;
   depositDefaults?: DepositDefaults;
   stripeMode?: StripeMode;
+  // Set when the booking is tied to a trip — accepting then asks the artist to
+  // confirm the studio/location (which the approval email tells the client).
+  confirmStudio?: { name: string; dateLabel: string | null } | null;
 }) {
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(booking.status);
   const [, startTransition] = useTransition();
@@ -48,6 +52,7 @@ export default function StatusActions({
   );
   const [depositNote, setDepositNote] = useState(depositDefaults.note);
   const [confirmReject, setConfirmReject] = useState(false);
+  const [showStudioConfirm, setShowStudioConfirm] = useState(false);
 
   const run = async (
     action: (id: string) => Promise<{ error: string } | { success: true }>,
@@ -99,6 +104,52 @@ export default function StatusActions({
   return (
     <div className="space-y-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {showStudioConfirm && confirmStudio && (
+        <div
+          onClick={() => setShowStudioConfirm(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm space-y-4 rounded-[20px] border border-border bg-background p-5"
+          >
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold text-foreground">
+                Confirm the studio
+              </p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                This booking falls on a trip date. The client will be told to
+                come to{" "}
+                <span className="font-medium text-foreground">
+                  {confirmStudio.name}
+                </span>
+                {confirmStudio.dateLabel
+                  ? ` on ${confirmStudio.dateLabel}`
+                  : ""}
+                . Is that the right studio and location?
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowStudioConfirm(false);
+                  run(approveBooking, "approved");
+                }}
+                className="flex-1 rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-semibold text-brand-charcoal"
+              >
+                Yes, accept
+              </button>
+              <button
+                onClick={() => setShowStudioConfirm(false)}
+                className="rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDepositPending && (
         <div className="flex flex-col gap-3">
@@ -155,7 +206,11 @@ export default function StatusActions({
         <div className="flex flex-col gap-3">
           <div className="space-y-1">
             <button
-              onClick={() => run(approveBooking, "approved")}
+              onClick={() =>
+                confirmStudio
+                  ? setShowStudioConfirm(true)
+                  : run(approveBooking, "approved")
+              }
               className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-semibold text-brand-charcoal"
             >
               Accept

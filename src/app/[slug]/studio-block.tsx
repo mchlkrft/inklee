@@ -33,7 +33,7 @@ export default function StudioBlock({
   if (visibility_mode === "public_exact_address") {
     const addressLine = formatted_address || address || areaLine;
     return (
-      <div className="space-y-1 rounded-md border border-border px-4 py-3">
+      <div className="space-y-1 rounded-[20px] border border-border px-5 py-4">
         <p className="text-sm font-medium text-foreground">{name}</p>
         {addressLine && (
           <p className="text-xs text-muted-foreground">{addressLine}</p>
@@ -57,7 +57,7 @@ export default function StudioBlock({
 
   if (visibility_mode === "public_area_only") {
     return (
-      <div className="space-y-1 rounded-md border border-border px-4 py-3">
+      <div className="space-y-1 rounded-[20px] border border-border px-5 py-4">
         <p className="text-sm font-medium text-foreground">{name}</p>
         {areaLine && (
           <p className="text-xs text-muted-foreground">{areaLine}</p>
@@ -71,7 +71,7 @@ export default function StudioBlock({
 
   if (visibility_mode === "after_approval_only") {
     return (
-      <div className="space-y-1 rounded-md border border-border px-4 py-3">
+      <div className="space-y-1 rounded-[20px] border border-border px-5 py-4">
         <p className="text-sm font-medium text-foreground">{name}</p>
         {areaLine && (
           <p className="text-xs text-muted-foreground">{areaLine}</p>

@@ -154,10 +154,10 @@ Manual QA checklist:
 
 ## 13. Open tasks (deferred polish)
 
-### Form optimization (open — founder, 2026-05-28)
+### Form optimization (first pass done 2026-05-29 — pending founder review)
 
-The public booking page layout needs a refinement pass. Deferred deliberately; functional now, not yet polished:
+Public booking page refinement pass shipped; founder may refine further:
 
-- **Shop teaser placement** — moving the shop from the end-of-page slot to a clickable note above the booking form is better, but the exact position/styling still needs work.
-- **Studio information placement** — `StudioBlock` + the active-leg block currently render above the booking heading and read a bit off; reposition within the form.
-- **Goods item presentation** — the product cards inside the full-screen shop overlay (now a 40% charcoal scrim) need a proper design pass (card styling, layout, contrast on the charcoal).
+- **Shop teaser** — restyled as a rounded-[20px] note with a mustard-tint bag chip + two-line copy ("{artist} also has goods" / "Tap to browse — add when you book"). Position unchanged (clickable note above the form).
+- **Studio information** — `StudioBlock` + the active-leg block moved BELOW the "Booking request" heading (were above it, read off) so the heading leads. `StudioBlock` cards unified to `rounded-[20px] px-5 py-4` to match the active-leg card.
+- **Goods cards (overlay)** — given a solid bone card surface (`--color-workspace-bg`) + shadow so the dark card text is readable; the 40% charcoal scrim was leaving transparent cards' text unreadable.

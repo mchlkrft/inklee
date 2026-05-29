@@ -1,8 +1,15 @@
 import { sendEmail } from "./send";
 import { buildEmailHtml } from "./booking-templates";
 
-function html(body: string): string {
-  return buildEmailHtml(body, {});
+function html(
+  body: string,
+  studio?: {
+    name: string;
+    address: string | null;
+    mapsUrl: string | null;
+  } | null,
+): string {
+  return buildEmailHtml(body, {}, undefined, { studio });
 }
 
 export async function sendDepositOverdueCustomer({
@@ -64,12 +71,18 @@ export async function sendAppointmentReminder({
   artistName,
   date,
   placement,
+  studio,
 }: {
   to: string;
   customerHandle: string;
   artistName: string;
   date: string;
   placement: string;
+  studio?: {
+    name: string;
+    address: string | null;
+    mapsUrl: string | null;
+  } | null;
 }): Promise<void> {
   const body = `Hi ${customerHandle},
 
@@ -83,7 +96,7 @@ If anything changes, get in touch with ${artistName} directly.`;
   await sendEmail({
     to,
     subject: `Reminder: appointment with ${artistName} in 3 days`,
-    html: html(body),
+    html: html(body, studio),
   });
 }
 
@@ -94,6 +107,7 @@ export async function sendReconfirmationRequest({
   date,
   placement,
   magicLink,
+  studio,
 }: {
   to: string;
   customerHandle: string;
@@ -101,6 +115,11 @@ export async function sendReconfirmationRequest({
   date: string;
   placement: string;
   magicLink: string;
+  studio?: {
+    name: string;
+    address: string | null;
+    mapsUrl: string | null;
+  } | null;
 }): Promise<void> {
   const body = `Hi ${customerHandle},
 
@@ -115,6 +134,6 @@ ${magicLink}`;
   await sendEmail({
     to,
     subject: `Upcoming appointment with ${artistName}: confirming in 2 weeks`,
-    html: html(body),
+    html: html(body, studio),
   });
 }

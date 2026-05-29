@@ -13,6 +13,7 @@ import {
 import { createNotification } from "@/lib/notifications";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { customerLabel } from "@/lib/booking-domain";
+import { resolveStudioForBooking } from "@/lib/booking-studio";
 
 export const runtime = "nodejs";
 
@@ -311,6 +312,7 @@ export async function POST(request: Request) {
           date: booking.preferred_date ?? "",
           magic_link: `${appUrl}/request/${newToken}`,
         },
+        studio: await resolveStudioForBooking(bookingId),
       });
     }
 

@@ -68,7 +68,7 @@ export default function FlashBookingForm({
             Your contact <span className="text-foreground">*</span>
           </label>
           <div className="grid items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
-            <div className="flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
+            <div className="flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-3 text-base focus-within:ring-1 focus-within:ring-ring">
               <span className="select-none text-muted-foreground">@</span>
               <input
                 id="flash_handle"
@@ -93,7 +93,7 @@ export default function FlashBookingForm({
                 placeholder="email"
                 value={emailVal}
                 onChange={(e) => setEmailVal(e.target.value)}
-                className="w-full rounded-md border border-border bg-transparent py-2.5 pl-3 pr-10 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full rounded-md border border-border bg-transparent py-3 pl-3 pr-10 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               {emailDone && (
                 <CheckBadge className="absolute right-2.5 top-1/2 -translate-y-1/2" />

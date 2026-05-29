@@ -11,6 +11,7 @@ import {
   sendDepositOverdueCustomer,
   sendReconfirmationRequest,
 } from "@/lib/email/reminder-emails";
+import { resolveStudioForBooking } from "@/lib/booking-studio";
 import { checkReminderRateLimit } from "@/lib/ratelimit";
 import type { ReminderSettings } from "@/lib/reminder-settings";
 import { serviceClient } from "@/lib/supabase/service";
@@ -225,6 +226,7 @@ export async function sendManualReconfirmationAction(
       date: booking.preferred_date ?? "",
       placement: fd?.placement ?? "",
       magicLink: `${appUrl}/request/${newToken}`,
+      studio: await resolveStudioForBooking(bookingId),
     });
   } catch {
     await supabase
@@ -288,6 +290,7 @@ export async function sendManualAppointmentReminderAction(
     artistName: profile?.display_name ?? "the artist",
     date: booking.preferred_date ?? "",
     placement: fd?.placement ?? "",
+    studio: await resolveStudioForBooking(bookingId),
   });
 
   await writeAudit({

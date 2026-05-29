@@ -91,6 +91,18 @@ export default async function RequestDetailPage({
     }
   }
 
+  // When the booking is tied to a trip, accepting asks the artist to confirm
+  // the studio/location first (the approval email tells the client where to
+  // come). No trip -> accept directly, no extra step.
+  const confirmStudio = tripData
+    ? {
+        name: locationLabel ?? "the studio for this trip",
+        dateLabel: booking.preferred_date
+          ? formatDate(booking.preferred_date as string)
+          : null,
+      }
+    : null;
+
   const { data: reminderLog } = await supabase
     .from("audit_log")
     .select("action, timestamp, details")
@@ -173,6 +185,7 @@ export default async function RequestDetailPage({
           booking={{ id: booking.id, status: booking.status }}
           depositDefaults={depositDefaults}
           stripeMode={stripeMode}
+          confirmStudio={confirmStudio}
         />
       </div>
 
@@ -267,6 +280,7 @@ export default async function RequestDetailPage({
               booking={{ id: booking.id, status: booking.status }}
               depositDefaults={depositDefaults}
               stripeMode={stripeMode}
+              confirmStudio={confirmStudio}
             />
           </div>
 

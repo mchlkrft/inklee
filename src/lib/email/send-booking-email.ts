@@ -30,12 +30,18 @@ export async function sendBookingEmail({
   artistId,
   vars,
   customAnswers,
+  studio,
 }: {
   type: EmailType;
   to: string;
   artistId: string;
   vars: TemplateVars;
   customAnswers?: CustomAnswerSnapshot[];
+  studio?: {
+    name: string;
+    address: string | null;
+    mapsUrl: string | null;
+  } | null;
 }): Promise<void> {
   try {
     const { data: profile } = await serviceClient
@@ -73,6 +79,7 @@ export async function sendBookingEmail({
     const subject = substituteVars(subjectTemplate, displayVars);
     const html = buildEmailHtml(body, displayVars, customAnswers, {
       ctaLabel: CTA_LABELS[type],
+      studio,
     });
 
     await sendEmail({ to, subject, html });

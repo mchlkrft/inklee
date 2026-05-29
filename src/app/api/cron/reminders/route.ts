@@ -14,6 +14,7 @@ import {
 } from "@/lib/email/reminder-emails";
 import { parseReminderSettings } from "@/lib/reminder-settings";
 import { serviceClient } from "@/lib/supabase/service";
+import { resolveStudioForBooking } from "@/lib/booking-studio";
 import { localToUTC } from "@/lib/timezone";
 
 export const runtime = "nodejs";
@@ -224,6 +225,7 @@ export async function GET(request: Request) {
           artistName: snapshot.displayName,
           date: booking.preferred_date ?? "",
           placement: formData?.placement ?? "",
+          studio: await resolveStudioForBooking(booking.id),
         });
 
         await serviceClient.from("audit_log").insert({
@@ -313,6 +315,7 @@ export async function GET(request: Request) {
             date: booking.preferred_date ?? "",
             placement: formData?.placement ?? "",
             magicLink: `${appUrl}/request/${newToken}`,
+            studio: await resolveStudioForBooking(booking.id),
           });
         } catch (error) {
           await serviceClient

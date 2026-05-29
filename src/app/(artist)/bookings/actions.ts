@@ -6,6 +6,7 @@ import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
+import { resolveStudioForBooking } from "@/lib/booking-studio";
 import { canTransition } from "@/lib/booking-fsm";
 import {
   sendBookingEmail,
@@ -156,6 +157,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
       .eq("id", user.id)
       .single();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+    const studio = await resolveStudioForBooking(id);
     await sendBookingEmail({
       type: "customer_booking_approved",
       to: booking.customer_email,
@@ -168,6 +170,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
         date: booking.preferred_date ?? "",
         magic_link: `${appUrl}/request/${newToken}`,
       },
+      studio,
     });
   }
 

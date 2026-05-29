@@ -133,7 +133,14 @@ export function buildEmailHtml(
   body: string,
   vars: TemplateVars,
   customAnswers?: CustomAnswerSnapshot[],
-  opts?: { ctaLabel?: string },
+  opts?: {
+    ctaLabel?: string;
+    studio?: {
+      name: string;
+      address: string | null;
+      mapsUrl: string | null;
+    } | null;
+  },
 ): string {
   const substituted = substituteVars(body, vars);
   let rendered = renderBody(substituted, opts?.ctaLabel ?? "View details");
@@ -143,6 +150,19 @@ export function buildEmailHtml(
       (a) => `- ${escapeHtml(a.label)}: ${escapeHtml(formatCustomAnswer(a))}`,
     );
     rendered += `<br/><br/>Additional details:<br/>${lines.join("<br/>")}`;
+  }
+
+  // Studio block — included in confirmation + reminder emails so the client
+  // knows where to come (with a Google Maps link when the artist set one).
+  if (opts?.studio) {
+    const s = opts.studio;
+    rendered +=
+      `<br/><br/><span style="color:#0e0e10;font-weight:600;">Where to come</span>` +
+      `<br/>${escapeHtml(s.name)}`;
+    if (s.address) rendered += `<br/>${escapeHtml(s.address)}`;
+    if (s.mapsUrl) {
+      rendered += `<br/><a href="${s.mapsUrl}" style="color:#6b7280;font-size:13px;text-decoration:underline;">Open in Google Maps</a>`;
+    }
   }
 
   return `<!DOCTYPE html>
