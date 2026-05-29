@@ -119,15 +119,15 @@ Added 2026-05-28. The next major Inklee direction: evolve the public page into a
 
 Locked decisions: (D1) whole cluster ships **before public launch**; (D2) keep embedded **PaymentIntents** — one combined intent, itemized in Inklee's own `order_items`, no Checkout Session in v1 (locked in `DECISIONS.md`); (D3) **Stripe Connect gates production goods money** (OT-12) — built/tested in test mode first, `checkout_addons` OFF in prod until Connect lands; (D4) add-ons attach to the deposit-payment moment in `/request/[token]`; (D5) appointment pickup only, one artist + one booking per checkout, no shipping/cart/buyer-accounts/discounts; (D6) paywall **readiness** only (flags + `canUseGoods()`), no billing.
 
-| Slice | Title                                                                               | DB                                                   | Risk   | Status           |
-| ----- | ----------------------------------------------------------------------------------- | ---------------------------------------------------- | ------ | ---------------- |
-| 72    | Bio Page modular structure + custom links + booking policy + shop placeholder       | none (JSONB)                                         | Low    | ⏳ next to build |
-| 73    | Goods data model + dashboard CRUD + variants + public shop cards                    | 0035 `products`, `product_variants`                  | Medium | ⏳               |
-| 74    | Pre-checkout add-ons page + combined total + PaymentIntent amount update            | none                                                 | Medium | ⏳               |
-| 75    | Order + webhook order creation + inventory + booking-detail goods + itemized emails | 0036 `orders`, `order_items`, `inventory_movements?` | High   | ⏳               |
-| 76    | Paywall readiness flags + analytics + QA hardening                                  | none                                                 | Low    | ⏳               |
+| Slice | Title                                                                               | DB                                                   | Risk   | Status                      |
+| ----- | ----------------------------------------------------------------------------------- | ---------------------------------------------------- | ------ | --------------------------- |
+| 72    | Bio Page modular structure + custom links + booking policy + shop placeholder       | none (JSONB)                                         | Low    | ✓ built                     |
+| 73    | Goods data model + dashboard CRUD + variants + public shop cards                    | 0035 `products`, `product_variants`                  | Medium | ✓ built                     |
+| 74    | Pre-checkout add-ons page + combined total + PaymentIntent amount update            | none                                                 | Medium | ✓ built (test mode)         |
+| 75    | Order + webhook order creation + inventory + booking-detail goods + itemized emails | 0036 `orders`, `order_items`, `inventory_movements?` | High   | ✓ built (test mode)         |
+| 76    | Paywall readiness flags + analytics + QA hardening                                  | none                                                 | Low    | ◑ flags + tests; QA ongoing |
 
-Sequencing: 72 → 73 → 74 → 75 → 76. Slice 72 is low-risk and could ship first regardless. Slices 73–76 carry the commerce engine; 75 touches live money + the webhook. Production goods checkout is gated on OT-12 (Stripe Connect). Build Slice 72 only after the plan is approved; re-confirm scope at each slice boundary.
+Sequencing: 72 → 73 → 74 → 75 → 76 — **all built in code** (migrations 0035 + 0036 applied; `src/lib/features.ts` flags live; 213 vitest tests green as of 2026-05-29). Per D3, goods money stays in **test mode**: `checkout_addons` is OFF in production until **OT-12 Stripe Connect** is live and artists are onboarded as connected accounts. Remaining before launch: the Phase D walkthrough (§3.3), OT-12, and a manual QA pass of the live add-ons flow (plan §10).
 
 ---
 

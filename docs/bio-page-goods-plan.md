@@ -154,10 +154,13 @@ Manual QA checklist:
 
 ## 13. Open tasks (deferred polish)
 
-### Form optimization (first pass done 2026-05-29 — pending founder review)
+### Public page + goods refinement (second pass shipped 2026-05-29)
 
-Public booking page refinement pass shipped; founder may refine further:
+The first form-optimization pass (shop-teaser note, `StudioBlock` below the heading, bone overlay cards) was **superseded** by a header-led redesign:
 
-- **Shop teaser** — restyled as a rounded-[20px] note with a mustard-tint bag chip + two-line copy ("{artist} also has goods" / "Tap to browse — add when you book"). Position unchanged (clickable note above the form).
-- **Studio information** — `StudioBlock` + the active-leg block moved BELOW the "Booking request" heading (were above it, read off) so the heading leads. `StudioBlock` cards unified to `rounded-[20px] px-5 py-4` to match the active-leg card.
-- **Goods cards (overlay)** — given a solid bone card surface (`--color-workspace-bg`) + shadow so the dark card text is readable; the 40% charcoal scrim was leaving transparent cards' text unreadable.
+- **Header cards** — travel + goods now live as two quiet cards below the bio in the public header. The travel card opens a popover of upcoming public trips; the goods card opens the shop overlay. The old top-of-form shop-teaser note is gone.
+- **Studio information** — `StudioBlock` removed from the public page; studio shows as a one-liner ("dates · studio name", Maps link when set) under the header cards. Full studio details now live in the confirmation + reminder emails (`src/lib/booking-studio.ts`), and the artist confirms the studio when accepting a trip-dated request.
+- **Goods overlay cards** — items take the artist's chosen header color (charcoal under a cover photo) with bone text; popovers forced left-aligned.
+- **Goods publish/draft** — creating an item now requires an explicit Publish/Draft choice (was a buried checkbox that silently saved items hidden). Editing happens in a modal on `/goods`; the `/goods/[id]` subpage stays as a direct-URL fallback.
+
+Remaining (founder-gated): the Phase D live walkthrough, OT-12 Stripe Connect for production goods money, and a manual QA pass of the live add-ons checkout.
