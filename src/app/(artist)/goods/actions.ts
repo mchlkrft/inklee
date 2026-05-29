@@ -10,6 +10,7 @@ import {
   isProductCategory,
   isProductStatus,
   isCurrency,
+  toPriceNumber,
   DEFAULT_CURRENCY,
   MAX_PRODUCT_TITLE,
   MAX_PRODUCT_DESCRIPTION,
@@ -18,6 +19,8 @@ import {
   type ProductCategory,
   type ProductStatus,
 } from "@/lib/goods";
+import type { ProductFormValues } from "./product-form";
+import type { VariantInputRow } from "./product-form-fields";
 
 type State = { error: string } | { success: true } | null;
 
@@ -94,6 +97,15 @@ function parseProductFields(
   const qtyRes = parseQuantity(formData.get("quantity") as string | null);
   if ("error" in qtyRes) return qtyRes;
 
+  // Publish/draft is an explicit, required choice on the create + edit form —
+  // reject an absent value rather than silently defaulting to hidden.
+  const visRaw = formData.get("is_public_visible");
+  if (visRaw !== "on" && visRaw !== "off") {
+    return {
+      error: "Choose whether to publish this item or save it as a draft.",
+    };
+  }
+
   return {
     value: {
       title,
@@ -104,7 +116,7 @@ function parseProductFields(
       description,
       pickupNote,
       quantity: qtyRes.value,
-      isPublicVisible: formData.get("is_public_visible") === "on",
+      isPublicVisible: visRaw === "on",
       isCheckoutAddon: formData.get("is_checkout_addon") === "on",
     },
   };
@@ -370,6 +382,94 @@ export async function deleteProductAction(id: string): Promise<State> {
   revalidatePath("/goods");
   await revalidatePublicPage(user.id);
   return { success: true };
+}
+
+// Loads a product + its variants for the inline edit modal (Slice 73 follow-up:
+// editing happens in a modal on /goods, not a subpage). Mirrors the mapping the
+// /goods/[id] page does server-side. Ownership is enforced by artist_id.
+export async function loadProductForEditAction(
+  id: string,
+): Promise<
+  | { product: ProductFormValues; variants: VariantInputRow[] }
+  | { error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: rawProduct } = await supabase
+    .from("products")
+    .select(
+      "id, title, description, category, image_url, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
+    )
+    .eq("id", id)
+    .eq("artist_id", user.id)
+    .single();
+  if (!rawProduct) return { error: "Product not found." };
+  const row = rawProduct as unknown as {
+    id: string;
+    title: string;
+    description: string | null;
+    category: string;
+    image_url: string | null;
+    price_amount: string | number;
+    currency: string | null;
+    status: string;
+    pickup_note: string | null;
+    quantity: number | null;
+    is_public_visible: boolean;
+    is_checkout_addon: boolean;
+  };
+
+  const { data: rawVariants } = await supabase
+    .from("product_variants")
+    .select("name, price_amount_override, stock_quantity")
+    .eq("product_id", id)
+    .order("sort_order", { ascending: true });
+
+  const product: ProductFormValues = {
+    id: row.id,
+    title: row.title,
+    description: row.description ?? "",
+    category: (isProductCategory(row.category)
+      ? row.category
+      : "other") as ProductCategory,
+    price: String(toPriceNumber(row.price_amount)),
+    currency: typeof row.currency === "string" ? row.currency : "eur",
+    status: (isProductStatus(row.status)
+      ? row.status
+      : "active") as ProductStatus,
+    pickupNote: row.pickup_note ?? "",
+    quantity:
+      row.quantity !== null && row.quantity !== undefined
+        ? String(row.quantity)
+        : "",
+    isPublicVisible: row.is_public_visible,
+    isCheckoutAddon: row.is_checkout_addon,
+    imageUrl: row.image_url,
+  };
+
+  const variants: VariantInputRow[] = (
+    (rawVariants ?? []) as unknown as {
+      name: string;
+      price_amount_override: string | number | null;
+      stock_quantity: number | null;
+    }[]
+  ).map((v) => ({
+    name: v.name,
+    priceOverride:
+      v.price_amount_override !== null && v.price_amount_override !== undefined
+        ? String(toPriceNumber(v.price_amount_override))
+        : "",
+    stock:
+      v.stock_quantity !== null && v.stock_quantity !== undefined
+        ? String(v.stock_quantity)
+        : "",
+  }));
+
+  return { product, variants };
 }
 
 // Quick status toggle from the Goods grid tile (Slice 73 follow-up): mark a

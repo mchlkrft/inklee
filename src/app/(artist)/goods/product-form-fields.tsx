@@ -64,6 +64,13 @@ export default function ProductFormFields({
   const [removeImage, setRemoveImage] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // The add-on flag lives under "More settings" (collapsed by default). Hold it
+  // in state with an always-rendered hidden input so the value submits even when
+  // that section was never opened. Publish/draft is a required radio choice on
+  // the main form below, so it can't be silently defaulted.
+  const [isCheckoutAddon, setIsCheckoutAddon] = useState(
+    initial?.isCheckoutAddon ?? true,
+  );
 
   const [hasOptions, setHasOptions] = useState(initialVariants.length > 0);
   const [rows, setRows] = useState<VariantRow[]>(
@@ -365,6 +372,49 @@ export default function ProductFormFields({
         )}
       </div>
 
+      {/* Publish / draft — a required, explicit choice so an item is never
+          silently hidden (or silently published). Native `required` blocks the
+          form's submit until one option is picked. */}
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-foreground">
+          Visibility
+        </legend>
+        <p className="text-xs text-muted-foreground">
+          Choose whether this item goes live on your public page or stays a
+          draft.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2.5 text-sm text-foreground transition-colors has-[:checked]:border-brand-mustard has-[:checked]:bg-brand-mustard/10">
+            <input
+              type="radio"
+              name="is_public_visible"
+              value="on"
+              required
+              defaultChecked={initial?.isPublicVisible === true}
+            />
+            Publish to my page
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2.5 text-sm text-foreground transition-colors has-[:checked]:border-brand-mustard has-[:checked]:bg-brand-mustard/10">
+            <input
+              type="radio"
+              name="is_public_visible"
+              value="off"
+              required
+              defaultChecked={initial?.isPublicVisible === false}
+            />
+            Save as draft
+          </label>
+        </div>
+      </fieldset>
+
+      {/* Always-rendered so the add-on value submits regardless of whether the
+          "More settings" section was ever opened. */}
+      <input
+        type="hidden"
+        name="is_checkout_addon"
+        value={isCheckoutAddon ? "on" : "off"}
+      />
+
       {/* More settings — the long tail */}
       <button
         type="button"
@@ -435,16 +485,8 @@ export default function ProductFormFields({
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
-                name="is_public_visible"
-                defaultChecked={initial?.isPublicVisible ?? true}
-              />
-              Show on my public page
-            </label>
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                name="is_checkout_addon"
-                defaultChecked={initial?.isCheckoutAddon ?? true}
+                checked={isCheckoutAddon}
+                onChange={(e) => setIsCheckoutAddon(e.target.checked)}
               />
               Offer as an add-on when a client pays their deposit
             </label>

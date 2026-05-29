@@ -75,7 +75,9 @@ export default async function GoodsPage() {
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {products.map((p) => (
-            <li key={p.id}>
+            // Key on status so an edit (or quick toggle) that changes it on the
+            // server remounts the tile with fresh local state.
+            <li key={`${p.id}-${p.status}`}>
               <GoodsTile item={p} />
             </li>
           ))}
