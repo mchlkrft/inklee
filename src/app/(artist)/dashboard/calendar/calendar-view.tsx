@@ -103,7 +103,7 @@ export default function CalendarView({ events }: { events: CalendarEvent[] }) {
           </div>
           <button
             onClick={() => setShowNew(true)}
-            className="rounded-full bg-brand-mustard px-3 py-1.5 text-sm font-medium text-brand-charcoal"
+            className="rounded-full bg-brand-mustard px-4 py-1.5 text-sm font-medium text-brand-charcoal"
           >
             + New appointment
           </button>

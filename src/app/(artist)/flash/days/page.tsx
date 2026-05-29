@@ -69,7 +69,7 @@ export default async function FlashDaysPage() {
           />
           <Link
             href="/flash/days/new"
-            className="rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal"
+            className="rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal"
           >
             + New day
           </Link>

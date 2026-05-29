@@ -712,7 +712,7 @@ export default function BookingForm({
           <button
             type="submit"
             disabled={pending || compressing}
-            className="w-full rounded-full bg-brand-mustard px-4 py-3 text-base font-medium text-brand-charcoal disabled:opacity-50"
+            className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-medium text-brand-charcoal disabled:opacity-50"
           >
             {compressing
               ? "Preparing photos..."

@@ -335,7 +335,7 @@ function PillNav() {
           </Link>
           <Link
             href="/signup"
-            className="rounded-full bg-brand-mustard px-4 py-1.5 text-sm font-bold text-brand-charcoal transition-opacity hover:opacity-90"
+            className="rounded-full bg-brand-mustard px-5 py-1.5 text-sm font-bold text-brand-charcoal transition-opacity hover:opacity-90"
           >
             Get started
           </Link>

@@ -123,7 +123,7 @@ export default function BooksForm({ settings }: { settings: BooksSettings }) {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+        className="rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending ? <Spinner className="mx-auto h-4 w-4" /> : "Save"}
       </button>

@@ -234,7 +234,7 @@ export default function AccountActions({
             <button
               onClick={() => startConfirm("delete")}
               disabled={pending}
-              className="rounded-full bg-destructive/90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-destructive disabled:opacity-50"
+              className="rounded-full bg-destructive/90 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-destructive disabled:opacity-50"
             >
               Delete permanently
             </button>
@@ -415,7 +415,7 @@ function ConfirmPanel({
         <button
           onClick={onCancel}
           disabled={pending}
-          className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </button>

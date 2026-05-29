@@ -59,7 +59,7 @@ export default async function CalendarExportPage() {
           <form action={generateIcalToken}>
             <button
               type="submit"
-              className="rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal"
+              className="rounded-full bg-brand-mustard px-5 py-2 text-sm font-medium text-brand-charcoal"
             >
               Generate feed link
             </button>

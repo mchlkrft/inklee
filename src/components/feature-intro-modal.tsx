@@ -177,7 +177,7 @@ export default function FeatureIntroModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/50 px-4 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
         aria-label={`Learn what ${config.title.toLowerCase()} means`}
       >
         <span className="text-[10px] leading-none opacity-60">ⓘ</span>

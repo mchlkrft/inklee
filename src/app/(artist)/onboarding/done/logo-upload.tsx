@@ -95,7 +95,7 @@ export default function LogoUpload({ logoUrl }: { logoUrl: string | null }) {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={pending}
-            className="rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+            className="rounded border border-border px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
           >
             {pending ? (
               <Spinner className="h-3 w-3" />

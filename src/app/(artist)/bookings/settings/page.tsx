@@ -124,7 +124,7 @@ export default async function BookingSettingsPage() {
         </div>
         <Link
           href="/travel#studios"
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
         >
           Open studio library →
         </Link>

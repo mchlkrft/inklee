@@ -43,14 +43,14 @@ export default function DeleteProductButton({ id }: { id: string }) {
               router.push("/goods");
             })
           }
-          className="rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+          className="rounded-full bg-destructive px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50"
         >
           {pending ? "Deleting…" : "Yes, delete"}
         </button>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="rounded-full border border-border px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           Cancel
         </button>

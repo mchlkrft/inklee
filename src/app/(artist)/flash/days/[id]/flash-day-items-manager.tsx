@@ -150,7 +150,7 @@ export default function FlashDayItemsManager({
                 type="button"
                 onClick={handleAttach}
                 disabled={pending}
-                className="rounded-full bg-brand-mustard px-3 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
+                className="rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
               >
                 {pending ? "Attaching…" : `Attach ${selected.size}`}
               </button>

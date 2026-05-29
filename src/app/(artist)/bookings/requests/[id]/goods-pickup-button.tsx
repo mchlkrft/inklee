@@ -19,7 +19,7 @@ export default function GoodsPickupButton({ orderId }: { orderId: string }) {
             if (result && "error" in result) setError(result.error);
           })
         }
-        className="w-full rounded-full bg-brand-mustard px-4 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+        className="w-full rounded-full bg-brand-mustard px-5 py-2 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending ? "Saving…" : "Mark goods as picked up"}
       </button>

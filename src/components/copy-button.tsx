@@ -25,7 +25,7 @@ export default function CopyButton({
   return (
     <button
       onClick={copy}
-      className={`rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground ${className}`}
+      className={`rounded border border-border px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground ${className}`}
     >
       {copied ? copiedLabel : label}
     </button>

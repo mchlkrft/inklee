@@ -330,7 +330,7 @@ export default function WelcomeSlides() {
         <div className="space-y-3">
           <Link
             href={CLAIM_HREF}
-            className="block w-full rounded-full bg-brand-mustard px-4 py-3 text-center text-sm font-medium text-brand-charcoal"
+            className="block w-full rounded-full bg-brand-mustard px-5 py-3 text-center text-sm font-medium text-brand-charcoal"
           >
             Start setup →
           </Link>

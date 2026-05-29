@@ -113,7 +113,7 @@ export default function GoodsTile({ item }: { item: GoodsTileItem }) {
         <Link
           href={`/goods/${item.id}`}
           onClickCapture={(e) => e.stopPropagation()}
-          className="inline-flex w-32 items-center justify-center gap-1.5 rounded-full bg-brand-mustard px-3 py-1.5 text-xs font-semibold text-brand-charcoal transition-colors hover:opacity-90"
+          className="inline-flex w-32 items-center justify-center gap-1.5 rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-semibold text-brand-charcoal transition-colors hover:opacity-90"
         >
           <Pencil className="h-3.5 w-3.5" strokeWidth={2.5} /> Edit
         </Link>

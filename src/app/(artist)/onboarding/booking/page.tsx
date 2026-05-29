@@ -106,7 +106,7 @@ export default function OnboardingBookingPage() {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+          className="w-full rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? "Saving…" : "Continue →"}
         </button>

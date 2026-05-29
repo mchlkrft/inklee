@@ -20,7 +20,7 @@ export default function AccountActions({
           <button
             type="submit"
             disabled={syncing}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors disabled:opacity-60 disabled:cursor-wait"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors disabled:opacity-60 disabled:cursor-wait"
           >
             {syncing && (
               <span
@@ -35,7 +35,7 @@ export default function AccountActions({
           <button
             type="submit"
             disabled={syncing}
-            className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors disabled:opacity-60"
+            className="rounded-full border border-border px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-colors disabled:opacity-60"
           >
             Disconnect
           </button>

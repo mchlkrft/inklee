@@ -158,7 +158,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
               <button
                 type="button"
                 onClick={() => coverFileRef.current?.click()}
-                className="rounded-full bg-brand-bone px-3 py-1.5 text-xs font-medium text-brand-charcoal"
+                className="rounded-full bg-brand-bone px-4 py-1.5 text-xs font-medium text-brand-charcoal"
               >
                 {coverPreview && !removeCover ? "Replace" : "Upload"}
               </button>
@@ -170,7 +170,7 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
                     setCoverPreview(null);
                     if (coverFileRef.current) coverFileRef.current.value = "";
                   }}
-                  className="rounded-full bg-brand-charcoal/60 px-3 py-1.5 text-xs font-medium text-brand-bone"
+                  className="rounded-full bg-brand-charcoal/60 px-4 py-1.5 text-xs font-medium text-brand-bone"
                 >
                   Remove
                 </button>

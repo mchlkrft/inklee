@@ -81,7 +81,7 @@ export default function PillNav() {
           <Link
             href="/signup"
             data-fab-cta=""
-            className="rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-4 sm:py-1.5 sm:text-sm sm:shadow-none"
+            className="rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-5 sm:py-1.5 sm:text-sm sm:shadow-none"
           >
             Get started
           </Link>

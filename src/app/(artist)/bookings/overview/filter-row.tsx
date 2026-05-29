@@ -61,7 +61,7 @@ export default function FilterRow({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-2 rounded-full border border-border bg-transparent px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
         <span>Filter</span>

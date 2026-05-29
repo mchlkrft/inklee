@@ -132,13 +132,13 @@ export default function OnboardingFormPage() {
           <button
             type="submit"
             disabled={pending}
-            className="flex-1 rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
+            className="flex-1 rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
           >
             {pending ? "Saving…" : "Looks good →"}
           </button>
           <Link
             href="/onboarding/done"
-            className="rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-full border border-border px-5 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             Skip
           </Link>

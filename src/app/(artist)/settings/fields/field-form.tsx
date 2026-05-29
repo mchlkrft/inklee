@@ -185,7 +185,7 @@ export default function FieldForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-5 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
         >
           {pending ? "Saving..." : isEdit ? "Save changes" : "Add field"}
         </button>
