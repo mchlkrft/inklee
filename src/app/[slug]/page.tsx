@@ -4,11 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import BookingForm from "./booking-form";
 import BooksClosedBlock from "./books-closed-block";
-import StudioBlock from "./studio-block";
 import WaitlistForm from "./waitlist-form";
 import BookingPolicyBlock from "./booking-policy-block";
 import CustomLinksBlock from "./custom-links-block";
 import ShopTeaser from "./shop-teaser";
+import TravelCard from "./travel-card";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
@@ -244,7 +244,7 @@ export default async function ArtistPublicPage({
   const { data: rawTrips } = await serviceClient
     .from("trips")
     .select(
-      "id, title, description, show_on_booking_form, trip_legs(id, starts_on, ends_on, studio_id, studios(name, city, country, visibility_mode, public_note))",
+      "id, title, description, show_on_booking_form, trip_legs(id, starts_on, ends_on, studio_id, studios(name, city, country, visibility_mode, public_note, google_maps_url))",
     )
     .eq("artist_id", profile.id)
     .eq("show_on_booking_form", true);
@@ -255,6 +255,7 @@ export default async function ArtistPublicPage({
     country: string;
     visibility_mode: string;
     public_note: string | null;
+    google_maps_url: string | null;
   };
   type RawLeg = {
     id: string;
@@ -299,16 +300,18 @@ export default async function ArtistPublicPage({
       ) ?? null)
     : null;
 
+  const activeLegStudio = activeLeg
+    ? Array.isArray(activeLeg.studios)
+      ? (activeLeg.studios[0] ?? null)
+      : activeLeg.studios
+    : null;
   const activeLegData =
     activeLeg && activeTrip
       ? {
-          tripTitle: activeTrip.title,
           startsOn: activeLeg.starts_on,
           endsOn: activeLeg.ends_on,
-          studioName: Array.isArray(activeLeg.studios)
-            ? (activeLeg.studios[0]?.name ?? null)
-            : ((activeLeg.studios as { name: string } | null)?.name ?? null),
-          description: activeTrip.description,
+          studioName: activeLegStudio?.name ?? null,
+          studioMapsUrl: activeLegStudio?.google_maps_url ?? null,
         }
       : null;
 
@@ -437,9 +440,13 @@ export default async function ArtistPublicPage({
       ? { backgroundColor: coverColor }
       : {};
 
+  // Goods overlay cards match the chosen header color; charcoal when the header
+  // is a cover image (or no color set).
+  const goodsItemBg = !coverImage && coverColor ? coverColor : null;
+
   return (
     <div className="flex min-h-screen flex-col bg-brand-charcoal text-brand-bone">
-      <header className="relative px-6 pt-14 pb-20" style={headerStyle}>
+      <header className="relative px-6 pt-12 pb-16" style={headerStyle}>
         {coverImage && (
           <div aria-hidden className="absolute inset-0 bg-brand-charcoal/55" />
         )}
@@ -482,6 +489,46 @@ export default async function ArtistPublicPage({
               {profile.bio}
             </p>
           )}
+          {(futureTrips.length > 0 || shopProducts.length > 0) && (
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              {futureTrips.length > 0 && <TravelCard trips={futureTrips} />}
+              {shopProducts.length > 0 && (
+                <ShopTeaser products={shopProducts} itemBg={goodsItemBg} />
+              )}
+            </div>
+          )}
+          {activeLegData && (
+            <p className="pt-1.5 text-sm text-brand-bone/65">
+              {formatDateKey(activeLegData.startsOn, {
+                day: "numeric",
+                month: "short",
+              })}
+              {" — "}
+              {formatDateKey(activeLegData.endsOn, {
+                day: "numeric",
+                month: "short",
+              })}
+              {activeLegData.studioName && (
+                <>
+                  {" · "}
+                  {activeLegData.studioMapsUrl ? (
+                    <a
+                      href={activeLegData.studioMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-brand-bone underline underline-offset-2 transition-colors hover:text-brand-bone/80"
+                    >
+                      {activeLegData.studioName}
+                    </a>
+                  ) : (
+                    <span className="font-medium text-brand-bone">
+                      {activeLegData.studioName}
+                    </span>
+                  )}
+                </>
+              )}
+            </p>
+          )}
         </div>
       </header>
 
@@ -490,35 +537,6 @@ export default async function ArtistPublicPage({
         className="relative -mt-8 flex-1 rounded-t-[28px] bg-[color:var(--color-workspace-bg)] px-6 pt-10 pb-12 text-foreground md:px-8"
       >
         <div className="mx-auto w-full max-w-lg space-y-8">
-          <StudioBlock studio={primaryStudio ?? null} />
-
-          {activeLegData && (
-            <div className="space-y-1 rounded-[20px] border border-border px-5 py-4">
-              <p className="text-sm font-medium text-foreground">
-                {activeLegData.tripTitle}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {formatDateKey(activeLegData.startsOn, {
-                  day: "numeric",
-                  month: "short",
-                })}
-                {" — "}
-                {formatDateKey(activeLegData.endsOn, {
-                  day: "numeric",
-                  month: "short",
-                })}
-                {activeLegData.studioName
-                  ? ` · ${activeLegData.studioName}`
-                  : ""}
-              </p>
-              {activeLegData.description && (
-                <p className="text-xs text-muted-foreground">
-                  {activeLegData.description}
-                </p>
-              )}
-            </div>
-          )}
-
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-foreground">
@@ -528,13 +546,6 @@ export default async function ArtistPublicPage({
                 Fill in the details and I&apos;ll get back to you.
               </p>
             </div>
-
-            {shopProducts.length > 0 && (
-              <ShopTeaser
-                products={shopProducts}
-                artistFirstName={artistFirstName}
-              />
-            )}
 
             {isClosed ? (
               <BooksClosedBlock message={closedMessage} hint={closedHint}>
