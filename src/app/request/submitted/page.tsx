@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { CheckCircle } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 export default async function SubmittedPage({
   searchParams,
@@ -13,7 +13,7 @@ export default async function SubmittedPage({
     email?: string;
   }>;
 }) {
-  const { id, slug, edited, cancelled, email } = await searchParams;
+  const { slug, edited, cancelled, email } = await searchParams;
 
   let artistName: string | null = null;
   if (slug) {
@@ -51,30 +51,32 @@ export default async function SubmittedPage({
           : "Your request is in. The artist will get back to you.";
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-6 text-center">
-        <CheckCircle
-          className={`mx-auto h-10 w-10 ${isCancelled ? "text-muted-foreground" : "text-green-500"}`}
-          strokeWidth={1.5}
-        />
-
-        <div className="space-y-2">
-          <h1 className="text-xl font-semibold text-foreground">{headline}</h1>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {body}
-          </p>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-brand-charcoal px-6">
+      <div className="w-full max-w-sm space-y-7 text-center">
+        {/* Branded status mark — mustard for success, muted for a cancellation. */}
+        <div
+          className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${
+            isCancelled ? "bg-brand-bone/10" : "bg-brand-mustard"
+          }`}
+        >
+          {isCancelled ? (
+            <X className="h-7 w-7 text-brand-bone/60" strokeWidth={2.5} />
+          ) : (
+            <Check className="h-9 w-9 text-brand-charcoal" strokeWidth={3.5} />
+          )}
         </div>
 
-        {id && (
-          <p className="font-mono text-xs text-muted-foreground">
-            Ref: {id.slice(0, 8)}
-          </p>
-        )}
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-brand-bone">
+            {headline}
+          </h1>
+          <p className="text-sm leading-relaxed text-brand-bone/70">{body}</p>
+        </div>
 
         {slug && !isCancelled && (
           <Link
             href={`/${slug}`}
-            className="inline-block text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+            className="inline-block text-sm text-brand-bone/70 underline underline-offset-4 transition-colors hover:text-brand-bone"
           >
             Back to {artistName ?? slug}
           </Link>

@@ -21,6 +21,23 @@ export function bookingModeLabel(mode: BookingMode): string {
   return mode === "fixed_slots" ? "Fixed slot" : "Preferred date";
 }
 
+/**
+ * Display name for a customer. Clients may provide Instagram OR email (one is
+ * enough), so a handle is no longer guaranteed. Prefer "@handle", fall back to
+ * the email, then a generic label — never render a bare "@".
+ */
+export function customerLabel(
+  handle?: string | null,
+  email?: string | null,
+  fallback = "Client",
+): string {
+  const h = handle?.trim();
+  if (h) return `@${h}`;
+  const e = email?.trim();
+  if (e) return e;
+  return fallback;
+}
+
 function normalizeText(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }

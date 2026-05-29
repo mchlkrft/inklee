@@ -10,6 +10,7 @@ import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import WaitlistActions from "../waitlist/waitlist-actions";
 import FilterRow, { type FilterGroup } from "./filter-row";
 import { publicArtistUrl } from "@/lib/public-url";
+import { customerLabel } from "@/lib/booking-domain";
 
 // Labels mirror the StatusBadge / humanStatusLabel vocabulary so the chip
 // row and the row badges below speak the same language. URL `value`s stay
@@ -58,7 +59,7 @@ async function RequestsView({
   let query = supabase
     .from("booking_requests")
     .select(
-      "id, status, customer_handle, preferred_date, form_data, created_at",
+      "id, status, customer_handle, customer_email, preferred_date, form_data, created_at",
     )
     .eq("artist_id", user!.id)
     .order("created_at", { ascending: false });
@@ -151,7 +152,7 @@ async function RequestsView({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">
-                          @{b.customer_handle}
+                          {customerLabel(b.customer_handle, b.customer_email)}
                         </p>
                         {fd?.placement && (
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -211,7 +212,7 @@ async function RequestsView({
                           href={`/bookings/requests/${b.id}`}
                           className="block text-foreground"
                         >
-                          @{b.customer_handle}
+                          {customerLabel(b.customer_handle, b.customer_email)}
                         </Link>
                       </td>
                       <td className="max-w-[180px] truncate px-4 py-3 text-muted-foreground">

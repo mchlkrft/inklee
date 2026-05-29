@@ -1,4 +1,5 @@
 import { serviceClient } from "@/lib/supabase/service";
+import { customerLabel } from "@/lib/booking-domain";
 
 function icalDate(d: string) {
   return d.replace(/-/g, "");
@@ -26,7 +27,7 @@ export async function GET(
 
   const { data: bookings } = await serviceClient
     .from("booking_requests")
-    .select("id, preferred_date, customer_handle, form_data")
+    .select("id, preferred_date, customer_handle, customer_email, form_data")
     .eq("artist_id", profile.id)
     .eq("status", "approved")
     .not("preferred_date", "is", null);
@@ -36,7 +37,7 @@ export async function GET(
   const events = (bookings ?? [])
     .map((b) => {
       const fd = b.form_data as Record<string, string> | null;
-      const summary = `@${b.customer_handle ?? "unknown"} — ${fd?.placement ?? ""}`;
+      const summary = `${customerLabel(b.customer_handle, b.customer_email, "Booking")} — ${fd?.placement ?? ""}`;
       return [
         "BEGIN:VEVENT",
         `UID:${b.id}@inklee.app`,

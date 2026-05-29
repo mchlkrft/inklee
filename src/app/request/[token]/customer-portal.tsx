@@ -245,7 +245,9 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
         <Row label="Status">
           <StatusBadge status={booking.status} />
         </Row>
-        <Row label="Instagram" value={`@${booking.handle}`} />
+        {booking.handle && (
+          <Row label="Instagram" value={`@${booking.handle}`} />
+        )}
         <Row label="Booking type" value={booking.bookingModeLabel} />
         <Row label="Placement" value={booking.placement} />
         <Row label="Size" value={booking.size} />

@@ -21,6 +21,7 @@ import {
   buildBookingFingerprintKey,
   bookingModeFromRequest,
   normalizeBookingMode,
+  customerLabel,
 } from "@/lib/booking-domain";
 import {
   dateKeyInTimeZone,
@@ -95,13 +96,22 @@ export async function submitBookingAction(
   };
 
   // Presence checks — only enforce optional fields when the artist has enabled them.
-  if (formSettings.show_instagram_handle && !raw.instagram_handle) {
+  // Contact: Instagram OR email. When both fields are offered, at least one
+  // must be filled so clients without Instagram aren't excluded. When only one
+  // field is shown, that one is required.
+  if (formSettings.show_instagram_handle && formSettings.show_email) {
+    if (!raw.instagram_handle && !raw.email) {
+      return {
+        error: "Add your Instagram or email so the artist can reach you.",
+        field: "instagram_handle",
+      };
+    }
+  } else if (formSettings.show_instagram_handle && !raw.instagram_handle) {
     return {
       error: "Instagram handle is required.",
       field: "instagram_handle",
     };
-  }
-  if (formSettings.show_email && !raw.email) {
+  } else if (formSettings.show_email && !raw.email) {
     return { error: "A valid email is required.", field: "email" };
   }
   if (formSettings.show_placement && !raw.placement) {
@@ -536,7 +546,7 @@ export async function submitBookingAction(
     category: "booking_activity",
     priority: "high",
     title: "New booking request",
-    message: `@${data.instagram_handle} wants a ${data.placement} (${data.size})${requestDate ? ` on ${requestDate}` : ""}.`,
+    message: `${customerLabel(data.instagram_handle, data.email)} wants a ${data.placement} (${data.size})${requestDate ? ` on ${requestDate}` : ""}.`,
     ctaLabel: "View request",
     ctaHref: `/bookings/requests/${bookingId}`,
     metadata: { booking_id: bookingId },

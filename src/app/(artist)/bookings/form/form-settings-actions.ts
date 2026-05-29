@@ -28,6 +28,19 @@ export async function saveFormSettingsAction(
     unknown
   >;
 
+  // Guarantee at least one contact method (Instagram or email) stays enabled —
+  // clients always need a way to reach the artist. Fields are on unless
+  // explicitly turned off, so the "other" defaults to enabled.
+  if ((key === "show_instagram_handle" || key === "show_email") && !value) {
+    const otherKey =
+      key === "show_instagram_handle" ? "show_email" : "show_instagram_handle";
+    if (formSettings[otherKey] === false) {
+      return {
+        error: "Keep at least one contact method (Instagram or email).",
+      };
+    }
+  }
+
   const persistedValue = key === "show_preferred_date" ? true : value;
 
   const { error } = await supabase

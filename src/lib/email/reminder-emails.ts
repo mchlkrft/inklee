@@ -20,7 +20,7 @@ export async function sendDepositOverdueCustomer({
   dueAt: string;
   note: string | null;
 }): Promise<void> {
-  const body = `Hi @${customerHandle},
+  const body = `Hi ${customerHandle},
 
 Your deposit of EUR ${amountEur.toFixed(2)} for your booking with ${artistName} was due on ${dueAt} and hasn't been received yet.
 
@@ -44,7 +44,7 @@ export async function sendDepositOverdueArtist({
   amountEur: number;
   dueAt: string;
 }): Promise<void> {
-  const body = `@${customerHandle}'s deposit of EUR ${amountEur.toFixed(2)} was due on ${dueAt} and hasn't been received.
+  const body = `${customerHandle}'s deposit of EUR ${amountEur.toFixed(2)} was due on ${dueAt} and hasn't been received.
 
 You may want to follow up or cancel the booking.
 
@@ -53,7 +53,7 @@ https://inklee.app/bookings/overview`;
 
   await sendEmail({
     to,
-    subject: `Deposit overdue: @${customerHandle}`,
+    subject: `Deposit overdue: ${customerHandle}`,
     html: html(body),
   });
 }
@@ -71,7 +71,7 @@ export async function sendAppointmentReminder({
   date: string;
   placement: string;
 }): Promise<void> {
-  const body = `Hi @${customerHandle},
+  const body = `Hi ${customerHandle},
 
 A quick reminder: your tattoo appointment with ${artistName} is in 3 days.
 
@@ -102,7 +102,7 @@ export async function sendReconfirmationRequest({
   placement: string;
   magicLink: string;
 }): Promise<void> {
-  const body = `Hi @${customerHandle},
+  const body = `Hi ${customerHandle},
 
 Your tattoo with ${artistName} is coming up on ${date} (${placement}).
 

@@ -61,8 +61,17 @@ export async function sendBookingEmail({
     const body = custom?.body ?? DEFAULT_BODIES[type] ?? "";
     const subjectTemplate =
       custom?.subject ?? DEFAULT_SUBJECTS[type] ?? "inklee";
-    const subject = substituteVars(subjectTemplate, vars);
-    const html = buildEmailHtml(body, vars, customAnswers, {
+    // Clients may give Instagram OR email, so a handle isn't guaranteed. Fall
+    // back to a friendly name (customer greeting -> "there", artist notices ->
+    // "a new client") so an email never renders "Hi ," or a bare "@".
+    const rawHandle = (vars.customer_handle ?? "").trim();
+    const displayVars: TemplateVars = {
+      ...vars,
+      customer_handle:
+        rawHandle || (type.startsWith("customer_") ? "there" : "a new client"),
+    };
+    const subject = substituteVars(subjectTemplate, displayVars);
+    const html = buildEmailHtml(body, displayVars, customAnswers, {
       ctaLabel: CTA_LABELS[type],
     });
 
@@ -258,7 +267,7 @@ export async function sendArtistDepositPaidEmail({
             )
             .join("\n")}\nGoods total: EUR ${goodsTotal.toFixed(2)}`
         : "";
-    const body = `@${customerHandle} paid their deposit. The booking is confirmed.
+    const body = `${customerHandle} paid their deposit. The booking is confirmed.
 
 Deposit: EUR ${amountEur.toFixed(2)}${placement ? `\nPlacement: ${placement}` : ""}${date ? `\nDate: ${date}` : ""}${goodsBlock}
 
@@ -269,8 +278,8 @@ https://inklee.app/bookings/overview`;
       to: artistEmail,
       subject:
         goodsLines.length > 0
-          ? `@${customerHandle} paid their deposit and reserved goods`
-          : `@${customerHandle} paid their deposit`,
+          ? `${customerHandle} paid their deposit and reserved goods`
+          : `${customerHandle} paid their deposit`,
       html: build(body, {}, undefined, { ctaLabel: "Open bookings" }),
     });
   } catch (err) {
@@ -291,7 +300,7 @@ export async function sendArtistCancellationByCustomer({
   date: string;
 }): Promise<void> {
   try {
-    const body = `@${customerHandle} has cancelled their booking request.
+    const body = `${customerHandle} has cancelled their booking request.
 
 - Placement: ${placement}
 - Date: ${date}
@@ -302,7 +311,7 @@ https://inklee.app/bookings/overview`;
     const { buildEmailHtml: build } = await import("./booking-templates");
     await sendEmail({
       to: artistEmail,
-      subject: `@${customerHandle} cancelled their booking`,
+      subject: `${customerHandle} cancelled their booking`,
       html: build(body, {}, undefined, { ctaLabel: "Open bookings" }),
     });
   } catch (err) {

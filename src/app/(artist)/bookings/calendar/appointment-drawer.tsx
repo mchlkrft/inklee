@@ -6,6 +6,7 @@ import { editAppointmentAction, cancelAppointmentAction } from "./actions";
 import Spinner from "@/components/spinner";
 import { SIZES } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
+import { customerLabel } from "@/lib/booking-domain";
 
 export type CalendarEvent = {
   id: string;
@@ -80,7 +81,7 @@ export default function AppointmentDrawer({
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-background border-l border-border flex flex-col overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <span className="text-sm font-medium text-foreground">
-            @{event.handle}
+            {customerLabel(event.handle, event.email)}
           </span>
           <button
             onClick={() => {

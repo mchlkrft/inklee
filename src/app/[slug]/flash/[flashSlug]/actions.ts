@@ -7,22 +7,26 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { todayInTimeZone } from "@/lib/date-utils";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { createNotification } from "@/lib/notifications";
+import { customerLabel } from "@/lib/booking-domain";
 import { computeFlashAvailability } from "@/lib/flash";
 import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
-const flashBookingSchema = z.object({
-  instagram_handle: z
-    .string()
-    .min(1, "instagram handle is required")
-    .transform((s) => s.replace(/^@/, "").trim()),
-  email: z.string().email("valid email required"),
-  placement: z.string().min(1, "placement is required").max(200),
-  preferred_date: z.string().min(1, "preferred date is required"),
-  notes: z.string().max(500).optional(),
-});
+const flashBookingSchema = z
+  .object({
+    instagram_handle: z.string().transform((s) => s.replace(/^@/, "").trim()),
+    email: z.union([z.string().email("valid email required"), z.literal("")]),
+    placement: z.string().min(1, "placement is required").max(200),
+    preferred_date: z.string().min(1, "preferred date is required"),
+    notes: z.string().max(500).optional(),
+  })
+  // Instagram OR email — at least one so the artist can reach the client.
+  .refine((d) => d.instagram_handle.length > 0 || d.email.length > 0, {
+    message: "Add your Instagram or email so the artist can reach you.",
+    path: ["instagram_handle"],
+  });
 
 type State = { error: string; field?: string } | null;
 
@@ -46,8 +50,8 @@ export async function submitFlashBookingAction(
 
   // Validate form fields
   const raw = {
-    instagram_handle: formData.get("instagram_handle"),
-    email: formData.get("email"),
+    instagram_handle: (formData.get("instagram_handle") as string) ?? "",
+    email: (formData.get("email") as string) ?? "",
     placement: formData.get("placement"),
     preferred_date: formData.get("preferred_date"),
     notes: formData.get("notes"),
@@ -115,21 +119,24 @@ export async function submitFlashBookingAction(
     return { error: "this flash item is no longer available for booking" };
   }
 
-  // Deduplication: same email + same flash item within 60s
-  const dedupeWindow = new Date(Date.now() - 60000).toISOString();
-  const { count: recentCount } = await serviceClient
-    .from("booking_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("artist_id", artistId)
-    .eq("flash_item_id", flashItemId)
-    .eq("customer_email", data.email)
-    .gte("created_at", dedupeWindow);
+  // Deduplication: same email + same flash item within 60s. Only meaningful
+  // when an email was provided — Instagram-only requests skip this guard.
+  if (data.email) {
+    const dedupeWindow = new Date(Date.now() - 60000).toISOString();
+    const { count: recentCount } = await serviceClient
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", artistId)
+      .eq("flash_item_id", flashItemId)
+      .eq("customer_email", data.email)
+      .gte("created_at", dedupeWindow);
 
-  if ((recentCount ?? 0) > 0) {
-    return {
-      error:
-        "your request was already submitted — check your email for confirmation",
-    };
+    if ((recentCount ?? 0) > 0) {
+      return {
+        error:
+          "your request was already submitted — check your email for confirmation",
+      };
+    }
   }
 
   // Insert booking
@@ -151,9 +158,9 @@ export async function submitFlashBookingAction(
         flash_item_slug: flashItem.slug,
       },
       preferred_date: data.preferred_date,
-      customer_email: data.email,
-      customer_handle: data.instagram_handle,
-      customer_token_hash: tokenHash,
+      customer_email: data.email || null,
+      customer_handle: data.instagram_handle || null,
+      customer_token_hash: data.email ? tokenHash : null,
       origin: "public_form",
       flash_item_id: flashItemId,
       flash_day_id: flashDayId || null,
@@ -180,7 +187,7 @@ export async function submitFlashBookingAction(
     category: "booking_activity",
     priority: "high",
     title: "New flash booking request",
-    message: `@${data.instagram_handle} wants to book "${flashItem.title}"`,
+    message: `${customerLabel(data.instagram_handle, data.email)} wants to book "${flashItem.title}"`,
     ctaLabel: "View request",
     ctaHref: `/bookings/requests/${bookingId}`,
     metadata: { booking_id: bookingId, flash_item_id: flashItemId },
@@ -197,24 +204,28 @@ export async function submitFlashBookingAction(
   const magicLinkBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const magicLink = `${magicLinkBase}/request/${token}`;
 
-  try {
-    await sendBookingEmail({
-      type: "customer_booking_submitted",
-      to: data.email,
-      artistId,
-      vars: {
-        customer_handle: data.instagram_handle,
-        artist_name: artistProfile.display_name,
-        artist_slug: artistSlug,
-        placement: `${flashItem.title} — ${data.placement}`,
-        size: flashItem.size_info ?? "—",
-        date: data.preferred_date,
-        magic_link: magicLink,
-      },
-    });
-  } catch (e) {
-    Sentry.captureException(e, { tags: { action: "flash_email_send" } });
+  if (data.email) {
+    try {
+      await sendBookingEmail({
+        type: "customer_booking_submitted",
+        to: data.email,
+        artistId,
+        vars: {
+          customer_handle: data.instagram_handle,
+          artist_name: artistProfile.display_name,
+          artist_slug: artistSlug,
+          placement: `${flashItem.title} — ${data.placement}`,
+          size: flashItem.size_info ?? "—",
+          date: data.preferred_date,
+          magic_link: magicLink,
+        },
+      });
+    } catch (e) {
+      Sentry.captureException(e, { tags: { action: "flash_email_send" } });
+    }
   }
 
-  redirect(`/request/submitted?id=${bookingId}&slug=${artistSlug}&email=1`);
+  redirect(
+    `/request/submitted?id=${bookingId}&slug=${artistSlug}&email=${data.email ? "1" : "0"}`,
+  );
 }

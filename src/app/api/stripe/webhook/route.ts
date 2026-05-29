@@ -12,6 +12,7 @@ import {
 } from "@/lib/order-fulfillment";
 import { createNotification } from "@/lib/notifications";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
+import { customerLabel } from "@/lib/booking-domain";
 
 export const runtime = "nodejs";
 
@@ -257,7 +258,7 @@ export async function POST(request: Request) {
       category: "booking_activity",
       priority: "high",
       title: "Deposit paid",
-      message: `@${booking.customer_handle ?? "client"} paid their EUR ${depositEur.toFixed(2)} deposit${goodsSuffix}. Booking confirmed.`,
+      message: `${customerLabel(booking.customer_handle, booking.customer_email, "A client")} paid their EUR ${depositEur.toFixed(2)} deposit${goodsSuffix}. Booking confirmed.`,
       ctaLabel: "View booking",
       ctaHref: `/bookings/requests/${bookingId}`,
       metadata: {
@@ -273,7 +274,11 @@ export async function POST(request: Request) {
       const afd = booking.form_data as Record<string, string> | null;
       await sendArtistDepositPaidEmail({
         artistEmail: artistAuth.user.email,
-        customerHandle: booking.customer_handle ?? "client",
+        customerHandle: customerLabel(
+          booking.customer_handle,
+          booking.customer_email,
+          "A client",
+        ),
         amountEur: depositEur,
         goodsLines,
         goodsTotal: goodsLines.reduce((n, l) => n + l.total, 0),

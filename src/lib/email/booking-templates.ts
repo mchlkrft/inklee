@@ -51,7 +51,7 @@ export function substituteVars(template: string, vars: TemplateVars): string {
 }
 
 export const DEFAULT_BODIES: Record<string, string> = {
-  customer_booking_submitted: `Hi @{{customer_handle}},
+  customer_booking_submitted: `Hi {{customer_handle}},
 
 Your booking request to {{artist_name}} has been received. They will review it and get back to you soon.
 
@@ -64,7 +64,7 @@ You can edit or cancel your request using the link below. It's valid for 30 days
 
 {{magic_link}}`,
 
-  customer_booking_approved: `Hi @{{customer_handle}},
+  customer_booking_approved: `Hi {{customer_handle}},
 
 Good news. {{artist_name}} accepted your booking.
 
@@ -77,19 +77,19 @@ If you need to cancel, use the link below.
 
 {{magic_link}}`,
 
-  customer_booking_rejected: `Hi @{{customer_handle}},
+  customer_booking_rejected: `Hi {{customer_handle}},
 
 {{artist_name}} has reviewed your request but isn't able to take it at this time.
 
 Feel free to submit a new request in the future.`,
 
-  customer_booking_cancelled_by_artist: `Hi @{{customer_handle}},
+  customer_booking_cancelled_by_artist: `Hi {{customer_handle}},
 
 {{artist_name}} has cancelled your booking.
 
 If you have any questions, reach out to them directly on Instagram.`,
 
-  artist_new_booking_request: `You have a new booking request from @{{customer_handle}}.
+  artist_new_booking_request: `You have a new booking request from {{customer_handle}}.
 
 - Placement: {{placement}}
 - Size: {{size}}
@@ -104,7 +104,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   customer_booking_approved: "Your booking has been accepted",
   customer_booking_rejected: "About your booking request",
   customer_booking_cancelled_by_artist: "Your booking has been cancelled",
-  artist_new_booking_request: "New booking request from @{{customer_handle}}",
+  artist_new_booking_request: "New booking request from {{customer_handle}}",
 };
 
 // Render a plain-text body to HTML. Each standalone URL line becomes a tappable

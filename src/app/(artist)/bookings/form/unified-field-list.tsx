@@ -184,7 +184,18 @@ export default function UnifiedFieldList({
 
   // ── Setting updates ─────────────────────────────────────────────────────────
 
+  // At least one contact method (Instagram or email) must stay enabled so
+  // clients always have a way to reach the artist.
+  const isLastContact = (key: keyof FormSettings) =>
+    (key === "show_instagram_handle" &&
+      settings.show_instagram_handle &&
+      !settings.show_email) ||
+    (key === "show_email" &&
+      settings.show_email &&
+      !settings.show_instagram_handle);
+
   function updateSetting(key: keyof FormSettings, value: boolean) {
+    if (!value && isLastContact(key)) return; // never disable the last contact
     setSettings((prev) => ({ ...prev, [key]: value }));
     startTransition(async () => {
       await saveFormSettingsAction(key, value);
@@ -308,6 +319,13 @@ export default function UnifiedFieldList({
                   <span className="text-xs text-muted-foreground/50 shrink-0">
                     Always on
                   </span>
+                ) : isLastContact(cfg.toggleKey!) ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground/50">
+                      Required
+                    </span>
+                    <Toggle checked onChange={() => {}} />
+                  </div>
                 ) : (
                   <Toggle
                     checked={settings[cfg.toggleKey!]}

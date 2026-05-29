@@ -6,6 +6,7 @@ import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import BookingLinkWidget from "./booking-link-widget";
 import { publicArtistUrl } from "@/lib/public-url";
+import { customerLabel } from "@/lib/booking-domain";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import {
   Inbox,
@@ -43,9 +44,12 @@ export default async function DashboardPage() {
     widgets.pending_requests
       ? supabase
           .from("booking_requests")
-          .select("id, customer_handle, created_at, form_data", {
-            count: "exact",
-          })
+          .select(
+            "id, customer_handle, customer_email, created_at, form_data",
+            {
+              count: "exact",
+            },
+          )
           .eq("artist_id", user!.id)
           .eq("status", "pending")
           .order("created_at", { ascending: false })
@@ -55,7 +59,9 @@ export default async function DashboardPage() {
     widgets.upcoming_appointments
       ? supabase
           .from("booking_requests")
-          .select("id, customer_handle, preferred_date, form_data")
+          .select(
+            "id, customer_handle, customer_email, preferred_date, form_data",
+          )
           .eq("artist_id", user!.id)
           .eq("status", "approved")
           .not("preferred_date", "is", null)
@@ -224,7 +230,7 @@ export default async function DashboardPage() {
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm text-muted-foreground transition-colors group-hover:text-foreground">
-                            @{b.customer_handle}
+                            {customerLabel(b.customer_handle, b.customer_email)}
                           </p>
                           {fd?.placement && (
                             <p className="truncate text-xs text-muted-foreground">
@@ -330,7 +336,7 @@ export default async function DashboardPage() {
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">
-                          @{b.customer_handle}
+                          {customerLabel(b.customer_handle, b.customer_email)}
                         </p>
                         {fd?.placement && (
                           <p className="truncate text-xs text-muted-foreground">

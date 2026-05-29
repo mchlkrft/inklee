@@ -95,7 +95,16 @@ export default function StandardFields({
   const [local, setLocal] = useState<FormSettings>({ ...settings });
   const [, startTransition] = useTransition();
 
+  // At least one contact method (Instagram or email) must stay enabled so
+  // clients always have a way to reach the artist.
+  const isLastContact = (key: keyof FormSettings) =>
+    (key === "show_instagram_handle" &&
+      local.show_instagram_handle &&
+      !local.show_email) ||
+    (key === "show_email" && local.show_email && !local.show_instagram_handle);
+
   function update(key: keyof FormSettings, value: boolean) {
+    if (!value && isLastContact(key)) return; // never disable the last contact
     setLocal((prev) => ({ ...prev, [key]: value }));
     startTransition(async () => {
       await saveFormSettingsAction(key, value);
@@ -114,6 +123,11 @@ export default function StandardFields({
           </div>
           {key === "show_preferred_date" ? (
             <span className="text-xs text-muted-foreground">Always on</span>
+          ) : isLastContact(key) ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Required</span>
+              <Toggle checked onChange={() => {}} disabled />
+            </div>
           ) : (
             <Toggle checked={local[key]} onChange={(v) => update(key, v)} />
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import DateInput from "@/components/date-input";
+import BrandedDateInput from "@/components/public-booking/branded-date-input";
 import { useActionState, useRef, useState, startTransition } from "react";
 import Link from "next/link";
 import { submitBookingAction } from "./actions";
@@ -19,6 +19,7 @@ import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { compressImageInBrowser } from "@/lib/image-compress";
 import { PublicBookingLegalNotice } from "@/components/public-booking/legal-notice";
+import FieldArea, { CheckBadge } from "@/components/public-booking/field-area";
 
 type State = { error: string; field?: string } | null;
 
@@ -34,6 +35,16 @@ export const SIZE_LABELS: Record<
 
 const tomorrow = () => {
   return addDaysToDateKey(localDateKey(), 1);
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidUrl = (s: string) => {
+  try {
+    new URL(s);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 type SlotOption = {
@@ -66,12 +77,18 @@ type ImageEntry = { id: string; file: File; preview: string };
 function locationsForDate(
   date: string,
   allTrips: TripOption[],
-): { id: string; label: string | null }[] {
+): { tripId: string; label: string | null }[] {
   if (!date) return [];
-  const out: { id: string; label: string | null }[] = [];
+  // Collect EVERY leg spanning the date across all trips (not one per trip), so
+  // overlapping guest spots — an artist working multiple studios at once — are
+  // all surfaced rather than silently collapsed to the first match.
+  const out: { tripId: string; label: string | null }[] = [];
   for (const t of allTrips) {
-    const leg = t.legs.find((l) => l.startsOn <= date && l.endsOn >= date);
-    if (leg) out.push({ id: t.id, label: leg.locationLabel });
+    for (const leg of t.legs) {
+      if (leg.startsOn <= date && leg.endsOn >= date) {
+        out.push({ tripId: t.id, label: leg.locationLabel });
+      }
+    }
   }
   return out;
 }
@@ -108,6 +125,12 @@ export default function BookingForm({
   const [preferredDate, setPreferredDate] = useState("");
   const [description, setDescription] = useState("");
   const [legalExpanded, setLegalExpanded] = useState(false);
+
+  // Controlled values backing the in-field completion checkmarks.
+  const [igVal, setIgVal] = useState("");
+  const [emailVal, setEmailVal] = useState("");
+  const [placementVal, setPlacementVal] = useState("");
+  const [refVal, setRefVal] = useState("");
 
   // Image management — stable IDs decouple annotation tracking from array order
   const [imageEntries, setImageEntries] = useState<ImageEntry[]>([]);
@@ -228,7 +251,27 @@ export default function BookingForm({
 
   // Location availability — derived from selected date
   const hasTrips = trips.length > 0;
+  // Instagram and email are each optional when BOTH are offered — one is enough,
+  // so clients without Instagram aren't excluded. When only one field is shown,
+  // that one stays required.
+  const bothContactShown =
+    formSettings.show_instagram_handle && formSettings.show_email;
+
+  // Per-control completion — drives the in-field checkmarks.
+  const igDone = igVal.trim() !== "";
+  const emailDone = EMAIL_RE.test(emailVal.trim());
+  const placementDone = placementVal.trim() !== "";
+  const refDone = refVal.trim() !== "" && isValidUrl(refVal.trim());
+  const descDone = description.trim() !== "" && description.length <= 1000;
   const validLocations = locationsForDate(preferredDate, trips);
+  // Distinct, named studios for the chosen date. When more than one leg covers
+  // the date (an artist at multiple studios at once) we show them all and tell
+  // the client the artist will confirm — never make the client guess.
+  const distinctLocationLabels = [
+    ...new Set(
+      validLocations.map((l) => l.label).filter((x): x is string => !!x),
+    ),
+  ];
 
   const annotatingEntry = annotatingId
     ? (imageEntries.find((e) => e.id === annotatingId) ?? null)
@@ -240,6 +283,56 @@ export default function BookingForm({
   function renderField(key: string) {
     switch (key) {
       case "instagram_handle":
+        // When BOTH contact methods are offered, render them together as one
+        // "Your contact" area (Instagram left, email right) with completion
+        // feedback. Falls through to a standalone field when only one is shown.
+        if (bothContactShown) {
+          return (
+            <div className="space-y-2">
+              <label className="text-base text-muted-foreground">
+                Your contact <span className="text-foreground">*</span>
+              </label>
+              <div className="grid items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
+                <div className="flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-2.5 text-sm focus-within:ring-1 focus-within:ring-ring">
+                  <span className="select-none text-muted-foreground">@</span>
+                  <input
+                    id="instagram_handle"
+                    name="instagram_handle"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="instagram"
+                    value={igVal}
+                    onChange={(e) => setIgVal(e.target.value)}
+                    className="flex-1 bg-transparent text-foreground focus:outline-none border-0 outline-none shadow-none p-0"
+                  />
+                  {igDone && <CheckBadge />}
+                </div>
+                <span className="text-center text-sm font-medium text-muted-foreground">
+                  or
+                </span>
+                <div className="relative">
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="email"
+                    value={emailVal}
+                    onChange={(e) => setEmailVal(e.target.value)}
+                    className="w-full rounded-md border border-border bg-transparent py-2.5 pl-3 pr-10 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  {emailDone && (
+                    <CheckBadge className="absolute right-2.5 top-1/2 -translate-y-1/2" />
+                  )}
+                </div>
+              </div>
+              {(err("instagram_handle") || err("email")) && (
+                <p className="text-sm text-destructive">
+                  {err("instagram_handle") ?? err("email")}
+                </p>
+              )}
+            </div>
+          );
+        }
         return formSettings.show_instagram_handle ? (
           <div className="space-y-1.5">
             <label
@@ -268,6 +361,9 @@ export default function BookingForm({
         ) : null;
 
       case "email":
+        // Rendered inside the combined "Your contact" area above when both
+        // methods are shown; standalone only when it's the sole contact field.
+        if (bothContactShown) return null;
         return formSettings.show_email ? (
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-base text-muted-foreground">
@@ -296,13 +392,20 @@ export default function BookingForm({
               Reference link{" "}
               <span className="text-xs text-muted-foreground">(optional)</span>
             </label>
-            <input
-              id="reference_link"
-              name="reference_link"
-              type="url"
-              placeholder="instagram.com/p/... or any link"
-              className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
+            <div className="relative">
+              <input
+                id="reference_link"
+                name="reference_link"
+                type="url"
+                placeholder="instagram.com/p/... or any link"
+                value={refVal}
+                onChange={(e) => setRefVal(e.target.value)}
+                className="w-full rounded-md border border-border bg-transparent py-3 pl-3 pr-10 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {refDone && (
+                <CheckBadge className="absolute right-3 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
             {err("reference_link") && (
               <p className="text-sm text-destructive">
                 {err("reference_link")}
@@ -320,14 +423,21 @@ export default function BookingForm({
             >
               Placement <span className="text-foreground">*</span>
             </label>
-            <input
-              id="placement"
-              name="placement"
-              type="text"
-              required
-              placeholder="Left forearm, inner wrist..."
-              className="w-full rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
+            <div className="relative">
+              <input
+                id="placement"
+                name="placement"
+                type="text"
+                required
+                placeholder="Left forearm, inner wrist..."
+                value={placementVal}
+                onChange={(e) => setPlacementVal(e.target.value)}
+                className="w-full rounded-md border border-border bg-transparent py-3 pl-3 pr-10 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {placementDone && (
+                <CheckBadge className="absolute right-3 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
             {err("placement") && (
               <p className="text-sm text-destructive">{err("placement")}</p>
             )}
@@ -344,23 +454,24 @@ export default function BookingForm({
               {SIZES.map((s) => (
                 <label
                   key={s}
-                  className="cursor-pointer rounded-md border border-border px-3 py-3 text-base text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-md border border-border px-3 py-3 text-base text-muted-foreground has-[:checked]:border-foreground has-[:checked]:text-foreground"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      type="radio"
-                      name="size"
-                      value={s}
-                      required
-                      className="accent-foreground"
-                    />
-                    <span className="inline-flex items-baseline gap-1.5">
-                      <span>{SIZE_LABELS[s].label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        · {SIZE_LABELS[s].hint}
-                      </span>
+                  <input
+                    type="radio"
+                    name="size"
+                    value={s}
+                    required
+                    className="peer accent-foreground"
+                  />
+                  <span className="inline-flex items-baseline gap-1.5">
+                    <span>{SIZE_LABELS[s].label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      · {SIZE_LABELS[s].hint}
                     </span>
-                  </div>
+                  </span>
+                  <span className="ml-auto opacity-0 transition-opacity peer-checked:opacity-100">
+                    <CheckBadge />
+                  </span>
                 </label>
               ))}
             </div>
@@ -393,16 +504,19 @@ export default function BookingForm({
                 {description.length}/1000
               </span>
             </div>
-            <textarea
-              id="description"
-              name="description"
-              required={formSettings.require_description}
-              rows={5}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
-              className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
+            <div className="relative">
+              <textarea
+                id="description"
+                name="description"
+                required={formSettings.require_description}
+                rows={5}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Tell me about the tattoo you have in mind - style, mood, any details that matter to you."
+                className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {descDone && <CheckBadge className="absolute bottom-4 right-3" />}
+            </div>
             {err("description") && (
               <p className="text-sm text-destructive">{err("description")}</p>
             )}
@@ -592,14 +706,13 @@ export default function BookingForm({
                 >
                   Preferred date <span className="text-foreground">*</span>
                 </label>
-                <DateInput
+                <BrandedDateInput
                   id="preferred_date"
                   name="preferred_date"
                   required
                   min={tomorrow()}
                   value={preferredDate}
                   onChange={(e) => setPreferredDate(e.target.value)}
-                  className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
                 {err("preferred_date") && (
                   <p className="text-sm text-destructive">
@@ -622,7 +735,7 @@ export default function BookingForm({
                   <input
                     type="hidden"
                     name="trip_id"
-                    value={validLocations[0].id}
+                    value={validLocations[0].tripId}
                   />
                   {validLocations[0].label && (
                     <p className="text-base text-muted-foreground">
@@ -634,26 +747,23 @@ export default function BookingForm({
                   )}
                 </>
               ) : (
+                // Overlapping guest spots: the artist is at more than one
+                // studio on this date. Show both and let the client know the
+                // artist will confirm the exact studio — no trip_id submitted
+                // since which studio applies is genuinely undecided here.
                 <div className="space-y-1.5">
-                  <label
-                    htmlFor="trip_id"
-                    className="text-base text-muted-foreground"
-                  >
-                    Location
-                  </label>
-                  <select
-                    key={preferredDate}
-                    id="trip_id"
-                    name="trip_id"
-                    className="w-full rounded-md border border-border bg-background px-3 py-3 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">No preference</option>
-                    {validLocations.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label ?? "Other location"}
-                      </option>
-                    ))}
-                  </select>
+                  {distinctLocationLabels.length > 0 && (
+                    <p className="text-base text-muted-foreground">
+                      Possible locations:{" "}
+                      <span className="text-foreground">
+                        {distinctLocationLabels.join(" · ")}
+                      </span>
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {artistFirstName} is working from more than one studio on
+                    this date and will confirm where your appointment will be.
+                  </p>
                 </div>
               ))}
           </>
@@ -678,7 +788,15 @@ export default function BookingForm({
 
         {resolvedFieldOrder.map((key) => {
           const node = renderField(key);
-          return node ? <div key={key}>{node}</div> : null;
+          if (!node) return null;
+          // The image dropzone is optional + interactive (opens the annotation
+          // modal), so it's exempt from the auto-confirm + scroll behavior.
+          if (key === "image_upload") return <div key={key}>{node}</div>;
+          return (
+            <FieldArea key={key} gap={32}>
+              {node}
+            </FieldArea>
+          );
         })}
 
         <input

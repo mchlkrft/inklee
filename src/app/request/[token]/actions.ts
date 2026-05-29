@@ -9,6 +9,7 @@ import {
 import crypto from "crypto";
 import { redirect } from "next/navigation";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
+import { customerLabel } from "@/lib/booking-domain";
 import { createNotification } from "@/lib/notifications";
 import { checkPortalRateLimit } from "@/lib/ratelimit";
 import { canTransition } from "@/lib/booking-fsm";
@@ -223,7 +224,11 @@ export async function cancelCustomerBookingAction(
     const fd = booking.form_data as Record<string, string> | null;
     await sendArtistCancellationByCustomer({
       artistEmail: artistAuth.user.email,
-      customerHandle: booking.customer_handle ?? "unknown",
+      customerHandle: customerLabel(
+        booking.customer_handle,
+        booking.customer_email,
+        "A client",
+      ),
       placement: fd?.placement ?? "",
       date: booking.preferred_date ?? "",
     });
@@ -236,7 +241,7 @@ export async function cancelCustomerBookingAction(
     category: "client_update",
     priority: "high",
     title: "Booking cancelled by client",
-    message: `@${booking.customer_handle ?? "client"} cancelled their ${fd?.placement ?? "booking"}${booking.preferred_date ? ` on ${booking.preferred_date}` : ""}.`,
+    message: `${customerLabel(booking.customer_handle, booking.customer_email, "A client")} cancelled their ${fd?.placement ?? "booking"}${booking.preferred_date ? ` on ${booking.preferred_date}` : ""}.`,
     ctaLabel: "View request",
     ctaHref: `/bookings/requests/${booking.id}`,
     metadata: { booking_id: booking.id },

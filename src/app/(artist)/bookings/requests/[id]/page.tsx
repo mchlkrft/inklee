@@ -14,6 +14,7 @@ import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
 import { formatPrice } from "@/lib/goods";
+import { customerLabel } from "@/lib/booking-domain";
 import GoodsPickupButton from "./goods-pickup-button";
 
 export default async function RequestDetailPage({
@@ -155,7 +156,7 @@ export default async function RequestDetailPage({
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            @{booking.customer_handle}
+            {customerLabel(booking.customer_handle, booking.customer_email)}
           </h1>
           <StatusBadge status={booking.status} />
         </div>
@@ -191,7 +192,9 @@ export default async function RequestDetailPage({
                 </Link>
               </div>
             )}
-            <Row label="Instagram" value={`@${booking.customer_handle}`} />
+            {booking.customer_handle && (
+              <Row label="Instagram" value={`@${booking.customer_handle}`} />
+            )}
             <Row label="Email" value={booking.customer_email ?? "-"} />
             <Row label="Placement" value={(fd?.placement as string) ?? "-"} />
             <Row label="Size" value={(fd?.size as string) ?? "-"} />
