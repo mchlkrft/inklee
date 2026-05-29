@@ -1,8 +1,8 @@
 # Inklee Roadmap (Unified View)
 
-**Last updated:** 2026-05-28 (Bio Page + Goods commerce cluster added as pre-launch gate; historical log condensed under the 500-line cap)
-**Current prod commit:** `ed18192` (Slice 71 merge) — redeployed `inklee-fms9d7nib` with `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN=inkl.ee` env active
-**Migrations applied:** 0000–0034
+**Last updated:** 2026-05-29 (Slices 72–76 confirmed built in code; goods checkout in test mode pending OT-12; docs synced to shipped UI)
+**Current prod commit:** `2f98b53` (branch `feat/bio-page-goods`) — deployed to production via `vercel --prod` as `inklee-ffnck6791`, aliased to inkl.ee (2026-05-29)
+**Migrations applied:** 0000–0036 (`inventory_movements` optional, not created)
 **Status:** MVP feature-complete as a solo-artist tool. All original pre-launch hard blockers + every UX-polish slice (60a–60e + 61) closed. Phase D agent sweep done; all Highs closed; ~half the Mediums closed. Marketing redesign (Slice 70) shipped 2026-05-26. Artist subdomain bio layer (Slice 71) fully live 2026-05-27 (`*.inkl.ee`). **Pre-launch gate expanded 2026-05-28:** the founder added a major pre-launch feature cluster — the **tattoo-native Bio Page + Goods module + Appointment Add-ons** (Slices 72–76, see §3.8 + `docs/bio-page-goods-plan.md`), shipping **before public launch**. This makes **Stripe Connect a new pre-launch blocker** (OT-12) for production goods money, and pushes the first-artist soak (§3.4) and Phase E mobile (§6.4) behind the cluster. No subscription/monetization layer in code yet; the cluster adds paywall _readiness_ only (flags + a `canUseGoods()` helper), no billing.
 
 **Purpose.** This is the single high-level view, focused on current priorities, next phases, and unresolved decisions. For slice-level detail see `SLICES_CONTINUATION.md`. For strategy + pricing see `docs/business-model.md`. The shipped log (§2) is a pointer, not a changelog — git history + the slice docs + memory hold the detail.
