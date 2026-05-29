@@ -315,6 +315,33 @@ function StudioSelectWithAdd({
   );
 }
 
+// Two date ranges overlap when each starts on or before the other ends.
+// Overlapping stops are allowed (an artist can work several studios at once),
+// but the client can't tell which studio applies — so we warn the artist.
+function rangesOverlap(
+  ranges: { startsOn: string; endsOn: string }[],
+): boolean {
+  return ranges.some((a, i) =>
+    ranges.some(
+      (b, j) => i !== j && a.startsOn <= b.endsOn && b.startsOn <= a.endsOn,
+    ),
+  );
+}
+
+function OverlapNotice() {
+  return (
+    <div className="rounded-md border border-brand-mustard/40 bg-brand-mustard/[0.07] px-3 py-2.5">
+      <p className="text-xs leading-snug text-foreground">
+        <span className="font-semibold">These dates overlap.</span> That&apos;s
+        fine if you&apos;re working more than one studio at once — but clients
+        booking on those days will see every matching studio and be asked to
+        wait for your confirmation. Remember to tell each client which studio to
+        come to.
+      </p>
+    </div>
+  );
+}
+
 // ─── Create trip modal ────────────────────────────────────────────────────────
 
 type PendingStop = {
@@ -463,6 +490,8 @@ function CreateTripModal({
               ))}
             </div>
           )}
+
+          {rangesOverlap(stops) && <OverlapNotice />}
 
           {addingStop ? (
             <div className="space-y-3 rounded-md border-2 border-border px-4 py-4">
@@ -887,6 +916,8 @@ function EditTripModal({
             })}
           </div>
         )}
+
+        {rangesOverlap(trip.legs) && <OverlapNotice />}
 
         {trip.legs.length === 0 && (
           <p className="text-sm text-muted-foreground">No stops yet.</p>
