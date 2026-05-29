@@ -23,7 +23,7 @@ export default async function CalendarPage() {
     return {
       id: b.id,
       date: b.preferred_date!,
-      handle: b.customer_handle ?? "unknown",
+      handle: b.customer_handle ?? "",
       placement: fd?.placement ?? "",
       size: fd?.size ?? "",
       description: fd?.description ?? "",

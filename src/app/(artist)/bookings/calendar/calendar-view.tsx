@@ -2,9 +2,10 @@
 
 import { localDateKey } from "@/lib/date-utils";
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { MapPin, Plus } from "lucide-react";
 import Link from "next/link";
 import AppointmentDrawer, { type CalendarEvent } from "./appointment-drawer";
+import { customerLabel } from "@/lib/booking-domain";
 import NewAppointmentModal from "./new-appointment-modal";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -58,7 +59,6 @@ export type CalendarTripLeg = {
 export type CalendarFlashDay = { id: string; date: string; title: string };
 
 type CellMarker =
-  | { k: "trip"; id: string; label: string }
   | { k: "booking"; ev: CalendarEvent }
   | { k: "flash"; id: string; title: string };
 
@@ -90,6 +90,8 @@ export default function CalendarView({
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
+  // Day key whose full entry list is shown in the "+N more" popover.
+  const [dayDetail, setDayDetail] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   // Pre-fills the modal date when a date cell is clicked. Null for the header
   // "+ New appointment" button so the user picks fresh.
@@ -114,15 +116,20 @@ export default function CalendarView({
     {},
   );
 
-  // Trip legs become a faint background band across their days; the leg's start
-  // day also gets a label chip. This keeps multi-day spans from cluttering the
-  // chip stack.
+  // Trip legs render as a faint background band across their days plus a small
+  // location label pinned bottom-left of each covered cell — deliberately NOT a
+  // chip, so guest-spot days don't read like customer appointments. Overlapping
+  // legs (an artist working several studios at once) stack their cities.
   const tripDays = new Set<string>();
-  const tripStartByKey = new Map<string, CalendarTripLeg>();
+  const tripLabelsByDay = new Map<string, string[]>();
   for (const leg of tripLegs) {
     if (!leg.startsOn || !leg.endsOn) continue;
-    for (const k of eachDayKey(leg.startsOn, leg.endsOn)) tripDays.add(k);
-    tripStartByKey.set(leg.startsOn, leg);
+    for (const k of eachDayKey(leg.startsOn, leg.endsOn)) {
+      tripDays.add(k);
+      const labels = tripLabelsByDay.get(k) ?? [];
+      if (leg.label && !labels.includes(leg.label)) labels.push(leg.label);
+      tripLabelsByDay.set(k, labels);
+    }
   }
 
   const grid = buildMonthGrid(year, month);
@@ -195,18 +202,9 @@ export default function CalendarView({
               const isToday = key === TODAY;
               const dayEvents = byDate[key] ?? [];
               const dayFlash = flashByDate[key] ?? [];
-              const tripStart = tripStartByKey.get(key) ?? null;
               const isTripDay = tripDays.has(key);
+              const dayTripLabels = tripLabelsByDay.get(key) ?? [];
               const markers: CellMarker[] = [
-                ...(tripStart
-                  ? [
-                      {
-                        k: "trip" as const,
-                        id: tripStart.id,
-                        label: tripStart.label,
-                      },
-                    ]
-                  : []),
                 ...dayEvents.map((ev) => ({ k: "booking" as const, ev })),
                 ...dayFlash.map((f) => ({
                   k: "flash" as const,
@@ -235,7 +233,9 @@ export default function CalendarView({
                       : !isCurrentMonth
                         ? "bg-brand-mustard/[0.04]"
                         : ""
-                  } ${i % 7 !== 6 ? "border-r" : ""} ${i < 35 ? "border-b" : ""}`}
+                  } ${i % 7 !== 6 ? "border-r" : ""} ${i < 35 ? "border-b" : ""} ${
+                    isTripDay ? "pb-6" : ""
+                  }`}
                 >
                   {/* Background click target — clicking anywhere on the cell
                       (except an event button) opens the add-appointment modal
@@ -284,39 +284,44 @@ export default function CalendarView({
                                 : "bg-[color:var(--color-tint-rosa)] text-brand-charcoal"
                             }`}
                           >
-                            @{m.ev.handle}
+                            {customerLabel(m.ev.handle, m.ev.email)}
                           </button>
-                        );
-                      }
-                      if (m.k === "flash") {
-                        return (
-                          <Link
-                            key={`f-${m.id}`}
-                            href={`/flash/days/${m.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="block truncate rounded-md bg-[color:var(--color-tint-green)] px-1.5 py-0.5 text-xs font-medium text-brand-charcoal transition-opacity hover:opacity-80"
-                          >
-                            {m.title}
-                          </Link>
                         );
                       }
                       return (
                         <Link
-                          key={`t-${m.id}`}
-                          href="/travel"
+                          key={`f-${m.id}`}
+                          href={`/flash/days/${m.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="block truncate rounded-md bg-[color:var(--color-tint-cobalt)] px-1.5 py-0.5 text-xs font-medium text-brand-charcoal transition-opacity hover:opacity-80"
+                          className="block truncate rounded-md bg-[color:var(--color-tint-green)] px-1.5 py-0.5 text-xs font-medium text-brand-charcoal transition-opacity hover:opacity-80"
                         >
-                          {m.label}
+                          {m.title}
                         </Link>
                       );
                     })}
                     {extraMarkers > 0 && (
-                      <p className="text-xs text-muted-foreground px-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDayDetail(key);
+                        }}
+                        className="block w-full rounded-md px-1 py-0.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:var(--color-workspace-hover)] hover:text-foreground"
+                      >
                         +{extraMarkers} more
-                      </p>
+                      </button>
                     )}
                   </div>
+
+                  {/* Travel location(s) — small, bottom-left, not a chip. */}
+                  {dayTripLabels.length > 0 && (
+                    <div className="pointer-events-none absolute bottom-1 left-1.5 right-1.5 z-10 flex items-center gap-1 text-[10px] font-medium text-brand-cobalt">
+                      <MapPin className="h-3 w-3 shrink-0" strokeWidth={2} />
+                      <span className="truncate">
+                        {dayTripLabels.join(" · ")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -362,6 +367,84 @@ export default function CalendarView({
           }}
         />
       )}
+
+      {/* "+N more" day popover — lists every entry for the day so the artist
+          can quick-check a busy day and jump straight into an appointment. */}
+      {dayDetail &&
+        (() => {
+          const [dyy, dmm, ddd] = dayDetail.split("-").map(Number);
+          const detailDate = new Date(dyy, dmm - 1, ddd);
+          const dayBookings = byDate[dayDetail] ?? [];
+          const dayFlashList = flashByDate[dayDetail] ?? [];
+          const dayLabels = tripLabelsByDay.get(dayDetail) ?? [];
+          return (
+            <div
+              onClick={() => setDayDetail(null)}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-brand-charcoal/40 p-4 backdrop-blur-sm"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-xs overflow-hidden rounded-[20px] border border-border bg-background shadow-xl"
+              >
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <p className="text-sm font-semibold text-foreground">
+                    {detailDate.toLocaleDateString(undefined, {
+                      weekday: "short",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setDayDetail(null)}
+                    aria-label="Close"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="max-h-[60vh] space-y-1 overflow-y-auto p-2">
+                  {dayLabels.length > 0 && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-brand-cobalt">
+                      <MapPin
+                        className="h-3.5 w-3.5 shrink-0"
+                        strokeWidth={2}
+                      />
+                      <span>{dayLabels.join(" · ")}</span>
+                    </div>
+                  )}
+                  {dayBookings.map((ev) => (
+                    <button
+                      key={ev.id}
+                      type="button"
+                      onClick={() => {
+                        setSelected(ev);
+                        setDayDetail(null);
+                      }}
+                      className={`block w-full truncate rounded-md px-3 py-2 text-left text-sm font-medium transition-opacity hover:opacity-80 ${
+                        ev.origin === "artist_created"
+                          ? "bg-[color:var(--color-tint-mustard)] text-brand-charcoal"
+                          : "bg-[color:var(--color-tint-rosa)] text-brand-charcoal"
+                      }`}
+                    >
+                      {customerLabel(ev.handle, ev.email)}
+                    </button>
+                  ))}
+                  {dayFlashList.map((f) => (
+                    <Link
+                      key={f.id}
+                      href={`/flash/days/${f.id}`}
+                      onClick={() => setDayDetail(null)}
+                      className="block truncate rounded-md bg-[color:var(--color-tint-green)] px-3 py-2 text-sm font-medium text-brand-charcoal transition-opacity hover:opacity-80"
+                    >
+                      {f.title}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </>
   );
 }
