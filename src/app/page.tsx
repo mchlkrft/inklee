@@ -69,6 +69,15 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      {/* LCP preload — fetch the hero illustration at high priority before the
+          browser would otherwise discover it. React 19 hoists this <link> into
+          <head> during SSR. */}
+      <link
+        rel="preload"
+        as="image"
+        href="/branding/illustrations/key-visual.svg"
+        fetchPriority="high"
+      />
       <JsonLd data={organizationSchema()} id="ld-organization" />
       <JsonLd data={websiteSchema()} id="ld-website" />
       <JsonLd data={softwareApplicationSchema()} id="ld-softwareapplication" />
@@ -189,6 +198,9 @@ function HeroSection() {
               <img
                 src="/branding/badges/badge-handmade.svg"
                 alt="Made by hand"
+                width={56}
+                height={56}
+                decoding="async"
                 className="h-12 w-12 md:h-14 md:w-14"
                 draggable={false}
               />
@@ -196,6 +208,9 @@ function HeroSection() {
               <img
                 src="/branding/badges/badge-gdpr.svg"
                 alt="GDPR compliant"
+                width={56}
+                height={56}
+                decoding="async"
                 className="h-12 w-12 md:h-14 md:w-14"
                 draggable={false}
               />
@@ -213,6 +228,11 @@ function HeroSection() {
                 src="/branding/illustrations/key-visual.svg"
                 alt=""
                 aria-hidden="true"
+                width={1532}
+                height={1101}
+                fetchPriority="high"
+                decoding="async"
+                loading="eager"
                 className="h-auto w-full"
                 draggable={false}
               />
@@ -244,6 +264,10 @@ function DefinitionSection() {
               src="/branding/illustrations/mixed/inklee-_booking-link-tattoo-request.svg"
               alt=""
               aria-hidden="true"
+              width={2025}
+              height={1403}
+              loading="lazy"
+              decoding="async"
               className="mx-auto h-auto w-full max-w-lg md:mx-0"
               draggable={false}
             />
@@ -357,6 +381,10 @@ function FeatureCard({
         src={illustration}
         alt=""
         aria-hidden="true"
+        width={240}
+        height={120}
+        loading="lazy"
+        decoding="async"
         className="h-20 w-auto self-start"
         draggable={false}
       />
@@ -473,6 +501,10 @@ function AboutSection() {
               src="/branding/illustrations/mixed/inklee-_artist-drawing-on-ipad.svg"
               alt=""
               aria-hidden="true"
+              width={1507}
+              height={1873}
+              loading="lazy"
+              decoding="async"
               className="mx-auto h-auto w-full max-w-sm"
               draggable={false}
             />
@@ -526,6 +558,10 @@ function FinalCtaSection() {
             src="/branding/illustrations/easy-peasy.svg"
             alt=""
             aria-hidden="true"
+            width={312}
+            height={352}
+            loading="lazy"
+            decoding="async"
             className="mx-auto mb-8 h-28 w-auto md:h-36"
             draggable={false}
           />
