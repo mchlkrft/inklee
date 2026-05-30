@@ -21,11 +21,14 @@ export default function PillNav() {
   return (
     <header className="pointer-events-none sticky top-4 z-50">
       <div className="container-marketing flex items-center justify-between gap-3">
-        {/* Logo pill — body-button height (px-5 py-3) */}
+        {/* Logo pill — body-button height (px-5 py-3). data-nav-logo hooks it
+            into the same mobile scroll-grow rule as the FAB so both pills
+            stay balanced (same scale, same final height). */}
         <Link
           href="/"
           aria-label="Inklee home"
-          className="pointer-events-auto inline-flex items-center rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 px-5 py-3 shadow-shell backdrop-blur transition-colors hover:bg-brand-charcoal"
+          data-nav-logo=""
+          className="pointer-events-auto inline-flex items-center rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 px-5 py-3 shadow-shell backdrop-blur transition-all duration-300 ease-out hover:bg-brand-charcoal"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

@@ -384,19 +384,27 @@ dialog[open]::backdrop {
   }
 }
 
-/* Mobile FAB scroll-grow — pairs with the scroll-state script in layout.tsx.
-   The default on mobile (max-width: 639px) is scale(0.82) so the FAB sits
-   visibly smaller than the logo pill — this is the no-JS failsafe, applied
-   even if the script never runs. Once the script sets html[data-scrolled="1"]
-   (after the visitor scrolls past 60px), the second rule wins and the FAB
-   grows to match the logo pill height. The transition-transform Tailwind
-   class on the FAB animates between the two. Desktop is unaffected. */
+/* Mobile pill scroll-grow — pairs with the scroll-state script in layout.tsx.
+   On mobile (max-width: 639px) both the logo pill and the "Get started" FAB
+   start at scale(0.82) so they sit visibly smaller while keeping perfectly
+   balanced (same default sizing → same scaled size). Once the script sets
+   html[data-scrolled="1"] (after the visitor scrolls past 60px) both grow to
+   scale(1) in unison. Each pill anchors to its own screen edge so neither
+   drifts inward while scaling. The transition-transform Tailwind class on
+   each element animates the change. Desktop is unaffected. */
 @media (max-width: 639px) {
-  [data-fab-cta] {
+  [data-fab-cta],
+  [data-nav-logo] {
     transform: scale(0.82);
+  }
+  [data-fab-cta] {
     transform-origin: right center;
   }
-  html[data-scrolled="1"] [data-fab-cta] {
+  [data-nav-logo] {
+    transform-origin: left center;
+  }
+  html[data-scrolled="1"] [data-fab-cta],
+  html[data-scrolled="1"] [data-nav-logo] {
     transform: scale(1);
   }
 }
