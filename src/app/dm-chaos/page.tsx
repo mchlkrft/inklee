@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SiteLogo from "@/components/site-logo";
 import { getRenderableFooterGroups } from "@/lib/footer-links";
+import { PillNav } from "@/components/marketing-v2";
 
 export const metadata: Metadata = {
   title: "Stop Tattoo DM Chaos · Inklee",
@@ -44,58 +45,8 @@ export default function DmChaosPage() {
   );
 }
 
-/* ─── Floating two-pill nav (shared with homepage + /download) ──────────── */
-
-function PillNav() {
-  return (
-    <header className="pointer-events-none sticky top-4 z-50">
-      <div className="container-marketing flex items-center justify-between gap-3">
-        <Link
-          href="/"
-          aria-label="Inklee home"
-          className="pointer-events-auto inline-flex items-center rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 px-5 py-3 shadow-shell backdrop-blur transition-colors hover:bg-brand-charcoal"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/branding/logos/inklee-logo-bone.svg"
-            alt="Inklee"
-            height={18}
-            width={63}
-            style={{ width: 63, height: 18 }}
-            draggable={false}
-          />
-        </Link>
-
-        <nav className="pointer-events-auto flex items-center gap-1 rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 p-1.5 shadow-shell backdrop-blur">
-          <Link
-            href="/download"
-            className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
-          >
-            App
-          </Link>
-          <Link
-            href="/about"
-            className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
-          >
-            About
-          </Link>
-          <Link
-            href="/login"
-            className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-full bg-brand-mustard px-5 py-1.5 text-sm font-bold text-brand-charcoal transition-opacity hover:opacity-90"
-          >
-            Get started
-          </Link>
-        </nav>
-      </div>
-    </header>
-  );
-}
+/* Nav is now the shared marketing-v2/PillNav (import above). Local copy
+   removed so the FAB scroll-grow + mobile sizing stay in one place. */
 
 /* ─── Hero (charcoal) ───────────────────────────────────────────────────── */
 

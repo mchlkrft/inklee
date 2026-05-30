@@ -49,6 +49,16 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} dark`}
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
+        {/* Mobile FAB scroll-state tracker. Sets html[data-scrolled] = "1" once
+            the visitor has scrolled past 60px, otherwise "0". Lives in the root
+            layout (not the nav component) so the listener survives client-side
+            navigation — script tags rendered as children of a route component do
+            not re-execute on SPA navs. CSS in globals.css drives the FAB scale
+            on mobile based on this attribute; the default state is small, so
+            even if this script ever fails to fire the FAB still shrinks. */}
+        <Script id="fab-scroll-state" strategy="beforeInteractive">
+          {`(function(){function s(){document.documentElement.dataset.scrolled=window.scrollY>60?"1":"0"}s();window.addEventListener("scroll",s,{passive:true})})();`}
+        </Script>
         {children}
         <CookieBanner />
         <Script

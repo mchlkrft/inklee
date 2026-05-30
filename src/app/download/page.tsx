@@ -164,8 +164,13 @@ function PillNav() {
           />
         </Link>
 
-        {/* Nav + CTA pill — right */}
-        <nav className="pointer-events-auto flex items-center gap-1 rounded-full border-[1.5px] border-shell-border bg-brand-charcoal/95 p-1.5 shadow-shell backdrop-blur">
+        {/* Nav + CTA pill — right. Mobile: transparent flex wrapper, FAB is
+            the pill. Desktop (sm:+): full dark-pill container. Matches the
+            shared marketing-v2 PillNav structure; the only difference here is
+            the "Web → /" link (instead of "App → /download") because we're
+            already on the download page. data-fab-cta hooks the FAB into the
+            globals.css mobile scroll-grow rule. */}
+        <nav className="pointer-events-auto flex items-center gap-1 rounded-full sm:border-[1.5px] sm:border-shell-border sm:bg-brand-charcoal/95 sm:p-1.5 sm:shadow-shell sm:backdrop-blur">
           <Link
             href="/"
             className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
@@ -180,7 +185,8 @@ function PillNav() {
           </Link>
           <Link
             href="/signup"
-            className="rounded-full bg-brand-mustard px-5 py-1.5 text-sm font-bold text-brand-charcoal transition-opacity hover:opacity-90"
+            data-fab-cta=""
+            className="rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-5 sm:py-1.5 sm:text-sm sm:shadow-none"
           >
             Get started
           </Link>

@@ -11,29 +11,15 @@ import Link from "next/link";
  *  with App / About / Log in / Get started inside. The FAB shrinks to
  *  nav-link sizing via sm:* overrides.
  *
- *  Mobile scroll affordance: the FAB starts visibly smaller and grows
- *  to full size once the visitor scrolls past 60px. Implemented in pure
- *  CSS via a `data-scrolled` attribute on <html>, set by a tiny vanilla
- *  inline script. This bypasses React hydration entirely — earlier
- *  attempts to drive the same effect via useState/useEffect in a client
- *  component never fired (the client boundary wasn't hydrating). The
- *  inline script is server-rendered and runs unconditionally on every
- *  page load, then attaches a passive scroll listener. */
+ *  Mobile scroll affordance: the FAB starts visibly smaller (CSS default)
+ *  and grows to full size once the visitor scrolls past 60px. Driven by
+ *  `html[data-scrolled]`, set by the scroll-state script in
+ *  `src/app/layout.tsx` — placed there (not here) so the listener survives
+ *  client-side navigation between marketing pages. */
 
 export default function PillNav() {
   return (
     <header className="pointer-events-none sticky top-4 z-50">
-      {/* Vanilla scroll-state tracker. Sets <html data-scrolled="1">
-          when the page is scrolled past 60px, otherwise "0". CSS in
-          globals.css uses this attribute to drive the mobile FAB
-          scroll-grow. Inline + IIFE so it runs immediately, no React
-          hydration needed. */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html:
-            '(function(){function s(){document.documentElement.dataset.scrolled=window.scrollY>60?"1":"0"}s();window.addEventListener("scroll",s,{passive:true})})();',
-        }}
-      />
       <div className="container-marketing flex items-center justify-between gap-3">
         {/* Logo pill — body-button height (px-5 py-3) */}
         <Link
