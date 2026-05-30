@@ -2,7 +2,7 @@
 
 import DateInput from "@/components/date-input";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
-import { useState, startTransition } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { createAppointmentAction } from "./actions";
 import { SIZES } from "@/lib/booking-schema";
 
@@ -25,6 +25,16 @@ export default function NewAppointmentModal({
   // the field reflects the date the user clicked.
   const [dateValue, setDateValue] = useState(defaultDate ?? "");
 
+  // Escape closes the modal (matches the backdrop click). Standard a11y
+  // expectation for any custom dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -43,15 +53,29 @@ export default function NewAppointmentModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div
+        aria-hidden
+        className="fixed inset-0 z-40 bg-black/50"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-appt-title"
+        className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      >
         <div className="w-full max-w-md bg-background border border-border rounded-lg overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <span className="text-sm font-medium text-foreground">
+            <span
+              id="new-appt-title"
+              className="text-sm font-medium text-foreground"
+            >
               New appointment
             </span>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Close"
               className="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             >
               ✕

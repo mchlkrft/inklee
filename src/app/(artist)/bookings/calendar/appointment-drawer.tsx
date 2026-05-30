@@ -1,7 +1,7 @@
 "use client";
 
 import DateInput from "@/components/date-input";
-import { useState, startTransition } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { editAppointmentAction, cancelAppointmentAction } from "./actions";
 import Spinner from "@/components/spinner";
 import { SIZES } from "@/lib/booking-schema";
@@ -35,6 +35,21 @@ export default function AppointmentDrawer({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Escape closes the drawer (matches the backdrop click), with the same local
+  // resets the close button does.
+  useEffect(() => {
+    if (!event) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setEditing(false);
+        setConfirmCancel(false);
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [event, onClose]);
 
   if (!event) return null;
 
@@ -70,6 +85,7 @@ export default function AppointmentDrawer({
   return (
     <>
       <div
+        aria-hidden
         className="fixed inset-0 z-40 bg-black/30"
         onClick={() => {
           setEditing(false);
@@ -78,17 +94,27 @@ export default function AppointmentDrawer({
         }}
       />
 
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-background border-l border-border flex flex-col overflow-y-auto">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="appt-drawer-title"
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-background border-l border-border flex flex-col overflow-y-auto"
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <span className="text-sm font-medium text-foreground">
+          <span
+            id="appt-drawer-title"
+            className="text-sm font-medium text-foreground"
+          >
             {customerLabel(event.handle, event.email)}
           </span>
           <button
+            type="button"
             onClick={() => {
               setEditing(false);
               setConfirmCancel(false);
               onClose();
             }}
+            aria-label="Close"
             className="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             ✕
