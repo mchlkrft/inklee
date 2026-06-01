@@ -448,6 +448,10 @@ export const products = pgTable("products", {
   description: text("description"),
   category: productCategoryEnum("category").notNull().default("other"),
   imageUrl: text("image_url"),
+  // Multi-image support (migration 0038). Canonical source for goods images;
+  // imageUrl stays synced to imageUrls[0] for legacy readers and will be
+  // dropped once nothing references it.
+  imageUrls: text("image_urls").array().notNull().default([]),
   priceAmount: numeric("price_amount", { precision: 10, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("eur"),
   status: productStatusEnum("status").notNull().default("active"),

@@ -8,8 +8,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Minus, Plus, ShoppingBag, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  Plus,
+  ShoppingBag,
+  X,
+} from "lucide-react";
 import {
   PRODUCT_CATEGORY_LABELS,
   formatPrice,
@@ -53,6 +59,94 @@ function unitPriceFor(
     if (v && v.priceOverride !== null) return v.priceOverride;
   }
   return product.price;
+}
+
+// Per-card image carousel. When the product has a single image (or none), it
+// renders the same as before; with more images, prev/next arrows + dot
+// indicators appear. The arrows stopPropagation so clicking them doesn't open
+// the underlying card or toggle the interest checkbox.
+function CardImage({
+  urls,
+  alt,
+  soldOut,
+  fallbackLabel,
+}: {
+  urls: string[];
+  alt: string;
+  soldOut: boolean;
+  fallbackLabel: string;
+}) {
+  const [idx, setIdx] = useState(0);
+  const safeIdx = urls.length > 0 ? idx % urls.length : 0;
+  const current = urls.length > 0 ? urls[safeIdx] : null;
+  const hasMultiple = urls.length > 1;
+
+  function step(delta: 1 | -1) {
+    if (!hasMultiple) return;
+    setIdx((prev) => (prev + delta + urls.length) % urls.length);
+  }
+
+  return (
+    <div className="relative aspect-square bg-black/20">
+      {current ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={current}
+          alt={alt}
+          loading="lazy"
+          className={`absolute inset-0 h-full w-full object-cover ${soldOut ? "opacity-50" : ""}`}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-xs text-brand-bone/50">
+          {fallbackLabel}
+        </div>
+      )}
+      {soldOut && (
+        <span className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-bone">
+          Sold out
+        </span>
+      )}
+      {hasMultiple && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              step(-1);
+            }}
+            aria-label="Previous image"
+            className="absolute left-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-brand-bone backdrop-blur transition-colors hover:bg-black/60"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              step(1);
+            }}
+            aria-label="Next image"
+            className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-brand-bone backdrop-blur transition-colors hover:bg-black/60"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
+            {urls.map((_, i) => (
+              <span
+                key={i}
+                aria-hidden
+                className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                  i === safeIdx ? "bg-brand-bone" : "bg-brand-bone/40"
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function ShopTeaser({
@@ -204,26 +298,12 @@ export default function ShopTeaser({
                     style={itemBg ? { backgroundColor: itemBg } : undefined}
                     className="flex flex-col overflow-hidden rounded-[16px] border border-brand-bone/15 bg-brand-charcoal text-brand-bone shadow-sm"
                   >
-                    <div className="relative aspect-square bg-black/20">
-                      {p.imageUrl ? (
-                        <Image
-                          src={p.imageUrl}
-                          alt={p.title}
-                          fill
-                          sizes="(max-width: 512px) 50vw, 256px"
-                          className={`object-cover ${p.soldOut ? "opacity-50" : ""}`}
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-xs text-brand-bone/50">
-                          {PRODUCT_CATEGORY_LABELS[p.category]}
-                        </div>
-                      )}
-                      {p.soldOut && (
-                        <span className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-bone">
-                          Sold out
-                        </span>
-                      )}
-                    </div>
+                    <CardImage
+                      urls={p.imageUrls}
+                      alt={p.title}
+                      soldOut={p.soldOut}
+                      fallbackLabel={PRODUCT_CATEGORY_LABELS[p.category]}
+                    />
                     <div className="flex flex-1 flex-col gap-2.5 px-3 py-3">
                       {/* Title row — checkbox sits inline with title + price so
                           the unchecked state stays minimal. For non-eligible

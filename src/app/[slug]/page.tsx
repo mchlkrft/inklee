@@ -179,7 +179,7 @@ export default async function ArtistPublicPage({
     const { data: rawProducts } = await serviceClient
       .from("products")
       .select(
-        "id, title, category, image_url, price_amount, currency, status, pickup_note, is_checkout_addon, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+        "id, title, category, image_url, image_urls, price_amount, currency, status, pickup_note, is_checkout_addon, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
       )
       .eq("artist_id", profile.id)
       .eq("is_public_visible", true)
@@ -200,6 +200,7 @@ export default async function ArtistPublicPage({
       title: string;
       category: string;
       image_url: string | null;
+      image_urls: string[] | null;
       price_amount: string | number;
       currency: string | null;
       status: string;
@@ -211,11 +212,20 @@ export default async function ArtistPublicPage({
     const rows = (rawProducts ?? []) as unknown as RawProduct[];
     shopProducts = rows.map((p) => {
       const currency = typeof p.currency === "string" ? p.currency : "eur";
+      // image_urls is canonical post-0038; fall back to legacy image_url so
+      // any row that hasn't been re-saved still renders.
+      const imageUrls =
+        Array.isArray(p.image_urls) && p.image_urls.length > 0
+          ? p.image_urls
+          : p.image_url
+            ? [p.image_url]
+            : [];
       return {
         id: p.id,
         title: p.title,
         category: isProductCategory(p.category) ? p.category : "other",
-        imageUrl: p.image_url,
+        imageUrls,
+        imageUrl: imageUrls[0] ?? null,
         price: toPriceNumber(p.price_amount),
         currency,
         soldOut: p.status === "sold_out",

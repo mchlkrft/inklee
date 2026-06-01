@@ -138,6 +138,12 @@ export type PublicProduct = {
   id: string;
   title: string;
   category: ProductCategory;
+  /** Canonical multi-image list (migration 0038). The first entry is the
+   *  hero / dashboard thumbnail; the public shop renders a carousel when the
+   *  list has more than one entry. Always present (empty array when unset). */
+  imageUrls: string[];
+  /** Legacy single-image source — kept as imageUrls[0] for any reader that
+   *  hasn't been migrated. New code should prefer imageUrls. */
   imageUrl: string | null;
   price: number;
   currency: string;

@@ -18,6 +18,7 @@ type RawProduct = {
   description: string | null;
   category: string;
   image_url: string | null;
+  image_urls: string[] | null;
   price_amount: string | number;
   currency: string | null;
   status: string;
@@ -47,7 +48,7 @@ export default async function EditProductPage({
   const { data: rawProduct } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
@@ -81,6 +82,11 @@ export default async function EditProductPage({
     isPublicVisible: row.is_public_visible,
     isCheckoutAddon: row.is_checkout_addon,
     imageUrl: row.image_url,
+    imageUrls: Array.isArray(row.image_urls)
+      ? row.image_urls
+      : row.image_url
+        ? [row.image_url]
+        : [],
   };
 
   const variants = ((rawVariants ?? []) as unknown as RawVariant[]).map(

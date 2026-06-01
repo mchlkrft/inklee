@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Image from "next/image";
-import { ChevronDown, ImagePlus, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ImagePlus, Plus, Trash2, X } from "lucide-react";
 import {
   PRODUCT_CATEGORIES,
   PRODUCT_CATEGORY_LABELS,
@@ -30,6 +29,9 @@ export type ProductFormFieldValues = {
   isPublicVisible: boolean;
   isCheckoutAddon: boolean;
   imageUrl: string | null;
+  // Multi-image (migration 0038). imageUrl stays as the legacy single hero for
+  // back-compat; imageUrls is the canonical list driving the multi-image picker.
+  imageUrls: string[];
 };
 
 export type VariantInputRow = {
@@ -58,11 +60,28 @@ export default function ProductFormFields({
   variants?: VariantInputRow[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(
-    initial?.imageUrl ?? null,
-  );
-  const [removeImage, setRemoveImage] = useState(false);
-  const [dragging, setDragging] = useState(false);
+
+  // Multi-image picker (migration 0038). One list of entries — existing URLs
+  // posted back via existing_image_urls + new File objects synced into a
+  // hidden multi-file input each render — so the server composes the final
+  // image_urls array in the artist's order.
+  type ImageEntry =
+    | { kind: "existing"; url: string; key: string }
+    | { kind: "new"; file: File; preview: string; key: string };
+
+  const [imageEntries, setImageEntries] = useState<ImageEntry[]>(() => {
+    const seed = initial?.imageUrls?.length
+      ? initial.imageUrls
+      : initial?.imageUrl
+        ? [initial.imageUrl]
+        : [];
+    return seed.map((url) => ({
+      kind: "existing" as const,
+      url,
+      key: freshKey(),
+    }));
+  });
+
   const [moreOpen, setMoreOpen] = useState(false);
   // The add-on flag lives under "More settings" (collapsed by default). Hold it
   // in state with an always-rendered hidden input so the value submits even when
@@ -77,15 +96,71 @@ export default function ProductFormFields({
     initialVariants.map((v) => ({ key: freshKey(), ...v })),
   );
 
-  const hadExistingImage = !!initial?.imageUrl;
+  // Image cap — variant-less product: 3. With variants: variantCount + 1
+  // (one image per variant plus a shared hero). Computed live so adding a
+  // variant opens up another slot.
+  const liveVariantCount = hasOptions
+    ? rows.filter((r) => r.name.trim().length > 0).length
+    : 0;
+  const maxImages = liveVariantCount > 0 ? liveVariantCount + 1 : 3;
 
-  function takeFile(file: File) {
+  // Multi-file inputs can't be populated arbitrarily by JS; we use a
+  // DataTransfer to sync the new-file entries back into the hidden file
+  // input on every change so FormData picks them up in order.
+  useEffect(() => {
+    if (!fileRef.current) return;
     const dt = new DataTransfer();
-    dt.items.add(file);
-    if (fileRef.current) fileRef.current.files = dt.files;
-    setPreviewUrl(URL.createObjectURL(file));
-    setRemoveImage(false);
+    for (const img of imageEntries) {
+      if (img.kind === "new") dt.items.add(img.file);
+    }
+    fileRef.current.files = dt.files;
+  }, [imageEntries]);
+
+  // Revoke blob URLs on unmount so they don't leak (we also revoke on remove).
+  useEffect(() => {
+    return () => {
+      for (const img of imageEntries) {
+        if (img.kind === "new") URL.revokeObjectURL(img.preview);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function addImageFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setImageEntries((prev) => {
+      const remaining = maxImages - prev.length;
+      if (remaining <= 0) return prev;
+      const toAdd = Array.from(files)
+        .slice(0, remaining)
+        .map((file) => ({
+          kind: "new" as const,
+          file,
+          preview: URL.createObjectURL(file),
+          key: freshKey(),
+        }));
+      return [...prev, ...toAdd];
+    });
+    // Reset so picking the same file again still triggers onChange.
+    if (fileRef.current) fileRef.current.value = "";
   }
+
+  function removeImageEntry(key: string) {
+    setImageEntries((prev) => {
+      const dropped = prev.find((img) => img.key === key);
+      if (dropped && dropped.kind === "new") {
+        URL.revokeObjectURL(dropped.preview);
+      }
+      return prev.filter((img) => img.key !== key);
+    });
+  }
+
+  const existingImageUrls = imageEntries
+    .filter(
+      (img): img is Extract<ImageEntry, { kind: "existing" }> =>
+        img.kind === "existing",
+    )
+    .map((img) => img.url);
 
   function toggleOptions(next: boolean) {
     setHasOptions(next);
@@ -119,85 +194,69 @@ export default function ProductFormFields({
   return (
     <div className="space-y-4">
       <input type="hidden" name="variants" value={serializedVariants} />
-      {hadExistingImage && (
-        <input
-          type="hidden"
-          name="remove_image"
-          value={removeImage ? "1" : ""}
-        />
-      )}
-
-      {/* Image — first. Drag-drop or click. The satisfying step. */}
+      {/* Multi-image picker — first, the satisfying step. Grid of thumbnails
+          with a + tile that opens the file picker. The keep-list and the new
+          files post via hidden inputs at the end of this section. */}
       <div className="space-y-1.5">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            const f = e.dataTransfer.files?.[0];
-            if (f) takeFile(f);
-          }}
-          className={`relative block aspect-square w-full overflow-hidden rounded-lg border-2 border-dashed bg-muted/20 transition-colors hover:border-foreground/40 hover:bg-muted/30 focus:outline-none focus-visible:border-foreground/60 ${
-            dragging ? "border-foreground/60 bg-muted/40" : "border-border"
-          }`}
-        >
-          {previewUrl && !removeImage ? (
-            previewUrl.startsWith("blob:") ? (
-              // eslint-disable-next-line @next/next/no-img-element
+        <div className="flex items-baseline justify-between">
+          <label className={LABEL}>Images</label>
+          <span className="text-xs text-muted-foreground">
+            {imageEntries.length} / {maxImages}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {imageEntries.map((img) => (
+            <div
+              key={img.key}
+              className="relative aspect-square overflow-hidden rounded-lg border border-border bg-muted/20"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={previewUrl}
+                src={img.kind === "new" ? img.preview : img.url}
                 alt=""
                 className="h-full w-full object-cover"
               />
-            ) : (
-              <Image
-                src={previewUrl}
-                alt=""
-                fill
-                sizes="(max-width: 480px) 100vw, 480px"
-                className="object-cover"
-              />
-            )
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-              <ImagePlus className="h-8 w-8" strokeWidth={1.5} />
-              <span className="text-sm font-medium">
-                Drag an image here, or click to upload
-              </span>
-              <span className="text-xs">PNG, JPG or WebP, up to 5&nbsp;MB</span>
+              <button
+                type="button"
+                onClick={() => removeImageEntry(img.key)}
+                aria-label="Remove image"
+                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-black"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
+          ))}
+          {imageEntries.length < maxImages && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted/30 hover:text-foreground"
+            >
+              <ImagePlus className="h-6 w-6" strokeWidth={1.5} />
+              <span className="text-[11px]">Add image</span>
+            </button>
           )}
-        </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          PNG, JPG or WebP, up to 5 MB each.{" "}
+          {liveVariantCount > 0
+            ? `With ${liveVariantCount} option${liveVariantCount === 1 ? "" : "s"} you can add up to ${maxImages} images (one per option + a shared one).`
+            : "Up to 3 images — drag to reorder is coming."}
+        </p>
+        <input
+          type="hidden"
+          name="existing_image_urls"
+          value={JSON.stringify(existingImageUrls)}
+        />
         <input
           ref={fileRef}
-          name="image"
+          name="images"
           type="file"
+          multiple
           accept="image/png,image/jpeg,image/webp"
           className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) takeFile(f);
-          }}
+          onChange={(e) => addImageFiles(e.target.files)}
         />
-        {hadExistingImage && previewUrl && !removeImage && (
-          <button
-            type="button"
-            onClick={() => {
-              setRemoveImage(true);
-              setPreviewUrl(null);
-              if (fileRef.current) fileRef.current.value = "";
-            }}
-            className="text-xs text-muted-foreground transition-colors hover:text-destructive"
-          >
-            Remove image
-          </button>
-        )}
       </div>
 
       {/* Title + Quantity (quantity hides when the product has options) */}

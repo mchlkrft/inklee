@@ -16,6 +16,10 @@ export type GoodsTileItem = {
   price: number;
   currency: string;
   imageUrl: string | null;
+  /** Total number of images on this product (multi-image, migration 0038).
+   *  When > 1 the tile shows a small "+N" badge so the artist sees at a
+   *  glance which items have a gallery. */
+  imageCount: number;
   status: ProductStatus;
   isPublicVisible: boolean;
 };
@@ -84,6 +88,14 @@ export default function GoodsTile({ item }: { item: GoodsTileItem }) {
         {status !== "active" && (
           <span className="absolute right-2 top-2 z-30 rounded-full bg-brand-charcoal/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-bone">
             {PRODUCT_STATUS_LABELS[status]}
+          </span>
+        )}
+
+        {/* Multi-image badge (bottom-left): shows the gallery count so the
+            artist sees at a glance which items have multiple images. */}
+        {item.imageCount > 1 && (
+          <span className="absolute bottom-2 left-2 z-30 rounded-full bg-brand-charcoal/80 px-1.5 py-0.5 text-[10px] font-medium tabular-nums leading-none text-brand-bone">
+            +{item.imageCount - 1}
           </span>
         )}
 

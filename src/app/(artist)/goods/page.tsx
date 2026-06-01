@@ -11,6 +11,7 @@ type RawRow = {
   id: string;
   title: string;
   image_url: string | null;
+  image_urls: string[] | null;
   price_amount: string | number;
   currency: string | null;
   status: string;
@@ -26,24 +27,33 @@ export default async function GoodsPage() {
   const { data: raw } = await supabase
     .from("products")
     .select(
-      "id, title, image_url, price_amount, currency, status, is_public_visible",
+      "id, title, image_url, image_urls, price_amount, currency, status, is_public_visible",
     )
     .eq("artist_id", user!.id)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
   const products: GoodsTileItem[] = ((raw ?? []) as unknown as RawRow[]).map(
-    (p) => ({
-      id: p.id,
-      title: p.title,
-      price: toPriceNumber(p.price_amount),
-      currency: typeof p.currency === "string" ? p.currency : "eur",
-      imageUrl: p.image_url,
-      status: (isProductStatus(p.status)
-        ? p.status
-        : "active") as ProductStatus,
-      isPublicVisible: p.is_public_visible,
-    }),
+    (p) => {
+      const imageUrls =
+        Array.isArray(p.image_urls) && p.image_urls.length > 0
+          ? p.image_urls
+          : p.image_url
+            ? [p.image_url]
+            : [];
+      return {
+        id: p.id,
+        title: p.title,
+        price: toPriceNumber(p.price_amount),
+        currency: typeof p.currency === "string" ? p.currency : "eur",
+        imageUrl: imageUrls[0] ?? null,
+        imageCount: imageUrls.length,
+        status: (isProductStatus(p.status)
+          ? p.status
+          : "active") as ProductStatus,
+        isPublicVisible: p.is_public_visible,
+      };
+    },
   );
 
   return (

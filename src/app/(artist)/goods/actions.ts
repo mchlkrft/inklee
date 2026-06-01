@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
@@ -173,7 +174,7 @@ async function uploadProductImage(
   userId: string,
   productId: string,
   file: File,
-): Promise<{ url: string } | { error: string }> {
+): Promise<{ url: string; path: string } | { error: string }> {
   if (!ALLOWED_TYPES.includes(file.type)) {
     return { error: "Image must be PNG, JPG, or WebP." };
   }
@@ -185,13 +186,108 @@ async function uploadProductImage(
     .resize(800, 800, { fit: "cover", position: "centre" })
     .webp({ quality: 82 })
     .toBuffer();
-  const path = `${userId}/goods/${productId}.webp`;
+  // Per-image slug path so multiple images can coexist under one product. The
+  // old single-image layout (${userId}/goods/${productId}.webp) is left in
+  // place for legacy rows until migration 0038 backfill is verified clean.
+  const slug = crypto.randomUUID();
+  const path = `${userId}/goods/${productId}/${slug}.webp`;
   const { error } = await serviceClient.storage
     .from("logos")
-    .upload(path, resized, { contentType: "image/webp", upsert: true });
+    .upload(path, resized, { contentType: "image/webp", upsert: false });
   if (error) return { error: "Image upload failed. Try again." };
   const { data } = serviceClient.storage.from("logos").getPublicUrl(path);
-  return { url: `${data.publicUrl}?t=${Date.now()}` };
+  return { url: data.publicUrl, path };
+}
+
+// Derive the storage path from a public URL so we can delete the file when the
+// artist removes the image from a product. Public URL shape:
+//   https://<ref>.supabase.co/storage/v1/object/public/logos/<path>
+function goodsImagePathFromUrl(url: string): string | null {
+  const marker = "/storage/v1/object/public/logos/";
+  const idx = url.indexOf(marker);
+  if (idx < 0) return null;
+  const tail = url.slice(idx + marker.length);
+  return tail.split("?")[0] || null;
+}
+
+// Multi-image cap: a variant-less product gets up to 3 images; once variants
+// exist, the cap becomes (variantCount + 1) so the artist can pair one image
+// per variant plus one shared hero. The 3-cap is intentionally NOT applied to
+// variant products — a single-variant product is allowed only 2 images.
+function maxProductImages(variantCount: number): number {
+  return variantCount > 0 ? variantCount + 1 : 3;
+}
+
+// Shared image-write path for create + update. Reads:
+//   • existing_image_urls (JSON string of URLs to keep, in order) — empty on
+//     create, populated on edit when the artist keeps existing images.
+//   • images (one or more File entries from a multi-input).
+// Uploads each new file via uploadProductImage, composes the final array as
+// keep ++ uploaded (in posted order), and deletes from storage any URL in
+// prevImageUrls that didn't survive. On upload failure, rolls back any
+// just-uploaded files this call produced.
+async function processProductImages(
+  userId: string,
+  productId: string,
+  formData: FormData,
+  maxImages: number,
+  prevImageUrls: string[],
+): Promise<{ value: string[] } | { error: string }> {
+  let keep: string[] = [];
+  const rawKeep = formData.get("existing_image_urls");
+  if (typeof rawKeep === "string" && rawKeep.trim()) {
+    try {
+      const parsed = JSON.parse(rawKeep);
+      if (Array.isArray(parsed)) {
+        keep = parsed.filter(
+          (s): s is string => typeof s === "string" && s.length > 0,
+        );
+      }
+    } catch {
+      return { error: "Couldn't read the image list. Try again." };
+    }
+  }
+  const newFiles = (formData.getAll("images") as File[]).filter(
+    (f) => f && f.size > 0,
+  );
+  if (keep.length + newFiles.length > maxImages) {
+    return {
+      error: `You can have at most ${maxImages} image${maxImages === 1 ? "" : "s"} for this product.`,
+    };
+  }
+
+  const uploadedUrls: string[] = [];
+  for (const file of newFiles) {
+    const up = await uploadProductImage(userId, productId, file);
+    if ("error" in up) {
+      for (const url of uploadedUrls) {
+        const p = goodsImagePathFromUrl(url);
+        if (p) {
+          await serviceClient.storage
+            .from("logos")
+            .remove([p])
+            .catch(() => undefined);
+        }
+      }
+      return up;
+    }
+    uploadedUrls.push(up.url);
+  }
+  const finalUrls = [...keep, ...uploadedUrls];
+
+  // Delete any previous URLs the artist dropped from the keep-list.
+  const removed = prevImageUrls.filter((u) => !finalUrls.includes(u));
+  for (const url of removed) {
+    const p = goodsImagePathFromUrl(url);
+    if (p) {
+      await serviceClient.storage
+        .from("logos")
+        .remove([p])
+        .catch(() => undefined);
+    }
+  }
+
+  return { value: finalUrls };
 }
 
 // No order_items reference variants yet (Slice 75). Until then a
@@ -269,13 +365,20 @@ export async function createProductAction(
   }
   const productId = inserted.id as string;
 
-  const imageFile = formData.get("image") as File | null;
-  if (imageFile && imageFile.size > 0) {
-    const up = await uploadProductImage(user.id, productId, imageFile);
-    if ("error" in up) return up;
+  const maxImages = maxProductImages(variantsRes.value.length);
+  const imagesResult = await processProductImages(
+    user.id,
+    productId,
+    formData,
+    maxImages,
+    [],
+  );
+  if ("error" in imagesResult) return imagesResult;
+  const imageUrls = imagesResult.value;
+  if (imageUrls.length > 0) {
     await supabase
       .from("products")
-      .update({ image_url: up.url })
+      .update({ image_urls: imageUrls, image_url: imageUrls[0] })
       .eq("id", productId);
   }
 
@@ -314,21 +417,31 @@ export async function updateProductAction(
   if ("error" in variantsRes) return variantsRes;
   const f = parsed.value;
 
-  let imagePatch: { image_url: string | null } | null = null;
-  if (formData.get("remove_image") === "1") {
-    await serviceClient.storage
-      .from("logos")
-      .remove([`${user.id}/goods/${id}.webp`])
-      .catch(() => undefined);
-    imagePatch = { image_url: null };
-  } else {
-    const imageFile = formData.get("image") as File | null;
-    if (imageFile && imageFile.size > 0) {
-      const up = await uploadProductImage(user.id, id, imageFile);
-      if ("error" in up) return up;
-      imagePatch = { image_url: up.url };
-    }
-  }
+  // Fetch the current image list so we can diff against the keep-list and
+  // delete dropped images from storage. Falls back to legacy single image_url
+  // for rows that haven't been written since migration 0038.
+  const { data: prevRow } = await supabase
+    .from("products")
+    .select("image_urls, image_url")
+    .eq("id", id)
+    .eq("artist_id", user.id)
+    .single();
+  const prevImageUrls: string[] = Array.isArray(prevRow?.image_urls)
+    ? (prevRow!.image_urls as string[])
+    : prevRow?.image_url
+      ? [prevRow.image_url as string]
+      : [];
+
+  const maxImages = maxProductImages(variantsRes.value.length);
+  const imagesResult = await processProductImages(
+    user.id,
+    id,
+    formData,
+    maxImages,
+    prevImageUrls,
+  );
+  if ("error" in imagesResult) return imagesResult;
+  const imageUrls = imagesResult.value;
 
   const { error } = await supabase
     .from("products")
@@ -343,7 +456,8 @@ export async function updateProductAction(
       is_public_visible: f.isPublicVisible,
       is_checkout_addon: f.isCheckoutAddon,
       quantity: f.quantity,
-      ...(imagePatch ?? {}),
+      image_urls: imageUrls,
+      image_url: imageUrls[0] ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -367,6 +481,26 @@ export async function deleteProductAction(id: string): Promise<State> {
 
   // Variants cascade via FK. No order_items reference products yet (Slice 75);
   // when they do, guard this with an order check and archive instead of delete.
+  //
+  // Snapshot the image URLs first so storage cleanup can include every
+  // per-image file (multi-image, migration 0038) plus the legacy single-image
+  // path for products never re-saved post-0038.
+  const { data: imageRow } = await supabase
+    .from("products")
+    .select("image_urls, image_url")
+    .eq("id", id)
+    .eq("artist_id", user.id)
+    .single();
+  const allImageUrls: string[] = Array.isArray(imageRow?.image_urls)
+    ? (imageRow!.image_urls as string[])
+    : [];
+  if (
+    imageRow?.image_url &&
+    !allImageUrls.includes(imageRow.image_url as string)
+  ) {
+    allImageUrls.push(imageRow.image_url as string);
+  }
+
   const { error } = await supabase
     .from("products")
     .delete()
@@ -374,10 +508,18 @@ export async function deleteProductAction(id: string): Promise<State> {
     .eq("artist_id", user.id);
   if (error) return { error: error.message };
 
-  await serviceClient.storage
-    .from("logos")
-    .remove([`${user.id}/goods/${id}.webp`])
-    .catch(() => undefined);
+  const pathsToRemove = [
+    ...allImageUrls
+      .map((u) => goodsImagePathFromUrl(u))
+      .filter((p): p is string => !!p),
+    `${user.id}/goods/${id}.webp`,
+  ];
+  if (pathsToRemove.length > 0) {
+    await serviceClient.storage
+      .from("logos")
+      .remove(pathsToRemove)
+      .catch(() => undefined);
+  }
 
   revalidatePath("/goods");
   await revalidatePublicPage(user.id);
@@ -402,7 +544,7 @@ export async function loadProductForEditAction(
   const { data: rawProduct } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
     )
     .eq("id", id)
     .eq("artist_id", user.id)
@@ -414,6 +556,7 @@ export async function loadProductForEditAction(
     description: string | null;
     category: string;
     image_url: string | null;
+    image_urls: string[] | null;
     price_amount: string | number;
     currency: string | null;
     status: string;
@@ -449,6 +592,13 @@ export async function loadProductForEditAction(
     isPublicVisible: row.is_public_visible,
     isCheckoutAddon: row.is_checkout_addon,
     imageUrl: row.image_url,
+    // image_urls is the canonical multi-image source post-migration 0038; fall
+    // back to ARRAY[image_url] for rows that haven't been re-saved yet.
+    imageUrls: Array.isArray(row.image_urls)
+      ? row.image_urls
+      : row.image_url
+        ? [row.image_url]
+        : [],
   };
 
   const variants: VariantInputRow[] = (
