@@ -340,6 +340,62 @@ export async function approveBookingWithInterestDecisions(
   return { success: true };
 }
 
+// Applies per-interest availability decisions WITHOUT transitioning the
+// booking — used by the Accept popup when the artist's next step is "Request
+// deposit" instead of immediate approval, so the decisions land before the
+// deposit form opens. Same ownership + per-row guard as
+// approveBookingWithInterestDecisions; if you're going straight to approved,
+// call that one instead.
+export async function applyInterestDecisions(
+  id: string,
+  decisions: InterestDecisionPayload[],
+): Promise<ActionResult> {
+  const authorised = await getAuthorisedBooking(id);
+  if ("error" in authorised) return authorised;
+
+  const { supabase, user } = authorised;
+
+  const { data: existingInterests, error: interestsFetchError } = await supabase
+    .from("booking_interests")
+    .select("id, status")
+    .eq("booking_id", id)
+    .eq("artist_id", user.id);
+  if (interestsFetchError) {
+    return { error: interestsFetchError.message };
+  }
+  const byId = new Map((existingInterests ?? []).map((r) => [String(r.id), r]));
+
+  const updatedAt = new Date().toISOString();
+  for (const d of decisions) {
+    const row = byId.get(d.interestId);
+    // Same guard as the approve path — silently skip rows that aren't this
+    // booking's, or aren't still pending (could have been decided already).
+    if (!row || row.status !== "pending") continue;
+    const note =
+      !d.available && d.declineNote
+        ? d.declineNote.trim().slice(0, 300) || null
+        : null;
+    const { error: updateError } = await supabase
+      .from("booking_interests")
+      .update({
+        status: d.available ? "available" : "unavailable",
+        decline_note: note,
+        updated_at: updatedAt,
+      })
+      .eq("id", d.interestId)
+      .eq("artist_id", user.id);
+    if (updateError) {
+      Sentry.captureException(updateError, {
+        tags: { action: "booking_interest_decision_no_approve" },
+        extra: { bookingId: id, interestId: d.interestId },
+      });
+    }
+  }
+
+  revalidateBookingViews(id);
+  return { success: true };
+}
+
 export async function rejectBooking(id: string): Promise<ActionResult> {
   const authorised = await getAuthorisedBooking(id);
   if ("error" in authorised) return authorised;

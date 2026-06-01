@@ -7,6 +7,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import {
   approveBooking,
   approveBookingWithInterestDecisions,
+  applyInterestDecisions,
   rejectBooking,
   requestDeposit,
   markDepositReceived,
@@ -70,11 +71,15 @@ export default function StatusActions({
   );
   const [depositNote, setDepositNote] = useState(depositDefaults.note);
   const [confirmReject, setConfirmReject] = useState(false);
-  // Single Accept confirmation popup. Shown whenever the booking has a trip
-  // (artist re-confirms the studio) OR the client marked goods to buy (artist
-  // confirms availability per item). Both blocks render inline so the artist
-  // resolves everything in one step.
-  const [showAcceptPopup, setShowAcceptPopup] = useState(false);
+  // Confirmation popup that fires whenever the booking has a guest-spot
+  // studio AND/OR pending goods interests. `pendingAction` carries which
+  // button triggered it so the popup's confirm step can branch:
+  //   • "accept" → approve immediately (with or without interest decisions).
+  //   • "deposit" → apply decisions only, then open the deposit form.
+  // null means the popup is closed.
+  const [pendingAction, setPendingAction] = useState<
+    null | "accept" | "deposit"
+  >(null);
   // Per-interest availability decisions, default = available for every row so
   // a "Yes, accept" click without any tweaking marks them all as available.
   const [decisions, setDecisions] = useState<
@@ -98,25 +103,48 @@ export default function StatusActions({
     });
   }
 
-  async function handleAcceptConfirm() {
-    setShowAcceptPopup(false);
-    if (pendingInterests.length === 0) {
-      run(approveBooking, "approved");
+  async function handlePopupConfirm() {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === "accept") {
+      if (pendingInterests.length === 0) {
+        run(approveBooking, "approved");
+        return;
+      }
+      const payload = buildDecisionsPayload();
+      setError(null);
+      startTransition(async () => {
+        setOptimisticStatus("approved");
+        const result = await approveBookingWithInterestDecisions(
+          booking.id,
+          payload,
+        );
+        if ("error" in result) {
+          setOptimisticStatus(booking.status);
+          setError(result.error);
+        }
+      });
       return;
     }
-    const payload = buildDecisionsPayload();
-    setError(null);
-    startTransition(async () => {
-      setOptimisticStatus("approved");
-      const result = await approveBookingWithInterestDecisions(
-        booking.id,
-        payload,
-      );
-      if ("error" in result) {
-        setOptimisticStatus(booking.status);
-        setError(result.error);
+    if (action === "deposit") {
+      // Persist the goods decisions first (when any) so they're locked in
+      // before the client ever pays; then open the inline deposit form so
+      // the artist fills amount + due-date as usual.
+      if (pendingInterests.length === 0) {
+        setShowDepositForm(true);
+        return;
       }
-    });
+      const payload = buildDecisionsPayload();
+      setError(null);
+      startTransition(async () => {
+        const result = await applyInterestDecisions(booking.id, payload);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        setShowDepositForm(true);
+      });
+    }
   }
 
   const run = async (
@@ -170,9 +198,9 @@ export default function StatusActions({
     <div className="space-y-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {showAcceptPopup && (
+      {pendingAction && (
         <div
-          onClick={() => setShowAcceptPopup(false)}
+          onClick={() => setPendingAction(null)}
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm"
         >
           <div
@@ -180,7 +208,9 @@ export default function StatusActions({
             className="w-full max-w-md space-y-4 rounded-[20px] border border-border bg-background p-5 sm:max-w-lg"
           >
             <p className="text-sm font-semibold text-foreground">
-              Confirm acceptance
+              {pendingAction === "deposit"
+                ? "Confirm before requesting deposit"
+                : "Confirm acceptance"}
             </p>
 
             {confirmStudio && (
@@ -287,13 +317,15 @@ export default function StatusActions({
 
             <div className="flex gap-2">
               <button
-                onClick={handleAcceptConfirm}
+                onClick={handlePopupConfirm}
                 className="flex-1 rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-semibold text-brand-charcoal"
               >
-                Yes, accept
+                {pendingAction === "deposit"
+                  ? "Continue to deposit"
+                  : "Yes, accept"}
               </button>
               <button
-                onClick={() => setShowAcceptPopup(false)}
+                onClick={() => setPendingAction(null)}
                 className="rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Cancel
@@ -360,7 +392,7 @@ export default function StatusActions({
             <button
               onClick={() =>
                 needsAcceptPopup
-                  ? setShowAcceptPopup(true)
+                  ? setPendingAction("accept")
                   : run(approveBooking, "approved")
               }
               className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-semibold text-brand-charcoal"
@@ -376,7 +408,11 @@ export default function StatusActions({
           {!showDepositForm ? (
             <div className="space-y-1">
               <button
-                onClick={() => setShowDepositForm(true)}
+                onClick={() =>
+                  needsAcceptPopup
+                    ? setPendingAction("deposit")
+                    : setShowDepositForm(true)
+                }
                 className="w-full rounded-full border border-border px-5 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors"
               >
                 Request deposit
