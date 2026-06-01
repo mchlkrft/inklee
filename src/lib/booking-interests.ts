@@ -105,7 +105,11 @@ export function computeInterestRows(
         error: "One of the items you picked is no longer available.",
       };
     }
-    if (!product.isCheckoutAddon || product.status !== "active") {
+    // Interest signalling is broader than checkout — products without the
+    // is_checkout_addon flag are still markable (visible signal for the
+    // artist). The checkout-time flow re-validates via getAddonProducts +
+    // computeAddonLines, which DO enforce that flag.
+    if (product.status !== "active") {
       return {
         ok: false,
         error: `"${product.title}" isn't available right now.`,

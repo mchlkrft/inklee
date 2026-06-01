@@ -35,6 +35,62 @@ type RawProduct = {
   product_variants: RawVariant[] | null;
 };
 
+// Wider set than getAddonProducts: any active EUR public product can be
+// flagged as "interested" at booking-form time, regardless of the
+// is_checkout_addon flag. Decoupled because interest-marking is a signal the
+// artist sees on the booking, not a commitment to charge — the checkout-time
+// flow still uses getAddonProducts (strict is_checkout_addon=true) so a
+// product without the addon flag is signal-only.
+export async function getInterestEligibleProducts(
+  artistId: string,
+): Promise<AddonProductRow[]> {
+  const { data: artist } = await serviceClient
+    .from("profiles")
+    .select("settings")
+    .eq("id", artistId)
+    .single();
+  if (!canUseCheckoutAddons(artist?.settings)) return [];
+
+  const { data } = await serviceClient
+    .from("products")
+    .select(
+      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+    )
+    .eq("artist_id", artistId)
+    .eq("is_public_visible", true)
+    .eq("status", "active")
+    .eq("currency", "eur")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  const rows = (data ?? []) as unknown as RawProduct[];
+  return rows.map((p) => ({
+    id: p.id,
+    title: p.title,
+    imageUrl: p.image_url,
+    price: toPriceNumber(p.price_amount),
+    currency: typeof p.currency === "string" ? p.currency : "eur",
+    status: (isProductStatus(p.status) ? p.status : "active") as ProductStatus,
+    isCheckoutAddon: p.is_checkout_addon,
+    quantity: p.quantity,
+    variants: [...(p.product_variants ?? [])]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((v) => ({
+        id: v.id,
+        name: v.name,
+        priceOverride:
+          v.price_amount_override !== null &&
+          v.price_amount_override !== undefined
+            ? toPriceNumber(v.price_amount_override)
+            : null,
+        stock: v.stock_quantity,
+        status: (isProductStatus(v.status)
+          ? v.status
+          : "active") as ProductStatus,
+      })),
+  }));
+}
+
 export async function getAddonProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {

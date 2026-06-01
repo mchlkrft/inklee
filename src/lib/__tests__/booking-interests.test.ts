@@ -128,7 +128,7 @@ describe("computeInterestRows", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("rejects unknown, hidden, or non-addon products", () => {
+  it("rejects unknown or hidden products", () => {
     expect(
       computeInterestRows(products, [
         { productId: "ghost", variantId: null, quantity: 1 },
@@ -141,17 +141,24 @@ describe("computeInterestRows", () => {
         [{ productId: "p-h", variantId: null, quantity: 1 }],
       ).ok,
     ).toBe(false);
+  });
+
+  it("accepts non-addon products (interest is broader than checkout)", () => {
+    // Interest signalling intentionally decoupled from is_checkout_addon —
+    // the artist still sees what the client wanted even for non-addon items.
     const notAddon: AddonProduct = {
       ...print,
       id: "p-n",
       isCheckoutAddon: false,
     };
-    expect(
+    const r = ok(
       computeInterestRows(
         [notAddon],
         [{ productId: "p-n", variantId: null, quantity: 1 }],
-      ).ok,
-    ).toBe(false);
+      ),
+    );
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].productId).toBe("p-n");
   });
 
   it("rejects exceeding variant stock (combined across duplicates)", () => {

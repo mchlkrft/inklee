@@ -1,54 +1,21 @@
 // Bio Page shop overlay. Triggered by the "Shop" header card on the public
-// page. Each product card carries interest-marking controls (variant picker +
-// qty stepper) for items the artist has flagged as appointment add-ons —
-// sold-out + non-eligible items still appear, but read-only. Selections are
-// owned by BookingForm above and serialised into a hidden interests_json field
-// at submit time; the server validates and writes booking_interests rows.
+// page. Each product card carries an Add-to-cart button (with optional variant
+// chips); clicks insert or increment a (product, variant) row in the shared
+// InterestSelections, which BookingForm serialises on submit. Cart-style list
+// above the grid acts as the running summary; X top-right, a "Done" link below
+// the cart, and the persistent Done button at the bottom all close the overlay.
 
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Minus,
-  Plus,
-  ShoppingBag,
-  X,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, ShoppingBag, X } from "lucide-react";
 import {
   PRODUCT_CATEGORY_LABELS,
   formatPrice,
   type PublicProduct,
 } from "@/lib/goods";
-import {
-  MAX_INTEREST_QUANTITY,
-  type InterestSelection,
-} from "@/lib/booking-interests";
+import { MAX_INTEREST_QUANTITY } from "@/lib/booking-interests";
 import { useInterestSelections } from "./interest-selections-context";
-
-function selectionKey(productId: string): string {
-  return productId; // one selection per product (single variant if applicable)
-}
-
-function findSelection(
-  selections: InterestSelection[],
-  productId: string,
-): InterestSelection | undefined {
-  return selections.find((s) => s.productId === productId);
-}
-
-function maxQtyFor(product: PublicProduct, variantId: string | null): number {
-  if (variantId) {
-    const v = product.variants.find((vv) => vv.id === variantId);
-    if (v && v.stock !== null) {
-      return Math.min(MAX_INTEREST_QUANTITY, Math.max(0, v.stock));
-    }
-  } else if (product.variants.length === 0 && product.soldOut) {
-    return 0;
-  }
-  return MAX_INTEREST_QUANTITY;
-}
 
 function unitPriceFor(
   product: PublicProduct,
@@ -61,10 +28,10 @@ function unitPriceFor(
   return product.price;
 }
 
-// Per-card image carousel. When the product has a single image (or none), it
-// renders the same as before; with more images, prev/next arrows + dot
-// indicators appear. The arrows stopPropagation so clicking them doesn't open
-// the underlying card or toggle the interest checkbox.
+// Per-card image carousel. Single-image (or no image) renders just the image
+// area; with multiple images the prev/next arrows + dot indicators appear.
+// The arrows stopPropagation so clicking them never accidentally triggers an
+// Add-to-cart on the card.
 function CardImage({
   urls,
   alt,
@@ -149,6 +116,123 @@ function CardImage({
   );
 }
 
+// One product card. Owns its own variant pick state — the artist picks a
+// variant (if applicable), clicks Add to cart, and the card resets to default.
+// Same product can be re-added for a different variant; identical combos
+// increment the existing cart entry's qty.
+function ProductCard({
+  p,
+  itemBg,
+  currentInCart,
+  onAdd,
+}: {
+  p: PublicProduct;
+  itemBg: string | null;
+  currentInCart: (productId: string, variantId: string | null) => number;
+  onAdd: (productId: string, variantId: string | null) => void;
+}) {
+  const [pickedVariantId, setPickedVariantId] = useState<string | null>(null);
+  const needsVariant = p.variants.length > 0;
+  const canMark = p.interestEligible && !p.soldOut;
+  const unitPrice = unitPriceFor(p, pickedVariantId);
+
+  // Stock cap for the currently-picked combo. Only variant stock is exposed
+  // to the public shop today — product-level stock is enforced server-side
+  // by computeInterestRows when the booking is submitted.
+  let stockCap = MAX_INTEREST_QUANTITY;
+  if (needsVariant && pickedVariantId) {
+    const v = p.variants.find((vv) => vv.id === pickedVariantId);
+    if (v && v.stock !== null) stockCap = Math.min(stockCap, v.stock);
+  }
+  const inCartForCombo = currentInCart(p.id, pickedVariantId);
+  const canAdd =
+    canMark &&
+    inCartForCombo < stockCap &&
+    (!needsVariant || pickedVariantId !== null);
+
+  function handleAdd() {
+    if (!canAdd) return;
+    onAdd(p.id, pickedVariantId);
+    // Reset to default state so the next variant + Add cycle starts fresh.
+    setPickedVariantId(null);
+  }
+
+  const buttonLabel =
+    needsVariant && !pickedVariantId
+      ? "Pick an option"
+      : !canMark
+        ? "Unavailable"
+        : inCartForCombo > 0
+          ? `Add another (${inCartForCombo} in cart)`
+          : "Add to cart";
+
+  return (
+    <li
+      style={itemBg ? { backgroundColor: itemBg } : undefined}
+      className="flex flex-col overflow-hidden rounded-[16px] border border-brand-bone/15 bg-brand-charcoal text-brand-bone shadow-sm"
+    >
+      <CardImage
+        urls={p.imageUrls}
+        alt={p.title}
+        soldOut={p.soldOut}
+        fallbackLabel={PRODUCT_CATEGORY_LABELS[p.category]}
+      />
+      <div className="flex flex-1 flex-col gap-2.5 px-3 py-3">
+        <div className="space-y-0.5">
+          <p className="truncate text-sm font-medium text-brand-bone">
+            {p.title}
+          </p>
+          <p className="text-xs text-brand-bone/70">
+            {formatPrice(unitPrice, p.currency)}
+          </p>
+          {p.pickupNote && (
+            <p className="truncate text-[11px] text-brand-bone/55">
+              {p.pickupNote}
+            </p>
+          )}
+        </div>
+
+        {canMark && needsVariant && (
+          <div className="flex flex-wrap gap-1.5">
+            {p.variants.map((v) => {
+              const variantSoldOut = v.stock !== null && v.stock <= 0;
+              const isActive = pickedVariantId === v.id;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  disabled={variantSoldOut}
+                  onClick={() => setPickedVariantId(isActive ? null : v.id)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
+                    isActive
+                      ? "border-brand-mustard bg-brand-mustard text-brand-charcoal"
+                      : "border-brand-bone/25 bg-brand-bone/5 text-brand-bone/80 hover:border-brand-bone/50 hover:text-brand-bone"
+                  }`}
+                >
+                  {v.name}
+                  {variantSoldOut && " · sold out"}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {canMark && (
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!canAdd}
+            className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-mustard px-3 py-2 text-xs font-semibold text-brand-charcoal transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            {buttonLabel}
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
 export default function ShopTeaser({
   products,
   itemBg = null,
@@ -163,21 +247,10 @@ export default function ShopTeaser({
 }) {
   // Interest selections are owned by InterestSelectionsProvider higher in the
   // tree so BookingForm (rendered elsewhere on the page) can read them on
-  // submit. One selection per product, qty in [0, MAX_INTEREST_QUANTITY].
+  // submit. Multiple rows per product are allowed — one per chosen variant.
   const { selections, setSelections: onSelectionsChange } =
     useInterestSelections();
   const [open, setOpen] = useState(false);
-
-  // Track per-product UI states:
-  //  • pendingPicks — checkbox has been clicked but the variant hasn't been
-  //    chosen yet. Drives "checked but not yet committed" visual state so the
-  //    variant picker can appear before we touch the selections payload.
-  //  • poppedForItems — products that have already triggered the "Keep
-  //    shopping?" popup, so toggling qty later doesn't re-fire it. Cleared
-  //    when an item is unchecked.
-  const [pendingPicks, setPendingPicks] = useState<Set<string>>(new Set());
-  const [poppedForItems, setPoppedForItems] = useState<Set<string>>(new Set());
-  const [showKeepShoppingPopup, setShowKeepShoppingPopup] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -195,70 +268,47 @@ export default function ShopTeaser({
 
   if (products.length === 0) return null;
 
-  // Header card "Shop · N selected" hint when the client has marked items.
   const totalSelectedQty = selections.reduce(
     (n, s) => n + (s.quantity > 0 ? s.quantity : 0),
     0,
   );
 
-  function upsertSelection(
-    productId: string,
-    patch: Partial<InterestSelection>,
-  ) {
-    const idx = selections.findIndex((s) => s.productId === productId);
+  function addToCart(productId: string, variantId: string | null) {
+    const idx = selections.findIndex(
+      (s) => s.productId === productId && s.variantId === variantId,
+    );
     if (idx === -1) {
       onSelectionsChange([
         ...selections,
-        {
-          productId,
-          variantId: patch.variantId ?? null,
-          quantity: patch.quantity ?? 0,
-        },
+        { productId, variantId, quantity: 1 },
       ]);
       return;
     }
     const next = selections.slice();
-    next[idx] = { ...next[idx], ...patch };
-    // Drop rows that are zero-qty so the payload stays clean.
-    if (!next[idx].quantity || next[idx].quantity <= 0) {
-      next.splice(idx, 1);
-    }
+    next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
     onSelectionsChange(next);
   }
 
-  // Fire the "Keep shopping?" popup the first time a product becomes fully
-  // selected (checkbox + variant, if needed). Subsequent qty/variant tweaks
-  // don't re-fire — the artist's Set tracks which products have popped.
-  function maybeFirePopup(productId: string) {
-    if (poppedForItems.has(productId)) return;
-    setPoppedForItems((prev) => {
-      const next = new Set(prev);
-      next.add(productId);
-      return next;
-    });
-    setShowKeepShoppingPopup(true);
+  function removeFromCart(productId: string, variantId: string | null) {
+    onSelectionsChange(
+      selections.filter(
+        (s) => !(s.productId === productId && s.variantId === variantId),
+      ),
+    );
   }
 
-  function resetItem(productId: string) {
-    upsertSelection(productId, { variantId: null, quantity: 0 });
-    setPendingPicks((prev) => {
-      if (!prev.has(productId)) return prev;
-      const next = new Set(prev);
-      next.delete(productId);
-      return next;
-    });
-    setPoppedForItems((prev) => {
-      if (!prev.has(productId)) return prev;
-      const next = new Set(prev);
-      next.delete(productId);
-      return next;
-    });
+  function currentInCart(productId: string, variantId: string | null): number {
+    return (
+      selections.find(
+        (s) => s.productId === productId && s.variantId === variantId,
+      )?.quantity ?? 0
+    );
   }
 
-  // Cart-style summary list rendered above the grid — gives the client a
-  // running overview of every selection without having to scan the whole shop.
   type CartLine = {
     key: string;
+    productId: string;
+    variantId: string | null;
     title: string;
     variant: string | null;
     quantity: number;
@@ -272,6 +322,8 @@ export default function ShopTeaser({
         : null;
       return {
         key: `${s.productId}::${s.variantId ?? ""}`,
+        productId: s.productId,
+        variantId: s.variantId,
         title: product.title,
         variant: variant?.name ?? null,
         quantity: s.quantity,
@@ -303,8 +355,9 @@ export default function ShopTeaser({
           aria-label="Shop"
           className="fixed inset-0 z-50 overflow-y-auto bg-brand-charcoal/40 text-left backdrop-blur-sm"
         >
-          {/* Close button floats top-right so the headline can own the top of
-              the overlay without a horizontal bar above it. */}
+          {/* Close button floats top-right — third of three navigation paths
+              (X here, "Done" link below the cart list, big Done button at the
+              bottom of the overlay). */}
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -321,275 +374,69 @@ export default function ShopTeaser({
             <h2 className="text-center text-4xl font-bold tracking-tight text-brand-bone md:text-5xl lg:text-6xl">
               {artistName} shop
             </h2>
-            {/* Cart-style running summary — appears as soon as the client
-                marks anything. One line per (product, variant) combo. */}
+
+            {/* Cart-style summary. One row per (product, variant) combo, with
+                an X to remove. Small "Done" link below for quick return to the
+                booking form. */}
             {cartLines.length > 0 && (
-              <ul className="mx-auto mt-6 inline-flex max-w-md flex-col gap-1 self-center text-sm text-brand-bone/85 lg:mt-8">
-                {cartLines.map((line) => (
-                  <li key={line.key} className="flex items-baseline gap-1.5">
-                    <span className="text-brand-mustard">✓</span>
-                    <span className="font-medium text-brand-bone">
-                      {line.title}
-                    </span>
-                    {line.variant && (
-                      <span className="text-brand-bone/70">
-                        · {line.variant}
+              <div className="mx-auto mt-6 inline-flex max-w-md flex-col items-stretch gap-2 self-center lg:mt-8">
+                <ul className="space-y-1 text-sm text-brand-bone/85">
+                  {cartLines.map((line) => (
+                    <li key={line.key} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeFromCart(line.productId, line.variantId)
+                        }
+                        aria-label={`Remove ${line.title}`}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-brand-bone/40 transition-colors hover:bg-brand-bone/10 hover:text-brand-bone"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <span className="text-brand-mustard">✓</span>
+                      <span className="font-medium text-brand-bone">
+                        {line.title}
                       </span>
-                    )}
-                    {line.quantity > 1 && (
-                      <span className="text-brand-bone/55">
-                        × {line.quantity}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                      {line.variant && (
+                        <span className="text-brand-bone/70">
+                          · {line.variant}
+                        </span>
+                      )}
+                      {line.quantity > 1 && (
+                        <span className="text-brand-bone/55">
+                          × {line.quantity}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="self-center text-xs text-brand-bone/70 underline underline-offset-4 transition-colors hover:text-brand-bone"
+                >
+                  Done — back to booking
+                </button>
+              </div>
             )}
+
             <ul className="mx-auto mt-8 grid w-full max-w-7xl grid-cols-2 gap-3 sm:grid-cols-3 lg:mt-12 lg:grid-cols-5 lg:gap-4">
-              {products.map((p) => {
-                const sel = findSelection(selections, p.id);
-                const canMark = p.interestEligible && !p.soldOut;
-                const needsVariant = p.variants.length > 0;
-                const selectedVariantId = sel?.variantId ?? null;
-                const qty = sel?.quantity ?? 0;
-                const max = maxQtyFor(p, selectedVariantId);
-                const unitPrice = unitPriceFor(p, selectedVariantId);
-                // Three card states drive the UI:
-                //   • isFullySelected: variant picked (or product has no
-                //     variants), qty ≥ 1. Card highlighted, picker collapsed,
-                //     stepper hover-revealed.
-                //   • isPickingVariant: checkbox clicked on a variant product
-                //     but no variant yet. Card not yet highlighted, variant
-                //     chips visible until one is picked.
-                //   • neither: default unselected state.
-                const isPickingVariant = pendingPicks.has(p.id);
-                const isFullySelected =
-                  qty > 0 && (!needsVariant || !!selectedVariantId);
-                const isVisuallyChecked = isFullySelected || isPickingVariant;
-                const showVariantPicker =
-                  canMark &&
-                  needsVariant &&
-                  (isPickingVariant || (isFullySelected && !selectedVariantId));
-                const showHoverControls = canMark && isFullySelected;
-
-                const handleToggle = (
-                  e: React.ChangeEvent<HTMLInputElement>,
-                ) => {
-                  if (e.target.checked) {
-                    if (needsVariant) {
-                      // Variant required — show the picker first; commit
-                      // happens on variant click below.
-                      setPendingPicks((prev) => {
-                        const next = new Set(prev);
-                        next.add(p.id);
-                        return next;
-                      });
-                    } else {
-                      // No variant — default qty 1, commit now + fire popup.
-                      upsertSelection(p.id, {
-                        variantId: null,
-                        quantity: 1,
-                      });
-                      maybeFirePopup(p.id);
-                    }
-                  } else {
-                    resetItem(p.id);
-                  }
-                };
-
-                const handleVariantPick = (variantId: string) => {
-                  const wasFullySelected =
-                    qty > 0 && selectedVariantId !== null;
-                  upsertSelection(p.id, {
-                    variantId,
-                    quantity: Math.max(qty, 1),
-                  });
-                  setPendingPicks((prev) => {
-                    if (!prev.has(p.id)) return prev;
-                    const next = new Set(prev);
-                    next.delete(p.id);
-                    return next;
-                  });
-                  if (!wasFullySelected) maybeFirePopup(p.id);
-                };
-
-                return (
-                  <li
-                    key={selectionKey(p.id)}
-                    style={itemBg ? { backgroundColor: itemBg } : undefined}
-                    className={`group flex flex-col overflow-hidden rounded-[16px] border bg-brand-charcoal text-brand-bone shadow-sm transition-[border-color,box-shadow] duration-200 ${
-                      isFullySelected
-                        ? "border-brand-mustard shadow-[0_0_0_1px_rgba(228,179,42,0.45)]"
-                        : "border-brand-bone/15"
-                    }`}
-                  >
-                    <CardImage
-                      urls={p.imageUrls}
-                      alt={p.title}
-                      soldOut={p.soldOut}
-                      fallbackLabel={PRODUCT_CATEGORY_LABELS[p.category]}
-                    />
-                    <div className="flex flex-1 flex-col gap-2.5 px-3 py-3">
-                      {/* Title row — checkbox sits inline with title + price so
-                          the unchecked state stays minimal. For non-eligible
-                          (sold-out / informational) products the checkbox is
-                          dropped and the text stands alone. */}
-                      {canMark ? (
-                        <label className="flex cursor-pointer items-start gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={isVisuallyChecked}
-                            onChange={handleToggle}
-                            aria-label={`Mark interest in ${p.title}`}
-                            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-mustard"
-                          />
-                          <div className="min-w-0 flex-1 space-y-0.5">
-                            <p className="truncate text-sm font-medium text-brand-bone">
-                              {p.title}
-                            </p>
-                            <p className="text-xs text-brand-bone/70">
-                              {formatPrice(unitPrice, p.currency)}
-                              {isFullySelected && selectedVariantId && (
-                                <span className="text-brand-mustard">
-                                  {" "}
-                                  ·{" "}
-                                  {p.variants.find(
-                                    (v) => v.id === selectedVariantId,
-                                  )?.name ?? ""}
-                                </span>
-                              )}
-                            </p>
-                            {p.pickupNote && (
-                              <p className="truncate text-[11px] text-brand-bone/55">
-                                {p.pickupNote}
-                              </p>
-                            )}
-                          </div>
-                        </label>
-                      ) : (
-                        <div className="space-y-0.5">
-                          <p className="truncate text-sm font-medium text-brand-bone">
-                            {p.title}
-                          </p>
-                          <p className="text-xs text-brand-bone/70">
-                            {formatPrice(unitPrice, p.currency)}
-                          </p>
-                          {p.pickupNote && (
-                            <p className="truncate text-[11px] text-brand-bone/55">
-                              {p.pickupNote}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Variant picker — visible while the artist is still
-                          choosing the variant (before commit). Once a variant
-                          is picked, the chips collapse into the hover-revealed
-                          block below so the resting state stays minimal. */}
-                      {showVariantPicker && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {p.variants.map((v) => {
-                            const variantSoldOut =
-                              v.stock !== null && v.stock <= 0;
-                            const isActive = selectedVariantId === v.id;
-                            return (
-                              <button
-                                key={v.id}
-                                type="button"
-                                disabled={variantSoldOut}
-                                onClick={() => handleVariantPick(v.id)}
-                                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
-                                  isActive
-                                    ? "border-brand-mustard bg-brand-mustard text-brand-charcoal"
-                                    : "border-brand-bone/25 bg-brand-bone/5 text-brand-bone/80 hover:border-brand-bone/50 hover:text-brand-bone"
-                                }`}
-                              >
-                                {v.name}
-                                {variantSoldOut && " · sold out"}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Reveal-on-hover controls — qty stepper + (for variant
-                          products) re-pick chips. Selected card stays clean
-                          by default; hovering shows the controls. Touch
-                          devices keep them visible unconditionally (see the
-                          .reveal-on-hover utility in globals.css). */}
-                      {showHoverControls && (
-                        <div className="reveal-on-hover mt-auto space-y-1.5">
-                          {needsVariant && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {p.variants.map((v) => {
-                                const variantSoldOut =
-                                  v.stock !== null && v.stock <= 0;
-                                const isActive = selectedVariantId === v.id;
-                                return (
-                                  <button
-                                    key={v.id}
-                                    type="button"
-                                    disabled={variantSoldOut}
-                                    onClick={() => handleVariantPick(v.id)}
-                                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
-                                      isActive
-                                        ? "border-brand-mustard bg-brand-mustard text-brand-charcoal"
-                                        : "border-brand-bone/25 bg-brand-bone/5 text-brand-bone/80 hover:border-brand-bone/50 hover:text-brand-bone"
-                                    }`}
-                                  >
-                                    {v.name}
-                                    {variantSoldOut && " · sold out"}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between gap-2 rounded-md border border-brand-bone/15 bg-black/15 px-1.5 py-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                upsertSelection(p.id, {
-                                  variantId: selectedVariantId,
-                                  quantity: Math.max(0, qty - 1),
-                                })
-                              }
-                              aria-label={`Remove one ${p.title}`}
-                              className="rounded p-1 text-brand-bone/70 transition-colors hover:text-brand-bone"
-                            >
-                              <Minus className="h-3.5 w-3.5" aria-hidden />
-                            </button>
-                            <span className="text-xs tabular-nums text-brand-bone">
-                              {qty}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                upsertSelection(p.id, {
-                                  variantId: selectedVariantId,
-                                  quantity: qty + 1,
-                                })
-                              }
-                              disabled={qty >= max}
-                              aria-label={`Add one ${p.title}`}
-                              className="rounded p-1 text-brand-bone/70 transition-colors hover:text-brand-bone disabled:opacity-30"
-                            >
-                              <Plus className="h-3.5 w-3.5" aria-hidden />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+              {products.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  p={p}
+                  itemBg={itemBg}
+                  currentInCart={currentInCart}
+                  onAdd={addToCart}
+                />
+              ))}
             </ul>
             <p className="mx-auto mt-8 max-w-xl text-center text-sm text-brand-bone/70 lg:mt-12">
               Mark anything you&apos;d like to grab at your appointment. The
               artist confirms what&apos;s available when accepting your request.
             </p>
-            {/* Persistent Done button — gives the client an explicit "I'm
-                finished" action rather than forcing them through the top-right
-                close. Shows the running item count when anything is picked. */}
+            {/* Persistent Done button — the main exit affordance from the grid.
+                Shows the running item count when anything is picked. */}
             <div className="mt-8 flex justify-center lg:mt-10">
               <button
                 type="button"
@@ -602,54 +449,6 @@ export default function ShopTeaser({
               </button>
             </div>
           </div>
-
-          {/* Keep-shopping popup — fires once per product the moment it
-              becomes fully selected. "That's all" closes the whole overlay
-              (jumps the client back to their booking); "Keep shopping" just
-              dismisses the popup so they can keep browsing the grid. */}
-          {showKeepShoppingPopup && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="Anything else?"
-              onClick={() => setShowKeepShoppingPopup(false)}
-              className="fixed inset-0 z-[60] flex items-center justify-center bg-brand-charcoal/60 p-4 backdrop-blur-sm"
-            >
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-sm space-y-4 rounded-[20px] border border-brand-bone/15 bg-brand-charcoal p-5 text-brand-bone shadow-2xl"
-              >
-                <div className="space-y-1.5">
-                  <p className="text-base font-semibold">
-                    Got it — anything else?
-                  </p>
-                  <p className="text-sm text-brand-bone/70">
-                    Keep browsing or jump back to your booking. Your picks
-                    travel with you.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowKeepShoppingPopup(false);
-                      setOpen(false);
-                    }}
-                    className="rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90"
-                  >
-                    That&apos;s all
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowKeepShoppingPopup(false)}
-                    className="rounded-full border border-brand-bone/25 px-5 py-2.5 text-sm font-medium text-brand-bone transition-colors hover:bg-brand-bone/10"
-                  >
-                    Keep shopping
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </>

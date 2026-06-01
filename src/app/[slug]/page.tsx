@@ -230,10 +230,10 @@ export default async function ArtistPublicPage({
         currency,
         soldOut: p.status === "sold_out",
         pickupNote: p.pickup_note,
-        interestEligible:
-          p.is_checkout_addon === true &&
-          p.status === "active" &&
-          currency === "eur",
+        // Interest is a signal, not a checkout commitment — any visible,
+        // active, EUR product can be flagged. The deposit-time checkout flow
+        // still gates on is_checkout_addon separately.
+        interestEligible: p.status === "active" && currency === "eur",
         variants: [...(p.product_variants ?? [])]
           .sort((a, b) => a.sort_order - b.sort_order)
           .filter((v) => v.status === "active")

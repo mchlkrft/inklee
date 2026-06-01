@@ -35,7 +35,7 @@ import {
   computeInterestRows,
   type InterestRow,
 } from "@/lib/booking-interests";
-import { getAddonProducts } from "@/lib/addon-products";
+import { getInterestEligibleProducts } from "@/lib/addon-products";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB raw input limit
@@ -279,8 +279,8 @@ export async function submitBookingAction(
   const interestSelections = parseInterestSelections(rawInterests);
   let interestRows: InterestRow[] = [];
   if (interestSelections.length > 0) {
-    const addonProducts = await getAddonProducts(artistId);
-    const computed = computeInterestRows(addonProducts, interestSelections);
+    const interestProducts = await getInterestEligibleProducts(artistId);
+    const computed = computeInterestRows(interestProducts, interestSelections);
     if (!computed.ok) {
       return { error: computed.error };
     }
