@@ -32,6 +32,10 @@ type PendingInterest = {
   title: string;
   variant: string | null;
   quantity: number;
+  // Product thumbnail (image_urls[0] ?? image_url, may be null). Renders as a
+  // small square next to the title in the popup so the artist visually
+  // recognises which item the client picked.
+  imageUrl: string | null;
 };
 
 export default function StatusActions({
@@ -173,7 +177,7 @@ export default function StatusActions({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md space-y-4 rounded-[20px] border border-border bg-background p-5"
+            className="w-full max-w-md space-y-4 rounded-[20px] border border-border bg-background p-5 sm:max-w-lg"
           >
             <p className="text-sm font-semibold text-foreground">
               Confirm acceptance
@@ -217,7 +221,7 @@ export default function StatusActions({
                     };
                     return (
                       <li key={i.id} className="space-y-1.5">
-                        <label className="flex items-start gap-2 text-sm text-foreground">
+                        <label className="flex items-start gap-2.5 text-sm text-foreground">
                           <input
                             type="checkbox"
                             checked={d.available}
@@ -230,8 +234,18 @@ export default function StatusActions({
                                 },
                               }))
                             }
-                            className="mt-0.5 accent-brand-mustard"
+                            className="mt-1 accent-brand-mustard"
                           />
+                          {i.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={i.imageUrl}
+                              alt=""
+                              className="h-10 w-10 shrink-0 rounded-md object-cover"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 shrink-0 rounded-md bg-muted/40" />
+                          )}
                           <span className="flex-1 leading-snug">
                             {i.title}
                             {i.variant ? (

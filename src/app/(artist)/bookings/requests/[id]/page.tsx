@@ -13,6 +13,7 @@ import { formatCustomAnswer } from "@/lib/custom-fields";
 import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
+import { resolveBookingGuestSpotStudio } from "@/lib/booking-studio";
 import { formatPrice } from "@/lib/goods";
 import { customerLabel } from "@/lib/booking-domain";
 import GoodsPickupButton from "./goods-pickup-button";
@@ -91,12 +92,14 @@ export default async function RequestDetailPage({
     }
   }
 
-  // When the booking is tied to a trip, accepting asks the artist to confirm
-  // the studio/location first (the approval email tells the client where to
-  // come). No trip -> accept directly, no extra step.
-  const confirmStudio = tripData
+  // Whether to show the studio-confirm block in the Accept popup. Returns the
+  // guest-spot studio name for trip-tagged, slot-based, or explicit non-primary
+  // studio bookings; null for primary-studio bookings (where the artist
+  // already knows the location).
+  const guestSpotStudioName = await resolveBookingGuestSpotStudio(id);
+  const confirmStudio = guestSpotStudioName
     ? {
-        name: locationLabel ?? "the studio for this trip",
+        name: guestSpotStudioName,
         dateLabel: booking.preferred_date
           ? formatDate(booking.preferred_date as string)
           : null,
@@ -113,6 +116,10 @@ export default async function RequestDetailPage({
   // Goods the client marked they'd like to buy when submitting (commerce-layer
   // extension). Rendered as an "Interested in buying" section + drives the
   // Accept availability popup. Empty array = no interests, no popup.
+  type ProductImageJoin = {
+    image_url: string | null;
+    image_urls: string[] | null;
+  };
   type InterestRowRaw = {
     id: string;
     title_snapshot: string;
@@ -122,28 +129,43 @@ export default async function RequestDetailPage({
     quantity: number;
     status: string;
     decline_note: string | null;
+    // PostgREST may return the embed as an object OR a single-element array
+    // depending on relationship inference — normalise in the mapper below.
+    products: ProductImageJoin | ProductImageJoin[] | null;
   };
   const { data: rawInterests } = await supabase
     .from("booking_interests")
     .select(
-      "id, title_snapshot, variant_snapshot, unit_price, currency, quantity, status, decline_note",
+      "id, title_snapshot, variant_snapshot, unit_price, currency, quantity, status, decline_note, products(image_url, image_urls)",
     )
     .eq("booking_id", id)
     .eq("artist_id", user!.id)
     .order("created_at", { ascending: true });
-  const interests = ((rawInterests ?? []) as InterestRowRaw[]).map((r) => ({
-    id: r.id,
-    title: r.title_snapshot,
-    variant: r.variant_snapshot,
-    unitPrice:
-      r.unit_price !== null && r.unit_price !== undefined
-        ? Number(r.unit_price)
-        : null,
-    currency: r.currency ?? "eur",
-    quantity: r.quantity,
-    status: r.status as "pending" | "available" | "unavailable",
-    declineNote: r.decline_note,
-  }));
+  const interests = ((rawInterests ?? []) as InterestRowRaw[]).map((r) => {
+    const product: ProductImageJoin | null = Array.isArray(r.products)
+      ? (r.products[0] ?? null)
+      : (r.products ?? null);
+    const productImageUrls =
+      Array.isArray(product?.image_urls) && product!.image_urls!.length > 0
+        ? product!.image_urls!
+        : product?.image_url
+          ? [product.image_url]
+          : [];
+    return {
+      id: r.id,
+      title: r.title_snapshot,
+      variant: r.variant_snapshot,
+      imageUrl: productImageUrls[0] ?? null,
+      unitPrice:
+        r.unit_price !== null && r.unit_price !== undefined
+          ? Number(r.unit_price)
+          : null,
+      currency: r.currency ?? "eur",
+      quantity: r.quantity,
+      status: r.status as "pending" | "available" | "unavailable",
+      declineNote: r.decline_note,
+    };
+  });
 
   // Attached goods order (Slice 75). Most recent order for this booking.
   const { data: orderRow } = await supabase
@@ -228,6 +250,7 @@ export default async function RequestDetailPage({
               title: i.title,
               variant: i.variant,
               quantity: i.quantity,
+              imageUrl: i.imageUrl,
             }))}
         />
       </div>
