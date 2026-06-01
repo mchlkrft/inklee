@@ -14,7 +14,6 @@ import {
   PRODUCT_CATEGORY_LABELS,
   formatPrice,
   type PublicProduct,
-  type PublicProductVariant,
 } from "@/lib/goods";
 import {
   MAX_INTEREST_QUANTITY,
@@ -155,12 +154,12 @@ export default function ShopTeaser({
             </button>
           </div>
 
-          <div className="mx-auto w-full max-w-lg px-6 py-6">
-            <p className="mb-4 text-sm text-brand-bone/80">
+          <div className="mx-auto w-full max-w-lg px-6 py-6 lg:max-w-none lg:px-12">
+            <p className="mb-4 max-w-xl text-sm text-brand-bone/80">
               Mark anything you&apos;d like to grab at your appointment. The
               artist confirms what&apos;s available when accepting your request.
             </p>
-            <ul className="grid grid-cols-2 gap-3">
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
               {products.map((p) => {
                 const sel = findSelection(selections, p.id);
                 const canMark = p.interestEligible && !p.soldOut;
@@ -169,10 +168,31 @@ export default function ShopTeaser({
                 const qty = sel?.quantity ?? 0;
                 const max = maxQtyFor(p, selectedVariantId);
                 const unitPrice = unitPriceFor(p, selectedVariantId);
-                const canIncrement =
+                // Progressive disclosure: checkbox first, variant picker only
+                // after checked, qty stepper only once a variant is set (or
+                // the product is variant-less).
+                const isChecked = qty > 0;
+                const showVariantPicker = canMark && isChecked && needsVariant;
+                const showQtyStepper =
                   canMark &&
-                  qty < max &&
+                  isChecked &&
                   (!needsVariant || !!selectedVariantId);
+
+                const handleToggle = (
+                  e: React.ChangeEvent<HTMLInputElement>,
+                ) => {
+                  if (e.target.checked) {
+                    upsertSelection(p.id, {
+                      variantId: selectedVariantId,
+                      quantity: 1,
+                    });
+                  } else {
+                    upsertSelection(p.id, {
+                      variantId: null,
+                      quantity: 0,
+                    });
+                  }
+                };
 
                 return (
                   <li
@@ -200,83 +220,113 @@ export default function ShopTeaser({
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-1 flex-col gap-2 px-3 py-2.5">
-                      <div className="space-y-0.5">
-                        <p className="truncate text-sm font-medium text-brand-bone">
-                          {p.title}
-                        </p>
-                        <p className="text-xs text-brand-bone/70">
-                          {formatPrice(unitPrice, p.currency)}
-                        </p>
-                        {p.pickupNote && (
-                          <p className="truncate text-[11px] text-brand-bone/55">
-                            {p.pickupNote}
-                          </p>
-                        )}
-                      </div>
-
-                      {canMark && (
-                        <div className="mt-auto space-y-1.5">
-                          {needsVariant && (
-                            <select
-                              value={selectedVariantId ?? ""}
-                              onChange={(e) =>
-                                upsertSelection(p.id, {
-                                  variantId: e.target.value || null,
-                                  // Keep qty if non-zero; otherwise default to 1
-                                  // on first variant pick so the customer doesn't
-                                  // have to also bump the stepper.
-                                  quantity:
-                                    qty > 0 ? qty : e.target.value ? 1 : 0,
-                                })
-                              }
-                              aria-label={`Option for ${p.title}`}
-                              className="w-full rounded-md border border-brand-bone/20 bg-black/20 px-2 py-1 text-xs text-brand-bone focus:outline-none focus:ring-1 focus:ring-brand-bone/40"
-                            >
-                              <option value="">Pick option</option>
-                              {p.variants.map((v: PublicProductVariant) => (
-                                <option key={v.id} value={v.id}>
-                                  {v.name}
-                                  {v.stock !== null && v.stock <= 0
-                                    ? " · sold out"
-                                    : ""}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                          <div className="flex items-center justify-between gap-2 rounded-md border border-brand-bone/15 bg-black/15 px-1.5 py-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                upsertSelection(p.id, {
-                                  variantId: selectedVariantId,
-                                  quantity: Math.max(0, qty - 1),
-                                })
-                              }
-                              disabled={qty <= 0}
-                              aria-label={`Remove one ${p.title}`}
-                              className="rounded p-1 text-brand-bone/70 transition-colors hover:text-brand-bone disabled:opacity-30"
-                            >
-                              <Minus className="h-3.5 w-3.5" aria-hidden />
-                            </button>
-                            <span className="text-xs tabular-nums text-brand-bone">
-                              {qty > 0 ? `${qty} interested` : "Mark interest"}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                upsertSelection(p.id, {
-                                  variantId: selectedVariantId,
-                                  quantity: qty + 1,
-                                })
-                              }
-                              disabled={!canIncrement}
-                              aria-label={`Add one ${p.title}`}
-                              className="rounded p-1 text-brand-bone/70 transition-colors hover:text-brand-bone disabled:opacity-30"
-                            >
-                              <Plus className="h-3.5 w-3.5" aria-hidden />
-                            </button>
+                    <div className="flex flex-1 flex-col gap-2.5 px-3 py-3">
+                      {/* Title row — checkbox sits inline with title + price so
+                          the unchecked state stays minimal. For non-eligible
+                          (sold-out / informational) products the checkbox is
+                          dropped and the text stands alone. */}
+                      {canMark ? (
+                        <label className="flex cursor-pointer items-start gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={handleToggle}
+                            aria-label={`Mark interest in ${p.title}`}
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-mustard"
+                          />
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <p className="truncate text-sm font-medium text-brand-bone">
+                              {p.title}
+                            </p>
+                            <p className="text-xs text-brand-bone/70">
+                              {formatPrice(unitPrice, p.currency)}
+                            </p>
+                            {p.pickupNote && (
+                              <p className="truncate text-[11px] text-brand-bone/55">
+                                {p.pickupNote}
+                              </p>
+                            )}
                           </div>
+                        </label>
+                      ) : (
+                        <div className="space-y-0.5">
+                          <p className="truncate text-sm font-medium text-brand-bone">
+                            {p.title}
+                          </p>
+                          <p className="text-xs text-brand-bone/70">
+                            {formatPrice(unitPrice, p.currency)}
+                          </p>
+                          {p.pickupNote && (
+                            <p className="truncate text-[11px] text-brand-bone/55">
+                              {p.pickupNote}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {showVariantPicker && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {p.variants.map((v) => {
+                            const variantSoldOut =
+                              v.stock !== null && v.stock <= 0;
+                            const isActive = selectedVariantId === v.id;
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                disabled={variantSoldOut}
+                                onClick={() =>
+                                  upsertSelection(p.id, {
+                                    variantId: v.id,
+                                    quantity: Math.max(qty, 1),
+                                  })
+                                }
+                                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
+                                  isActive
+                                    ? "border-brand-mustard bg-brand-mustard text-brand-charcoal"
+                                    : "border-brand-bone/25 bg-brand-bone/5 text-brand-bone/80 hover:border-brand-bone/50 hover:text-brand-bone"
+                                }`}
+                              >
+                                {v.name}
+                                {variantSoldOut && " · sold out"}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {showQtyStepper && (
+                        <div className="mt-auto flex items-center justify-between gap-2 rounded-md border border-brand-bone/15 bg-black/15 px-1.5 py-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              upsertSelection(p.id, {
+                                variantId: selectedVariantId,
+                                quantity: Math.max(0, qty - 1),
+                              })
+                            }
+                            aria-label={`Remove one ${p.title}`}
+                            className="rounded p-1 text-brand-bone/70 transition-colors hover:text-brand-bone"
+                          >
+                            <Minus className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                          <span className="text-xs tabular-nums text-brand-bone">
+                            {qty} interested
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              upsertSelection(p.id, {
+                                variantId: selectedVariantId,
+                                quantity: qty + 1,
+                              })
+                            }
+                            disabled={qty >= max}
+                            aria-label={`Add one ${p.title}`}
+                            className="rounded p-1 text-brand-bone/70 transition-colors hover:text-brand-bone disabled:opacity-30"
+                          >
+                            <Plus className="h-3.5 w-3.5" aria-hidden />
+                          </button>
                         </div>
                       )}
                     </div>
