@@ -415,7 +415,7 @@ export default function ShopTeaser({
                   onClick={() => setOpen(false)}
                   className="self-center text-xs text-brand-bone/70 underline underline-offset-4 transition-colors hover:text-brand-bone"
                 >
-                  Done — back to booking
+                  Done, back to booking
                 </button>
               </div>
             )}
