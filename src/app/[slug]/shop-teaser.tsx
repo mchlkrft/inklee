@@ -624,20 +624,23 @@ export default function ShopTeaser({
               </button>
             </div>
           </div>
-
-          {/* Lightbox renders on top of the shop overlay (z-[60] vs z-50).
-              Closing it returns the user to the shop grid; Escape (handled in
-              the shop's keyboard effect) does the same. */}
-          {lightbox && (
-            <Lightbox
-              urls={lightbox.urls}
-              alt={lightbox.alt}
-              idx={lightbox.idx}
-              onIdxChange={(i) => setLightbox({ ...lightbox, idx: i })}
-              onClose={() => setLightbox(null)}
-            />
-          )}
         </div>
+      )}
+
+      {/* Lightbox is a SIBLING of the shop overlay, not a child — the shop
+          overlay's backdrop-filter makes it a containing block for `fixed`
+          descendants, which combined with its overflow-y-auto would make the
+          lightbox scroll with the shop content instead of pinning to the
+          viewport. Rendered as a sibling, `fixed inset-0` resolves against
+          the viewport as intended. z-[60] keeps it above the shop's z-50. */}
+      {open && lightbox && (
+        <Lightbox
+          urls={lightbox.urls}
+          alt={lightbox.alt}
+          idx={lightbox.idx}
+          onIdxChange={(i) => setLightbox({ ...lightbox, idx: i })}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </>
   );
