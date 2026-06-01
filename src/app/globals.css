@@ -473,3 +473,27 @@ html {
   max-width: 112.5rem; /* 1800px */
   padding-inline: clamp(1.25rem, 4vw, 3rem);
 }
+
+/* Reveal-on-hover — hides an element by default on hover-capable devices and
+   shows it when the nearest .group ancestor is hovered or focused. Touch
+   devices (hover: none) keep the element visible unconditionally so the UI
+   doesn't become unreachable. Used by the shop overlay's per-item qty
+   stepper + re-pick variant chips so the selected card stays minimal. */
+.reveal-on-hover {
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+@media (hover: hover) {
+  .reveal-on-hover {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(2px);
+  }
+  .group:hover .reveal-on-hover,
+  .group:focus-within .reveal-on-hover {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+}
