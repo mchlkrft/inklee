@@ -31,17 +31,20 @@ function unitPriceFor(
 // Per-card image carousel. Single-image (or no image) renders just the image
 // area; with multiple images the prev/next arrows + dot indicators appear.
 // The arrows stopPropagation so clicking them never accidentally triggers an
-// Add-to-cart on the card.
+// Add-to-cart on the card. Clicking the image itself opens the lightbox at
+// the currently-shown index (when an `onZoom` handler is passed in).
 function CardImage({
   urls,
   alt,
   soldOut,
   fallbackLabel,
+  onZoom,
 }: {
   urls: string[];
   alt: string;
   soldOut: boolean;
   fallbackLabel: string;
+  onZoom?: (idx: number) => void;
 }) {
   const [idx, setIdx] = useState(0);
   const safeIdx = urls.length > 0 ? idx % urls.length : 0;
@@ -54,15 +57,29 @@ function CardImage({
   }
 
   return (
-    <div className="relative aspect-square bg-black/20">
+    // `group` scopes the hover-zoom to the image area only — hovering the
+    // title / variant chips / Add button below does not zoom the image.
+    // `overflow-hidden` clips the scaled image to the card's image region.
+    <div className="group relative aspect-square overflow-hidden bg-black/20">
       {current ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={current}
-          alt={alt}
-          loading="lazy"
-          className={`absolute inset-0 h-full w-full object-cover ${soldOut ? "opacity-50" : ""}`}
-        />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onZoom?.(safeIdx);
+          }}
+          aria-label="View larger"
+          className="absolute inset-0 cursor-zoom-in"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={current}
+            alt={alt}
+            loading="lazy"
+            className={`h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.04] ${soldOut ? "opacity-50" : ""}`}
+          />
+        </button>
       ) : (
         <div className="flex h-full items-center justify-center text-xs text-brand-bone/50">
           {fallbackLabel}
@@ -116,6 +133,124 @@ function CardImage({
   );
 }
 
+// Lightbox — fullscreen product image viewer with a thumbnail strip and
+// prev/next chevrons, like a small product gallery on a typical e-commerce
+// detail page. Fully controlled: parent owns the open/close state and the
+// current index, so a single keyboard handler in ShopTeaser drives both
+// closing the lightbox first on Escape and stepping through images on arrows.
+function Lightbox({
+  urls,
+  alt,
+  idx,
+  onIdxChange,
+  onClose,
+}: {
+  urls: string[];
+  alt: string;
+  idx: number;
+  onIdxChange: (next: number) => void;
+  onClose: () => void;
+}) {
+  const safeIdx =
+    urls.length > 0 ? Math.min(Math.max(idx, 0), urls.length - 1) : 0;
+  const hasMultiple = urls.length > 1;
+
+  function step(delta: 1 | -1) {
+    if (!hasMultiple) return;
+    onIdxChange((safeIdx + delta + urls.length) % urls.length);
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Product image viewer"
+      onClick={onClose}
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/90 px-4 py-6 backdrop-blur-sm"
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        aria-label="Close"
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      {hasMultiple && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              step(-1);
+            }}
+            aria-label="Previous image"
+            className="absolute left-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              step(1);
+            }}
+            aria-label="Next image"
+            className="absolute right-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </>
+      )}
+
+      {/* Main image. Click on the image itself doesn't bubble to the
+          backdrop close — only the surrounding empty area closes. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={urls[safeIdx]}
+        src={urls[safeIdx]}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className={`max-h-[78vh] max-w-[92vw] object-contain ${hasMultiple ? "" : "max-h-[88vh]"}`}
+      />
+
+      {hasMultiple && (
+        <div
+          className="mt-4 flex max-w-[92vw] flex-col items-center gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex gap-2 overflow-x-auto px-1 pb-1">
+            {urls.map((u, i) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => onIdxChange(i)}
+                aria-label={`Image ${i + 1} of ${urls.length}`}
+                aria-current={i === safeIdx ? "true" : undefined}
+                className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
+                  i === safeIdx
+                    ? "border-brand-mustard"
+                    : "border-white/20 hover:border-white/50"
+                }`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={u} alt="" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-white/70">
+            {safeIdx + 1} / {urls.length}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // One product card. Owns its own variant pick state — the artist picks a
 // variant (if applicable), clicks Add to cart, and the card resets to default.
 // Same product can be re-added for a different variant; identical combos
@@ -125,11 +260,13 @@ function ProductCard({
   itemBg,
   currentInCart,
   onAdd,
+  onZoom,
 }: {
   p: PublicProduct;
   itemBg: string | null;
   currentInCart: (productId: string, variantId: string | null) => number;
   onAdd: (productId: string, variantId: string | null) => void;
+  onZoom: (urls: string[], alt: string, idx: number) => void;
 }) {
   const [pickedVariantId, setPickedVariantId] = useState<string | null>(null);
   const needsVariant = p.variants.length > 0;
@@ -176,6 +313,7 @@ function ProductCard({
         alt={p.title}
         soldOut={p.soldOut}
         fallbackLabel={PRODUCT_CATEGORY_LABELS[p.category]}
+        onZoom={(i) => onZoom(p.imageUrls, p.title, i)}
       />
       <div className="flex flex-1 flex-col gap-2.5 px-3 py-3">
         <div className="space-y-0.5">
@@ -251,11 +389,45 @@ export default function ShopTeaser({
   const { selections, setSelections: onSelectionsChange } =
     useInterestSelections();
   const [open, setOpen] = useState(false);
+  // Lightbox state lives here so a single keyboard handler covers both
+  // dialogs: Escape closes the lightbox first (when open) and only closes
+  // the shop on a second Escape; arrows step images while the lightbox is up.
+  const [lightbox, setLightbox] = useState<{
+    urls: string[];
+    alt: string;
+    idx: number;
+  } | null>(null);
+
+  // Always pair shop-close with lightbox reset so a stale image doesn't
+  // re-appear on reopen. Used by every exit path (X, Done link, Done button,
+  // Escape on the shop body).
+  function closeShop() {
+    setOpen(false);
+    setLightbox(null);
+  }
 
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        if (lightbox) setLightbox(null);
+        else closeShop();
+        return;
+      }
+      if (lightbox && lightbox.urls.length > 1) {
+        if (e.key === "ArrowRight") {
+          setLightbox({
+            ...lightbox,
+            idx: (lightbox.idx + 1) % lightbox.urls.length,
+          });
+        } else if (e.key === "ArrowLeft") {
+          setLightbox({
+            ...lightbox,
+            idx:
+              (lightbox.idx - 1 + lightbox.urls.length) % lightbox.urls.length,
+          });
+        }
+      }
     }
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -264,7 +436,9 @@ export default function ShopTeaser({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open]);
+    // closeShop is defined inside this component and stable enough for our
+    // purposes; ESLint disable lets us avoid wrapping it in useCallback.
+  }, [open, lightbox]);
 
   if (products.length === 0) return null;
 
@@ -360,7 +534,7 @@ export default function ShopTeaser({
               bottom of the overlay). */}
           <button
             type="button"
-            onClick={() => setOpen(false)}
+            onClick={closeShop}
             aria-label="Close"
             className="fixed right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-brand-charcoal/70 text-brand-bone backdrop-blur transition-colors hover:bg-brand-charcoal"
           >
@@ -412,7 +586,7 @@ export default function ShopTeaser({
                 </ul>
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={closeShop}
                   className="self-center text-xs text-brand-bone/70 underline underline-offset-4 transition-colors hover:text-brand-bone"
                 >
                   Done, back to booking
@@ -428,6 +602,7 @@ export default function ShopTeaser({
                   itemBg={itemBg}
                   currentInCart={currentInCart}
                   onAdd={addToCart}
+                  onZoom={(urls, alt, idx) => setLightbox({ urls, alt, idx })}
                 />
               ))}
             </ul>
@@ -440,7 +615,7 @@ export default function ShopTeaser({
             <div className="mt-8 flex justify-center lg:mt-10">
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closeShop}
                 className="rounded-full bg-brand-mustard px-8 py-3 text-base font-semibold text-brand-charcoal shadow-sm transition-opacity hover:opacity-90"
               >
                 {totalSelectedQty > 0
@@ -449,6 +624,19 @@ export default function ShopTeaser({
               </button>
             </div>
           </div>
+
+          {/* Lightbox renders on top of the shop overlay (z-[60] vs z-50).
+              Closing it returns the user to the shop grid; Escape (handled in
+              the shop's keyboard effect) does the same. */}
+          {lightbox && (
+            <Lightbox
+              urls={lightbox.urls}
+              alt={lightbox.alt}
+              idx={lightbox.idx}
+              onIdxChange={(i) => setLightbox({ ...lightbox, idx: i })}
+              onClose={() => setLightbox(null)}
+            />
+          )}
         </div>
       )}
     </>
