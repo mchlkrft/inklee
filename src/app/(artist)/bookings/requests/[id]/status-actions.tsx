@@ -201,11 +201,12 @@ export default function StatusActions({
               <div className="space-y-2 rounded-md border border-border p-3">
                 <div className="space-y-0.5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Goods they want to buy
+                    Goods they&apos;re interested in
                   </p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Uncheck anything you can&apos;t do — leave a quick note so
-                    the client knows what changed.
+                    Confirm what&apos;s available — the client decides whether
+                    to add each one at checkout. Uncheck anything you can&apos;t
+                    do and leave a quick note.
                   </p>
                 </div>
                 <ul className="space-y-2">

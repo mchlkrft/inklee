@@ -7,7 +7,6 @@ import {
   bookingModeLabel,
   portalEditSupport,
 } from "@/lib/booking-domain";
-import { getAddonProducts } from "@/lib/addon-products";
 import type { AddonProductView } from "./addons-checkout";
 
 function hashToken(token: string) {
@@ -82,25 +81,69 @@ export default async function RequestPortalPage({
     });
     const bookingMode = bookingModeFromRequest({ slot_id: booking.slot_id });
 
-    // Pre-checkout add-ons (Slice 74): the artist's goods, shown only at the
-    // deposit-payment moment. Empty for every other state, so the deposit-only
-    // flow is untouched.
+    // Pre-checkout goods: the items the client marked interest in at booking
+    // time AND the artist confirmed available on Accept. Opt-in only —
+    // AddonsCheckout starts every row at qty 0 so the client actively adds
+    // each one; the stepper caps at the originally-marked qty since that's
+    // what the artist actually vouched for. No interests + no available rows
+    // = no goods section, deposit-only checkout (the strict pre-interests
+    // behaviour).
+    type ConfirmedInterestRow = {
+      product_id: string | null;
+      variant_id: string | null;
+      title_snapshot: string;
+      variant_snapshot: string | null;
+      unit_price: string | number | null;
+      quantity: number;
+    };
     let addonProducts: AddonProductView[] = [];
-    if (booking.status === "deposit_pending" && booking.artist_id) {
-      const rows = await getAddonProducts(booking.artist_id as string);
-      addonProducts = rows.map((p) => ({
-        id: p.id,
-        title: p.title,
-        imageUrl: p.imageUrl,
-        price: p.price,
-        stock: p.quantity,
-        variants: p.variants.map((v) => ({
-          id: v.id,
-          name: v.name,
-          price: v.priceOverride ?? p.price,
-          stock: v.stock,
-        })),
-      }));
+    if (booking.status === "deposit_pending") {
+      const { data: rawInterests } = await serviceClient
+        .from("booking_interests")
+        .select(
+          "product_id, variant_id, title_snapshot, variant_snapshot, unit_price, quantity",
+        )
+        .eq("booking_id", booking.id)
+        .eq("status", "available")
+        .order("created_at", { ascending: true });
+      // Group by product so the same product carrying multiple variant
+      // interests becomes one AddonProductView with each chosen variant —
+      // avoids a product-id collision in computeAddonLines at submit time.
+      const byProduct = new Map<string, ConfirmedInterestRow[]>();
+      for (const r of (rawInterests ?? []) as ConfirmedInterestRow[]) {
+        if (!r.product_id) continue;
+        const arr = byProduct.get(r.product_id) ?? [];
+        arr.push(r);
+        byProduct.set(r.product_id, arr);
+      }
+      addonProducts = Array.from(byProduct.entries()).map(
+        ([productId, list]) => {
+          const first = list[0];
+          const productPrice =
+            first.unit_price !== null && first.unit_price !== undefined
+              ? Number(first.unit_price)
+              : 0;
+          const variants = list
+            .filter((r) => r.variant_id !== null)
+            .map((r) => ({
+              id: r.variant_id as string,
+              name: r.variant_snapshot ?? "",
+              price:
+                r.unit_price !== null && r.unit_price !== undefined
+                  ? Number(r.unit_price)
+                  : productPrice,
+              stock: r.quantity, // cap stepper at the artist-confirmed qty
+            }));
+          return {
+            id: productId,
+            title: first.title_snapshot,
+            imageUrl: null,
+            price: productPrice,
+            stock: variants.length === 0 ? first.quantity : null,
+            variants,
+          };
+        },
+      );
     }
 
     state = {

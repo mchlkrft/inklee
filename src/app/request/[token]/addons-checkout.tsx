@@ -153,10 +153,11 @@ function CheckoutInner({
         <div className="space-y-3">
           <div>
             <p className="text-sm font-medium text-foreground">
-              Add artist goods for pickup
+              You marked interest in these
             </p>
             <p className="text-xs text-muted-foreground">
-              Optional. Collect at your appointment.
+              Optional. The artist confirmed each is available — add any
+              you&apos;d still like to grab at your appointment.
             </p>
           </div>
           <ul className="divide-y divide-border rounded-md border border-border">
