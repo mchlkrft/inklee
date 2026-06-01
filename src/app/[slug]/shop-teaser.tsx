@@ -142,20 +142,22 @@ export default function ShopTeaser({
           aria-label="Shop"
           className="fixed inset-0 z-50 overflow-y-auto bg-brand-charcoal/40 text-left backdrop-blur-sm"
         >
-          <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4">
-            <h2 className="text-base font-semibold text-brand-bone">Shop</h2>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-brand-bone/80 transition-colors hover:bg-brand-bone/10 hover:text-brand-bone"
-            >
-              <X className="h-5 w-5" />
-            </button>
+          <div className="sticky top-0 z-10 px-6 py-4">
+            <div className="relative flex items-center justify-center">
+              <h2 className="text-base font-semibold text-brand-bone">Shop</h2>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="absolute right-0 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-brand-bone/80 transition-colors hover:bg-brand-bone/10 hover:text-brand-bone"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="mx-auto w-full max-w-lg px-6 py-6 lg:max-w-none lg:px-12">
-            <p className="mb-4 max-w-xl text-sm text-brand-bone/80">
+            <p className="mx-auto mb-4 max-w-xl text-center text-sm text-brand-bone/80">
               Mark anything you&apos;d like to grab at your appointment. The
               artist confirms what&apos;s available when accepting your request.
             </p>
