@@ -530,7 +530,11 @@ export default async function ArtistPublicPage({
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                 {futureTrips.length > 0 && <TravelCard trips={futureTrips} />}
                 {shopProducts.length > 0 && (
-                  <ShopTeaser products={shopProducts} itemBg={goodsItemBg} />
+                  <ShopTeaser
+                    products={shopProducts}
+                    itemBg={goodsItemBg}
+                    artistName={profile.display_name}
+                  />
                 )}
               </div>
             )}

@@ -58,11 +58,14 @@ function unitPriceFor(
 export default function ShopTeaser({
   products,
   itemBg = null,
+  artistName,
 }: {
   products: PublicProduct[];
   // Background for the overlay product cards — the artist's chosen header
   // color, or null to fall back to charcoal (used when there's a cover image).
   itemBg?: string | null;
+  // Drives the editorial-sized overlay headline: "{artistName} shop".
+  artistName: string;
 }) {
   // Interest selections are owned by InterestSelectionsProvider higher in the
   // tree so BookingForm (rendered elsewhere on the page) can read them on
@@ -142,26 +145,25 @@ export default function ShopTeaser({
           aria-label="Shop"
           className="fixed inset-0 z-50 overflow-y-auto bg-brand-charcoal/40 text-left backdrop-blur-sm"
         >
-          <div className="sticky top-0 z-10 px-6 py-4">
-            <div className="relative flex items-center justify-center">
-              <h2 className="text-base font-semibold text-brand-bone">Shop</h2>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close"
-                className="absolute right-0 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-brand-bone/80 transition-colors hover:bg-brand-bone/10 hover:text-brand-bone"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
+          {/* Close button floats top-right so the headline can own the top of
+              the overlay without a horizontal bar above it. */}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close"
+            className="fixed right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-brand-charcoal/70 text-brand-bone backdrop-blur transition-colors hover:bg-brand-charcoal"
+          >
+            <X className="h-5 w-5" />
+          </button>
 
-          <div className="mx-auto w-full max-w-lg px-6 py-6 lg:max-w-none lg:px-12">
-            <p className="mx-auto mb-4 max-w-xl text-center text-sm text-brand-bone/80">
-              Mark anything you&apos;d like to grab at your appointment. The
-              artist confirms what&apos;s available when accepting your request.
-            </p>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
+          {/* min-h-screen + justify-center pulls the headline + first row of
+              items toward viewport vertical middle on open. Additional rows
+              flow downward and the overlay scrolls naturally. */}
+          <div className="flex min-h-screen flex-col justify-center px-6 py-16 lg:px-12">
+            <h2 className="mb-8 text-center text-4xl font-bold tracking-tight text-brand-bone md:text-5xl lg:mb-12 lg:text-6xl">
+              {artistName} shop
+            </h2>
+            <ul className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
               {products.map((p) => {
                 const sel = findSelection(selections, p.id);
                 const canMark = p.interestEligible && !p.soldOut;
@@ -336,6 +338,10 @@ export default function ShopTeaser({
                 );
               })}
             </ul>
+            <p className="mx-auto mt-8 max-w-xl text-center text-sm text-brand-bone/70 lg:mt-12">
+              Mark anything you&apos;d like to grab at your appointment. The
+              artist confirms what&apos;s available when accepting your request.
+            </p>
           </div>
         </div>
       )}
