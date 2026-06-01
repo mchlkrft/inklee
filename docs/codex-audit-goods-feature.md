@@ -1,10 +1,12 @@
 # Goods commerce feature — Codex audit brief
 
-**Status:** live in production on the unmerged `feat/bio-page-goods` branch, commit `99e3c25`, deploy `inklee-p3irxmuxw`, aliased to **inkl.ee**.
-**Migrations applied:** 0000–0038. 233/233 vitest tests green.
+**Status:** live in production on the unmerged `feat/bio-page-goods` branch, commit `6bc6c6b`, deploy `inklee-9q15uhczh`, aliased to **inkl.ee**.
+**Migrations applied:** 0000–0038. 234/234 vitest tests green.
 **Production money safety net:** the `checkout_addons` paywall flag is **OFF in prod** until OT-12 Stripe Connect ships (locked decision D3). The deposit-payment checkout path exists, is wired end-to-end, and runs in test mode only.
 
 The feature ships in two parts: **(1) interest signalling** at the booking-form moment, and **(2) opt-in checkout** of the confirmed-available items at the deposit-payment moment. Goods are stored once with multi-image support, surface in the public shop overlay, on the artist booking detail page, in the approval email, and at the deposit checkout.
+
+Interest signalling and checkout eligibility are **two distinct catalogues** (D11): the shop overlay lets the client mark interest in any public, active, EUR product; only products explicitly flagged `is_checkout_addon=true` are available to actually pay for at the deposit checkout.
 
 ---
 
@@ -26,18 +28,19 @@ The feature ships in two parts: **(1) interest signalling** at the booking-form 
 
 ## 2. Locked product decisions
 
-| ID      | Decision                                                                                                                                                                                                                                                |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **D1**  | Slices 72–76 ship before public launch.                                                                                                                                                                                                                 |
-| **D2**  | Single combined Stripe **PaymentIntent** for deposit + goods. No Stripe Checkout Session. Itemised in our own `order_items`. Inventory decrement only after `payment_intent.succeeded`; concurrent oversell theoretically possible and accepted for v1. |
-| **D3**  | **Stripe Connect (OT-12) is a hard gate for production goods money.** Until then the whole flow is built + tested in Stripe test mode and `checkout_addons` is OFF in prod.                                                                             |
-| **D4**  | Add-ons attach at the deposit-payment moment in `/request/[token]`. Booking-interests later moved the _selection_ upstream to the booking-form; checkout became opt-in over the confirmed list.                                                         |
-| **D5**  | Appointment pickup only. No shipping, no standalone cart, no buyer accounts, no discounts. One artist + one booking per checkout.                                                                                                                       |
-| **D6**  | Paywall **readiness** only. `profiles.settings.features` flags + `canUseGoods()` / `canUseCheckoutAddons()` helpers default ON. No billing logic.                                                                                                       |
-| **D7**  | **Booking-interests** — client marks goods to buy at request time; artist confirms availability per item on Accept (combined popup with optional studio confirm); decisions surface in the approval email.                                              |
-| **D8**  | **Multi-image per product** — up to 3 (variant-less) OR `variantCount + 1` (with variants); first image is hero.                                                                                                                                        |
-| **D9**  | Email is always required on the public booking form; per-field Required toggles for everything else. Instagram-OR-email rule reverted.                                                                                                                  |
-| **D10** | Goods at checkout are **opt-in** — even confirmed-available items render with qty 0 default. The client actively adds, doesn't feel forced.                                                                                                             |
+| ID      | Decision                                                                                                                                                                                                                                                                                                                                            |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D1**  | Slices 72–76 ship before public launch.                                                                                                                                                                                                                                                                                                             |
+| **D2**  | Single combined Stripe **PaymentIntent** for deposit + goods. No Stripe Checkout Session. Itemised in our own `order_items`. Inventory decrement only after `payment_intent.succeeded`; concurrent oversell theoretically possible and accepted for v1.                                                                                             |
+| **D3**  | **Stripe Connect (OT-12) is a hard gate for production goods money.** Until then the whole flow is built + tested in Stripe test mode and `checkout_addons` is OFF in prod.                                                                                                                                                                         |
+| **D4**  | Add-ons attach at the deposit-payment moment in `/request/[token]`. Booking-interests later moved the _selection_ upstream to the booking-form; checkout became opt-in over the confirmed list.                                                                                                                                                     |
+| **D5**  | Appointment pickup only. No shipping, no standalone cart, no buyer accounts, no discounts. One artist + one booking per checkout.                                                                                                                                                                                                                   |
+| **D6**  | Paywall **readiness** only. `profiles.settings.features` flags + `canUseGoods()` / `canUseCheckoutAddons()` helpers default ON. No billing logic.                                                                                                                                                                                                   |
+| **D7**  | **Booking-interests** — client marks goods to buy at request time; artist confirms availability per item on Accept (combined popup with optional studio confirm); decisions surface in the approval email.                                                                                                                                          |
+| **D8**  | **Multi-image per product** — up to 3 (variant-less) OR `variantCount + 1` (with variants); first image is hero.                                                                                                                                                                                                                                    |
+| **D9**  | Email is always required on the public booking form; per-field Required toggles for everything else. Instagram-OR-email rule reverted.                                                                                                                                                                                                              |
+| **D10** | Goods at checkout are **opt-in** — even confirmed-available items render with qty 0 default. The client actively adds, doesn't feel forced.                                                                                                                                                                                                         |
+| **D11** | **Interest signalling is broader than checkout.** Public shop interest = any `status='active'`, `is_public_visible=true`, `currency='eur'` product. Checkout eligibility adds `is_checkout_addon=true` on top. A product without the addon flag is signal-only — the artist sees it on the booking but it cannot be paid for at the deposit moment. |
 
 ---
 
@@ -47,35 +50,64 @@ The feature ships in two parts: **(1) interest signalling** at the booking-form 
 
 - Grid of tiles (`goods-tile.tsx`); each shows the first image, status badge, and a `+N` multi-image badge when the gallery has more than one. Click reveals **Sold out / Edit** actions.
 - **Inline edit modal** (`goods-edit-modal.tsx`) — replaces the `/goods/[id]` subpage for normal flow; subpage stays as a direct-URL fallback. Lazy-loads via `loadProductForEditAction`.
-- **Multi-image picker** (`product-form-fields.tsx`) — thumbnail grid with X-to-remove + `+ Add image` tile. Cap is **live**: `variantCount > 0 ? variantCount + 1 : 3`. Drops storage objects when the artist removes an image on save.
+- **Multi-image picker** (`product-form-fields.tsx`): thumbnail grid with X-to-remove + `+ Add image` tile. Cap is **live**: `variantCount > 0 ? variantCount + 1 : 3`. Drops storage objects when the artist removes an image on save.
+- **Multi-input architecture (commit `033fb09`).** Each picked File renders its own dedicated hidden `<input name="images">` (sub-component `NewFileInput`), populated once via `DataTransfer` on mount and then never touched again. The OS picker writes to a **separate** trigger input that has no `name` (so it doesn't post) and is `.value=""`-reset after every pick. This replaces an earlier shared-input + post-pick DataTransfer-resync pattern that lost everything but the most recent pick in some browsers (artists could effectively only add one image per save). The server still reads via `formData.getAll("images")`, in DOM order.
 - **Publish/draft** is an explicit required radio choice on the main form (no silent default). `is_checkout_addon` and `is_public_visible` checkboxes under "More settings".
 - **Variants** are inline rows (name + override price + stock).
 - **Storage paths:** `<artistId>/goods/<productId>/<uuid>.webp` (per-image, mig 0038). Legacy `<artistId>/goods/<productId>.webp` is still cleaned up on delete.
 
 Server: `src/app/(artist)/goods/actions.ts`
 
-- `createProductAction` / `updateProductAction` — both flow through `processProductImages(userId, productId, formData, maxImages, prevImageUrls)` which reads `existing_image_urls` (JSON keep-list) + `images` (FileList), uploads each new file via `uploadProductImage`, composes the final array, and storage-deletes everything that dropped out of the keep-list. Writes `image_urls` and keeps `image_url = image_urls[0]` for legacy readers.
+- `createProductAction` / `updateProductAction` — both flow through `processProductImages(userId, productId, formData, maxImages, prevImageUrls)` which reads `existing_image_urls` (JSON keep-list) + `images` (FileList — now one File per dedicated input), uploads each new file via `uploadProductImage`, composes the final array, and storage-deletes everything that dropped out of the keep-list. Writes `image_urls` and keeps `image_url = image_urls[0]` for legacy readers. On upload failure, rolls back the just-uploaded files this call produced.
 - `deleteProductAction` snapshots `image_urls` first, deletes the row (variants cascade), then sweeps every per-product storage file via `goodsImagePathFromUrl(url)`.
 
 ### 3.2 Client opens the public shop overlay
 
-**`src/app/[slug]/shop-teaser.tsx`** — full-screen overlay rendered from the "Shop" header card on `/[slug]`.
+**`src/app/[slug]/shop-teaser.tsx`** — full-screen overlay rendered from the "Shop" header card on `/[slug]`. Major rewrite at commits `b16e87e` (add-to-cart redesign) and `b8642d3` (lightbox + hover zoom); old checkbox/stepper/`reveal-on-hover`/`pendingPicks`/`poppedForItems`/"Got it — anything else?" model is gone.
 
-UX (latest pass, commit `99e3c25`):
+**Layout:**
 
 - Big `{artistName} shop` headline (text-4xl → text-6xl, centred).
-- **Cart-style summary list** beneath the headline — one line per `(product, variant)` selection: `✓ Title · Variant × qty`.
+- **Cart-style summary list** beneath the headline when anything is selected — one line per `(product, variant)` selection: `× ✓ Title · Variant × qty`. The `×` is an X-remove button per line. Below the list: a small **"Done, back to booking"** underline link.
 - 5-column grid on `lg+` (mobile 2, sm 3), cards inside `max-w-7xl`.
-- Per-card image **carousel** when `imageUrls.length > 1` (`<CardImage>`).
-- **Selection flow:**
-  - Variant-less product → checkbox click commits with qty 1.
-  - Variant product → checkbox click puts the product in `pendingPicks` and reveals the variant chips. Picking a variant commits (qty 1).
-  - Card highlights with a mustard border + soft glow when fully selected.
-  - Qty stepper + re-pick chips collapse into a `reveal-on-hover` block (utility in `globals.css`; visible unconditionally on touch via `@media (hover: none)`).
-- **"Got it — anything else?" popup** fires once per product on first commit (tracked in `poppedForItems`): **That's all** closes the overlay; **Keep shopping** dismisses.
-- Persistent **Done** button at the bottom of the overlay surfaces the running item count.
+- Persistent **Done** button at the bottom (mustard) — running item count is surfaced when anything is picked.
+- Three exit paths: floating X top-right, the cart-list "Done" link, the bottom Done button. All four exit paths (these three + Escape) route through a single `closeShop()` helper that resets both `open` and `lightbox` state.
 
-Selections live in **`InterestSelectionsProvider`** (`src/app/[slug]/interest-selections-context.tsx`) so `BookingForm` (rendered elsewhere on the page) can read them on submit.
+**Per card (`ProductCard` sub-component):**
+
+- Owns its own `pickedVariantId` local state. After every Add, resets to `null`.
+- Variant chips are **always visible** for products with variants (no "click checkbox to reveal" pattern any more).
+- Single mustard **Add to cart** button per card. Button label adapts:
+  - `Pick an option` — variant product with nothing picked.
+  - `Unavailable` — `!interestEligible` or `soldOut`.
+  - `Add another (N in cart)` — same combo already in cart, qty `N`.
+  - `Add to cart` — default.
+- Stock cap for the currently-picked combo is read from `variant.stock` (when present). Product-level `quantity` is **server-enforced** by `computeInterestRows` at submit, not exposed to the public shop type.
+
+**Selection model:**
+
+Selections are keyed by `(productId, variantId)`. Picking the same product in two different variants produces **two cart lines** (not merged). Re-adding the same combo increments the existing entry's quantity. Selections live in **`InterestSelectionsProvider`** (`src/app/[slug]/interest-selections-context.tsx`) so `BookingForm` (rendered elsewhere on the page) reads them on submit.
+
+**Per-card image (`CardImage` sub-component, commit `b8642d3`):**
+
+- Single image: just renders the image.
+- Multiple images: small prev/next chevrons and a dot indicator strip inside the card. Arrows `stopPropagation` so they never trigger Add-to-cart.
+- **Hover zoom:** `transition-transform` + `group-hover:scale-[1.04]` scoped to a `group` wrapper on the image area only — hovering the title, chips, or Add button does NOT zoom.
+- **Click → lightbox:** the image is wrapped in a `<button aria-label="View larger">` with `cursor-zoom-in`. Click invokes the parent's `onZoom(idx)` with the currently-displayed index.
+
+**Lightbox (`Lightbox` sub-component):**
+
+- Fully-controlled: parent owns `urls`, `alt`, and `idx`; lightbox calls `onIdxChange(next)` and `onClose()`.
+- Single-image lightbox: just the main image + X close + click-backdrop-to-close.
+- Multi-image lightbox: prev/next chevrons, a horizontal thumbnail strip below the main image (active thumbnail outlined in brand-mustard), a `n / m` counter, and keyboard `←`/`→` to step.
+- **Positioning gotcha (commit `6bc6c6b`).** The lightbox is rendered as a **sibling** of the shop overlay's outer dialog, not as a child. The shop overlay has `backdrop-blur-sm` (= `backdrop-filter: blur(...)`), which turns it into the containing block for any `fixed`-positioned descendant. Combined with the shop overlay's `overflow-y-auto`, a child lightbox with `fixed inset-0` was being pinned to the shop's scroll area rather than the viewport — it scrolled along with the shop and only "looked correct" once the user scrolled to align it. Hoisting it out as a sibling restores viewport-pinned `fixed`. Guard: `open && lightbox`.
+- Body scroll lock from the shop overlay carries over while the lightbox is open. No second lock needed.
+
+**Keyboard:**
+
+- Single document keydown handler in ShopTeaser drives both dialogs.
+- `Escape` closes the lightbox first if open, otherwise closes the shop.
+- `ArrowLeft` / `ArrowRight` step the lightbox image when multiple are present (no-op for single-image).
 
 ### 3.3 Client submits the booking
 
@@ -84,10 +116,11 @@ Selections live in **`InterestSelectionsProvider`** (`src/app/[slug]/interest-se
 **`src/app/[slug]/actions.ts` `submitBookingAction`** validates BEFORE the booking insert:
 
 - `parseInterestSelections(rawInterests)` — lenient JSON parse, drops zero-qty.
-- `getAddonProducts(artistId)` — fetches the artist's addon-eligible catalogue (gate: `is_checkout_addon=true`, `status='active'`, `currency='eur'`, paywall flag).
+- `getInterestEligibleProducts(artistId)` (NEW — `src/lib/addon-products.ts`, commit `b16e87e`) — fetches the broader interest catalogue: `status='active'`, `is_public_visible=true`, `currency='eur'`, paywall flag. **No** `is_checkout_addon` filter. The checkout-time flow continues to use `getAddonProducts` (which does enforce the addon flag).
 - `computeInterestRows(products, selections)`:
   - Aggregates duplicate `(product, variant)` lines (hardens against split-to-oversell client payloads).
-  - Rejects unknown / non-active / non-addon / missing-variant / over-stock / over `MAX_INTEREST_QUANTITY=10`.
+  - Rejects unknown / non-active / missing-variant / over-stock / over `MAX_INTEREST_QUANTITY=10`.
+  - **No longer rejects non-addon products** (commit `b16e87e`) — the comment in `booking-interests.ts` makes the rationale explicit; checkout still re-validates via `getAddonProducts + computeAddonLines`, which DO enforce the flag.
   - Snapshots `title`, `variant_snapshot`, `unit_price`.
 - Returns a form error on validation failure (clean re-prompt).
 
@@ -129,7 +162,7 @@ Email surface: `src/lib/email/booking-templates.ts` `buildEmailHtml` accepts opt
 
 ### 3.6 Deposit checkout (test mode only in prod)
 
-**`src/app/request/[token]/page.tsx`** — when `status === 'deposit_pending'`, fetches the booking's **confirmed-available** interests (`booking_interests` where `status='available'`) and groups them by product (so two variant interests for the same product become one `AddonProductView` with two variants). The synthetic product carries `stock = interest.quantity` so the qty stepper is capped at what the artist actually vouched for.
+**`src/app/request/[token]/page.tsx`** — when `status === 'deposit_pending'`, fetches the booking's **confirmed-available** interests (`booking_interests` where `status='available'`) and groups them by product (so two variant interests for the same product become one `AddonProductView` with two variants). The synthetic product carries `stock = interest.quantity` so the qty stepper is capped at what the artist actually vouched for. The portal also independently fetches `getAddonProducts(artistId)` to enforce the `is_checkout_addon=true` gate on the payable line items — interests on non-addon products won't appear here.
 
 **`src/app/request/[token]/addons-checkout.tsx`** — Stripe Elements wrapper:
 
@@ -160,26 +193,38 @@ Email surface: `src/lib/email/booking-templates.ts` `buildEmailHtml` accepts opt
 
 ## 4. Production status (2026-06-01)
 
-- Branch `feat/bio-page-goods` HEAD `99e3c25` — ~52 commits ahead of `master`, **not merged**.
-- Deploy `inklee-p3irxmuxw`, aliased to `inkl.ee`.
+- Branch `feat/bio-page-goods` HEAD `6bc6c6b` — 57 commits ahead of `master`, **not merged**.
+- Deploy `inklee-9q15uhczh`, aliased to `inkl.ee`, `www.inkl.ee`, and `*.inkl.ee`.
 - Migrations 0000–0038 applied.
 - `checkout_addons` flag stays OFF in prod (D3); the booking-interest signal layer + the artist popup + the multi-image features are fully live.
-- 233 vitest tests green.
+- 234 vitest tests green.
+
+Recent post-`220594f` commits relevant to this audit:
+
+| Commit    | Subject                                                                           |
+| --------- | --------------------------------------------------------------------------------- |
+| `b16e87e` | shop overlay: add-to-cart per variant, decouple interest from `is_checkout_addon` |
+| `033fb09` | goods images: one input per picked file so multi-add survives picker reuse        |
+| `b9a6fe0` | shop overlay: drop em-dash in cart "Done" link                                    |
+| `b8642d3` | shop overlay: hover-zoom + Amazon-style lightbox with thumbnail strip             |
+| `6bc6c6b` | shop overlay: pin lightbox to viewport by hoisting it out of the shop dialog      |
 
 ---
 
 ## 5. Where the audit should focus
 
-| Area                                    | Why                                                                                                                                                                                                                                                                                          |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Money correctness**                   | `prepareCheckoutAction` server-recompute + `webhook` amount check + `.select()`-gated order flip + `decrementInventory`. Verify a crafted client can't bypass the total.                                                                                                                     |
-| **Webhook idempotency**                 | Stripe retries; concurrent deliveries. Today: audit-log row + status guard up front. Anything else racy?                                                                                                                                                                                     |
-| **Authorisation**                       | `submitBookingAction` uses serviceClient (bypasses RLS) but server-validates against `getAddonProducts(artistId)`. Artist mutations (`approveBookingWithInterestDecisions`, `applyInterestDecisions`, `markGoodsPickedUp`, `setProductStatusAction`) all gate on `auth.uid()` + `artist_id`. |
-| **Studio resolution**                   | `resolveBookingGuestSpotStudio` priority order (trip leg → slot.flash_day → booking.studio_id) and the parallel `resolveStudioForBooking` used for emails. Edge cases: trip without studios set, slot without flash_day, primary studio missing.                                             |
-| **Multi-image pipeline**                | `processProductImages` keep-list + new files + clamp at maxImages; `goodsImagePathFromUrl` URL → path derivation; storage cleanup on delete sweeps every per-product file. Look for a save that fails mid-upload (orphaned files).                                                           |
-| **Interest snapshots**                  | The popup decisions email reads `title_snapshot` / `variant_snapshot` / `quantity` from the row (intentionally, in case the product was later edited).                                                                                                                                       |
-| **`applyInterestDecisions` invariants** | Only touches `pending` rows; safe against stale client payloads / double-clicks.                                                                                                                                                                                                             |
-| **Shop overlay UX**                     | `pendingPicks` + `poppedForItems` Sets; reveal-on-hover utility; cart-style summary; Done + Keep-shopping popup; carousel arrows stop propagation so they don't toggle the checkbox.                                                                                                         |
+| Area                                    | Why                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Money correctness**                   | `prepareCheckoutAction` server-recompute + `webhook` amount check + `.select()`-gated order flip + `decrementInventory`. Verify a crafted client can't bypass the total.                                                                                                                                                                                                                   |
+| **Webhook idempotency**                 | Stripe retries; concurrent deliveries. Today: audit-log row + status guard up front. Anything else racy?                                                                                                                                                                                                                                                                                   |
+| **Authorisation**                       | `submitBookingAction` uses serviceClient (bypasses RLS) but server-validates against `getInterestEligibleProducts(artistId)`. Artist mutations (`approveBookingWithInterestDecisions`, `applyInterestDecisions`, `markGoodsPickedUp`, `setProductStatusAction`) all gate on `auth.uid()` + `artist_id`.                                                                                    |
+| **Two-catalogue invariant (D11)**       | Interest vs checkout eligibility split. Verify that **no** code path lets a non-addon product reach a payable `order_items` row. `computeAddonLines` is the only writer; it filters via `getAddonProducts` (strict `is_checkout_addon=true`). Look for any path that would let an interest row template a payable line without re-validation.                                              |
+| **Studio resolution**                   | `resolveBookingGuestSpotStudio` priority order (trip leg → slot.flash_day → booking.studio_id) and the parallel `resolveStudioForBooking` used for emails. Edge cases: trip without studios set, slot without flash_day, primary studio missing.                                                                                                                                           |
+| **Multi-image pipeline**                | `processProductImages` keep-list + new files + clamp at `maxImages`; `goodsImagePathFromUrl` URL → path derivation; storage cleanup on delete sweeps every per-product file. Look for a save that fails mid-upload (orphaned files) and for any client-side path where the dedicated-`NewFileInput` per-pick architecture could regress to a single shared input that loses earlier picks. |
+| **Interest snapshots**                  | The popup decisions email reads `title_snapshot` / `variant_snapshot` / `quantity` from the row (intentionally, in case the product was later edited).                                                                                                                                                                                                                                     |
+| **`applyInterestDecisions` invariants** | Only touches `pending` rows; safe against stale client payloads / double-clicks.                                                                                                                                                                                                                                                                                                           |
+| **Shop overlay UX**                     | Composite-key `(productId, variantId)` selection model; per-`ProductCard` local `pickedVariantId`; `closeShop()` covers all four exit paths (X, cart Done link, bottom Done button, Escape) and resets lightbox state alongside. Verify no path leaves the lightbox open after the shop closes, and that the same product in different variants always renders as separate cart lines.     |
+| **Lightbox positioning**                | The lightbox MUST stay a sibling of the shop overlay's outer dialog in the JSX. The shop overlay's `backdrop-blur-sm` (= `backdrop-filter`) plus its `overflow-y-auto` scroll container would otherwise make `fixed inset-0` resolve against the shop content area rather than the viewport. Any refactor that nests the lightbox inside the shop overlay reintroduces the bug.            |
 
 ### Known things deliberately deferred
 
@@ -187,7 +232,8 @@ Email surface: `src/lib/email/booking-templates.ts` `buildEmailHtml` accepts opt
 - No reservation / TTL on stock at interest-marking time.
 - No analytics events wired (Slice 76 optional).
 - `/goods` dashboard tile + `/goods/[id]` subpage don't show carousel; thumbnail only.
-- No end-to-end / Playwright coverage for the shop overlay or popups; visual regression risk on the UX redesign.
+- No end-to-end / Playwright coverage for the shop overlay, popups, lightbox, or multi-image picker; visual regression risk on the UX redesign.
+- The `reveal-on-hover` utility in `globals.css` was used by the previous shop-teaser UX and is now **orphaned**; safe to delete in a future cleanup pass.
 
 ---
 
@@ -201,25 +247,27 @@ supabase/migrations/0037_booking_interests.sql                          booking_
 supabase/migrations/0038_product_image_urls.sql                         products.image_urls text[]
 
 src/lib/goods.ts                                                        type defs (PublicProduct, AddonProduct), price helpers
-src/lib/orders.ts                                                       computeAddonLines (validation + line composition)
-src/lib/addon-products.ts                                               getAddonProducts (paywall + fetch)
-src/lib/booking-interests.ts                                            parseInterestSelections + computeInterestRows
+src/lib/orders.ts                                                       computeAddonLines (validation + line composition; CHECKOUT path)
+src/lib/addon-products.ts                                               getInterestEligibleProducts (broad) + getAddonProducts (strict)
+src/lib/booking-interests.ts                                            parseInterestSelections + computeInterestRows (no addon-flag gate)
 src/lib/booking-studio.ts                                               resolveStudioForBooking + resolveBookingGuestSpotStudio
 src/lib/order-fulfillment.ts                                            decrementInventory
 src/lib/features.ts                                                     paywall flags
 src/lib/email/booking-templates.ts                                      buildEmailHtml + EmailGoodsDecision
 src/lib/email/send-booking-email.ts                                     sendBookingEmail + sendGoodsOrderConfirmation + sendArtistDepositPaidEmail
 
-src/app/[slug]/page.tsx                                                 public bio page
-src/app/[slug]/shop-teaser.tsx                                          public shop overlay (carousel, interest flow, popup)
+src/app/[slug]/page.tsx                                                 public bio page (uses getInterestEligibleProducts for shop)
+src/app/[slug]/shop-teaser.tsx                                          public shop overlay — CardImage (hover-zoom + click-to-zoom),
+                                                                        ProductCard (composite-key add-to-cart), Lightbox (controlled,
+                                                                        sibling of the shop dialog), cart-list with X-remove
 src/app/[slug]/booking-form.tsx                                         booking form (reads interest selections)
 src/app/[slug]/interest-selections-context.tsx                          shared client state
-src/app/[slug]/actions.ts                                               submitBookingAction (persists interests)
+src/app/[slug]/actions.ts                                               submitBookingAction (persists interests via interest-eligible catalogue)
 
 src/app/(artist)/goods/page.tsx                                         goods grid
 src/app/(artist)/goods/goods-tile.tsx                                   tile + action stack + +N image badge
 src/app/(artist)/goods/goods-edit-modal.tsx                             inline edit modal
-src/app/(artist)/goods/product-form-fields.tsx                          form fields + multi-image picker + publish/draft radio
+src/app/(artist)/goods/product-form-fields.tsx                          form fields + multi-image picker (NewFileInput per pick + trigger input) + publish/draft radio
 src/app/(artist)/goods/actions.ts                                       CRUD, uploadProductImage, processProductImages, loadProductForEditAction
 src/app/(artist)/goods/[id]/page.tsx                                    direct-URL edit fallback
 
@@ -234,5 +282,5 @@ src/app/request/[token]/actions.ts                                      prepareC
 
 src/app/api/stripe/webhook/route.ts                                     payment_intent.succeeded handler
 
-src/app/globals.css : reveal-on-hover                                   hover-only controls utility
+src/app/globals.css : reveal-on-hover                                   orphaned utility (used by the pre-b16e87e shop overlay)
 ```
