@@ -52,6 +52,31 @@ function freshKey() {
     : `v-${Date.now()}-${Math.random()}`;
 }
 
+// One dedicated hidden file input per picked File. Each gets its file via
+// DataTransfer exactly once on mount and is then left alone, so the browser's
+// "next selection replaces .files" behaviour on a SHARED multi-file input
+// can't strand earlier picks. The browser serializes one entry per input, so
+// the server still sees all of them as `images` in form-order.
+function NewFileInput({ file }: { file: File }) {
+  const r = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!r.current) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    r.current.files = dt.files;
+  }, [file]);
+  return (
+    <input
+      ref={r}
+      name="images"
+      type="file"
+      className="hidden"
+      aria-hidden
+      tabIndex={-1}
+    />
+  );
+}
+
 export default function ProductFormFields({
   initial,
   variants: initialVariants = [],
@@ -59,12 +84,16 @@ export default function ProductFormFields({
   initial?: Partial<ProductFormFieldValues>;
   variants?: VariantInputRow[];
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
+  // Trigger input — the one the picker writes to. No `name` so it doesn't
+  // post; we only read its FileList in onChange to ferry each pick into state
+  // and a dedicated NewFileInput. Reset to empty after every pick so the same
+  // filename can be re-picked.
+  const triggerRef = useRef<HTMLInputElement>(null);
 
   // Multi-image picker (migration 0038). One list of entries — existing URLs
-  // posted back via existing_image_urls + new File objects synced into a
-  // hidden multi-file input each render — so the server composes the final
-  // image_urls array in the artist's order.
+  // posted back via existing_image_urls + new File objects each rendered into
+  // its OWN hidden <input name="images"> via NewFileInput. The server composes
+  // the final image_urls array in form order.
   type ImageEntry =
     | { kind: "existing"; url: string; key: string }
     | { kind: "new"; file: File; preview: string; key: string };
@@ -104,18 +133,6 @@ export default function ProductFormFields({
     : 0;
   const maxImages = liveVariantCount > 0 ? liveVariantCount + 1 : 3;
 
-  // Multi-file inputs can't be populated arbitrarily by JS; we use a
-  // DataTransfer to sync the new-file entries back into the hidden file
-  // input on every change so FormData picks them up in order.
-  useEffect(() => {
-    if (!fileRef.current) return;
-    const dt = new DataTransfer();
-    for (const img of imageEntries) {
-      if (img.kind === "new") dt.items.add(img.file);
-    }
-    fileRef.current.files = dt.files;
-  }, [imageEntries]);
-
   // Revoke blob URLs on unmount so they don't leak (we also revoke on remove).
   useEffect(() => {
     return () => {
@@ -141,8 +158,10 @@ export default function ProductFormFields({
         }));
       return [...prev, ...toAdd];
     });
-    // Reset so picking the same file again still triggers onChange.
-    if (fileRef.current) fileRef.current.value = "";
+    // Reset so picking the same file again still triggers onChange. Only the
+    // trigger input is reset — the dedicated NewFileInputs already in the DOM
+    // are untouched.
+    if (triggerRef.current) triggerRef.current.value = "";
   }
 
   function removeImageEntry(key: string) {
@@ -229,7 +248,7 @@ export default function ProductFormFields({
           {imageEntries.length < maxImages && (
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
+              onClick={() => triggerRef.current?.click()}
               className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted/30 hover:text-foreground"
             >
               <ImagePlus className="h-6 w-6" strokeWidth={1.5} />
@@ -248,9 +267,17 @@ export default function ProductFormFields({
           name="existing_image_urls"
           value={JSON.stringify(existingImageUrls)}
         />
+        {/* One dedicated hidden input per picked File — see NewFileInput. */}
+        {imageEntries.map((img) =>
+          img.kind === "new" ? (
+            <NewFileInput key={img.key} file={img.file} />
+          ) : null,
+        )}
+        {/* Trigger input — no `name`, so it does not post. We only use its
+            FileList in onChange to ferry picks into state. `multiple` lets the
+            artist pick several at once; one-at-a-time also works. */}
         <input
-          ref={fileRef}
-          name="images"
+          ref={triggerRef}
           type="file"
           multiple
           accept="image/png,image/jpeg,image/webp"
