@@ -110,6 +110,41 @@ export default async function RequestDetailPage({
     .order("timestamp", { ascending: false })
     .limit(30);
 
+  // Goods the client marked they'd like to buy when submitting (commerce-layer
+  // extension). Rendered as an "Interested in buying" section + drives the
+  // Accept availability popup. Empty array = no interests, no popup.
+  type InterestRowRaw = {
+    id: string;
+    title_snapshot: string;
+    variant_snapshot: string | null;
+    unit_price: string | number | null;
+    currency: string | null;
+    quantity: number;
+    status: string;
+    decline_note: string | null;
+  };
+  const { data: rawInterests } = await supabase
+    .from("booking_interests")
+    .select(
+      "id, title_snapshot, variant_snapshot, unit_price, currency, quantity, status, decline_note",
+    )
+    .eq("booking_id", id)
+    .eq("artist_id", user!.id)
+    .order("created_at", { ascending: true });
+  const interests = ((rawInterests ?? []) as InterestRowRaw[]).map((r) => ({
+    id: r.id,
+    title: r.title_snapshot,
+    variant: r.variant_snapshot,
+    unitPrice:
+      r.unit_price !== null && r.unit_price !== undefined
+        ? Number(r.unit_price)
+        : null,
+    currency: r.currency ?? "eur",
+    quantity: r.quantity,
+    status: r.status as "pending" | "available" | "unavailable",
+    declineNote: r.decline_note,
+  }));
+
   // Attached goods order (Slice 75). Most recent order for this booking.
   const { data: orderRow } = await supabase
     .from("orders")
@@ -186,6 +221,14 @@ export default async function RequestDetailPage({
           depositDefaults={depositDefaults}
           stripeMode={stripeMode}
           confirmStudio={confirmStudio}
+          pendingInterests={interests
+            .filter((i) => i.status === "pending")
+            .map((i) => ({
+              id: i.id,
+              title: i.title,
+              variant: i.variant,
+              quantity: i.quantity,
+            }))}
         />
       </div>
 
@@ -270,6 +313,59 @@ export default async function RequestDetailPage({
                 </span>
               </p>
               <AnnotatedImageGallery images={imagesWithUrls} />
+            </div>
+          )}
+
+          {interests.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Interested in buying
+                <span className="ml-1.5 normal-case tracking-normal opacity-70">
+                  ({interests.length})
+                </span>
+              </p>
+              <ul className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
+                {interests.map((i) => (
+                  <li
+                    key={i.id}
+                    className="flex flex-wrap items-start gap-x-3 gap-y-1 px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-foreground">
+                        {i.title}
+                        {i.variant ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {i.variant}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Qty {i.quantity}
+                        {i.unitPrice !== null
+                          ? ` · ${formatPrice(i.unitPrice * i.quantity, i.currency)}`
+                          : ""}
+                      </p>
+                      {i.status === "unavailable" && i.declineNote && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Note: {i.declineNote}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                        i.status === "available"
+                          ? "bg-brand-mustard/15 text-brand-mustard"
+                          : i.status === "unavailable"
+                            ? "border border-border text-muted-foreground"
+                            : "bg-muted/30 text-muted-foreground"
+                      }`}
+                    >
+                      {i.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

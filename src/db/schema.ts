@@ -564,3 +564,43 @@ export const orderItems = pgTable("order_items", {
   totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("eur"),
 });
+
+// Booking interests (commerce-layer extension, 2026-06-01) — what the client
+// marked they'd like to buy when submitting the booking request. The artist
+// confirms availability per item on Accept (default available, can mark
+// unavailable with a quick note). Migration 0037.
+
+export const bookingInterestStatusEnum = pgEnum("booking_interest_status", [
+  "pending",
+  "available",
+  "unavailable",
+]);
+
+export const bookingInterests = pgTable("booking_interests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  bookingId: uuid("booking_id")
+    .notNull()
+    .references(() => bookingRequests.id, { onDelete: "cascade" }),
+  productId: uuid("product_id").references(() => products.id, {
+    onDelete: "set null",
+  }),
+  variantId: uuid("variant_id").references(() => productVariants.id, {
+    onDelete: "set null",
+  }),
+  titleSnapshot: text("title_snapshot").notNull(),
+  variantSnapshot: text("variant_snapshot"),
+  unitPrice: numeric("unit_price", { precision: 10, scale: 2 }),
+  currency: text("currency").notNull().default("eur"),
+  quantity: integer("quantity").notNull().default(1),
+  status: bookingInterestStatusEnum("status").notNull().default("pending"),
+  declineNote: text("decline_note"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

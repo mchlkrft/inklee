@@ -6,9 +6,11 @@ import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { useOptimistic, useState, useTransition } from "react";
 import {
   approveBooking,
+  approveBookingWithInterestDecisions,
   rejectBooking,
   requestDeposit,
   markDepositReceived,
+  type InterestDecisionPayload,
 } from "../../actions";
 import {
   DEPOSIT_DEFAULTS_FALLBACK,
@@ -25,11 +27,19 @@ function tomorrow(): string {
   return addDaysToDateKey(localDateKey(), 1);
 }
 
+type PendingInterest = {
+  id: string;
+  title: string;
+  variant: string | null;
+  quantity: number;
+};
+
 export default function StatusActions({
   booking,
   depositDefaults = DEPOSIT_DEFAULTS_FALLBACK,
   stripeMode = "missing",
   confirmStudio = null,
+  pendingInterests = [],
 }: {
   booking: Booking;
   depositDefaults?: DepositDefaults;
@@ -37,6 +47,10 @@ export default function StatusActions({
   // Set when the booking is tied to a trip — accepting then asks the artist to
   // confirm the studio/location (which the approval email tells the client).
   confirmStudio?: { name: string; dateLabel: string | null } | null;
+  // Goods the client marked at submit time, still awaiting the artist's
+  // availability decision. Drives the Accept confirmation popup; empty array
+  // means accept fires immediately (subject to the studio check above).
+  pendingInterests?: PendingInterest[];
 }) {
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(booking.status);
   const [, startTransition] = useTransition();
@@ -52,7 +66,54 @@ export default function StatusActions({
   );
   const [depositNote, setDepositNote] = useState(depositDefaults.note);
   const [confirmReject, setConfirmReject] = useState(false);
-  const [showStudioConfirm, setShowStudioConfirm] = useState(false);
+  // Single Accept confirmation popup. Shown whenever the booking has a trip
+  // (artist re-confirms the studio) OR the client marked goods to buy (artist
+  // confirms availability per item). Both blocks render inline so the artist
+  // resolves everything in one step.
+  const [showAcceptPopup, setShowAcceptPopup] = useState(false);
+  // Per-interest availability decisions, default = available for every row so
+  // a "Yes, accept" click without any tweaking marks them all as available.
+  const [decisions, setDecisions] = useState<
+    Record<string, { available: boolean; note: string }>
+  >(() =>
+    Object.fromEntries(
+      pendingInterests.map((i) => [i.id, { available: true, note: "" }]),
+    ),
+  );
+
+  const needsAcceptPopup = !!confirmStudio || pendingInterests.length > 0;
+
+  function buildDecisionsPayload(): InterestDecisionPayload[] {
+    return pendingInterests.map((i) => {
+      const d = decisions[i.id] ?? { available: true, note: "" };
+      return {
+        interestId: i.id,
+        available: d.available,
+        declineNote: d.available ? null : d.note.trim() || null,
+      };
+    });
+  }
+
+  async function handleAcceptConfirm() {
+    setShowAcceptPopup(false);
+    if (pendingInterests.length === 0) {
+      run(approveBooking, "approved");
+      return;
+    }
+    const payload = buildDecisionsPayload();
+    setError(null);
+    startTransition(async () => {
+      setOptimisticStatus("approved");
+      const result = await approveBookingWithInterestDecisions(
+        booking.id,
+        payload,
+      );
+      if ("error" in result) {
+        setOptimisticStatus(booking.status);
+        setError(result.error);
+      }
+    });
+  }
 
   const run = async (
     action: (id: string) => Promise<{ error: string } | { success: true }>,
@@ -105,43 +166,119 @@ export default function StatusActions({
     <div className="space-y-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {showStudioConfirm && confirmStudio && (
+      {showAcceptPopup && (
         <div
-          onClick={() => setShowStudioConfirm(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => setShowAcceptPopup(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm space-y-4 rounded-[20px] border border-border bg-background p-5"
+            className="w-full max-w-md space-y-4 rounded-[20px] border border-border bg-background p-5"
           >
-            <div className="space-y-1.5">
-              <p className="text-sm font-semibold text-foreground">
-                Confirm the studio
-              </p>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                This booking falls on a trip date. The client will be told to
-                come to{" "}
-                <span className="font-medium text-foreground">
-                  {confirmStudio.name}
-                </span>
-                {confirmStudio.dateLabel
-                  ? ` on ${confirmStudio.dateLabel}`
-                  : ""}
-                . Is that the right studio and location?
-              </p>
-            </div>
+            <p className="text-sm font-semibold text-foreground">
+              Confirm acceptance
+            </p>
+
+            {confirmStudio && (
+              <div className="space-y-1.5 rounded-md border border-border p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Studio
+                </p>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  The client will be told to come to{" "}
+                  <span className="font-medium text-foreground">
+                    {confirmStudio.name}
+                  </span>
+                  {confirmStudio.dateLabel
+                    ? ` on ${confirmStudio.dateLabel}`
+                    : ""}
+                  .
+                </p>
+              </div>
+            )}
+
+            {pendingInterests.length > 0 && (
+              <div className="space-y-2 rounded-md border border-border p-3">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Goods they want to buy
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Uncheck anything you can&apos;t do — leave a quick note so
+                    the client knows what changed.
+                  </p>
+                </div>
+                <ul className="space-y-2">
+                  {pendingInterests.map((i) => {
+                    const d = decisions[i.id] ?? {
+                      available: true,
+                      note: "",
+                    };
+                    return (
+                      <li key={i.id} className="space-y-1.5">
+                        <label className="flex items-start gap-2 text-sm text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={d.available}
+                            onChange={(e) =>
+                              setDecisions((prev) => ({
+                                ...prev,
+                                [i.id]: {
+                                  available: e.target.checked,
+                                  note: prev[i.id]?.note ?? "",
+                                },
+                              }))
+                            }
+                            className="mt-0.5 accent-brand-mustard"
+                          />
+                          <span className="flex-1 leading-snug">
+                            {i.title}
+                            {i.variant ? (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                · {i.variant}
+                              </span>
+                            ) : null}
+                            <span className="text-xs text-muted-foreground">
+                              {" "}
+                              · qty {i.quantity}
+                            </span>
+                          </span>
+                        </label>
+                        {!d.available && (
+                          <textarea
+                            value={d.note}
+                            onChange={(e) =>
+                              setDecisions((prev) => ({
+                                ...prev,
+                                [i.id]: {
+                                  available: false,
+                                  note: e.target.value,
+                                },
+                              }))
+                            }
+                            rows={2}
+                            maxLength={300}
+                            placeholder="Quick note — sold out, only in blue, swap suggestion…"
+                            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  setShowStudioConfirm(false);
-                  run(approveBooking, "approved");
-                }}
+                onClick={handleAcceptConfirm}
                 className="flex-1 rounded-full bg-brand-mustard px-4 py-2.5 text-sm font-semibold text-brand-charcoal"
               >
                 Yes, accept
               </button>
               <button
-                onClick={() => setShowStudioConfirm(false)}
+                onClick={() => setShowAcceptPopup(false)}
                 className="rounded-full border border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Cancel
@@ -207,8 +344,8 @@ export default function StatusActions({
           <div className="space-y-1">
             <button
               onClick={() =>
-                confirmStudio
-                  ? setShowStudioConfirm(true)
+                needsAcceptPopup
+                  ? setShowAcceptPopup(true)
                   : run(approveBooking, "approved")
               }
               className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-semibold text-brand-charcoal"

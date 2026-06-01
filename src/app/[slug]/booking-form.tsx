@@ -20,6 +20,7 @@ import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { compressImageInBrowser } from "@/lib/image-compress";
 import { PublicBookingLegalNotice } from "@/components/public-booking/legal-notice";
 import FieldArea, { CheckBadge } from "@/components/public-booking/field-area";
+import { useInterestSelections } from "./interest-selections-context";
 
 type State = { error: string; field?: string } | null;
 
@@ -208,6 +209,8 @@ export default function BookingForm({
 
   const [compressing, setCompressing] = useState(false);
 
+  const { selections: interestSelections } = useInterestSelections();
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isDemoAccount) {
@@ -217,6 +220,13 @@ export default function BookingForm({
     const fd = new FormData(e.currentTarget);
     fd.delete("images");
     fd.set("artist_slug", artistSlug);
+
+    // Interest selections come from InterestSelectionsProvider (set in the
+    // header Shop overlay). Server re-validates against the artist's current
+    // catalogue and writes booking_interests rows.
+    if (interestSelections.length > 0) {
+      fd.set("interests_json", JSON.stringify(interestSelections));
+    }
 
     // Compress images in the browser before upload — Vercel Hobby caps the
     // total request body at ~4.5 MB, which a couple of phone photos easily

@@ -30,6 +30,12 @@ import {
   todayInTimeZone,
 } from "@/lib/date-utils";
 import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
+import {
+  parseInterestSelections,
+  computeInterestRows,
+  type InterestRow,
+} from "@/lib/booking-interests";
+import { getAddonProducts } from "@/lib/addon-products";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB raw input limit
@@ -262,6 +268,23 @@ export async function submitBookingAction(
         field: "preferred_date",
       };
     }
+  }
+
+  // Booking interests (commerce-layer extension). The client may have marked
+  // goods they'd like to buy at the appointment in the Shop overlay. We
+  // validate the JSON payload against the artist's addon-eligible catalogue
+  // up-front so a bad/stale selection produces a clean form error instead of
+  // partially-inserting after the booking row.
+  const rawInterests = formData.get("interests_json") as string | null;
+  const interestSelections = parseInterestSelections(rawInterests);
+  let interestRows: InterestRow[] = [];
+  if (interestSelections.length > 0) {
+    const addonProducts = await getAddonProducts(artistId);
+    const computed = computeInterestRows(addonProducts, interestSelections);
+    if (!computed.ok) {
+      return { error: computed.error };
+    }
+    interestRows = computed.rows;
   }
 
   const bookingId = crypto.randomUUID();
@@ -559,13 +582,45 @@ export async function submitBookingAction(
     details: { origin: "public_form", ip },
   });
 
+  // Persist booking_interests last so a goods-side write failure can never
+  // orphan the booking itself — the booking and audit row are already
+  // committed at this point. Log + move on instead of failing the submit.
+  if (interestRows.length > 0) {
+    const { error: interestsError } = await serviceClient
+      .from("booking_interests")
+      .insert(
+        interestRows.map((r) => ({
+          artist_id: artistId,
+          booking_id: bookingId,
+          product_id: r.productId,
+          variant_id: r.variantId,
+          title_snapshot: r.titleSnapshot,
+          variant_snapshot: r.variantSnapshot,
+          unit_price: r.unitPrice,
+          quantity: r.quantity,
+        })),
+      );
+    if (interestsError) {
+      Sentry.captureException(interestsError, {
+        tags: { action: "booking_interests_insert" },
+        extra: { bookingId, count: interestRows.length },
+      });
+      interestRows = []; // suppress the notification suffix on insert failure
+    }
+  }
+
+  const interestCount = interestRows.reduce((n, r) => n + r.quantity, 0);
+  const interestSuffix =
+    interestCount > 0
+      ? ` Marked ${interestCount} item${interestCount === 1 ? "" : "s"} they'd like to buy.`
+      : "";
   const notificationResult = await createNotification({
     artistId,
     type: "booking_request",
     category: "booking_activity",
     priority: "high",
     title: "New booking request",
-    message: `${customerLabel(data.instagram_handle, data.email)} wants a ${data.placement} (${data.size})${requestDate ? ` on ${requestDate}` : ""}.`,
+    message: `${customerLabel(data.instagram_handle, data.email)} wants a ${data.placement} (${data.size})${requestDate ? ` on ${requestDate}` : ""}.${interestSuffix}`,
     ctaLabel: "View request",
     ctaHref: `/bookings/requests/${bookingId}`,
     metadata: { booking_id: bookingId },

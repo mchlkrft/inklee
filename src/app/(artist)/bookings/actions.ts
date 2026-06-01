@@ -13,6 +13,7 @@ import {
   sendWaitlistConversionEmail,
   sendDepositRequestedEmail,
 } from "@/lib/email/send-booking-email";
+import type { EmailGoodsDecision } from "@/lib/email/booking-templates";
 import { stripe } from "@/lib/stripe";
 
 type ActionResult = { error: string } | { success: true };
@@ -171,6 +172,167 @@ export async function approveBooking(id: string): Promise<ActionResult> {
         magic_link: `${appUrl}/request/${newToken}`,
       },
       studio,
+    });
+  }
+
+  revalidateBookingViews(id);
+  return { success: true };
+}
+
+// Per-item availability decision from the Accept popup. `interestId` is the
+// id of the booking_interests row; `declineNote` is only used when
+// `available === false` (capped at 300 chars on the server).
+export type InterestDecisionPayload = {
+  interestId: string;
+  available: boolean;
+  declineNote: string | null;
+};
+
+// Same effect as approveBooking, plus applies the artist's per-item
+// availability decisions to booking_interests and surfaces them in the
+// approval email. Used by the Accept popup whenever the booking has pending
+// interests; approveBooking still handles the no-interests path.
+export async function approveBookingWithInterestDecisions(
+  id: string,
+  decisions: InterestDecisionPayload[],
+): Promise<ActionResult> {
+  const authorised = await getAuthorisedBooking(id);
+  if ("error" in authorised) return authorised;
+
+  const { supabase, user, booking } = authorised;
+  const guard = canTransition(booking.status, "approved");
+  if (!guard.ok) return { error: guard.reason };
+
+  // Pull all interests for this booking once so the per-decision update is
+  // validated against existing rows and the email surface is built from the
+  // snapshot fields (title/variant/qty stay accurate even if the product was
+  // later edited).
+  const { data: existingInterests, error: interestsFetchError } = await supabase
+    .from("booking_interests")
+    .select("id, title_snapshot, variant_snapshot, quantity, status")
+    .eq("booking_id", id)
+    .eq("artist_id", user.id);
+  if (interestsFetchError) {
+    return { error: interestsFetchError.message };
+  }
+  const byId = new Map((existingInterests ?? []).map((r) => [String(r.id), r]));
+
+  const updatedAt = new Date().toISOString();
+  for (const d of decisions) {
+    const row = byId.get(d.interestId);
+    // Silently skip rows that don't exist or aren't still pending — protects
+    // against a stale client payload from getting the artist stuck.
+    if (!row || row.status !== "pending") continue;
+    const note =
+      !d.available && d.declineNote
+        ? d.declineNote.trim().slice(0, 300) || null
+        : null;
+    const { error: updateError } = await supabase
+      .from("booking_interests")
+      .update({
+        status: d.available ? "available" : "unavailable",
+        decline_note: note,
+        updated_at: updatedAt,
+      })
+      .eq("id", d.interestId)
+      .eq("artist_id", user.id);
+    if (updateError) {
+      Sentry.captureException(updateError, {
+        tags: { action: "booking_interest_decision" },
+        extra: { bookingId: id, interestId: d.interestId },
+      });
+    }
+  }
+
+  const newToken = booking.customer_email
+    ? crypto.randomBytes(32).toString("hex")
+    : null;
+  const newHash = newToken
+    ? crypto.createHash("sha256").update(newToken).digest("hex")
+    : null;
+  const decidedAt = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("booking_requests")
+    .update({
+      status: "approved",
+      updated_at: decidedAt,
+      decided_at: decidedAt,
+      customer_token_hash: newHash,
+    })
+    .eq("id", id);
+
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "booking_status_change" },
+    });
+    return { error: error.message };
+  }
+
+  if (booking.slot_id) {
+    const { error: slotError } = await supabase
+      .from("slots")
+      .update({ status: "booked" })
+      .eq("id", booking.slot_id);
+
+    if (slotError) {
+      await restoreBookingAfterSlotFailure(supabase, id, booking);
+      return { error: "The slot could not be confirmed. Please try again." };
+    }
+  }
+
+  await supabase.from("audit_log").insert({
+    booking_id: id,
+    action: "status_changed",
+    actor: user.id,
+    details: {
+      from: booking.status,
+      to: "approved",
+      interest_decisions: decisions.length,
+    },
+  });
+
+  if (booking.customer_email && newToken) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .single();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+    const studio = await resolveStudioForBooking(id);
+
+    const goodsDecisions: EmailGoodsDecision[] = decisions
+      .map((d): EmailGoodsDecision | null => {
+        const row = byId.get(d.interestId);
+        if (!row) return null;
+        const note =
+          !d.available && d.declineNote
+            ? d.declineNote.trim().slice(0, 300) || null
+            : null;
+        return {
+          title: String(row.title_snapshot ?? ""),
+          variant: (row.variant_snapshot as string | null) ?? null,
+          quantity: Number(row.quantity ?? 1),
+          available: d.available,
+          declineNote: note,
+        };
+      })
+      .filter((g): g is EmailGoodsDecision => g !== null);
+
+    await sendBookingEmail({
+      type: "customer_booking_approved",
+      to: booking.customer_email,
+      artistId: user.id,
+      vars: {
+        customer_handle: booking.customer_handle ?? "",
+        artist_name: profile?.display_name ?? "",
+        placement: booking.form_data?.placement ?? "",
+        size: booking.form_data?.size ?? "",
+        date: booking.preferred_date ?? "",
+        magic_link: `${appUrl}/request/${newToken}`,
+      },
+      studio,
+      goodsDecisions: goodsDecisions.length > 0 ? goodsDecisions : null,
     });
   }
 

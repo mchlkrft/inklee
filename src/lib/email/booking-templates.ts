@@ -129,6 +129,14 @@ function renderBody(plainText: string, ctaLabel: string): string {
     .join("<br/>");
 }
 
+export type EmailGoodsDecision = {
+  title: string;
+  variant: string | null;
+  quantity: number;
+  available: boolean;
+  declineNote: string | null;
+};
+
 export function buildEmailHtml(
   body: string,
   vars: TemplateVars,
@@ -140,6 +148,10 @@ export function buildEmailHtml(
       address: string | null;
       mapsUrl: string | null;
     } | null;
+    // Per-item availability decisions the artist made on Accept. Rendered as
+    // an "About your goods" section in the approval email so the client knows
+    // what's confirmed for the appointment + any decline reasons.
+    goodsDecisions?: EmailGoodsDecision[] | null;
   },
 ): string {
   const substituted = substituteVars(body, vars);
@@ -150,6 +162,34 @@ export function buildEmailHtml(
       (a) => `- ${escapeHtml(a.label)}: ${escapeHtml(formatCustomAnswer(a))}`,
     );
     rendered += `<br/><br/>Additional details:<br/>${lines.join("<br/>")}`;
+  }
+
+  // Goods decisions — surfaced in the approval email when the client marked
+  // interest at submit time. Lists what the artist confirmed for the
+  // appointment plus any items they marked unavailable with the artist's note.
+  if (opts?.goodsDecisions && opts.goodsDecisions.length > 0) {
+    const available = opts.goodsDecisions.filter((g) => g.available);
+    const declined = opts.goodsDecisions.filter((g) => !g.available);
+    rendered += `<br/><br/><span style="color:#0e0e10;font-weight:600;">About your goods</span>`;
+    if (available.length > 0) {
+      const lines = available.map((g) => {
+        const label = g.variant
+          ? `${escapeHtml(g.title)} · ${escapeHtml(g.variant)}`
+          : escapeHtml(g.title);
+        return `- ${label} (qty ${g.quantity}) — ready for pickup`;
+      });
+      rendered += `<br/>${lines.join("<br/>")}`;
+    }
+    if (declined.length > 0) {
+      const lines = declined.map((g) => {
+        const label = g.variant
+          ? `${escapeHtml(g.title)} · ${escapeHtml(g.variant)}`
+          : escapeHtml(g.title);
+        const note = g.declineNote ? ` — ${escapeHtml(g.declineNote)}` : "";
+        return `- ${label}: not available${note}`;
+      });
+      rendered += `<br/>${lines.join("<br/>")}`;
+    }
   }
 
   // Studio block — included in confirmation + reminder emails so the client

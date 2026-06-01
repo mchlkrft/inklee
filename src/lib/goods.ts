@@ -127,6 +127,13 @@ export function toPriceNumber(raw: unknown): number {
 }
 
 /** Shape rendered by the public Bio Page shop module. */
+export type PublicProductVariant = {
+  id: string;
+  name: string;
+  priceOverride: number | null;
+  stock: number | null;
+};
+
 export type PublicProduct = {
   id: string;
   title: string;
@@ -136,4 +143,8 @@ export type PublicProduct = {
   currency: string;
   soldOut: boolean;
   pickupNote: string | null;
+  /** True when the artist has marked this product as an appointment add-on AND
+   *  it's active EUR; gates the interest-marking UI in the public shop. */
+  interestEligible: boolean;
+  variants: PublicProductVariant[];
 };

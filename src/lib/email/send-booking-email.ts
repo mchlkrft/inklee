@@ -6,6 +6,7 @@ import {
   TemplateVars,
   buildEmailHtml,
   substituteVars,
+  type EmailGoodsDecision,
 } from "./booking-templates";
 import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
 
@@ -31,6 +32,7 @@ export async function sendBookingEmail({
   vars,
   customAnswers,
   studio,
+  goodsDecisions,
 }: {
   type: EmailType;
   to: string;
@@ -42,6 +44,7 @@ export async function sendBookingEmail({
     address: string | null;
     mapsUrl: string | null;
   } | null;
+  goodsDecisions?: EmailGoodsDecision[] | null;
 }): Promise<void> {
   try {
     const { data: profile } = await serviceClient
@@ -80,6 +83,7 @@ export async function sendBookingEmail({
     const html = buildEmailHtml(body, displayVars, customAnswers, {
       ctaLabel: CTA_LABELS[type],
       studio,
+      goodsDecisions,
     });
 
     await sendEmail({ to, subject, html });

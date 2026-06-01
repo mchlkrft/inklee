@@ -9,6 +9,7 @@ import BookingPolicyBlock from "./booking-policy-block";
 import CustomLinksBlock from "./custom-links-block";
 import ShopTeaser from "./shop-teaser";
 import TravelCard from "./travel-card";
+import { InterestSelectionsProvider } from "./interest-selections-context";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
@@ -169,14 +170,16 @@ export default async function ArtistPublicPage({
   const activeLinks = bioPage.customLinks.filter((l) => l.isActive);
 
   // Public shop products (Slice 73). Only queried when the shop module is
-  // visible. Sold-out products still show (greyed). The public card is
-  // informational — no standalone checkout (that arrives with add-ons, Slice 74).
+  // visible. Sold-out products still show (greyed). Cards are informational
+  // unless `interestEligible` (active + flagged as appointment add-on + EUR) —
+  // those gain interest-marking controls so the client can signal "I want to
+  // buy this at the appointment" before the artist accepts the request.
   let shopProducts: PublicProduct[] = [];
   if (isModuleVisible(bioPage, "shop") && canUseGoods(profileSettings)) {
     const { data: rawProducts } = await serviceClient
       .from("products")
       .select(
-        "id, title, category, image_url, price_amount, currency, status, pickup_note",
+        "id, title, category, image_url, price_amount, currency, status, pickup_note, is_checkout_addon, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
       )
       .eq("artist_id", profile.id)
       .eq("is_public_visible", true)
@@ -184,6 +187,14 @@ export default async function ArtistPublicPage({
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
+    type RawVariant = {
+      id: string;
+      name: string;
+      price_amount_override: string | number | null;
+      stock_quantity: number | null;
+      status: string;
+      sort_order: number;
+    };
     type RawProduct = {
       id: string;
       title: string;
@@ -193,19 +204,41 @@ export default async function ArtistPublicPage({
       currency: string | null;
       status: string;
       pickup_note: string | null;
+      is_checkout_addon: boolean;
+      product_variants: RawVariant[] | null;
     };
 
     const rows = (rawProducts ?? []) as unknown as RawProduct[];
-    shopProducts = rows.map((p) => ({
-      id: p.id,
-      title: p.title,
-      category: isProductCategory(p.category) ? p.category : "other",
-      imageUrl: p.image_url,
-      price: toPriceNumber(p.price_amount),
-      currency: typeof p.currency === "string" ? p.currency : "eur",
-      soldOut: p.status === "sold_out",
-      pickupNote: p.pickup_note,
-    }));
+    shopProducts = rows.map((p) => {
+      const currency = typeof p.currency === "string" ? p.currency : "eur";
+      return {
+        id: p.id,
+        title: p.title,
+        category: isProductCategory(p.category) ? p.category : "other",
+        imageUrl: p.image_url,
+        price: toPriceNumber(p.price_amount),
+        currency,
+        soldOut: p.status === "sold_out",
+        pickupNote: p.pickup_note,
+        interestEligible:
+          p.is_checkout_addon === true &&
+          p.status === "active" &&
+          currency === "eur",
+        variants: [...(p.product_variants ?? [])]
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .filter((v) => v.status === "active")
+          .map((v) => ({
+            id: v.id,
+            name: v.name,
+            priceOverride:
+              v.price_amount_override !== null &&
+              v.price_amount_override !== undefined
+                ? toPriceNumber(v.price_amount_override)
+                : null,
+            stock: v.stock_quantity,
+          })),
+      };
+    });
   }
 
   const { data: rawCustomFields } = await serviceClient
@@ -445,169 +478,177 @@ export default async function ArtistPublicPage({
   const goodsItemBg = !coverImage && coverColor ? coverColor : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-brand-charcoal text-brand-bone">
-      <header className="relative px-6 pt-12 pb-16" style={headerStyle}>
-        {coverImage && (
-          <div aria-hidden className="absolute inset-0 bg-brand-charcoal/55" />
-        )}
-        <div className="relative z-10 mx-auto flex max-w-lg flex-col items-center space-y-3 text-center">
-          {profile.logo_url && (
-            <div className="relative h-28 w-28 overflow-hidden rounded-full ring-2 ring-brand-bone/25">
-              <Image
-                src={profile.logo_url}
-                alt={profile.display_name}
-                fill
-                className="object-cover"
-              />
-            </div>
+    <InterestSelectionsProvider>
+      <div className="flex min-h-screen flex-col bg-brand-charcoal text-brand-bone">
+        <header className="relative px-6 pt-12 pb-16" style={headerStyle}>
+          {coverImage && (
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-brand-charcoal/55"
+            />
           )}
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-brand-bone">
-              {profile.display_name}
-            </h1>
-            {(profile.location || profile.instagram_handle) && (
-              <div className="flex items-center justify-center gap-2 text-sm text-brand-bone/65">
-                {profile.location && <span>{profile.location}</span>}
-                {profile.location && profile.instagram_handle && (
-                  <span aria-hidden>·</span>
-                )}
-                {profile.instagram_handle && (
-                  <a
-                    href={`https://instagram.com/${profile.instagram_handle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="transition-colors hover:text-brand-bone"
-                  >
-                    @{profile.instagram_handle}
-                  </a>
+          <div className="relative z-10 mx-auto flex max-w-lg flex-col items-center space-y-3 text-center">
+            {profile.logo_url && (
+              <div className="relative h-28 w-28 overflow-hidden rounded-full ring-2 ring-brand-bone/25">
+                <Image
+                  src={profile.logo_url}
+                  alt={profile.display_name}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            )}
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight text-brand-bone">
+                {profile.display_name}
+              </h1>
+              {(profile.location || profile.instagram_handle) && (
+                <div className="flex items-center justify-center gap-2 text-sm text-brand-bone/65">
+                  {profile.location && <span>{profile.location}</span>}
+                  {profile.location && profile.instagram_handle && (
+                    <span aria-hidden>·</span>
+                  )}
+                  {profile.instagram_handle && (
+                    <a
+                      href={`https://instagram.com/${profile.instagram_handle}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="transition-colors hover:text-brand-bone"
+                    >
+                      @{profile.instagram_handle}
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+            {profile.bio && (
+              <p className="max-w-sm text-sm leading-relaxed text-brand-bone/70">
+                {profile.bio}
+              </p>
+            )}
+            {(futureTrips.length > 0 || shopProducts.length > 0) && (
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                {futureTrips.length > 0 && <TravelCard trips={futureTrips} />}
+                {shopProducts.length > 0 && (
+                  <ShopTeaser products={shopProducts} itemBg={goodsItemBg} />
                 )}
               </div>
             )}
-          </div>
-          {profile.bio && (
-            <p className="max-w-sm text-sm leading-relaxed text-brand-bone/70">
-              {profile.bio}
-            </p>
-          )}
-          {(futureTrips.length > 0 || shopProducts.length > 0) && (
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-              {futureTrips.length > 0 && <TravelCard trips={futureTrips} />}
-              {shopProducts.length > 0 && (
-                <ShopTeaser products={shopProducts} itemBg={goodsItemBg} />
-              )}
-            </div>
-          )}
-          {activeLegData && (
-            <p className="pt-1.5 text-sm text-brand-bone/65">
-              {formatDateKey(activeLegData.startsOn, {
-                day: "numeric",
-                month: "short",
-              })}
-              {" — "}
-              {formatDateKey(activeLegData.endsOn, {
-                day: "numeric",
-                month: "short",
-              })}
-              {activeLegData.studioName && (
-                <>
-                  {" · "}
-                  {activeLegData.studioMapsUrl ? (
-                    <a
-                      href={activeLegData.studioMapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-brand-bone underline underline-offset-2 transition-colors hover:text-brand-bone/80"
-                    >
-                      {activeLegData.studioName}
-                    </a>
-                  ) : (
-                    <span className="font-medium text-brand-bone">
-                      {activeLegData.studioName}
-                    </span>
-                  )}
-                </>
-              )}
-            </p>
-          )}
-        </div>
-      </header>
-
-      <main
-        data-appearance="light"
-        className="relative -mt-8 flex-1 rounded-t-[28px] bg-[color:var(--color-workspace-bg)] px-6 pt-10 pb-12 text-foreground md:px-8"
-      >
-        <div className="mx-auto w-full max-w-lg space-y-8">
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                Booking request
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Fill in the details and I&apos;ll get back to you.
+            {activeLegData && (
+              <p className="pt-1.5 text-sm text-brand-bone/65">
+                {formatDateKey(activeLegData.startsOn, {
+                  day: "numeric",
+                  month: "short",
+                })}
+                {" — "}
+                {formatDateKey(activeLegData.endsOn, {
+                  day: "numeric",
+                  month: "short",
+                })}
+                {activeLegData.studioName && (
+                  <>
+                    {" · "}
+                    {activeLegData.studioMapsUrl ? (
+                      <a
+                        href={activeLegData.studioMapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-brand-bone underline underline-offset-2 transition-colors hover:text-brand-bone/80"
+                      >
+                        {activeLegData.studioName}
+                      </a>
+                    ) : (
+                      <span className="font-medium text-brand-bone">
+                        {activeLegData.studioName}
+                      </span>
+                    )}
+                  </>
+                )}
               </p>
-            </div>
-
-            {isClosed ? (
-              <BooksClosedBlock message={closedMessage} hint={closedHint}>
-                <WaitlistForm artistSlug={slug} />
-              </BooksClosedBlock>
-            ) : (
-              <BookingForm
-                artistSlug={slug}
-                artistFirstName={profile.display_name.split(" ")[0]}
-                bookingMode={profile.booking_mode ?? "preferred_date"}
-                slots={slots}
-                customFields={customFields}
-                formSettings={formSettings}
-                fieldOrder={fieldOrder}
-                trips={futureTrips}
-                isDemoAccount={slug === "bert-grimm"}
-                studioId={primaryStudio?.id ?? null}
-              />
             )}
           </div>
+        </header>
 
-          {/* Bio Page modules — render below the booking section, in order,
-              skipping any the artist hid. Booking stays the primary action. */}
-          {visibleModules(bioPage).map((key) => {
-            if (key === "links") {
-              return <CustomLinksBlock key="links" links={activeLinks} />;
-            }
-            if (key === "policy") {
-              return bioPage.bookingPolicy ? (
-                <BookingPolicyBlock
-                  key="policy"
-                  policy={bioPage.bookingPolicy}
+        <main
+          data-appearance="light"
+          className="relative -mt-8 flex-1 rounded-t-[28px] bg-[color:var(--color-workspace-bg)] px-6 pt-10 pb-12 text-foreground md:px-8"
+        >
+          <div className="mx-auto w-full max-w-lg space-y-8">
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                  Booking request
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Fill in the details and I&apos;ll get back to you.
+                </p>
+              </div>
+
+              {isClosed ? (
+                <BooksClosedBlock message={closedMessage} hint={closedHint}>
+                  <WaitlistForm artistSlug={slug} />
+                </BooksClosedBlock>
+              ) : (
+                <BookingForm
+                  artistSlug={slug}
+                  artistFirstName={profile.display_name.split(" ")[0]}
+                  bookingMode={profile.booking_mode ?? "preferred_date"}
+                  slots={slots}
+                  customFields={customFields}
+                  formSettings={formSettings}
+                  fieldOrder={fieldOrder}
+                  trips={futureTrips}
+                  isDemoAccount={slug === "bert-grimm"}
+                  studioId={primaryStudio?.id ?? null}
                 />
-              ) : null;
-            }
-            // Shop renders as a teaser above the booking form, not here.
-            return null;
-          })}
-        </div>
-      </main>
+              )}
+            </div>
 
-      <footer className="flex flex-wrap justify-center gap-x-4 gap-y-2 bg-brand-charcoal px-6 py-6 text-xs text-brand-bone/40">
-        <Link href="/terms" className="transition-colors hover:text-brand-bone">
-          Terms
-        </Link>
-        <Link
-          href="/privacy"
-          className="transition-colors hover:text-brand-bone"
-        >
-          Privacy
-        </Link>
-        <Link
-          href="/imprint"
-          className="transition-colors hover:text-brand-bone"
-        >
-          Imprint
-        </Link>
-        <span aria-hidden>·</span>
-        <Link href="/" className="transition-colors hover:text-brand-bone">
-          Powered by inklee
-        </Link>
-      </footer>
-    </div>
+            {/* Bio Page modules — render below the booking section, in order,
+              skipping any the artist hid. Booking stays the primary action. */}
+            {visibleModules(bioPage).map((key) => {
+              if (key === "links") {
+                return <CustomLinksBlock key="links" links={activeLinks} />;
+              }
+              if (key === "policy") {
+                return bioPage.bookingPolicy ? (
+                  <BookingPolicyBlock
+                    key="policy"
+                    policy={bioPage.bookingPolicy}
+                  />
+                ) : null;
+              }
+              // Shop renders as a teaser above the booking form, not here.
+              return null;
+            })}
+          </div>
+        </main>
+
+        <footer className="flex flex-wrap justify-center gap-x-4 gap-y-2 bg-brand-charcoal px-6 py-6 text-xs text-brand-bone/40">
+          <Link
+            href="/terms"
+            className="transition-colors hover:text-brand-bone"
+          >
+            Terms
+          </Link>
+          <Link
+            href="/privacy"
+            className="transition-colors hover:text-brand-bone"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/imprint"
+            className="transition-colors hover:text-brand-bone"
+          >
+            Imprint
+          </Link>
+          <span aria-hidden>·</span>
+          <Link href="/" className="transition-colors hover:text-brand-bone">
+            Powered by inklee
+          </Link>
+        </footer>
+      </div>
+    </InterestSelectionsProvider>
   );
 }
