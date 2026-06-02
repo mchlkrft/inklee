@@ -1,0 +1,28 @@
+-- Close the storage.logos public-listing warning (Security Advisor, deferred
+-- since 0022/0029).
+--
+-- Background: the `logos` bucket is marked `public = true` and holds profile
+-- logos, cover images, flash previews, Instagram previews, and goods images
+-- under `{artistId}/...` paths. Every render path reads these via
+-- `getPublicUrl(...)`, which serves the file through the public object endpoint
+-- (`/storage/v1/object/public/logos/<path>`). For a PUBLIC bucket that endpoint
+-- bypasses RLS entirely — it does NOT consult any policy on storage.objects.
+--
+-- The `logos_public_select` policy from 0022 granted SELECT on the whole bucket
+-- to `anon, authenticated` with no path scope. That policy is not needed for
+-- public-URL rendering (see above), but it DOES enable the authenticated/anon
+-- storage API — specifically `storage.from('logos').list(...)` — to enumerate
+-- every artist's files. The advisor flags this as a public-listing leak.
+--
+-- No app code lists or downloads logos through the anon/authenticated client:
+--   * all reads use getPublicUrl (no RLS needed),
+--   * all writes/removes use the service-role client (bypasses RLS),
+--   * the only storage .list() call targets the `bookings` bucket via the
+--     service role (api/cron/cleanup/route.ts).
+--
+-- Therefore dropping the policy closes enumeration while leaving public
+-- rendering, uploads, and deletes fully intact. After this migration there is
+-- no SELECT policy on storage.objects for `logos`, so anon/authenticated
+-- `list()` returns nothing.
+
+DROP POLICY IF EXISTS "logos_public_select" ON storage.objects;
