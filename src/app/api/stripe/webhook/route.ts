@@ -14,6 +14,10 @@ import { createNotification } from "@/lib/notifications";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { customerLabel } from "@/lib/booking-domain";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
+import {
+  clearConnectAccountByExternalId,
+  persistConnectAccountFromEvent,
+} from "@/lib/stripe-connect";
 
 export const runtime = "nodejs";
 
@@ -42,6 +46,31 @@ export async function POST(request: Request) {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
+  }
+
+  // OT-12 Connect events: keep the artist's connected-account state in sync.
+  // No money flows from these — they purely mirror Stripe's view of the
+  // account into `profiles.stripe_*`. Charge integration arrives in OT-12.2.
+  if (event.type === "account.updated") {
+    const account = event.data.object as Stripe.Account;
+    const result = await persistConnectAccountFromEvent(account);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+    return NextResponse.json({ received: true });
+  }
+
+  if (event.type === "account.application.deauthorized") {
+    // `event.account` is the connected-account id when an artist disconnects
+    // the Inklee platform from inside their Stripe dashboard.
+    const accountId = typeof event.account === "string" ? event.account : null;
+    if (accountId) {
+      const result = await clearConnectAccountByExternalId(accountId);
+      if ("error" in result) {
+        return NextResponse.json({ error: result.error }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ received: true });
   }
 
   if (event.type === "payment_intent.succeeded") {

@@ -68,6 +68,22 @@ export const profiles = pgTable("profiles", {
   suspendedReason: text("suspended_reason"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedBy: uuid("deleted_by"),
+  // OT-12 Stripe Connect (migration 0039). See src/lib/stripe-connect.ts for
+  // the status union + derivation, and docs/ot-12-stripe-connect-plan.md for
+  // the rollout. Read-only in OT-12.1: filling these does not change the
+  // chargeflow until OT-12.2 wires requestDeposit + prepareCheckoutAction.
+  stripeAccountId: text("stripe_account_id"),
+  stripeAccountStatus: text("stripe_account_status").notNull().default("unset"),
+  stripeChargesEnabled: boolean("stripe_charges_enabled")
+    .notNull()
+    .default(false),
+  stripePayoutsEnabled: boolean("stripe_payouts_enabled")
+    .notNull()
+    .default(false),
+  stripeAccountCountry: text("stripe_account_country"),
+  stripeAccountUpdatedAt: timestamp("stripe_account_updated_at", {
+    withTimezone: true,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
