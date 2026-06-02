@@ -220,13 +220,16 @@ export async function approveBookingWithInterestDecisions(
   const updatedAt = new Date().toISOString();
   for (const d of decisions) {
     const row = byId.get(d.interestId);
-    // Silently skip rows that don't exist or aren't still pending — protects
-    // against a stale client payload from getting the artist stuck.
+    // App-level guard: drop the obviously-stale entries early.
     if (!row || row.status !== "pending") continue;
     const note =
       !d.available && d.declineNote
         ? d.declineNote.trim().slice(0, 300) || null
         : null;
+    // SQL-level guard: `.eq("status", "pending")` makes the update itself
+    // idempotent against a concurrent decision that beat us between the
+    // SELECT above and this UPDATE. If status flipped first the row count
+    // is 0 and we silently keep the earlier decision.
     const { error: updateError } = await supabase
       .from("booking_interests")
       .update({
@@ -235,7 +238,8 @@ export async function approveBookingWithInterestDecisions(
         updated_at: updatedAt,
       })
       .eq("id", d.interestId)
-      .eq("artist_id", user.id);
+      .eq("artist_id", user.id)
+      .eq("status", "pending");
     if (updateError) {
       Sentry.captureException(updateError, {
         tags: { action: "booking_interest_decision" },
@@ -375,6 +379,9 @@ export async function applyInterestDecisions(
       !d.available && d.declineNote
         ? d.declineNote.trim().slice(0, 300) || null
         : null;
+    // SQL-level guard mirrors the approve path: `.eq("status", "pending")`
+    // makes a double-click or concurrent decision a 0-row update instead of
+    // an overwrite of an already-decided row.
     const { error: updateError } = await supabase
       .from("booking_interests")
       .update({
@@ -383,7 +390,8 @@ export async function applyInterestDecisions(
         updated_at: updatedAt,
       })
       .eq("id", d.interestId)
-      .eq("artist_id", user.id);
+      .eq("artist_id", user.id)
+      .eq("status", "pending");
     if (updateError) {
       Sentry.captureException(updateError, {
         tags: { action: "booking_interest_decision_no_approve" },

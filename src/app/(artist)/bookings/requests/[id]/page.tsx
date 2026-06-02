@@ -400,6 +400,15 @@ export default async function RequestDetailPage({
               depositDefaults={depositDefaults}
               stripeMode={stripeMode}
               confirmStudio={confirmStudio}
+              pendingInterests={interests
+                .filter((i) => i.status === "pending")
+                .map((i) => ({
+                  id: i.id,
+                  title: i.title,
+                  variant: i.variant,
+                  quantity: i.quantity,
+                  imageUrl: i.imageUrl,
+                }))}
             />
           </div>
 
