@@ -42,17 +42,19 @@ Existing deposit flow (artist's money, Inklee's platform account) is technically
 - New helper `deriveConnectRouting({ stripe_account_id, stripe_account_status, stripe_charges_enabled })` in `src/lib/stripe-connect.ts` + 5 vitest cases. `getConnectRoutingForArtist(artistId)` is the server-side wrapper that fetches + decodes in one call.
 - `canChargeCheckoutAddons` left as-is (per-artist feature flag + env gate); the artist's Connect readiness is enforced one layer up in `getAddonProducts` instead so the artist-flag check stays cheap (pure settings read) and the connect-readiness check happens only when the caller actually needs the catalogue.
 
-**Future enhancement (deferred):** switch from destination charges + on_behalf_of to true direct charges (PaymentIntent created on the artist's account via `stripeAccount` request option). Direct charges give the cleanest legal "artist is merchant of record" stance but require the frontend Elements integration to know the artist's account context (`loadStripe(pk, { stripeAccount })`). Reserved for after counsel confirms whether destination charges with on_behalf_of satisfy LO-2 in the legal package.
+**Direct charges — no longer planned.** LO-2 was cleared by counsel on 2026-06-02: under the Connect setup we ship, each artist (not Inklee) is the merchant of record, and destination charges + `on_behalf_of` is sufficient legally. Direct charges (PaymentIntent created on the artist's account, requires frontend Elements `stripeAccount` context) remain an option for _product_ reasons — cleaner refund UX, money never touches Inklee — but are not a compliance prerequisite and not on the roadmap.
 
-### OT-12.3 — Production cutover (next slice)
+### OT-12.3 — Production cutover (operational, no new code)
 
-After OT-12.1 + OT-12.2 are deployed + the migration applied, OT-12.3 is mostly an operational rollout, not new code:
+LO-2 cleared by counsel 2026-06-02 (each artist is merchant of record under destination charges + `on_behalf_of` — see `legal/HANDOFF-TO-CLAUDE-CODE.md` + the legal-package memory). The cutover is now purely operational:
 
-- Real test artists onboard via `/settings/payouts` in Stripe **test mode** (current state). Verify the round trip: `unset` → `pending` → `active`, deposits route through Connect, customer pays, deposit lands in the artist's Stripe test balance, goods checkout appears on the customer portal once the artist toggles their goods addon flag.
-- Counsel signs off on LO-2 (PSD2 / merchant-of-record analysis) — confirms whether destination charges + on_behalf_of are sufficient or if we need to upgrade to direct charges before live mode.
-- Founder flips `CHECKOUT_ADDONS_PROD_READY=true` in the prod Vercel env.
-- Stripe is moved from test to live keys for at least one onboarded artist; that artist transacts a real deposit + (optionally) a real good.
-- First-artist soak (§3.4 in roadmap) starts on the real artist.
+1. **Apply migration 0039** in Supabase SQL editor (`supabase/migrations/0039_stripe_connect.sql`).
+2. **Enable Connect events** on the existing Stripe webhook endpoint: `account.updated` + `account.application.deauthorized`. Same `STRIPE_WEBHOOK_SECRET`.
+3. **Test-mode end-to-end** on a real artist account: `/settings/payouts` → Connect → onboarding → `pending` → `active` in the dashboard → request a deposit → fake customer pays → deposit lands in the artist's Stripe **test** balance. Verify the audit_log shows `stripe_connect_routed: true`. Verify goods checkout appears in the customer portal once the artist toggles `is_checkout_addon=true` on a product.
+4. **Flip `CHECKOUT_ADDONS_PROD_READY=true`** in the prod Vercel env (Settings → Environment Variables → Production).
+5. **Move Stripe to live keys** if not already there for the first real onboarded artist.
+6. **First real artist** transacts a real deposit (+ optionally a real goods item).
+7. **First-artist soak** (§3.4 in roadmap) starts.
 
 ## Webhook events
 
@@ -83,6 +85,5 @@ After OT-12.1 + OT-12.2 are deployed + the migration applied, OT-12.3 is mostly 
 
 When resuming for OT-12.3 (operational rollout):
 
-1. This doc § "Sub-slices → OT-12.3".
+1. This doc § "Sub-slices → OT-12.3" — the 7-step checklist.
 2. `docs/codex-audit-goods-feature.md` — confirm the D11 invariants still hold post-rollout.
-3. `legal/HANDOFF-TO-CLAUDE-CODE.md` § LO-2 — capture the counsel determination on direct vs destination charges before flipping `CHECKOUT_ADDONS_PROD_READY=true` in prod.
