@@ -341,6 +341,48 @@ export async function prepareCheckoutAction(
     return { ok: true, totalEur: depositAmount };
   }
 
+  // SECURITY: confirm every selection is actually approved for THIS
+  // booking. A crafted payload could otherwise reach into the artist's
+  // wider checkout-addon catalogue (the products table is service-role
+  // readable here). The allowlist is the set of booking_interests rows the
+  // artist confirmed `available` on Accept; we also cap quantity at what
+  // the artist vouched for so a hand-crafted oversell can't sneak past the
+  // UI stepper.
+  const { data: interestRows } = await serviceClient
+    .from("booking_interests")
+    .select("product_id, variant_id, quantity")
+    .eq("booking_id", booking.id)
+    .eq("status", "available");
+  const confirmedQty = new Map<string, number>();
+  for (const r of (interestRows ?? []) as {
+    product_id: string | null;
+    variant_id: string | null;
+    quantity: number;
+  }[]) {
+    if (!r.product_id) continue;
+    const key = `${r.product_id}::${r.variant_id ?? ""}`;
+    confirmedQty.set(key, Number(r.quantity));
+  }
+  for (const s of selections) {
+    const key = `${s.productId}::${s.variantId ?? ""}`;
+    const cap = confirmedQty.get(key);
+    if (cap === undefined) {
+      return {
+        error:
+          "One of the items you picked isn’t approved for this booking. Refresh and try again.",
+      };
+    }
+    if (s.quantity > cap) {
+      return {
+        error:
+          "You can add up to the quantity the artist confirmed for each item.",
+      };
+    }
+  }
+
+  // Strict checkout catalogue + line composition (snapshots, dedup, currency
+  // / stock / addon-flag validation). This is the only source that becomes
+  // payable order_items lines.
   const products = await getAddonProducts(booking.artist_id);
   const computed = computeAddonLines(products, selections);
   if (!computed.ok) return { error: computed.error };

@@ -8,6 +8,7 @@ import {
   portalEditSupport,
 } from "@/lib/booking-domain";
 import type { AddonProductView } from "./addons-checkout";
+import { getAddonProducts } from "@/lib/addon-products";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -81,69 +82,83 @@ export default async function RequestPortalPage({
     });
     const bookingMode = bookingModeFromRequest({ slot_id: booking.slot_id });
 
-    // Pre-checkout goods: the items the client marked interest in at booking
-    // time AND the artist confirmed available on Accept. Opt-in only —
-    // AddonsCheckout starts every row at qty 0 so the client actively adds
-    // each one; the stepper caps at the originally-marked qty since that's
-    // what the artist actually vouched for. No interests + no available rows
-    // = no goods section, deposit-only checkout (the strict pre-interests
-    // behaviour).
-    type ConfirmedInterestRow = {
-      product_id: string | null;
-      variant_id: string | null;
-      title_snapshot: string;
-      variant_snapshot: string | null;
-      unit_price: string | number | null;
-      quantity: number;
-    };
-    let addonProducts: AddonProductView[] = [];
+    // Pre-checkout goods rendering. The portal shows the INTERSECTION of:
+    //   (a) booking_interests rows the artist confirmed `available` for
+    //       THIS booking, and
+    //   (b) the artist's current strict checkout-addon catalogue
+    //       (is_checkout_addon=true + production money gate).
+    // Prices, variant names, and stock come from the current catalogue, not
+    // the interest snapshots — snapshots are for the artist's "what they
+    // marked" view, but the checkout total has to use authoritative prices,
+    // and stock has to reflect what's actually still on hand. Quantity is
+    // capped at min(catalogue stock, artist-confirmed interest qty) so the
+    // stepper can't exceed either constraint.
+    //
+    // A non-addon product (interest signal only) appears in (a) but NOT in
+    // (b), so it stays a signal only — no payable row.
+    const addonProducts: AddonProductView[] = [];
     if (booking.status === "deposit_pending") {
       const { data: rawInterests } = await serviceClient
         .from("booking_interests")
-        .select(
-          "product_id, variant_id, title_snapshot, variant_snapshot, unit_price, quantity",
-        )
+        .select("product_id, variant_id, quantity")
         .eq("booking_id", booking.id)
         .eq("status", "available")
         .order("created_at", { ascending: true });
-      // Group by product so the same product carrying multiple variant
-      // interests becomes one AddonProductView with each chosen variant —
-      // avoids a product-id collision in computeAddonLines at submit time.
-      const byProduct = new Map<string, ConfirmedInterestRow[]>();
-      for (const r of (rawInterests ?? []) as ConfirmedInterestRow[]) {
+      const confirmedQty = new Map<string, number>();
+      const interestedProductIds = new Set<string>();
+      for (const r of (rawInterests ?? []) as {
+        product_id: string | null;
+        variant_id: string | null;
+        quantity: number;
+      }[]) {
         if (!r.product_id) continue;
-        const arr = byProduct.get(r.product_id) ?? [];
-        arr.push(r);
-        byProduct.set(r.product_id, arr);
+        const key = `${r.product_id}::${r.variant_id ?? ""}`;
+        confirmedQty.set(key, Number(r.quantity));
+        interestedProductIds.add(r.product_id);
       }
-      addonProducts = Array.from(byProduct.entries()).map(
-        ([productId, list]) => {
-          const first = list[0];
-          const productPrice =
-            first.unit_price !== null && first.unit_price !== undefined
-              ? Number(first.unit_price)
-              : 0;
-          const variants = list
-            .filter((r) => r.variant_id !== null)
-            .map((r) => ({
-              id: r.variant_id as string,
-              name: r.variant_snapshot ?? "",
-              price:
-                r.unit_price !== null && r.unit_price !== undefined
-                  ? Number(r.unit_price)
-                  : productPrice,
-              stock: r.quantity, // cap stepper at the artist-confirmed qty
-            }));
-          return {
-            id: productId,
-            title: first.title_snapshot,
-            imageUrl: null,
-            price: productPrice,
-            stock: variants.length === 0 ? first.quantity : null,
-            variants,
-          };
-        },
-      );
+      if (interestedProductIds.size > 0) {
+        const catalogue = await getAddonProducts(booking.artist_id);
+        for (const p of catalogue) {
+          if (!interestedProductIds.has(p.id)) continue;
+          if (p.variants.length > 0) {
+            const variantViews = p.variants
+              .filter((v) => v.status === "active")
+              .map((v) => {
+                const cap = confirmedQty.get(`${p.id}::${v.id}`);
+                if (cap === undefined) return null;
+                const onHand = v.stock !== null ? v.stock : cap;
+                return {
+                  id: v.id,
+                  name: v.name,
+                  price: v.priceOverride ?? p.price,
+                  stock: Math.max(0, Math.min(cap, onHand)),
+                };
+              })
+              .filter((v): v is NonNullable<typeof v> => v !== null);
+            if (variantViews.length === 0) continue;
+            addonProducts.push({
+              id: p.id,
+              title: p.title,
+              imageUrl: p.imageUrl,
+              price: p.price,
+              stock: null,
+              variants: variantViews,
+            });
+          } else {
+            const cap = confirmedQty.get(`${p.id}::`);
+            if (cap === undefined) continue;
+            const onHand = p.quantity !== null ? p.quantity : cap;
+            addonProducts.push({
+              id: p.id,
+              title: p.title,
+              imageUrl: p.imageUrl,
+              price: p.price,
+              stock: Math.max(0, Math.min(cap, onHand)),
+              variants: [],
+            });
+          }
+        }
+      }
     }
 
     state = {

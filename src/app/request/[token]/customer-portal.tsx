@@ -14,10 +14,11 @@ import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import type { AddonProductView } from "./addons-checkout";
 
-const DepositPaymentForm = lazy(
-  () => import("@/components/deposit-payment-form"),
-);
-
+// AddonsCheckout owns both the goods + deposit-only paths. Routing through
+// it unconditionally keeps the prepareCheckoutAction reset/sync step in the
+// call path even when there are no goods rows — without that, a stale
+// PaymentIntent (e.g. user added goods last session, returned, then has
+// nothing rendered) would still charge the old goods-inclusive amount.
 const AddonsCheckout = lazy(() => import("./addons-checkout"));
 
 type Booking = {
@@ -283,22 +284,14 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                 </p>
               }
             >
-              {booking.addonProducts.length > 0 ? (
-                <AddonsCheckout
-                  token={booking.token}
-                  depositAmount={booking.depositAmount}
-                  currency="eur"
-                  clientSecret={booking.depositClientSecret}
-                  publishableKey={booking.stripePublishableKey}
-                  products={booking.addonProducts}
-                />
-              ) : (
-                <DepositPaymentForm
-                  publishableKey={booking.stripePublishableKey}
-                  clientSecret={booking.depositClientSecret}
-                  amountEur={booking.depositAmount}
-                />
-              )}
+              <AddonsCheckout
+                token={booking.token}
+                depositAmount={booking.depositAmount}
+                currency="eur"
+                clientSecret={booking.depositClientSecret}
+                publishableKey={booking.stripePublishableKey}
+                products={booking.addonProducts}
+              />
             </Suspense>
           ) : (
             <div className="space-y-2 rounded-md border border-border p-4">

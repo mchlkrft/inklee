@@ -50,6 +50,23 @@ export function canUseCheckoutAddons(settings: unknown): boolean {
   return featuresFromSettings(settings).checkout_addons;
 }
 
+/**
+ * Production money gate. The per-artist `checkout_addons` flag is the first
+ * layer; the second is a deployment-wide opt-in that has to be set explicitly
+ * once Stripe Connect (OT-12) ships per locked decision D3. Without that
+ * server-side signal, production fails closed regardless of the artist's
+ * own toggle. Non-production environments (dev, preview, vitest) trust the
+ * per-artist flag alone so the goods checkout flow stays exercisable.
+ *
+ * Set `CHECKOUT_ADDONS_PROD_READY=true` in the production environment to
+ * lift the second layer.
+ */
+export function canChargeCheckoutAddons(settings: unknown): boolean {
+  if (!canUseCheckoutAddons(settings)) return false;
+  if (process.env.NODE_ENV !== "production") return true;
+  return process.env.CHECKOUT_ADDONS_PROD_READY === "true";
+}
+
 export function canUseBioModules(settings: unknown): boolean {
   return featuresFromSettings(settings).bio_page_modules;
 }

@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   parseFeatures,
   featuresFromSettings,
   canUseGoods,
   canUseCheckoutAddons,
+  canChargeCheckoutAddons,
   canUseBioModules,
   DEFAULT_FEATURES,
 } from "../features";
@@ -41,5 +42,40 @@ describe("featuresFromSettings + helpers", () => {
     expect(canUseGoods({})).toBe(true);
     expect(canUseCheckoutAddons({})).toBe(true);
     expect(canUseBioModules({})).toBe(true);
+  });
+});
+
+describe("canChargeCheckoutAddons", () => {
+  // Vitest runs with NODE_ENV='test', so the production gate is bypassed by
+  // default and the per-artist flag is the sole signal. vi.stubEnv lets us
+  // flip NODE_ENV per test without fighting the read-only declared type.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns false when the per-artist flag is off, regardless of env", () => {
+    const off = { features: { checkout_addons: false } };
+    vi.stubEnv("NODE_ENV", "development");
+    expect(canChargeCheckoutAddons(off)).toBe(false);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("CHECKOUT_ADDONS_PROD_READY", "true");
+    expect(canChargeCheckoutAddons(off)).toBe(false);
+  });
+
+  it("trusts the per-artist flag in non-production environments", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    expect(canChargeCheckoutAddons({})).toBe(true);
+    vi.stubEnv("NODE_ENV", "test");
+    expect(canChargeCheckoutAddons({})).toBe(true);
+  });
+
+  it("fails closed in production unless CHECKOUT_ADDONS_PROD_READY=true", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("CHECKOUT_ADDONS_PROD_READY", "");
+    expect(canChargeCheckoutAddons({})).toBe(false);
+    vi.stubEnv("CHECKOUT_ADDONS_PROD_READY", "false");
+    expect(canChargeCheckoutAddons({})).toBe(false);
+    vi.stubEnv("CHECKOUT_ADDONS_PROD_READY", "true");
+    expect(canChargeCheckoutAddons({})).toBe(true);
   });
 });

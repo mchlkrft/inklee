@@ -9,7 +9,7 @@ import {
   toPriceNumber,
   type ProductStatus,
 } from "@/lib/goods";
-import { canUseCheckoutAddons } from "@/lib/features";
+import { canChargeCheckoutAddons, canUseGoods } from "@/lib/features";
 import type { AddonProduct } from "@/lib/orders";
 
 export type AddonProductRow = AddonProduct & { imageUrl: string | null };
@@ -37,10 +37,12 @@ type RawProduct = {
 
 // Wider set than getAddonProducts: any active EUR public product can be
 // flagged as "interested" at booking-form time, regardless of the
-// is_checkout_addon flag. Decoupled because interest-marking is a signal the
-// artist sees on the booking, not a commitment to charge — the checkout-time
-// flow still uses getAddonProducts (strict is_checkout_addon=true) so a
-// product without the addon flag is signal-only.
+// is_checkout_addon flag or the production money-gate. Decoupled because
+// interest-marking is a signal the artist sees on the booking, not a
+// commitment to charge — the checkout-time flow still uses getAddonProducts
+// (strict is_checkout_addon=true + production gate) so a product without the
+// addon flag is signal-only and the goods checkout stays off until Stripe
+// Connect (OT-12) ships.
 export async function getInterestEligibleProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {
@@ -49,7 +51,7 @@ export async function getInterestEligibleProducts(
     .select("settings")
     .eq("id", artistId)
     .single();
-  if (!canUseCheckoutAddons(artist?.settings)) return [];
+  if (!canUseGoods(artist?.settings)) return [];
 
   const { data } = await serviceClient
     .from("products")
@@ -94,14 +96,19 @@ export async function getInterestEligibleProducts(
 export async function getAddonProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {
-  // Paywall-readiness gate (Slice 76). Defaults on; centralizing it here gates
-  // both the portal selector and prepareCheckoutAction in one place.
+  // Strict checkout gate: per-artist `checkout_addons` flag AND the
+  // production money-gate (`CHECKOUT_ADDONS_PROD_READY` env in prod). Both
+  // the portal selector and prepareCheckoutAction route through this one
+  // helper, so an artist whose money path isn't ready returns an empty
+  // catalogue here — interest signalling still works via
+  // getInterestEligibleProducts, but nothing in this set means nothing
+  // payable surfaces at checkout.
   const { data: artist } = await serviceClient
     .from("profiles")
     .select("settings")
     .eq("id", artistId)
     .single();
-  if (!canUseCheckoutAddons(artist?.settings)) return [];
+  if (!canChargeCheckoutAddons(artist?.settings)) return [];
 
   const { data } = await serviceClient
     .from("products")
