@@ -69,7 +69,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "booking not found" }, { status: 404 });
     }
 
-    // Idempotency: check audit_log for this payment_intent_id — handles concurrent webhook retries
+    // Booking-side idempotency. The audit_log row + the booking's terminal
+    // status BOTH signal that the deposit was already processed. We compute
+    // this up front but no longer short-circuit the whole handler — the
+    // order-side fulfillment (flip → paid + decrement inventory) has its
+    // own `.select()`-gated guard further down and must be free to run on a
+    // retry that catches up after a partial failure (e.g. booking succeeded
+    // but the order flip threw last time).
     const { count: alreadyLogged } = await serviceClient
       .from("audit_log")
       .select("id", { count: "exact", head: true })
@@ -77,24 +83,29 @@ export async function POST(request: Request) {
       .eq("action", "deposit_paid")
       .contains("details", { payment_intent_id: intent.id });
 
-    if ((alreadyLogged ?? 0) > 0) {
-      return NextResponse.json({ received: true, skipped: true });
-    }
-
-    // Status-based idempotency — skip if already in a terminal state
-    if (
+    const bookingTerminal =
       booking.status === "approved" ||
       booking.status === "rejected" ||
-      booking.status === "cancelled"
-    ) {
-      return NextResponse.json({ received: true, skipped: true });
-    }
+      booking.status === "cancelled";
+    const bookingAlreadyDone = (alreadyLogged ?? 0) > 0 || bookingTerminal;
 
-    if (booking.status !== "deposit_pending") {
+    // Reject only when the booking is in a status the deposit webhook can't
+    // legitimately advance from AND nothing's been logged yet — that's a
+    // bad request, not a retry. If the booking is already approved (terminal
+    // success) we still allow the order-side flip below.
+    if (!bookingAlreadyDone && booking.status !== "deposit_pending") {
       return NextResponse.json(
         { error: "booking is not awaiting a deposit" },
         { status: 409 },
       );
+    }
+    if (
+      bookingAlreadyDone &&
+      (booking.status === "rejected" || booking.status === "cancelled")
+    ) {
+      // Audit said this intent has been logged, but the booking is in a
+      // terminal-rejected state — nothing more to do.
+      return NextResponse.json({ received: true, skipped: true });
     }
 
     // Combined deposit + goods order (Slice 74). When metadata carries an
@@ -152,46 +163,64 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate new magic-link token for the customer
-    const crypto = await import("crypto");
-    const newToken = crypto.randomBytes(32).toString("hex");
-    const newHash = crypto.createHash("sha256").update(newToken).digest("hex");
+    // Booking-side write: only on the first successful delivery for this
+    // intent. Token rotation, status flip, audit row all gated together so a
+    // partial-failure retry doesn't double-rotate the magic link.
+    let bookingSideRanThisCall = false;
+    let newToken: string | null = null;
+    if (!bookingAlreadyDone) {
+      const crypto = await import("crypto");
+      newToken = crypto.randomBytes(32).toString("hex");
+      const newHash = crypto
+        .createHash("sha256")
+        .update(newToken)
+        .digest("hex");
 
-    const { error: updateError } = await serviceClient
-      .from("booking_requests")
-      .update({
-        status: "approved",
-        deposit_paid_at: now,
-        decided_at: now,
-        updated_at: now,
-        deposit_payment_intent_id: intent.id,
-        customer_token_hash: newHash,
-      })
-      .eq("id", bookingId);
+      const { error: updateError } = await serviceClient
+        .from("booking_requests")
+        .update({
+          status: "approved",
+          deposit_paid_at: now,
+          decided_at: now,
+          updated_at: now,
+          deposit_payment_intent_id: intent.id,
+          customer_token_hash: newHash,
+        })
+        .eq("id", bookingId);
 
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      if (updateError) {
+        return NextResponse.json(
+          { error: updateError.message },
+          { status: 500 },
+        );
+      }
+
+      await serviceClient.from("audit_log").insert({
+        booking_id: bookingId,
+        action: "deposit_paid",
+        details: {
+          payment_intent_id: intent.id,
+          amount_eur: intent.amount / 100,
+          via: "stripe_webhook",
+        },
+      });
+      bookingSideRanThisCall = true;
     }
 
-    await serviceClient.from("audit_log").insert({
-      booking_id: bookingId,
-      action: "deposit_paid",
-      details: {
-        payment_intent_id: intent.id,
-        amount_eur: intent.amount / 100,
-        via: "stripe_webhook",
-      },
-    });
-
-    // Order + fulfillment side effects (Slice 74/75). The whole handler is
-    // skipped on Stripe retries (deposit_paid audit guard above), so this runs
-    // once; the order flip is additionally `.select()`-gated for inventory.
+    // Order + fulfillment side effects (Slice 74/75). Independently
+    // idempotent via the `.select()`-gated pending → paid flip — only the
+    // single transaction that observes status='pending' will move it to
+    // 'paid' and run `decrementInventory`. Every other retry / concurrent
+    // delivery returns flipped=[] and skips the inventory step. Critically
+    // this runs whether or not the booking-side already did its work above,
+    // so a partial failure last time can be caught up here on retry.
     let goodsLines: {
       title: string;
       variant: string | null;
       quantity: number;
       total: number;
     }[] = [];
+    let orderFlippedThisCall = false;
     if (order && order.status !== "paid") {
       const { data: flipped } = await serviceClient
         .from("orders")
@@ -221,7 +250,15 @@ export async function POST(request: Request) {
             quantity: Number(r.quantity),
             total: Number(r.total_amount),
           }));
+        orderFlippedThisCall = true;
       }
+    }
+
+    // If neither side advanced and the booking-side was already done last
+    // time AND there's no order to catch up (or it's already paid), this is
+    // a vanilla replay. Short-circuit the email/notification fan-out below.
+    if (!bookingSideRanThisCall && !orderFlippedThisCall) {
+      return NextResponse.json({ received: true, skipped: true });
     }
 
     // Artist display name for the emails/notification below.
@@ -236,8 +273,14 @@ export async function POST(request: Request) {
       : 0;
     const goodsCount = goodsLines.reduce((n, l) => n + l.quantity, 0);
 
-    // Customer: itemized goods confirmation (only when goods were added).
-    if (goodsLines.length > 0 && booking.customer_email) {
+    // Customer: itemised goods confirmation. Fires whenever the order flip
+    // landed in THIS call (`orderFlippedThisCall`), even on a catch-up
+    // retry where the booking-side ran on the previous delivery.
+    if (
+      orderFlippedThisCall &&
+      goodsLines.length > 0 &&
+      booking.customer_email
+    ) {
       await sendGoodsOrderConfirmation({
         to: booking.customer_email,
         artistName: artistDisplayName,
@@ -247,49 +290,53 @@ export async function POST(request: Request) {
       });
     }
 
-    // Artist: deposit paid (+ goods) — system notification + email. Fires on
-    // every successful deposit payment, not just orders with goods.
-    const goodsSuffix =
-      goodsCount > 0
-        ? ` and reserved ${goodsCount} item${goodsCount === 1 ? "" : "s"} for pickup`
-        : "";
-    await createNotification({
-      artistId: booking.artist_id,
-      type: "deposit_received",
-      category: "booking_activity",
-      priority: "high",
-      title: "Deposit paid",
-      message: `${customerLabel(booking.customer_handle, booking.customer_email, "A client")} paid their EUR ${depositEur.toFixed(2)} deposit${goodsSuffix}. Booking confirmed.`,
-      ctaLabel: "View booking",
-      ctaHref: `/bookings/requests/${bookingId}`,
-      metadata: {
-        booking_id: bookingId,
-        ...(order ? { order_id: order.id } : {}),
-      },
-    });
-
-    const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
-      booking.artist_id,
-    );
-    if (artistAuth?.user?.email) {
-      const afd = booking.form_data as Record<string, string> | null;
-      await sendArtistDepositPaidEmail({
-        artistEmail: artistAuth.user.email,
-        customerHandle: customerLabel(
-          booking.customer_handle,
-          booking.customer_email,
-          "A client",
-        ),
-        amountEur: depositEur,
-        goodsLines,
-        goodsTotal: goodsLines.reduce((n, l) => n + l.total, 0),
-        placement: afd?.placement ?? "",
-        date: booking.preferred_date ?? "",
+    // Artist: deposit paid (+ goods) — only on the first delivery for this
+    // booking, so a retry that's only catching up the order side does not
+    // re-notify the artist about a deposit they already saw.
+    if (bookingSideRanThisCall) {
+      const goodsSuffix =
+        goodsCount > 0
+          ? ` and reserved ${goodsCount} item${goodsCount === 1 ? "" : "s"} for pickup`
+          : "";
+      await createNotification({
+        artistId: booking.artist_id,
+        type: "deposit_received",
+        category: "booking_activity",
+        priority: "high",
+        title: "Deposit paid",
+        message: `${customerLabel(booking.customer_handle, booking.customer_email, "A client")} paid their EUR ${depositEur.toFixed(2)} deposit${goodsSuffix}. Booking confirmed.`,
+        ctaLabel: "View booking",
+        ctaHref: `/bookings/requests/${bookingId}`,
+        metadata: {
+          booking_id: bookingId,
+          ...(order ? { order_id: order.id } : {}),
+        },
       });
+
+      const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
+        booking.artist_id,
+      );
+      if (artistAuth?.user?.email) {
+        const afd = booking.form_data as Record<string, string> | null;
+        await sendArtistDepositPaidEmail({
+          artistEmail: artistAuth.user.email,
+          customerHandle: customerLabel(
+            booking.customer_handle,
+            booking.customer_email,
+            "A client",
+          ),
+          amountEur: depositEur,
+          goodsLines,
+          goodsTotal: goodsLines.reduce((n, l) => n + l.total, 0),
+          placement: afd?.placement ?? "",
+          date: booking.preferred_date ?? "",
+        });
+      }
     }
 
-    // Send approval email to customer
-    if (booking.customer_email) {
+    // Customer approval email — same first-delivery gate as the artist
+    // emails so the magic link is only rotated/sent once.
+    if (bookingSideRanThisCall && newToken && booking.customer_email) {
       const { data: profile } = await serviceClient
         .from("profiles")
         .select("display_name, slug")
@@ -316,8 +363,8 @@ export async function POST(request: Request) {
       });
     }
 
-    // Keep the artist's calendar + overview (and detail) in lockstep with the
-    // status flip to "approved" now that the deposit is paid.
+    // Revalidate whenever ANY side advanced — picks up either the booking
+    // status flip or the order's fulfillment_status change on a catch-up.
     revalidateBookingViews(bookingId);
   }
 
