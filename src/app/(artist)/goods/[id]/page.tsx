@@ -29,6 +29,7 @@ type RawProduct = {
 };
 
 type RawVariant = {
+  id: string;
   name: string;
   price_amount_override: string | number | null;
   stock_quantity: number | null;
@@ -56,10 +57,14 @@ export default async function EditProductPage({
   if (!rawProduct) notFound();
   const row = rawProduct as unknown as RawProduct;
 
+  // Only active variants surface in the edit list — hidden ones are
+  // soft-archived rows the reconcile flow keeps alive so their FK
+  // references survive; the artist doesn't see them.
   const { data: rawVariants } = await supabase
     .from("product_variants")
-    .select("name, price_amount_override, stock_quantity")
+    .select("id, name, price_amount_override, stock_quantity")
     .eq("product_id", id)
+    .eq("status", "active")
     .order("sort_order", { ascending: true });
 
   const product: ProductFormValues = {
@@ -91,6 +96,7 @@ export default async function EditProductPage({
 
   const variants = ((rawVariants ?? []) as unknown as RawVariant[]).map(
     (v) => ({
+      id: v.id,
       name: v.name,
       priceOverride:
         v.price_amount_override !== null &&

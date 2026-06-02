@@ -43,6 +43,7 @@ type ProductFields = {
 };
 
 type VariantInput = {
+  id: string | null;
   name: string;
   priceOverride: number | null;
   stock: number | null;
@@ -145,6 +146,13 @@ function parseVariants(
         : "";
     if (!name) continue; // skip nameless rows
 
+    // Optional variant id. A non-string / blank id is treated as "new row"
+    // (insert). Reconcile validates ownership before any update / delete /
+    // hide happens, so an attacker-supplied UUID that doesn't belong to
+    // this product cannot punch through.
+    const id =
+      typeof o.id === "string" && o.id.trim().length > 0 ? o.id.trim() : null;
+
     const priceRes = parseOptionalPriceInput(
       typeof o.priceOverride === "string" || typeof o.priceOverride === "number"
         ? String(o.priceOverride)
@@ -165,7 +173,7 @@ function parseVariants(
       stock = n;
     }
 
-    out.push({ name, priceOverride: priceRes.value, stock });
+    out.push({ id, name, priceOverride: priceRes.value, stock });
   }
   return { value: out };
 }
@@ -329,24 +337,90 @@ async function processProductImages(
   return { value: finalUrls };
 }
 
-// No order_items reference variants yet (Slice 75). Until then a
-// delete-then-insert reconcile is safe and simplest. When order_items FK
-// variant_id, switch to a non-destructive upsert keyed on the variant id.
-async function replaceVariants(productId: string, variants: VariantInput[]) {
-  await serviceClient
+// Non-destructive variant reconcile. `booking_interests.variant_id` and
+// `order_items.variant_id` both reference `product_variants(id)` with
+// ON DELETE SET NULL, so the previous delete-then-insert path was nulling
+// every historical pointer on every product edit. This function:
+//
+//   • UPDATEs existing rows whose id was round-tripped through the form —
+//     including resurrecting from `hidden` back to `active` so a previously
+//     archived variant the artist re-adds keeps its historical pointers.
+//   • INSERTs rows whose id is null (genuinely new).
+//   • For rows the artist removed: looks for any FK reference in
+//     booking_interests / order_items; if found, soft-archives to
+//     status='hidden' so the link survives. Otherwise hard deletes.
+//
+// Ownership: the incoming `id` is scoped to `product_id = productId`, so a
+// crafted variant id from another product fails the `.eq("product_id",
+// productId)` filter and silently no-ops (no cross-product hijack).
+async function reconcileVariants(productId: string, variants: VariantInput[]) {
+  const { data: existingRows } = await serviceClient
     .from("product_variants")
-    .delete()
+    .select("id, status")
     .eq("product_id", productId);
-  if (variants.length === 0) return;
-  await serviceClient.from("product_variants").insert(
-    variants.map((v, i) => ({
-      product_id: productId,
-      name: v.name,
-      price_amount_override: v.priceOverride,
-      stock_quantity: v.stock,
-      sort_order: i,
-    })),
-  );
+  const existing = (existingRows ?? []) as { id: string; status: string }[];
+  const existingById = new Map(existing.map((v) => [String(v.id), v]));
+
+  const keptIds = new Set<string>();
+  for (let i = 0; i < variants.length; i++) {
+    const v = variants[i];
+    if (v.id && existingById.has(v.id)) {
+      keptIds.add(v.id);
+      await serviceClient
+        .from("product_variants")
+        .update({
+          name: v.name,
+          price_amount_override: v.priceOverride,
+          stock_quantity: v.stock,
+          // Resurrect a previously-archived variant when the artist edits it
+          // back into the active list. Sold-out / hidden become active again
+          // unless the artist also flipped per-product status (separate flow).
+          status: "active",
+          sort_order: i,
+        })
+        .eq("id", v.id)
+        .eq("product_id", productId);
+    } else {
+      await serviceClient.from("product_variants").insert({
+        product_id: productId,
+        name: v.name,
+        price_amount_override: v.priceOverride,
+        stock_quantity: v.stock,
+        sort_order: i,
+      });
+    }
+  }
+
+  // Removed variants: check for any FK references before deletion. Hide
+  // when referenced so booking_interests + order_items keep their pointer.
+  for (const ex of existing) {
+    if (keptIds.has(ex.id)) continue;
+    const [{ count: interestRefs }, { count: orderRefs }] = await Promise.all([
+      serviceClient
+        .from("booking_interests")
+        .select("id", { count: "exact", head: true })
+        .eq("variant_id", ex.id),
+      serviceClient
+        .from("order_items")
+        .select("id", { count: "exact", head: true })
+        .eq("variant_id", ex.id),
+    ]);
+    if ((interestRefs ?? 0) + (orderRefs ?? 0) > 0) {
+      // Keep the row; hide it so it doesn't surface in the public shop or
+      // checkout, and the FK link survives for historical reads.
+      await serviceClient
+        .from("product_variants")
+        .update({ status: "hidden" })
+        .eq("id", ex.id)
+        .eq("product_id", productId);
+    } else {
+      await serviceClient
+        .from("product_variants")
+        .delete()
+        .eq("id", ex.id)
+        .eq("product_id", productId);
+    }
+  }
 }
 
 async function revalidatePublicPage(userId: string) {
@@ -421,7 +495,7 @@ export async function createProductAction(
       .eq("id", productId);
   }
 
-  await replaceVariants(productId, variantsRes.value);
+  await reconcileVariants(productId, variantsRes.value);
 
   revalidatePath("/goods");
   await revalidatePublicPage(user.id);
@@ -503,7 +577,7 @@ export async function updateProductAction(
     .eq("artist_id", user.id);
   if (error) return { error: error.message };
 
-  await replaceVariants(id, variantsRes.value);
+  await reconcileVariants(id, variantsRes.value);
 
   revalidatePath("/goods");
   revalidatePath(`/goods/${id}`);
@@ -610,10 +684,16 @@ export async function loadProductForEditAction(
     is_checkout_addon: boolean;
   };
 
+  // Variant id is included so the edit form can round-trip it and
+  // reconcileVariants can update existing rows in place. Hidden variants
+  // (soft-archived because they're still referenced by booking_interests /
+  // order_items) are excluded — the artist sees the active set; if they
+  // re-add a same-named variant it gets a new id, which is fine.
   const { data: rawVariants } = await supabase
     .from("product_variants")
-    .select("name, price_amount_override, stock_quantity")
+    .select("id, name, price_amount_override, stock_quantity")
     .eq("product_id", id)
+    .eq("status", "active")
     .order("sort_order", { ascending: true });
 
   const product: ProductFormValues = {
@@ -647,11 +727,13 @@ export async function loadProductForEditAction(
 
   const variants: VariantInputRow[] = (
     (rawVariants ?? []) as unknown as {
+      id: string;
       name: string;
       price_amount_override: string | number | null;
       stock_quantity: number | null;
     }[]
   ).map((v) => ({
+    id: v.id,
     name: v.name,
     priceOverride:
       v.price_amount_override !== null && v.price_amount_override !== undefined

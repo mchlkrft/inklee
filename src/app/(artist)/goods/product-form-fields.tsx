@@ -35,6 +35,12 @@ export type ProductFormFieldValues = {
 };
 
 export type VariantInputRow = {
+  // Persisted variant id when editing an existing row; null for brand-new
+  // rows the artist is adding in this session. The id is round-tripped
+  // through the form so reconcileVariants on save can update existing rows
+  // in place rather than delete-then-insert (which would null booking_interests
+  // / order_items.variant_id via the FK SET NULL).
+  id: string | null;
   name: string;
   priceOverride: string;
   stock: string;
@@ -124,6 +130,8 @@ export default function ProductFormFields({
   const [rows, setRows] = useState<VariantRow[]>(
     initialVariants.map((v) => ({ key: freshKey(), ...v })),
   );
+  // React key for a freshly-added row uses freshKey(); the persisted id is
+  // null until the row is saved + rehydrated via loadProductForEditAction.
 
   // Image cap — variant-less product: 3. With variants: variantCount + 1
   // (one image per variant plus a shared hero). Computed live so adding a
@@ -184,7 +192,15 @@ export default function ProductFormFields({
   function toggleOptions(next: boolean) {
     setHasOptions(next);
     if (next && rows.length === 0) {
-      setRows([{ key: freshKey(), name: "", priceOverride: "", stock: "" }]);
+      setRows([
+        {
+          key: freshKey(),
+          id: null,
+          name: "",
+          priceOverride: "",
+          stock: "",
+        },
+      ]);
     }
   }
 
@@ -197,12 +213,19 @@ export default function ProductFormFields({
   const addRow = () =>
     setRows((prev) => [
       ...prev,
-      { key: freshKey(), name: "", priceOverride: "", stock: "" },
+      {
+        key: freshKey(),
+        id: null,
+        name: "",
+        priceOverride: "",
+        stock: "",
+      },
     ]);
 
   const serializedVariants = hasOptions
     ? JSON.stringify(
         rows.map((r) => ({
+          id: r.id,
           name: r.name,
           priceOverride: r.priceOverride,
           stock: r.stock,
