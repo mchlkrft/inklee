@@ -38,6 +38,23 @@ function escapeHtml(s: string): string {
     .replace(/\n/g, "<br/>");
 }
 
+// Only allow http(s) URLs and escape for an HTML href attribute. The studio
+// row stores google_maps_url as free text (artist input, validated by length
+// only at write time); without this guard an artist could store e.g.
+// `javascript:...` or break out of the attribute with a stray quote.
+export function sanitizeHrefForEmail(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return null;
+  }
+  return escapeHtml(parsed.toString());
+}
+
 export function substituteVars(template: string, vars: TemplateVars): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_match, key) => {
     if (!(ALLOWED_VARS as readonly string[]).includes(key)) {
@@ -201,7 +218,10 @@ export function buildEmailHtml(
       `<br/>${escapeHtml(s.name)}`;
     if (s.address) rendered += `<br/>${escapeHtml(s.address)}`;
     if (s.mapsUrl) {
-      rendered += `<br/><a href="${s.mapsUrl}" style="color:#6b7280;font-size:13px;text-decoration:underline;">Open in Google Maps</a>`;
+      const safeHref = sanitizeHrefForEmail(s.mapsUrl);
+      if (safeHref) {
+        rendered += `<br/><a href="${safeHref}" style="color:#6b7280;font-size:13px;text-decoration:underline;">Open in Google Maps</a>`;
+      }
     }
   }
 

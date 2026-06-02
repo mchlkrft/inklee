@@ -210,6 +210,32 @@ function goodsImagePathFromUrl(url: string): string | null {
   return tail.split("?")[0] || null;
 }
 
+// SECURITY: derive a storage path AND verify it lives under this artist's +
+// product's namespace. Anything else — another artist's path, a sibling
+// product's path, a directory escape — returns null. Used everywhere we
+// `.storage.remove()` so a crafted `existing_image_urls` payload cannot
+// reach across artists/products.
+function ownedGoodsStoragePath(
+  url: string,
+  userId: string,
+  productId: string,
+): string | null {
+  const path = goodsImagePathFromUrl(url);
+  if (!path) return null;
+  // No directory traversal — Supabase storage doesn't interpret these but we
+  // still reject as a belt-and-suspenders signal.
+  if (path.includes("..")) return null;
+  const dirPrefix = `${userId}/goods/${productId}/`;
+  const legacyPath = `${userId}/goods/${productId}.webp`;
+  if (path === legacyPath) return path;
+  // Per-image layout (mig 0038): exactly one segment under the product dir.
+  if (path.startsWith(dirPrefix)) {
+    const rest = path.slice(dirPrefix.length);
+    if (rest.length > 0 && !rest.includes("/")) return path;
+  }
+  return null;
+}
+
 // Multi-image cap: a variant-less product gets up to 3 images; once variants
 // exist, the cap becomes (variantCount + 1) so the artist can pair one image
 // per variant plus one shared hero. The 3-cap is intentionally NOT applied to
@@ -233,13 +259,13 @@ async function processProductImages(
   maxImages: number,
   prevImageUrls: string[],
 ): Promise<{ value: string[] } | { error: string }> {
-  let keep: string[] = [];
-  const rawKeep = formData.get("existing_image_urls");
-  if (typeof rawKeep === "string" && rawKeep.trim()) {
+  let rawKeep: string[] = [];
+  const raw = formData.get("existing_image_urls");
+  if (typeof raw === "string" && raw.trim()) {
     try {
-      const parsed = JSON.parse(rawKeep);
+      const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        keep = parsed.filter(
+        rawKeep = parsed.filter(
           (s): s is string => typeof s === "string" && s.length > 0,
         );
       }
@@ -247,6 +273,14 @@ async function processProductImages(
       return { error: "Couldn't read the image list. Try again." };
     }
   }
+  // SECURITY: a keep-list entry is only honoured if it's already present in
+  // this product's current image_urls. Without this, an attacker artist
+  // could submit a URL pointing at another artist's storage object and
+  // either (a) graft it into their own product (info-leak / hotlink) or
+  // (b) trigger a cross-artist delete via the removal-diff path below.
+  const prevSet = new Set(prevImageUrls);
+  const keep = rawKeep.filter((u) => prevSet.has(u));
+
   const newFiles = (formData.getAll("images") as File[]).filter(
     (f) => f && f.size > 0,
   );
@@ -260,8 +294,10 @@ async function processProductImages(
   for (const file of newFiles) {
     const up = await uploadProductImage(userId, productId, file);
     if ("error" in up) {
+      // Rollback uses ownedGoodsStoragePath so even a freshly-uploaded URL
+      // can only resolve to a path under this user/product namespace.
       for (const url of uploadedUrls) {
-        const p = goodsImagePathFromUrl(url);
+        const p = ownedGoodsStoragePath(url, userId, productId);
         if (p) {
           await serviceClient.storage
             .from("logos")
@@ -275,10 +311,13 @@ async function processProductImages(
   }
   const finalUrls = [...keep, ...uploadedUrls];
 
-  // Delete any previous URLs the artist dropped from the keep-list.
+  // Delete any previous URLs the artist dropped from the keep-list. Paths
+  // are re-validated against this artist + product namespace, so a tampered
+  // prevImageUrls (if one ever leaked in via another bug) still can't
+  // cross-artist delete.
   const removed = prevImageUrls.filter((u) => !finalUrls.includes(u));
   for (const url of removed) {
-    const p = goodsImagePathFromUrl(url);
+    const p = ownedGoodsStoragePath(url, userId, productId);
     if (p) {
       await serviceClient.storage
         .from("logos")
@@ -508,12 +547,17 @@ export async function deleteProductAction(id: string): Promise<State> {
     .eq("artist_id", user.id);
   if (error) return { error: error.message };
 
-  const pathsToRemove = [
-    ...allImageUrls
-      .map((u) => goodsImagePathFromUrl(u))
-      .filter((p): p is string => !!p),
-    `${user.id}/goods/${id}.webp`,
-  ];
+  // SECURITY: re-derive every path through ownedGoodsStoragePath so the
+  // delete sweep can only touch this artist's + product's namespace, even
+  // if image_urls somehow contains a foreign URL.
+  const pathsToRemove = Array.from(
+    new Set([
+      ...allImageUrls
+        .map((u) => ownedGoodsStoragePath(u, user.id, id))
+        .filter((p): p is string => !!p),
+      `${user.id}/goods/${id}.webp`,
+    ]),
+  );
   if (pathsToRemove.length > 0) {
     await serviceClient.storage
       .from("logos")

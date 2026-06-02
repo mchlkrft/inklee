@@ -1,0 +1,35 @@
+import { describe, it, expect } from "vitest";
+import { sanitizeHrefForEmail } from "../booking-templates";
+
+describe("sanitizeHrefForEmail", () => {
+  it("accepts plain http/https URLs and HTML-escapes the result", () => {
+    expect(sanitizeHrefForEmail("https://maps.example.com/")).toBe(
+      "https://maps.example.com/",
+    );
+    expect(sanitizeHrefForEmail("http://maps.example.com/")).toBe(
+      "http://maps.example.com/",
+    );
+  });
+
+  it("escapes characters that would break out of the href attribute", () => {
+    // The URL constructor canonicalises a stray double-quote into %22, but
+    // ampersands survive and must be escaped for the HTML attribute.
+    expect(sanitizeHrefForEmail("https://example.com/?q=a&b=c")).toBe(
+      "https://example.com/?q=a&amp;b=c",
+    );
+  });
+
+  it("rejects javascript: and data: schemes", () => {
+    expect(sanitizeHrefForEmail("javascript:alert(1)")).toBeNull();
+    expect(
+      sanitizeHrefForEmail("data:text/html,<script>1</script>"),
+    ).toBeNull();
+    expect(sanitizeHrefForEmail("vbscript:msgbox(1)")).toBeNull();
+  });
+
+  it("rejects unparseable strings", () => {
+    expect(sanitizeHrefForEmail("not a url")).toBeNull();
+    expect(sanitizeHrefForEmail("")).toBeNull();
+    expect(sanitizeHrefForEmail("/relative/path")).toBeNull();
+  });
+});
