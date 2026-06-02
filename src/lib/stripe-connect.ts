@@ -84,6 +84,53 @@ export function deriveConnectStatus(
   return "active";
 }
 
+/**
+ * Decide whether the artist's Connect account is in a state where Inklee
+ * should route a real charge through it. Used by `requestDeposit` (OT-12.2)
+ * to add `on_behalf_of` + `transfer_data.destination` to new PaymentIntents,
+ * and by `getAddonProducts` to per-artist gate goods checkout availability.
+ *
+ * Returns `routeCharges = true` only when the artist has finished onboarding
+ * AND Stripe says charges are enabled. `restricted` accounts return false —
+ * Stripe may still let them charge in some windows, but we'd rather show the
+ * artist a clear status than surprise them with random failures.
+ */
+export type ConnectRouting = {
+  stripeAccountId: string | null;
+  routeCharges: boolean;
+};
+
+export function deriveConnectRouting(profile: {
+  stripe_account_id: string | null | undefined;
+  stripe_account_status: string | null | undefined;
+  stripe_charges_enabled: boolean | null | undefined;
+}): ConnectRouting {
+  const id = profile.stripe_account_id ?? null;
+  const routeCharges =
+    !!id &&
+    profile.stripe_account_status === "active" &&
+    profile.stripe_charges_enabled === true;
+  return { stripeAccountId: id, routeCharges };
+}
+
+export async function getConnectRoutingForArtist(
+  artistId: string,
+): Promise<ConnectRouting> {
+  const { data } = await serviceClient
+    .from("profiles")
+    .select("stripe_account_id, stripe_account_status, stripe_charges_enabled")
+    .eq("id", artistId)
+    .single();
+  if (!data) return { stripeAccountId: null, routeCharges: false };
+  return deriveConnectRouting(
+    data as {
+      stripe_account_id: string | null;
+      stripe_account_status: string | null;
+      stripe_charges_enabled: boolean | null;
+    },
+  );
+}
+
 // --- Server-only helpers below. Never import from a client component. ---
 
 /**

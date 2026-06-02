@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   deriveConnectStatus,
+  deriveConnectRouting,
   isConnectStatus,
   type ConnectAccountSnapshot,
 } from "../stripe-connect";
@@ -91,6 +92,58 @@ describe("deriveConnectStatus", () => {
       },
     };
     expect(deriveConnectStatus(account)).toBe("restricted");
+  });
+});
+
+describe("deriveConnectRouting", () => {
+  it("routes charges only when status='active' AND charges_enabled=true AND id is set", () => {
+    expect(
+      deriveConnectRouting({
+        stripe_account_id: "acct_1",
+        stripe_account_status: "active",
+        stripe_charges_enabled: true,
+      }),
+    ).toEqual({ stripeAccountId: "acct_1", routeCharges: true });
+  });
+
+  it("does not route when the account is restricted even if charges_enabled is true", () => {
+    expect(
+      deriveConnectRouting({
+        stripe_account_id: "acct_1",
+        stripe_account_status: "restricted",
+        stripe_charges_enabled: true,
+      }),
+    ).toEqual({ stripeAccountId: "acct_1", routeCharges: false });
+  });
+
+  it("does not route when charges_enabled is false even if active", () => {
+    expect(
+      deriveConnectRouting({
+        stripe_account_id: "acct_1",
+        stripe_account_status: "active",
+        stripe_charges_enabled: false,
+      }),
+    ).toEqual({ stripeAccountId: "acct_1", routeCharges: false });
+  });
+
+  it("returns id=null + routeCharges=false when no account on file", () => {
+    expect(
+      deriveConnectRouting({
+        stripe_account_id: null,
+        stripe_account_status: "unset",
+        stripe_charges_enabled: false,
+      }),
+    ).toEqual({ stripeAccountId: null, routeCharges: false });
+  });
+
+  it("tolerates undefined inputs (defensive)", () => {
+    expect(
+      deriveConnectRouting({
+        stripe_account_id: undefined,
+        stripe_account_status: undefined,
+        stripe_charges_enabled: undefined,
+      }),
+    ).toEqual({ stripeAccountId: null, routeCharges: false });
   });
 });
 

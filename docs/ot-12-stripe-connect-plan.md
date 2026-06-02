@@ -35,19 +35,24 @@ Existing deposit flow (artist's money, Inklee's platform account) is technically
 - Tests for `deriveConnectStatus`.
 - **NOT included:** no change to `requestDeposit`, no change to `prepareCheckoutAction`, no change to `getAddonProducts` gating. Existing money flow is untouched.
 
-### OT-12.2 — Charge integration (next session)
+### OT-12.2 — Charge integration ✅ shipped
 
-- `requestDeposit`: when artist has an active Connect account, create the PaymentIntent with `on_behalf_of: artist.stripe_account_id` and `transfer_data.destination`. Otherwise current platform-account behaviour.
-- `prepareCheckoutAction`: same wiring on the update path; carries `metadata.stripe_account_id` so the webhook can dispatch correctly.
-- Webhook idempotency stays decoupled (booking-side / order-side); `payment_intent.succeeded` arriving from a connected account is dispatched via the `account` field on the event.
-- `canChargeCheckoutAddons` extended to also require `stripe_charges_enabled` on the artist; `getAddonProducts` returns empty for un-connected artists.
+- `requestDeposit` (`src/app/(artist)/bookings/actions.ts`): when the artist's Connect routing returns `routeCharges=true` (status='active' + charges_enabled=true), the PaymentIntent is created with `on_behalf_of: artist.stripe_account_id` + `transfer_data.destination`. The intent itself stays on Inklee's platform account (destination-charge pattern, NOT direct charges), so `prepareCheckoutAction` and the webhook need NO changes — they continue to update + receive events on the platform account exactly as before. The customer-facing statement, fee rules, and refund flow are presented as if the charge were on the artist's account. The audit log gains a `stripe_connect_routed` boolean for traceability.
+- `getAddonProducts` (`src/lib/addon-products.ts`): now also gates on `stripe_account_status='active'` + `stripe_charges_enabled=true`. Un-connected, pending, restricted, or disabled artists return an empty addon catalogue, so goods checkout silently disappears from the customer portal without any other code paths needing per-artist branching. Interest signalling (`getInterestEligibleProducts`) is unchanged — public shop still lets clients mark interest regardless of Connect state.
+- New helper `deriveConnectRouting({ stripe_account_id, stripe_account_status, stripe_charges_enabled })` in `src/lib/stripe-connect.ts` + 5 vitest cases. `getConnectRoutingForArtist(artistId)` is the server-side wrapper that fetches + decodes in one call.
+- `canChargeCheckoutAddons` left as-is (per-artist feature flag + env gate); the artist's Connect readiness is enforced one layer up in `getAddonProducts` instead so the artist-flag check stays cheap (pure settings read) and the connect-readiness check happens only when the caller actually needs the catalogue.
 
-### OT-12.3 — Production cutover (next next session)
+**Future enhancement (deferred):** switch from destination charges + on_behalf_of to true direct charges (PaymentIntent created on the artist's account via `stripeAccount` request option). Direct charges give the cleanest legal "artist is merchant of record" stance but require the frontend Elements integration to know the artist's account context (`loadStripe(pk, { stripeAccount })`). Reserved for after counsel confirms whether destination charges with on_behalf_of satisfy LO-2 in the legal package.
 
-- Founder flips `CHECKOUT_ADDONS_PROD_READY=true` in prod.
-- At least one real artist onboarded as a connected account in prod.
-- Test transactions on the real artist's connected account.
-- First-artist soak (§3.4 in roadmap) starts.
+### OT-12.3 — Production cutover (next slice)
+
+After OT-12.1 + OT-12.2 are deployed + the migration applied, OT-12.3 is mostly an operational rollout, not new code:
+
+- Real test artists onboard via `/settings/payouts` in Stripe **test mode** (current state). Verify the round trip: `unset` → `pending` → `active`, deposits route through Connect, customer pays, deposit lands in the artist's Stripe test balance, goods checkout appears on the customer portal once the artist toggles their goods addon flag.
+- Counsel signs off on LO-2 (PSD2 / merchant-of-record analysis) — confirms whether destination charges + on_behalf_of are sufficient or if we need to upgrade to direct charges before live mode.
+- Founder flips `CHECKOUT_ADDONS_PROD_READY=true` in the prod Vercel env.
+- Stripe is moved from test to live keys for at least one onboarded artist; that artist transacts a real deposit + (optionally) a real good.
+- First-artist soak (§3.4 in roadmap) starts on the real artist.
 
 ## Webhook events
 
@@ -74,12 +79,10 @@ Existing deposit flow (artist's money, Inklee's platform account) is technically
 - `CHECKOUT_ADDONS_PROD_READY` — stays the deployment-wide kill-switch from the audit fix sweep; lifted only at OT-12.3.
 - `NEXT_PUBLIC_APP_URL` — already present; used as the base for AccountLink return / refresh URLs.
 
-## Reading order for OT-12.2
+## Reading order for OT-12.3
 
-When resuming for OT-12.2:
+When resuming for OT-12.3 (operational rollout):
 
-1. This doc § "Sub-slices → OT-12.2".
-2. `src/lib/stripe-connect.ts` (built in OT-12.1).
-3. `src/app/(artist)/bookings/actions.ts` `requestDeposit` — primary integration point.
-4. `src/app/request/[token]/actions.ts` `prepareCheckoutAction` — secondary integration point.
-5. `src/lib/features.ts` `canChargeCheckoutAddons` — extend to require connect-active.
+1. This doc § "Sub-slices → OT-12.3".
+2. `docs/codex-audit-goods-feature.md` — confirm the D11 invariants still hold post-rollout.
+3. `legal/HANDOFF-TO-CLAUDE-CODE.md` § LO-2 — capture the counsel determination on direct vs destination charges before flipping `CHECKOUT_ADDONS_PROD_READY=true` in prod.

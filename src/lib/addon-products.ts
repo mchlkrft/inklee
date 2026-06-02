@@ -96,19 +96,24 @@ export async function getInterestEligibleProducts(
 export async function getAddonProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {
-  // Strict checkout gate: per-artist `checkout_addons` flag AND the
-  // production money-gate (`CHECKOUT_ADDONS_PROD_READY` env in prod). Both
-  // the portal selector and prepareCheckoutAction route through this one
-  // helper, so an artist whose money path isn't ready returns an empty
-  // catalogue here — interest signalling still works via
-  // getInterestEligibleProducts, but nothing in this set means nothing
-  // payable surfaces at checkout.
+  // Strict checkout gate: per-artist `checkout_addons` flag, deployment-wide
+  // `CHECKOUT_ADDONS_PROD_READY` env in prod (from `canChargeCheckoutAddons`),
+  // AND — OT-12.2 — the artist's Stripe Connect account must be in a
+  // charge-ready state. An un-connected or restricted artist returns an
+  // empty catalogue here, which means nothing payable surfaces at checkout
+  // (interest signalling still works via `getInterestEligibleProducts`).
   const { data: artist } = await serviceClient
     .from("profiles")
-    .select("settings")
+    .select("settings, stripe_account_status, stripe_charges_enabled")
     .eq("id", artistId)
     .single();
   if (!canChargeCheckoutAddons(artist?.settings)) return [];
+  if (
+    artist?.stripe_account_status !== "active" ||
+    artist?.stripe_charges_enabled !== true
+  ) {
+    return [];
+  }
 
   const { data } = await serviceClient
     .from("products")

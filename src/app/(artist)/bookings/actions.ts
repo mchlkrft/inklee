@@ -15,6 +15,8 @@ import {
 } from "@/lib/email/send-booking-email";
 import type { EmailGoodsDecision } from "@/lib/email/booking-templates";
 import { stripe } from "@/lib/stripe";
+import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
+import type Stripe from "stripe";
 
 type ActionResult = { error: string } | { success: true };
 
@@ -573,18 +575,34 @@ export async function requestDeposit(
 
   let paymentIntentId: string | null = null;
   let clientSecret: string | null = null;
+  let routedToConnect = false;
   if (stripe && amount > 0) {
+    // OT-12.2 destination charge routing. When the artist has finished
+    // Stripe Connect onboarding (status='active' + charges_enabled), we
+    // create the intent with `on_behalf_of` so the customer-facing
+    // statement, fee rules, and refund flow look like the charge is on the
+    // artist's account, and `transfer_data.destination` so the funds settle
+    // into the artist's Stripe balance after the platform leg clears. For
+    // un-connected artists we keep the existing platform-account flow
+    // (status quo — no breaking change).
+    const routing = await getConnectRoutingForArtist(user.id);
+    const intentParams: Stripe.PaymentIntentCreateParams = {
+      amount: Math.round(amount * 100),
+      currency: "eur",
+      // Omit payment_method_types; this keeps dynamic payment methods on
+      // explicitly + version-independently (Stripe best practice).
+      automatic_payment_methods: { enabled: true },
+      metadata: { booking_id: id, artist_id: user.id },
+      description: `Tattoo deposit - booking ${id}`,
+    };
+    if (routing.routeCharges && routing.stripeAccountId) {
+      intentParams.on_behalf_of = routing.stripeAccountId;
+      intentParams.transfer_data = { destination: routing.stripeAccountId };
+      routedToConnect = true;
+    }
     try {
       const intent = await stripe.paymentIntents.create(
-        {
-          amount: Math.round(amount * 100),
-          currency: "eur",
-          // Omit payment_method_types; this keeps dynamic payment methods on
-          // explicitly + version-independently (Stripe best practice).
-          automatic_payment_methods: { enabled: true },
-          metadata: { booking_id: id, artist_id: user.id },
-          description: `Tattoo deposit - booking ${id}`,
-        },
+        intentParams,
         // One intent per booking even under rapid re-submits / retries.
         { idempotencyKey: `deposit-intent-${id}` },
       );
@@ -628,6 +646,10 @@ export async function requestDeposit(
       amount,
       due_at: dueAt,
       stripe: !!paymentIntentId,
+      // OT-12.2: trace whether the intent was Connect-routed. Lets the team
+      // diagnose mismatches between expected routing and the actual intent
+      // shape without re-querying Stripe.
+      stripe_connect_routed: routedToConnect,
     },
   });
 
