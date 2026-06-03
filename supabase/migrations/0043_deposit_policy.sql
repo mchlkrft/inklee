@@ -16,8 +16,8 @@
 --   deposit_policy_snapshot  the rendered client-facing policy text (durable medium)
 
 ALTER TABLE booking_requests
-  ADD COLUMN deposit_policy          jsonb,
-  ADD COLUMN deposit_policy_snapshot text;
+  ADD COLUMN IF NOT EXISTS deposit_policy          jsonb,
+  ADD COLUMN IF NOT EXISTS deposit_policy_snapshot text;
 
 COMMENT ON COLUMN booking_requests.deposit_policy IS
   'Q9: structured deposit-policy params frozen at deposit payment time. Editable source is profiles.settings.deposit_policy.';
