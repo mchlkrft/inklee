@@ -5,6 +5,7 @@ import {
   sendBookingEmail,
   sendGoodsOrderConfirmation,
   sendArtistDepositPaidEmail,
+  sendClientDepositReceiptEmail,
 } from "@/lib/email/send-booking-email";
 import {
   decrementInventory,
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
     const { data: booking, error: fetchError } = await serviceClient
       .from("booking_requests")
       .select(
-        "id, status, customer_email, customer_handle, preferred_date, form_data, artist_id, deposit_amount, deposit_payment_intent_id",
+        "id, status, customer_email, customer_handle, preferred_date, form_data, artist_id, deposit_amount, deposit_payment_intent_id, deposit_policy_snapshot",
       )
       .eq("id", bookingId)
       .single();
@@ -393,6 +394,21 @@ export async function POST(request: Request) {
           magic_link: `${appUrl}/request/${newToken}`,
         },
         studio: await resolveStudioForBooking(bookingId),
+      });
+    }
+
+    // Q9 durable medium: deposit receipt to the client with the booking
+    // reference, amount, and the snapshotted policy. First delivery only.
+    if (bookingSideRanThisCall && booking.customer_email) {
+      await sendClientDepositReceiptEmail({
+        to: booking.customer_email,
+        artistName: artistDisplayName,
+        customerHandle: booking.customer_handle ?? "",
+        amountEur: depositEur,
+        bookingRef: bookingId.slice(0, 8).toUpperCase(),
+        policySnapshot:
+          (booking as { deposit_policy_snapshot?: string | null })
+            .deposit_policy_snapshot ?? null,
       });
     }
 

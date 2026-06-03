@@ -298,6 +298,49 @@ https://inklee.app/bookings/overview`;
   }
 }
 
+// Q9 durable medium: deposit receipt to the CLIENT when their in-app deposit
+// succeeds. Carries the booking reference, the amount, and the snapshotted
+// deposit policy (as it stood when they paid). Standalone system email, not
+// artist-customisable. No em-dashes in copy.
+export async function sendClientDepositReceiptEmail({
+  to,
+  artistName,
+  customerHandle,
+  amountEur,
+  bookingRef,
+  policySnapshot,
+}: {
+  to: string;
+  artistName: string;
+  customerHandle: string;
+  amountEur: number;
+  bookingRef: string;
+  policySnapshot: string | null;
+}): Promise<void> {
+  try {
+    const handle = customerHandle ? `@${customerHandle}` : "there";
+    const policyBlock = policySnapshot
+      ? `\n\nYour deposit policy:\n${policySnapshot}`
+      : "";
+    const body = `Hi ${handle},
+
+Your deposit to ${artistName} has been received. Your booking is confirmed.
+
+Booking reference: ${bookingRef}
+Deposit paid: EUR ${amountEur.toFixed(2)}${policyBlock}
+
+Inklee`;
+    const { buildEmailHtml: build } = await import("./booking-templates");
+    await sendEmail({
+      to,
+      subject: `Deposit received, your booking with ${artistName} is confirmed`,
+      html: build(body, {}),
+    });
+  } catch (err) {
+    console.error("[email] failed to send client deposit receipt email:", err);
+  }
+}
+
 // Hardcoded system notification — not artist-customisable
 export async function sendArtistCancellationByCustomer({
   artistEmail,
