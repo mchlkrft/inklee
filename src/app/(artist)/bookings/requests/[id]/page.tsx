@@ -18,6 +18,7 @@ import { resolveBookingGuestSpotStudio } from "@/lib/booking-studio";
 import { formatPrice } from "@/lib/goods";
 import { customerLabel } from "@/lib/booking-domain";
 import GoodsPickupButton from "./goods-pickup-button";
+import DepositRefundButton from "./deposit-refund-button";
 
 export default async function RequestDetailPage({
   params,
@@ -118,6 +119,15 @@ export default async function RequestDetailPage({
     .eq("booking_id", id)
     .order("timestamp", { ascending: false })
     .limit(30);
+
+  // RS-6: a paid in-app card deposit (has an intent + a paid timestamp) can be
+  // refunded from here; refund state is derived from the audit log so no extra
+  // column is needed.
+  const depositRefunded = (reminderLog ?? []).find(
+    (e) => e.action === "deposit_refunded",
+  ) as { details?: Record<string, unknown> } | undefined;
+  const hasPaidInAppDeposit =
+    !!booking.deposit_payment_intent_id && !!booking.deposit_paid_at;
 
   // Goods the client marked they'd like to buy when submitting (commerce-layer
   // extension). Rendered as an "Interested in buying" section + drives the
@@ -249,6 +259,7 @@ export default async function RequestDetailPage({
           depositDefaults={depositDefaults}
           stripeMode={stripeMode}
           canCollectInApp={canCollectInApp}
+          hasDepositIntent={!!booking.deposit_payment_intent_id}
           confirmStudio={confirmStudio}
           pendingInterests={interests
             .filter((i) => i.status === "pending")
@@ -407,6 +418,7 @@ export default async function RequestDetailPage({
               depositDefaults={depositDefaults}
               stripeMode={stripeMode}
               canCollectInApp={canCollectInApp}
+              hasDepositIntent={!!booking.deposit_payment_intent_id}
               confirmStudio={confirmStudio}
               pendingInterests={interests
                 .filter((i) => i.status === "pending")
@@ -438,6 +450,26 @@ export default async function RequestDetailPage({
                   {booking.deposit_note}
                 </p>
               )}
+              {depositRefunded ? (
+                <p className="text-xs text-muted-foreground">
+                  Refunded
+                  {typeof depositRefunded.details?.amount_eur === "number"
+                    ? ` EUR ${(depositRefunded.details.amount_eur as number).toFixed(2)}`
+                    : ""}{" "}
+                  to the client.
+                </p>
+              ) : hasPaidInAppDeposit ? (
+                <div className="pt-1">
+                  <DepositRefundButton
+                    bookingId={booking.id}
+                    amountEur={
+                      booking.deposit_amount
+                        ? Number(booking.deposit_amount)
+                        : null
+                    }
+                  />
+                </div>
+              ) : null}
             </div>
           )}
 

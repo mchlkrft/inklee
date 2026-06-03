@@ -50,6 +50,7 @@ export default function StatusActions({
   depositDefaults = DEPOSIT_DEFAULTS_FALLBACK,
   stripeMode = "missing",
   canCollectInApp = true,
+  hasDepositIntent = false,
   confirmStudio = null,
   pendingInterests = [],
 }: {
@@ -61,6 +62,12 @@ export default function StatusActions({
   // deposit creates a MANUAL deposit — the client pays the artist directly
   // and the artist marks it received (no money flows through Inklee).
   canCollectInApp?: boolean;
+  // RS-6/F7: true when THIS booking's deposit is a live in-app card intent
+  // (set at request time). Distinct from canCollectInApp, which reflects the
+  // artist's CURRENT Connect state. Drives the deposit_pending UI: an in-app
+  // deposit waits for the card payment (auto-confirmed by the webhook) and
+  // demotes the manual "mark received" to an explicit override.
+  hasDepositIntent?: boolean;
   // Set when the booking is tied to a trip — accepting then asks the artist to
   // confirm the studio/location (which the approval email tells the client).
   confirmStudio?: { name: string; dateLabel: string | null } | null;
@@ -358,17 +365,52 @@ export default function StatusActions({
 
       {isDepositPending && (
         <div className="flex flex-col gap-3">
-          <div className="space-y-1">
-            <button
-              onClick={() => run(markDepositReceived, "approved")}
-              className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-semibold text-brand-charcoal"
-            >
-              Mark deposit received
-            </button>
-            <p className="text-xs text-muted-foreground">
-              Marks the deposit as paid and confirms the booking.
-            </p>
-          </div>
+          {hasDepositIntent ? (
+            // F7: in-app card deposit — the webhook confirms it automatically.
+            // The manual mark is demoted to an override (and cancels the card
+            // request server-side so the client isn't charged twice).
+            <>
+              <div className="space-y-1 rounded-md border border-border bg-muted/20 px-4 py-3">
+                <p className="text-sm font-medium text-foreground">
+                  Waiting for card payment
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  The client pays by card via the link in their email. The
+                  booking confirms automatically when the deposit lands —
+                  you&apos;ll be notified.
+                </p>
+              </div>
+              <details className="rounded-md border border-border px-3 py-2">
+                <summary className="cursor-pointer list-none text-xs text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+                  Client paying another way?
+                </summary>
+                <div className="mt-2 space-y-1">
+                  <button
+                    onClick={() => run(markDepositReceived, "approved")}
+                    className="w-full rounded-full border border-border px-5 py-2 text-sm text-foreground transition-colors hover:bg-muted/30"
+                  >
+                    Mark received manually
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Confirms the booking and cancels the card request so the
+                    client isn&apos;t charged twice.
+                  </p>
+                </div>
+              </details>
+            </>
+          ) : (
+            <div className="space-y-1">
+              <button
+                onClick={() => run(markDepositReceived, "approved")}
+                className="w-full rounded-full bg-brand-mustard px-5 py-3 text-base font-semibold text-brand-charcoal"
+              >
+                Mark deposit received
+              </button>
+              <p className="text-xs text-muted-foreground">
+                Marks the deposit as paid and confirms the booking.
+              </p>
+            </div>
+          )}
 
           {!confirmReject ? (
             <div className="space-y-1">

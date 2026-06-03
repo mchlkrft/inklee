@@ -721,6 +721,28 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
   const guard = canTransition(booking.status, "approved");
   if (!guard.ok) return { error: guard.reason };
 
+  // F7: if this deposit was set up for in-app card payment, an unpaid
+  // PaymentIntent is still outstanding. Marking it received manually (client
+  // paid another way) must cancel that intent, otherwise the client could
+  // still pay by card afterwards and be charged for a booking that's already
+  // confirmed. Best-effort — a succeeded/already-cancelled intent just throws
+  // and is ignored (the webhook idempotency handles a genuine race).
+  const { data: depo } = await supabase
+    .from("booking_requests")
+    .select("deposit_payment_intent_id")
+    .eq("id", id)
+    .single();
+  if (stripe && depo?.deposit_payment_intent_id) {
+    try {
+      await stripe.paymentIntents.cancel(depo.deposit_payment_intent_id);
+    } catch (cancelErr) {
+      Sentry.captureException(cancelErr, {
+        tags: { action: "stripe_cancel_intent_on_manual_mark" },
+        extra: { bookingId: id },
+      });
+    }
+  }
+
   const decidedAt = new Date().toISOString();
   const { error } = await supabase
     .from("booking_requests")
@@ -758,6 +780,88 @@ export async function markDepositReceived(id: string): Promise<ActionResult> {
     action: "status_changed",
     actor: user.id,
     details: { from: booking.status, to: "approved", via: "deposit_received" },
+  });
+
+  revalidateBookingViews(id);
+  return { success: true };
+}
+
+// RS-6: refund a paid in-app card deposit. Full refund only (the common
+// deposit case — cancel → return it). Money mechanics (destination charge):
+//   • reverse_transfer       → pull the refunded amount back from the artist's
+//                              connected account (they hold it as merchant of
+//                              record).
+//   • refund_application_fee → return Inklee's platform fee too; Inklee does
+//                              not profit on a refunded deposit.
+// Stripe's own processing fee is non-refundable and stays with the artist —
+// identical to the artist refunding from their own Stripe dashboard. Manual
+// deposits (no PaymentIntent) can't be refunded here; the artist returns the
+// money the same way they collected it.
+export async function refundDeposit(id: string): Promise<ActionResult> {
+  const authorised = await getAuthorisedBooking(id);
+  if ("error" in authorised) return authorised;
+
+  const { supabase, user } = authorised;
+
+  const { data: fresh } = await supabase
+    .from("booking_requests")
+    .select("deposit_payment_intent_id, deposit_paid_at, deposit_amount")
+    .eq("id", id)
+    .single();
+
+  if (!fresh?.deposit_payment_intent_id || !fresh?.deposit_paid_at) {
+    return {
+      error: "There's no paid card deposit to refund for this booking.",
+    };
+  }
+
+  // Idempotency guard: bail if a refund is already logged for this booking.
+  // The Stripe idempotency key below is the real safety net against a race;
+  // this just gives a clean message on a second click.
+  const { count: alreadyRefunded } = await supabase
+    .from("audit_log")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_id", id)
+    .eq("action", "deposit_refunded");
+  if ((alreadyRefunded ?? 0) > 0) {
+    return { error: "This deposit has already been refunded." };
+  }
+
+  if (!stripe) {
+    return { error: "Refunds aren’t available on this deployment." };
+  }
+
+  let refundId: string;
+  try {
+    const refund = await stripe.refunds.create(
+      {
+        payment_intent: fresh.deposit_payment_intent_id,
+        reverse_transfer: true,
+        refund_application_fee: true,
+      },
+      { idempotencyKey: `refund-deposit-${id}` },
+    );
+    refundId = refund.id;
+  } catch (stripeErr) {
+    Sentry.captureException(stripeErr, {
+      tags: { action: "stripe_refund_deposit" },
+      extra: { bookingId: id },
+    });
+    return {
+      error:
+        "Stripe couldn’t process the refund. Try again, or refund from your Stripe dashboard.",
+    };
+  }
+
+  await supabase.from("audit_log").insert({
+    booking_id: id,
+    action: "deposit_refunded",
+    actor: user.id,
+    details: {
+      refund_id: refundId,
+      amount_eur: fresh.deposit_amount ? Number(fresh.deposit_amount) : null,
+      payment_intent_id: fresh.deposit_payment_intent_id,
+    },
   });
 
   revalidateBookingViews(id);
