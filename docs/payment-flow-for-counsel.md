@@ -141,27 +141,44 @@ fund-holding status to Inklee. (See §10, Q5.)
 
 ---
 
-## 6. Refunds
+## 6. Refunds — who keeps the deposit depends on who cancels
 
-If a deposit needs to be returned (e.g. the artist cancels), the artist can
-trigger a **full refund** from within Inklee. Mechanics:
+The intended policy (founder direction 2026-06-03) is **asymmetric**, matching
+how tattoo deposits normally work:
+
+- **If the client cancels**, the deposit is **non-refundable** — the artist
+  keeps it (it protected the artist's reserved time/preparation). No money moves;
+  the booking is simply cancelled. (The artist may still choose to refund as a
+  goodwill gesture, but that is discretionary, not the default.)
+- **If the artist cancels**, the client did nothing wrong, so the deposit is
+  **refunded in full** to the client. The artist bears the cost of their own
+  cancellation.
+
+**Mechanics of the artist-cancellation refund:**
 
 - The refunded amount is **reversed from the artist's Stripe account** (the
-  artist holds the money as merchant of record).
-- **Inklee returns its platform fee** — Inklee keeps nothing on a refunded
-  deposit.
-- **Stripe does not return its processing fee** on a refund (this is Stripe's
-  standard behaviour, true for any card refund). That non-refundable processing
-  cost falls on the **artist's** account — identical to the artist issuing a
-  refund from their own Stripe dashboard.
+  artist holds the money as merchant of record). If the artist has already
+  withdrawn it, Stripe's standard negative-balance handling recovers it from the
+  artist's account — i.e. "the artist pays" is enforced by Stripe, and **Inklee
+  never fronts the money**.
+- **Inklee returns its platform fee** — Inklee keeps nothing on an
+  artist-cancelled deposit.
+- **Stripe does not return its processing fee** on a refund (standard for any
+  card refund). That non-refundable cost falls on the artist's account.
 - The **client receives the full deposit amount back.**
 
-So on a refunded €200 deposit: client gets €200 back, Inklee returns its €2.75,
-and the artist's account absorbs Stripe's ~€3.25 (which Stripe keeps).
+So on an artist-cancelled €200 deposit: client gets €200 back, Inklee returns
+its €2.75, and the artist's account absorbs Stripe's ~€3.25.
 
-The in-app refund is a convenience; because the artist is merchant of record and
-holds the funds, the artist can also refund directly from their own Stripe
-dashboard.
+Because the artist is merchant of record and holds the funds, the artist can
+also refund directly from their own Stripe dashboard; the in-app flow is a
+convenience.
+
+**The implementation of this asymmetry is still being finalised** (the current
+build has a discretionary manual refund button; wiring it to cancellation
+direction + the client-forfeit warning is in progress). The legal question below
+(Q9) drives how strict the "non-refundable on client cancellation" default can
+be.
 
 ---
 
@@ -261,6 +278,18 @@ subscription. That is not implemented yet and is out of scope here.)
    _deposit_ is the artist's responsibility, not Inklee's. Please confirm Inklee
    has no VAT obligation on the deposit amount (only potentially on its own fee
    per Q1).
+
+9. **Non-refundable deposit on client cancellation (forfeiture).** The intended
+   default (§6) is that a deposit is **non-refundable when the client cancels**
+   (the artist keeps it) and **fully refunded when the artist cancels**. Is a
+   "non-refundable on client cancellation" deposit enforceable under EU consumer
+   law for a service like this, and are there constraints we must build in — e.g.
+   a distance-selling right of withdrawal / cooling-off period, a requirement
+   that the term be clearly disclosed before the client pays, limits on the
+   forfeitable amount (deposit vs. unfair penalty), or scenarios where a
+   partial/full refund is mandatory regardless of who cancels? Inklee can present
+   the artist's deposit/cancellation policy to the client before payment if
+   required — please specify what disclosure is needed and any hard limits.
 
 ---
 
