@@ -8,20 +8,31 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
+import { depositPolicyLines, type DepositPolicy } from "@/lib/deposit-policy";
 
 function getStripePromise(publishableKey: string) {
   return loadStripe(publishableKey);
 }
 
-function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
+function PaymentForm({
+  amountEur,
+  policy,
+  onSuccess,
+}: {
+  amountEur: number;
+  policy: DepositPolicy | null;
+  onSuccess: () => void;
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  // Q9: the client must accept the deposit policy before the pay step.
+  const [accepted, setAccepted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe || !elements || !accepted) return;
 
     setProcessing(true);
     setError(null);
@@ -42,15 +53,37 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement
-        options={{
-          layout: "tabs",
-        }}
-      />
+      {/* Q9 pre-payment disclosure: amount + the policy snapshot, shown before
+          the card form. The client always pays exactly the deposit (no
+          surcharge); Inklee's fee is not shown to the client. */}
+      <div className="space-y-2 rounded-md border border-border p-4">
+        <p className="text-sm font-medium text-foreground">
+          Deposit: EUR {amountEur.toFixed(2)}
+        </p>
+        {policy && (
+          <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+            {depositPolicyLines(policy).map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <label className="flex items-start gap-2.5 text-sm text-foreground">
+        <input
+          type="checkbox"
+          checked={accepted}
+          onChange={(e) => setAccepted(e.target.checked)}
+          className="mt-0.5 accent-brand-mustard"
+        />
+        <span>I have read and accept the deposit policy.</span>
+      </label>
+
+      <PaymentElement options={{ layout: "tabs" }} />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <button
         type="submit"
-        disabled={!stripe || processing}
+        disabled={!stripe || processing || !accepted}
         className="w-full rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {processing ? "Processing..." : "Pay deposit"}
@@ -63,10 +96,12 @@ export default function DepositPaymentForm({
   publishableKey,
   clientSecret,
   amountEur,
+  policy = null,
 }: {
   publishableKey: string;
   clientSecret: string;
   amountEur: number;
+  policy?: DepositPolicy | null;
 }) {
   const [paid, setPaid] = useState(false);
   const stripePromise = getStripePromise(publishableKey);
@@ -109,7 +144,11 @@ export default function DepositPaymentForm({
           },
         }}
       >
-        <PaymentForm onSuccess={() => setPaid(true)} />
+        <PaymentForm
+          amountEur={amountEur}
+          policy={policy}
+          onSuccess={() => setPaid(true)}
+        />
       </Elements>
     </div>
   );

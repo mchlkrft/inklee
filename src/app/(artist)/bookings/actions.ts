@@ -17,6 +17,10 @@ import type { EmailGoodsDecision } from "@/lib/email/booking-templates";
 import { stripe } from "@/lib/stripe";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { applicationFeeCents } from "@/lib/platform-fee";
+import {
+  parseDepositPolicy,
+  renderDepositPolicyText,
+} from "@/lib/deposit-policy";
 import type Stripe from "stripe";
 
 type ActionResult = { error: string } | { success: true };
@@ -540,6 +544,19 @@ export async function requestDeposit(
   const guard = canTransition(booking.status, "deposit_pending");
   if (!guard.ok) return { error: guard.reason };
 
+  // Q9: snapshot the artist's current deposit policy onto the booking now, so
+  // later edits to the policy never change what this client agreed to. Used by
+  // the client-facing disclosure, the confirmation email, and the portal.
+  const { data: policyProfile } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", user.id)
+    .single();
+  const depositPolicy = parseDepositPolicy(
+    (policyProfile?.settings as Record<string, unknown> | null)?.deposit_policy,
+  );
+  const depositPolicySnapshot = renderDepositPolicyText(depositPolicy);
+
   const decidedAt = new Date().toISOString();
   const { data: fresh } = await supabase
     .from("booking_requests")
@@ -581,6 +598,8 @@ export async function requestDeposit(
         deposit_amount: amount,
         deposit_due_at: dueAt,
         deposit_note: note || null,
+        deposit_policy: depositPolicy,
+        deposit_policy_snapshot: depositPolicySnapshot,
         status: "deposit_pending",
         decided_at: decidedAt,
         updated_at: decidedAt,
@@ -669,6 +688,8 @@ export async function requestDeposit(
       deposit_amount: amount,
       deposit_due_at: dueAt,
       deposit_note: note || null,
+      deposit_policy: depositPolicy,
+      deposit_policy_snapshot: depositPolicySnapshot,
       deposit_payment_intent_id: paymentIntentId,
       deposit_client_secret: clientSecret,
       decided_at: decidedAt,

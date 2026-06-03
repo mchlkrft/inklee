@@ -13,6 +13,7 @@ import StatusBadge from "@/components/status-badge";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import type { AddonProductView } from "./addons-checkout";
+import type { DepositPolicy } from "@/lib/deposit-policy";
 
 // RS-3: goods commerce is parked. The deposit-only path renders the plain
 // DepositPaymentForm (no goods rows, no prepareCheckoutAction round-trip — the
@@ -45,6 +46,7 @@ type Booking = {
   depositNote: string | null;
   depositClientSecret: string | null;
   stripePublishableKey: string | null;
+  depositPolicy: DepositPolicy | null;
   addonProducts: AddonProductView[];
 };
 
@@ -302,6 +304,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                   clientSecret={booking.depositClientSecret}
                   publishableKey={booking.stripePublishableKey}
                   amountEur={booking.depositAmount}
+                  policy={booking.depositPolicy}
                 />
               )}
             </Suspense>

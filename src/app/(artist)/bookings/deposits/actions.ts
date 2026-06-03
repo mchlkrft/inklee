@@ -3,6 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { DepositDefaults } from "@/lib/deposit-settings";
+import {
+  FORFEIT_PCT_OPTIONS,
+  type DepositPolicy,
+  type ForfeitPct,
+  type TimeUnit,
+} from "@/lib/deposit-policy";
 
 type State = { error: string } | { success: true } | null;
 
@@ -73,5 +79,88 @@ export async function saveDepositDefaultsAction(
 
   revalidatePath("/bookings/deposits");
   revalidatePath("/bookings/requests", "layout");
+  return { success: true };
+}
+
+// Q9: save the structured deposit policy. Free text is not accepted — only the
+// three constrained parameters. Reciprocity (artist cancels => full refund) is
+// not stored here; it's hard-coded in the refund logic and not overridable.
+function parseWindowField(
+  formData: FormData,
+  valueKey: string,
+  unitKey: string,
+): { value: number; unit: TimeUnit } | { error: string } {
+  const value = Number.parseInt(
+    ((formData.get(valueKey) as string | null) ?? "").trim(),
+    10,
+  );
+  const unit: TimeUnit = formData.get(unitKey) === "hours" ? "hours" : "days";
+  const max = unit === "hours" ? 720 : 365;
+  if (!Number.isFinite(value) || value < 0 || value > max) {
+    return { error: `Each window must be between 0 and ${max} ${unit}.` };
+  }
+  return { value, unit };
+}
+
+export async function saveDepositPolicyAction(
+  _prev: State,
+  formData: FormData,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const refundWindow = parseWindowField(
+    formData,
+    "refund_window_value",
+    "refund_window_unit",
+  );
+  if ("error" in refundWindow) return { error: refundWindow.error };
+
+  const forfeitRaw = Number.parseInt(
+    ((formData.get("forfeit_pct") as string | null) ?? "").trim(),
+    10,
+  );
+  if (!(FORFEIT_PCT_OPTIONS as readonly number[]).includes(forfeitRaw)) {
+    return { error: "Pick a forfeit percentage from the list." };
+  }
+
+  // Last-minute window is optional — only parsed when the toggle is on.
+  let lastMinute: { value: number; unit: TimeUnit } | null = null;
+  if (formData.get("last_minute_enabled") === "on") {
+    const lm = parseWindowField(
+      formData,
+      "last_minute_value",
+      "last_minute_unit",
+    );
+    if ("error" in lm) return { error: lm.error };
+    lastMinute = lm;
+  }
+
+  const policy: DepositPolicy = {
+    refundWindow,
+    lateCancelForfeitPct: forfeitRaw as ForfeitPct,
+    lastMinute,
+  };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", user.id)
+    .single();
+  const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      settings: { ...currentSettings, deposit_policy: policy },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/bookings/deposits");
   return { success: true };
 }

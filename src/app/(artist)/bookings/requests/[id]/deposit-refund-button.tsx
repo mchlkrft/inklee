@@ -37,9 +37,9 @@ export default function DepositRefundButton({
         Refund{amountLabel} to the client?
       </p>
       <p className="text-xs text-muted-foreground">
-        The deposit returns to the client and Inklee gives back its fee. Card
-        processing fees aren&apos;t returned by Stripe. This can&apos;t be
-        undone.
+        The full deposit is returned to the client. Inklee returns its platform
+        fee. Stripe does not return its card-processing fee; that cost stays on
+        your Stripe account.
       </p>
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">

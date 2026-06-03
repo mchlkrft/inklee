@@ -126,6 +126,10 @@ export const bookingRequests = pgTable("booking_requests", {
   depositPaymentIntentId: text("deposit_payment_intent_id"),
   depositClientSecret: text("deposit_client_secret"),
   depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
+  // Q9 — deposit-policy snapshot, frozen at payment time (migration 0043).
+  // Editable source is profiles.settings.deposit_policy.
+  depositPolicy: jsonb("deposit_policy"),
+  depositPolicySnapshot: text("deposit_policy_snapshot"),
   // Flash — set when a booking originates from a flash item
   flashItemId: uuid("flash_item_id").references(() => flashItems.id, {
     onDelete: "set null",

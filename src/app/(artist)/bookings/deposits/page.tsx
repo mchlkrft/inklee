@@ -8,7 +8,9 @@ import {
 } from "@/lib/deposit-settings";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
+import { parseDepositPolicy } from "@/lib/deposit-policy";
 import DepositsForm from "./deposits-form";
+import DepositPolicyForm from "./deposit-policy-form";
 
 // F3 (RS-5): the status shown here keys off the ARTIST'S Stripe Connect state
 // (can they collect a card deposit in-app?), not the global publishable-key
@@ -64,8 +66,8 @@ function DepositCollectionStatus({
         <div className="flex items-start gap-2.5 rounded-md border border-orange-400/40 bg-orange-400/[0.07] px-4 py-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-400" />
           <p className="text-xs text-orange-400/90">
-            Stripe is in test mode in this environment — card deposits
-            won&apos;t process real payments here.
+            Deposits are in test mode in this environment. No real charges will
+            be made.
           </p>
         </div>
       )}
@@ -87,6 +89,7 @@ export default async function DepositsSettingsPage() {
 
   const settings = (profile?.settings ?? {}) as Record<string, unknown>;
   const defaults = parseDepositDefaults(settings.deposit_defaults);
+  const depositPolicy = parseDepositPolicy(settings.deposit_policy);
   const stripeMode = detectStripeMode(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
   );
@@ -129,6 +132,34 @@ export default async function DepositsSettingsPage() {
       </div>
 
       <DepositsForm defaults={defaults} />
+
+      <div className="space-y-2 border-t border-border pt-6">
+        <h2 className="text-base font-semibold text-foreground">
+          Cancellation &amp; refunds
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Your deposit policy is shown to clients before they pay, and it&apos;s
+          locked to each booking at payment time. The structure is set by
+          Inklee&apos;s platform policy and can&apos;t be replaced with free
+          text — see{" "}
+          <Link
+            href="/terms"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Terms section 12
+          </Link>{" "}
+          and the{" "}
+          <Link
+            href="/dpa"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            DPA
+          </Link>
+          .
+        </p>
+      </div>
+
+      <DepositPolicyForm policy={depositPolicy} />
 
       <div className="rounded-md border border-border px-4 py-3 space-y-1">
         <p className="text-xs font-medium text-muted-foreground">

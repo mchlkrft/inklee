@@ -10,6 +10,7 @@ import {
 import type { AddonProductView } from "./addons-checkout";
 import { getAddonProducts } from "@/lib/addon-products";
 import { isGoodsCommerceEnabled } from "@/lib/features";
+import { parseDepositPolicy } from "@/lib/deposit-policy";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -43,7 +44,7 @@ export default async function RequestPortalPage({
       preferred_date, form_data,
       slot_id, trip_id, flash_item_id,
       deposit_amount, deposit_due_at, deposit_note,
-      deposit_client_secret,
+      deposit_client_secret, deposit_policy,
       profiles!artist_id(display_name, timezone)
     `,
     )
@@ -192,6 +193,11 @@ export default async function RequestPortalPage({
         depositClientSecret: booking.deposit_client_secret ?? null,
         stripePublishableKey:
           process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null,
+        // Q9: the deposit policy FROZEN onto this booking at request time (not
+        // the artist's current policy). Drives the pre-payment disclosure.
+        depositPolicy: booking.deposit_policy
+          ? parseDepositPolicy(booking.deposit_policy)
+          : null,
         addonProducts,
       },
     };
