@@ -14,12 +14,16 @@ import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import type { AddonProductView } from "./addons-checkout";
 
-// AddonsCheckout owns both the goods + deposit-only paths. Routing through
-// it unconditionally keeps the prepareCheckoutAction reset/sync step in the
-// call path even when there are no goods rows — without that, a stale
-// PaymentIntent (e.g. user added goods last session, returned, then has
-// nothing rendered) would still charge the old goods-inclusive amount.
+// RS-3: goods commerce is parked. The deposit-only path renders the plain
+// DepositPaymentForm (no goods rows, no prepareCheckoutAction round-trip — the
+// intent amount is kept correct at request time, see requestDeposit). The
+// goods-inclusive AddonsCheckout is only reached when commerce is un-parked
+// AND the booking actually has confirmed-available add-on rows, signalled by a
+// non-empty `addonProducts`.
 const AddonsCheckout = lazy(() => import("./addons-checkout"));
+const DepositPaymentForm = lazy(
+  () => import("@/components/deposit-payment-form"),
+);
 
 type Booking = {
   id: string;
@@ -284,14 +288,22 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                 </p>
               }
             >
-              <AddonsCheckout
-                token={booking.token}
-                depositAmount={booking.depositAmount}
-                currency="eur"
-                clientSecret={booking.depositClientSecret}
-                publishableKey={booking.stripePublishableKey}
-                products={booking.addonProducts}
-              />
+              {booking.addonProducts.length > 0 ? (
+                <AddonsCheckout
+                  token={booking.token}
+                  depositAmount={booking.depositAmount}
+                  currency="eur"
+                  clientSecret={booking.depositClientSecret}
+                  publishableKey={booking.stripePublishableKey}
+                  products={booking.addonProducts}
+                />
+              ) : (
+                <DepositPaymentForm
+                  clientSecret={booking.depositClientSecret}
+                  publishableKey={booking.stripePublishableKey}
+                  amountEur={booking.depositAmount}
+                />
+              )}
             </Suspense>
           ) : (
             <div className="space-y-2 rounded-md border border-border p-4">

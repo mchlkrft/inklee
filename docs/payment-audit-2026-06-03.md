@@ -207,9 +207,13 @@ highest-value slice (RS-4) and should be settled first:
 1. **RS-3 first** (F2, F8, F11, F13) — decouple goods from the deposit path;
    this shrinks the surface every later slice touches. Carry **F5** into this
    slice (the reuse-path amount bug is only safe while `prepareCheckoutAction`
-   exists).
-2. **RS-4** (F1, F6, F4) — add `application_fee_amount`, make the webhook
-   amount check fee-aware, add the customer fee line + artist-net display.
+   exists). ✅ **DONE 2026-06-03** — parked behind `GOODS_COMMERCE_ENABLED`
+   (default OFF, D-c=park). Closes **F2, F5, F11**; **F8/F13** dormant-parked
+   (webhook goods fan-out + `CHECKOUT_ADDONS_PROD_READY` retained but
+   unreachable). Portal now uses the deposit-only `DepositPaymentForm`.
+2. **RS-4** (F1, F4 — **F6 mostly dissolved** by the deducted-fee model, D-a)
+   — add `application_fee_amount` (intent amount stays = deposit), show the
+   artist net + customer fee disclosure. **Gated on D-b (the %).**
 3. **RS-5** (F3, F9, F12, F14) — onboarding country, opt-in framing, fix the
    false `/settings/deposits` + payouts copy.
 4. **RS-6** (F10, F7) — refunds + the dual-confirm cleanup.

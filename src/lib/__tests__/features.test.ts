@@ -6,6 +6,7 @@ import {
   canUseCheckoutAddons,
   canChargeCheckoutAddons,
   canUseBioModules,
+  isGoodsCommerceEnabled,
   DEFAULT_FEATURES,
 } from "../features";
 
@@ -77,5 +78,26 @@ describe("canChargeCheckoutAddons", () => {
     expect(canChargeCheckoutAddons({})).toBe(false);
     vi.stubEnv("CHECKOUT_ADDONS_PROD_READY", "true");
     expect(canChargeCheckoutAddons({})).toBe(true);
+  });
+});
+
+describe("isGoodsCommerceEnabled (RS-3 park switch)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("defaults OFF — goods commerce is parked unless explicitly un-parked", () => {
+    vi.stubEnv("GOODS_COMMERCE_ENABLED", "");
+    expect(isGoodsCommerceEnabled()).toBe(false);
+    vi.stubEnv("GOODS_COMMERCE_ENABLED", "false");
+    expect(isGoodsCommerceEnabled()).toBe(false);
+    // Only the exact string "true" un-parks it.
+    vi.stubEnv("GOODS_COMMERCE_ENABLED", "1");
+    expect(isGoodsCommerceEnabled()).toBe(false);
+  });
+
+  it("enables only when GOODS_COMMERCE_ENABLED=true", () => {
+    vi.stubEnv("GOODS_COMMERCE_ENABLED", "true");
+    expect(isGoodsCommerceEnabled()).toBe(true);
   });
 });

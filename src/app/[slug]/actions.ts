@@ -36,6 +36,7 @@ import {
   type InterestRow,
 } from "@/lib/booking-interests";
 import { getInterestEligibleProducts } from "@/lib/addon-products";
+import { isGoodsCommerceEnabled } from "@/lib/features";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB raw input limit
@@ -275,7 +276,12 @@ export async function submitBookingAction(
   // validate the JSON payload against the artist's addon-eligible catalogue
   // up-front so a bad/stale selection produces a clean form error instead of
   // partially-inserting after the booking row.
-  const rawInterests = formData.get("interests_json") as string | null;
+  // RS-3: when goods commerce is parked, silently drop any interests payload
+  // (a stale client could still post it) rather than surfacing a validation
+  // error to the customer — the booking itself must always go through.
+  const rawInterests = isGoodsCommerceEnabled()
+    ? (formData.get("interests_json") as string | null)
+    : null;
   const interestSelections = parseInterestSelections(rawInterests);
   let interestRows: InterestRow[] = [];
   if (interestSelections.length > 0) {

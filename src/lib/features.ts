@@ -70,3 +70,20 @@ export function canChargeCheckoutAddons(settings: unknown): boolean {
 export function canUseBioModules(settings: unknown): boolean {
   return featuresFromSettings(settings).bio_page_modules;
 }
+
+/**
+ * RS-3 master park switch (money-scope reset 2026-06-03). Goods are
+ * showcase-only: the entire interest -> checkout commerce flow — Shop
+ * add-to-cart, `booking_interests`, the Accept-time availability popup, the
+ * appointment add-on checkout, and goods `orders` — is PARKED behind this
+ * single deployment flag, default OFF. Bio-page product *display* (the Shop
+ * overlay rendered as a showcase gallery, the dashboard goods CRUD) stays on
+ * regardless of this flag; only the payable/interest path is gated.
+ *
+ * Set `GOODS_COMMERCE_ENABLED=true` to un-park the in-app goods-sales flow.
+ * Kept as a flag rather than deleted so the commerce layer can be restored
+ * without rebuilding it from git history (founder decision D-c, 2026-06-03).
+ */
+export function isGoodsCommerceEnabled(): boolean {
+  return process.env.GOODS_COMMERCE_ENABLED === "true";
+}

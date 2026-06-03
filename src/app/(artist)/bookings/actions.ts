@@ -547,6 +547,29 @@ export async function requestDeposit(
     .single();
 
   if (fresh?.deposit_payment_intent_id && fresh?.deposit_client_secret) {
+    // F5 (RS-3): keep the live PaymentIntent's amount in step with the
+    // re-requested deposit. Previously the DB amount was updated here but the
+    // intent was not — only the goods `prepareCheckoutAction` rewrote it right
+    // before charging. Now that the deposit-only portal pays the intent
+    // directly (no prepare step), a stale intent would charge the OLD amount
+    // and the webhook's amount check would 409 the payment. We also reset the
+    // metadata to deposit-only (clearing any prior `order_id`) since goods are
+    // parked. Best-effort: a transient Stripe failure shouldn't block the
+    // re-request — the amount check is the backstop.
+    if (stripe && amount > 0) {
+      try {
+        await stripe.paymentIntents.update(fresh.deposit_payment_intent_id, {
+          amount: Math.round(amount * 100),
+          metadata: { booking_id: id, artist_id: user.id },
+        });
+      } catch (stripeErr) {
+        Sentry.captureException(stripeErr, {
+          tags: { action: "stripe_update_intent" },
+          extra: { bookingId: id },
+        });
+      }
+    }
+
     const { error: reuseError } = await supabase
       .from("booking_requests")
       .update({

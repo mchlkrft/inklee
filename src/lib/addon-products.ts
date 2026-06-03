@@ -9,7 +9,11 @@ import {
   toPriceNumber,
   type ProductStatus,
 } from "@/lib/goods";
-import { canChargeCheckoutAddons, canUseGoods } from "@/lib/features";
+import {
+  canChargeCheckoutAddons,
+  canUseGoods,
+  isGoodsCommerceEnabled,
+} from "@/lib/features";
 import type { AddonProduct } from "@/lib/orders";
 
 export type AddonProductRow = AddonProduct & { imageUrl: string | null };
@@ -46,6 +50,10 @@ type RawProduct = {
 export async function getInterestEligibleProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {
+  // RS-3: interest-marking is part of the parked goods-commerce flow. With
+  // the master switch off, no product is interest-eligible (the Shop overlay
+  // degrades to a showcase gallery).
+  if (!isGoodsCommerceEnabled()) return [];
   const { data: artist } = await serviceClient
     .from("profiles")
     .select("settings")
@@ -96,6 +104,10 @@ export async function getInterestEligibleProducts(
 export async function getAddonProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {
+  // RS-3 master gate: the appointment add-on checkout is parked. With the
+  // switch off nothing payable surfaces, regardless of the per-artist flag,
+  // the Connect state, or `CHECKOUT_ADDONS_PROD_READY` below.
+  if (!isGoodsCommerceEnabled()) return [];
   // Strict checkout gate: per-artist `checkout_addons` flag, deployment-wide
   // `CHECKOUT_ADDONS_PROD_READY` env in prod (from `canChargeCheckoutAddons`),
   // AND — OT-12.2 — the artist's Stripe Connect account must be in a

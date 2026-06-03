@@ -9,6 +9,7 @@ import {
 } from "@/lib/booking-domain";
 import type { AddonProductView } from "./addons-checkout";
 import { getAddonProducts } from "@/lib/addon-products";
+import { isGoodsCommerceEnabled } from "@/lib/features";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -96,8 +97,11 @@ export default async function RequestPortalPage({
     //
     // A non-addon product (interest signal only) appears in (a) but NOT in
     // (b), so it stays a signal only — no payable row.
+    // RS-3: the pre-checkout add-on intersection is part of the parked goods
+    // flow. Skip it entirely when commerce is off — the portal renders a
+    // deposit-only payment (no goods rows ever surface).
     const addonProducts: AddonProductView[] = [];
-    if (booking.status === "deposit_pending") {
+    if (isGoodsCommerceEnabled() && booking.status === "deposit_pending") {
       const { data: rawInterests } = await serviceClient
         .from("booking_interests")
         .select("product_id, variant_id, quantity")
