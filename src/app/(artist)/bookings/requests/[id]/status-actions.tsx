@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import DateInput from "@/components/date-input";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
@@ -43,12 +44,18 @@ export default function StatusActions({
   booking,
   depositDefaults = DEPOSIT_DEFAULTS_FALLBACK,
   stripeMode = "missing",
+  canCollectInApp = true,
   confirmStudio = null,
   pendingInterests = [],
 }: {
   booking: Booking;
   depositDefaults?: DepositDefaults;
   stripeMode?: StripeMode;
+  // RS-2: true when the artist has an active Stripe Connect account, so the
+  // client can pay the deposit by card in-app. When false, requesting a
+  // deposit creates a MANUAL deposit — the client pays the artist directly
+  // and the artist marks it received (no money flows through Inklee).
+  canCollectInApp?: boolean;
   // Set when the booking is tied to a trip — accepting then asks the artist to
   // confirm the studio/location (which the approval email tells the client).
   confirmStudio?: { name: string; dateLabel: string | null } | null;
@@ -418,8 +425,9 @@ export default function StatusActions({
                 Request deposit
               </button>
               <p className="text-xs text-muted-foreground">
-                Marks the booking as awaiting deposit. The client pays via the
-                link in their booking email.
+                {canCollectInApp
+                  ? "Marks the booking as awaiting deposit. The client pays by card via the link in their booking email."
+                  : "Marks the booking as awaiting deposit. The client pays you directly (add your details in the note) and you mark it received."}
               </p>
             </div>
           ) : (
@@ -427,7 +435,31 @@ export default function StatusActions({
               <p className="text-sm font-medium text-foreground">
                 Request deposit
               </p>
-              {stripeMode === "test" && (
+              {!canCollectInApp && (
+                // RS-2: artist has no active Stripe Connect account → this is a
+                // manual deposit. Set expectations + nudge toward connecting.
+                <div className="space-y-1 rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    You&apos;ll collect this deposit{" "}
+                    <span className="font-medium text-foreground">
+                      directly
+                    </span>{" "}
+                    (e.g. bank transfer — put your details in the note) and mark
+                    it received. No card payment is taken in-app.
+                  </p>
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    Want clients to pay by card here?{" "}
+                    <Link
+                      href="/settings/payouts"
+                      className="font-medium text-foreground underline underline-offset-2"
+                    >
+                      Connect Stripe
+                    </Link>
+                    .
+                  </p>
+                </div>
+              )}
+              {canCollectInApp && stripeMode === "test" && (
                 // Yellow test-mode banner — warns the artist this request
                 // will NOT process a real payment. Only fires when
                 // pk_test_* keys are configured (dev/preview).

@@ -13,6 +13,7 @@ import { formatCustomAnswer } from "@/lib/custom-fields";
 import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
+import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { resolveBookingGuestSpotStudio } from "@/lib/booking-studio";
 import { formatPrice } from "@/lib/goods";
 import { customerLabel } from "@/lib/booking-domain";
@@ -56,6 +57,11 @@ export default async function RequestDetailPage({
   const stripeMode = detectStripeMode(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
   );
+  // RS-2: in-app card collection is only available to artists with an active
+  // Stripe Connect account. Un-connected artists can still request a deposit,
+  // but it's a manual one (client pays them directly; they mark it received).
+  const canCollectInApp = (await getConnectRoutingForArtist(user!.id))
+    .routeCharges;
   const slotInfo =
     booking.slot_id && booking.slots
       ? formatSlotDisplay(
@@ -242,6 +248,7 @@ export default async function RequestDetailPage({
           booking={{ id: booking.id, status: booking.status }}
           depositDefaults={depositDefaults}
           stripeMode={stripeMode}
+          canCollectInApp={canCollectInApp}
           confirmStudio={confirmStudio}
           pendingInterests={interests
             .filter((i) => i.status === "pending")
@@ -399,6 +406,7 @@ export default async function RequestDetailPage({
               booking={{ id: booking.id, status: booking.status }}
               depositDefaults={depositDefaults}
               stripeMode={stripeMode}
+              canCollectInApp={canCollectInApp}
               confirmStudio={confirmStudio}
               pendingInterests={interests
                 .filter((i) => i.status === "pending")

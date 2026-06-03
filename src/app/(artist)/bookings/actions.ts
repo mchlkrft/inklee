@@ -586,32 +586,42 @@ export async function requestDeposit(
     // un-connected artists we keep the existing platform-account flow
     // (status quo — no breaking change).
     const routing = await getConnectRoutingForArtist(user.id);
-    const intentParams: Stripe.PaymentIntentCreateParams = {
-      amount: Math.round(amount * 100),
-      currency: "eur",
-      // Omit payment_method_types; this keeps dynamic payment methods on
-      // explicitly + version-independently (Stripe best practice).
-      automatic_payment_methods: { enabled: true },
-      metadata: { booking_id: id, artist_id: user.id },
-      description: `Tattoo deposit - booking ${id}`,
-    };
+    // RS-2 (money-scope reset 2026-06-03): only collect a deposit THROUGH
+    // Inklee when the artist has an active Connect account. The charge then
+    // rides on the artist's account (destination charge: on_behalf_of +
+    // transfer_data), so the artist is merchant of record. Un-connected
+    // artists get a MANUAL deposit instead — no PaymentIntent is created, the
+    // client is shown the amount + the artist's note (e.g. bank-transfer
+    // details) and pays them directly, and the artist marks it received. This
+    // removes the prior fallback where an un-connected artist's deposit was
+    // charged onto Inklee's OWN platform account, which made Inklee merchant
+    // of record / fund-holder for money it had no business holding.
     if (routing.routeCharges && routing.stripeAccountId) {
-      intentParams.on_behalf_of = routing.stripeAccountId;
-      intentParams.transfer_data = { destination: routing.stripeAccountId };
-      routedToConnect = true;
-    }
-    try {
-      const intent = await stripe.paymentIntents.create(
-        intentParams,
-        // One intent per booking even under rapid re-submits / retries.
-        { idempotencyKey: `deposit-intent-${id}` },
-      );
-      paymentIntentId = intent.id;
-      clientSecret = intent.client_secret;
-    } catch (stripeErr) {
-      Sentry.captureException(stripeErr, {
-        tags: { action: "stripe_create_intent" },
-      });
+      const intentParams: Stripe.PaymentIntentCreateParams = {
+        amount: Math.round(amount * 100),
+        currency: "eur",
+        // Omit payment_method_types; this keeps dynamic payment methods on
+        // explicitly + version-independently (Stripe best practice).
+        automatic_payment_methods: { enabled: true },
+        metadata: { booking_id: id, artist_id: user.id },
+        description: `Tattoo deposit - booking ${id}`,
+        on_behalf_of: routing.stripeAccountId,
+        transfer_data: { destination: routing.stripeAccountId },
+      };
+      try {
+        const intent = await stripe.paymentIntents.create(
+          intentParams,
+          // One intent per booking even under rapid re-submits / retries.
+          { idempotencyKey: `deposit-intent-${id}` },
+        );
+        paymentIntentId = intent.id;
+        clientSecret = intent.client_secret;
+        routedToConnect = true;
+      } catch (stripeErr) {
+        Sentry.captureException(stripeErr, {
+          tags: { action: "stripe_create_intent" },
+        });
+      }
     }
   }
 
