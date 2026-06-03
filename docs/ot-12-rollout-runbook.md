@@ -1,227 +1,242 @@
-# OT-12 Stripe Connect — rollout runbook
+# OT-12 Stripe Connect — deposit-fee rollout runbook
 
-Operational checklist for moving OT-12 from "shipped in code" to "real artist takes real money". Three phases:
+**Rewritten 2026-06-03 for the money-scope reset.** The original runbook was a
+goods-checkout cutover (flip `CHECKOUT_ADDONS_PROD_READY`). That is **obsolete**:
+goods are now showcase-only and parked behind `GOODS_COMMERCE_ENABLED` (default
+OFF), so there is nothing to flip for goods. This runbook verifies the
+**deposit + 3% platform-fee** flow end to end.
 
-1. **Local test-mode QA** — verify the wiring end-to-end without touching prod.
-2. **Vercel env-var flip** — turn on prod goods checkout.
-3. **First real artist** — onboard, transact, soak.
+What OT-12 now means: an artist optionally connects Stripe, collects a deposit
+by card into their **own** account (destination charge + `on_behalf_of`), and
+Inklee keeps a **3% all-in platform fee** (`application_fee_amount`). See
+`docs/restructure-money-scope-2026-06-03.md` and
+`docs/payment-flow-for-counsel.md` for the model.
 
-Total time for Phases 1–2 (the part you can do solo today): ~25 minutes including Stripe Dashboard clicks. Phase 3 is external (needs a real human artist).
+Three phases:
+
+1. **Local test-mode QA** — verify the deposit-fee + refund wiring end to end.
+2. **Production readiness** — confirm live-mode Connect webhook events (no env
+   flip needed for deposits).
+3. **First real artist** — onboard, take a real deposit, soak.
+
+Phase 1 is ~20 minutes solo. Phase 2 is a 5-minute Stripe Dashboard check.
+Phase 3 is external (needs a real artist).
 
 ---
 
 ## Phase 0: Preflight
 
-Before any QA, complete these one-time setup steps:
-
-- [ ] **Migration 0039 applied** to your Supabase project. SQL is in `supabase/migrations/0039_stripe_connect.sql` — paste into Supabase SQL Editor and run. To verify, in SQL Editor run:
+- [x] **Migration 0039 applied** (`profiles.stripe_*` columns) — done + verified
+      2026-06-02. To re-confirm, run in the Supabase SQL Editor:
 
   ```sql
   SELECT column_name FROM information_schema.columns
   WHERE table_name = 'profiles' AND column_name LIKE 'stripe_%';
   ```
 
-  You should see 6 rows: `stripe_account_id`, `stripe_account_status`, `stripe_charges_enabled`, `stripe_payouts_enabled`, `stripe_account_country`, `stripe_account_updated_at`.
+  Expect 6 rows: `stripe_account_id`, `stripe_account_status`,
+  `stripe_charges_enabled`, `stripe_payouts_enabled`, `stripe_account_country`,
+  `stripe_account_updated_at`.
 
-- [ ] **Connect events enabled** on your Stripe **test-mode** webhook endpoint. Stripe Dashboard → toggle to **Test mode** (top right) → Developers → Webhooks → click the endpoint that's already configured for `/api/stripe/webhook` (or the CLI endpoint if you use `stripe listen`). "Listen to events" → add:
+- [ ] **Connect events enabled** on the Stripe **test-mode** webhook endpoint.
+      Stripe Dashboard → Test mode → Developers → Webhooks → the endpoint for
+      `/api/stripe/webhook` (or your `stripe listen` endpoint). Add:
   - `account.updated`
   - `account.application.deauthorized`
-  - (Existing `payment_intent.succeeded` stays.)
-  - Save.
+  - (`payment_intent.succeeded` stays.)
 
-- [ ] **`.env.local` has Stripe TEST keys.**
+- [ ] **`.env.local` has Stripe TEST keys** and leaves goods parked:
 
   ```
   STRIPE_SECRET_KEY=sk_test_...
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
-  STRIPE_WEBHOOK_SECRET=whsec_...   (the test-mode secret)
+  STRIPE_WEBHOOK_SECRET=whsec_...        # the test-mode secret
   NEXT_PUBLIC_APP_URL=http://localhost:3000
+  # Do NOT set GOODS_COMMERCE_ENABLED — goods stay showcase-only (parked).
   ```
 
-  If you've been using `stripe listen --forward-to localhost:3000/api/stripe/webhook`, the `whsec_...` it printed is your `STRIPE_WEBHOOK_SECRET`.
+- [ ] **Two terminals:**
+  - A: `pnpm dev`
+  - B: `stripe listen --forward-to localhost:3000/api/stripe/webhook`
 
-- [ ] **Two terminals open:**
-  - Terminal A: `pnpm dev` (Next.js server on :3000)
-  - Terminal B: `stripe listen --forward-to localhost:3000/api/stripe/webhook` (forwards webhook events from Stripe to your local server)
-
-If any of these is unclear or fails, stop and tell me — I'll diagnose before you waste time on the QA.
+If any step is unclear or fails, stop and tell me — I'll diagnose first.
 
 ---
 
-## Phase 1: Local test-mode E2E QA (~15 minutes)
+## Phase 1: Local test-mode QA (~20 minutes)
 
-Use a **dedicated test artist account** (e.g. a fresh signup, or your existing test account — NOT your founder/admin account). All references below assume you're signed in as that test artist.
+Use a **dedicated test artist account** (not your founder/admin account).
 
-### Test 1: Connect onboarding round-trip
+### Test 1: Connect onboarding in the artist's country (not US)
 
-- [ ] Navigate to `http://localhost:3000/settings/payouts`. Status badge reads **"Not connected"** in muted gray.
-- [ ] Click **"Connect Stripe"** → browser redirects to `https://connect.stripe.com/express/onboarding/...`.
-- [ ] Fill the form with Stripe's test data:
-  - Business type: **Individual** (or whatever; doesn't matter for the test)
-  - SSN: **000-00-0000** (Stripe test value, instantly accepted)
-  - DOB: **01/01/1901**
-  - Phone: any number (e.g. **+1 000-000-0000**)
-  - Bank account: routing **110000000**, account **000123456789**
-  - Click through any extra screens with whatever sample data
-- [ ] Submit. Stripe redirects to `http://localhost:3000/settings/payouts/return`.
-- [ ] You're bounced back to `/settings/payouts`. Status badge now reads **"Connected"** (mustard or green).
-- [ ] Page shows: account id `acct_...`, country (`US` for the test data above), Charges enabled: **Yes**, Payouts enabled: **Yes**, Last synced: just now.
-- [ ] **Verify in DB** (Supabase SQL editor): `SELECT id, stripe_account_id, stripe_account_status, stripe_charges_enabled FROM profiles WHERE id = '<your-test-artist-id>';`
-  - Expect: `stripe_account_status='active'`, `stripe_charges_enabled=true`.
-- [ ] **Verify webhook fired** in Terminal B: you should see something like `account.updated [evt_...] -> 200`.
-
-### Test 2: Deposit request → Connect-routed PaymentIntent
-
-- [ ] In a separate browser (or incognito), submit a new booking via the public form for your test artist's slug.
-- [ ] Back in the artist dashboard, open the booking at `/bookings/requests/[id]`.
-- [ ] Click **"Request deposit"** → fill in EUR **50**, due date 7 days out, no note. Submit.
-- [ ] **Verify the audit_log entry** (Supabase SQL):
+- [ ] Go to `http://localhost:3000/settings/payouts`. Status reads **"Not
+      connected"**. Copy reads as **optional** ("Connect Stripe only if you want
+      clients to pay deposits by card here…") and mentions the **3% fee**.
+- [ ] A **country selector** is shown (defaults to **Germany**). Pick your real
+      country (this is fixed at account creation).
+- [ ] Click **"Connect Stripe"** → redirected to Stripe Express onboarding.
+- [ ] Fill Stripe's test data **for the country you picked**:
+  - **EU (e.g. Germany):** test IBAN `DE89 3704 0044 0532 0130 00`, any test
+    name/DOB/address Stripe accepts; use Stripe's instant-verify test values.
+  - **United States (only if you picked US):** SSN `000-00-0000`, routing
+    `110000000`, account `000123456789`.
+- [ ] Submit → bounced back to `/settings/payouts`, status now **"Connected"**.
+- [ ] The detail row shows **Country = the country you picked** (NOT `US`, unless
+      you picked US). This is the F9 fix — verify it.
+- [ ] **DB check:**
   ```sql
-  SELECT details FROM audit_log
-  WHERE booking_id = '<the-booking-id>' AND action = 'status_changed'
-  ORDER BY timestamp DESC LIMIT 1;
+  SELECT stripe_account_status, stripe_charges_enabled, stripe_account_country
+  FROM profiles WHERE id = '<test-artist-id>';
   ```
+  Expect `active`, `true`, and your chosen country code.
+- [ ] **Terminal B**: `account.updated [evt_...] -> 200`.
 
-  - Expect `details.stripe_connect_routed = true`.
-- [ ] **Verify the PaymentIntent shape** in the Stripe Dashboard (Test mode → Payments → most recent):
-  - "On behalf of" shows your test artist's connected account name.
-  - The intent's "Transfer data" → destination = `acct_...` (matches the artist's id).
-  - Amount = `5000` cents (EUR 50.00).
+### Test 2: Deposit request → Connect-routed intent WITH the platform fee
 
-### Test 3: Customer pays deposit → money lands on Connect
+- [ ] In an incognito window, submit a booking for the test artist's slug.
+- [ ] As the artist, open `/bookings/requests/[id]` → **Request deposit** → EUR
+      **50**, due in 7 days. Before submitting, the form shows the fee line:
+      **"Inklee fee (3%, incl. card processing): −EUR 1.50 · You receive EUR
+      48.50"**. Submit.
+- [ ] **PaymentIntent shape** (Stripe Dashboard → Test mode → Payments → newest):
+  - "On behalf of" = the artist's connected account.
+  - Transfer data → destination = the artist's `acct_...`.
+  - Amount = `5000` (EUR 50.00).
+  - **Application fee** is present and = **`50` cents** (EUR 0.50). This is what
+    Inklee KEEPS (3% of €50 = €1.50, minus Stripe's standard €1.00 absorbed →
+    €0.50). Confirm a non-zero application fee exists — that is the RS-4 fee.
+- [ ] **audit_log check:** `details.stripe_connect_routed = true` on the latest
+      `status_changed` row for the booking.
 
-- [ ] Open the customer's magic link (from the email — check Terminal A for the dev email log, or copy from the booking row's hash).
-- [ ] On the customer portal, pay with **`4242 4242 4242 4242`**, any future expiry, any CVC, any postcode.
-- [ ] After confirmation, the booking flips to **approved** in the artist dashboard.
-- [ ] **Verify in Terminal B**: `payment_intent.succeeded [evt_...] -> 200`.
-- [ ] **Verify in the artist's Stripe Connect account** (Stripe Dashboard → toggle to Test mode → Connect → Accounts → click your test artist → Balance):
-  - Pending balance shows the EUR 50 transfer (minus Stripe's small platform fee — usually 0 in test mode unless application_fee was set).
-- [ ] **Verify the booking_requests row**:
-  ```sql
-  SELECT status, deposit_paid_at FROM booking_requests WHERE id = '<id>';
-  ```
+> Note on small amounts: on a €50 deposit Inklee's kept fee is only €0.50
+> because it absorbs Stripe's standard cut out of the 3%. On a €200 deposit the
+> kept fee is ~€2.75. Both are correct — see `platform-fee.ts`.
 
-  - `status='approved'`, `deposit_paid_at` is recent.
+### Test 3: Customer pays → split lands correctly
 
-### Test 4: Goods checkout end-to-end
+- [ ] Open the customer magic link → pay with `4242 4242 4242 4242`, any future
+      expiry/CVC/postcode.
+- [ ] Booking flips to **approved**. Terminal B: `payment_intent.succeeded ->
+    200`.
+- [ ] **Artist's Connect balance** (Dashboard → Connect → Accounts → test artist
+      → Balance): the deposit transfer appears, net of the application fee.
+- [ ] **Platform balance** shows the **application fee** (€0.50) as Inklee's
+      revenue.
+- [ ] **audit_log:** the `deposit_paid` row's `details.application_fee_eur` =
+      `0.5`.
+- [ ] **booking_requests:** `status='approved'`, `deposit_paid_at` recent.
 
-- [ ] On the artist dashboard, navigate to `/goods` → pick a product → ensure "Offer as an add-on when a client pays their deposit" is **checked** (the `is_checkout_addon` flag).
-- [ ] On the public booking form (incognito), submit a new booking, and in the shop overlay add 1 of that product to the cart.
-- [ ] Back as artist: approve the booking. The popup appears with the goods item; confirm it as **available**.
-- [ ] Request a deposit (EUR 50).
-- [ ] On the customer portal:
-  - You should see the goods row under "You marked interest in these".
-  - Set qty to 1.
-  - Total reflects EUR 50 + the product price.
-- [ ] Pay with `4242`.
-- [ ] **Verify Stripe**: the new PaymentIntent in the dashboard has the higher amount AND `on_behalf_of` set.
-- [ ] **Verify orders + order_items rows**:
-  ```sql
-  SELECT id, status, subtotal_amount, fulfillment_status
-  FROM orders WHERE booking_id = '<id>';
-  SELECT type, title_snapshot, quantity, total_amount
-  FROM order_items WHERE order_id = '<order-id>';
-  ```
+### Test 4: Refund → client made whole, Inklee returns its fee
 
-  - Expect `status='paid'`, `fulfillment_status='pending_pickup'`, one `type=deposit` and one `type=product` line.
-- [ ] **Verify goods inventory decremented**: variant stock dropped by 1 (or product quantity dropped by 1).
-- [ ] **Verify the goods order confirmation email** in Terminal A's dev log.
+- [ ] On the booking detail, in the **Deposit** card, click **"Refund deposit"**
+      → confirm. (Visible only because this is a paid in-app deposit.)
+- [ ] **Stripe Dashboard → the charge → Refunds:** a full refund of EUR 50; the
+      **application fee is refunded** too (Inklee returns its €0.50).
+- [ ] **Artist's Connect balance:** reduced by the reversed transfer (the
+      artist absorbs Stripe's non-refundable processing fee — expected).
+- [ ] **audit_log:** a `deposit_refunded` row with `refund_id`, `amount_eur`.
+- [ ] The deposit card now shows **"Refunded EUR 50.00 to the client."** and the
+      refund button is gone (double-refund guard).
 
-### Test 5: Disconnect handling
+### Test 5: Manual deposit + the F7 cancel-on-manual-mark guard
 
-- [ ] In Stripe Dashboard → Connect → Accounts → your test artist → Settings → scroll to "Disconnect" → confirm.
-- [ ] **In Terminal B**: `account.application.deauthorized [evt_...] -> 200`.
-- [ ] Refresh `/settings/payouts` in the artist dashboard. Status badge should now read **"Not connected"**.
-- [ ] **Verify DB**: `stripe_account_status='unset'`, `stripe_charges_enabled=false`, `stripe_payouts_enabled=false`, BUT `stripe_account_id` is still set (we keep it for booking history).
-- [ ] Submit a new booking and try to go to deposit checkout. The customer portal should show deposit-only (no goods rows), because `getAddonProducts` returns empty for non-connected artists.
-- [ ] Click "Connect Stripe" again → flows back through onboarding (uses the same `stripe_account_id`) → status flips back to connected after submit.
+- [ ] Sign in as a **different artist who has NOT connected Stripe**.
+- [ ] `/settings/payouts` reads "Not connected"; `/bookings/deposits` shows
+      **"In-app card deposits are off"** with the manual explanation.
+- [ ] Create a booking → **Request deposit**. The form explains this is a
+      **manual** deposit (no card form) and nudges Connect. Submit.
+- [ ] **No PaymentIntent is created** (audit_log `stripe = false`); the customer
+      portal shows the amount + note, no card field.
+- [ ] As the artist, the deposit_pending view shows the primary **"Mark deposit
+      received"** button (manual path). Click it → booking approved.
+- [ ] **F7 check (connected artist path):** repeat with a CONNECTED artist who
+      requested an in-app deposit. The deposit_pending view now shows **"Waiting
+      for card payment"** with the manual mark demoted under "Client paying
+      another way?". Use that override → confirm the live PaymentIntent is
+      **canceled** in the Stripe Dashboard (so the client can't be charged
+      afterward).
 
-### Test 6: Un-connected artist (negative)
+### Test 6: Disconnect handling
 
-- [ ] Sign in as a DIFFERENT artist (one who has never connected Stripe).
-- [ ] Visit `/settings/payouts` → status reads "Not connected".
-- [ ] Create a booking and request a deposit.
-- [ ] **Verify audit_log**: `details.stripe_connect_routed = false`.
-- [ ] **Verify the PaymentIntent in Stripe Dashboard**: NO `on_behalf_of`, NO `transfer_data`. Money lands in the platform balance (existing pre-OT-12 behavior).
-- [ ] Customer pays normally. All status flips happen as before.
+- [ ] Stripe Dashboard → Connect → Accounts → test artist → disconnect.
+- [ ] Terminal B: `account.application.deauthorized -> 200`.
+- [ ] `/settings/payouts` reads "Not connected"; DB: `stripe_account_status='unset'`,
+      charges/payouts `false`, but `stripe_account_id` retained.
+- [ ] A new deposit request for that artist now creates a **manual** deposit
+      (no intent), since `routeCharges` is false.
+
+### Test 7 (quick): goods are showcase-only
+
+- [ ] On the public page Shop overlay, products render as a **gallery** — there
+      is **no "Add to cart"** control and no cart, because `GOODS_COMMERCE_ENABLED`
+      is off. Confirm a deposit checkout shows **deposit only** (no goods rows).
 
 ---
 
-## Phase 1 done → green-light Phase 2
+## Phase 1 done → Phase 2
 
-If everything in Phase 1 passed, the wiring is correct. Phase 2 is just flipping the production gate.
-
-If anything in Phase 1 failed or behaved unexpectedly, stop and triage — don't move to Phase 2.
+If all of Phase 1 passed, the deposit-fee + refund wiring is correct. If
+anything failed, stop and triage before production.
 
 ---
 
-## Phase 2: Vercel production env flip (~5 minutes)
+## Phase 2: Production readiness (~5 minutes, no env flip)
 
-This is the moment goods checkout actually becomes possible in production. The env var was deliberately added in the audit-fix sweep as a kill switch so this flip is explicit, not a side effect of a code change.
+Deposits have been live since 2026-05-22, so there is **no feature flag to flip**
+for this. The only production prerequisites are the Connect webhook events and
+keeping goods parked.
 
-### Step A: Add the env var in Vercel
+- [ ] **Live-mode Connect webhook events.** Stripe Dashboard → **Live mode** →
+      Developers → Webhooks → the production `/api/stripe/webhook` endpoint.
+      Confirm it listens to:
+  - `payment_intent.succeeded` (already there — deposits)
+  - `account.updated` (**add**)
+  - `account.application.deauthorized` (**add**)
+- [ ] **Live keys present** in Vercel prod (`sk_live_...`, `pk_live_...`,
+      live-mode `STRIPE_WEBHOOK_SECRET`). Already true since 2026-05-22.
+- [ ] **`GOODS_COMMERCE_ENABLED` is NOT set in production** (goods stay
+      showcase-only). There is intentionally nothing to enable here.
+- [ ] **No `CHECKOUT_ADDONS_PROD_READY` needed.** If it's still set in Vercel
+      from the old plan, it's now inert (goods are gated by `GOODS_COMMERCE_ENABLED`
+      upstream) — safe to delete for cleanliness.
 
-1. Open **https://vercel.com/mchlkrfts-projects/inklee** in your browser.
-2. Click the **Settings** tab at the top.
-3. In the left sidebar, click **Environment Variables**.
-4. Click the **Add New** button (or "Save" form at the top).
-5. Fill in:
-   - **Key**: `CHECKOUT_ADDONS_PROD_READY`
-   - **Value**: `true` (lowercase, no quotes)
-   - **Environments**: check **Production** only. Leave Preview and Development unchecked — non-prod environments don't need this flag (the code's `NODE_ENV !== "production"` branch covers them).
-6. Click **Save**.
-
-### Step B: Trigger a redeploy
-
-Env var changes only take effect on the NEXT deployment — your current production deployment was built without it.
-
-1. Stay in the Vercel dashboard. Click the **Deployments** tab at the top.
-2. Find the latest deployment with the **Production** tag (it'll be the one aliased to inkl.ee — currently `5df82f3` or later).
-3. Click the **⋯** (three dots) menu on the right of that row.
-4. Click **Redeploy**.
-5. A modal appears. Leave **"Use existing Build Cache"** checked (faster, same code) and click **Redeploy** to confirm.
-6. Wait ~2–3 minutes for the new deployment to go green.
-
-### Step C: Verify the env var landed
-
-1. Once the redeploy is "Ready", open `https://inkl.ee/<a-test-artist-with-active-connect-and-an-addon-product>`.
-2. Submit a booking, mark the addon product as interest, approve it as artist, request a deposit.
-3. The customer portal should now show the goods row. Before the env-var flip, it would have shown deposit-only even for fully-onboarded artists.
-
-If goods rows still don't appear, double-check:
-
-- The artist's profile has `stripe_account_status='active'` AND `stripe_charges_enabled=true` (Phase 1 verifies this in test mode — they need to repeat onboarding in **live** mode).
-- The product has `is_checkout_addon=true` AND `is_public_visible=true` AND `currency='eur'`.
-- The artist's `profiles.settings.features.checkout_addons` defaults to `true` (which it does for everyone unless explicitly set false).
+No redeploy is required for any of the above (webhook events are a Stripe-side
+config, not an app build).
 
 ---
 
 ## Phase 3: First real artist (external)
 
-After Phase 2, the system is _capable_ of taking real goods money — but no real artist is connected yet (their Phase 1 testing was in **test mode** Stripe). For a real-money transaction:
+1. A real artist visits `/settings/payouts` on production, **picks their
+   country**, and completes **live-mode** Stripe Express onboarding (real ID +
+   bank verification).
+2. **You** (or a real client) submit a booking; the artist approves and requests
+   a small real deposit (e.g. EUR 20).
+3. Pay with a **real card**. Verify:
+   - the deposit lands in the artist's **live** Connect balance net of the fee;
+   - Inklee's **platform balance** shows the application fee;
+   - the artist's deposit form showed the correct "you receive" figure.
+4. Optionally exercise a **real refund** from the booking detail and confirm the
+   client is made whole and Inklee's fee is returned.
 
-1. **Stripe keys**: confirm production env has live keys (`sk_live_...`, `pk_live_...`, the **live-mode** webhook secret). Per the legal-package memory you've been live for deposits since 2026-05-22, so this is likely already true. If not, swap in the live keys and redeploy.
-2. **Webhook (live mode)**: in the Stripe Dashboard, toggle to **Live mode** (top right), Developers → Webhooks → the endpoint pointing at production `/api/stripe/webhook`. Confirm it listens to:
-   - `payment_intent.succeeded` (already there)
-   - `account.updated` (add it)
-   - `account.application.deauthorized` (add it)
-3. **First real artist** signs up (or uses their existing account), visits `/settings/payouts` on production, and goes through **live-mode** Stripe Express onboarding — this requires real ID, real bank details, real verification.
-4. They list a real goods product, ideally something cheap (EUR 5 sticker pack).
-5. **You** (or another real client) submit a booking, the artist approves, requests deposit, **you pay with a real card** for the deposit + the sticker.
-6. Verify the money lands in the artist's live Stripe balance after the standard payout delay.
-
-That transaction is what closes OT-12 and starts the first-artist soak (§3.4 in roadmap).
+That first real deposit closes OT-12 and starts the first-artist soak
+(roadmap §3.4).
 
 ---
 
 ## Rollback / panic button
 
-If anything goes wrong in Phase 2 after the env-var flip and you need to disable goods checkout in prod immediately:
+There is no goods kill-switch to worry about anymore. If you need to stop
+**in-app deposit collection** platform-wide in an emergency:
 
-1. Vercel → Settings → Environment Variables → find `CHECKOUT_ADDONS_PROD_READY`.
-2. Change value from `true` to `false` (or delete the variable entirely).
-3. Trigger a redeploy.
+- **Per artist:** the artist can disconnect from their Stripe dashboard, or you
+  can set their `stripe_account_status` to a non-active value in the DB — either
+  makes `routeCharges` false, so new deposits fall back to manual (no money
+  through Inklee).
+- **Platform-wide:** removing the Stripe keys from Vercel prod disables all card
+  processing (deposits revert to manual tracking); existing paid deposits and
+  refunds are unaffected. Use only as a true emergency stop.
 
-Within ~2 minutes, `getAddonProducts` returns empty for every artist in prod and goods checkout silently disappears from every customer portal. Existing deposits are unaffected.
-
-For an even faster panic stop: in the Vercel dashboard, navigate to the older "good" production deployment (the one before Phase 2's redeploy) → **⋯** → **Promote to Production**. This instantly aliases inkl.ee back to the pre-flip build without waiting for any new build.
+For an outright bad deploy, promote the previous good production deployment in
+Vercel (Deployments → the prior build → ⋯ → Promote to Production) to revert
+instantly without a rebuild.
