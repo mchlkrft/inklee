@@ -506,12 +506,10 @@ export default function StatusActions({
                   </div>
                   {showFeeBreakdown && (
                     <p className="text-xs text-muted-foreground">
-                      Inklee fee ({PLATFORM_FEE_PERCENT}%): −EUR{" "}
+                      Inklee fee ({PLATFORM_FEE_PERCENT}%, incl. card
+                      processing): −EUR{" "}
                       {platformFeeEur(parsedDepositAmount).toFixed(2)} · You
-                      receive EUR {artistNetEur(parsedDepositAmount).toFixed(2)}{" "}
-                      <span className="text-muted-foreground/70">
-                        before card processing fees
-                      </span>
+                      receive EUR {artistNetEur(parsedDepositAmount).toFixed(2)}
                     </p>
                   )}
                 </div>
