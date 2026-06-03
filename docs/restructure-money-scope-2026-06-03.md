@@ -11,7 +11,7 @@ problems/blockers, and breaks the restructure into slices. Companion to
 
 1. **The booking process is universal and free of any payment setup — no tradeoffs.** Intake, organization, calendar, waitlist, flash, guest spots all work with zero Stripe. This is the part every artist gets.
 2. **Deposit collection is an optional opt-in.** Only artists who want the comfort of collecting deposits in-app turn it on.
-3. **All deposit money flows through Inklee, and Inklee adds a percentage platform fee** on top (covers Stripe fees + margin) → a **transaction-fee revenue stream** alongside subscriptions.
+3. **All deposit money flows through Inklee, and Inklee takes a percentage platform fee** (covers Stripe fees + margin) → a **transaction-fee revenue stream** alongside subscriptions. _Fee mechanic resolved 2026-06-03 (D-a) → **deducted**: the customer pays exactly the deposit, the fee comes off the artist's transfer. See §5 D-a._
 4. **Artists stay merchant of record** (Stripe Connect destination charge: `on_behalf_of` + `transfer_data.destination` + **new** `application_fee_amount`). Inklee never holds artist money beyond the platform fee.
 5. **Goods are showcase-only** — products/variants display on the bio page; **no in-app checkout, no appointment add-ons**.
 6. **Connect onboarding is opt-in, minimized, and clearly framed** ("Stripe verifies you so deposits land in _your_ account; Inklee never holds your money").
