@@ -54,7 +54,7 @@ const HOMEPAGE_FAQ: FaqItem[] = [
   {
     question: "Can artists collect tattoo deposits with Inklee?",
     answer:
-      "Inklee is built to make deposits part of the booking flow. Availability depends on your current setup and enabled features. The intent is to let you request a deposit on an approved request without leaving the booking workflow.",
+      "Yes, and it is optional. You can request a deposit on an approved booking. Connect Stripe to let clients pay by card, and the deposit lands in your own Stripe account with Inklee keeping a 3% fee that covers card processing. Prefer not to? Collect deposits manually and mark them received.",
   },
 ];
 
@@ -281,7 +281,7 @@ const FEATURES: Array<{
   {
     title: "Deposit collection",
     description:
-      "Deposits are part of the booking flow. Request, track paid, and confirm the booking without leaving the request.",
+      "Optional. Ask for a deposit on an approved request. Clients can pay by card into your own Stripe account (Inklee keeps a 3% fee), or you track a manual one. Status stays on the booking.",
     illustration: "/branding/illustrations/feature-deposit.svg",
     variant: "rosa",
   },

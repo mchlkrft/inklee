@@ -235,3 +235,7 @@ fee)` is what Inklee keeps + sets as `application_fee_amount`; fee on intent
    mark + in-app deposits show "Waiting for card payment" with the manual mark
    demoted (`hasDepositIntent`). Closes **F7, F10**.
 5. **RS-7** (F15, residual F3/F4 legal) — marketing + terms/VAT, counsel pass.
+   **Marketing copy ✅ DONE 2026-06-03** (homepage + `/tattoo-deposit-tool`
+   reframed optional + 3% fee + own-account); **legal half counsel-gated** —
+   counsel brief written at `docs/payment-flow-for-counsel.md` (money flow + 8
+   questions). Terms/VAT clauses await counsel. Closes **F15** (marketing).

@@ -184,7 +184,7 @@ const DEPOSIT_FAQ: Faq[] = [
   {
     question: "Do I need a separate payment tool for deposits?",
     answer:
-      "Some artists use separate payment links or invoices, but that can create extra tracking work. Inklee is built to make deposits part of the booking flow. Availability depends on your current setup and enabled features.",
+      "Not for the booking workflow. Inklee keeps the deposit step on the request itself. Card collection is optional: connect Stripe and clients can pay the deposit by card into your own account (Inklee keeps a 3% fee that covers card processing), or you can track a deposit you collect manually. Either way, the paid and confirmed status stays on the booking.",
   },
 ];
 
@@ -396,6 +396,11 @@ export default function TattooDepositToolPage() {
                 The artist reviews the tattoo request before moving the booking
                 forward. Deposit comes after approval, not before anyone knows
                 if the piece even fits.
+              </p>
+              <p className="mt-4 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
+                Card collection is optional. Connect Stripe and the deposit
+                lands in your own account (Inklee keeps a 3% fee that covers
+                card processing), or track a deposit you collect manually.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
