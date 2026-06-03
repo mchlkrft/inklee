@@ -211,9 +211,13 @@ highest-value slice (RS-4) and should be settled first:
    (default OFF, D-c=park). Closes **F2, F5, F11**; **F8/F13** dormant-parked
    (webhook goods fan-out + `CHECKOUT_ADDONS_PROD_READY` retained but
    unreachable). Portal now uses the deposit-only `DepositPaymentForm`.
-2. **RS-4** (F1, F4 — **F6 mostly dissolved** by the deducted-fee model, D-a)
-   — add `application_fee_amount` (intent amount stays = deposit), show the
-   artist net + customer fee disclosure. **Gated on D-b (the %).**
+2. **RS-4** (F1, F4 — **F6 dissolved** by the deducted-fee model, D-a) — add
+   `application_fee_amount` (intent amount stays = deposit), show the artist
+   net. ✅ **DONE 2026-06-03** — deducted @ **3%** (D-b), single-sourced in
+   `src/lib/platform-fee.ts`; fee on intent create + reuse; artist fee/net line
+   in the deposit form; `application_fee_eur` logged on `deposit_paid`. No
+   customer fee line needed (deducted = customer pays exactly the deposit).
+   Closes **F1, F4**.
 3. **RS-5** (F3, F9, F12, F14) — onboarding country, opt-in framing, fix the
    false `/settings/deposits` + payouts copy.
 4. **RS-6** (F10, F7) — refunds + the dual-confirm cleanup.

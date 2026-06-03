@@ -16,6 +16,7 @@ import {
 import type { EmailGoodsDecision } from "@/lib/email/booking-templates";
 import { stripe } from "@/lib/stripe";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
+import { platformFeeCents } from "@/lib/platform-fee";
 import type Stripe from "stripe";
 
 type ActionResult = { error: string } | { success: true };
@@ -560,6 +561,10 @@ export async function requestDeposit(
       try {
         await stripe.paymentIntents.update(fresh.deposit_payment_intent_id, {
           amount: Math.round(amount * 100),
+          // RS-4: keep the platform fee in step with the re-requested amount
+          // (deducted model — customer still pays exactly `amount`, the fee
+          // comes off the artist's destination transfer).
+          application_fee_amount: platformFeeCents(Math.round(amount * 100)),
           metadata: { booking_id: id, artist_id: user.id },
         });
       } catch (stripeErr) {
@@ -630,6 +635,13 @@ export async function requestDeposit(
         description: `Tattoo deposit - booking ${id}`,
         on_behalf_of: routing.stripeAccountId,
         transfer_data: { destination: routing.stripeAccountId },
+        // RS-4 platform fee (deducted model). The customer pays `amount`;
+        // Inklee keeps `application_fee_amount` and the rest transfers to the
+        // artist's connected account. With `on_behalf_of` set, Stripe's own
+        // processing fee is also borne by the artist's account, so Inklee
+        // nets the full fee. Manual (un-connected) deposits never reach this
+        // branch and carry no fee.
+        application_fee_amount: platformFeeCents(Math.round(amount * 100)),
       };
       try {
         const intent = await stripe.paymentIntents.create(

@@ -19,6 +19,11 @@ import {
   type DepositDefaults,
   type StripeMode,
 } from "@/lib/deposit-settings";
+import {
+  PLATFORM_FEE_PERCENT,
+  platformFeeEur,
+  artistNetEur,
+} from "@/lib/platform-fee";
 
 type Booking = {
   id: string;
@@ -200,6 +205,15 @@ export default function StatusActions({
     optimisticStatus,
   );
   const isDepositPending = optimisticStatus === "deposit_pending";
+
+  // RS-4: the platform fee only applies to in-app (Connect-routed) deposits.
+  // Manual deposits go straight to the artist and carry no Inklee fee, so the
+  // breakdown is hidden for them.
+  const parsedDepositAmount = parseFloat(depositAmount);
+  const showFeeBreakdown =
+    canCollectInApp &&
+    Number.isFinite(parsedDepositAmount) &&
+    parsedDepositAmount > 0;
 
   return (
     <div className="space-y-4">
@@ -490,6 +504,16 @@ export default function StatusActions({
                       className="flex-1 bg-transparent text-foreground focus:outline-none"
                     />
                   </div>
+                  {showFeeBreakdown && (
+                    <p className="text-xs text-muted-foreground">
+                      Inklee fee ({PLATFORM_FEE_PERCENT}%): −EUR{" "}
+                      {platformFeeEur(parsedDepositAmount).toFixed(2)} · You
+                      receive EUR {artistNetEur(parsedDepositAmount).toFixed(2)}{" "}
+                      <span className="text-muted-foreground/70">
+                        before card processing fees
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
