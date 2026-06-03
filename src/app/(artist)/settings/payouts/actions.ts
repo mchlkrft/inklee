@@ -9,6 +9,10 @@ import {
   syncConnectAccount,
   type ConnectStatus,
 } from "@/lib/stripe-connect";
+import {
+  isSupportedConnectCountry,
+  DEFAULT_CONNECT_COUNTRY,
+} from "@/lib/connect-countries";
 
 type ActionState = { error: string } | null;
 
@@ -25,6 +29,7 @@ function appUrl(): string {
  */
 export async function startConnectOnboardingAction(
   _prev: ActionState,
+  formData?: FormData,
 ): Promise<ActionState> {
   const supabase = await createClient();
   const {
@@ -32,11 +37,6 @@ export async function startConnectOnboardingAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Pull the artist's existing Connect state + the email we need to seed the
-  // Express account with. Stripe also asks for a country at create-time —
-  // for now we let Stripe infer from the artist's location during
-  // onboarding; if we later collect a country in profile settings, pass it
-  // here via `country`.
   const { data: profile } = await supabase
     .from("profiles")
     .select("stripe_account_id, stripe_account_country")
@@ -50,13 +50,24 @@ export async function startConnectOnboardingAction(
     };
   }
 
+  // F9 (RS-5): the connected account's country is fixed at creation, so we
+  // collect it on the payouts page before the first onboarding instead of
+  // letting Stripe default to the platform country (US in sandbox). Order of
+  // preference: the artist's just-submitted choice → a country already on the
+  // profile (re-onboarding) → the default market. `ensureConnectAccount`
+  // ignores `country` once an account exists, so this only bites at creation.
+  const submittedCountry = formData?.get("country");
+  const country = isSupportedConnectCountry(submittedCountry)
+    ? submittedCountry
+    : isSupportedConnectCountry(profile?.stripe_account_country)
+      ? (profile!.stripe_account_country as string)
+      : DEFAULT_CONNECT_COUNTRY;
+
   const ensured = await ensureConnectAccount({
     userId: user.id,
     email,
     existingAccountId: profile?.stripe_account_id ?? null,
-    ...(profile?.stripe_account_country
-      ? { country: profile.stripe_account_country as string }
-      : {}),
+    country,
   });
   if ("error" in ensured) return { error: ensured.error };
 

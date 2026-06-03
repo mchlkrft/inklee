@@ -7,6 +7,10 @@ import {
   syncConnectAccountAction,
 } from "./actions";
 import type { ConnectStatus } from "@/lib/stripe-connect";
+import {
+  CONNECT_COUNTRIES,
+  DEFAULT_CONNECT_COUNTRY,
+} from "@/lib/connect-countries";
 
 type StartState = { error: string } | null;
 type SyncState = { ok: true; status: ConnectStatus } | { error: string } | null;
@@ -33,7 +37,36 @@ export default function PayoutsControls({
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
       {showStart && (
-        <form action={startAction}>
+        <form action={startAction} className="space-y-3">
+          {status === "unset" && (
+            // F9: the connected account's country is locked at creation, so we
+            // collect it here before the first onboarding. Hidden when resuming
+            // a pending account (the account — and its country — already exist).
+            <div className="max-w-xs space-y-1">
+              <label
+                htmlFor="connect-country"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Your country
+              </label>
+              <select
+                id="connect-country"
+                name="country"
+                defaultValue={DEFAULT_CONNECT_COUNTRY}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {CONNECT_COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Where your business is based. This can&apos;t be changed after
+                you connect.
+              </p>
+            </div>
+          )}
           <button
             type="submit"
             disabled={startPending}

@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isConnectStatus, type ConnectStatus } from "@/lib/stripe-connect";
+import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
 import PayoutsControls from "./payouts-controls";
 
 const STATUS_LABEL: Record<ConnectStatus, string> = {
@@ -12,12 +13,10 @@ const STATUS_LABEL: Record<ConnectStatus, string> = {
 };
 
 const STATUS_DESCRIPTION: Record<ConnectStatus, string> = {
-  unset:
-    "Connect a Stripe account to receive deposits and sell goods directly to your clients. Stripe handles your onboarding and payouts; Inklee never holds your money.",
+  unset: `Connecting is optional. Do it only if you want clients to pay deposits by card here. Stripe verifies you so deposits land in your own account — Inklee never holds your money and keeps a ${PLATFORM_FEE_PERCENT}% fee per deposit (card processing included).`,
   pending:
     "You started Stripe onboarding but haven't finished yet. Pick up where you left off — your progress is saved.",
-  active:
-    "Your Stripe account is ready. Deposits + goods payments will route to your account once we flip the live switch.",
+  active: `Your Stripe account is ready. Clients can now pay deposits by card — each deposit lands in your account and Inklee keeps a ${PLATFORM_FEE_PERCENT}% fee (card processing included).`,
   restricted:
     "Stripe needs more information before you can take payments. Open your Stripe dashboard to clear the requirements.",
   disabled:
@@ -55,9 +54,10 @@ export default async function PayoutsSettingsPage() {
           Payouts
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connect Stripe to receive deposits and sell goods directly. Each
-          payment lands in your own Stripe account; Inklee never holds the
-          money.
+          Optional. Connect Stripe only if you want clients to pay deposits by
+          card here — each deposit lands in your own Stripe account and Inklee
+          keeps a {PLATFORM_FEE_PERCENT}% fee. Without it, you can still collect
+          deposits manually.
         </p>
       </div>
 
@@ -109,9 +109,9 @@ export default async function PayoutsSettingsPage() {
       <PayoutsControls status={status} accountId={accountId} />
 
       <p className="text-xs text-muted-foreground">
-        Production goods checkout stays disabled until the deployment-wide
-        switch is flipped. Connecting your account now is safe and reversible —
-        see{" "}
+        Connecting is optional and reversible. Deposits you collect this way
+        land in your own Stripe account; Inklee keeps a {PLATFORM_FEE_PERCENT}%
+        fee that covers card processing. See{" "}
         <a
           href="https://stripe.com/docs/connect/express-accounts"
           target="_blank"

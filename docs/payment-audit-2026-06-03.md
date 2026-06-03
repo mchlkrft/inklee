@@ -221,6 +221,11 @@ fee)` is what Inklee keeps + sets as `application_fee_amount`; fee on intent
    €Z" line; `application_fee_eur` logged on `deposit_paid`. No customer fee
    line. Closes **F1, F4**.
 3. **RS-5** (F3, F9, F12, F14) — onboarding country, opt-in framing, fix the
-   false `/settings/deposits` + payouts copy.
+   false `/bookings/deposits` + payouts copy. ✅ **DONE 2026-06-03** —
+   `connect-countries.ts` + country picker passed to account creation (F9);
+   Connect-aware `DepositCollectionStatus` replaces the false platform-charge
+   copy + global Stripe-mode status (F3); payouts page reframed opt-in, goods +
+   "live switch" footer dropped, 3% fee added (F12/F13/F14). Closes
+   **F3, F9, F12, F13, F14**.
 4. **RS-6** (F10, F7) — refunds + the dual-confirm cleanup.
 5. **RS-7** (F15, residual F3/F4 legal) — marketing + terms/VAT, counsel pass.
