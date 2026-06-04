@@ -33,7 +33,7 @@ import {
   toPriceNumber,
   type PublicProduct,
 } from "@/lib/goods";
-import { canUseGoods, isGoodsCommerceEnabled } from "@/lib/features";
+import { canUseGoods } from "@/lib/features";
 
 export type SlotOption = {
   id: string;
@@ -231,12 +231,13 @@ export default async function ArtistPublicPage({
         soldOut: p.status === "sold_out",
         pickupNote: p.pickup_note,
         // Interest is a signal, not a checkout commitment — any visible,
-        // active, EUR product can be flagged. The deposit-time checkout flow
-        // still gates on is_checkout_addon separately. RS-3: with goods
-        // commerce parked, nothing is interest-eligible and the Shop overlay
-        // renders as a showcase gallery (no add-to-cart).
+        // active, EUR product can be flagged. Decoupled from paid checkout
+        // (78a/DT-11): interest-marking rides on the goods module being on,
+        // NOT on `isGoodsCommerceEnabled()` (that flag still parks only the
+        // payable add-on path). The deposit-time checkout still gates on
+        // is_checkout_addon + the commerce flag separately.
         interestEligible:
-          isGoodsCommerceEnabled() &&
+          canUseGoods(profileSettings) &&
           p.status === "active" &&
           currency === "eur",
         variants: [...(p.product_variants ?? [])]

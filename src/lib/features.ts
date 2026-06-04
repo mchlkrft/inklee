@@ -72,13 +72,17 @@ export function canUseBioModules(settings: unknown): boolean {
 }
 
 /**
- * RS-3 master park switch (money-scope reset 2026-06-03). Goods are
- * showcase-only: the entire interest -> checkout commerce flow — Shop
- * add-to-cart, `booking_interests`, the Accept-time availability popup, the
- * appointment add-on checkout, and goods `orders` — is PARKED behind this
- * single deployment flag, default OFF. Bio-page product *display* (the Shop
- * overlay rendered as a showcase gallery, the dashboard goods CRUD) stays on
- * regardless of this flag; only the payable/interest path is gated.
+ * RS-3 master park switch (money-scope reset 2026-06-03). Parks the PAYABLE
+ * goods path: the appointment add-on checkout (customer-portal payable list)
+ * and goods `orders` are gated behind this single deployment flag, default
+ * OFF. Bio-page product *display* (the Shop overlay showcase, dashboard goods
+ * CRUD) stays on regardless.
+ *
+ * 78a/DT-11 (2026-06-04): goods INTEREST-marking was decoupled out of this
+ * switch. Add-to-cart on the showcase, `booking_interests` capture, the
+ * artist's interest view, and the Accept-time availability popup now ride on
+ * the per-artist goods module (`canUseGoods`), NOT this flag — they carry no
+ * money. Only the payable add-on checkout + orders remain parked here.
  *
  * Set `GOODS_COMMERCE_ENABLED=true` to un-park the in-app goods-sales flow.
  * Kept as a flag rather than deleted so the commerce layer can be restored

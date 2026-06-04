@@ -1954,3 +1954,67 @@ Migration **0036** (`orders`, `order_items`, optional `inventory_movements` + en
 **Out of scope / deferred:** capitalization "drift" (not a bug — `Inklee` is a brand term per AGENTS.md sentence-case); footer-link parity + GDPR-badge softening (deliberately dropped, see `project_inklee_legal_package` L4); deliverability (SPF/DKIM/DMARC on `inklee.app` in Resend) — operational, verify in the Resend dashboard, not code.
 
 **Smoke test:** mobile bottom nav shows Goods, Settings reachable top-right; Size radios stack cleanly at 375px; an approved/submitted booking shows `Forearm · ~ 15-20 cm` in the dashboard + emails; uploading a 6 MB or HEIC banner shows an inline message, not a 500; a sent deposit email renders the logo + Stripe/no-fee lines + on-behalf-of footer. `pnpm typecheck`, `pnpm lint`, `pnpm test` all green.
+
+---
+
+## Slice 78 — Phase D punch-list fix cluster
+
+Formalizes the remaining Phase D walkthrough findings (`docs/phase-d-walkthrough-2026-05-27.md`) into shippable sub-slices. Desktop quick-wins, IP-ROOT (iPad), and UP-1 (uploads) already shipped; this cluster is the rest. **Sequencing: 78a → 78b → 78c → 78d → 78e → 78f**, each independently shippable + deployable, capture-then-fix, `typecheck`/`lint`/`test` green before each ship. Re-confirm scope at each boundary.
+
+### Slice 78a — Goods "mark interest" decouple (DT-11) — H, regression
+
+**Goal:** restore the ability for clients to mark interest in goods from the booking flow, independent of paid checkout (which stays parked).
+
+**Root cause:** RS-3's `isGoodsCommerceEnabled()` (env `GOODS_COMMERCE_ENABLED`, default OFF) parked the _entire_ interest→checkout flow behind one flag, including the no-money interest-marking path.
+
+**Scope:** split the flag's responsibilities. Gate **interest-marking** on the goods module (`canUseGoods(settings)`), keep **paid checkout** on `isGoodsCommerceEnabled()`.
+
+- Un-park (gate on goods module): `src/app/[slug]/page.tsx:239` (`interestEligible`), `src/app/[slug]/actions.ts:282` (read `interests_json` on submit), `src/lib/addon-products.ts:56` (`getInterestEligibleProducts`).
+- Stays parked (money): `src/app/request/[token]/page.tsx:105` (portal add-on checkout), `src/lib/addon-products.ts:110` (`getAddonProducts`).
+- Verify the artist sees marked interests in the booking overview/detail and the Accept-time availability popup ("About your goods" decisions → approval email "ready for pickup") still fires off `booking_interests` presence (not gated on the money flag).
+
+**Done when:** with `GOODS_COMMERCE_ENABLED` unset (parked), a client can still add goods to interest on the public Shop overlay; the artist sees them on the request and confirms availability on Accept; NO payable add-on appears in the customer portal; no money path is reachable. Tests cover the new gate split.
+
+**Out of scope:** re-enabling paid goods checkout; the standalone Bio Page (FEAT-Bio).
+
+### Slice 78b — Payment-system pass: deposit page + payouts (DT-12, DT-13) — H
+
+**Goal:** a clean, on-brand, correctly-tested deposit + payout surface (the money path was not properly re-tested after the RS money-scope restructure).
+
+**Scope:** redesign `/bookings/deposits` UI (cleaner layout, fix the orange-warning-on-bone off-brand treatment, align to bone/charcoal/mustard/rosa); review `/settings/payouts` alongside it as one Connect-onboarding → deposit → fee → refund → payout operation; walk the full workflow in test mode (Connect onboarding country, deposit intent with `application_fee`, payment split, refund, manual path). Founder-driven verification expected.
+
+**Done when:** deposit page reads clean + on-brand; payouts reviewed; the end-to-end deposit money flow is verified in test mode; no off-brand warnings.
+
+**Out of scope:** changing the fee model (3% is provisional, founder-owned); legal copy (counsel).
+
+### Slice 78c — Waitlist artist-backend restructure (DT-5)
+
+**Goal:** declutter the artist waitlist; clarify converted/dismissed states.
+
+**Scope:** main waitlist view shows only active entries; move dismissed + converted into a collapsed "history" section (pick a clear name), expandable, greyed out. Relabel converted entries "added to requests" in the waitlist. In Requests, a converted-from-waitlist entry shows a "waitlist request" chip in the same color as the "request" chip.
+
+**Done when:** main view lists only active; history collapses/expands; converted/dismissed visually de-emphasized; requests chip reflects waitlist origin.
+
+### Slice 78d — Onboarding/viewport + booking-settings polish (DT-1, DT-15)
+
+**Scope:** DT-1 — onboarding intro slides (`onboarding/welcome/welcome-slides.tsx`) + `/onboarding/done` must fit the first viewport (no top cutoff) on all devices. DT-15 — add icons + reduce clutter on `/bookings/settings` for scannability.
+
+**Done when:** intro + done render fully in the first viewport at phone/tablet/desktop; booking settings is easier to scan with section icons.
+
+### Slice 78e — Analytics calendar (DT-4)
+
+**Scope:** render a calendar in the "Requests per Month" section, each day showing its request count (heatmap-style). (Detailed per-day drilldown = DT-4b, FUTURE — founder will prompt.)
+
+**Done when:** the requests-per-month section shows a per-day calendar with counts; no regressions to existing analytics.
+
+### Slice 78f — Flash edit-in-modal (DT-16)
+
+**Scope:** flash item edit + new use a modal (matching the goods/guest-spots modal style), not a subpage. (DT-16b — modal-everywhere backend principle — FUTURE.)
+
+**Done when:** editing/creating a flash item happens in a modal overlay; no full-page navigation for item edit; parity with the existing quick-create modal styling.
+
+### Deferred to future prompts (not in Slice 78)
+
+- **FEAT-Bio** — standalone Linktree-style per-artist link page (full prompt pending).
+- **DT-4b** — detailed/per-day analytics drilldown.
+- **DT-16b** — modal-everywhere artist-backend editing principle.

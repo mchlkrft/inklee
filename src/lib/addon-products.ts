@@ -50,10 +50,11 @@ type RawProduct = {
 export async function getInterestEligibleProducts(
   artistId: string,
 ): Promise<AddonProductRow[]> {
-  // RS-3: interest-marking is part of the parked goods-commerce flow. With
-  // the master switch off, no product is interest-eligible (the Shop overlay
-  // degrades to a showcase gallery).
-  if (!isGoodsCommerceEnabled()) return [];
+  // 78a/DT-11: interest-marking is decoupled from paid goods commerce. It
+  // rides on the per-artist goods module (`canUseGoods`), NOT the RS-3
+  // `isGoodsCommerceEnabled()` park switch (which still gates the payable
+  // add-on checkout in getAddonProducts below). So clients can flag goods
+  // they want at the appointment even while in-app goods checkout stays off.
   const { data: artist } = await serviceClient
     .from("profiles")
     .select("settings")
