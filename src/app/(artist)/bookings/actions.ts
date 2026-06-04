@@ -490,6 +490,7 @@ async function notifyDepositRequested(
   amount: number,
   dueAt: string,
   note: string | null,
+  currency: string,
 ): Promise<void> {
   if (!booking.customer_email) return;
 
@@ -527,6 +528,7 @@ async function notifyDepositRequested(
     artistName: profile?.display_name ?? "the artist",
     customerHandle: booking.customer_handle ?? "",
     amountEur: amount,
+    currency,
     dueDate: dueAt,
     depositNote: note,
     magicLink: `${appUrl}/request/${newToken}`,
@@ -626,6 +628,7 @@ export async function requestDeposit(
       amount,
       dueAt,
       note,
+      depositCurrency,
     );
     revalidateBookingViews(id);
     return { success: true };
@@ -740,6 +743,7 @@ export async function requestDeposit(
     amount,
     dueAt,
     note,
+    depositCurrency,
   );
   revalidateBookingViews(id);
   return { success: true };

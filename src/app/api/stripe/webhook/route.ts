@@ -368,6 +368,7 @@ export async function POST(request: Request) {
             "A client",
           ),
           amountEur: depositEur,
+          currency: intent.currency,
           goodsLines,
           goodsTotal: goodsLines.reduce((n, l) => n + l.total, 0),
           placement: afd?.placement ?? "",
@@ -413,6 +414,7 @@ export async function POST(request: Request) {
         artistName: artistDisplayName,
         customerHandle: booking.customer_handle ?? "",
         amountEur: depositEur,
+        currency: intent.currency,
         bookingRef: bookingId.slice(0, 8).toUpperCase(),
         policySnapshot:
           (booking as { deposit_policy_snapshot?: string | null })

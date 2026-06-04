@@ -207,6 +207,7 @@ export async function sendDepositRequestedEmail({
   artistName,
   customerHandle,
   amountEur,
+  currency = "eur",
   dueDate,
   depositNote,
   magicLink,
@@ -215,6 +216,7 @@ export async function sendDepositRequestedEmail({
   artistName: string;
   customerHandle: string;
   amountEur: number;
+  currency?: string;
   dueDate: string | null;
   depositNote: string | null;
   magicLink: string;
@@ -227,7 +229,7 @@ export async function sendDepositRequestedEmail({
 
 You recently sent a booking request to ${artistName} on Inklee. To confirm your appointment, ${artistName} has asked for a deposit.
 
-Deposit due: EUR ${amountEur.toFixed(2)}${dueLine}${noteLine}
+Deposit due: ${currency.toUpperCase()} ${amountEur.toFixed(2)}${dueLine}${noteLine}
 
 Payments are processed securely by Stripe, and the deposit goes directly to ${artistName}'s account. You pay exactly the deposit amount, with no added fees.
 
@@ -255,6 +257,7 @@ export async function sendArtistDepositPaidEmail({
   artistEmail,
   customerHandle,
   amountEur,
+  currency = "eur",
   goodsLines,
   goodsTotal,
   placement,
@@ -263,6 +266,7 @@ export async function sendArtistDepositPaidEmail({
   artistEmail: string;
   customerHandle: string;
   amountEur: number;
+  currency?: string;
   goodsLines: {
     title: string;
     variant: string | null;
@@ -285,7 +289,7 @@ export async function sendArtistDepositPaidEmail({
         : "";
     const body = `${customerHandle} paid their deposit. The booking is confirmed.
 
-Deposit: EUR ${amountEur.toFixed(2)}${placement ? `\nPlacement: ${placement}` : ""}${date ? `\nDate: ${date}` : ""}${goodsBlock}
+Deposit: ${currency.toUpperCase()} ${amountEur.toFixed(2)}${placement ? `\nPlacement: ${placement}` : ""}${date ? `\nDate: ${date}` : ""}${goodsBlock}
 
 Open Bookings:
 https://inklee.app/bookings/overview`;
@@ -312,6 +316,7 @@ export async function sendClientDepositReceiptEmail({
   artistName,
   customerHandle,
   amountEur,
+  currency = "eur",
   bookingRef,
   policySnapshot,
 }: {
@@ -319,6 +324,7 @@ export async function sendClientDepositReceiptEmail({
   artistName: string;
   customerHandle: string;
   amountEur: number;
+  currency?: string;
   bookingRef: string;
   policySnapshot: string | null;
 }): Promise<void> {
@@ -332,7 +338,7 @@ export async function sendClientDepositReceiptEmail({
 Your deposit to ${artistName} has been received. Your booking is confirmed.
 
 Booking reference: ${bookingRef}
-Deposit paid: EUR ${amountEur.toFixed(2)}${policyBlock}
+Deposit paid: ${currency.toUpperCase()} ${amountEur.toFixed(2)}${policyBlock}
 
 Inklee`;
     const { buildEmailHtml: build } = await import("./booking-templates");

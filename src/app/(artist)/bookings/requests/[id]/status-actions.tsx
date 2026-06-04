@@ -24,6 +24,7 @@ import {
   platformFeeEur,
   artistNetEur,
 } from "@/lib/platform-fee";
+import { formatPrice } from "@/lib/goods";
 
 type Booking = {
   id: string;
@@ -53,6 +54,7 @@ export default function StatusActions({
   hasDepositIntent = false,
   confirmStudio = null,
   pendingInterests = [],
+  currency = "eur",
 }: {
   booking: Booking;
   depositDefaults?: DepositDefaults;
@@ -75,6 +77,9 @@ export default function StatusActions({
   // availability decision. Drives the Accept confirmation popup; empty array
   // means accept fires immediately (subject to the studio check above).
   pendingInterests?: PendingInterest[];
+  // The artist's deposit currency (Slice 79d) — what amounts in the deposit
+  // request form + fee preview are denominated in.
+  currency?: string;
 }) {
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(booking.status);
   const [, startTransition] = useTransition();
@@ -534,7 +539,7 @@ export default function StatusActions({
                   </label>
                   <div className="flex items-center rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
                     <span className="text-muted-foreground select-none mr-1">
-                      EUR
+                      {currency.toUpperCase()}
                     </span>
                     <input
                       type="number"
@@ -549,9 +554,13 @@ export default function StatusActions({
                   {showFeeBreakdown && (
                     <p className="text-xs text-muted-foreground">
                       Inklee fee ({PLATFORM_FEE_PERCENT}%, incl. card
-                      processing): −EUR{" "}
-                      {platformFeeEur(parsedDepositAmount).toFixed(2)} · You
-                      receive EUR {artistNetEur(parsedDepositAmount).toFixed(2)}
+                      processing): −
+                      {formatPrice(
+                        platformFeeEur(parsedDepositAmount),
+                        currency,
+                      )}{" "}
+                      · You receive{" "}
+                      {formatPrice(artistNetEur(parsedDepositAmount), currency)}
                     </p>
                   )}
                 </div>

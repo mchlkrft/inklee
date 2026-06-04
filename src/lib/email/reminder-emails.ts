@@ -17,6 +17,7 @@ export async function sendDepositOverdueCustomer({
   customerHandle,
   artistName,
   amountEur,
+  currency = "eur",
   dueAt,
   note,
 }: {
@@ -24,12 +25,13 @@ export async function sendDepositOverdueCustomer({
   customerHandle: string;
   artistName: string;
   amountEur: number;
+  currency?: string;
   dueAt: string;
   note: string | null;
 }): Promise<void> {
   const body = `Hi ${customerHandle},
 
-Your deposit of EUR ${amountEur.toFixed(2)} for your booking with ${artistName} was due on ${dueAt} and hasn't been received yet.
+Your deposit of ${currency.toUpperCase()} ${amountEur.toFixed(2)} for your booking with ${artistName} was due on ${dueAt} and hasn't been received yet.
 
 ${note ? `Payment instructions from ${artistName}:\n${note}\n\n` : ""}Please arrange payment as soon as possible to keep your booking. If you can no longer proceed, you can cancel using your booking link.`;
 
@@ -44,14 +46,16 @@ export async function sendDepositOverdueArtist({
   to,
   customerHandle,
   amountEur,
+  currency = "eur",
   dueAt,
 }: {
   to: string;
   customerHandle: string;
   amountEur: number;
+  currency?: string;
   dueAt: string;
 }): Promise<void> {
-  const body = `${customerHandle}'s deposit of EUR ${amountEur.toFixed(2)} was due on ${dueAt} and hasn't been received.
+  const body = `${customerHandle}'s deposit of ${currency.toUpperCase()} ${amountEur.toFixed(2)} was due on ${dueAt} and hasn't been received.
 
 You may want to follow up or cancel the booking.
 

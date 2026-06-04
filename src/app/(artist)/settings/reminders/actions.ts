@@ -103,7 +103,7 @@ export async function sendManualDepositReminderAction(
   const { data: booking } = await supabase
     .from("booking_requests")
     .select(
-      "id, customer_email, customer_handle, deposit_amount, deposit_due_at, deposit_note, artist_id",
+      "id, customer_email, customer_handle, deposit_amount, deposit_currency, deposit_due_at, deposit_note, artist_id",
     )
     .eq("id", bookingId)
     .eq("artist_id", user.id)
@@ -146,6 +146,7 @@ export async function sendManualDepositReminderAction(
     customerHandle: booking.customer_handle ?? "there",
     artistName,
     amountEur: amount,
+    currency: booking.deposit_currency ?? "eur",
     dueAt: booking.deposit_due_at ?? "",
     note: booking.deposit_note,
   });
@@ -155,6 +156,7 @@ export async function sendManualDepositReminderAction(
       to: artistEmail,
       customerHandle: booking.customer_handle ?? "customer",
       amountEur: amount,
+      currency: booking.deposit_currency ?? "eur",
       dueAt: booking.deposit_due_at ?? "",
     });
   }

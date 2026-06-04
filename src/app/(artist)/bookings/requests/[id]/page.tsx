@@ -18,6 +18,7 @@ import { resolveBookingGuestSpotStudio } from "@/lib/booking-studio";
 import { formatPrice } from "@/lib/goods";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import { artistDepositCurrency } from "@/lib/connect-countries";
 import GoodsPickupButton from "./goods-pickup-button";
 import DepositRefundButton from "./deposit-refund-button";
 
@@ -35,7 +36,7 @@ export default async function RequestDetailPage({
   const { data: booking } = await supabase
     .from("booking_requests")
     .select(
-      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status), trips(title, trip_legs(starts_on, ends_on, studios(name, city))), slots(starts_at, duration_minutes), profiles!artist_id(timezone, settings)",
+      "*, booking_images(storage_path, annotations), flash_items(id, title, slug, status), trips(title, trip_legs(starts_on, ends_on, studios(name, city))), slots(starts_at, duration_minutes), profiles!artist_id(timezone, settings, stripe_account_country)",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
@@ -56,6 +57,12 @@ export default async function RequestDetailPage({
     artistProfile as { settings?: Record<string, unknown> } | null
   )?.settings ?? {}) as Record<string, unknown>;
   const depositDefaults = parseDepositDefaults(artistSettings.deposit_defaults);
+  // Slice 79d: the artist's deposit currency drives the deposit-request form +
+  // fee preview (the deposit itself stores its own currency once requested).
+  const artistCurrency = artistDepositCurrency(
+    (artistProfile as { stripe_account_country?: string | null } | null)
+      ?.stripe_account_country,
+  );
   const stripeMode = detectStripeMode(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
   );
@@ -269,6 +276,7 @@ export default async function RequestDetailPage({
           depositDefaults={depositDefaults}
           stripeMode={stripeMode}
           canCollectInApp={canCollectInApp}
+          currency={artistCurrency}
           hasDepositIntent={!!booking.deposit_payment_intent_id}
           confirmStudio={confirmStudio}
           pendingInterests={interests
@@ -428,6 +436,7 @@ export default async function RequestDetailPage({
               depositDefaults={depositDefaults}
               stripeMode={stripeMode}
               canCollectInApp={canCollectInApp}
+              currency={artistCurrency}
               hasDepositIntent={!!booking.deposit_payment_intent_id}
               confirmStudio={confirmStudio}
               pendingInterests={interests

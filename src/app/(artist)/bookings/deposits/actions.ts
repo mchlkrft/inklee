@@ -36,7 +36,7 @@ export async function saveDepositDefaultsAction(
     }
     if (parsed > MAX_AMOUNT) {
       return {
-        error: `Default amount can’t exceed €${MAX_AMOUNT.toLocaleString()}.`,
+        error: `Default amount can’t exceed ${MAX_AMOUNT.toLocaleString()}.`,
       };
     }
     amount = parsed === 0 ? null : Math.round(parsed * 100) / 100;
