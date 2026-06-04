@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { ChevronDown, ImagePlus, X } from "lucide-react";
 import DateInput from "@/components/date-input";
 import Spinner from "@/components/spinner";
+import { prepareImageUpload, applyFileToInput } from "@/lib/image-compress";
 import { createFlashItemAction } from "./actions";
 
 type State = { error: string } | { success: true; id?: string } | null;
@@ -36,6 +37,7 @@ export default function FlashQuickCreateModal({
   );
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [priceType, setPriceType] = useState<"request" | "fixed" | "from">(
     "request",
@@ -117,7 +119,7 @@ export default function FlashQuickCreateModal({
                   <ImagePlus className="h-8 w-8" strokeWidth={1.5} />
                   <span className="text-sm font-medium">Add image</span>
                   <span className="text-xs">
-                    PNG, JPG or WebP — up to 5&nbsp;MB
+                    PNG, JPG or WebP. Large images are compressed.
                   </span>
                 </div>
               )}
@@ -128,11 +130,24 @@ export default function FlashQuickCreateModal({
               type="file"
               accept="image/png,image/jpeg,image/webp"
               className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) setPreviewUrl(URL.createObjectURL(f));
+              onChange={async (e) => {
+                const input = e.currentTarget;
+                const f = input.files?.[0];
+                if (!f) return;
+                const result = await prepareImageUpload(f);
+                if ("error" in result) {
+                  setImageError(result.error);
+                  input.value = "";
+                  return;
+                }
+                setImageError(null);
+                applyFileToInput(input, result.file);
+                setPreviewUrl(URL.createObjectURL(result.file));
               }}
             />
+            {imageError && (
+              <p className="text-xs text-destructive">{imageError}</p>
+            )}
 
             {/* Title — optional */}
             <div className="space-y-1.5">

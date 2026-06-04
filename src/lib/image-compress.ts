@@ -56,6 +56,74 @@ export async function compressImageInBrowser(file: File): Promise<File> {
   }
 }
 
+export const ALLOWED_IMAGE_UPLOAD_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
+
+// Stay safely under Vercel's ~4.5 MB serverless request-body cap. An upload
+// over the cap is rejected by the platform before the server action runs,
+// which surfaces as an unhandled 500 / blank error page rather than anything
+// the form can explain. We compress first, then guard against the rare case
+// where even the compressed result is still too big.
+export const MAX_IMAGE_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+export type PreparedImage = { file: File } | { error: string };
+
+/**
+ * Validate and shrink an image the user picked, in the browser, before it ever
+ * reaches a server action. Rejects HEIC and non-image types with a friendly
+ * message; compresses large images so they fit under the platform body cap.
+ * Returns the processed file or a human-readable error. Every image upload
+ * surface should funnel through this so a bad pick never black-screens.
+ */
+export async function prepareImageUpload(file: File): Promise<PreparedImage> {
+  const name = file.name.toLowerCase();
+  const isHeic =
+    file.type === "image/heic" ||
+    file.type === "image/heif" ||
+    name.endsWith(".heic") ||
+    name.endsWith(".heif");
+  if (isHeic) {
+    return {
+      error:
+        "iPhone HEIC photos aren't supported. Choose a JPG or PNG (a screenshot of the photo works too).",
+    };
+  }
+  if (!ALLOWED_IMAGE_UPLOAD_TYPES.includes(file.type)) {
+    return {
+      error: "That file isn't supported. Choose a PNG, JPG, or WebP image.",
+    };
+  }
+
+  let processed = file;
+  try {
+    processed = await compressImageInBrowser(file);
+  } catch {
+    return {
+      error: "Could not read that image. Try a different file or format.",
+    };
+  }
+
+  if (processed.size > MAX_IMAGE_UPLOAD_BYTES) {
+    const mb = (processed.size / 1024 / 1024).toFixed(1);
+    return {
+      error: `That image is ${mb} MB, too large even after compressing. Try a smaller one.`,
+    };
+  }
+  return { file: processed };
+}
+
+/** Replace a file input's selected file with a (compressed) one so the form
+ *  submits the processed file. DataTransfer is supported on every browser we
+ *  target (Safari/iOS 15.6+). */
+export function applyFileToInput(input: HTMLInputElement, file: File): void {
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();

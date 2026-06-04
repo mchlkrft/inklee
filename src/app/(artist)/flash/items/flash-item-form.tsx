@@ -6,6 +6,7 @@ import Link from "next/link";
 import DateInput from "@/components/date-input";
 import Spinner from "@/components/spinner";
 import { slugify } from "@/lib/flash";
+import { prepareImageUpload, applyFileToInput } from "@/lib/image-compress";
 import { createFlashItemAction, updateFlashItemAction } from "./actions";
 
 type State = { error: string } | { success: true; id?: string } | null;
@@ -57,6 +58,7 @@ export default function FlashItemForm({
   const [priceType, setPriceType] = useState(initial.priceType ?? "request");
   const [isBookable, setIsBookable] = useState(initial.isBookable ?? true);
   const [previewUrl, setPreviewUrl] = useState(initial.previewImageUrl ?? "");
+  const [imageError, setImageError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Redirect to edit page after successful create
@@ -285,13 +287,26 @@ export default function FlashItemForm({
             type="file"
             accept="image/png,image/jpeg,image/webp"
             className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setPreviewUrl(URL.createObjectURL(f));
+            onChange={async (e) => {
+              const input = e.currentTarget;
+              const f = input.files?.[0];
+              if (!f) return;
+              const result = await prepareImageUpload(f);
+              if ("error" in result) {
+                setImageError(result.error);
+                input.value = "";
+                return;
+              }
+              setImageError(null);
+              applyFileToInput(input, result.file);
+              setPreviewUrl(URL.createObjectURL(result.file));
             }}
           />
+          {imageError && (
+            <p className="text-xs text-destructive">{imageError}</p>
+          )}
           <p className="text-xs text-muted-foreground">
-            PNG, JPG, or WebP — max 5 MB
+            PNG, JPG, or WebP. Large images are compressed automatically.
           </p>
         </div>
 

@@ -28,11 +28,19 @@ async function uploadPreviewImage(
   if (!file || file.size === 0) return null;
   if (file.size > 5 * 1024 * 1024) return null; // 5MB limit
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const processed = await sharp(buffer)
-    .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 85 })
-    .toBuffer();
+  // Defense in depth: the client compresses + validates before upload, but a
+  // file that slips through and sharp can't decode must not throw an unhandled
+  // 500. Image is optional here, so a failed decode just yields no image.
+  let processed: Buffer;
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    processed = await sharp(buffer)
+      .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+  } catch {
+    return null;
+  }
 
   const path = `${artistId}/flash/${itemId}.webp`;
   const { error } = await serviceClient.storage

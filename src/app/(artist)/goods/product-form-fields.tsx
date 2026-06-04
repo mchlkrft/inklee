@@ -16,6 +16,7 @@ import {
   type ProductCategory,
   type ProductStatus,
 } from "@/lib/goods";
+import { prepareImageUpload } from "@/lib/image-compress";
 
 export type ProductFormFieldValues = {
   title: string;
@@ -118,6 +119,7 @@ export default function ProductFormFields({
   });
 
   const [moreOpen, setMoreOpen] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   // The add-on flag lives under "More settings" (collapsed by default). Hold it
   // in state with an always-rendered hidden input so the value submits even when
   // that section was never opened. Publish/draft is a required radio choice on
@@ -151,25 +153,41 @@ export default function ProductFormFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function addImageFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setImageEntries((prev) => {
-      const remaining = maxImages - prev.length;
-      if (remaining <= 0) return prev;
-      const toAdd = Array.from(files)
-        .slice(0, remaining)
-        .map((file) => ({
-          kind: "new" as const,
-          file,
-          preview: URL.createObjectURL(file),
-          key: freshKey(),
-        }));
-      return [...prev, ...toAdd];
-    });
-    // Reset so picking the same file again still triggers onChange. Only the
-    // trigger input is reset — the dedicated NewFileInputs already in the DOM
-    // are untouched.
-    if (triggerRef.current) triggerRef.current.value = "";
+  async function addImageFiles(files: FileList | null) {
+    // Reset the trigger up front so picking the same file again still fires
+    // onChange even if we bail early below.
+    const resetTrigger = () => {
+      if (triggerRef.current) triggerRef.current.value = "";
+    };
+    if (!files || files.length === 0) return resetTrigger();
+    setImageError(null);
+
+    const remaining = maxImages - imageEntries.length;
+    if (remaining <= 0) return resetTrigger();
+
+    // Validate + compress each pick in the browser before it can post (an
+    // oversized file would otherwise 500 at the platform body cap). Keep the
+    // first error to surface; skip files that fail, add the ones that pass.
+    let firstError: string | null = null;
+    const prepared: Extract<ImageEntry, { kind: "new" }>[] = [];
+    for (const file of Array.from(files).slice(0, remaining)) {
+      const result = await prepareImageUpload(file);
+      if ("error" in result) {
+        if (!firstError) firstError = result.error;
+        continue;
+      }
+      prepared.push({
+        kind: "new",
+        file: result.file,
+        preview: URL.createObjectURL(result.file),
+        key: freshKey(),
+      });
+    }
+    if (firstError) setImageError(firstError);
+    if (prepared.length > 0) {
+      setImageEntries((prev) => [...prev, ...prepared].slice(0, maxImages));
+    }
+    resetTrigger();
   }
 
   function removeImageEntry(key: string) {
@@ -280,11 +298,12 @@ export default function ProductFormFields({
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          PNG, JPG or WebP, up to 5 MB each.{" "}
+          PNG, JPG or WebP. Large images are compressed automatically.{" "}
           {liveVariantCount > 0
-            ? `With ${liveVariantCount} option${liveVariantCount === 1 ? "" : "s"} you can add up to ${maxImages} images (one per option + a shared one).`
-            : "Up to 3 images — drag to reorder is coming."}
+            ? `With ${liveVariantCount} option${liveVariantCount === 1 ? "" : "s"} you can add up to ${maxImages} images (one per option plus a shared one).`
+            : "Up to 3 images."}
         </p>
+        {imageError && <p className="text-xs text-destructive">{imageError}</p>}
         <input
           type="hidden"
           name="existing_image_urls"

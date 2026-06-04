@@ -189,11 +189,18 @@ async function uploadProductImage(
   if (file.size > MAX_IMAGE_SIZE) {
     return { error: "Image must be under 5 MB." };
   }
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const resized = await sharp(buffer)
-    .resize(800, 800, { fit: "cover", position: "centre" })
-    .webp({ quality: 82 })
-    .toBuffer();
+  // Defense in depth: client compresses + validates first, but a file sharp
+  // can't decode must surface as a friendly error, never an unhandled 500.
+  let resized: Buffer;
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    resized = await sharp(buffer)
+      .resize(800, 800, { fit: "cover", position: "centre" })
+      .webp({ quality: 82 })
+      .toBuffer();
+  } catch {
+    return { error: "Could not process that image. Try a different file." };
+  }
   // Per-image slug path so multiple images can coexist under one product. The
   // old single-image layout (${userId}/goods/${productId}.webp) is left in
   // place for legacy rows until migration 0038 backfill is verified clean.
