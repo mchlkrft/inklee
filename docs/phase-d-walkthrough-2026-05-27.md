@@ -89,3 +89,21 @@ IDs `DT-n`. Severity B/H/M/L. "Future" = founder will write a dedicated slice/pr
 - ⏳ **Held for a slice (after the full cross-device batch):** DT-1 (intro/`onboarding/done` first-viewport — responsive, overlaps mobile round), DT-15 (booking-settings icons/declutter).
 - ⏳ **Dedicated slices pending:** DT-11 (goods interest decouple), DT-12+DT-13 (payment-system: deposit page + payouts), DT-5 (waitlist artist-backend restructure), DT-4 (analytics calendar), DT-16 (Flash edit-in-modal).
 - 🅿️ **Future (founder will prompt):** DT-4b (detailed analytics), DT-16b (modal-everywhere principle).
+
+### Future feature — Bio Page (Linktree-style), prompt pending
+
+- **FEAT-Bio [Future]** A dedicated per-artist link-sharing page (Linktree-like) with custom link fields — a **standalone page**, not just custom links inside the contact form. Founder will send the full feature + slice-defining prompt later. Do not build until then. (Relates to the existing Slice 72 Bio Page modules / `custom_links` work — reconcile with that when scoping.)
+
+### Round 2 — iPad (founder solo pass, 2026-06-04)
+
+**⚠️ Almost certainly ONE root cause, not 7 bugs — likely a BLOCKER.** Everything broken is driven by client-side JS (modals, popovers, the top-right nav toggle, item-grid taps, file-input `ref.click()` triggers, custom buttons/links). Everything that still works is native HTML (branded link/submit buttons). That pattern = **the client JS bundle is not executing on the iPad** (hydration not running). Strong candidate: the iPad's Safari version is **below the Next.js 16 build target**, so the bundle errors on parse/eval and no React handlers attach. App-wide (fails on the public contact form AND the artist backend), and these features long predate the 2026-06-04 work, so pre-existing, not introduced this session. Code recon found no lookbehind regex, no custom browserslist, and only an ES5-safe global script — nothing in our own code obviously breaks Safari.
+
+- **IP-1 [B]** Flash overview: items not click-responsive (no buttons surface); "New flash" opens no modal.
+- **IP-2 [B]** Goods: same (grid + modal unresponsive).
+- **IP-3 [B]** Guest-spot items: tap shows only full charcoal, not responsive.
+- **IP-4 [B]** Top-right navbar (account menu) does not open on tap.
+- **IP-5 [B]** Contact form: almost nothing works.
+- **IP-6 [B]** All custom buttons / links / popovers appear non-functional.
+- **IP-7 [B]** Settings › Profile logo + banner upload trigger not responsive.
+- **Common thread:** only the branded mustard buttons (mostly links / form submits) respond.
+- **✅ ROOT CAUSE FOUND (IP-ROOT) [B]:** device is iPad Air 5 / iPadOS 16 / Chrome (WebKit 16). The built client bundle ships a **class static initialization block** — `class y extends Component{static{this.contextType=AppRouterContext}}` (Next.js 16 compiled output) — which is **Safari/WebKit 16.4+ only**. On iPadOS 16.0–16.3 WebKit throws a SyntaxError parsing the chunk → whole client bundle fails to evaluate → no hydration → every JS interaction dead app-wide; only native links/submits survive. Explains IP-1…IP-7 as one cause. No lookbehind regex in the bundle (ruled out). **Fix:** add a `browserslist` target including Safari/iOS < 16.4 so SWC transpiles static blocks away; rebuild and verify `static{` is gone from `.next/static/chunks`, then redeploy. Verifiable locally without the iPad.

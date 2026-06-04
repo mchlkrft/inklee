@@ -27,6 +27,14 @@
       "prettier --write"
     ]
   },
+  "browserslist": [
+    "chrome >= 109",
+    "edge >= 109",
+    "firefox >= 115",
+    "safari >= 15.6",
+    "ios_saf >= 15.6",
+    "samsung >= 21"
+  ],
   "dependencies": {
     "@base-ui/react": "^1.4.0",
     "@sentry/nextjs": "^10.49.0",
