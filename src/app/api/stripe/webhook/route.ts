@@ -238,9 +238,10 @@ export async function POST(request: Request) {
         details: {
           payment_intent_id: intent.id,
           amount_eur: intent.amount / 100,
-          // RS-4: the platform fee Inklee kept on this deposit (deducted
-          // model). 0 for manual / pre-fee intents. Logged for revenue
-          // reconciliation without a round-trip to Stripe.
+          // The gross 3% application fee Inklee collected on this deposit
+          // (Custom Connect: Stripe's processing fee is then billed to Inklee's
+          // platform balance, so net keep is this minus Stripe's cut). 0 for
+          // manual / pre-fee intents. Logged for revenue reconciliation.
           application_fee_eur: (intent.application_fee_amount ?? 0) / 100,
           via: "stripe_webhook",
         },

@@ -17,7 +17,7 @@ import {
 import type { EmailGoodsDecision } from "@/lib/email/booking-templates";
 import { stripe } from "@/lib/stripe";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
-import { applicationFeeCents } from "@/lib/platform-fee";
+import { platformFeeCents } from "@/lib/platform-fee";
 import {
   parseDepositPolicy,
   renderDepositPolicyText,
@@ -579,10 +579,11 @@ export async function requestDeposit(
       try {
         await stripe.paymentIntents.update(fresh.deposit_payment_intent_id, {
           amount: Math.round(amount * 100),
-          // RS-4: keep the platform fee in step with the re-requested amount.
-          // application_fee_amount = what Inklee KEEPS (3% all-in minus the
-          // Stripe fee Inklee absorbs); customer still pays exactly `amount`.
-          application_fee_amount: applicationFeeCents(Math.round(amount * 100)),
+          // Keep the platform fee in step with the re-requested amount.
+          // application_fee_amount = the full 3% (Custom Connect: Stripe bills
+          // its fee to Inklee's platform balance separately); customer still
+          // pays exactly `amount`, artist nets 97%.
+          application_fee_amount: platformFeeCents(Math.round(amount * 100)),
           metadata: { booking_id: id, artist_id: user.id },
         });
       } catch (stripeErr) {
@@ -655,15 +656,14 @@ export async function requestDeposit(
         description: `Tattoo deposit - booking ${id}`,
         on_behalf_of: routing.stripeAccountId,
         transfer_data: { destination: routing.stripeAccountId },
-        // RS-4 platform fee (all-in deducted model). The customer pays
-        // `amount`; `application_fee_amount` is what Inklee KEEPS after
-        // absorbing Stripe's standard processing fee out of the 3% (see
-        // platform-fee.ts). `on_behalf_of` stays set so the artist is merchant
-        // of record (LO-2) and Stripe debits its fee from the artist's
-        // account; the application fee is sized so the artist's all-in loss is
-        // ~3% on a standard EU card. Manual (un-connected) deposits never reach
-        // this branch and carry no fee.
-        application_fee_amount: applicationFeeCents(Math.round(amount * 100)),
+        // Platform fee. The customer pays exactly `amount`;
+        // `application_fee_amount` is the full 3% (Custom Connect, fees.payer =
+        // application: Stripe bills its processing fee to Inklee's platform
+        // balance separately, so Inklee nets 3% − Stripe's fee). `on_behalf_of`
+        // stays set so the artist is merchant of record (LO-2). The artist
+        // always loses exactly 3% on a standard card. Manual (un-connected)
+        // deposits never reach this branch and carry no fee.
+        application_fee_amount: platformFeeCents(Math.round(amount * 100)),
       };
       try {
         const intent = await stripe.paymentIntents.create(

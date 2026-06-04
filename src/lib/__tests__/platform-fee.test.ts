@@ -3,7 +3,6 @@ import {
   PLATFORM_FEE_BPS,
   PLATFORM_FEE_PERCENT,
   platformFeeCents,
-  applicationFeeCents,
   platformFeeEur,
   artistNetEur,
 } from "../platform-fee";
@@ -43,50 +42,11 @@ describe("platformFeeCents", () => {
   });
 });
 
-describe("applicationFeeCents (what Inklee keeps after absorbing Stripe)", () => {
-  it("is 3% minus the standard Stripe fee (1.5% + €0.25)", () => {
-    // €200: gross 600 − (300 + 25) = 275 → Inklee keeps €2.75
-    expect(applicationFeeCents(20000)).toBe(275);
-    // €100: gross 300 − (150 + 25) = 125 → €1.25
-    expect(applicationFeeCents(10000)).toBe(125);
-  });
-
-  it("clamps to 0 on tiny deposits where Stripe's fee exceeds the whole 3%", () => {
-    // €10: gross 30 − (15 + 25) = −10 → clamps to 0
-    expect(applicationFeeCents(1000)).toBe(0);
-    // ~break-even €16.67: gross 50 − (25 + 25) = 0
-    expect(applicationFeeCents(1667)).toBe(0);
-    // just above break-even €20: gross 60 − (30 + 25) = 5 → €0.05
-    expect(applicationFeeCents(2000)).toBe(5);
-  });
-
-  it("on a standard card, kept fee + standard Stripe fee = the all-in 3%", () => {
-    // The artist's all-in deduction (platformFeeCents) should equal what
-    // Inklee keeps plus the standard Stripe fee we sized against, whenever the
-    // application fee hasn't clamped.
-    for (const cents of [2000, 5000, 10000, 20000, 50000]) {
-      const stripeStandard = Math.round((cents * 150) / 10000) + 25;
-      expect(applicationFeeCents(cents) + stripeStandard).toBe(
-        platformFeeCents(cents),
-      );
-    }
-  });
-
-  it("never exceeds the all-in 3% and is never negative", () => {
-    for (const cents of [100, 1000, 5017, 20000, 999999]) {
-      expect(applicationFeeCents(cents)).toBeGreaterThanOrEqual(0);
-      expect(applicationFeeCents(cents)).toBeLessThanOrEqual(
-        platformFeeCents(cents),
-      );
-    }
-  });
-
-  it("returns 0 for non-positive / invalid input", () => {
-    expect(applicationFeeCents(0)).toBe(0);
-    expect(applicationFeeCents(-100)).toBe(0);
-    expect(applicationFeeCents(Number.NaN)).toBe(0);
-  });
-});
+// Under Custom Connect the Stripe `application_fee_amount` IS the full 3%
+// (= platformFeeCents) — Stripe bills its processing fee to Inklee's platform
+// balance separately, so there is no longer a reduced "absorb" amount. The
+// platformFeeCents "stays strictly below the charge amount" test above is what
+// guards the Stripe `application_fee_amount < charge` requirement.
 
 describe("platformFeeEur + artistNetEur", () => {
   it("fee + net reconstruct the deposit exactly", () => {
