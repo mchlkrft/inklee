@@ -284,3 +284,60 @@ export async function publishFlashItemAction(id: string): Promise<State> {
   revalidatePath(`/flash/items/${id}`);
   return { success: true };
 }
+
+// Load a flash item's edit values + the artist's flash days for the inline
+// edit modal (78f/DT-16). Mirrors the data the /flash/items/[id] edit page
+// assembles, so FlashItemForm can render without navigating to a subpage.
+export async function loadFlashItemForEditAction(id: string): Promise<
+  | {
+      initial: import("./flash-item-form").InitialValues;
+      flashDays: import("./flash-item-form").FlashDay[];
+    }
+  | { error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const [{ data: item }, { data: flashDays }] = await Promise.all([
+    supabase
+      .from("flash_items")
+      .select("*")
+      .eq("id", id)
+      .eq("artist_id", user.id)
+      .single(),
+    supabase
+      .from("flash_days")
+      .select("id, title, scheduled_on")
+      .eq("artist_id", user.id)
+      .in("status", ["upcoming", "active"])
+      .order("scheduled_on", { ascending: true }),
+  ]);
+
+  if (!item) return { error: "That flash design could not be found." };
+
+  return {
+    initial: {
+      id: item.id,
+      title: item.title,
+      slug: item.slug,
+      status: item.status,
+      instagramPostUrl: item.instagram_post_url,
+      previewImageUrl: item.preview_image_url,
+      shortDescription: item.short_description,
+      priceType: item.price_type,
+      price: item.price,
+      sizeInfo: item.size_info,
+      placementNotes: item.placement_notes,
+      bookingMode: item.booking_mode,
+      maxBookings: item.max_bookings,
+      isBookable: item.is_bookable,
+      availableFrom: item.available_from,
+      availableUntil: item.available_until,
+      flashDayId: item.flash_day_id,
+    },
+    flashDays: flashDays ?? [],
+  };
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import DateInput from "@/components/date-input";
@@ -11,9 +11,13 @@ import { createFlashItemAction, updateFlashItemAction } from "./actions";
 
 type State = { error: string } | { success: true; id?: string } | null;
 
-type FlashDay = { id: string; title: string; scheduled_on: string | null };
+export type FlashDay = {
+  id: string;
+  title: string;
+  scheduled_on: string | null;
+};
 
-type InitialValues = {
+export type InitialValues = {
   id?: string;
   title?: string;
   slug?: string;
@@ -36,9 +40,13 @@ type InitialValues = {
 export default function FlashItemForm({
   initial = {},
   flashDays = [],
+  onSuccess,
 }: {
   initial?: InitialValues;
   flashDays?: FlashDay[];
+  // When set (edit-in-modal), called after a successful save so the modal can
+  // close. Without it (the standalone create/edit page) behaviour is unchanged.
+  onSuccess?: () => void;
 }) {
   const isEdit = !!initial.id;
   const router = useRouter();
@@ -48,6 +56,12 @@ export default function FlashItemForm({
     action,
     null,
   );
+
+  // Edit-in-modal: close on a successful save (the update action revalidates
+  // the grid, so the tile reflects the change).
+  useEffect(() => {
+    if (onSuccess && isEdit && state && "success" in state) onSuccess();
+  }, [state, isEdit, onSuccess]);
 
   const [title, setTitle] = useState(initial.title ?? "");
   const [slug, setSlug] = useState(initial.slug ?? "");

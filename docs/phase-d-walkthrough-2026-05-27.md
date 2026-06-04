@@ -80,7 +80,7 @@ IDs `DT-n`. Severity B/H/M/L. "Future" = founder will write a dedicated slice/pr
 
 **Flash › Designs**
 
-- **DT-16 [M]** Edit + new item open a **subpage**; they should use a **modal** matching the goods/guest-spots modal style (an older version did this). No full-page navigation for item edit.
+- **DT-16 [M]** ✅ **SHIPPED as Slice 78f (2026-06-04).** Flash item Edit now opens an inline modal (`flash-edit-modal.tsx`) instead of navigating to `/flash/items/[id]`, mirroring the goods edit-modal pattern: new `loadFlashItemForEditAction` fetches the item + flash days on open, the modal reuses the existing `FlashItemForm` (added an `onSuccess` callback to close on save). New already used the quick-create modal. The `[id]` + `/new` subpages stay as deep-link fallbacks.
 - **DT-16b [Future]** Establish as a backend principle: artist-backend item editing happens in **modals/overlays**, not subpages, to reduce navigation and keep overview. Apply going forward.
 
 #### Round 1 status
