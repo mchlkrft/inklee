@@ -106,6 +106,11 @@ export const SIDEBAR_NAV: NavGroup[] = [
 // Mobile bottom-nav — 5-tab IA from Slice 41, with Bookings reordered to
 // the middle slot (index 2) so it can render as the raised "exposed-above"
 // FAB-style item in `mobile-bottom-nav.tsx`.
+//
+// Slice 77: Goods replaced Settings in the last slot. Goods is a primary
+// surface that had no mobile entry point at all; Settings now lives only in
+// the top-right account menu (`mobile-top-bar.tsx`), since it's configuration
+// rather than a day-to-day destination.
 export const MOBILE_BOTTOM_NAV: {
   label: string;
   href: string;
@@ -121,12 +126,7 @@ export const MOBILE_BOTTOM_NAV: {
     match: ["/bookings"],
   },
   { label: "Guest Spots", href: "/travel", icon: MapPin },
-  {
-    label: "Settings",
-    href: "/settings/profile",
-    icon: Settings,
-    match: ["/settings"],
-  },
+  { label: "Goods", href: "/goods", icon: ShoppingBag, match: ["/goods"] },
 ];
 
 // Keep CalendarDays and Users imports usable by other components that pull from

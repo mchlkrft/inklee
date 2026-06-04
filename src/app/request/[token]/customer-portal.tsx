@@ -6,8 +6,7 @@ import {
   editCustomerBookingAction,
   cancelCustomerBookingAction,
 } from "./actions";
-import { SIZES } from "@/lib/booking-schema";
-import { SIZE_LABELS } from "@/app/[slug]/booking-form";
+import { SIZES, SIZE_LABELS } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
 import StatusBadge from "@/components/status-badge";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";

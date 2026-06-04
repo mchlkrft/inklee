@@ -97,7 +97,7 @@ export default function MobileTopBar({
                   className="block px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/50"
                   role="menuitem"
                 >
-                  Edit profile
+                  Settings
                 </Link>
                 <Link
                   href={`/${slug}`}

@@ -4,7 +4,7 @@ import DateInput from "@/components/date-input";
 import { useEffect, useState, startTransition } from "react";
 import { editAppointmentAction, cancelAppointmentAction } from "./actions";
 import Spinner from "@/components/spinner";
-import { SIZES } from "@/lib/booking-schema";
+import { SIZES, SIZE_LABELS, formatSize } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
 import { customerLabel } from "@/lib/booking-domain";
 
@@ -128,7 +128,7 @@ export default function AppointmentDrawer({
             <div className="space-y-3 text-sm">
               <Row label="Date" value={formatDate(event.date)} />
               <Row label="Placement" value={event.placement} />
-              <Row label="Size" value={event.size} />
+              <Row label="Size" value={formatSize(event.size)} />
               {event.email && <Row label="Email" value={event.email} />}
               {event.description && (
                 <div className="space-y-1">
@@ -224,7 +224,7 @@ export default function AppointmentDrawer({
               >
                 {SIZES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {SIZE_LABELS[s].label} · {SIZE_LABELS[s].hint}
                   </option>
                 ))}
               </select>

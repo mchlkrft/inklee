@@ -4,7 +4,7 @@ import BrandedDateInput from "@/components/public-booking/branded-date-input";
 import { useActionState, useRef, useState, startTransition } from "react";
 import Link from "next/link";
 import { submitBookingAction } from "./actions";
-import { SIZES } from "@/lib/booking-schema";
+import { SIZES, SIZE_LABELS } from "@/lib/booking-schema";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import CustomFieldInput from "@/components/custom-field-input";
 import type { FormSettings } from "@/lib/form-settings";
@@ -23,16 +23,6 @@ import FieldArea, { CheckBadge } from "@/components/public-booking/field-area";
 import { useInterestSelections } from "./interest-selections-context";
 
 type State = { error: string; field?: string } | null;
-
-export const SIZE_LABELS: Record<
-  (typeof SIZES)[number],
-  { label: string; hint: string }
-> = {
-  "palm-sized": { label: "Palm-sized", hint: "~ 5 cm" },
-  "hand-sized": { label: "Hand-sized", hint: "~ 10 cm" },
-  forearm: { label: "Forearm", hint: "~ 15-20 cm" },
-  larger: { label: "Larger", hint: "20 cm+" },
-};
 
 const tomorrow = () => {
   return addDaysToDateKey(localDateKey(), 1);
@@ -447,10 +437,10 @@ export default function BookingForm({
                     required={sizeRequired}
                     className="peer accent-foreground"
                   />
-                  <span className="inline-flex items-baseline gap-1.5">
+                  <span className="flex flex-col leading-tight">
                     <span>{SIZE_LABELS[s].label}</span>
                     <span className="text-xs text-muted-foreground">
-                      · {SIZE_LABELS[s].hint}
+                      {SIZE_LABELS[s].hint}
                     </span>
                   </span>
                   <span className="ml-auto opacity-0 transition-opacity peer-checked:opacity-100">

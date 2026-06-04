@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { serviceClient } from "@/lib/supabase/service";
+import { formatSize } from "@/lib/booking-schema";
 import {
   sendBookingEmail,
   sendGoodsOrderConfirmation,
@@ -389,7 +390,7 @@ export async function POST(request: Request) {
           artist_name: profile?.display_name ?? "",
           artist_slug: profile?.slug ?? "",
           placement: fd?.placement ?? "",
-          size: fd?.size ?? "",
+          size: formatSize(fd?.size),
           date: booking.preferred_date ?? "",
           magic_link: `${appUrl}/request/${newToken}`,
         },

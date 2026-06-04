@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { formatSize } from "@/lib/booking-schema";
 import { createClient } from "@/lib/supabase/server";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
@@ -121,7 +122,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
         customer_handle: booking.customer_handle ?? "",
         artist_name: profile?.display_name ?? "",
         placement: booking.form_data?.placement ?? "",
-        size: booking.form_data?.size ?? "",
+        size: formatSize(booking.form_data?.size),
         date: booking.preferred_date ?? "",
         magic_link: `${appUrl}/request/${newToken}`,
       },

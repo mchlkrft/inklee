@@ -1934,3 +1934,23 @@ Migration **0036** (`orders`, `order_items`, optional `inventory_movements` + en
 ## Bio Page + Goods phase boundary
 
 **Sequencing rule:** 72 → 73 → 74 → 75 → 76. Slice 72 is independently shippable and lowest-risk. Production goods checkout (real money) is gated on OT-12 (Stripe Connect) regardless of slice completion. Re-confirm scope at each slice boundary; do not implement more than one slice without checking back.
+
+---
+
+### Slice 77 — Pre-walkthrough UX + branding bug sweep
+
+**Status:** ✅ DONE 2026-06-04 (code green: typecheck + lint clean, 287 vitest tests pass). On `feat/bio-page-goods`. A batch of founder-collected UX/UI bugs cleared before the Phase D live walkthrough (§3.3). Capture-then-fix, same as the Phase D method.
+
+**Goal:** close five founder-reported issues that were rough edges on real surfaces, so the live walkthrough starts from a clean slate.
+
+**Scope (all shipped):**
+
+- **B1 — mobile nav: Goods had no entry point.** `MOBILE_BOTTOM_NAV` (`src/components/app-shell/nav-config.ts`) swapped the last slot Settings → Goods (`/goods`, `ShoppingBag`). Settings now lives only in the top-right account menu (`mobile-top-bar.tsx`: "Edit profile" relabelled "Settings" → `/settings/profile`). Bookings stays the center FAB (slot count unchanged).
+- **B2 — booking-form Size radios broke on mobile.** `src/app/[slug]/booking-form.tsx` size options now stack label over hint (`flex-col`, dropped the `·`) so they fit the narrow `grid-cols-2` column.
+- **B3 — size value lost its measurement in the artist backend.** Stored value is still the bare key (`forearm`); added `SIZE_LABELS` + `formatSize()` to `src/lib/booking-schema.ts` (label + hint, raw fallback). Applied at the artist display surfaces (`bookings/requests/[id]`, `bookings/overview` list + table, calendar `appointment-drawer` Row + edit-select option labels) and in every booking/deposit email var (submit, artist notification, approval × 4, webhook), so the artist sees exactly what the client picked (`Forearm · ~ 15-20 cm`). `SIZE_LABELS` relocated out of the client `booking-form.tsx`; `customer-portal.tsx` re-imports from the schema.
+- **B4 — profile banner upload threw a full-screen 500.** `settings/profile/profile-form.tsx` now validates type + size client-side (inline message, clears the input) before any request; `MAX_COVER_SIZE` dropped 5 MB → **4 MB** (under Vercel's ~4.5 MB request-body cap, the silent platform reject); `sharp` calls in `actions.ts` wrapped in try/catch returning a friendly `{ error }` so an undecodable file (HEIC/corrupt) never surfaces the global error overlay.
+- **B5 (mini-project) — email branding + deposit trust.** The described "plain, button-less, no-logo" deposit mail was already styled, but the audit surfaced real system-wide gaps. Unified the two divergent wrappers (`buildEmailHtml` + auth `base()`) into one shared shell `src/lib/email/layout.ts` carrying a **real hosted logo** (`public/branding/logos/inklee-email-logo.png`, 280×80, rasterized from the charcoal SVG because clients won't render SVG). Deposit-request mail gained trust context (why-received, "processed securely by Stripe, deposit goes directly to the artist's account," "no added fees") and a `Sent by Inklee on behalf of <artist>.` footer (also on the client deposit receipt) as an anti-phishing signal.
+
+**Out of scope / deferred:** capitalization "drift" (not a bug — `Inklee` is a brand term per AGENTS.md sentence-case); footer-link parity + GDPR-badge softening (deliberately dropped, see `project_inklee_legal_package` L4); deliverability (SPF/DKIM/DMARC on `inklee.app` in Resend) — operational, verify in the Resend dashboard, not code.
+
+**Smoke test:** mobile bottom nav shows Goods, Settings reachable top-right; Size radios stack cleanly at 375px; an approved/submitted booking shows `Forearm · ~ 15-20 cm` in the dashboard + emails; uploading a 6 MB or HEIC banner shows an inline message, not a 500; a sent deposit email renders the logo + Stripe/no-fee lines + on-behalf-of footer. `pnpm typecheck`, `pnpm lint`, `pnpm test` all green.

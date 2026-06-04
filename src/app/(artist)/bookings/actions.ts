@@ -1,6 +1,7 @@
 "use server";
 
 import crypto from "crypto";
+import { formatSize } from "@/lib/booking-schema";
 import type { User } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
@@ -174,7 +175,7 @@ export async function approveBooking(id: string): Promise<ActionResult> {
         customer_handle: booking.customer_handle ?? "",
         artist_name: profile?.display_name ?? "",
         placement: booking.form_data?.placement ?? "",
-        size: booking.form_data?.size ?? "",
+        size: formatSize(booking.form_data?.size),
         date: booking.preferred_date ?? "",
         magic_link: `${appUrl}/request/${newToken}`,
       },
@@ -338,7 +339,7 @@ export async function approveBookingWithInterestDecisions(
         customer_handle: booking.customer_handle ?? "",
         artist_name: profile?.display_name ?? "",
         placement: booking.form_data?.placement ?? "",
-        size: booking.form_data?.size ?? "",
+        size: formatSize(booking.form_data?.size),
         date: booking.preferred_date ?? "",
         magic_link: `${appUrl}/request/${newToken}`,
       },

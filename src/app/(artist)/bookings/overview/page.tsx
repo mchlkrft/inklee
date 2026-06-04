@@ -11,6 +11,7 @@ import WaitlistActions from "../waitlist/waitlist-actions";
 import FilterRow, { type FilterGroup } from "./filter-row";
 import { publicArtistUrl } from "@/lib/public-url";
 import { customerLabel } from "@/lib/booking-domain";
+import { formatSize } from "@/lib/booking-schema";
 
 // Labels mirror the StatusBadge / humanStatusLabel vocabulary so the chip
 // row and the row badges below speak the same language. URL `value`s stay
@@ -138,7 +139,7 @@ async function RequestsView({
             {bookings.map((b) => {
               const fd = b.form_data as Record<string, string> | null;
               const meta = [
-                fd?.size,
+                formatSize(fd?.size),
                 b.preferred_date ? formatDate(b.preferred_date) : null,
               ]
                 .filter(Boolean)
@@ -228,7 +229,7 @@ async function RequestsView({
                           href={`/bookings/requests/${b.id}`}
                           className="block"
                         >
-                          {fd?.size ?? "-"}
+                          {formatSize(fd?.size) || "-"}
                         </Link>
                       </td>
                       <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">

@@ -9,7 +9,11 @@ type State = { error: string } | { success: true } | null;
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_SIZE = 2 * 1024 * 1024; // 2MB
-const MAX_COVER_SIZE = 5 * 1024 * 1024; // 5MB
+// Kept under Vercel's ~4.5MB serverless request-body cap. A 5MB cover was
+// accepted here but rejected by the platform before the action ran, surfacing
+// as an opaque 500 instead of a friendly message. The same limit is enforced
+// client-side in profile-form.tsx so oversized files never leave the browser.
+const MAX_COVER_SIZE = 4 * 1024 * 1024; // 4MB
 
 const COVER_COLOR_NAMES = new Set([
   "mustard",
@@ -69,11 +73,18 @@ export async function updateProfileAction(
       return { error: "Logo must be under 2 MB." };
     }
 
-    const buffer = Buffer.from(await logoFile.arrayBuffer());
-    const resized = await sharp(buffer)
-      .resize(512, 512, { fit: "cover", position: "centre" })
-      .webp({ quality: 85 })
-      .toBuffer();
+    let resized: Buffer;
+    try {
+      const buffer = Buffer.from(await logoFile.arrayBuffer());
+      resized = await sharp(buffer)
+        .resize(512, 512, { fit: "cover", position: "centre" })
+        .webp({ quality: 85 })
+        .toBuffer();
+    } catch {
+      return {
+        error: "Could not process that image. Try a different file or format.",
+      };
+    }
 
     const path = `${user.id}/logo.webp`;
     const { error: uploadError } = await serviceClient.storage
@@ -107,11 +118,18 @@ export async function updateProfileAction(
     if (coverFile.size > MAX_COVER_SIZE) {
       return { error: "Cover image must be under 5 MB." };
     }
-    const buffer = Buffer.from(await coverFile.arrayBuffer());
-    const resized = await sharp(buffer)
-      .resize(1600, 600, { fit: "cover", position: "centre" })
-      .webp({ quality: 80 })
-      .toBuffer();
+    let resized: Buffer;
+    try {
+      const buffer = Buffer.from(await coverFile.arrayBuffer());
+      resized = await sharp(buffer)
+        .resize(1600, 600, { fit: "cover", position: "centre" })
+        .webp({ quality: 80 })
+        .toBuffer();
+    } catch {
+      return {
+        error: "Could not process that image. Try a different file or format.",
+      };
+    }
     const path = `${user.id}/cover.webp`;
     const { error: uploadError } = await serviceClient.storage
       .from("logos")

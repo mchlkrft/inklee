@@ -1,7 +1,7 @@
 "use server";
 
 import { serviceClient } from "@/lib/supabase/service";
-import { bookingSchema } from "@/lib/booking-schema";
+import { bookingSchema, formatSize } from "@/lib/booking-schema";
 import { checkRateLimit, checkWaitlistRateLimit } from "@/lib/ratelimit";
 import {
   sendBookingEmail,
@@ -646,7 +646,7 @@ export async function submitBookingAction(
     artist_name: artistName,
     artist_slug: artistSlug,
     placement: data.placement,
-    size: data.size,
+    size: formatSize(data.size),
     date: requestDate ?? "",
     magic_link: magicLink,
   };

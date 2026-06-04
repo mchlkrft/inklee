@@ -37,6 +37,28 @@ const COVER_COLORS = [
   { id: "green", hex: "#105f2d", label: "Green" },
 ] as const;
 
+// Mirror the server-side limits (actions.ts) so an oversized or wrong-format
+// file is caught in the browser with a clear message, instead of being sent
+// and rejected (the cover cap sits under Vercel's request-body limit, which
+// otherwise surfaced as an opaque full-screen 500).
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const MAX_COVER_BYTES = 4 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+function validateImageFile(
+  file: File,
+  maxBytes: number,
+  maxLabel: string,
+): string | null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return "Use a PNG, JPG, or WebP image.";
+  }
+  if (file.size > maxBytes) {
+    return `Image must be under ${maxLabel}.`;
+  }
+  return null;
+}
+
 type Profile = {
   display_name: string;
   instagram_handle: string | null;
@@ -73,9 +95,11 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
   const [removeCover, setRemoveCover] = useState(false);
   const [coverColor, setCoverColor] = useState<string>(initialCoverColor);
   const coverFileRef = useRef<HTMLInputElement>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   return (
     <form action={action} className="space-y-5">
+      {fileError && <p className="text-sm text-destructive">{fileError}</p>}
       {state && "error" in state && (
         <p className="text-sm text-destructive">{state.error}</p>
       )}
@@ -110,7 +134,15 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) setPreview(URL.createObjectURL(file));
+              if (!file) return;
+              const err = validateImageFile(file, MAX_LOGO_BYTES, "2 MB");
+              if (err) {
+                setFileError(err);
+                if (fileRef.current) fileRef.current.value = "";
+                return;
+              }
+              setFileError(null);
+              setPreview(URL.createObjectURL(file));
             }}
           />
         </div>
@@ -186,17 +218,23 @@ export default function ProfileForm({ profile }: { profile: Profile | null }) {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) {
-              setCoverPreview(URL.createObjectURL(file));
-              setRemoveCover(false);
+            if (!file) return;
+            const err = validateImageFile(file, MAX_COVER_BYTES, "4 MB");
+            if (err) {
+              setFileError(err);
+              if (coverFileRef.current) coverFileRef.current.value = "";
+              return;
             }
+            setFileError(null);
+            setCoverPreview(URL.createObjectURL(file));
+            setRemoveCover(false);
           }}
         />
         {removeCover && (
           <input type="hidden" name="remove_cover_image" value="1" />
         )}
         <p className="text-xs text-muted-foreground">
-          PNG, JPG, or WebP - max 5 MB - resized to 1600×600
+          PNG, JPG, or WebP - max 4 MB - resized to 1600×600
         </p>
       </div>
 

@@ -17,6 +17,7 @@ import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { resolveBookingGuestSpotStudio } from "@/lib/booking-studio";
 import { formatPrice } from "@/lib/goods";
 import { customerLabel } from "@/lib/booking-domain";
+import { formatSize } from "@/lib/booking-schema";
 import GoodsPickupButton from "./goods-pickup-button";
 import DepositRefundButton from "./deposit-refund-button";
 
@@ -294,7 +295,7 @@ export default async function RequestDetailPage({
             )}
             <Row label="Email" value={booking.customer_email ?? "-"} />
             <Row label="Placement" value={(fd?.placement as string) ?? "-"} />
-            <Row label="Size" value={(fd?.size as string) ?? "-"} />
+            <Row label="Size" value={formatSize(fd?.size as string) || "-"} />
             <Row
               label="Preferred date"
               value={

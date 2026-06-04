@@ -225,11 +225,13 @@ export async function sendDepositRequestedEmail({
     const noteLine = depositNote ? `\n\n${depositNote}` : "";
     const body = `Hi ${handle},
 
-${artistName} has requested a deposit to confirm your booking.
+You recently sent a booking request to ${artistName} on Inklee. To confirm your appointment, ${artistName} has asked for a deposit.
 
 Deposit due: EUR ${amountEur.toFixed(2)}${dueLine}${noteLine}
 
-Pay securely through the link below. It is valid for 30 days:
+Payments are processed securely by Stripe, and the deposit goes directly to ${artistName}'s account. You pay exactly the deposit amount, with no added fees.
+
+Pay your deposit through the link below. It is valid for 30 days:
 ${magicLink}
 
 Inklee`;
@@ -237,7 +239,10 @@ Inklee`;
     await sendEmail({
       to,
       subject: `Pay your deposit to confirm with ${artistName}`,
-      html: build(body, {}, undefined, { ctaLabel: "Pay your deposit" }),
+      html: build(body, {}, undefined, {
+        ctaLabel: "Pay your deposit",
+        footerNote: `Sent by Inklee on behalf of ${artistName}.`,
+      }),
     });
   } catch (err) {
     console.error("[email] failed to send deposit requested email:", err);
@@ -334,7 +339,9 @@ Inklee`;
     await sendEmail({
       to,
       subject: `Deposit received, your booking with ${artistName} is confirmed`,
-      html: build(body, {}),
+      html: build(body, {}, undefined, {
+        footerNote: `Sent by Inklee on behalf of ${artistName}.`,
+      }),
     });
   } catch (err) {
     console.error("[email] failed to send client deposit receipt email:", err);
