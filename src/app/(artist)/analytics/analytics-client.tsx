@@ -12,6 +12,25 @@ type Metrics = {
 
 type MonthBar = { label: string; count: number };
 
+type Calendar = {
+  label: string;
+  leadingBlanks: number;
+  cells: { day: number; count: number }[];
+  maxDay: number;
+};
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Heatmap bucket → literal Tailwind classes (dynamic `bg-brand-mustard/${n}`
+// would not be detected by the JIT, so the buckets must be spelled out).
+function heatClass(count: number, max: number): string {
+  if (count === 0) return "border border-border";
+  const ratio = count / max;
+  if (ratio > 0.66) return "bg-brand-mustard/90 text-brand-charcoal";
+  if (ratio > 0.33) return "bg-brand-mustard/60 text-brand-charcoal";
+  return "bg-brand-mustard/30 text-brand-charcoal";
+}
+
 const RANGES = [
   { label: "Last 30 days", value: "30" },
   { label: "Last 90 days", value: "90" },
@@ -22,10 +41,12 @@ export default function AnalyticsClient({
   range,
   metrics,
   months,
+  calendar,
 }: {
   range: string;
   metrics: Metrics;
   months: MonthBar[];
+  calendar: Calendar;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -139,6 +160,45 @@ export default function AnalyticsClient({
               </div>
             </div>
           )}
+
+          {/* Per-day calendar (DT-4) — each day shows its request count,
+              shaded by volume. Most recent active month. */}
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Requests per day · {calendar.label}
+            </p>
+            <div className="grid grid-cols-7 gap-1">
+              {WEEKDAYS.map((d) => (
+                <div
+                  key={d}
+                  className="text-center text-[10px] uppercase tracking-wide text-muted-foreground"
+                >
+                  {d}
+                </div>
+              ))}
+              {Array.from({ length: calendar.leadingBlanks }).map((_, i) => (
+                <div key={`blank-${i}`} aria-hidden />
+              ))}
+              {calendar.cells.map((c) => (
+                <div
+                  key={c.day}
+                  title={`${calendar.label} ${c.day}: ${c.count} request${c.count === 1 ? "" : "s"}`}
+                  className={`flex aspect-square flex-col items-center justify-center rounded-md ${heatClass(c.count, calendar.maxDay)}`}
+                >
+                  <span
+                    className={`text-[10px] leading-none ${c.count > 0 ? "text-brand-charcoal/70" : "text-muted-foreground"}`}
+                  >
+                    {c.day}
+                  </span>
+                  {c.count > 0 && (
+                    <span className="text-xs font-semibold leading-tight">
+                      {c.count}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </>
       )}
     </div>

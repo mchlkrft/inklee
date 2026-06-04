@@ -81,6 +81,33 @@ export default async function AnalyticsPage({
       count,
     }));
 
+  // --- Per-day calendar for the most recent active month (DT-4) ---
+  const dayMap = new Map<string, number>();
+  for (const r of rows) {
+    const dayKey = r.created_at.slice(0, 10); // "YYYY-MM-DD"
+    dayMap.set(dayKey, (dayMap.get(dayKey) ?? 0) + 1);
+  }
+  const latestMonthKey =
+    [...monthMap.keys()].sort().at(-1) ?? new Date().toISOString().slice(0, 7);
+  const [calYear, calMonth] = latestMonthKey.split("-").map(Number); // calMonth 1-based
+  const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+  // Monday-start grid: JS getDay() is 0=Sun, shift so Mon=0.
+  const firstWeekday = (new Date(calYear, calMonth - 1, 1).getDay() + 6) % 7;
+  const calendarCells = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const key = `${latestMonthKey}-${String(day).padStart(2, "0")}`;
+    return { day, count: dayMap.get(key) ?? 0 };
+  });
+  const calendar = {
+    label: new Date(latestMonthKey + "-01").toLocaleDateString("en", {
+      month: "long",
+      year: "numeric",
+    }),
+    leadingBlanks: firstWeekday,
+    cells: calendarCells,
+    maxDay: Math.max(...calendarCells.map((c) => c.count), 1),
+  };
+
   return (
     <AnalyticsClient
       range={range}
@@ -92,6 +119,7 @@ export default async function AnalyticsPage({
         depositRate,
       }}
       months={months}
+      calendar={calendar}
     />
   );
 }

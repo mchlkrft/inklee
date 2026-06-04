@@ -43,7 +43,7 @@ IDs `DT-n`. Severity B/H/M/L. "Future" = founder will write a dedicated slice/pr
 
 **Analytics**
 
-- **DT-4 [M]** "Requests per Month" should render a **calendar** with each day showing its request count (heatmap-style).
+- **DT-4 [M]** ✅ **SHIPPED as Slice 78e (2026-06-04).** Added a per-day calendar (Mon-start month grid, heatmap-shaded by volume, each day shows its request count) below the monthly bars in the analytics volume section. Server computes a `dayMap` for the most recent active month; client renders via bucketed `bg-brand-mustard/{30,60,90}` classes. Multi-month / detailed drilldown remains DT-4b (future).
 - **DT-4b [Future]** Deeper per-day / detailed analytics drill-down — founder will provide a detailed plan + prompt when it's time for the slice. Parking-lot, do not build now.
 
 **Waitlist — artist backend restructure**
