@@ -2018,3 +2018,59 @@ Formalizes the remaining Phase D walkthrough findings (`docs/phase-d-walkthrough
 - **FEAT-Bio** — standalone Linktree-style per-artist link page (full prompt pending).
 - **DT-4b** — detailed/per-day analytics drilldown.
 - **DT-16b** — modal-everywhere artist-backend editing principle.
+
+---
+
+## Slice 79 — Deposit payouts via Custom Connect (no artist Stripe signup) [MVP pivot 2026-06-04]
+
+**Founder pivot (2026-06-04):** artists must NOT be forced through a Stripe-branded signup (the friction Express creates). Founder's first framing was "money goes to Inklee, held, then forwarded to the artist on the appointment date" — that's escrow / money-holding, which is regulated (PSD2 / payment-institution licensing / safeguarding) and makes Inklee merchant of record (VAT + chargeback liability). **Rejected for MVP.** Chosen instead: **Stripe Connect Custom accounts** — the artist provides identity + bank data inside Inklee's own UI and never visits Stripe, but money still routes straight to the artist (artist stays merchant of record, no Inklee escrow). Keeps the LO-2 posture; achieves the no-signup goal.
+
+**Honest KYC reality:** "provide account data" is NOT just an IBAN. To pay anyone out, Stripe must verify identity, so Inklee will collect (in-app): legal name, DOB, address, IBAN, ToS acceptance, and sometimes an ID document. Custom also shifts more dispute/negative-balance/compliance burden onto Inklee than Express. There is no lighter legal path to "artist gets paid."
+
+**Scope:**
+
+1. Stripe dashboard (founder): enable Custom accounts + platform loss-liability settings.
+2. `createConnectAccount` (`src/lib/stripe-connect.ts`): `type: "express"` → `"custom"`, add `tos_acceptance` (date + ip) + `business_type`; drop the hosted `accountLinks` onboarding redirect.
+3. In-app onboarding form on `/settings/payouts`: collect individual KYC + `external_account` (IBAN) → `accounts.update`; render Stripe `requirements.currently_due` so missing fields surface; handle verification pending/failed states.
+4. ID-document upload path (Stripe file upload) when requirements demand it.
+5. Charge flow UNCHANGED: destination charge + `on_behalf_of` + 3% `application_fee` (`platform-fee.ts` untouched). Payouts enable once verified.
+6. Payout timing: default standard schedule (compliant). "Hold until appointment date" DEFERRED — reintroduces the money-holding/safeguarding concern; open decision.
+
+**Done when:** an artist can become payout-ready entirely inside Inklee (no Stripe redirect); a test-mode deposit routes to the connected account with the 3% split; verification states surface cleanly.
+
+**Owner:** Founder + Claude — JOINT session (needs Stripe test mode + dashboard config + product calls on individual-vs-company default + countries). Not solo-shippable: a money path must be built + verified in test mode, not blind.
+
+**Counsel:** re-confirm that Custom + Inklee-as-platform keeps the artist as merchant of record and does NOT make Inklee a payment intermediary (lighter than the rejected escrow model, but confirm). Folds into the open questions in `docs/payment-flow-for-counsel.md`.
+
+**STRICT MONEY WALL + LAZY KYC (founder principle, 2026-06-04).** Flipping the Stripe platform profile to platform-controlled (Custom) only grants _permission_; it must NOT pull any artist into KYC/liability by default. Hard rule: **no Connect account, no KYC, no Inklee liability exposure for an artist until they explicitly enable deposit collection.** Crossing that wall (opting into deposits) is what triggers `createConnectAccount` + the in-app KYC onboarding, which gates deposit activation (no KYC ⇒ no in-app deposits, manual fallback only). Every free feature (booking, bio page, flash, guest spots, goods showcase, waitlist) stays entirely clear of Stripe/KYC/liability. Implementation: a single "is this artist payout-ready?" gate (extend `deriveConnectRouting`/`getConnectRoutingForArtist`) that all money-touching surfaces sit behind; account creation stays on-demand (never at signup/onboarding). Audit that nothing creates a Connect account or requests KYC outside the deposit opt-in path.
+
+**⚠️ MARGIN RISK — FEATURE-LEVEL (checked against Stripe EU pricing 2026-06-04).** Stripe Connect costs for the Custom/destination model: card processing 1.5%+€0.25 (already modelled) **PLUS €2/month per _active_ connected account PLUS payout fee 0.25%+€0.10 (SEPA).** Inklee's keep per deposit = `1.5%·deposit − €0.25` (€0.50 on €50, €1.25 on €100, €2.75 on €200). Subtracting the €2/month + payout fee, **single-deposit-per-month artists are net-NEGATIVE below ~€157 deposit** (e.g. €100 deposit ⇒ ~−€1.10/mo). It only profits on multi-deposit or large-deposit artists. **Critical link: the €2/month + payout fee exist BECAUSE we chose Custom (no artist signup); Standard accounts have neither (Stripe bills the artist) but require the signup the founder rejected.** So "no signup" costs ~€2/active-artist/month, and the 3%-transaction-fee-alone model does NOT cover it for low-volume artists. **Resolution options (founder decision, launch-gating):** (1) subscription/plan fee covering the €2 + margin — most likely (this is why 3% was always "provisional pending stricter subscription model", D-d); (2) Standard accounts (kills the fee, reintroduces signup); (3) minimum-deposit floor (~€150, unrealistic); (4) higher % (~5–8%, too high). **Plumbing is model-agnostic — safe to build — but launch economics are gated on this decision. Founder flagged the whole feature "at risk" on the math.** Also confirm exact EE/EU numbers + any Inklee↔Stripe negotiated rate on the live Stripe pricing page before launch. Sources: stripe.com/connect/pricing.
+
+**DECISION LOCKED 2026-06-04: Custom, all-in (founder).** Accept the €2/mo + payout fees + Inklee loss-liability for the no-signup UX; the **subscription layer is the assumed margin cover** (3% transaction fee stays provisional/secondary). Custom-vs-Standard settled in favour of Custom.
+
+**Build approach — sandbox-first (NOT blind).** The `controller` config interacts with the fee model: `controller.fees.payer` decides who bears Stripe's processing fee, `controller.losses.payments` who eats negative balances — get these wrong and the 3% math silently breaks. So this is validated against the founder's Stripe sandbox, not written blind. Planned controller (to verify in sandbox): `controller.requirement_collection: "application"` (Inklee collects KYC, no Stripe UI), `controller.stripe_dashboard.type: "none"` (artist never sees Stripe), `controller.losses.payments: "application"` (Inklee liable), `controller.fees.payer` — **VERIFY**: must keep the artist bearing Stripe's processing fee to preserve the platform-fee.ts 3%-all-in math (likely paired with `on_behalf_of` retained on the charge). Planned KYC fields for an EE/DE **individual** account (confirm against live `requirements.currently_due`): legal first/last name, DOB, residential address, email, phone, IBAN (`external_account`), `tos_acceptance` (date+ip), and an ID document when Stripe escalates. Build steps unchanged from the Scope list above; ship gated on sandbox validation.
+
+**✅ SANDBOX-VALIDATED 2026-06-04 (probe against test keys, account created + deleted):**
+
+- **Working controller config** (artist never sees Stripe): `controller: { requirement_collection: "application", stripe_dashboard: { type: "none" }, losses: { payments: "application" }, fees: { payer: "application" } }` + `business_type: "individual"` + `capabilities: { card_payments, transfers }`. Stripe **rejects** `fees.payer: "account"` here ("when controlling requirement collection the application must also control losses, fees, and dashboard none").
+- **CONSEQUENCE — fee model change:** because Custom forces `fees.payer: application`, **Inklee (platform) pays Stripe's processing fee**, not the artist. End economics identical (artist −3%, Inklee nets ~€2.75/€200) but `platform-fee.ts applicationFeeCents` must become the **FULL 3%** (`platformFeeCents`), since Stripe now deducts its fee from Inklee's platform balance separately rather than from the artist via `on_behalf_of`. **Verify the exact split with a real test deposit before trusting it.** Also re-check whether `on_behalf_of` is still wanted on the deposit PaymentIntent for MoR under this model.
+- **Exact KYC fields (DE individual `requirements.currently_due`):** `individual.first_name`, `individual.last_name`, `individual.dob.{day,month,year}`, `individual.address.{line1,city,postal_code}`, `individual.email`, `individual.phone`, `external_account` (IBAN), `business_profile.mcc` (auto-fill, e.g. 7299), `business_profile.url` (auto-fill = artist's inkl.ee page), `tos_acceptance.{date,ip}` (captured on accept via `next/headers`). **No ID document up-front** (Stripe may escalate later → handle via `requirements`).
+
+**Build sequence (foundation validated; build next):** (1) `createConnectAccount` → the validated Custom controller; (2) `updateConnectKyc` lib fn → `accounts.update` with individual + external_account + business_profile + tos_acceptance; (3) in-app KYC form on `/settings/payouts` (artist-facing fields above) + `submitConnectKycAction`; (4) replace the Stripe-hosted `accountLinks` redirect with the in-app form; (5) render `requirements.currently_due` so missing fields surface. THEN the deposit-flow half: (6) change `platform-fee.ts` to full-3% application fee + (7) test-deposit in sandbox to verify the split + payout. Onboarding half (1–5) is independent of the fee math and testable on its own ("can an artist go payout-ready entirely in-app?").
+
+**AGENT-REVIEW FINDINGS (2026-06-04, orchestrated read-only Discovery + Security passes) — fold into the build:**
+
+- **C-1 [critical, Phase C]** `applicationFeeCents` formula wrong under `fees.payer:application` → change to full 3% (`platformFeeCents`) at `platform-fee.ts:71` + call sites `bookings/actions.ts:585,666`; update `platform-fee.test.ts` (will fail = correct signal); **verify with a real test deposit.**
+- **C-2 [critical, tracked follow-up]** public `profiles` SELECT RLS (`0027`) exposes all `stripe_*` columns to anon. Mitigation now: KYC never stored in our DB; never `select("*")` profiles client-side. Proper fix = column-scoped policy (migration, founder-applied).
+- **H-1 [Phase B]** `updateConnectKyc` sends KYC (name/DOB/address/IBAN) straight to Stripe; **never persist to our DB**, only the status sync.
+- **H-2 [Phase B]** zero `console.*` of KYC form fields; Sentry on Stripe errors only.
+- **H-3 [Phase A ✅]** shared `getClientIp()` created (`src/lib/get-client-ip.ts`) for `tos_acceptance.ip`.
+- **H-4 [Phase B]** `syncConnectAccountAction`: short-circuit when status `unset`/`disabled`.
+- **M-2 [Phase B]** pass `hasAccount: boolean` to the client, not the raw `acct_…` id.
+- **M-4 [Phase A ✅]** server-only runtime guard added to `stripe-connect.ts` (skipped `stripe.ts` — it exports the client-safe publishable key + secret is env-null in browser).
+- **M-5 [Phase A ✅]** Stripe vars added to `.env.example`.
+- **M-3 [tracked]** retrofit `getClientIp()` onto login/forgot-password rate-limit keys (auth files — separate small pass).
+- **L-1 [Phase B/C]** webhook: assert `event.account === account.id` before persist.
+- **Discovery notes:** `/settings/payouts/{return,refresh}` routes + `createConnectOnboardingLink` go dead (delete/neutralize); `first_name`/`last_name` in DB (not Drizzle schema) usable as KYC pre-fill; remove the Express docs link at `payouts/page.tsx:117`; update `STATUS_DESCRIPTION` copy (pending now means "in-app KYC not submitted"); `prepareCheckoutAction` doesn't set `application_fee` (existing behavior, note for sandbox).
+
+**Supersedes** the OT-12 Express onboarding (Slice 78b's deposit/payout UI work rolls into this).

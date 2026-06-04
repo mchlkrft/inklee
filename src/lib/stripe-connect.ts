@@ -14,6 +14,14 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { serviceClient } from "@/lib/supabase/service";
 
+// Server-only. This module performs Stripe Connect account + KYC operations
+// with the secret key and must never be bundled into a client component.
+// (Type-only imports like `import type { ConnectStatus }` are erased and do
+// not trip this guard.)
+if (typeof window !== "undefined") {
+  throw new Error("stripe-connect must not be imported in client components");
+}
+
 export const CONNECT_STATUSES = [
   "unset",
   "pending",
