@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { CalendarDays, SlidersHorizontal, Clock, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { IconChip } from "@/components/ui/card";
 import BookingModeForm from "./booking-mode-form";
 import AvailabilityForm from "./availability-form";
 import AddSlotButton from "../slots/add-slot-button";
@@ -68,9 +70,12 @@ export default async function BookingSettingsPage() {
       {/* Availability */}
       <section className="space-y-4">
         <div className="border-b border-border pb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Availability
-          </h2>
+          <div className="flex items-center gap-2">
+            <IconChip icon={CalendarDays} tint="mustard" size="sm" />
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Availability
+            </h2>
+          </div>
           <p className="mt-1.5 text-sm text-foreground">
             Control when and how many booking requests you accept.
           </p>
@@ -84,9 +89,12 @@ export default async function BookingSettingsPage() {
       {/* Booking Mode */}
       <section className="space-y-4">
         <div className="border-b border-border pb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Booking mode
-          </h2>
+          <div className="flex items-center gap-2">
+            <IconChip icon={SlidersHorizontal} tint="rosa" size="sm" />
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Booking mode
+            </h2>
+          </div>
           <p className="mt-1.5 text-sm text-foreground">
             Choose how clients request sessions with you.
           </p>
@@ -98,9 +106,12 @@ export default async function BookingSettingsPage() {
       {bookingMode === "fixed_slots" && (
         <section className="space-y-4">
           <div className="border-b border-border pb-3">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Slots
-            </h2>
+            <div className="flex items-center gap-2">
+              <IconChip icon={Clock} tint="cobalt" size="sm" />
+              <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Slots
+              </h2>
+            </div>
             <p className="mt-1.5 text-sm text-foreground">
               Publish time slots for clients to book. Times in{" "}
               <span className="font-medium">{timezone}</span>.
@@ -114,9 +125,12 @@ export default async function BookingSettingsPage() {
       {/* Studios — secondary entry point to the studio library */}
       <section className="space-y-4">
         <div className="border-b border-border pb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Studios
-          </h2>
+          <div className="flex items-center gap-2">
+            <IconChip icon={MapPin} tint="green" size="sm" />
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Studios
+            </h2>
+          </div>
           <p className="mt-1.5 text-sm text-foreground">
             The studios where you tattoo. Slots auto-pick up trip locations when
             a trip leg covers the slot date.

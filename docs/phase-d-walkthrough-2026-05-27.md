@@ -31,7 +31,7 @@ IDs `DT-n`. Severity B/H/M/L. "Future" = founder will write a dedicated slice/pr
 
 **Layout / first-viewport**
 
-- **DT-1 [H]** Onboarding intro (`onboarding/welcome/welcome-slides.tsx`) and `/onboarding/done` (`onboarding/done/page.tsx`) are cut off at the top — content overflows the first viewport. Goal: full content visible in the first viewport without scrolling, on **all** devices (confirmed broken on desktop). Likely a vertical-centering / min-height / fixed-chrome offset issue.
+- **DT-1 [H]** ✅ **SHIPPED as Slice 78d (2026-06-04).** Root cause: `onboarding/layout.tsx` used `flex justify-center overflow-y-auto`, which traps content taller than the viewport _above_ the scroll origin (can't scroll up → top cut off). Fixed with the canonical pattern: outer div owns the scroll, inner `min-h-full` flex wrapper centers short content but grows + scrolls from the top when tall. Fixes both welcome-slides and `/onboarding/done`.
 
 **Dashboard**
 
@@ -76,7 +76,7 @@ IDs `DT-n`. Severity B/H/M/L. "Future" = founder will write a dedicated slice/pr
 
 **Bookings › Booking settings**
 
-- **DT-15 [M]** Add **icons** and reduce the plain/cluttered layout; currently hard to scan/understand.
+- **DT-15 [M]** ✅ **SHIPPED as Slice 78d (2026-06-04).** Added `IconChip` section icons to `/bookings/settings` (Availability/mustard, Booking mode/rosa, Slots/cobalt, Studios/green) so the page scans at a glance.
 
 **Flash › Designs**
 
