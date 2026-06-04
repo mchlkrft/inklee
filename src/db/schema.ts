@@ -121,6 +121,10 @@ export const bookingRequests = pgTable("booking_requests", {
     .defaultNow(),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   depositAmount: numeric("deposit_amount", { precision: 10, scale: 2 }),
+  // Currency the deposit is charged in (Slice 79d). Fixed at request time to
+  // the artist's settlement currency so it matches the PaymentIntent. Defaults
+  // to eur (eurozone artists + manual deposits).
+  depositCurrency: text("deposit_currency").notNull().default("eur"),
   depositDueAt: date("deposit_due_at"),
   depositNote: text("deposit_note"),
   depositPaymentIntentId: text("deposit_payment_intent_id"),

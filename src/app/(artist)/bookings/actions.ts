@@ -17,6 +17,7 @@ import {
 import type { EmailGoodsDecision } from "@/lib/email/booking-templates";
 import { stripe } from "@/lib/stripe";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
+import { artistDepositCurrency } from "@/lib/connect-countries";
 import { platformFeeCents } from "@/lib/platform-fee";
 import {
   parseDepositPolicy,
@@ -550,13 +551,20 @@ export async function requestDeposit(
   // the client-facing disclosure, the confirmation email, and the portal.
   const { data: policyProfile } = await supabase
     .from("profiles")
-    .select("settings")
+    .select("settings, stripe_account_country")
     .eq("id", user.id)
     .single();
   const depositPolicy = parseDepositPolicy(
     (policyProfile?.settings as Record<string, unknown> | null)?.deposit_policy,
   );
   const depositPolicySnapshot = renderDepositPolicyText(depositPolicy);
+  // Slice 79d: charge the deposit in the artist's settlement currency so a
+  // non-eurozone artist has no FX at payout. Fixed here; stays consistent with
+  // the PaymentIntent currency below.
+  const depositCurrency = artistDepositCurrency(
+    (policyProfile as { stripe_account_country?: string | null } | null)
+      ?.stripe_account_country,
+  );
 
   const decidedAt = new Date().toISOString();
   const { data: fresh } = await supabase
@@ -598,6 +606,7 @@ export async function requestDeposit(
       .from("booking_requests")
       .update({
         deposit_amount: amount,
+        deposit_currency: depositCurrency,
         deposit_due_at: dueAt,
         deposit_note: note || null,
         deposit_policy: depositPolicy,
@@ -648,7 +657,7 @@ export async function requestDeposit(
     if (routing.routeCharges && routing.stripeAccountId) {
       const intentParams: Stripe.PaymentIntentCreateParams = {
         amount: Math.round(amount * 100),
-        currency: "eur",
+        currency: depositCurrency,
         // Omit payment_method_types; this keeps dynamic payment methods on
         // explicitly + version-independently (Stripe best practice).
         automatic_payment_methods: { enabled: true },
@@ -687,6 +696,7 @@ export async function requestDeposit(
     .update({
       status: "deposit_pending",
       deposit_amount: amount,
+      deposit_currency: depositCurrency,
       deposit_due_at: dueAt,
       deposit_note: note || null,
       deposit_policy: depositPolicy,

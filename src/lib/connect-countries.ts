@@ -74,3 +74,18 @@ const NON_EUR_CURRENCY: Record<string, string> = {
 export function payoutCurrencyForCountry(code: string): string {
   return NON_EUR_CURRENCY[code] ?? "eur";
 }
+
+/**
+ * The currency a deposit should be charged + displayed in for an artist
+ * (Slice 79d). Connected artists settle in their Connect country's currency,
+ * so charging in that currency means no FX at payout. Un-connected (manual)
+ * artists have no Stripe currency, so default to EUR (manual deposits carry no
+ * FX anyway — the client pays them directly).
+ */
+export function artistDepositCurrency(
+  stripeAccountCountry: string | null | undefined,
+): string {
+  return stripeAccountCountry
+    ? payoutCurrencyForCountry(stripeAccountCountry)
+    : "eur";
+}
