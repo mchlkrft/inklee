@@ -2,15 +2,15 @@ import { describe, it, expect } from "vitest";
 import { formatSize, SIZE_LABELS } from "../booking-schema";
 
 describe("formatSize", () => {
-  it("renders a known size key as label + hint", () => {
-    expect(formatSize("forearm")).toBe("Forearm · ~ 15-20 cm");
-    expect(formatSize("palm-sized")).toBe("Palm-sized · ~ 5 cm");
+  it("renders a known size key as the measurement only (DT-3)", () => {
+    expect(formatSize("forearm")).toBe("~ 15-20 cm");
+    expect(formatSize("palm-sized")).toBe("~ 5 cm");
   });
 
   it("covers every defined size", () => {
     for (const key of Object.keys(SIZE_LABELS)) {
-      const { label, hint } = SIZE_LABELS[key as keyof typeof SIZE_LABELS];
-      expect(formatSize(key)).toBe(`${label} · ${hint}`);
+      const { hint } = SIZE_LABELS[key as keyof typeof SIZE_LABELS];
+      expect(formatSize(key)).toBe(hint);
     }
   });
 

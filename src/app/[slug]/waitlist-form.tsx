@@ -91,8 +91,7 @@ export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
           className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <p className="text-xs text-muted-foreground">
-          Tell the artist where you&apos;d like to get tattooed — helps them
-          plan future guest spots.
+          Tell the artist where you&apos;d like to get tattooed.
         </p>
       </div>
 
@@ -125,7 +124,7 @@ export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-full border border-border px-5 py-2.5 text-sm text-foreground transition-colors hover:border-foreground disabled:opacity-50"
+        className="w-full rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {pending ? "Joining..." : "Join the waitlist"}
       </button>

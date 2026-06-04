@@ -134,6 +134,7 @@ export default async function DashboardPage() {
     .slice(0, 3);
 
   const publicUrl = publicArtistUrl(profile?.slug);
+  const waitlistUrl = publicArtistUrl(profile?.slug, { subpath: "/waitlist" });
 
   // Zero-request post-onboarding artists get a prominent share-your-link card
   // (D13) and an always-visible BookingLinkWidget regardless of the toggle (D12).
@@ -377,7 +378,7 @@ export default async function DashboardPage() {
         )}
 
         {(widgets.booking_link || isZeroRequest) && profile?.slug && (
-          <BookingLinkWidget publicUrl={publicUrl} slug={profile.slug} />
+          <BookingLinkWidget publicUrl={publicUrl} waitlistUrl={waitlistUrl} />
         )}
       </div>
 

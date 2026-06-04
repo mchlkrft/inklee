@@ -5,7 +5,6 @@ import { parseBooksSettings } from "@/lib/books-settings";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import UnifiedFieldList from "../form/unified-field-list";
 import PublicPageClient from "../public-page/public-page-client";
-import FormAppearanceForm from "../settings/form-appearance-form";
 import Link from "next/link";
 import { publicArtistUrl } from "@/lib/public-url";
 
@@ -152,19 +151,6 @@ export default async function BookingFormPage() {
           customFields={(fields as CustomFieldDef[]) ?? []}
           initialOrder={initialOrder}
         />
-      </section>
-
-      {/* Form appearance */}
-      <section className="space-y-4">
-        <div className="border-b border-border pb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Appearance
-          </h2>
-          <p className="mt-1.5 text-sm text-foreground">
-            Choose the colour theme of your public booking form.
-          </p>
-        </div>
-        <FormAppearanceForm current={booksSettings.form_appearance} />
       </section>
     </div>
   );

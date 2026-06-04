@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { serviceClient } from "@/lib/supabase/service";
+import { publicArtistUrl } from "@/lib/public-url";
 import WaitlistForm from "../waitlist-form";
 
 // `generateMetadata` below sets robots: noindex per-request — Next.js
@@ -61,17 +62,16 @@ export default async function PublicWaitlistPage({
       <div className="mx-auto max-w-md px-4 py-12 sm:py-16">
         <div className="space-y-2">
           <Link
-            href={`/${profile.slug}`}
+            href={publicArtistUrl(profile.slug ?? slug)}
             className="text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             ← {profile.display_name ?? slug}
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Join {profile.display_name ?? "the"} waitlist
+            {profile.display_name ?? "The"} waitlist
           </h1>
           <p className="text-sm text-muted-foreground">
-            Leave your details and {profile.display_name ?? "the artist"} will
-            reach out when there’s an opening.
+            Leave your details and join the waitlist.
           </p>
         </div>
 

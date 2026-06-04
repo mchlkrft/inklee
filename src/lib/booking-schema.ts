@@ -16,14 +16,17 @@ export const SIZE_LABELS: Record<
   larger: { label: "Larger", hint: "20 cm+" },
 };
 
-// Render a stored size key as the full client-facing label (e.g.
-// "Forearm · ~ 15-20 cm") so the artist sees exactly what the client picked,
-// not just the bare key. Falls back to the raw value for unknown/legacy/empty
-// entries so older bookings and custom values still render something sensible.
+// Render a stored size key as the client-facing measurement (e.g. "~ 15-20
+// cm") so the artist sees the actual size the client picked, not the bare key.
+// We deliberately show ONLY the measurement, not the label: a label like
+// "Forearm" reads as a placement and is confusing in the artist view (DT-3).
+// Falls back to the raw value for unknown/legacy/empty entries so older
+// bookings and custom values still render something sensible. The public
+// booking form still shows label + hint via SIZE_LABELS directly.
 export function formatSize(value: string | null | undefined): string {
   if (!value) return "";
   const entry = SIZE_LABELS[value as (typeof SIZES)[number]];
-  return entry ? `${entry.label} · ${entry.hint}` : value;
+  return entry ? entry.hint : value;
 }
 
 export const bookingSchema = z.object({
