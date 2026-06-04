@@ -1,11 +1,11 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import {
-  createConnectOnboardingLink,
   ensureConnectAccount,
+  updateConnectKyc,
   syncConnectAccount,
   type ConnectStatus,
 } from "@/lib/stripe-connect";
@@ -13,50 +13,50 @@ import {
   isSupportedConnectCountry,
   DEFAULT_CONNECT_COUNTRY,
 } from "@/lib/connect-countries";
+import { getClientIp } from "@/lib/get-client-ip";
+import { publicArtistUrl } from "@/lib/public-url";
 
-type ActionState = { error: string } | null;
+type KycState =
+  | { ok: true; status: ConnectStatus; requirementsDue: string[] }
+  | { error: string }
+  | null;
 
-function appUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+function field(formData: FormData, key: string): string {
+  return ((formData.get(key) as string | null) ?? "").trim();
 }
 
 /**
- * Begin Stripe Connect onboarding for the signed-in artist. Idempotent:
- * re-clicking the CTA after an abandoned onboarding re-uses the same
- * `stripe_account_id` and just mints a fresh AccountLink. On success
- * redirects to Stripe's hosted onboarding URL; failures bubble back as a
- * useActionState-shaped error.
+ * Submit the artist's payout KYC for a Custom Connect account (Slice 79). The
+ * artist fills this in inside Inklee — no Stripe-hosted redirect. Creates the
+ * connected account on first submit (country is locked at creation), then
+ * forwards the KYC to Stripe via `updateConnectKyc`. The PII never touches an
+ * Inklee table; only the derived status is persisted. Idempotent: re-submitting
+ * (e.g. to clear `restricted` requirements) reuses the same account.
  */
-export async function startConnectOnboardingAction(
-  _prev: ActionState,
-  formData?: FormData,
-): Promise<ActionState> {
+export async function submitConnectKycAction(
+  _prev: KycState,
+  formData: FormData,
+): Promise<KycState> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
+  const email = user.email;
+  if (!email) {
+    return { error: "Your account needs an email before setting up payouts." };
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
-    .select("stripe_account_id, stripe_account_country")
+    .select("stripe_account_id, stripe_account_country, slug")
     .eq("id", user.id)
     .single();
 
-  const email = user.email;
-  if (!email) {
-    return {
-      error: "Your account needs an email before connecting Stripe.",
-    };
-  }
-
-  // F9 (RS-5): the connected account's country is fixed at creation, so we
-  // collect it on the payouts page before the first onboarding instead of
-  // letting Stripe default to the platform country (US in sandbox). Order of
-  // preference: the artist's just-submitted choice → a country already on the
-  // profile (re-onboarding) → the default market. `ensureConnectAccount`
-  // ignores `country` once an account exists, so this only bites at creation.
-  const submittedCountry = formData?.get("country");
+  // Country is fixed at account creation, so prefer a just-submitted choice,
+  // then a country already on the profile (re-submit), then the default market.
+  const submittedCountry = formData.get("country");
   const country = isSupportedConnectCountry(submittedCountry)
     ? submittedCountry
     : isSupportedConnectCountry(profile?.stripe_account_country)
@@ -71,25 +71,73 @@ export async function startConnectOnboardingAction(
   });
   if ("error" in ensured) return { error: ensured.error };
 
-  const base = appUrl();
-  const link = await createConnectOnboardingLink({
-    accountId: ensured.id,
-    returnUrl: `${base}/settings/payouts/return`,
-    refreshUrl: `${base}/settings/payouts/refresh`,
-  });
-  if ("error" in link) return { error: link.error };
+  const firstName = field(formData, "first_name");
+  const lastName = field(formData, "last_name");
+  // DOB comes from a native <input type="date"> as "YYYY-MM-DD".
+  const dobParts = field(formData, "dob").split("-");
+  const dobYear = parseInt(dobParts[0] ?? "", 10);
+  const dobMonth = parseInt(dobParts[1] ?? "", 10);
+  const dobDay = parseInt(dobParts[2] ?? "", 10);
+  const phone = field(formData, "phone");
+  const addressLine1 = field(formData, "address_line1");
+  const addressCity = field(formData, "address_city");
+  const addressPostalCode = field(formData, "address_postal_code");
+  const iban = field(formData, "iban").replace(/\s+/g, "");
+  const kycEmail = field(formData, "email") || email;
 
-  // redirect() throws an internal NEXT_REDIRECT — must be called outside any
-  // try/catch above. Any subsequent rendering is moot.
-  redirect(link.url);
+  // Cheap presence check before the Stripe round-trip — Stripe returns the
+  // authoritative requirements list, but this catches blank submits early.
+  if (
+    !firstName ||
+    !lastName ||
+    !phone ||
+    !addressLine1 ||
+    !addressCity ||
+    !addressPostalCode ||
+    !iban ||
+    !Number.isInteger(dobDay) ||
+    !Number.isInteger(dobMonth) ||
+    !Number.isInteger(dobYear)
+  ) {
+    return { error: "Please fill in every field." };
+  }
+
+  const ip = getClientIp(await headers());
+  const businessUrl = publicArtistUrl(profile?.slug ?? null);
+
+  const result = await updateConnectKyc({
+    accountId: ensured.id,
+    userId: user.id,
+    country,
+    firstName,
+    lastName,
+    dobDay,
+    dobMonth,
+    dobYear,
+    email: kycEmail,
+    phone,
+    addressLine1,
+    addressCity,
+    addressPostalCode,
+    iban,
+    businessUrl,
+    tosIp: ip,
+  });
+  if ("error" in result) return { error: result.error };
+
+  revalidatePath("/settings/payouts");
+  return {
+    ok: true,
+    status: result.status,
+    requirementsDue: result.requirementsDue,
+  };
 }
 
 type SyncState = { ok: true; status: ConnectStatus } | { error: string } | null;
 
 /**
- * Re-fetch the account from Stripe and persist the derived status. Called
- * by the return URL page after Stripe redirects the artist back, and by the
- * settings page's "Refresh status" button if onboarding stalls.
+ * Re-fetch the account from Stripe and persist the derived status. Used by the
+ * settings page's "Refresh status" button while Stripe finishes verification.
  */
 export async function syncConnectAccountAction(
   _prev: SyncState,
@@ -102,18 +150,20 @@ export async function syncConnectAccountAction(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("stripe_account_id")
+    .select("stripe_account_id, stripe_account_status")
     .eq("id", user.id)
     .single();
   const accountId = profile?.stripe_account_id as string | null;
-  if (!accountId) {
-    return { error: "No Stripe account is connected yet." };
+  const status = profile?.stripe_account_status as string | null;
+
+  // H-4: don't call Stripe for an account we no longer control (deauthorized →
+  // status "unset" but id retained) or one that was never created — Stripe
+  // would 403/404 and the message could echo the account id back to the UI.
+  if (!accountId || status === "unset") {
+    return { error: "No payout account to refresh yet." };
   }
 
-  const result = await syncConnectAccount({
-    userId: user.id,
-    accountId,
-  });
+  const result = await syncConnectAccount({ userId: user.id, accountId });
   if ("error" in result) return { error: result.error };
   revalidatePath("/settings/payouts");
   return { ok: true, status: result.status };

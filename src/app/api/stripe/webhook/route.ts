@@ -55,6 +55,12 @@ export async function POST(request: Request) {
   // account into `profiles.stripe_*`. Charge integration arrives in OT-12.2.
   if (event.type === "account.updated") {
     const account = event.data.object as Stripe.Account;
+    // L-1: defensive consistency check — the event's connected-account context
+    // should match the object it carries. They always do for account.updated,
+    // but assert before mutating our state off the payload.
+    if (event.account && event.account !== account.id) {
+      return NextResponse.json({ received: true });
+    }
     const result = await persistConnectAccountFromEvent(account);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });

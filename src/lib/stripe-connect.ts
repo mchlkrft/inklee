@@ -158,7 +158,19 @@ async function createConnectAccount(args: {
   try {
     account = await stripe.accounts.create(
       {
-        type: "express",
+        // Custom controller (Slice 79, sandbox-validated): the artist never
+        // sees Stripe. Inklee collects the KYC in-app (`requirement_collection:
+        // application`), there is no Stripe dashboard for the artist, Inklee is
+        // liable for losses, and Inklee pays Stripe's processing fee
+        // (`fees.payer: application`) — the last point is WHY the deposit
+        // application fee becomes the full 3% (see platform-fee.ts).
+        controller: {
+          requirement_collection: "application",
+          stripe_dashboard: { type: "none" },
+          losses: { payments: "application" },
+          fees: { payer: "application" },
+        },
+        business_type: "individual",
         email: args.email,
         ...(args.country ? { country: args.country } : {}),
         capabilities: {
@@ -170,7 +182,7 @@ async function createConnectAccount(args: {
       { idempotencyKey: `connect-create-${args.userId}` },
     );
   } catch (e) {
-    return { error: stripeMessage(e, "Could not start Stripe onboarding.") };
+    return { error: stripeMessage(e, "Could not start payout setup.") };
   }
 
   const { error } = await serviceClient
@@ -203,29 +215,92 @@ export async function ensureConnectAccount(args: {
   return createConnectAccount(args);
 }
 
-/**
- * AccountLink — the Stripe-hosted onboarding URL. Expires 5 minutes after
- * creation, hence the "Resume onboarding" CTA path on the settings page.
- */
-export async function createConnectOnboardingLink(args: {
+export type ConnectKycInput = {
   accountId: string;
-  returnUrl: string;
-  refreshUrl: string;
-}): Promise<{ url: string } | { error: string }> {
+  userId: string;
+  country: string;
+  firstName: string;
+  lastName: string;
+  dobDay: number;
+  dobMonth: number;
+  dobYear: number;
+  email: string;
+  phone: string;
+  addressLine1: string;
+  addressCity: string;
+  addressPostalCode: string;
+  iban: string;
+  businessUrl: string;
+  tosIp: string;
+};
+
+/**
+ * Submit a Custom account's KYC to Stripe (Slice 79). The artist fills this in
+ * inside Inklee; we forward it to `accounts.update` and attach the bank account
+ * + ToS acceptance.
+ *
+ * PRIVACY (H-1/H-2): the PII here (name, DOB, address, phone, IBAN) goes
+ * STRAIGHT to Stripe and is never written to an Inklee table or logged. Only
+ * the derived account STATUS is persisted (via persistConnectAccount). On
+ * error we surface Stripe's own message string, never the submitted values.
+ */
+export async function updateConnectKyc(
+  input: ConnectKycInput,
+): Promise<
+  { requirementsDue: string[]; status: ConnectStatus } | { error: string }
+> {
   if (!stripe) return { error: "Stripe is not configured on this deployment." };
   try {
-    const link = await stripe.accountLinks.create({
-      account: args.accountId,
-      type: "account_onboarding",
-      return_url: args.returnUrl,
-      refresh_url: args.refreshUrl,
+    await stripe.accounts.update(input.accountId, {
+      business_type: "individual",
+      individual: {
+        first_name: input.firstName,
+        last_name: input.lastName,
+        dob: { day: input.dobDay, month: input.dobMonth, year: input.dobYear },
+        email: input.email,
+        phone: input.phone,
+        address: {
+          line1: input.addressLine1,
+          city: input.addressCity,
+          postal_code: input.addressPostalCode,
+          country: input.country,
+        },
+      },
+      business_profile: {
+        mcc: "7299", // miscellaneous personal services (closest fit for tattoo)
+        url: input.businessUrl,
+      },
+      // Raw bank account is fine server-side. Currency is omitted so Stripe
+      // uses the account country's default (eur for the DE/eurozone default).
+      external_account: {
+        object: "bank_account",
+        country: input.country,
+        account_number: input.iban,
+      },
+      tos_acceptance: {
+        date: Math.floor(Date.now() / 1000),
+        ip: input.tosIp,
+      },
     });
-    return { url: link.url };
   } catch (e) {
-    return {
-      error: stripeMessage(e, "Could not generate an onboarding link."),
-    };
+    return { error: stripeMessage(e, "Could not save your payout details.") };
   }
+
+  let account: Stripe.Account;
+  try {
+    account = await stripe.accounts.retrieve(input.accountId);
+  } catch (e) {
+    return { error: stripeMessage(e, "Saved, but could not refresh status.") };
+  }
+  const persisted = await persistConnectAccount({
+    userId: input.userId,
+    account,
+  });
+  if ("error" in persisted) return { error: persisted.error };
+  return {
+    status: persisted.status,
+    requirementsDue: account.requirements?.currently_due ?? [],
+  };
 }
 
 /**

@@ -1,8 +1,8 @@
-import { ExternalLink } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isConnectStatus, type ConnectStatus } from "@/lib/stripe-connect";
 import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
 import PayoutsControls from "./payouts-controls";
+import ConnectKycForm from "./connect-kyc-form";
 
 const STATUS_LABEL: Record<ConnectStatus, string> = {
   unset: "Not connected",
@@ -13,12 +13,12 @@ const STATUS_LABEL: Record<ConnectStatus, string> = {
 };
 
 const STATUS_DESCRIPTION: Record<ConnectStatus, string> = {
-  unset: `Connecting is optional. Do it only if you want clients to pay deposits by card here. Stripe verifies you so deposits land in your own account — Inklee never holds your money and keeps a ${PLATFORM_FEE_PERCENT}% fee per deposit (card processing included).`,
+  unset: `Optional. Set this up only if you want clients to pay deposits by card here. You enter your details below, Inklee verifies you with Stripe, and deposits land in your own account. Inklee keeps a ${PLATFORM_FEE_PERCENT}% fee per deposit (card processing included) and never holds your money.`,
   pending:
-    "You started Stripe onboarding but haven't finished yet. Pick up where you left off — your progress is saved.",
-  active: `Your Stripe account is ready. Clients can now pay deposits by card — each deposit lands in your account and Inklee keeps a ${PLATFORM_FEE_PERCENT}% fee (card processing included).`,
+    "Stripe is verifying your details. Use Refresh status to check, or update your details below if something was off.",
+  active: `You're verified. Clients can now pay deposits by card, each deposit lands in your account, and Inklee keeps a ${PLATFORM_FEE_PERCENT}% fee (card processing included).`,
   restricted:
-    "Stripe needs more information before you can take payments. Open your Stripe dashboard to clear the requirements.",
+    "Stripe needs a bit more before you can take payments. Update your details below.",
   disabled:
     "Stripe disabled this account. Contact Stripe support for next steps.",
 };
@@ -106,22 +106,25 @@ export default async function PayoutsSettingsPage() {
           )}
       </div>
 
-      <PayoutsControls status={status} accountId={accountId} />
+      {status !== "active" && status !== "disabled" && (
+        <div className="rounded-[20px] border border-border p-5">
+          <h2 className="mb-1 text-sm font-semibold text-foreground">
+            {status === "unset" ? "Set up payouts" : "Your details"}
+          </h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            You complete this here. Your details go straight to Stripe for
+            verification and are not stored by Inklee.
+          </p>
+          <ConnectKycForm status={status} email={user?.email ?? ""} />
+        </div>
+      )}
+
+      <PayoutsControls hasAccount={accountId !== null} />
 
       <p className="text-xs text-muted-foreground">
-        Connecting is optional and reversible. Deposits you collect this way
-        land in your own Stripe account; Inklee keeps a {PLATFORM_FEE_PERCENT}%
-        fee that covers card processing. See{" "}
-        <a
-          href="https://stripe.com/docs/connect/express-accounts"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-0.5 underline underline-offset-2 hover:text-foreground"
-        >
-          Stripe Express accounts
-          <ExternalLink className="h-3 w-3" aria-hidden />
-        </a>{" "}
-        for what the onboarding looks like.
+        Setting up payouts is optional and reversible. Deposits you collect this
+        way land in your own account, and Inklee keeps a {PLATFORM_FEE_PERCENT}%
+        fee that covers card processing.
       </p>
     </div>
   );
