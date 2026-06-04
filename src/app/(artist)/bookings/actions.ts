@@ -999,7 +999,9 @@ export async function convertWaitlistEntry({
     customer_email: customerEmail,
     customer_handle: customerHandle,
     customer_token_hash: tokenHash,
-    form_data: { description: note || "" },
+    // Mark the waitlist origin in form_data (no enum migration needed) so the
+    // requests list can flag it with a "Waitlist" chip (78c/DT-5).
+    form_data: { description: note || "", source: "waitlist" },
     decided_at: decidedAt,
     updated_at: decidedAt,
   });

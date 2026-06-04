@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { MapPin, Users } from "lucide-react";
+import { MapPin, Users, ChevronDown } from "lucide-react";
 import StatusBadge from "@/components/status-badge";
 import { relativeTime, formatDate } from "@/lib/format";
 import { humanStatusLabel } from "@/lib/status-labels";
@@ -166,7 +166,10 @@ async function RequestsView({
                           </p>
                         )}
                       </div>
-                      <StatusBadge status={b.status} />
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <StatusBadge status={b.status} />
+                        {fd?.source === "waitlist" && <WaitlistTag />}
+                      </div>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {relativeTime(b.created_at)}
@@ -215,6 +218,11 @@ async function RequestsView({
                         >
                           {customerLabel(b.customer_handle, b.customer_email)}
                         </Link>
+                        {fd?.source === "waitlist" && (
+                          <div className="mt-1">
+                            <WaitlistTag />
+                          </div>
+                        )}
                       </td>
                       <td className="max-w-[180px] truncate px-4 py-3 text-muted-foreground">
                         <Link
@@ -378,6 +386,88 @@ function buildCityDemand(
     .sort((a, b) => b.count - a.count);
 }
 
+// Small neutral tag marking a request that originated from the waitlist
+// (form_data.source === "waitlist"). Muted tone so it reads as a label
+// alongside the status chip, not as a competing status (78c/DT-5).
+function WaitlistTag() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-brand-charcoal/10 px-2 py-0.5 text-[11px] font-medium text-brand-charcoal">
+      Waitlist
+    </span>
+  );
+}
+
+type WaitlistEntry = {
+  id: string;
+  customer_handle: string;
+  customer_email: string;
+  note: string | null;
+  status: string;
+  created_at: string;
+  city_text: string | null;
+};
+
+// One waitlist row. `muted` greys out terminal (history) entries and hides the
+// action buttons. Converted entries read "Added to requests" rather than the
+// raw "converted" status, so the artist sees where the person went (78c/DT-5).
+function WaitlistEntryRow({
+  entry,
+  muted = false,
+}: {
+  entry: WaitlistEntry;
+  muted?: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 ${muted ? "opacity-60" : ""}`}
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        <IconChip icon={Users} tint="rosa" size="sm" />
+        <div className="min-w-0 space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-medium text-foreground truncate">
+              @{entry.customer_handle}
+            </p>
+            {entry.status === "converted" ? (
+              <span className="inline-flex items-center rounded-full bg-brand-charcoal/10 px-2.5 py-0.5 text-xs font-semibold text-brand-charcoal">
+                Added to requests
+              </span>
+            ) : (
+              <StatusBadge status={entry.status} />
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            {entry.customer_email}
+          </p>
+          {entry.city_text && (
+            <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3" strokeWidth={1.8} />
+              {entry.city_text}
+            </p>
+          )}
+          {entry.note && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+              {entry.note}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {relativeTime(entry.created_at)}
+          </p>
+        </div>
+      </div>
+      {!muted && (
+        <WaitlistActions
+          entryId={entry.id}
+          status={entry.status}
+          customerEmail={entry.customer_email}
+          customerHandle={entry.customer_handle}
+          note={entry.note ?? ""}
+        />
+      )}
+    </div>
+  );
+}
+
 async function WaitlistView({
   publicUrl,
   waitlistPublicUrl,
@@ -400,6 +490,12 @@ async function WaitlistView({
 
   const list = entries ?? [];
   const cityDemand = buildCityDemand(list);
+  const activeEntries = list.filter(
+    (e) => e.status === "waiting" || e.status === "contacted",
+  );
+  const historyEntries = list.filter(
+    (e) => e.status === "converted" || e.status === "dismissed",
+  );
 
   return (
     <div className="space-y-5">
@@ -498,51 +594,34 @@ async function WaitlistView({
             )}
           </Card>
 
-          {/* Entry list */}
-          <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
-            {list.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <IconChip icon={Users} tint="rosa" size="sm" />
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        @{entry.customer_handle}
-                      </p>
-                      <StatusBadge status={entry.status} />
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {entry.customer_email}
-                    </p>
-                    {entry.city_text && (
-                      <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" strokeWidth={1.8} />
-                        {entry.city_text}
-                      </p>
-                    )}
-                    {entry.note && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                        {entry.note}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {relativeTime(entry.created_at)}
-                    </p>
-                  </div>
-                </div>
-                <WaitlistActions
-                  entryId={entry.id}
-                  status={entry.status}
-                  customerEmail={entry.customer_email}
-                  customerHandle={entry.customer_handle}
-                  note={entry.note ?? ""}
-                />
+          {/* Active entries — only waiting/contacted show in the main list. */}
+          {activeEntries.length > 0 ? (
+            <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
+              {activeEntries.map((entry) => (
+                <WaitlistEntryRow key={entry.id} entry={entry} />
+              ))}
+            </div>
+          ) : (
+            <p className="px-1 text-sm text-muted-foreground">
+              No active waitlist entries right now.
+            </p>
+          )}
+
+          {/* History — dismissed + converted, collapsed and greyed out so the
+              main view stays focused on who's still waiting (78c/DT-5). */}
+          {historyEntries.length > 0 && (
+            <details className="group overflow-hidden rounded-[20px] border border-border">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                <span>History ({historyEntries.length})</span>
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="divide-y divide-border border-t border-border">
+                {historyEntries.map((entry) => (
+                  <WaitlistEntryRow key={entry.id} entry={entry} muted />
+                ))}
               </div>
-            ))}
-          </div>
+            </details>
+          )}
         </>
       )}
     </div>

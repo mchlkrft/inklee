@@ -48,7 +48,7 @@ IDs `DT-n`. Severity B/H/M/L. "Future" = founder will write a dedicated slice/pr
 
 **Waitlist — artist backend restructure**
 
-- **DT-5 [H]** The main waitlist view should **not** openly list people. Move dismissed + converted entries into a **collapsed "history" section** (find a better name), expandable on click, greyed out to signal they're not active states. Converted state is unclear: relabel converted entries **"added to requests"** in the waitlist. In Requests, a converted-from-waitlist entry should show a **"waitlist request" chip in the same color as the "request" chip**.
+- **DT-5 [H]** ✅ **SHIPPED as Slice 78c (2026-06-04).** Waitlist view (`bookings/overview` WaitlistView) now lists only active (waiting/contacted) entries; dismissed + converted moved into a collapsed, greyed-out `<details>` "History (n)" section. Converted entries read "Added to requests" instead of the raw status. Conversion now stamps `form_data.source = "waitlist"` (no enum migration), and the requests list (mobile + table) + detail show a neutral "Waitlist" chip; detail subtitle reads "Added from waitlist".
 
 **Waitlist — public page (`src/app/[slug]/waitlist/page.tsx`)**
 

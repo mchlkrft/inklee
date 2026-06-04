@@ -245,10 +245,19 @@ export default async function RequestDetailPage({
             {customerLabel(booking.customer_handle, booking.customer_email)}
           </h1>
           <StatusBadge status={booking.status} />
+          {fd?.source === "waitlist" && (
+            <span className="inline-flex items-center rounded-full bg-brand-charcoal/10 px-2.5 py-0.5 text-xs font-medium text-brand-charcoal">
+              Waitlist
+            </span>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           Submitted {relativeTime(booking.created_at)}
-          {booking.origin === "artist_created" ? " · Added by you" : ""}
+          {fd?.source === "waitlist"
+            ? " · Added from waitlist"
+            : booking.origin === "artist_created"
+              ? " · Added by you"
+              : ""}
         </p>
       </div>
 
