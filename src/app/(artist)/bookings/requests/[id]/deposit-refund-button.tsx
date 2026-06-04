@@ -2,19 +2,23 @@
 
 import { useState, useTransition } from "react";
 import { refundDeposit } from "../../actions";
+import { formatPrice } from "@/lib/goods";
 
 export default function DepositRefundButton({
   bookingId,
   amountEur,
+  currency = "eur",
 }: {
   bookingId: string;
   amountEur: number | null;
+  currency?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const amountLabel = amountEur !== null ? ` EUR ${amountEur.toFixed(2)}` : "";
+  const amountLabel =
+    amountEur !== null ? ` ${formatPrice(amountEur, currency)}` : "";
 
   if (!confirm) {
     return (

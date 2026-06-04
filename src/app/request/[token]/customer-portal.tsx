@@ -8,6 +8,7 @@ import {
 } from "./actions";
 import { SIZES, SIZE_LABELS } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
+import { formatPrice } from "@/lib/goods";
 import StatusBadge from "@/components/status-badge";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
@@ -41,6 +42,7 @@ type Booking = {
   canEdit: boolean;
   editDisabledReason: string | null;
   depositAmount: number | null;
+  depositCurrency: string;
   depositDueAt: string | null;
   depositNote: string | null;
   depositClientSecret: string | null;
@@ -293,7 +295,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                 <AddonsCheckout
                   token={booking.token}
                   depositAmount={booking.depositAmount}
-                  currency="eur"
+                  currency={booking.depositCurrency}
                   clientSecret={booking.depositClientSecret}
                   publishableKey={booking.stripePublishableKey}
                   products={booking.addonProducts}
@@ -303,6 +305,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                   clientSecret={booking.depositClientSecret}
                   publishableKey={booking.stripePublishableKey}
                   amountEur={booking.depositAmount}
+                  currency={booking.depositCurrency}
                   policy={booking.depositPolicy}
                 />
               )}
@@ -315,7 +318,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
               <p className="text-sm text-foreground">
                 {booking.artistName} has requested a deposit of{" "}
                 <span className="font-medium">
-                  EUR {booking.depositAmount.toFixed(2)}
+                  {formatPrice(booking.depositAmount, booking.depositCurrency)}
                 </span>
                 {booking.depositDueAt && (
                   <span className="text-muted-foreground">

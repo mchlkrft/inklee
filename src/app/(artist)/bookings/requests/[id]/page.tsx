@@ -448,7 +448,10 @@ export default async function RequestDetailPage({
                 Deposit
               </p>
               <p className="text-base text-foreground font-medium">
-                EUR {Number(booking.deposit_amount).toFixed(2)}
+                {formatPrice(
+                  Number(booking.deposit_amount),
+                  (booking.deposit_currency as string) ?? "eur",
+                )}
               </p>
               {booking.deposit_due_at && (
                 <p className="text-xs text-muted-foreground">
@@ -464,7 +467,7 @@ export default async function RequestDetailPage({
                 <p className="text-xs text-muted-foreground">
                   Refunded
                   {typeof depositRefunded.details?.amount_eur === "number"
-                    ? ` EUR ${(depositRefunded.details.amount_eur as number).toFixed(2)}`
+                    ? ` ${formatPrice(depositRefunded.details.amount_eur as number, (booking.deposit_currency as string) ?? "eur")}`
                     : ""}{" "}
                   to the client.
                 </p>
@@ -477,6 +480,7 @@ export default async function RequestDetailPage({
                         ? Number(booking.deposit_amount)
                         : null
                     }
+                    currency={(booking.deposit_currency as string) ?? "eur"}
                   />
                 </div>
               ) : null}

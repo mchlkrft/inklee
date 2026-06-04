@@ -43,7 +43,7 @@ export default async function RequestPortalPage({
       customer_handle, customer_email,
       preferred_date, form_data,
       slot_id, trip_id, flash_item_id,
-      deposit_amount, deposit_due_at, deposit_note,
+      deposit_amount, deposit_currency, deposit_due_at, deposit_note,
       deposit_client_secret, deposit_policy,
       profiles!artist_id(display_name, timezone)
     `,
@@ -188,6 +188,7 @@ export default async function RequestPortalPage({
         depositAmount: booking.deposit_amount
           ? Number(booking.deposit_amount)
           : null,
+        depositCurrency: booking.deposit_currency ?? "eur",
         depositDueAt: booking.deposit_due_at ?? null,
         depositNote: booking.deposit_note ?? null,
         depositClientSecret: booking.deposit_client_secret ?? null,

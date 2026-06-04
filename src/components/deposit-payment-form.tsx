@@ -9,6 +9,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { depositPolicyLines, type DepositPolicy } from "@/lib/deposit-policy";
+import { formatPrice } from "@/lib/goods";
 
 function getStripePromise(publishableKey: string) {
   return loadStripe(publishableKey);
@@ -16,10 +17,12 @@ function getStripePromise(publishableKey: string) {
 
 function PaymentForm({
   amountEur,
+  currency,
   policy,
   onSuccess,
 }: {
   amountEur: number;
+  currency: string;
   policy: DepositPolicy | null;
   onSuccess: () => void;
 }) {
@@ -58,7 +61,7 @@ function PaymentForm({
           surcharge); Inklee's fee is not shown to the client. */}
       <div className="space-y-2 rounded-md border border-border p-4">
         <p className="text-sm font-medium text-foreground">
-          Deposit: EUR {amountEur.toFixed(2)}
+          Deposit: {formatPrice(amountEur, currency)}
         </p>
         {policy && (
           <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
@@ -96,11 +99,13 @@ export default function DepositPaymentForm({
   publishableKey,
   clientSecret,
   amountEur,
+  currency = "eur",
   policy = null,
 }: {
   publishableKey: string;
   clientSecret: string;
   amountEur: number;
+  currency?: string;
   policy?: DepositPolicy | null;
 }) {
   const [paid, setPaid] = useState(false);
@@ -111,8 +116,8 @@ export default function DepositPaymentForm({
       <div className="space-y-1 rounded-md border border-border p-4">
         <p className="text-sm font-medium text-foreground">Payment received</p>
         <p className="text-sm text-muted-foreground">
-          Your EUR {amountEur.toFixed(2)} deposit has been paid. The artist will
-          confirm your booking shortly.
+          Your {formatPrice(amountEur, currency)} deposit has been paid. The
+          artist will confirm your booking shortly.
         </p>
       </div>
     );
@@ -123,7 +128,7 @@ export default function DepositPaymentForm({
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">Pay deposit</p>
         <p className="text-sm text-muted-foreground">
-          EUR {amountEur.toFixed(2)} due to confirm your booking
+          {formatPrice(amountEur, currency)} due to confirm your booking
         </p>
       </div>
       <Elements
@@ -146,6 +151,7 @@ export default function DepositPaymentForm({
       >
         <PaymentForm
           amountEur={amountEur}
+          currency={currency}
           policy={policy}
           onSuccess={() => setPaid(true)}
         />
