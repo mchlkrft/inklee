@@ -103,7 +103,13 @@ export async function submitConnectKycAction(
   }
 
   const ip = getClientIp(await headers());
-  const businessUrl = publicArtistUrl(profile?.slug ?? null);
+  // Stripe's business_profile.url must be a valid public https URL. In local
+  // dev publicArtistUrl resolves to http://localhost:3000/... which Stripe
+  // rejects ("Not a valid URL"), so fall back to the public site there.
+  const computedUrl = publicArtistUrl(profile?.slug ?? null);
+  const businessUrl = computedUrl.startsWith("https://")
+    ? computedUrl
+    : "https://inkl.ee";
 
   const result = await updateConnectKyc({
     accountId: ensured.id,

@@ -52,3 +52,25 @@ const CODES = new Set(CONNECT_COUNTRIES.map((c) => c.code));
 export function isSupportedConnectCountry(code: unknown): code is string {
   return typeof code === "string" && CODES.has(code);
 }
+
+// Default payout (bank-account) currency per country. Stripe needs the
+// currency explicitly when we attach a bank account via the API. Everything
+// not listed here is in the eurozone (or treated as such) → EUR.
+const NON_EUR_CURRENCY: Record<string, string> = {
+  BG: "bgn",
+  CZ: "czk",
+  DK: "dkk",
+  HU: "huf",
+  NO: "nok",
+  PL: "pln",
+  RO: "ron",
+  SE: "sek",
+  GB: "gbp",
+  CH: "chf",
+  US: "usd",
+  CA: "cad",
+};
+
+export function payoutCurrencyForCountry(code: string): string {
+  return NON_EUR_CURRENCY[code] ?? "eur";
+}

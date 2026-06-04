@@ -54,10 +54,10 @@ export default async function PayoutsSettingsPage() {
           Payouts
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Optional. Connect Stripe only if you want clients to pay deposits by
-          card here — each deposit lands in your own Stripe account and Inklee
-          keeps a {PLATFORM_FEE_PERCENT}% fee. Without it, you can still collect
-          deposits manually.
+          Optional. Set this up only if you want clients to pay deposits by card
+          here. Each deposit lands in your own account and Inklee keeps a{" "}
+          {PLATFORM_FEE_PERCENT}% fee (card processing included). Without it,
+          you can still collect deposits manually.
         </p>
       </div>
 

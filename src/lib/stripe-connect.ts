@@ -13,6 +13,7 @@
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { serviceClient } from "@/lib/supabase/service";
+import { payoutCurrencyForCountry } from "@/lib/connect-countries";
 
 // Server-only. This module performs Stripe Connect account + KYC operations
 // with the secret key and must never be bundled into a client component.
@@ -270,11 +271,12 @@ export async function updateConnectKyc(
         mcc: "7299", // miscellaneous personal services (closest fit for tattoo)
         url: input.businessUrl,
       },
-      // Raw bank account is fine server-side. Currency is omitted so Stripe
-      // uses the account country's default (eur for the DE/eurozone default).
+      // Raw bank account is fine server-side. Stripe requires the currency
+      // explicitly; derive it from the account country (eurozone → eur).
       external_account: {
         object: "bank_account",
         country: input.country,
+        currency: payoutCurrencyForCountry(input.country),
         account_number: input.iban,
       },
       tos_acceptance: {
