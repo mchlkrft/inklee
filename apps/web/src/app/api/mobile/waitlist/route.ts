@@ -1,0 +1,30 @@
+import {
+  requireMobileUser,
+  mobileOk,
+  mobileError,
+} from "@/lib/server/mobile-auth";
+
+export const runtime = "nodejs";
+
+// GET /api/mobile/waitlist?status= — waitlist entries for the artist. Defaults
+// to the active ("waiting") entries; pass ?status=all for the full history.
+export async function GET(req: Request) {
+  const auth = await requireMobileUser(req);
+  if (!auth.ok) return mobileError(auth.status, auth.error);
+  const { userId, supabase } = auth;
+
+  const status = new URL(req.url).searchParams.get("status") ?? "waiting";
+
+  let query = supabase
+    .from("waitlist_entries")
+    .select("*")
+    .eq("artist_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (status !== "all") query = query.eq("status", status);
+
+  const { data, error } = await query;
+  if (error) return mobileError(500, error.message);
+
+  return mobileOk({ items: data ?? [] });
+}
