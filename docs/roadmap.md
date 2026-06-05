@@ -270,9 +270,9 @@ Research only. Output `docs/payments-strategy.md` v1. NOT implementation. Open q
 | Slice | Title                                                                                        | Status             |
 | ----- | -------------------------------------------------------------------------------------------- | ------------------ |
 | E0    | Audit + architecture + Expo-vs-Capacitor spike                                               | ✅ done (the plan) |
-| E-M0  | Monorepo migration (`apps/web` + workspace) — own PR, web-build-green + Vercel root-dir gate | ⏳ next            |
-| E1    | Expo foundation + auth + first `/api/mobile` (me/home/bookings/notifications)                |                    |
-| E2    | Booking core (inbox, detail, accept/pass/cancel, deposit)                                    |                    |
+| E-M0  | Monorepo migration (`apps/web` + workspace) — own PR, web-build-green + Vercel root-dir gate | ✅ done + merged to `payment-stripe`; Vercel root=`apps/web` |
+| E1    | Expo foundation + auth + first `/api/mobile` (me/home/bookings/notifications)                | ◑ backend done — full read layer (13 GET) + safe mutations (notifications read/read-all) + push-prep (`devices` reg/dereg, migration 0046 device_tokens NOT yet applied). Expo client pending founder Expo account |
+| E2    | Booking core (inbox, detail, accept/pass/cancel, deposit)                                    | ◑ backend money-path done — shared core `lib/server/bookings.ts` (web actions = thin wrappers, no divergence) + `POST /api/mobile/bookings/[id]/{approve,reject,cancel,deposit,deposit-received,deposit-refund}`; 295 tests green. Expo screens pending |
 | E3    | Notifications + push (device tokens, deep link)                                              |                    |
 | E4    | Onboarding + public booking link (first-10-minutes)                                          |                    |
 | E5    | Calendar, slots, availability                                                                |                    |
