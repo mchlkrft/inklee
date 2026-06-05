@@ -2115,14 +2115,14 @@ What shipped per item: **P0-1** deleted `dashboard/actions.ts` (re-verified zero
 - **P0-5 [High] Copy ship-rule sweep on money surfaces** — remove em-dashes (AGENTS.md ship gate) and the internal "pending counsel review" language leaking to artists.
 - **P0-6 [Medium] Multi-currency last-mile** — webhook hardcodes `eur` in the artist "deposit paid" notification + goods confirmation; use `intent.currency`.
 
-### Tier 1 — fast-follow (around launch)
+### Tier 1 — fast-follow — ✅ SHIPPED 2026-06-05 (288 tests green, typecheck + lint clean) — except P1-4 legal half (founder/counsel)
 
-- **P1-1 [High]** Webhook `charge.refunded` + `payment_intent.payment_failed` handlers (dashboard refunds + card failures are currently invisible; the in-app refund button can lie/double-attempt).
-- **P1-2 [Medium]** Email trust fixes: overdue-reminder on-behalf-of footer, "Hi ," greeting fallback, `inklee.app`→`inkl.ee` domain/asset check.
-- **P1-3 [Medium]** Audit-log currency: store `currency` alongside amounts; the `*_eur` keys mislabel non-EUR deposits.
-- **P1-4 [Medium]** Express→Custom wording on live `content/legal/subprocessors.md:13` (+ stale comments in `stripe-connect.ts`). One-word legal fix; deploy alongside.
-- **P1-5 [Medium]** Off-brand orange-on-bone warnings → palette caution token; drop vague disclaimer; render the friendly size label (not the raw key) in the customer portal view.
-- **P1-6 [Medium]** Reuse-path currency/routing staleness — cancel+recreate the intent when currency or `routeCharges` changed (PI currency is immutable).
+- ✅ **P1-1** Webhook `charge.refunded` handler reconciles dashboard/out-of-band refunds into a `deposit_refunded` audit row (idempotent — at most one per booking), so the detail page shows "Refunded" and the in-app button stops offering; `payment_intent.payment_failed` handler logs a best-effort `deposit_payment_failed` audit row (no notification, to avoid retry spam).
+- ✅ **P1-2** Email trust: deposit-overdue customer reminder now carries the "Sent by Inklee on behalf of <artist>" anti-phishing footer + `@handle || "there"` greeting fallback (also applied to the appointment-reminder + reconfirmation customer emails). **UX-18 was a false positive** — `inklee.app` is the app/asset domain (the artist dashboard + logo host); `inkl.ee` is only the public-bio short domain, so the email links/asset are correct; left unchanged.
+- ✅ **P1-3** Audit-log currency: `deposit_paid` (webhook) + `deposit_refunded` (refund action) now store `currency` alongside the kept-for-compat `*_eur` keys, so non-EUR amounts are interpretable for reconciliation.
+- ⏳ **P1-4** Code comments fixed (`stripe-connect.ts` Express→Custom). **Legal-page wording deferred to the founder/counsel pass (G-4):** `content/legal/subprocessors.md` uses a frozen-snapshot + counsel-cleared versioning system; changing the live "Express" wording properly needs a version bump + new snapshot on a counsel-governed page, which belongs with the Custom-model counsel sign-off, not a unilateral edit.
+- ✅ **P1-5** Off-brand `orange-400` warnings on the deposits page, status-actions test-mode banner, and policy-form draft notice → brand-mustard caution treatment (mustard border + icon, legible `foreground` body); customer-portal test banner aligned to the same; dropped the vague platform disclaimer; customer-portal view renders `formatSize()` not the raw size key; swept the remaining user-visible em-dashes in status-actions the earlier PowerShell pass missed.
+- ✅ **P1-6** Reuse-path staleness: `requestDeposit` reuse branch now re-checks routing + retrieves the existing intent's currency; if the artist disconnected (routeCharges false) or the settlement currency changed (PI currency is immutable), it cancels the dead intent and converts the booking to a manual deposit instead of reusing a card intent that would fail at confirm (can't mint a replacement — the create idempotency key is per-booking).
 
 ### Tier 2 — hardening & polish
 

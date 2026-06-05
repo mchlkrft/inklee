@@ -6,7 +6,7 @@ import {
   editCustomerBookingAction,
   cancelCustomerBookingAction,
 } from "./actions";
-import { SIZES, SIZE_LABELS } from "@/lib/booking-schema";
+import { SIZES, SIZE_LABELS, formatSize } from "@/lib/booking-schema";
 import { formatDate } from "@/lib/format";
 import { formatPrice } from "@/lib/goods";
 import StatusBadge from "@/components/status-badge";
@@ -262,7 +262,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
         )}
         <Row label="Booking type" value={booking.bookingModeLabel} />
         <Row label="Placement" value={booking.placement} />
-        <Row label="Size" value={booking.size} />
+        <Row label="Size" value={formatSize(booking.size)} />
         <Row label="Preferred date" value={formatDate(booking.preferredDate)} />
         {booking.referenceLink && (
           <Row label="Reference">
@@ -289,7 +289,7 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
       {booking.depositAmount && booking.status === "deposit_pending" && (
         <div className="space-y-3">
           {detectStripeMode(booking.stripePublishableKey) === "test" && (
-            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            <p className="rounded-md border border-brand-mustard/50 bg-brand-mustard/15 px-3 py-2 text-xs text-foreground">
               Test mode: this is a test payment form. No real card will be
               charged.
             </p>

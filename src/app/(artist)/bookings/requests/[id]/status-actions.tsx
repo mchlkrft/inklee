@@ -271,9 +271,9 @@ export default function StatusActions({
                     Goods they&apos;re interested in
                   </p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Confirm what&apos;s available — the client decides whether
-                    to add each one at checkout. Uncheck anything you can&apos;t
-                    do and leave a quick note.
+                    Confirm what&apos;s available. The client decides whether to
+                    add each one at checkout. Uncheck anything you can&apos;t do
+                    and leave a quick note.
                   </p>
                 </div>
                 <ul className="space-y-2">
@@ -337,7 +337,7 @@ export default function StatusActions({
                             }
                             rows={2}
                             maxLength={300}
-                            placeholder="Quick note — sold out, only in blue, swap suggestion…"
+                            placeholder="Quick note: sold out, only in blue, swap suggestion…"
                             className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         )}
@@ -381,7 +381,7 @@ export default function StatusActions({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   The client pays by card via the link in their email. The
-                  booking confirms automatically when the deposit lands —
+                  booking confirms automatically when the deposit lands, and
                   you&apos;ll be notified.
                 </p>
               </div>
@@ -505,7 +505,7 @@ export default function StatusActions({
                     <span className="font-medium text-foreground">
                       directly
                     </span>{" "}
-                    (e.g. bank transfer — put your details in the note) and mark
+                    (e.g. bank transfer; put your details in the note) and mark
                     it received. No card payment is taken in-app.
                   </p>
                   <p className="text-xs leading-snug text-muted-foreground">
@@ -524,11 +524,11 @@ export default function StatusActions({
                 // Yellow test-mode banner — warns the artist this request
                 // will NOT process a real payment. Only fires when
                 // pk_test_* keys are configured (dev/preview).
-                <div className="flex items-start gap-2 rounded-md border border-orange-400/40 bg-orange-400/[0.07] px-3 py-2">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" />
-                  <p className="text-xs leading-snug text-orange-400">
-                    Stripe is in test mode — no real payment will be taken. Live
-                    keys aren’t configured in this environment.
+                <div className="flex items-start gap-2 rounded-md border border-brand-mustard/50 bg-brand-mustard/15 px-3 py-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-mustard" />
+                  <p className="text-xs leading-snug text-foreground">
+                    Stripe is in test mode, so no real payment will be taken.
+                    Live keys aren’t configured in this environment.
                   </p>
                 </div>
               )}

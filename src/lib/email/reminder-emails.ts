@@ -8,8 +8,16 @@ function html(
     address: string | null;
     mapsUrl: string | null;
   } | null,
+  footerNote?: string,
 ): string {
-  return buildEmailHtml(body, {}, undefined, { studio });
+  return buildEmailHtml(body, {}, undefined, { studio, footerNote });
+}
+
+// Anti-phishing footer for customer-facing mail Inklee sends on the artist's
+// behalf (matches the deposit-request + receipt emails). Reused across the
+// reminder set so a "pay now"-style message can't be cheaply impersonated.
+function onBehalfOf(artistName: string): string {
+  return `Sent by Inklee on behalf of ${artistName}.`;
 }
 
 export async function sendDepositOverdueCustomer({
@@ -29,7 +37,8 @@ export async function sendDepositOverdueCustomer({
   dueAt: string;
   note: string | null;
 }): Promise<void> {
-  const body = `Hi ${customerHandle},
+  const greeting = customerHandle ? `@${customerHandle}` : "there";
+  const body = `Hi ${greeting},
 
 Your deposit of ${currency.toUpperCase()} ${amountEur.toFixed(2)} for your booking with ${artistName} was due on ${dueAt} and hasn't been received yet.
 
@@ -38,7 +47,7 @@ ${note ? `Payment instructions from ${artistName}:\n${note}\n\n` : ""}Please arr
   await sendEmail({
     to,
     subject: `Deposit overdue: booking with ${artistName}`,
-    html: html(body),
+    html: html(body, null, onBehalfOf(artistName)),
   });
 }
 
@@ -88,7 +97,8 @@ export async function sendAppointmentReminder({
     mapsUrl: string | null;
   } | null;
 }): Promise<void> {
-  const body = `Hi ${customerHandle},
+  const greeting = customerHandle ? `@${customerHandle}` : "there";
+  const body = `Hi ${greeting},
 
 A quick reminder: your tattoo appointment with ${artistName} is in 3 days.
 
@@ -100,7 +110,7 @@ If anything changes, get in touch with ${artistName} directly.`;
   await sendEmail({
     to,
     subject: `Reminder: appointment with ${artistName} in 3 days`,
-    html: html(body, studio),
+    html: html(body, studio, onBehalfOf(artistName)),
   });
 }
 
@@ -125,7 +135,8 @@ export async function sendReconfirmationRequest({
     mapsUrl: string | null;
   } | null;
 }): Promise<void> {
-  const body = `Hi ${customerHandle},
+  const greeting = customerHandle ? `@${customerHandle}` : "there";
+  const body = `Hi ${greeting},
 
 Your tattoo with ${artistName} is coming up on ${date} (${placement}).
 
@@ -138,6 +149,6 @@ ${magicLink}`;
   await sendEmail({
     to,
     subject: `Upcoming appointment with ${artistName}: confirming in 2 weeks`,
-    html: html(body, studio),
+    html: html(body, studio, onBehalfOf(artistName)),
   });
 }

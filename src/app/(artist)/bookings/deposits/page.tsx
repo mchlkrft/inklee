@@ -63,9 +63,9 @@ function DepositCollectionStatus({
         </div>
       )}
       {stripeMode === "test" && (
-        <div className="flex items-start gap-2.5 rounded-md border border-orange-400/40 bg-orange-400/[0.07] px-4 py-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-400" />
-          <p className="text-xs text-orange-400/90">
+        <div className="flex items-start gap-2.5 rounded-md border border-brand-mustard/50 bg-brand-mustard/15 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-brand-mustard" />
+          <p className="text-xs text-foreground">
             Deposits are in test mode in this environment. No real charges will
             be made.
           </p>
@@ -104,15 +104,6 @@ export default async function DepositsSettingsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Defaults for the deposit you request once you’ve accepted a booking.
-        </p>
-      </div>
-
-      {/* Required platform disclaimer — same wording used on the homepage,
-          comparison pages, and public booking-page legal notice. */}
-      <div className="rounded-md border border-border bg-muted/20 px-4 py-3">
-        <p className="text-sm leading-relaxed text-foreground">
-          Inklee is built to make deposits part of the booking flow.
-          Availability depends on your current setup and enabled features.
         </p>
       </div>
 

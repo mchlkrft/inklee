@@ -576,23 +576,44 @@ export async function requestDeposit(
     .single();
 
   if (fresh?.deposit_payment_intent_id && fresh?.deposit_client_secret) {
-    // F5 (RS-3): keep the live PaymentIntent's amount in step with the
-    // re-requested deposit. Previously the DB amount was updated here but the
-    // intent was not — only the goods `prepareCheckoutAction` rewrote it right
-    // before charging. Now that the deposit-only portal pays the intent
-    // directly (no prepare step), a stale intent would charge the OLD amount
-    // and the webhook's amount check would 409 the payment. We also reset the
-    // metadata to deposit-only (clearing any prior `order_id`) since goods are
-    // parked. Best-effort: a transient Stripe failure shouldn't block the
-    // re-request — the amount check is the backstop.
-    if (stripe && amount > 0) {
+    // P1-6 / FUN-2/FUN-10: an existing card intent can only be reused if the
+    // artist is STILL routable AND the settlement currency hasn't changed (a
+    // PaymentIntent's currency is immutable). If the artist disconnected Stripe
+    // since the intent was created, or the currency would differ, the old intent
+    // is dead: we can't mint a replacement (the create idempotency key is
+    // per-booking), so we cancel it and fall back to a manual deposit.
+    const reuseRouting =
+      stripe && amount > 0
+        ? await getConnectRoutingForArtist(user.id)
+        : { routeCharges: false, stripeAccountId: null };
+    let reuseCardIntent = !!(
+      stripe &&
+      amount > 0 &&
+      reuseRouting.routeCharges &&
+      reuseRouting.stripeAccountId
+    );
+    if (reuseCardIntent && stripe) {
+      try {
+        const existing = await stripe.paymentIntents.retrieve(
+          fresh.deposit_payment_intent_id,
+        );
+        if (existing.currency !== depositCurrency) reuseCardIntent = false;
+      } catch {
+        reuseCardIntent = false;
+      }
+    }
+
+    if (reuseCardIntent && stripe) {
+      // F5 (RS-3): keep the live PaymentIntent's amount + fee in step with the
+      // re-requested deposit. Now that the deposit-only portal pays the intent
+      // directly (no prepare step), a stale intent would charge the OLD amount
+      // and the webhook's amount check would 409 the payment. We also reset the
+      // metadata to deposit-only (clearing any prior `order_id`) since goods are
+      // parked. Best-effort: a transient failure shouldn't block the re-request
+      // — the amount check is the backstop.
       try {
         await stripe.paymentIntents.update(fresh.deposit_payment_intent_id, {
           amount: Math.round(amount * 100),
-          // Keep the platform fee in step with the re-requested amount.
-          // application_fee_amount = the full 3% (Custom Connect: Stripe bills
-          // its fee to Inklee's platform balance separately); customer still
-          // pays exactly `amount`, artist nets 97%.
           application_fee_amount: platformFeeCents(Math.round(amount * 100)),
           metadata: { booking_id: id, artist_id: user.id },
         });
@@ -602,23 +623,51 @@ export async function requestDeposit(
           extra: { bookingId: id },
         });
       }
-    }
 
-    const { error: reuseError } = await supabase
-      .from("booking_requests")
-      .update({
-        deposit_amount: amount,
-        deposit_currency: depositCurrency,
-        deposit_due_at: dueAt,
-        deposit_note: note || null,
-        deposit_policy: depositPolicy,
-        deposit_policy_snapshot: depositPolicySnapshot,
-        status: "deposit_pending",
-        decided_at: decidedAt,
-        updated_at: decidedAt,
-      })
-      .eq("id", id);
-    if (reuseError) return { error: reuseError.message };
+      const { error: reuseError } = await supabase
+        .from("booking_requests")
+        .update({
+          deposit_amount: amount,
+          deposit_currency: depositCurrency,
+          deposit_due_at: dueAt,
+          deposit_note: note || null,
+          deposit_policy: depositPolicy,
+          deposit_policy_snapshot: depositPolicySnapshot,
+          status: "deposit_pending",
+          decided_at: decidedAt,
+          updated_at: decidedAt,
+        })
+        .eq("id", id);
+      if (reuseError) return { error: reuseError.message };
+    } else {
+      // Can't reuse the card intent → cancel the dead one and convert this
+      // booking to a manual deposit (null intent fields), so the portal shows
+      // the manual flow instead of a card form that would fail at confirm.
+      if (stripe) {
+        try {
+          await stripe.paymentIntents.cancel(fresh.deposit_payment_intent_id);
+        } catch {
+          // already paid/cancelled — nothing to undo.
+        }
+      }
+      const { error: manualError } = await supabase
+        .from("booking_requests")
+        .update({
+          deposit_amount: amount,
+          deposit_currency: depositCurrency,
+          deposit_due_at: dueAt,
+          deposit_note: note || null,
+          deposit_policy: depositPolicy,
+          deposit_policy_snapshot: depositPolicySnapshot,
+          deposit_payment_intent_id: null,
+          deposit_client_secret: null,
+          status: "deposit_pending",
+          decided_at: decidedAt,
+          updated_at: decidedAt,
+        })
+        .eq("id", id);
+      if (manualError) return { error: manualError.message };
+    }
 
     await notifyDepositRequested(
       supabase,
@@ -841,7 +890,9 @@ export async function refundDeposit(id: string): Promise<ActionResult> {
 
   const { data: fresh } = await supabase
     .from("booking_requests")
-    .select("deposit_payment_intent_id, deposit_paid_at, deposit_amount")
+    .select(
+      "deposit_payment_intent_id, deposit_paid_at, deposit_amount, deposit_currency",
+    )
     .eq("id", id)
     .single();
 
@@ -895,6 +946,9 @@ export async function refundDeposit(id: string): Promise<ActionResult> {
     actor: user.id,
     details: {
       refund_id: refundId,
+      // `amount_eur` kept for backward-compat; `currency` makes it interpretable
+      // for non-EUR deposits (the amount is in `currency`, not necessarily EUR).
+      currency: fresh.deposit_currency ?? "eur",
       amount_eur: fresh.deposit_amount ? Number(fresh.deposit_amount) : null,
       payment_intent_id: fresh.deposit_payment_intent_id,
     },

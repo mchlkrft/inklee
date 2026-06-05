@@ -186,7 +186,7 @@ export default function DepositPolicyForm({
       </div>
 
       {isDraftDefaultPolicy(preview) && (
-        <p className="rounded-md border border-orange-400/40 bg-orange-400/[0.07] px-3 py-2 text-xs text-orange-400">
+        <p className="rounded-md border border-brand-mustard/50 bg-brand-mustard/15 px-3 py-2 text-xs text-foreground">
           These are conservative starting values. Adjust each field below to
           match how you work with deposits.
         </p>

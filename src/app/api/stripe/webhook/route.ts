@@ -81,6 +81,71 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true });
   }
 
+  // P1-1: reconcile a refund issued OUTSIDE the in-app button (e.g. the artist
+  // refunds from their Stripe dashboard). Without this the booking keeps
+  // `deposit_paid_at` set and the in-app refund button stays live (and would
+  // fail / double-attempt). We mirror the refund into the audit log, which is
+  // what the detail page reads to show "Refunded" and hide the refund button.
+  if (event.type === "charge.refunded") {
+    const charge = event.data.object as Stripe.Charge;
+    const intentId =
+      typeof charge.payment_intent === "string"
+        ? charge.payment_intent
+        : (charge.payment_intent?.id ?? null);
+    if (!intentId) return NextResponse.json({ received: true });
+
+    const { data: booking } = await serviceClient
+      .from("booking_requests")
+      .select("id")
+      .eq("deposit_payment_intent_id", intentId)
+      .single();
+    if (!booking) return NextResponse.json({ received: true });
+
+    // Idempotent: the in-app refund already logs this row, and a single refund
+    // can deliver more than once. Log at most one deposit_refunded per booking.
+    const { count } = await serviceClient
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", booking.id)
+      .eq("action", "deposit_refunded");
+    if ((count ?? 0) === 0) {
+      await serviceClient.from("audit_log").insert({
+        booking_id: booking.id,
+        action: "deposit_refunded",
+        details: {
+          via: "stripe_webhook",
+          currency: charge.currency,
+          amount_eur: (charge.amount_refunded ?? 0) / 100,
+          payment_intent_id: intentId,
+          charge_id: charge.id,
+        },
+      });
+      revalidateBookingViews(booking.id);
+    }
+    return NextResponse.json({ received: true });
+  }
+
+  // P1-1: record a failed deposit card attempt for visibility (a declined card
+  // otherwise leaves the booking silently in deposit_pending). Best-effort audit
+  // only — no notification, since a card can be retried several times and we
+  // don't want to spam the artist on each attempt.
+  if (event.type === "payment_intent.payment_failed") {
+    const intent = event.data.object as Stripe.PaymentIntent;
+    const bookingId = intent.metadata?.booking_id;
+    if (!bookingId) return NextResponse.json({ received: true });
+    await serviceClient.from("audit_log").insert({
+      booking_id: bookingId,
+      action: "deposit_payment_failed",
+      details: {
+        via: "stripe_webhook",
+        payment_intent_id: intent.id,
+        reason: intent.last_payment_error?.message ?? null,
+        code: intent.last_payment_error?.code ?? null,
+      },
+    });
+    return NextResponse.json({ received: true });
+  }
+
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object as Stripe.PaymentIntent;
     const bookingId = intent.metadata?.booking_id;
@@ -237,6 +302,10 @@ export async function POST(request: Request) {
         action: "deposit_paid",
         details: {
           payment_intent_id: intent.id,
+          // `currency` makes the amounts interpretable for non-EUR deposits;
+          // the `*_eur` keys are kept for backward-compat with rows written
+          // before multi-currency but hold the amount in `currency`.
+          currency: intent.currency,
           amount_eur: intent.amount / 100,
           // The gross 3% application fee Inklee collected on this deposit
           // (Custom Connect: Stripe's processing fee is then billed to Inklee's

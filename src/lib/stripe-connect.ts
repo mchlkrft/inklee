@@ -7,8 +7,10 @@
 //   2. Thin wrappers around `stripe.accounts.*` and `stripe.accountLinks.*`
 //      that the settings page + webhook call. These are server-only.
 //
-// See `docs/ot-12-stripe-connect-plan.md` for the slice plan and the
-// rationale for the Express + direct-charges combination.
+// See `docs/ot-12-stripe-connect-plan.md` for the slice plan. NOTE: the model
+// moved from Express to Custom in Slice 79 (in-app KYC, artist never visits
+// Stripe; destination charges + `on_behalf_of`); references to "Express" below
+// are historical.
 
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
@@ -143,7 +145,7 @@ export async function getConnectRoutingForArtist(
 // --- Server-only helpers below. Never import from a client component. ---
 
 /**
- * Create a new Connect Express account for an artist who hasn't onboarded
+ * Create a new Connect Custom account for an artist who hasn't onboarded
  * yet. Stores the new id on the artist's profile and returns it. Idempotent
  * caller-side: if the artist already has a `stripe_account_id` we don't
  * create another one — see `ensureConnectAccount`.
