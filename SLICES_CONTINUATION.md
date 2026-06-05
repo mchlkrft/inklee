@@ -2136,4 +2136,11 @@ What shipped per item: **P0-1** deleted `dashboard/actions.ts` (re-verified zero
 
 ### Tier 3 — founder-gated / external (the real launch gates) → see roadmap §3.3
 
-- **G-1** apply migration 0044 in Supabase. **G-2** sandbox EUR + non-EUR test deposit (the never-run money-path verification). **G-3** D-d economics decision (Custom €2/mo + payout fees make low-volume artists net-negative; subscription cover unbuilt — launch-gating). **G-4** D-e counsel sign-off on the Custom model (8 Qs). **G-5** Phase D live walkthrough incl. the money path.
+- ✅ **G-1 DONE** (migration 0044 applied 2026-06-05 via Supabase SQL Editor — drizzle journal only tracks 0000, so migrations go through Supabase, not `db:migrate`).
+- **G-2 CORE VERIFIED 2026-06-05** in Stripe sandbox (full log: `docs/g2-sandbox-verification.md`): ✅ in-app Custom KYC onboarding (no Stripe redirect, charges+payouts enabled); ✅ EUR €200 deposit split verified via Stripe API (application_fee €6 = full 3%, on_behalf_of+destination=artist, artist net €194, platform fee €6); ✅ webhook booking-flip (Accepted + Deposit-paid timeline + notification); ✅ artist-cancel auto-refund (refund €200, app fee €6 returned, artist balance reversed). **Remaining for next session:** 4.2 client-cancel forfeit, 4.3 client-cancel-unpaid intent cancel, 4.4 dashboard-refund reconciliation, Phase 3 multi-currency (non-EUR), Phase 5 manual/declined/reuse edges.
+- **G-3** D-d economics decision (Custom €2/mo + payout fees make low-volume artists net-negative; subscription cover unbuilt — launch-gating). **G-4** D-e counsel sign-off on the Custom model (8 Qs) + the deferred P1-4 `/subprocessors` Express→Custom wording bump. **G-5** Phase D live walkthrough incl. the money path.
+
+### Follow-up findings (post-Tier-2)
+
+- **G2-F1 [UI, small]** Deposit card on `bookings/requests/[id]/page.tsx` shows the amount + "Due <date>" even after the deposit is **paid** — should render a clear "Paid" state and drop/replace the due-date line once `deposit_paid_at` is set. Found during G-2 live testing 2026-06-05.
+- **Operational (not code):** the local `stripe listen` CLI tunnel drops its websocket in the background, so deposits don't always auto-flip locally — resolved by replaying the event (see g2 doc). Webhook code is correct; confirm the PROD webhook endpoint at deploy (G-5).
