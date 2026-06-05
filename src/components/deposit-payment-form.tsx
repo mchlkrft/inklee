@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import {
   Elements,
   PaymentElement,
@@ -11,8 +11,17 @@ import {
 import { depositPolicyLines, type DepositPolicy } from "@/lib/deposit-policy";
 import { formatPrice } from "@/lib/goods";
 
+// UX-13: `loadStripe` must run once, not on every render. Memoise at module
+// scope (keyed by publishable key, which never changes within a deployment) so
+// the component body can call this without re-initialising Stripe.js.
+let stripePromiseCache: Promise<Stripe | null> | null = null;
+let cachedKey: string | null = null;
 function getStripePromise(publishableKey: string) {
-  return loadStripe(publishableKey);
+  if (!stripePromiseCache || cachedKey !== publishableKey) {
+    cachedKey = publishableKey;
+    stripePromiseCache = loadStripe(publishableKey);
+  }
+  return stripePromiseCache;
 }
 
 function PaymentForm({

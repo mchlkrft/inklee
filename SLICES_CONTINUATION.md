@@ -2124,9 +2124,15 @@ What shipped per item: **P0-1** deleted `dashboard/actions.ts` (re-verified zero
 - ✅ **P1-5** Off-brand `orange-400` warnings on the deposits page, status-actions test-mode banner, and policy-form draft notice → brand-mustard caution treatment (mustard border + icon, legible `foreground` body); customer-portal test banner aligned to the same; dropped the vague platform disclaimer; customer-portal view renders `formatSize()` not the raw size key; swept the remaining user-visible em-dashes in status-actions the earlier PowerShell pass missed.
 - ✅ **P1-6** Reuse-path staleness: `requestDeposit` reuse branch now re-checks routing + retrieves the existing intent's currency; if the artist disconnected (routeCharges false) or the settlement currency changed (PI currency is immutable), it cancels the dead intent and converts the booking to a manual deposit instead of reusing a card intent that would fail at confirm (can't mint a replacement — the create idempotency key is per-booking).
 
-### Tier 2 — hardening & polish
+### Tier 2 — hardening & polish — ✅ SHIPPED 2026-06-05 (288 tests green, typecheck + lint clean) — two polish items deferred
 
-- **P2-1** assert `event.account` on the `payment_intent.succeeded` webhook branch. **P2-2** rate-limit KYC + `requestDeposit`. **P2-3 (M-3)** route auth IP limiters through `getClientIp()`. **P2-4 (C-2)** column-scoped RLS migration for `stripe_*` (founder-applied; already mitigated). **P2-5** server-side minimum-deposit floor. **P2-6** KYC client-side validation, `loadStripe` memo, acct-id UI reconcile, currency-symbol display, delete dead `payouts/{return,refresh}` shims.
+- ✅ **P2-1** `payment_intent.succeeded` webhook asserts `intent.metadata.artist_id === booking.artist_id` before flipping status (defense-in-depth alongside the amount re-check).
+- ✅ **P2-2** new per-artist rate limiters: `checkConnectKycRateLimit` (10/h) on `submitConnectKycAction`, `checkDepositRequestRateLimit` (20/h) on `requestDeposit`.
+- ✅ **P2-3 (M-3)** login, forgot-password, and download actions now key their rate limiters via the shared `getClientIp()` (leftmost XFF) instead of the raw comma-joined header.
+- ✅ **P2-4 (C-2)** VERIFIED CLOSED — no migration needed. Confirmed migration 0030 drops the public `profiles` SELECT, 0039 adds no policy, and nothing after re-adds a public SELECT on profiles; `stripe_*` columns are not anon-readable, so a column-scoped policy would be a no-op.
+- ✅ **P2-5** `requestDeposit` rejects amounts `< 1` server-side (currency-neutral) — the UI min wasn't enforced server-side and sub-unit amounts yield a 0 fee.
+- ✅ **P2-6 (partial)** `loadStripe` memoised at module scope in `deposit-payment-form.tsx` (was re-init per render); raw `acct_…` id removed from the payouts status UI; deleted the dead `payouts/{return,refresh}` redirect shims (zero references, pre-launch).
+- ⏳ **Deferred polish (tracked, not shipped):** UX-5 (KYC inline field validation / IBAN format check — P0-3 already added the requirements checklist, so this is now lower-value) and UX-3 (currency symbol vs ISO code — `formatPrice` is used app-wide, so switching to `Intl.NumberFormat` currency style is a broad visual change better done deliberately, not under a hardening pass). Both noted in `docs/payment-audit-2026-06-05.md` P2-6.
 
 ### Tier 3 — founder-gated / external (the real launch gates) → see roadmap §3.3
 

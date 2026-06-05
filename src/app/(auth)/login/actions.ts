@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { checkLoginRateLimit } from "@/lib/ratelimit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 type State = { error: string } | null;
 
@@ -11,7 +12,7 @@ export async function loginAction(
   _prev: State,
   formData: FormData,
 ): Promise<State> {
-  const ip = (await headers()).get("x-forwarded-for") ?? "unknown";
+  const ip = getClientIp(await headers());
   const { allowed } = await checkLoginRateLimit(ip);
   if (!allowed)
     return {

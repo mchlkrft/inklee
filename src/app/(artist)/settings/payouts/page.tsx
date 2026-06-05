@@ -89,8 +89,6 @@ export default async function PayoutsSettingsPage() {
           status === "disabled") &&
           accountId && (
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border pt-3 text-xs">
-              <dt className="text-muted-foreground">Account</dt>
-              <dd className="font-mono text-foreground">{accountId}</dd>
               {country && (
                 <>
                   <dt className="text-muted-foreground">Country</dt>

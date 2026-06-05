@@ -15,6 +15,7 @@ import {
 } from "@/lib/connect-countries";
 import { getClientIp } from "@/lib/get-client-ip";
 import { publicArtistUrl } from "@/lib/public-url";
+import { checkConnectKycRateLimit } from "@/lib/ratelimit";
 
 type KycState =
   | { ok: true; status: ConnectStatus; requirementsDue: string[] }
@@ -42,6 +43,12 @@ export async function submitConnectKycAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
+
+  // P2-2: throttle KYC submits (each makes 2 Stripe round-trips).
+  const { allowed } = await checkConnectKycRateLimit(user.id);
+  if (!allowed) {
+    return { error: "Too many attempts. Please try again in a little while." };
+  }
 
   const email = user.email;
   if (!email) {

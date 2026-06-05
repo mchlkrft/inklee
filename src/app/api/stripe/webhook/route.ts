@@ -171,6 +171,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "booking not found" }, { status: 404 });
     }
 
+    // P2-1 (SEC-2): defense-in-depth. The event is already signature-verified,
+    // but assert the intent's own `artist_id` matches the booking's before we
+    // flip status off a payload-supplied `booking_id`, so a crafted/misrouted
+    // intent carrying another artist's booking can never confirm it. (The
+    // amount re-check below is the other backstop.)
+    if (
+      intent.metadata?.artist_id &&
+      intent.metadata.artist_id !== booking.artist_id
+    ) {
+      return NextResponse.json({ received: true });
+    }
+
     // Booking-side idempotency. The audit_log row + the booking's terminal
     // status BOTH signal that the deposit was already processed. We compute
     // this up front but no longer short-circuit the whole handler — the

@@ -19,6 +19,7 @@ import { stripe } from "@/lib/stripe";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { artistDepositCurrency } from "@/lib/connect-countries";
 import { platformFeeCents } from "@/lib/platform-fee";
+import { checkDepositRequestRateLimit } from "@/lib/ratelimit";
 import {
   parseDepositPolicy,
   renderDepositPolicyText,
@@ -547,6 +548,19 @@ export async function requestDeposit(
   const { supabase, user, booking } = authorised;
   const guard = canTransition(booking.status, "deposit_pending");
   if (!guard.ok) return { error: guard.reason };
+
+  // P2-2: throttle deposit requests (each creates/updates a PaymentIntent).
+  const { allowed } = await checkDepositRequestRateLimit(user.id);
+  if (!allowed) {
+    return { error: "Too many deposit requests. Please try again shortly." };
+  }
+
+  // P2-5: server-side floor. The UI enforces min=1, but harden here too — a
+  // sub-unit amount yields a 0 platform fee (Inklee earns nothing while still
+  // paying Stripe's fee) and isn't a meaningful deposit. Currency-neutral.
+  if (!Number.isFinite(amount) || amount < 1) {
+    return { error: "Deposit amount must be at least 1." };
+  }
 
   // Q9: snapshot the artist's current deposit policy onto the booking now, so
   // later edits to the policy never change what this client agreed to. Used by

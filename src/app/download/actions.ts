@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { checkMobileWaitlistRateLimit } from "@/lib/ratelimit";
+import { getClientIp } from "@/lib/get-client-ip";
 import {
   MOBILE_WAITLIST_SOURCE_DOWNLOAD,
   parseMobileWaitlistEmail,
@@ -27,7 +28,7 @@ export async function joinMobileWaitlistAction(
   const parsed = parseMobileWaitlistEmail(formData.get("email"));
   if ("error" in parsed) return { error: parsed.error };
 
-  const ip = (await headers()).get("x-forwarded-for") ?? "unknown";
+  const ip = getClientIp(await headers());
   const { allowed } = await checkMobileWaitlistRateLimit(ip);
   if (!allowed) {
     return {

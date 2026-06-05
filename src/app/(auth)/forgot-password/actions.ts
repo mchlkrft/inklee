@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { checkPasswordResetRateLimit } from "@/lib/ratelimit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 type State = { error: string } | { sent: true } | null;
 
@@ -14,7 +15,7 @@ export async function forgotPasswordAction(
   if (!email) return { error: "Email is required." };
 
   // Rate limit by both IP and email to prevent targeted abuse
-  const ip = (await headers()).get("x-forwarded-for") ?? "unknown";
+  const ip = getClientIp(await headers());
   const [byIp, byEmail] = await Promise.all([
     checkPasswordResetRateLimit(ip),
     checkPasswordResetRateLimit(`email:${email}`),

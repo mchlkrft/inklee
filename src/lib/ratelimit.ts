@@ -77,6 +77,28 @@ export async function checkPortalRateLimit(tokenHash: string) {
   return check(portalRl, tokenHash);
 }
 
+// Connect KYC submission: 10 / artist / hour. Each call makes 2 Stripe
+// round-trips (accounts.update + retrieve), so this throttles an authenticated
+// artist hammering the form / amplifying calls to Stripe.
+const connectKycRl = makeLimit(
+  Ratelimit.slidingWindow(10, "1 h"),
+  "inklee:connect-kyc",
+);
+export async function checkConnectKycRateLimit(userId: string) {
+  return check(connectKycRl, userId);
+}
+
+// Deposit request: 20 / artist / hour. Each request creates or updates a
+// PaymentIntent; the ceiling is generous (an artist legitimately re-requests)
+// but caps runaway loops / outbound-Stripe amplification.
+const depositRequestRl = makeLimit(
+  Ratelimit.slidingWindow(20, "1 h"),
+  "inklee:deposit-request",
+);
+export async function checkDepositRequestRateLimit(userId: string) {
+  return check(depositRequestRl, userId);
+}
+
 // Mobile-app launch waitlist (/download): 3 submissions / IP / hour.
 // Same shape as the artist-side waitlist limit — low ceiling because the
 // form is a one-off signup, not a recurring action.
