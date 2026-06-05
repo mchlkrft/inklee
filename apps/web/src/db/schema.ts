@@ -660,3 +660,21 @@ export const accountOverrides = pgTable("account_overrides", {
     .notNull()
     .defaultNow(),
 });
+
+// Slice E1/E3 — mobile device push tokens (migration 0046). Service-role reads
+// for push fan-out; RLS lets an artist manage only their own.
+export const deviceTokens = pgTable("device_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  platform: text("platform").notNull(),
+  appVersion: text("app_version"),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
