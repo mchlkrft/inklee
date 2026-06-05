@@ -45,7 +45,7 @@ Tick each box as it passes. If a step fails, stop and capture the symptom — do
 
 - [x] **4.1 Artist-cancel a PAID booking** ✅ VERIFIED 2026-06-05. Cancel booking → confirm → Stripe: refund €200 succeeded, charge refunded:true, **application fee €6 refunded**, artist connected balance reversed to €0. Exercises P0-2 artist-cancel + RS-6 refund engine + P1-1 charge.refunded.
 - [x] **4.2 Client-cancel a PAID booking** ✅ VERIFIED 2026-06-05 (session 2). Forfeit warning shown; on confirm: booking cancelled, `customer_cancelled` + `deposit_forfeited` audit rows, Stripe charge `refunded=false` (artist keeps the deposit). Asymmetric D-f direction proven (opposite of 4.1). Also re-confirmed the Slice 81 entitlement gate end-to-end (comped ouchy got the card flow + €6 fee).
-- [ ] **4.3 Client-cancel an UNPAID `deposit_pending` booking** → the live PaymentIntent is **canceled** in Stripe (the magic link can no longer charge).
+- [x] **4.3 Client-cancel an UNPAID `deposit_pending` booking** ✅ VERIFIED 2026-06-05 (session 2). Client cancelled before paying → booking cancelled, deposit never paid, and the live PaymentIntent (`pi_3TevmA…`) is now `canceled` in Stripe — the magic link can no longer charge a dead booking. No orphaned charge.
 - [ ] **4.4 Dashboard-refund reconciliation (P1-1)** → refund a paid deposit from the **Stripe dashboard** → `charge.refunded` webhook → detail page shows "Refunded" and the in-app refund button is gone (no double-refund possible).
 
 ## Phase 5 — Manual fallback + edges
