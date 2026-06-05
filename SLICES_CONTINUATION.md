@@ -2074,3 +2074,25 @@ Formalizes the remaining Phase D walkthrough findings (`docs/phase-d-walkthrough
 - **Discovery notes:** `/settings/payouts/{return,refresh}` routes + `createConnectOnboardingLink` go dead (delete/neutralize); `first_name`/`last_name` in DB (not Drizzle schema) usable as KYC pre-fill; remove the Express docs link at `payouts/page.tsx:117`; update `STATUS_DESCRIPTION` copy (pending now means "in-app KYC not submitted"); `prepareCheckoutAction` doesn't set `application_fee` (existing behavior, note for sandbox).
 
 **Supersedes** the OT-12 Express onboarding (Slice 78b's deposit/payout UI work rolls into this).
+
+### Slice 79 phases — shipped log
+
+- **Phase A** (`3380a2a`) — orchestrator agent + pre-build hardening: `getClientIp()` (`src/lib/get-client-ip.ts`, H-3), server-only runtime guard on `stripe-connect.ts` (M-4), Stripe vars in `.env.example` (M-5).
+- **Phase B** (`7a83854` + sandbox fixes `6707209`) — in-app Custom KYC onboarding: `createConnectAccount` → validated Custom controller (`requirement_collection: application`, `stripe_dashboard.type: none`, `losses.payments: application`, `fees.payer: application`), `updateConnectKyc` (`accounts.update`, KYC sent straight to Stripe, **never persisted** — H-1/H-2), in-app KYC form on `/settings/payouts` + `submitConnectKycAction`, hosted `accountLinks` redirect removed, `requirements.currently_due` surfaced. `hasAccount` boolean to client not the `acct_…` id (M-2), webhook asserts `event.account === account.id` (L-1).
+- **Phase C** (`feb7fb8`) — fee model under Custom: because Custom forces `fees.payer: application`, **Inklee pays Stripe's processing fee**, so `applicationFeeCents` became the **full 3%** (`platformFeeCents`) at `platform-fee.ts` + call sites `bookings/actions.ts` (C-1). `platform-fee.test.ts` updated. End economics unchanged (artist −3%, Inklee nets ~€2.75/€200) but the split now happens on Inklee's platform balance, not via `on_behalf_of` deduction.
+
+### Slice 79d — multi-currency deposits ✅ build done (verification + deploy pending)
+
+Non-eurozone artists are charged/settled in their own currency (no FX at payout). EUR artists fully unchanged — everything defaults to `eur`.
+
+- **79d.1** (`6316102`) — foundation: migration **0044** `booking_requests.deposit_currency` (text, default `'eur'`); `artistDepositCurrency()` = the artist's Connect-country currency when connected, else `eur` (manual deposits carry no FX); `requestDeposit` derives the currency, charges the PaymentIntent in it, stores it on the booking (create + reuse paths). 3% fee is currency-agnostic.
+- **79d.2-3** (`06bf436`) — customer portal + artist deposit display thread `deposit_currency`: portal page loads it; `DepositPaymentForm`/`AddonsCheckout`/fallback format with it (Stripe Elements derives currency from the PaymentIntent — no widget change); request-detail deposit amount + refund line + `DepositRefundButton` format with it.
+- **79d.3-4** (`670c6e2`) — preview line + all emails: status-actions deposit-request amount prefix + "you receive" fee preview use the artist's currency (threaded from request-detail page); all deposit emails (requested, client receipt, artist paid, overdue customer + artist) take + format a currency; callers pass it (`requestDeposit`/`notifyDepositRequested`, webhook from `intent.currency`, cron + manual reminders from `booking.deposit_currency`); deposit-settings max-amount message made currency-neutral.
+
+**State:** `typecheck` + `lint` (0 errors) clean, **284 tests green**. 2 commits unpushed to `origin/payment-stripe`.
+
+**Remaining (founder-gated, money path — not solo-shippable):**
+
+1. **Founder must apply migration 0044** in Supabase (`booking_requests.deposit_currency`).
+2. **Verification in Stripe sandbox** — an EUR test deposit (must be behaviourally identical to before) + a non-EUR test deposit (e.g. a non-eurozone Connect country) routing to the connected account with the full-3% split, confirming currency renders correctly across portal / artist display / emails. This is the C-1 "verify with a real test deposit" check rolled together with 79d.
+3. **Deploy** to prod once verified.
