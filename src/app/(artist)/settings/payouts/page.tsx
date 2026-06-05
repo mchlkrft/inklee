@@ -17,10 +17,10 @@ const STATUS_LABEL: Record<ConnectStatus, string> = {
 };
 
 const STATUS_DESCRIPTION: Record<ConnectStatus, string> = {
-  unset: `Optional. Set this up only if you want clients to pay deposits by card here. You enter your details below, Inklee verifies you with Stripe, and deposits land in your own account. Inklee keeps a ${PLATFORM_FEE_PERCENT}% fee per deposit (card processing included) and never holds your money.`,
+  unset: `Optional. Set this up only if you want clients to pay deposits by card here. You enter your details below, Inklee verifies you with Stripe, and deposits land in your own account. A ${PLATFORM_FEE_PERCENT}% processing fee is deducted per deposit (card processing included); Inklee never holds your money.`,
   pending:
     "Stripe is verifying your details. Use Refresh status to check, or update your details below if something was off.",
-  active: `You're verified. Clients can now pay deposits by card, each deposit lands in your account, and Inklee keeps a ${PLATFORM_FEE_PERCENT}% fee (card processing included).`,
+  active: `You're verified. Clients can now pay deposits by card, each deposit lands in your account, with a ${PLATFORM_FEE_PERCENT}% processing fee deducted (card processing included).`,
   restricted:
     "Stripe needs a bit more before you can take payments. Update your details below.",
   disabled:
@@ -66,9 +66,9 @@ export default async function PayoutsSettingsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Optional. Set this up only if you want clients to pay deposits by card
-          here. Each deposit lands in your own account and Inklee keeps a{" "}
-          {PLATFORM_FEE_PERCENT}% fee (card processing included). Without it,
-          you can still collect deposits manually.
+          here. Each deposit lands in your own account with a{" "}
+          {PLATFORM_FEE_PERCENT}% processing fee deducted (card processing
+          included). Without it, you can still collect deposits manually.
         </p>
       </div>
 
@@ -136,8 +136,8 @@ export default async function PayoutsSettingsPage() {
 
       <p className="text-xs text-muted-foreground">
         Setting up payouts is optional and reversible. Deposits you collect this
-        way land in your own account, and Inklee keeps a {PLATFORM_FEE_PERCENT}%
-        fee that covers card processing.
+        way land in your own account, with a {PLATFORM_FEE_PERCENT}% processing
+        fee deducted (card processing included).
       </p>
     </div>
   );

@@ -553,8 +553,7 @@ export default function StatusActions({
                   </div>
                   {showFeeBreakdown && (
                     <p className="text-xs text-muted-foreground">
-                      Inklee fee ({PLATFORM_FEE_PERCENT}%, incl. card
-                      processing): −
+                      Processing fee ({PLATFORM_FEE_PERCENT}%): −
                       {formatPrice(
                         platformFeeEur(parsedDepositAmount),
                         currency,

@@ -36,8 +36,9 @@ function DepositCollectionStatus({
             </p>
             <p className="text-xs text-muted-foreground">
               When a client pays a deposit by card, it lands in your own
-              connected Stripe account. Inklee keeps a {PLATFORM_FEE_PERCENT}%
-              fee (card processing included) and never holds your money.
+              connected Stripe account. A {PLATFORM_FEE_PERCENT}% processing fee
+              is deducted (card processing included); Inklee never holds your
+              money.
             </p>
           </div>
         </div>
