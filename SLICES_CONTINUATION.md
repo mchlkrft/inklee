@@ -2096,4 +2096,36 @@ Non-eurozone artists are charged/settled in their own currency (no FX at payout)
 1. **Founder must apply migration 0044** in Supabase (`booking_requests.deposit_currency`).
 2. **Verification in Stripe sandbox** — an EUR test deposit (must be behaviourally identical to before) + a non-EUR test deposit (e.g. a non-eurozone Connect country) routing to the connected account with the full-3% split, confirming currency renders correctly across portal / artist display / emails. This is the C-1 "verify with a real test deposit" check rolled together with 79d.
 3. **Deploy** to prod once verified.
-4. **Legal copy wording fix (cosmetic, ride along with the deploy):** the live `/subprocessors` Stripe row — and any line in `/terms` §12 — still say Connect **"Express"**; Slice 79 moved to **Custom** (in-app KYC, artist never visits Stripe). Substance is unchanged (artist still merchant of record via retained `on_behalf_of`, 3% all-in, Inklee never holds funds), so this is a one-line "Express → Custom" wording update, not a re-review. The legal planning docs under `legal/` were dropped 2026-06-05 (their L1–L9 + Q9 work shipped + founder-confirmed 2026-06-04); this wording tweak is the only residual carried forward.
+4. **Legal copy wording fix (cosmetic, ride along with the deploy):** the live `/subprocessors` Stripe row — and any line in `/terms` §12 — still say Connect **"Express"**; Slice 79 moved to **Custom** (in-app KYC, artist never visits Stripe). Substance is unchanged (artist still merchant of record via retained `on_behalf_of`, 3% all-in, Inklee never holds funds), so this is a one-line "Express → Custom" wording update, not a re-review. The legal planning docs under `legal/` were dropped 2026-06-05 (their L1–L9 + Q9 work shipped + founder-confirmed 2026-06-04); this wording tweak is the only residual carried forward. **(Now tracked as P1-4 in Slice 80.)**
+
+---
+
+## Slice 80 — Payment audit remediation [multi-agent audit 2026-06-05]
+
+A four-lens read-only audit (security & money-correctness · UI/UX & copy · functionality & process · docs/vision/lost-tasks) of the whole deposit feature. Full findings + evidence + the confirmed-solid list = **`docs/payment-audit-2026-06-05.md`**. Verdict: architecturally on-vision, ~90% code-complete, **not launch-ready**. The work below is the remediation backlog, tiered by when it must land. Sequencing within a tier is flexible; each item is independently shippable with `typecheck`/`lint`/`test` green.
+
+### Tier 0 — deploy-blocking (close before the Phase D walkthrough + deploy)
+
+- **P0-1 [Critical, trivial] Delete the orphaned `dashboard/actions.ts`** — a full duplicate of the booking actions with NO Connect routing, NO `application_fee`, NO `on_behalf_of`, hardcoded `eur`. Verified zero importers; one stray import would charge real money to Inklee's platform account with zero fee. Just delete the file.
+- **P0-2 [High] Wire refund-on-cancellation (D-f).** Client-cancel → cancel the live unpaid intent + record forfeiture + show the client a forfeit warning before confirm. Artist-cancel → new action that auto-invokes the existing `refundDeposit`. Today both directions strand the deposit/intent and the only refund is a manual button no flow calls. Live behaviour must match `/terms` §12 + `deposit-policy.ts`.
+- **P0-3 [High] Surface KYC `requirements.currently_due`** in the in-app KYC form (the action already returns it) — map codes to labels + render a "still needed" checklist on the form and the restricted/pending page, so a stuck account is self-serviceable (the core promise of Custom onboarding).
+- **P0-4 [High] Customer-portal test-mode banner** — the customer Stripe Elements pay form shows no test-mode signal (only artist surfaces do). Add one keyed off publishable-key mode.
+- **P0-5 [High] Copy ship-rule sweep on money surfaces** — remove em-dashes (AGENTS.md ship gate) and the internal "pending counsel review" language leaking to artists.
+- **P0-6 [Medium] Multi-currency last-mile** — webhook hardcodes `eur` in the artist "deposit paid" notification + goods confirmation; use `intent.currency`.
+
+### Tier 1 — fast-follow (around launch)
+
+- **P1-1 [High]** Webhook `charge.refunded` + `payment_intent.payment_failed` handlers (dashboard refunds + card failures are currently invisible; the in-app refund button can lie/double-attempt).
+- **P1-2 [Medium]** Email trust fixes: overdue-reminder on-behalf-of footer, "Hi ," greeting fallback, `inklee.app`→`inkl.ee` domain/asset check.
+- **P1-3 [Medium]** Audit-log currency: store `currency` alongside amounts; the `*_eur` keys mislabel non-EUR deposits.
+- **P1-4 [Medium]** Express→Custom wording on live `content/legal/subprocessors.md:13` (+ stale comments in `stripe-connect.ts`). One-word legal fix; deploy alongside.
+- **P1-5 [Medium]** Off-brand orange-on-bone warnings → palette caution token; drop vague disclaimer; render the friendly size label (not the raw key) in the customer portal view.
+- **P1-6 [Medium]** Reuse-path currency/routing staleness — cancel+recreate the intent when currency or `routeCharges` changed (PI currency is immutable).
+
+### Tier 2 — hardening & polish
+
+- **P2-1** assert `event.account` on the `payment_intent.succeeded` webhook branch. **P2-2** rate-limit KYC + `requestDeposit`. **P2-3 (M-3)** route auth IP limiters through `getClientIp()`. **P2-4 (C-2)** column-scoped RLS migration for `stripe_*` (founder-applied; already mitigated). **P2-5** server-side minimum-deposit floor. **P2-6** KYC client-side validation, `loadStripe` memo, acct-id UI reconcile, currency-symbol display, delete dead `payouts/{return,refresh}` shims.
+
+### Tier 3 — founder-gated / external (the real launch gates) → see roadmap §3.3
+
+- **G-1** apply migration 0044 in Supabase. **G-2** sandbox EUR + non-EUR test deposit (the never-run money-path verification). **G-3** D-d economics decision (Custom €2/mo + payout fees make low-volume artists net-negative; subscription cover unbuilt — launch-gating). **G-4** D-e counsel sign-off on the Custom model (8 Qs). **G-5** Phase D live walkthrough incl. the money path.
