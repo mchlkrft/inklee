@@ -8,6 +8,8 @@ if git diff --cached -U0 | grep -E '^\+' | grep -E '(sk|rk)_(live|test)_[0-9a-zA
   exit 1
 fi
 
+# Monorepo (M0): the Next app lives in apps/web. Run its checks there.
+cd apps/web
 pnpm typecheck
 pnpm lint-staged
 # `next build` catches Next.js-specific runtime constraints that tsc + eslint
