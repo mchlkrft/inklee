@@ -2144,3 +2144,27 @@ What shipped per item: **P0-1** deleted `dashboard/actions.ts` (re-verified zero
 
 - **G2-F1 [UI, small]** Deposit card on `bookings/requests/[id]/page.tsx` shows the amount + "Due <date>" even after the deposit is **paid** — should render a clear "Paid" state and drop/replace the due-date line once `deposit_paid_at` is set. Found during G-2 live testing 2026-06-05.
 - **Operational (not code):** the local `stripe listen` CLI tunnel drops its websocket in the background, so deposits don't always auto-flip locally — resolved by replaying the event (see g2 doc). Webhook code is correct; confirm the PROD webhook endpoint at deploy (G-5).
+
+---
+
+## Slice 81 — Internal admin entitlements + fee-sponsorship system [2026-06-05]
+
+Resolves D-d operationally + builds the private-beta enabler. Lets the founder, from `/admin/accounts/[id]`, grant per-artist access and sponsor fees without any public campaign. **All code shipped; needs migration 0045 applied + dogfood.**
+
+**What it does (7 capabilities):**
+
+- **Feature entitlement overrides** — per-artist `plan_tier` (free/plus) + per-feature grant/revoke on top of the plan (`canAccess`). Card deposits are now **gated behind the `deposits` entitlement** (Plus or a comp).
+- **Sponsored fee settings** — toggle "Inklee covers this artist's 3% deposit fee" (sets `application_fee` to 0; artist keeps 100%).
+- **Expiry dates** — optional expiry on both the plan/comp grant and the fee sponsorship (auto-reverts).
+- **Spend limits** — optional sponsorship cap (`fee_sponsor_cap_cents`); sponsorship auto-stops when used ≥ cap.
+- **Usage tracking** — `fee_sponsored_used_cents` incremented in the webhook (the foregone fee is stamped on the intent at request time); panel shows used/remaining + paid-deposit count + volume.
+- **Admin notes** — internal free-text per artist.
+- **Audit log** — every change via the existing `admin_action_log` + `writeAudit` (actions `set_plan`, `set_entitlement`, `set_fee_sponsorship`, `update_admin_notes`).
+
+**Architecture:** new **service-role-only** table `account_overrides` (migration 0045 — RLS on, no policies, so an artist can never read internal notes/budget about themselves). Pure engine `src/lib/entitlements.ts` (client-safe: types, `ENTITLEMENT_FEATURES`, `canAccess`, `effectivePlanTier`, `isFeeSponsorshipActive`, `sponsorshipRemainingCents`) + server read `src/lib/entitlements-server.ts` (`getAccountOverrides`). Gating + sponsorship wired into `requestDeposit` (create + reuse paths) and webhook usage tracking. Admin UI `account-entitlements.tsx` + 4 server actions in `accounts/[id]/actions.ts`. 295 tests (7 added), typecheck + lint clean.
+
+**⚠️ Behavioural change:** card-deposit collection now requires the `deposits` entitlement. Default (no override row) = **free = gated to manual deposits**. So the `ouchy` G-2 tester must be **comped** (admin → grant Plus, or grant the `deposits` feature) to keep collecting card deposits — good first dogfood of this tool.
+
+**Founder TODO:** apply **migration 0045** in Supabase (SQL Editor, same as 0044), then grant comp to the beta testers from `/admin/accounts/[id]`.
+
+**Remaining (Slice 82 — before opening to PAYING artists):** real Stripe **subscription** product + Customer Portal + upgrade UI + subscription webhooks. The private beta does NOT need it (all testers are comped).

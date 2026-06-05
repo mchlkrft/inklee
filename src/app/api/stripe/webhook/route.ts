@@ -327,6 +327,30 @@ export async function POST(request: Request) {
           via: "stripe_webhook",
         },
       });
+
+      // Slice 81: if Inklee sponsored this deposit's fee, the foregone fee was
+      // stamped on the intent at request time — track it against the artist's
+      // sponsorship budget so the spend cap is enforced on the next request.
+      const sponsoredCents = parseInt(
+        intent.metadata?.sponsored_fee_cents ?? "",
+        10,
+      );
+      if (Number.isFinite(sponsoredCents) && sponsoredCents > 0) {
+        const { data: ov } = await serviceClient
+          .from("account_overrides")
+          .select("fee_sponsored_used_cents")
+          .eq("artist_id", booking.artist_id)
+          .maybeSingle();
+        await serviceClient
+          .from("account_overrides")
+          .update({
+            fee_sponsored_used_cents:
+              (ov?.fee_sponsored_used_cents ?? 0) + sponsoredCents,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("artist_id", booking.artist_id);
+      }
+
       bookingSideRanThisCall = true;
     }
 

@@ -18,13 +18,13 @@
 
 **Pricing direction (planned, not implemented).**
 
-| Tier             | Approx price                               | Purpose                                                               |
-| ---------------- | ------------------------------------------ | --------------------------------------------------------------------- |
-| **Free Starter** | €0                                         | Real alternative to Instagram DMs and Google Forms. Genuinely usable. |
-| **Solo Plus**    | **€3/month or €30/year** (~17% off yearly) | Small upgrade for solo artists wanting more polish and control.       |
-| **Studio**       | ~€25/month                                 | Future paid layer for studios with multiple artists.                  |
+| Tier             | Approx price                                 | Purpose                                                                                                        |
+| ---------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Free Starter** | €0                                           | Real alternative to Instagram DMs and Google Forms. Genuinely usable. **Manual deposit tracking only.**        |
+| **Solo Plus**    | **€3/month or €24/year (first-year window)** | Polish + control **+ in-app card-deposit collection (Stripe Connect).** The flagship upgrade.                  |
+| **Studio**       | ~€25/month                                   | Future paid layer for studios. **"Coming later" teaser only — not priced/built until solo data justifies it.** |
 
-No free-forever promises. Pricing not hardcoded until Phase 2 audit complete. Decision locked 2026-05-16: monthly anchor is €3 (not €2). Yearly default is €30. €30/year is sold as "save ~17%", not as a survival pivot.
+No free-forever promises. Decision locked 2026-05-16: monthly anchor €3. **Updated 2026-06-05 (resolves D-d):** yearly **first-year window = €24** (standard €30 later); **in-app Stripe-connected card deposits are GATED behind Solo Plus**, so every Custom Connect account is attached to a paying subscriber (the subscription offsets Stripe's ~€2/mo per-active-account cost; the **3% deposit fee stays** as the margin). Free artists collect deposits **manually** (bank transfer + mark-received). **Implication: a minimal subscription/billing layer (BM-2) + a deposit feature-gate become a LAUNCH dependency** — deposits can't be Plus-gated without billing. See `DECISIONS.md` D-d + roadmap §3/§4.4.
 
 **Competitive stance vs Venue Ink.** Don't try to be Venue with fewer features. Compete by being sharper, lighter, Instagram-first, guest-spot-native, GDPR-conscious, less fee-heavy. Request-intake-first, not business-OS.
 

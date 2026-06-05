@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { getAdminId } from "@/lib/admin-guard";
 import { writeAudit } from "@/lib/audit";
 import { serviceClient } from "@/lib/supabase/service";
+import {
+  ENTITLEMENT_FEATURES,
+  type EntitlementFeature,
+} from "@/lib/entitlements";
 
 type Result = { error?: string; data?: Record<string, unknown> };
 
@@ -327,4 +331,143 @@ export async function triggerPasswordResetAction(
       email: authUser.user.email,
     },
   };
+}
+
+// --- Slice 81: entitlements + fee sponsorship + admin notes ---
+// All write to the service-role-only `account_overrides` table (upsert, since a
+// row is created on first override) and are audit-logged via logAdminAction.
+
+export async function setPlanOverrideAction(
+  targetUserId: string,
+  planTier: string,
+  planSource: string | null,
+  planExpiresAt: string | null,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "unauthorized" };
+  if (planTier !== "free" && planTier !== "plus") {
+    return { error: "invalid plan tier" };
+  }
+
+  const { error } = await serviceClient.from("account_overrides").upsert(
+    {
+      artist_id: targetUserId,
+      plan_tier: planTier,
+      plan_source: planTier === "free" ? null : (planSource ?? "comp"),
+      plan_expires_at: planExpiresAt,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "artist_id" },
+  );
+  if (error) return { error: error.message };
+
+  await logAdminAction(adminId, targetUserId, "set_plan", undefined, {
+    plan_tier: planTier,
+    plan_source: planSource,
+    plan_expires_at: planExpiresAt,
+  });
+  revalidateAccountViews(targetUserId);
+  return {};
+}
+
+export async function setEntitlementOverrideAction(
+  targetUserId: string,
+  feature: string,
+  value: boolean | null,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "unauthorized" };
+  if (!ENTITLEMENT_FEATURES.includes(feature as EntitlementFeature)) {
+    return { error: "unknown feature" };
+  }
+
+  const { data: row } = await serviceClient
+    .from("account_overrides")
+    .select("entitlement_overrides")
+    .eq("artist_id", targetUserId)
+    .maybeSingle();
+  const current = (row?.entitlement_overrides ?? {}) as Record<string, boolean>;
+  if (value === null) delete current[feature];
+  else current[feature] = value;
+
+  const { error } = await serviceClient.from("account_overrides").upsert(
+    {
+      artist_id: targetUserId,
+      entitlement_overrides: current,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "artist_id" },
+  );
+  if (error) return { error: error.message };
+
+  await logAdminAction(adminId, targetUserId, "set_entitlement", undefined, {
+    feature,
+    value,
+  });
+  revalidateAccountViews(targetUserId);
+  return {};
+}
+
+export async function setFeeSponsorshipAction(
+  targetUserId: string,
+  input: {
+    feeSponsored: boolean;
+    feeSponsorExpiresAt: string | null;
+    feeSponsorCapCents: number | null;
+  },
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "unauthorized" };
+  const cap = input.feeSponsorCapCents;
+  if (cap !== null && (!Number.isFinite(cap) || cap < 0)) {
+    return { error: "invalid spend cap" };
+  }
+
+  const { error } = await serviceClient.from("account_overrides").upsert(
+    {
+      artist_id: targetUserId,
+      fee_sponsored: input.feeSponsored,
+      fee_sponsor_expires_at: input.feeSponsorExpiresAt,
+      fee_sponsor_cap_cents: cap,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "artist_id" },
+  );
+  if (error) return { error: error.message };
+
+  await logAdminAction(
+    adminId,
+    targetUserId,
+    "set_fee_sponsorship",
+    undefined,
+    {
+      fee_sponsored: input.feeSponsored,
+      fee_sponsor_expires_at: input.feeSponsorExpiresAt,
+      fee_sponsor_cap_cents: cap,
+    },
+  );
+  revalidateAccountViews(targetUserId);
+  return {};
+}
+
+export async function saveAdminNotesAction(
+  targetUserId: string,
+  notes: string,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "unauthorized" };
+
+  const { error } = await serviceClient.from("account_overrides").upsert(
+    {
+      artist_id: targetUserId,
+      admin_notes: notes.slice(0, 5000) || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "artist_id" },
+  );
+  if (error) return { error: error.message };
+
+  await logAdminAction(adminId, targetUserId, "update_admin_notes");
+  revalidateAccountViews(targetUserId);
+  return {};
 }

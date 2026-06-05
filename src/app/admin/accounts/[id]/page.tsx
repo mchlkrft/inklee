@@ -5,6 +5,9 @@ import { getAccountDetail } from "@/lib/admin-queries";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { parseFormSettings } from "@/lib/form-settings";
 import AccountActions from "./account-actions";
+import AccountEntitlements from "./account-entitlements";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { serviceClient } from "@/lib/supabase/service";
 import { publicArtistUrl } from "@/lib/public-url";
 
 function relTime(iso: string | null | undefined): string {
@@ -69,6 +72,21 @@ export default async function AccountDetailPage({
 
   const detail = await getAccountDetail(id);
   if (!detail.profile) notFound();
+
+  // Slice 81: entitlements/sponsorship overrides + deposit usage for the panel.
+  const overrides = await getAccountOverrides(id);
+  const { data: paidDeposits } = await serviceClient
+    .from("booking_requests")
+    .select("deposit_amount")
+    .eq("artist_id", id)
+    .not("deposit_paid_at", "is", null);
+  const depositUsage = {
+    paidDepositCount: paidDeposits?.length ?? 0,
+    depositVolumeCents: (paidDeposits ?? []).reduce(
+      (s, r) => s + Math.round(Number(r.deposit_amount ?? 0) * 100),
+      0,
+    ),
+  };
 
   const {
     profile,
@@ -374,6 +392,12 @@ export default async function AccountDetailPage({
                 isTester={isTester}
               />
             </section>
+
+            <AccountEntitlements
+              accountId={profile.id}
+              overrides={overrides}
+              usage={depositUsage}
+            />
 
             <section className="rounded-md border border-border p-5 space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

@@ -632,3 +632,31 @@ export const bookingInterests = pgTable("booking_interests", {
     .notNull()
     .defaultNow(),
 });
+
+// Slice 81 — internal admin entitlements + fee-sponsorship overrides.
+// Service-role only (RLS enabled, no policies — see migration 0045). One row per
+// artist, created on demand by an admin.
+export const accountOverrides = pgTable("account_overrides", {
+  artistId: uuid("artist_id")
+    .primaryKey()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  planTier: text("plan_tier").notNull().default("free"),
+  planSource: text("plan_source"),
+  planExpiresAt: timestamp("plan_expires_at", { withTimezone: true }),
+  entitlementOverrides: jsonb("entitlement_overrides").notNull().default({}),
+  feeSponsored: boolean("fee_sponsored").notNull().default(false),
+  feeSponsorExpiresAt: timestamp("fee_sponsor_expires_at", {
+    withTimezone: true,
+  }),
+  feeSponsorCapCents: integer("fee_sponsor_cap_cents"),
+  feeSponsoredUsedCents: integer("fee_sponsored_used_cents")
+    .notNull()
+    .default(0),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

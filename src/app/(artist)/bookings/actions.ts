@@ -20,6 +20,8 @@ import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { artistDepositCurrency } from "@/lib/connect-countries";
 import { platformFeeCents } from "@/lib/platform-fee";
 import { checkDepositRequestRateLimit } from "@/lib/ratelimit";
+import { canAccess, isFeeSponsorshipActive } from "@/lib/entitlements";
+import { getAccountOverrides } from "@/lib/entitlements-server";
 import {
   parseDepositPolicy,
   renderDepositPolicyText,
@@ -582,6 +584,25 @@ export async function requestDeposit(
       ?.stripe_account_country,
   );
 
+  // Slice 81: in-app card deposits are gated behind the `deposits` entitlement
+  // (Solo Plus or an admin comp). Un-entitled artists fall through to a MANUAL
+  // deposit (no PaymentIntent). When fee sponsorship is active, Inklee waives
+  // the 3% (application_fee 0) and we stamp the foregone fee on the intent so the
+  // webhook can track it against the sponsorship budget.
+  const overrides = await getAccountOverrides(user.id);
+  const depositsEntitled = canAccess(overrides, "deposits");
+  const feeSponsored = depositsEntitled && isFeeSponsorshipActive(overrides);
+  const amountCents = Math.round(amount * 100);
+  const standardFeeCents = platformFeeCents(amountCents);
+  const appFeeCents = feeSponsored ? 0 : standardFeeCents;
+  const depositMetadata: Record<string, string> = feeSponsored
+    ? {
+        booking_id: id,
+        artist_id: user.id,
+        sponsored_fee_cents: String(standardFeeCents),
+      }
+    : { booking_id: id, artist_id: user.id };
+
   const decidedAt = new Date().toISOString();
   const { data: fresh } = await supabase
     .from("booking_requests")
@@ -603,6 +624,7 @@ export async function requestDeposit(
     let reuseCardIntent = !!(
       stripe &&
       amount > 0 &&
+      depositsEntitled &&
       reuseRouting.routeCharges &&
       reuseRouting.stripeAccountId
     );
@@ -627,9 +649,9 @@ export async function requestDeposit(
       // — the amount check is the backstop.
       try {
         await stripe.paymentIntents.update(fresh.deposit_payment_intent_id, {
-          amount: Math.round(amount * 100),
-          application_fee_amount: platformFeeCents(Math.round(amount * 100)),
-          metadata: { booking_id: id, artist_id: user.id },
+          amount: amountCents,
+          application_fee_amount: appFeeCents,
+          metadata: depositMetadata,
         });
       } catch (stripeErr) {
         Sentry.captureException(stripeErr, {
@@ -720,25 +742,26 @@ export async function requestDeposit(
     // removes the prior fallback where an un-connected artist's deposit was
     // charged onto Inklee's OWN platform account, which made Inklee merchant
     // of record / fund-holder for money it had no business holding.
-    if (routing.routeCharges && routing.stripeAccountId) {
+    if (routing.routeCharges && routing.stripeAccountId && depositsEntitled) {
       const intentParams: Stripe.PaymentIntentCreateParams = {
-        amount: Math.round(amount * 100),
+        amount: amountCents,
         currency: depositCurrency,
         // Omit payment_method_types; this keeps dynamic payment methods on
         // explicitly + version-independently (Stripe best practice).
         automatic_payment_methods: { enabled: true },
-        metadata: { booking_id: id, artist_id: user.id },
+        metadata: depositMetadata,
         description: `Tattoo deposit - booking ${id}`,
         on_behalf_of: routing.stripeAccountId,
         transfer_data: { destination: routing.stripeAccountId },
-        // Platform fee. The customer pays exactly `amount`;
+        // Platform fee. The customer pays exactly `amount`; normally
         // `application_fee_amount` is the full 3% (Custom Connect, fees.payer =
         // application: Stripe bills its processing fee to Inklee's platform
         // balance separately, so Inklee nets 3% − Stripe's fee). `on_behalf_of`
-        // stays set so the artist is merchant of record (LO-2). The artist
-        // always loses exactly 3% on a standard card. Manual (un-connected)
-        // deposits never reach this branch and carry no fee.
-        application_fee_amount: platformFeeCents(Math.round(amount * 100)),
+        // stays set so the artist is merchant of record (LO-2). When Inklee is
+        // sponsoring this artist's fees (Slice 81) `appFeeCents` is 0 — the
+        // artist keeps 100% and Inklee absorbs the cost. Manual deposits never
+        // reach this branch and carry no fee.
+        application_fee_amount: appFeeCents,
       };
       try {
         const intent = await stripe.paymentIntents.create(
