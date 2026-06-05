@@ -11,15 +11,14 @@
 ## Phase A — Pre-flight (code + data ready)
 
 - [ ] **A1 (C)** Confirm `payment-stripe` is green: `pnpm typecheck` + `pnpm test` + `pnpm lint`, and the branch is pushed to origin.
-- [ ] **A2 (F)** Confirm prod Supabase has migrations **0044** (deposit_currency) + **0045** (account_overrides) applied. _(Already applied 2026-06-05 since dev points at the prod DB — just confirm.)_
+- [ ] **A2 (F)** Confirm prod Supabase has migrations **0044** (deposit*currency) + **0045** (account_overrides) applied. *(Already applied 2026-06-05 since dev points at the prod DB — just confirm.)\_
 - [ ] **A3 (C/F)** Decide the deploy path: merge `payment-stripe` → main (auto-deploy) **or** `vercel --prod` from the branch. Recommend a PR merge so prod history is clean.
 - [ ] **A4 (F)** Confirm `GOODS_COMMERCE_ENABLED` is unset/false in prod (goods stay showcase-only).
 
 ## Phase B — Legal gate (G-4) — ⚠️ DECISION POINT before real money
 
-- [ ] **B1 (F)** Counsel sign-off on the **Custom Connect** deposit model (the 8 questions in `docs/payment-flow-for-counsel.md`): artist-as-merchant-of-record with an `application_fee`, PSD2/intermediary status, fee VAT, forfeiture enforceability. LO-2 was cleared for the older Express framing, not Custom.
-- [ ] **B2 (C)** Fix the live `/subprocessors` (+ `/terms` §12) "Express" → "Custom" wording (P1-4) with a version bump + new snapshot. Do this with/after B1 so counsel reviews the final text.
-- [ ] **Decision:** if counsel isn't ready, you can still launch the beta with the **free features** (booking/bio/flash/guest-spots) and keep **deposits off** (don't comp the `deposits` entitlement) until B1 clears. Deposits = real money = needs B1.
+- [x] **B1 (F)** ✅ **Counsel checked and signed off the current planned process 2026-06-05** (Custom Connect deposit model, artist-as-MoR with `application_fee`). G-4 cleared.
+- [x] **B2 (C)** ✅ Live `/subprocessors` Stripe row corrected "Express" → "Custom" + the now-resolved "re-confirmation requested from counsel" caveat removed; version bumped to **2026-06-05** with a matching frozen snapshot. `/terms` §12 needed no change (it's account-type-agnostic). The old 2026-06-03 snapshot is left as the historical record.
 
 ## Phase C — Stripe LIVE setup (the big one; live mode is separate from the sandbox)
 
