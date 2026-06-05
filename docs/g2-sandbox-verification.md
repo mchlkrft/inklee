@@ -85,5 +85,14 @@ Tick each box as it passes. If a step fails, stop and capture the symptom — do
 
 ## Sign-off
 
-- [~] **G-2 CORE verified 2026-06-05** (onboarding + deposit split + webhook flip + artist-cancel refund). Edge paths (4.2–4.4, Phase 3, Phase 5) pending a follow-up session.
-- Remaining launch gates after G-2: **G-3** (D-d economics), **G-4** (counsel sign-off, incl. the subprocessors "Express→Custom" wording bump), **G-5** (Phase D live walkthrough).
+**✅ G-2 ACCEPTED AS WORKING — founder sign-off 2026-06-05.** The money path is verified against real Stripe test data: in-app Custom KYC onboarding (no redirect), EUR deposit with the exact 3% split (artist net €194, Inklee fee €6, MoR via `on_behalf_of`), webhook booking-flip, the Slice 81 entitlement gate (comped artist gets the card flow), and **all cancellation/refund directions** — 4.1 artist-cancel→auto-refund, 4.2 client-cancel→forfeit, 4.3 client-cancel-unpaid→intent canceled. The highest-risk surfaces are proven.
+
+**Postponed (low-risk remainder, do opportunistically — not launch-blocking on their own):**
+
+- 4.4 dashboard-refund reconciliation (P1-1) — refund from the Stripe dashboard → app shows "Refunded" (the `charge.refunded` handler is built + was exercised indirectly by the in-app refund in 4.1).
+- Phase 3 multi-currency end-to-end with a non-EUR artist (the currency plumbing is built + unit-covered; only an EUR live charge was run).
+- Phase 5 manual fallback / declined card (`4000…0002`) / reuse-disconnect edges (all built + covered by P1-6/P0 logic).
+
+**Operational reminder for G-5/deploy:** the local `stripe listen` tunnel is flaky in the background (events were replayed manually this session); in production confirm the deployed webhook endpoint + events (`payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `account.updated`, `account.application.deauthorized`) are configured in the live Stripe dashboard.
+
+- Remaining launch gates after G-2: **G-3 ✅ DECIDED** (D-d economics — gate deposits behind Solo Plus, €24/yr first-year, 3% kept; see DECISIONS.md), **G-4** (counsel sign-off on the Custom model + the subprocessors "Express→Custom" wording bump), **G-5** (Phase D live walkthrough + prod webhook config). Plus Slice 81 founder TODO: migration 0045 applied ✅; comp the beta testers.
