@@ -74,8 +74,8 @@ export default function DepositsForm({
           <span className="text-sm text-muted-foreground">days</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Sets the default due date when you request a deposit — counted from
-          the day you send the request.
+          Sets the default due date when you request a deposit, counted from the
+          day you send the request.
         </p>
       </div>
 

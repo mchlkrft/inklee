@@ -187,9 +187,8 @@ export default function DepositPolicyForm({
 
       {isDraftDefaultPolicy(preview) && (
         <p className="rounded-md border border-orange-400/40 bg-orange-400/[0.07] px-3 py-2 text-xs text-orange-400">
-          Draft default — pending counsel review. These values are a
-          conservative starting point and may change once Inklee&apos;s legal
-          review of safe-harbour deposit terms completes.
+          These are conservative starting values. Adjust each field below to
+          match how you work with deposits.
         </p>
       )}
 

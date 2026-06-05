@@ -904,6 +904,98 @@ export async function refundDeposit(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
+// D-f (P0-2): artist-initiated cancellation. Direction is the inverse of a
+// client cancellation — when the ARTIST cancels, the client is made whole:
+//   • a paid card deposit is fully refunded (reuses refundDeposit: money goes
+//     back to the client, Inklee returns its fee, the artist bears Stripe's
+//     non-refundable processing fee via reverse_transfer / negative balance);
+//   • a live unpaid intent is cancelled so the client isn't charged for a
+//     booking the artist just cancelled.
+// The booking is NOT moved to cancelled if the refund fails, so the client's
+// money is never stranded behind a cancelled booking.
+export async function cancelBooking(id: string): Promise<ActionResult> {
+  const authorised = await getAuthorisedBooking(id);
+  if ("error" in authorised) return authorised;
+
+  const { supabase, user, booking } = authorised;
+  const guard = canTransition(booking.status, "cancelled");
+  if (!guard.ok) return { error: guard.reason };
+
+  const { data: depo } = await supabase
+    .from("booking_requests")
+    .select("deposit_payment_intent_id, deposit_paid_at")
+    .eq("id", id)
+    .single();
+
+  if (depo?.deposit_payment_intent_id && depo?.deposit_paid_at) {
+    // Refund first, while the booking is still in its current state. If we
+    // can't return the money, abort the cancellation and surface the error.
+    const refund = await refundDeposit(id);
+    if ("error" in refund) return refund;
+  } else if (stripe && depo?.deposit_payment_intent_id) {
+    try {
+      await stripe.paymentIntents.cancel(depo.deposit_payment_intent_id);
+    } catch (cancelErr) {
+      Sentry.captureException(cancelErr, {
+        tags: { action: "stripe_cancel_intent_on_artist_cancel" },
+        extra: { bookingId: id },
+      });
+    }
+  }
+
+  const cancelledAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("booking_requests")
+    .update({ status: "cancelled", updated_at: cancelledAt })
+    .eq("id", id);
+
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "booking_status_change" },
+    });
+    return { error: error.message };
+  }
+
+  if (booking.slot_id) {
+    const { error: slotError } = await supabase
+      .from("slots")
+      .update({ status: "open" })
+      .eq("id", booking.slot_id);
+
+    if (slotError) {
+      await restoreBookingAfterSlotFailure(supabase, id, booking);
+      return { error: "The slot could not be released. Please try again." };
+    }
+  }
+
+  await supabase.from("audit_log").insert({
+    booking_id: id,
+    action: "status_changed",
+    actor: user.id,
+    details: { from: booking.status, to: "cancelled", by: "artist" },
+  });
+
+  if (booking.customer_email) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .single();
+    await sendBookingEmail({
+      type: "customer_booking_cancelled_by_artist",
+      to: booking.customer_email,
+      artistId: user.id,
+      vars: {
+        customer_handle: booking.customer_handle ?? "",
+        artist_name: profile?.display_name ?? "",
+      },
+    });
+  }
+
+  revalidateBookingViews(id);
+  return { success: true };
+}
+
 export async function markWaitlistContacted(
   entryId: string,
 ): Promise<ActionResult> {

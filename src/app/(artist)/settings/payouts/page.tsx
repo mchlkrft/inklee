@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { isConnectStatus, type ConnectStatus } from "@/lib/stripe-connect";
+import {
+  isConnectStatus,
+  getConnectRequirements,
+  type ConnectStatus,
+} from "@/lib/stripe-connect";
 import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
 import PayoutsControls from "./payouts-controls";
 import ConnectKycForm from "./connect-kyc-form";
@@ -46,6 +50,13 @@ export default async function PayoutsSettingsPage() {
   const payoutsEnabled = !!profile?.stripe_payouts_enabled;
   const country = profile?.stripe_account_country as string | null;
   const updatedAt = profile?.stripe_account_updated_at as string | null;
+
+  // P0-3: for a not-yet-active account, fetch what Stripe still needs so the
+  // form can show it on load (the artist can only self-resolve if we tell them).
+  const requirementsDue =
+    accountId && (status === "pending" || status === "restricted")
+      ? await getConnectRequirements(accountId)
+      : [];
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -115,7 +126,11 @@ export default async function PayoutsSettingsPage() {
             You complete this here. Your details go straight to Stripe for
             verification and are not stored by Inklee.
           </p>
-          <ConnectKycForm status={status} email={user?.email ?? ""} />
+          <ConnectKycForm
+            status={status}
+            email={user?.email ?? ""}
+            requirementsDue={requirementsDue}
+          />
         </div>
       )}
 

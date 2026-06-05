@@ -328,7 +328,7 @@ export async function POST(request: Request) {
         artistName: artistDisplayName,
         lines: goodsLines,
         total: order ? Number(order.subtotal_amount) : depositEur,
-        currency: "eur",
+        currency: intent.currency,
       });
     }
 
@@ -346,7 +346,7 @@ export async function POST(request: Request) {
         category: "booking_activity",
         priority: "high",
         title: "Deposit paid",
-        message: `${customerLabel(booking.customer_handle, booking.customer_email, "A client")} paid their EUR ${depositEur.toFixed(2)} deposit${goodsSuffix}. Booking confirmed.`,
+        message: `${customerLabel(booking.customer_handle, booking.customer_email, "A client")} paid their ${intent.currency.toUpperCase()} ${depositEur.toFixed(2)} deposit${goodsSuffix}. Booking confirmed.`,
         ctaLabel: "View booking",
         ctaHref: `/bookings/requests/${bookingId}`,
         metadata: {

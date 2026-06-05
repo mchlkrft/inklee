@@ -12,6 +12,7 @@ import { formatPrice } from "@/lib/goods";
 import StatusBadge from "@/components/status-badge";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import { detectStripeMode } from "@/lib/deposit-settings";
 import type { AddonProductView } from "./addons-checkout";
 import type { DepositPolicy } from "@/lib/deposit-policy";
 
@@ -72,6 +73,10 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
 
   const isPending = booking.status === "pending";
   const isCancelled = booking.status === "cancelled";
+  // D-f (P0-2): a deposit that's already been paid is forfeited if the CLIENT
+  // cancels (the artist keeps it). A paid deposit means the booking is approved.
+  const depositForfeitedOnCancel =
+    booking.status === "approved" && booking.depositAmount != null;
 
   const err = (field: string) =>
     editState && "field" in editState && editState.field === field
@@ -283,6 +288,12 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
 
       {booking.depositAmount && booking.status === "deposit_pending" && (
         <div className="space-y-3">
+          {detectStripeMode(booking.stripePublishableKey) === "test" && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              Test mode: this is a test payment form. No real card will be
+              charged.
+            </p>
+          )}
           {booking.depositClientSecret && booking.stripePublishableKey ? (
             <Suspense
               fallback={
@@ -372,9 +383,19 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
           ) : (
             <div className="space-y-3 rounded-md border border-destructive/50 p-4">
               <p className="text-sm text-foreground">Cancel this request?</p>
-              <p className="text-xs text-muted-foreground">
-                {booking.artistName} will be notified.
-              </p>
+              {depositForfeitedOnCancel && booking.depositAmount != null ? (
+                <p className="text-xs text-muted-foreground">
+                  Your{" "}
+                  {formatPrice(booking.depositAmount, booking.depositCurrency)}{" "}
+                  deposit is non-refundable when you cancel, so{" "}
+                  {booking.artistName} keeps it. {booking.artistName} will be
+                  notified.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {booking.artistName} will be notified.
+                </p>
+              )}
               <form action={cancelAction} className="flex gap-2">
                 <input type="hidden" name="_token" value={booking.token} />
                 <button

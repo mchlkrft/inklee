@@ -7,6 +7,7 @@ import {
   CONNECT_COUNTRIES,
   DEFAULT_CONNECT_COUNTRY,
 } from "@/lib/connect-countries";
+import { describeRequirements } from "@/lib/connect-requirements";
 
 type State =
   | { ok: true; status: ConnectStatus; requirementsDue: string[] }
@@ -61,17 +62,38 @@ function Field({
 export default function ConnectKycForm({
   status,
   email,
+  requirementsDue = [],
 }: {
   status: ConnectStatus;
   email: string;
+  requirementsDue?: string[];
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitConnectKycAction,
     null,
   );
 
+  // After a submit Stripe returns a fresh list; before any submit fall back to
+  // what the page fetched on load. Either way, tell the artist exactly what's
+  // still needed (P0-3) so a pending/restricted account is self-serviceable.
+  const outstanding = describeRequirements(
+    state && "ok" in state ? state.requirementsDue : requirementsDue,
+  );
+
   return (
     <form action={action} className="space-y-4">
+      {outstanding.length > 0 && (
+        <div className="space-y-1.5 rounded-md border border-border bg-muted/20 px-3 py-2.5">
+          <p className="text-xs font-medium text-foreground">
+            Stripe still needs:
+          </p>
+          <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+            {outstanding.map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {status === "unset" && (
         <div className="space-y-1.5">
           <label htmlFor="kyc-country" className={LABEL}>
@@ -171,7 +193,7 @@ export default function ConnectKycForm({
           {state.status === "active"
             ? "You're verified. Deposits can now be paid by card."
             : state.requirementsDue.length > 0
-              ? "Saved. Stripe is verifying and may need a little more (sometimes an ID document). Check back shortly with Refresh status."
+              ? "Saved. Stripe still needs the items listed above. Add them and submit again, or use Refresh status to recheck."
               : "Saved. Stripe is verifying your details. Check back shortly with Refresh status."}
         </p>
       )}

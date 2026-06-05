@@ -306,6 +306,24 @@ export async function updateConnectKyc(
 }
 
 /**
+ * Read-only fetch of the account's outstanding `currently_due` requirements
+ * (Slice 80 P0-3). Used by the payouts page to show a not-yet-active artist
+ * exactly what Stripe still needs, on load. Never persists, never throws — an
+ * empty array on any error so the page still renders.
+ */
+export async function getConnectRequirements(
+  accountId: string,
+): Promise<string[]> {
+  if (!stripe) return [];
+  try {
+    const account = await stripe.accounts.retrieve(accountId);
+    return account.requirements?.currently_due ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Re-fetch the account from Stripe and persist the derived state to the
  * artist's profile. Used by the webhook (`account.updated`) and by the
  * settings page's "Refresh status" path.

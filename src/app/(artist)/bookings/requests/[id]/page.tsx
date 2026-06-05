@@ -21,6 +21,7 @@ import { formatSize } from "@/lib/booking-schema";
 import { artistDepositCurrency } from "@/lib/connect-countries";
 import GoodsPickupButton from "./goods-pickup-button";
 import DepositRefundButton from "./deposit-refund-button";
+import CancelBookingButton from "./cancel-booking-button";
 
 export default async function RequestDetailPage({
   params,
@@ -493,6 +494,22 @@ export default async function RequestDetailPage({
                   />
                 </div>
               ) : null}
+            </div>
+          )}
+
+          {booking.status === "approved" && (
+            <div className="rounded-[20px] border border-border p-5 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
+                Cancel
+              </p>
+              <CancelBookingButton
+                bookingId={booking.id}
+                refundsDeposit={hasPaidInAppDeposit && !depositRefunded}
+                amountEur={
+                  booking.deposit_amount ? Number(booking.deposit_amount) : null
+                }
+                currency={(booking.deposit_currency as string) ?? "eur"}
+              />
             </div>
           )}
 

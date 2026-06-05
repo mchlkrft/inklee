@@ -49,7 +49,7 @@ function DepositCollectionStatus({
               In-app card deposits are off
             </p>
             <p className="text-xs text-muted-foreground">
-              You can still request deposits — the client pays you directly (add
+              You can still request deposits. The client pays you directly (add
               your details in the note) and you mark them received.{" "}
               <Link
                 href="/settings/payouts"
@@ -141,7 +141,7 @@ export default async function DepositsSettingsPage() {
           Your deposit policy is shown to clients before they pay, and it&apos;s
           locked to each booking at payment time. The structure is set by
           Inklee&apos;s platform policy and can&apos;t be replaced with free
-          text — see{" "}
+          text. See{" "}
           <Link
             href="/terms"
             className="underline underline-offset-2 hover:text-foreground"

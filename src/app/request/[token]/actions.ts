@@ -173,7 +173,7 @@ export async function cancelCustomerBookingAction(
   const { data: booking } = await serviceClient
     .from("booking_requests")
     .select(
-      "id, status, created_at, customer_email, artist_id, slot_id, customer_handle, preferred_date, form_data",
+      "id, status, created_at, customer_email, artist_id, slot_id, customer_handle, preferred_date, form_data, deposit_payment_intent_id, deposit_paid_at, deposit_amount, deposit_currency",
     )
     .eq("customer_token_hash", tokenHash)
     .single();
@@ -216,6 +216,32 @@ export async function cancelCustomerBookingAction(
     action: "customer_cancelled",
     details: { from: booking.status, to: "cancelled", by: "customer" },
   });
+
+  // D-f (P0-2) — deposit direction on a CLIENT cancellation:
+  //  • a live unpaid card intent is cancelled, so the client can't pay by card
+  //    after they've already cancelled (an orphaned charge for a dead booking).
+  //  • a deposit that was already paid is FORFEITED — the artist keeps it. We
+  //    do NOT refund on a client cancellation; we only record the forfeiture so
+  //    the artist surface can show it. (Enforceability = counsel Q9.)
+  if (booking.deposit_paid_at) {
+    await serviceClient.from("audit_log").insert({
+      booking_id: booking.id,
+      action: "deposit_forfeited",
+      details: {
+        by: "customer",
+        amount: booking.deposit_amount ? Number(booking.deposit_amount) : null,
+        currency: booking.deposit_currency ?? "eur",
+        payment_intent_id: booking.deposit_payment_intent_id ?? null,
+      },
+    });
+  } else if (stripe && booking.deposit_payment_intent_id) {
+    try {
+      await stripe.paymentIntents.cancel(booking.deposit_payment_intent_id);
+    } catch {
+      // Already paid/cancelled in a race → the webhook idempotency + the
+      // forfeiture branch above (on a later view) cover it. Best-effort.
+    }
+  }
 
   const { data: artistAuth } = await serviceClient.auth.admin.getUserById(
     booking.artist_id,
