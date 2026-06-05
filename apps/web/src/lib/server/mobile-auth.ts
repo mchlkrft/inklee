@@ -49,3 +49,22 @@ export function mobileError(
 ): NextResponse {
   return NextResponse.json({ error: { code, message } }, { status });
 }
+
+/**
+ * Map a shared mutation result (`{ success } | { error }` from
+ * @/lib/server/bookings) onto an HTTP response. The core returns plain English
+ * messages; we lift the two ownership/existence cases to their proper status
+ * codes and treat everything else as a 400 (validation / state-machine guard).
+ */
+export function mobileMutation(
+  result: { error: string } | { success: true },
+): NextResponse {
+  if ("success" in result) return mobileOk({ ok: true });
+  const status =
+    result.error === "Booking not found."
+      ? 404
+      : result.error === "Not authorised."
+        ? 403
+        : 400;
+  return mobileError(status, result.error);
+}
