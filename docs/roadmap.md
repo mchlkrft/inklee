@@ -15,6 +15,8 @@
 
 **Deposit money feature (revised 2026-06-05):** pivoted from the old deposit-only/no-Connect mode to **Stripe Connect Custom in-app KYC** (Slice 79) + **multi-currency** (Slice 79d) — artist onboards entirely inside Inklee (never visits Stripe), money routes straight to the artist (merchant of record), Inklee keeps a full-3% `application_fee` and never holds funds. Goods are showcase-only (commerce parked behind `GOODS_COMMERCE_ENABLED`). Branch `payment-stripe`. **Code is ~90% complete; the four-lens audit (`docs/payment-audit-2026-06-05.md`, tracked as Slice 80) found it not launch-ready** — see §3.3.
 
+**Mobile app (NEW, active 2026-06-05):** Phase E pulled forward — the iOS+Android **artist** app becomes the primary surface for the beta. Locked stack **Expo/React Native** + in-place pnpm monorepo + a new `/api/mobile` layer; full plan at `docs/mobile-implementation-plan.md`; slice track E0→E-M0→E1..E12 in §6.4. Foundation runs in parallel with the beta soak.
+
 **The honest summary (revised 2026-06-05):** the free-mode product has long been launchable; the deposit money feature is now the gating work. The launch path is: **Slice 80 Tier 0 code blockers → founder gates (apply migration 0044, sandbox money-path verification, the D-d unit-economics decision, counsel sign-off) → Phase D live walkthrough.** D-d matters most strategically: Custom's per-account costs mean deposit revenue alone is net-negative for low-volume artists, so the subscription layer (Horizon 2, §4.4) is the assumed margin cover and 3% stays provisional. Monetization architecture still starts only after launch + first real artist + 4 weeks of clean data.
 
 ---
@@ -253,13 +255,34 @@ Optional, only if Studio MVP gets ≥ 10 paying studios. Possible: studio analyt
 
 Research only. Output `docs/payments-strategy.md` v1. NOT implementation. Open questions in `business-model.md` §5 Phase 6. (The commerce cluster's Stripe Connect work feeds this.)
 
-### 6.4 Phase E — v0.1 mobile app (iOS + Android)
+### 6.4 Phase E — mobile app (iOS + Android) — ⚡ NOW ACTIVE (pulled forward 2026-06-05)
 
-Scoping doc `docs/mobile-strategy.md` shipped 2026-05-24 (commit `e8a6346`). NOT implementation yet.
+**Status:** the mobile app is now a strategic priority — the **primary artist surface** for onboarding the critical, visual, mobile-first beta. Pulled forward from "Later"; foundation work (M0 monorepo + the `/api/mobile` layer) runs in parallel with the §3.4 beta soak; the full app build soft-gates on having a real artist using the web product.
 
-**Pre-conditions:** Phase D punch list closed + the Bio Page + Goods cluster (Slices 72–76, §3.8) shipped and stable + ≥ 1 real artist on the web product. The cluster moved ahead of mobile deliberately (2026-05-28) — it reshapes the booking/payment/webhook logic, so wrapping the web app in Capacitor before it stabilizes would mean re-wrapping. (Current stack is Next.js 16.2.4 + React 19.2.4; `docs/mobile-strategy.md` still says "Next 15" — correct it when that doc is next touched.)
+**Decision (locked 2026-06-05, supersedes the old Capacitor recommendation): Expo / React Native + Expo Router + NativeWind** — a real native app, NOT a WebView/Capacitor wrapper. Full artist feature set, delivered in slices. Repo becomes an **in-place pnpm monorepo** (`apps/web` + `apps/mobile` + `packages/shared`); new **`/app/api/mobile/*` Bearer-JWT layer** over shared `/lib/server/*` (there is no REST API today — Server Actions are the web API). App is **artists-only**; public bio pages, client magic-link portal, marketing, legal, admin stay WEB-ONLY.
 
-**Recommendation (per `docs/mobile-strategy.md`): Capacitor.** ~95% web-code reuse, 1–2 weeks solo to both stores, clear migration path to RN+Expo if the webview feel becomes a problem. v0.1 scope locked to artist-only (customer side stays on the web). Cut: PWA+TWA (no iOS app-store presence), native Swift+Kotlin (not credible solo). 8 open founder questions in §9 of the doc (audience, push triggers, camera scope, deep links, store accounts under Inklee OÜ → OT-05, mobile auth UX, offline, branding/icon).
+**Authoritative plan:** `docs/mobile-implementation-plan.md` (orchestrator + 5 specialist agents, 2026-06-05) — 15 deliverables incl. feature parity matrix, IA (5 tabs: Home/Requests/Calendar/Clients/More), endpoint list, `device_tokens` model, ~50-screen inventory, slice plan, acceptance gates, risk register, store-readiness. `docs/mobile-strategy.md` (the older Capacitor-leaning scoping doc) is superseded on the stack decision. `DECISIONS.md` has the locked row.
+
+**Hard constraints:** no in-app subscription billing (Apple/Google IAP — deposits are real-world services, exempt); Sign in with Apple required (Google offered); in-app account deletion required (also a web GDPR gap to build); Stripe KYC via in-app browser; minimal-PII push payloads.
+
+**Mobile slice plan (E-track):**
+
+| Slice | Title                                                                                        | Status             |
+| ----- | -------------------------------------------------------------------------------------------- | ------------------ |
+| E0    | Audit + architecture + Expo-vs-Capacitor spike                                               | ✅ done (the plan) |
+| E-M0  | Monorepo migration (`apps/web` + workspace) — own PR, web-build-green + Vercel root-dir gate | ⏳ next            |
+| E1    | Expo foundation + auth + first `/api/mobile` (me/home/bookings/notifications)                |                    |
+| E2    | Booking core (inbox, detail, accept/pass/cancel, deposit)                                    |                    |
+| E3    | Notifications + push (device tokens, deep link)                                              |                    |
+| E4    | Onboarding + public booking link (first-10-minutes)                                          |                    |
+| E5    | Calendar, slots, availability                                                                |                    |
+| E6    | Clients + waitlist                                                                           |                    |
+| E7    | Flash · E8 Guest spots · E9 Goods (showcase)                                                 |                    |
+| E10   | Analytics + polish                                                                           |                    |
+| E11   | Settings, payouts, deposits, templates, KYC web-view                                         |                    |
+| E12   | Beta release readiness (TestFlight + Play internal)                                          |                    |
+
+**Founder prerequisites (start now — lead time):** Apple Developer Program under Inklee OÜ (needs a D-U-N-S number) + Google Play Console ($25) + Expo account (OT-05). EAS cloud build produces the iOS binary without a Mac.
 
 ### 6.5 Business Model Phase 7 — Retention and expansion (continuous from Horizon 3)
 

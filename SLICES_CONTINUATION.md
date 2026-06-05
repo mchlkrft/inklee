@@ -2168,3 +2168,30 @@ Resolves D-d operationally + builds the private-beta enabler. Lets the founder, 
 **Founder TODO:** apply **migration 0045** in Supabase (SQL Editor, same as 0044), then grant comp to the beta testers from `/admin/accounts/[id]`.
 
 **Remaining (Slice 82 — before opening to PAYING artists):** real Stripe **subscription** product + Customer Portal + upgrade UI + subscription webhooks. The private beta does NOT need it (all testers are comped).
+
+---
+
+# Mobile app — Phase E (E-track) [started 2026-06-05]
+
+Separate track from the numeric web slices above (web is the Next.js app; E-track is the Expo iOS+Android **artist** app). **Authoritative plan: `docs/mobile-implementation-plan.md`** (orchestrator + 5 specialist agents). Locked: Expo/React Native + Expo Router, in-place pnpm monorepo (`apps/web` + `apps/mobile` + `packages/shared`), new `/app/api/mobile/*` Bearer-JWT layer over shared `/lib/server/*`. Artists-only; public bio/client-portal/marketing/legal/admin stay web. Hard constraints: no in-app subscription billing (IAP), Sign in with Apple required, in-app account deletion required (+web GDPR gap), Stripe KYC via in-app browser, minimal-PII push payloads. DECISIONS.md has the locked row; roadmap §6.4 is the home.
+
+| Slice    | Title                                                                                                                                                                                                                         | Status             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| **E0**   | Audit + architecture + Expo-vs-Capacitor spike (the plan)                                                                                                                                                                     | ✅ done 2026-06-05 |
+| **E-M0** | Monorepo migration: move web → `apps/web`, add pnpm workspace; web build green + Vercel root-dir flip (founder). Pure structural move (no import changes — `@/*` alias stays); `packages/shared` extraction deferred into E1. | ⏳ in progress     |
+| **E1**   | Expo foundation + auth (Supabase token + SecureStore) + first `/api/mobile` (me/home/bookings/notifications) + shell + 5-tab nav + UI primitives + `packages/shared` extraction                                               |                    |
+| **E2**   | Booking core — inbox, request detail, references, accept/pass/cancel, deposit (entitled)                                                                                                                                      |                    |
+| **E3**   | Notifications + push — `device_tokens` (migration 0046), `notifyArtist()` fan-out, deep links                                                                                                                                 |                    |
+| **E4**   | Onboarding + public booking link (first-10-minutes excellence)                                                                                                                                                                |                    |
+| **E5**   | Calendar, slots, availability, books open/cap                                                                                                                                                                                 |                    |
+| **E6**   | Clients + waitlist                                                                                                                                                                                                            |                    |
+| **E7**   | Flash                                                                                                                                                                                                                         |                    |
+| **E8**   | Guest spots / travel                                                                                                                                                                                                          |                    |
+| **E9**   | Goods (showcase)                                                                                                                                                                                                              |                    |
+| **E10**  | Analytics + polish (states, copy, a11y, perf)                                                                                                                                                                                 |                    |
+| **E11**  | Settings, payouts, deposits, templates, KYC web-view                                                                                                                                                                          |                    |
+| **E12**  | Beta release readiness — TestFlight + Play internal, review pack, web-regression, quality gate                                                                                                                                |                    |
+
+**Cross-cutting NEW work (web + mobile):** self-service account deletion (Apple req + GDPR; only an admin delete exists today); `notifyArtist()` wrapping `createNotification` + push; de-dup legacy `dashboard/*` ↔ `bookings/*` action trees during `lib/server` extraction.
+
+**Founder prerequisites (lead time — start now):** Apple Developer Program under Inklee OÜ (D-U-N-S) + Google Play Console ($25) + Expo account (OT-05).
