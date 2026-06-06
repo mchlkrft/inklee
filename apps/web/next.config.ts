@@ -28,6 +28,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // @inklee/shared ships as raw TS source (consumed by both web + the Expo app);
+  // Next must transpile it rather than expect a prebuilt dist.
+  transpilePackages: ["@inklee/shared"],
   images: {
     remotePatterns: [
       {

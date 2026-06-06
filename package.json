@@ -11,5 +11,10 @@
   },
   "devDependencies": {
     "husky": "^9.1.7"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.2.14"
+    }
   }
 }

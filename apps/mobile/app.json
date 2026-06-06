@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Inklee",
+    "slug": "inklee",
+    "owner": "inklee",
+    "scheme": "inklee",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "backgroundColor": "#1e1e1e",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ee.inkl.app",
+      "usesAppleSignIn": true
+    },
+    "android": {
+      "package": "ee.inkl.app",
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Inklee uses your photos so you can upload flash, portfolio images, and your studio cover."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#e9b22b"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1e1e1e",
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "daf44d5c-0134-4815-bc4b-c0524dfcb93f"
+      },
+      "router": {}
+    }
+  }
+}

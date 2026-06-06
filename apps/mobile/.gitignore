@@ -1,0 +1,19 @@
+# Expo / RN
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build artifacts (managed workflow regenerates these)
+/ios
+/android
+
+# Env (EXPO_PUBLIC_* still inlined at build; never commit real keys)
+.env
+.env.local
+.env*.local
+
+# Metro / misc
+*.log
+.DS_Store
