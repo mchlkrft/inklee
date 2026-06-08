@@ -121,6 +121,12 @@ export type MobileCalendarResponse = {
   items: MobileCalendarAppointment[];
 };
 
+/** GET /api/mobile/notifications — the feed (newest first) + unread count. */
+export type MobileNotificationsResponse = {
+  items: import("./notification-types").Notification[];
+  unread: number;
+};
+
 /** One row in GET /api/mobile/clients — a client aggregated over booking_requests. */
 export type MobileClientListItem = {
   email: string;

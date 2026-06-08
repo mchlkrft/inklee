@@ -2,6 +2,7 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useApiQuery } from "@/lib/api";
 import { colors } from "@/lib/tokens";
 import type {
@@ -48,9 +49,12 @@ export default function HomeScreen() {
           />
         }
       >
-        <Text className="pt-2 text-2xl font-bold text-bone">
-          {data?.displayName ? `Hi, ${data.displayName}` : "Home"}
-        </Text>
+        <View className="flex-row items-center justify-between pt-2">
+          <Text className="text-2xl font-bold text-bone">
+            {data?.displayName ? `Hi, ${data.displayName}` : "Home"}
+          </Text>
+          <NotificationBell />
+        </View>
         <Text className="mb-5 text-sm text-shell-dim">
           {data
             ? data.booksOpen
