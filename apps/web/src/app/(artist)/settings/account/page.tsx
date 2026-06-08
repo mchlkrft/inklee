@@ -115,7 +115,10 @@ export default async function AccountPage() {
         <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-destructive border-b border-border pb-3">
           Delete account
         </h2>
-        <DeleteAccountSection />
+        <DeleteAccountSection
+          email={user?.email ?? ""}
+          hasPassword={hasPassword}
+        />
       </section>
     </div>
   );

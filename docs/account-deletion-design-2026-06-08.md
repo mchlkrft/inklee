@@ -117,3 +117,38 @@ GDPR: PASS-WITH-FIXES.
   check). In-app refunds are full-refund-only, so low impact.
 
 — Discovery source: workflow `wf_c6c5e5e1-a3d`; review: `wf_06f85854-ea1`.
+
+## ⚖️ COUNSEL RULING APPLIED (2026-06-08) — `docs/account-deletion-handoff.md`
+
+Counsel's formal opinion **supersedes** the interim engineering defaults. Code changes made:
+
+- **§3 — money-block REMOVED (reverses the earlier "block" decision).** Erasure is
+  NOT conditioned on financial resolution. Deletion **always proceeds**: no balance
+  check, no "resolve your deposits first" gate, no `MONEY_NOT_RESOLVED`. Live unpaid
+  intents are still cancelled (transient retry only); **every** paid deposit's record
+  is retained (with a `resolved` flag) so an unresolved deposit's record preserves the
+  client's refund route. (Dropped the 409 path from the mobile route + UIs.)
+- **§4 — retained field set + window** confirmed: allowlist = Platform Fee amount +
+  deposit amount (basis) + currency + Stripe payment-intent id + status + timestamps +
+  internal booking/order UUID. Added the **Platform Fee amount** to the snapshot.
+  **Retention = 7 years** from end of the transaction's financial year (Estonian
+  Accounting Act §12).
+- **§5 — relabel anonymised → PSEUDONYMISED** throughout code, schema, migration, tests
+  (it remains in-scope personal data under Art. 6(1)(c), not out-of-scope anonymised).
+- **§9 — re-authentication now REQUIRED** before delete: mobile has full provider re-auth
+  (password / Apple / Google) + type-to-confirm; web has password re-auth for password
+  users + type-to-confirm.
+
+### 🔴 NON-CODE requirements from counsel — founder/legal must complete before release
+- **DPIA (Art. 35)** completed + signed off — counsel says it **gates the launch**.
+- **Privacy notice** updated to the §10 clauses (deletion / payments-identity / security
+  records); **remove the old "plus 30 days" wording.**
+- **Article 30 record** updated with the Stripe DPA + SCCs/DPF transfer mechanism.
+- **Purge jobs (scheduled, not yet built):** financial records **7 years** keyed to
+  financial-year-end; audit/tombstone **24 months** (the deletion tombstone lives in
+  `audit_log` and must inherit a 24-month purge — confirm one exists); Stripe
+  `accounts.del` at the 7-year window-end (zero balance required).
+- **ToS Art. 28 processor terms** (the documented-instruction wording) confirmed present
+  in the Artist Terms of Service.
+- **Web OAuth-only re-auth** (no password) currently proceeds on type-to-confirm — a
+  documented follow-up to add social re-auth without losing the page.

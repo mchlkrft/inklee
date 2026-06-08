@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  anonymizeOrder,
   buildFinancialSnapshot,
   categorizeDepositBookings,
+  pseudonymizeOrder,
   type DepositBookingRow,
 } from "@/lib/server/account-deletion-logic";
 
@@ -85,7 +85,7 @@ describe("categorizeDepositBookings", () => {
 });
 
 describe("buildFinancialSnapshot", () => {
-  it("keeps only money + Stripe identifiers from deposits (no client PII)", () => {
+  it("keeps money + Stripe ids + fee + resolved (no client PII)", () => {
     const snap = buildFinancialSnapshot(
       [
         row({
@@ -96,6 +96,7 @@ describe("buildFinancialSnapshot", () => {
           deposit_currency: "eur",
         }),
       ],
+      new Set(),
       [],
     );
     expect(snap.deposits).toEqual([
@@ -103,8 +104,10 @@ describe("buildFinancialSnapshot", () => {
         bookingId: "b1",
         paymentIntentId: "pi_1",
         amount: 200,
+        platformFeeAmount: 6, // standard 3% of the 200 basis
         currency: "eur",
         paidAt: "2026-01-01T00:00:00Z",
+        resolved: false, // not in the resolved set
       },
     ]);
     // No customer fields ever appear in the snapshot.
@@ -113,31 +116,46 @@ describe("buildFinancialSnapshot", () => {
     );
   });
 
+  it("flags a refunded/forfeited deposit as resolved (preserves vs not)", () => {
+    const snap = buildFinancialSnapshot(
+      [
+        row({ id: "done", deposit_amount: 100 }),
+        row({ id: "open", deposit_amount: 100 }),
+      ],
+      new Set(["done"]),
+      [],
+    );
+    expect(snap.deposits[0].resolved).toBe(true);
+    expect(snap.deposits[1].resolved).toBe(false);
+  });
+
   it("coerces a numeric-string amount and tolerates a null amount", () => {
     const snap = buildFinancialSnapshot(
       [
         row({ id: "b1", deposit_amount: "49.5" }),
         row({ id: "b2", deposit_amount: null }),
       ],
+      new Set(),
       [],
     );
     expect(snap.deposits[0].amount).toBe(49.5);
     expect(snap.deposits[1].amount).toBeNull();
+    expect(snap.deposits[1].platformFeeAmount).toBeNull();
   });
 
-  it("embeds anonymized orders verbatim", () => {
+  it("embeds pseudonymised orders verbatim", () => {
     const orders = [
       { id: "o1", stripe_payment_intent_id: "pi_o", status: "paid" },
     ];
-    const snap = buildFinancialSnapshot([], orders);
+    const snap = buildFinancialSnapshot([], new Set(), orders);
     expect(snap.orders).toEqual(orders);
     expect(snap.schemaVersion).toBe(1);
   });
 });
 
-describe("anonymizeOrder", () => {
+describe("pseudonymizeOrder", () => {
   it("keeps only allowlisted financial fields and drops any PII column", () => {
-    const out = anonymizeOrder({
+    const out = pseudonymizeOrder({
       id: "o1",
       booking_id: "b1",
       stripe_payment_intent_id: "pi_o",

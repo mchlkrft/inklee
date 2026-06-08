@@ -10,8 +10,9 @@ export const runtime = "nodejs";
 // DELETE /api/mobile/account — irreversibly delete the signed-in artist's
 // account. The subject is ALWAYS the token's userId (no id is read from the body
 // → no privilege escalation). Requires a literal type-to-confirm token; the app
-// also re-authenticates the user before calling. Returns 409 (nothing mutated)
-// when paid-unresolved deposits / a non-zero Connect balance exist.
+// re-authenticates the user immediately before calling (counsel §9). Per counsel
+// §3 deletion is NOT blocked on financial state; a 500 is a transient error
+// (e.g. Stripe briefly unreachable) the app surfaces as "try again".
 export async function DELETE(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
@@ -29,8 +30,5 @@ export async function DELETE(req: Request) {
 
   const result = await deleteOwnAccountCore(userId, { surface: "mobile" });
   if (result.ok) return mobileOk({ deleted: true });
-  if (result.code === "MONEY_NOT_RESOLVED") {
-    return mobileError(409, result.message, "money_not_resolved");
-  }
   return mobileError(500, result.message);
 }

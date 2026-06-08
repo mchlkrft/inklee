@@ -1,14 +1,16 @@
--- Slice: in-app account deletion (GDPR Art.17 erasure vs EU tax/AML retention).
--- When an artist deletes their account, financial/transaction records that may
--- be legally required to retain are anonymized (NO client PII) and snapshotted
+-- Slice: in-app account deletion (GDPR Art.17 erasure vs Estonian accounting/tax
+-- retention). When an artist deletes their account, the financial record is
+-- PSEUDONYMISED (money + Stripe identifiers only, NO client PII) and snapshotted
 -- here BEFORE the profile cascade hard-deletes the originals. Intentionally has
 -- NO FK to profiles so it SURVIVES the cascade; artist_id is a bare uuid kept
 -- for reconciliation. Stripe remains the authoritative record of the underlying
 -- transactions; this is Inklee's local retained copy.
 --
--- ⚠️ PENDING COUNSEL: the exact retained field set, anonymization rules, and
--- retention window (Estonia/EE + EU) must be confirmed. The application writes a
--- conservative default (money + Stripe identifiers only, no client PII).
+-- LEGAL (docs/account-deletion-handoff.md, counsel): this record is PSEUDONYMISED
+-- data, NOT anonymised — the Stripe/internal IDs permit re-identification, so it
+-- remains in-scope personal data processed under Art. 6(1)(c). Retention period:
+-- 7 YEARS from the end of the financial year of the transaction (Estonian
+-- Accounting Act §12); a scheduled purge keyed to financial-year-end is required.
 
 CREATE TABLE IF NOT EXISTS deleted_account_records (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),

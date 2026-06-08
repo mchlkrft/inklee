@@ -3,9 +3,9 @@ import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
 import {
   ORDER_MONEY_STATES,
-  anonymizeOrder,
   buildFinancialSnapshot,
   categorizeDepositBookings,
+  pseudonymizeOrder,
   type DepositBookingRow,
 } from "./account-deletion-logic";
 
@@ -13,25 +13,28 @@ import {
 // audited path serves all three callers so the admin path's historical
 // storage/Stripe-skipping bug can't be re-propagated.
 //
-// Design + decisions: docs/account-deletion-design-2026-06-08.md.
+// Design: docs/account-deletion-design-2026-06-08.md. Legal position:
+// docs/account-deletion-handoff.md (counsel).
 // Two non-negotiable facts this hinges on:
 //   1) profiles.id has NO FK to auth.users, so deleting the auth user does NOT
 //      cascade — the profiles delete is what fans out, and it must succeed.
 //   2) Storage NEVER cascades — both buckets are purged by {artistId}/ prefix.
 //
-// ⚠️ Money safety (founder-approved v1): BLOCK deletion when paid-unresolved
-// deposits or a non-zero Connect balance exist (artist is merchant of record;
-// auto-refund is a v2 enhancement). ⚠️ Financial retention: anonymize-and-retain
-// a conservative subset (money + Stripe ids, no client PII) — exact field set +
-// window PENDING COUNSEL.
+// ⚠️ Counsel §3: erasure is NOT blocked on financial resolution. Deletion always
+// proceeds. Live unpaid intents are cancelled (transient retry, not a block);
+// every paid deposit's PSEUDONYMISED record is retained (with a `resolved` flag)
+// to preserve the client's refund route + the parties' legal claims. ⚠️ Counsel
+// §4/§5: the retained record is pseudonymised (in-scope personal data), money +
+// Stripe ids only, retained 7 years for Estonian accounting/tax law.
 
 export type DeleteAccountResult =
   | { ok: true }
   | {
+      // ERROR is transient (e.g. Stripe unreachable / a live intent couldn't be
+      // cancelled) → the caller surfaces "try again", it is NOT a financial block.
       ok: false;
-      code: "MONEY_NOT_RESOLVED" | "ERROR";
+      code: "ERROR";
       message: string;
-      details?: { unresolvedDeposits: number; connectedBalanceCents: number };
     };
 
 // ── Storage purge (service-role; both buckets are RLS-locked) ────────────────
@@ -88,10 +91,11 @@ async function purgeStoragePrefix(
 
 /**
  * Irreversibly delete the artist identified by `userId`. The caller MUST have
- * already authenticated the user and confirmed intent — this trusts `userId`.
+ * already authenticated the user (incl. re-auth) and captured type-to-confirm
+ * intent — this trusts `userId`. Per counsel §3 it always proceeds (no financial
+ * block); it only returns a transient ERROR if Stripe is briefly unreachable.
  * Ordered so the irreversible profile cascade is a clean stop-point and storage
- * (prefix-based) is purged afterwards. Returns MONEY_NOT_RESOLVED without
- * mutating anything when client money is in flight.
+ * (prefix-based) is purged afterwards.
  */
 export async function deleteOwnAccountCore(
   userId: string,
@@ -129,58 +133,23 @@ export async function deleteOwnAccountCore(
     }
   }
 
-  const { liveUnpaid, paid, paidUnresolved } = categorizeDepositBookings(
-    rows,
-    resolvedIds,
-  );
+  const { liveUnpaid, paid } = categorizeDepositBookings(rows, resolvedIds);
 
-  // If Stripe is unreachable (key unset/rotated) we can neither verify the
-  // Connect balance nor cancel live intents — proceeding would orphan a
-  // chargeable intent or miss a balance. Refuse when any Stripe state exists.
-  if (!stripe && (rows.length > 0 || profile?.stripe_account_id)) {
+  // Counsel §3: deletion is NOT blocked on financial resolution — it always
+  // proceeds (no balance check, no "resolve your deposits first" gate). We still
+  // cancel live unpaid intents below so no client pays into a gone account; if
+  // Stripe is unreachable AND there are intents to cancel, that's a transient
+  // system issue → ask the caller to retry. It is NOT a financial block.
+  if (!stripe && liveUnpaid.length > 0) {
     return {
       ok: false,
       code: "ERROR",
       message:
-        "Account deletion is temporarily unavailable. Please try again later.",
+        "Account deletion is temporarily unavailable. Please try again in a moment.",
     };
   }
 
-  // 2. Connected-account Stripe balance (available + pending). The
-  //    Stripe-Account header is the request-options arg, not the params.
-  let connectedBalanceCents = 0;
-  if (profile?.stripe_account_id && stripe) {
-    try {
-      const balance = await stripe.balance.retrieve(
-        {},
-        { stripeAccount: profile.stripe_account_id },
-      );
-      connectedBalanceCents = [...balance.available, ...balance.pending].reduce(
-        (sum, b) => sum + b.amount,
-        0,
-      );
-    } catch {
-      // Account restricted/disconnected/missing → no reachable funds, treat as 0.
-    }
-  }
-
-  // 3. BLOCK on in-flight client money — nothing has been mutated yet. A
-  //    non-zero balance includes a NEGATIVE balance (artist owes Stripe), which
-  //    must also settle before the account can leave.
-  if (paidUnresolved.length > 0 || connectedBalanceCents !== 0) {
-    return {
-      ok: false,
-      code: "MONEY_NOT_RESOLVED",
-      message:
-        "You have unresolved paid deposits or a pending Stripe balance. Resolve or refund those and let any payout settle before deleting your account.",
-      details: {
-        unresolvedDeposits: paidUnresolved.length,
-        connectedBalanceCents,
-      },
-    };
-  }
-
-  // 4. Cancel live unpaid PaymentIntents so no client can pay into a gone
+  // 2. Cancel live unpaid PaymentIntents so no client can pay into a gone
   //    account. If any intent can't be CONFIRMED canceled, STOP before the
   //    cascade — deleting its booking row would orphan a still-chargeable intent
   //    (or strand money if it just succeeded in a race).
@@ -215,21 +184,24 @@ export async function deleteOwnAccountCore(
     }
   }
 
-  // 5. Archive the anonymized financial subset BEFORE the cascade deletes it.
+  // 3. Retain the PSEUDONYMISED financial record BEFORE the cascade deletes it.
+  //    Includes EVERY paid deposit (resolved + unresolved) — an unresolved one's
+  //    record (intent id + amount + resolved:false) preserves the client's refund
+  //    route per counsel §3.
   try {
     const { data: orders } = await serviceClient
       .from("orders")
       .select("*")
       .eq("artist_id", userId)
       .in("status", ORDER_MONEY_STATES);
-    const anonymizedOrders = (orders ?? []).map((o) =>
-      anonymizeOrder(o as Record<string, unknown>),
+    const pseudonymizedOrders = (orders ?? []).map((o) =>
+      pseudonymizeOrder(o as Record<string, unknown>),
     );
-    if (paid.length > 0 || anonymizedOrders.length > 0) {
+    if (paid.length > 0 || pseudonymizedOrders.length > 0) {
       await serviceClient.from("deleted_account_records").insert({
         artist_id: userId,
         stripe_account_id: profile?.stripe_account_id ?? null,
-        record: buildFinancialSnapshot(paid, anonymizedOrders),
+        record: buildFinancialSnapshot(paid, resolvedIds, pseudonymizedOrders),
       });
     }
   } catch (e) {
@@ -238,7 +210,7 @@ export async function deleteOwnAccountCore(
     console.error("[account-deletion] financial archive failed:", e);
   }
 
-  // 6. Delete the profiles row — THE cascade trigger. Must succeed or STOP
+  // 4. Delete the profiles row — THE cascade trigger. Must succeed or STOP
   //    (nothing irreversible has happened yet; intent cancels are safe).
   const { error: profileError } = await serviceClient
     .from("profiles")
@@ -248,12 +220,12 @@ export async function deleteOwnAccountCore(
     return { ok: false, code: "ERROR", message: profileError.message };
   }
 
-  // 7. Purge storage in both buckets by {userId}/ prefix (after the cascade —
+  // 5. Purge storage in both buckets by {userId}/ prefix (after the cascade —
   //    prefix-based, so it doesn't depend on the now-deleted rows).
   await purgeStoragePrefix("logos", userId);
   await purgeStoragePrefix("bookings", userId);
 
-  // 8. Delete the auth user (tolerate not-found, as the admin path does).
+  // 6. Delete the auth user (tolerate not-found, as the admin path does).
   const { error: authError } =
     await serviceClient.auth.admin.deleteUser(userId);
   if (authError && !/not found|does not exist/i.test(authError.message)) {
@@ -269,7 +241,7 @@ export async function deleteOwnAccountCore(
     return { ok: false, code: "ERROR", message: authError.message };
   }
 
-  // 9. Tombstone (booking_id null → survives the cascade; bare uuid, no live PII).
+  // 7. Tombstone (booking_id null → survives the cascade; bare uuid, no live PII).
   await writeAudit({
     action: "account_deleted",
     actor: userId,
