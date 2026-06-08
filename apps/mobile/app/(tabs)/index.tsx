@@ -3,6 +3,7 @@ import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
 import { NotificationBell } from "@/components/NotificationBell";
+import { BooksToggle } from "@/components/BooksToggle";
 import { useApiQuery } from "@/lib/api";
 import { colors } from "@/lib/tokens";
 import type {
@@ -55,15 +56,15 @@ export default function HomeScreen() {
           </Text>
           <NotificationBell />
         </View>
-        <Text className="mb-5 text-sm text-shell-dim">
-          {data
-            ? data.booksOpen
-              ? "Your books are open."
-              : "Your books are closed."
-            : loading
-              ? "Loading…"
-              : ""}
-        </Text>
+        {data ? (
+          <View className="mb-5 mt-3">
+            <BooksToggle open={data.booksOpen} />
+          </View>
+        ) : (
+          <Text className="mb-5 mt-1 text-sm text-shell-dim">
+            {loading ? "Loading…" : ""}
+          </Text>
+        )}
 
         {error ? (
           <EmptyState title="Couldn't load your home" subtitle={error} />
@@ -75,7 +76,6 @@ export default function HomeScreen() {
               <View className="flex-row">
                 <Stat label="Pending" value={data.pendingCount} />
                 <Stat label="Waitlist" value={data.waitlistCount} />
-                <Stat label="Books" value={data.booksOpen ? "Open" : "Closed"} />
               </View>
             </Card>
 

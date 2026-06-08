@@ -5,7 +5,7 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { parseBooksSettings } from "@/lib/books-settings";
-import { todayInTimeZone } from "@/lib/date-utils";
+import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import type { MobileHome, MobileHomeBooking } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -46,6 +46,12 @@ export async function GET(req: Request) {
   const settings = (profile?.settings ?? {}) as Record<string, unknown>;
   const booksSettings = parseBooksSettings(settings.books_settings);
   const today = todayInTimeZone(profile?.timezone ?? "Europe/Berlin");
+  // Match the web: an expired booking window closes the books even if the
+  // books_open flag is still true (else mobile shows Open while the public
+  // page is Closed).
+  const windowExpired =
+    booksSettings.booking_window_ends_at !== null &&
+    isDateKeyBefore(booksSettings.booking_window_ends_at, today);
 
   const [pending, upcoming, waitlist] = await Promise.all([
     supabase
@@ -76,7 +82,7 @@ export async function GET(req: Request) {
   const body: MobileHome = {
     displayName: profile?.display_name ?? null,
     slug: profile?.slug ?? null,
-    booksOpen: booksSettings.books_open,
+    booksOpen: booksSettings.books_open && !windowExpired,
     onboardingCompleted: settings.onboarding_completed === true,
     pendingCount: pending.count ?? 0,
     pending: ((pending.data ?? []) as HomeBookingRow[]).map(mapRow),
