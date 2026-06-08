@@ -3,9 +3,6 @@ import { useApiQuery } from "./api";
 import { MONTH_LONG } from "./date";
 import { localDateKey } from "@inklee/shared/date-utils";
 
-// Re-exported so existing importers (MonthGrid, DayAgenda) keep their path.
-export { formatDayLabel } from "./date";
-
 // One confirmed appointment from GET /api/mobile/calendar (approved, dated
 // bookings). `date` is a bare YYYY-MM-DD date-key — bookings have no time.
 export type CalendarAppointment = {

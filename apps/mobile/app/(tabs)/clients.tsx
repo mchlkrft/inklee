@@ -2,13 +2,13 @@ import { useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { customerLabel } from "@inklee/shared/booking-domain";
-import { relativeTime } from "@inklee/shared/format";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import type { ClientListItem } from "@/lib/clients";
+import { relativeTime } from "@/lib/date";
 import { colors } from "@/lib/tokens";
 
 function ClientRow({

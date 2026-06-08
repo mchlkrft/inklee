@@ -1,7 +1,13 @@
-// Intl-free date formatting for the mobile app. Hermes ships Intl only on
+// Canonical date/time formatting for the mobile app. Hermes ships Intl only on
 // Android, so the shared format.ts / date-utils formatters (Intl.DateTimeFormat
 // based) crash on iOS — these hand-rolled ones avoid it. Values are parsed into
 // a LOCAL Date from their parts so a bare date-key never shifts across a tz.
+//
+// ⚠️ ALWAYS format dates/times in mobile through this module — never import
+// formatDate/formatDateValue/formatDateKey from @inklee/shared (those use Intl).
+// relativeTime is the one shared helper that's Intl-free (pure arithmetic), so
+// it's re-exported here to keep a single import site.
+export { relativeTime } from "@inklee/shared/format";
 
 export const MONTH_LONG = [
   "January",

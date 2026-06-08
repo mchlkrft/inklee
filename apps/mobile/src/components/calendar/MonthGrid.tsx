@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { type DayCell, formatDayLabel } from "@/lib/calendar";
+import type { DayCell } from "@/lib/calendar";
+import { formatDayLabel } from "@/lib/date";
 import { colors } from "@/lib/tokens";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

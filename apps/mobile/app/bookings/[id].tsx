@@ -15,7 +15,7 @@ import { BookingActions } from "@/components/booking/BookingActions";
 import { useApiQuery } from "@/lib/api";
 import { formatMoney, type BookingDetail } from "@/lib/bookings";
 import { colors } from "@/lib/tokens";
-import { formatDate, relativeTime } from "@inklee/shared/format";
+import { formatShortDate, relativeTime } from "@/lib/date";
 
 export default function BookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -109,7 +109,7 @@ export default function BookingDetailScreen() {
       <Section title="Schedule">
         <Field
           label="Preferred date"
-          value={b.preferredDate ? formatDate(b.preferredDate) : null}
+          value={b.preferredDate ? formatShortDate(b.preferredDate) : null}
         />
       </Section>
 
@@ -129,7 +129,7 @@ export default function BookingDetailScreen() {
             }
           />
           {d.dueAt ? (
-            <Field label="Due by" value={formatDate(d.dueAt)} />
+            <Field label="Due by" value={formatShortDate(d.dueAt)} />
           ) : null}
           {d.note ? <Field label="Note" value={d.note} /> : null}
         </Section>

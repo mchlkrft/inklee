@@ -1,7 +1,8 @@
 import { Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Card } from "@/components/Card";
-import { type CalendarAppointment, formatDayLabel } from "@/lib/calendar";
+import type { CalendarAppointment } from "@/lib/calendar";
+import { formatDayLabel } from "@/lib/date";
 
 // The selected day's appointments, listed beneath the month grid. Each row taps
 // through to the shared booking detail screen (E2).

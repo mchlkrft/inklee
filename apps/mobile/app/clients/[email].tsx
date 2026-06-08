@@ -12,9 +12,8 @@ import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import type { ClientDetail, ClientHistoryItem } from "@/lib/clients";
-import { formatShortDate } from "@/lib/date";
+import { formatShortDate, relativeTime } from "@/lib/date";
 import { colors } from "@/lib/tokens";
-import { relativeTime } from "@inklee/shared/format";
 
 export default function ClientDetailScreen() {
   // Expo Router decodes the path segment, so `email` is the raw address; we
