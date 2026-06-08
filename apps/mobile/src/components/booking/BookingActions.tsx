@@ -1,7 +1,8 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
-import { useApiQuery } from "@/lib/api";
+import { invalidateBookingViews, useApiQuery } from "@/lib/api";
 import {
   approveBooking,
   canRefundDeposit,
@@ -32,19 +33,16 @@ import { artistDepositCurrency } from "@inklee/shared/connect-countries";
 import type { MobilePayouts } from "@inklee/shared/mobile-api";
 
 // Status-gated actions for a booking, mirroring the web status-actions.tsx for
-// the paths the mobile API exposes. After any mutation we call onChanged() so
-// the parent refetches the detail and the buttons re-gate on the new status.
+// the paths the mobile API exposes. After any mutation we invalidate the booking
+// views (detail + inbox + Home counts + calendar + client history) so every
+// screen re-gates on the new status — not just this one.
 //
 // Deferred vs web (documented E2 follow-ups): the goods pending-interest accept
 // popup (goods commerce is parked) and the guest-spot studio-confirm popup —
 // the detail endpoint surfaces neither, so accept fires directly here.
-export function BookingActions({
-  booking,
-  onChanged,
-}: {
-  booking: BookingDetail;
-  onChanged: () => void;
-}) {
+export function BookingActions({ booking }: { booking: BookingDetail }) {
+  const queryClient = useQueryClient();
+  const invalidate = () => invalidateBookingViews(queryClient);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showDepositForm, setShowDepositForm] = useState(false);
@@ -55,7 +53,7 @@ export function BookingActions({
     setError(null);
     try {
       await fn();
-      onChanged();
+      void invalidate();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
@@ -101,7 +99,7 @@ export function BookingActions({
               booking={booking}
               onDone={() => {
                 setShowDepositForm(false);
-                onChanged();
+                void invalidate();
               }}
               onCancel={() => setShowDepositForm(false)}
             />
@@ -121,7 +119,7 @@ export function BookingActions({
             title="Pass on this request?"
             body="Sends the client a polite decline by email."
             confirmLabel="Yes, pass"
-            onConfirm={() => rejectBooking(booking.id).then(onChanged)}
+            onConfirm={() => rejectBooking(booking.id).then(invalidate)}
           />
         </>
       ) : null}
@@ -170,7 +168,7 @@ export function BookingActions({
             title="Pass on this request?"
             body="Sends the client a polite decline by email."
             confirmLabel="Yes, pass"
-            onConfirm={() => rejectBooking(booking.id).then(onChanged)}
+            onConfirm={() => rejectBooking(booking.id).then(invalidate)}
           />
         </>
       ) : null}
@@ -190,7 +188,7 @@ export function BookingActions({
               } to the client?`}
               body="The full deposit is returned. Inklee returns its platform fee; Stripe's card-processing fee stays on your account."
               confirmLabel="Yes, refund"
-              onConfirm={() => refundDeposit(booking.id).then(onChanged)}
+              onConfirm={() => refundDeposit(booking.id).then(invalidate)}
             />
           ) : null}
 
@@ -206,7 +204,7 @@ export function BookingActions({
                 : "The slot is reopened and the client is notified."
             }
             confirmLabel="Yes, cancel booking"
-            onConfirm={() => cancelBooking(booking.id).then(onChanged)}
+            onConfirm={() => cancelBooking(booking.id).then(invalidate)}
           />
         </>
       ) : null}

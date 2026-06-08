@@ -136,7 +136,7 @@ export default function BookingDetailScreen() {
       ) : null}
 
       <View className="mt-2">
-        <BookingActions booking={b} onChanged={refresh} />
+        <BookingActions booking={b} />
       </View>
     </ScrollView>
   );

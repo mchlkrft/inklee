@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { config } from "./config";
 import { supabase } from "./supabase";
 
@@ -23,9 +26,10 @@ async function authHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     headers: { ...(await authHeader()) },
+    signal,
   });
   const json = await res.json().catch(() => null);
   if (!res.ok) {
@@ -63,36 +67,53 @@ type ApiQuery<T> = {
   refresh: () => void;
 };
 
-/** Minimal data-fetching hook (load + pull-to-refresh) for GET endpoints. */
+/**
+ * Data-fetching hook for GET endpoints, backed by TanStack Query: caching,
+ * dedup, background revalidation, request cancellation (the `signal` aborts a
+ * stale in-flight fetch on unmount / key change), and cross-screen invalidation
+ * (see `invalidateBookingViews`). The return shape is kept identical to the old
+ * hand-rolled hook so screens are unchanged.
+ *
+ * queryKey = ["api", path]; the path carries any query params (e.g.
+ * /calendar?from=…), so it's a stable per-resource key, and a path change
+ * (calendar month nav) switches to that key's own cache rather than flashing
+ * the previous resource's data.
+ */
 export function useApiQuery<T>(path: string): ApiQuery<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const run = useCallback(
-    async (isRefresh: boolean) => {
-      isRefresh ? setRefreshing(true) : setLoading(true);
-      setError(null);
-      // A non-refresh load means a fresh mount or a path change (e.g. the
-      // calendar moving to a new month). Drop stale data so a dynamic-path
-      // consumer never renders the previous resource's data for a beat.
-      // Pull-to-refresh keeps the current data visible underneath.
-      if (!isRefresh) setData(null);
-      try {
-        setData(await apiGet<T>(path));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong.");
-      } finally {
-        isRefresh ? setRefreshing(false) : setLoading(false);
-      }
+  const q = useQuery({
+    queryKey: ["api", path],
+    queryFn: ({ signal }) => apiGet<T>(path, signal),
+  });
+  return {
+    data: q.data ?? null,
+    error: q.isError
+      ? q.error instanceof Error
+        ? q.error.message
+        : "Something went wrong."
+      : null,
+    loading: q.isLoading,
+    // Background refetch (pull-to-refresh / invalidation) while data is present.
+    refreshing: q.isFetching && !q.isLoading,
+    refresh: () => {
+      void q.refetch();
     },
-    [path],
-  );
+  };
+}
 
-  useEffect(() => {
-    run(false);
-  }, [run]);
+// Every cached view a booking mutation can affect. One action (accept / deposit
+// / refund / cancel) invalidates the detail AND the inbox, Home counts, calendar
+// and client history together — the cross-screen freshness the old per-screen
+// refetch couldn't provide.
+const BOOKING_VIEW_PREFIXES = ["/bookings", "/home", "/calendar", "/clients"];
 
-  return { data, error, loading, refreshing, refresh: () => run(true) };
+export function invalidateBookingViews(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({
+    predicate: (query) => {
+      const path = query.queryKey[1];
+      return (
+        typeof path === "string" &&
+        BOOKING_VIEW_PREFIXES.some((p) => path.startsWith(p))
+      );
+    },
+  });
 }

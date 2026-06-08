@@ -3,7 +3,16 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/lib/auth";
+
+// One client for the app. 30s staleTime keeps tab switches from refetching
+// constantly; one retry smooths transient mobile-network blips.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+  },
+});
 
 // Expo Router renders this for any uncaught render error in the tree instead of
 // white-screening the whole app. Charcoal fallback + retry (re-mounts the
@@ -81,11 +90,13 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="light" />
-        <RootNavigator />
-      </AuthProvider>
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <StatusBar style="light" />
+          <RootNavigator />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </QueryClientProvider>
   );
 }
