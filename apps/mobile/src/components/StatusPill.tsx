@@ -9,6 +9,11 @@ const TONE: Record<string, string> = {
   deposit_pending: "bg-rosa/20 text-rosa",
   rejected: "bg-shell-mute/20 text-shell-dim",
   cancelled: "bg-shell-mute/20 text-shell-dim",
+  // Waitlist statuses (so they're distinguishable in the All filter).
+  waiting: "bg-mustard/20 text-mustard",
+  contacted: "bg-rosa/20 text-rosa",
+  converted: "bg-success/20 text-success",
+  dismissed: "bg-shell-mute/20 text-shell-dim",
 };
 
 export function StatusPill({ status }: { status: string }) {

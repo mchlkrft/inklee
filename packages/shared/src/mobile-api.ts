@@ -121,6 +121,21 @@ export type MobileCalendarResponse = {
   items: MobileCalendarAppointment[];
 };
 
+/** One waitlist entry (GET /api/mobile/waitlist). */
+export type MobileWaitlistEntry = {
+  id: string;
+  customer_email: string;
+  customer_handle: string;
+  note: string | null;
+  status: string; // waiting | contacted | converted | dismissed
+  created_at: string;
+};
+
+/** GET /api/mobile/waitlist?status= — the artist's waitlist entries. */
+export type MobileWaitlistResponse = {
+  items: MobileWaitlistEntry[];
+};
+
 /** GET /api/mobile/analytics?range=30|90|all — headline booking metrics. */
 export type MobileAnalytics = {
   range: string;

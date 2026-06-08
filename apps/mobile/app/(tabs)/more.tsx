@@ -184,6 +184,11 @@ export default function MoreScreen() {
             label="Insights"
             onPress={() => router.push("/insights")}
           />
+          <SettingsRow
+            label="Waitlist"
+            divider
+            onPress={() => router.push("/waitlist")}
+          />
         </Card>
 
         <SectionLabel>Account</SectionLabel>
