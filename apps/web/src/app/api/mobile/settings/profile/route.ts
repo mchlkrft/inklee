@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import type { MobileProfile } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   if (error || !data)
     return mobileError(404, "Profile not found.", "not_found");
 
-  return mobileOk({
+  const body: MobileProfile = {
     slug: data.slug,
     displayName: data.display_name,
     bio: data.bio,
@@ -30,5 +31,6 @@ export async function GET(req: Request) {
     location: data.location,
     logoUrl: data.logo_url,
     instagramHandle: data.instagram_handle,
-  });
+  };
+  return mobileOk(body);
 }

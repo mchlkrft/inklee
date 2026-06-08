@@ -6,6 +6,7 @@ import {
 import { customerLabel } from "@/lib/booking-domain";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { todayInTimeZone } from "@/lib/date-utils";
+import type { MobileHome, MobileHomeBooking } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ type HomeBookingRow = {
   form_data: Record<string, string> | null;
 };
 
-function mapRow(b: HomeBookingRow) {
+function mapRow(b: HomeBookingRow): MobileHomeBooking {
   const fd = b.form_data ?? {};
   return {
     id: b.id,
@@ -72,7 +73,7 @@ export async function GET(req: Request) {
       .eq("status", "waiting"),
   ]);
 
-  return mobileOk({
+  const body: MobileHome = {
     displayName: profile?.display_name ?? null,
     slug: profile?.slug ?? null,
     booksOpen: booksSettings.books_open,
@@ -81,5 +82,6 @@ export async function GET(req: Request) {
     pending: ((pending.data ?? []) as HomeBookingRow[]).map(mapRow),
     upcoming: ((upcoming.data ?? []) as HomeBookingRow[]).map(mapRow),
     waitlistCount: waitlist.count ?? 0,
-  });
+  };
+  return mobileOk(body);
 }

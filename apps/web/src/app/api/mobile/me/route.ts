@@ -5,6 +5,7 @@ import {
 } from "@/lib/server/mobile-auth";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { canAccess, effectivePlanTier } from "@/lib/entitlements";
+import type { MobileMe } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
   const overrides = await getAccountOverrides(userId);
   const settings = (profile?.settings ?? {}) as Record<string, unknown>;
 
-  return mobileOk({
+  const body: MobileMe = {
     userId,
     slug: profile?.slug ?? null,
     displayName: profile?.display_name ?? null,
@@ -33,5 +34,6 @@ export async function GET(req: Request) {
     onboardingCompleted: settings.onboarding_completed === true,
     plan: effectivePlanTier(overrides),
     canCollectDeposits: canAccess(overrides, "deposits"),
-  });
+  };
+  return mobileOk(body);
 }

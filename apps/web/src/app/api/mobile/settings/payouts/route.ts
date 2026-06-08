@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import type { MobilePayouts } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -21,10 +22,11 @@ export async function GET(req: Request) {
     .eq("id", userId)
     .single();
 
-  return mobileOk({
+  const body: MobilePayouts = {
     status: (data?.stripe_account_status as string) ?? "unset",
     chargesEnabled: !!data?.stripe_charges_enabled,
     payoutsEnabled: !!data?.stripe_payouts_enabled,
     country: (data?.stripe_account_country as string | null) ?? null,
-  });
+  };
+  return mobileOk(body);
 }

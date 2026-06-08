@@ -4,25 +4,10 @@ import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { colors } from "@/lib/tokens";
-
-type HomeBooking = {
-  id: string;
-  client: string;
-  placement: string | null;
-  preferredDate: string | null;
-  createdAt: string | null;
-};
-
-type Home = {
-  displayName: string | null;
-  slug: string | null;
-  booksOpen: boolean;
-  onboardingCompleted: boolean;
-  pendingCount: number;
-  pending: HomeBooking[];
-  upcoming: HomeBooking[];
-  waitlistCount: number;
-};
+import type {
+  MobileHome,
+  MobileHomeBooking,
+} from "@inklee/shared/mobile-api";
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -33,7 +18,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function BookingRow({ b }: { b: HomeBooking }) {
+function BookingRow({ b }: { b: MobileHomeBooking }) {
   return (
     <View className="mb-2">
       <Card>
@@ -49,7 +34,7 @@ function BookingRow({ b }: { b: HomeBooking }) {
 
 export default function HomeScreen() {
   const { data, loading, error, refreshing, refresh } =
-    useApiQuery<Home>("/home");
+    useApiQuery<MobileHome>("/home");
 
   return (
     <Screen>

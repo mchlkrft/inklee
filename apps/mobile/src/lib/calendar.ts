@@ -2,15 +2,12 @@ import { useMemo, useState } from "react";
 import { useApiQuery } from "./api";
 import { MONTH_LONG } from "./date";
 import { localDateKey } from "@inklee/shared/date-utils";
+import type { MobileCalendarAppointment as CalendarAppointment } from "@inklee/shared/mobile-api";
 
 // One confirmed appointment from GET /api/mobile/calendar (approved, dated
 // bookings). `date` is a bare YYYY-MM-DD date-key — bookings have no time.
-export type CalendarAppointment = {
-  id: string;
-  client: string;
-  placement: string | null;
-  date: string;
-};
+// Re-exported under its original name; the canonical shape lives in @inklee/shared.
+export type { MobileCalendarAppointment as CalendarAppointment } from "@inklee/shared/mobile-api";
 
 // One cell of the month grid. All date math is done here so the MonthGrid
 // component stays purely presentational.

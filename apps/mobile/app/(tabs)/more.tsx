@@ -20,33 +20,11 @@ import { config } from "@/lib/config";
 import { formatMoney } from "@/lib/bookings";
 import { colors } from "@/lib/tokens";
 import type { DepositDefaults } from "@inklee/shared/deposit-settings";
-
-type Me = {
-  userId: string;
-  slug: string | null;
-  displayName: string | null;
-  timezone: string;
-  onboardingCompleted: boolean;
-  plan: string;
-  canCollectDeposits: boolean;
-};
-
-type Profile = {
-  slug: string | null;
-  displayName: string | null;
-  bio: string | null;
-  timezone: string | null;
-  location: string | null;
-  logoUrl: string | null;
-  instagramHandle: string | null;
-};
-
-type Payouts = {
-  status: string;
-  chargesEnabled: boolean;
-  payoutsEnabled: boolean;
-  country: string | null;
-};
+import type {
+  MobileMe,
+  MobileProfile,
+  MobilePayouts,
+} from "@inklee/shared/mobile-api";
 
 // The apex origin the app talks to (e.g. https://inkl.ee) — proven on-device.
 // It serves the API and the legal pages; the public bio page is a subdomain.
@@ -68,9 +46,9 @@ const safeOpen = (url: string) => {
 
 export default function MoreScreen() {
   const { signOut } = useAuth();
-  const meQ = useApiQuery<Me>("/me");
-  const profileQ = useApiQuery<Profile>("/settings/profile");
-  const payoutsQ = useApiQuery<Payouts>("/settings/payouts");
+  const meQ = useApiQuery<MobileMe>("/me");
+  const profileQ = useApiQuery<MobileProfile>("/settings/profile");
+  const payoutsQ = useApiQuery<MobilePayouts>("/settings/payouts");
   const depositsQ = useApiQuery<DepositDefaults>("/settings/deposit-defaults");
   const [avatarFailed, setAvatarFailed] = useState(false);
 

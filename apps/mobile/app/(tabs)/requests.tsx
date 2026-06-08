@@ -6,26 +6,18 @@ import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { colors } from "@/lib/tokens";
+import type {
+  MobileBookingListItem,
+  MobileBookingsPage,
+} from "@inklee/shared/mobile-api";
 
-type BookingItem = {
-  id: string;
-  status: string;
-  client: string;
-  placement: string | null;
-  size: string | null;
-  preferredDate: string | null;
-  createdAt: string;
-  depositAmount: number | null;
-  depositCurrency: string;
-  depositPaid: boolean;
-};
-
-type BookingsPage = {
-  items: BookingItem[];
-  nextCursor: string | null;
-};
-
-function RequestCard({ b, onPress }: { b: BookingItem; onPress: () => void }) {
+function RequestCard({
+  b,
+  onPress,
+}: {
+  b: MobileBookingListItem;
+  onPress: () => void;
+}) {
   const detail = [b.placement, b.size, b.preferredDate]
     .filter(Boolean)
     .join(" · ");
@@ -54,7 +46,7 @@ function RequestCard({ b, onPress }: { b: BookingItem; onPress: () => void }) {
 export default function RequestsScreen() {
   const router = useRouter();
   const { data, loading, error, refreshing, refresh } =
-    useApiQuery<BookingsPage>("/bookings");
+    useApiQuery<MobileBookingsPage>("/bookings");
 
   return (
     <Screen>

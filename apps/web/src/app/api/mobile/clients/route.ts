@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import type { MobileClientListItem } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -28,16 +29,7 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false });
   if (error) return mobileError(500, error.message);
 
-  const map = new Map<
-    string,
-    {
-      email: string;
-      handle: string;
-      bookingCount: number;
-      lastBookingAt: string;
-      latestStatus: string;
-    }
-  >();
+  const map = new Map<string, MobileClientListItem>();
   for (const b of (data ?? []) as Row[]) {
     const email = b.customer_email as string;
     const existing = map.get(email);
@@ -54,5 +46,8 @@ export async function GET(req: Request) {
     }
   }
 
-  return mobileOk({ items: [...map.values()] });
+  const body: { items: MobileClientListItem[] } = {
+    items: [...map.values()],
+  };
+  return mobileOk(body);
 }

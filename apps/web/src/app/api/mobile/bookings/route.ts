@@ -5,6 +5,10 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import type {
+  MobileBookingListItem,
+  MobileBookingsPage,
+} from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -63,7 +67,7 @@ export async function GET(req: Request) {
   const hasMore = rows.length > limit;
   const page = rows.slice(0, limit);
 
-  const items = page.map((b) => {
+  const items = page.map((b): MobileBookingListItem => {
     const fd = b.form_data ?? {};
     return {
       id: b.id,
@@ -79,8 +83,9 @@ export async function GET(req: Request) {
     };
   });
 
-  return mobileOk({
+  const body: MobileBookingsPage = {
     items,
     nextCursor: hasMore ? page[page.length - 1].created_at : null,
-  });
+  };
+  return mobileOk(body);
 }

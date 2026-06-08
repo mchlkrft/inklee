@@ -5,6 +5,7 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import type { MobileBookingDetail } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -65,7 +66,7 @@ export async function GET(
     depositRefunded = !!log && log.length > 0;
   }
 
-  return mobileOk({
+  const body: MobileBookingDetail = {
     id: b.id,
     status: b.status,
     client: customerLabel(b.customer_handle, b.customer_email),
@@ -91,5 +92,6 @@ export async function GET(
             refunded: depositRefunded,
           }
         : null,
-  });
+  };
+  return mobileOk(body);
 }

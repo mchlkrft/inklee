@@ -5,6 +5,10 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import type {
+  MobileClientDetail,
+  MobileClientHistoryItem,
+} from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -52,12 +56,12 @@ export async function GET(
   if (rows.length === 0)
     return mobileError(404, "Client not found.", "not_found");
 
-  return mobileOk({
+  const body: MobileClientDetail = {
     email: decoded,
     client: customerLabel(rows[0].customer_handle, rows[0].customer_email),
     notes: (notesRes.data?.notes as string | undefined) ?? null,
     bookingCount: rows.length,
-    history: rows.map((r) => {
+    history: rows.map((r): MobileClientHistoryItem => {
       const fd = r.form_data ?? {};
       return {
         id: r.id,
@@ -70,5 +74,6 @@ export async function GET(
           r.deposit_amount != null ? Number(r.deposit_amount) : null,
       };
     }),
-  });
+  };
+  return mobileOk(body);
 }

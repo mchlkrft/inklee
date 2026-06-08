@@ -29,13 +29,7 @@ import {
 } from "@inklee/shared/date-utils";
 import { isTerminal } from "@inklee/shared/booking-fsm";
 import { artistDepositCurrency } from "@inklee/shared/connect-countries";
-
-type PayoutStatus = {
-  status: string;
-  chargesEnabled: boolean;
-  payoutsEnabled: boolean;
-  country: string | null;
-};
+import type { MobilePayouts } from "@inklee/shared/mobile-api";
 
 // Status-gated actions for a booking, mirroring the web status-actions.tsx for
 // the paths the mobile API exposes. After any mutation we call onChanged() so
@@ -332,7 +326,7 @@ function DepositRequestForm({
   onCancel: () => void;
 }) {
   const defaults = useApiQuery<DepositDefaults>("/settings/deposit-defaults");
-  const payouts = useApiQuery<PayoutStatus>("/settings/payouts");
+  const payouts = useApiQuery<MobilePayouts>("/settings/payouts");
 
   const canCollectInApp = !!payouts.data?.chargesEnabled;
   const currency =

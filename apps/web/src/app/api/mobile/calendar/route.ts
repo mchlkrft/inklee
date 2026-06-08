@@ -4,6 +4,10 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
+import type {
+  MobileCalendarAppointment,
+  MobileCalendarResponse,
+} from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -40,15 +44,18 @@ export async function GET(req: Request) {
   const { data, error } = await query;
   if (error) return mobileError(500, error.message);
 
-  const items = ((data ?? []) as Row[]).map((b) => {
+  const items = ((data ?? []) as Row[]).map((b): MobileCalendarAppointment => {
     const fd = b.form_data ?? {};
     return {
       id: b.id,
       client: customerLabel(b.customer_handle, b.customer_email),
       placement: fd.placement ?? null,
-      date: b.preferred_date,
+      // Non-null at runtime: the query filters `.not("preferred_date", "is",
+      // null)`. The row type is just wider than the filtered reality.
+      date: b.preferred_date!,
     };
   });
 
-  return mobileOk({ items });
+  const body: MobileCalendarResponse = { items };
+  return mobileOk(body);
 }
