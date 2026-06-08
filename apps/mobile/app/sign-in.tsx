@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { useAuth } from "@/lib/auth";
 
-// E1 sign-in: email + password against Supabase. Sign in with Apple / Google
-// (required for iOS submission) land in a later slice; this proves the auth +
-// Bearer-token path end to end.
+// E1 sign-in: email + password, plus Sign in with Apple (iOS) and Google.
+// Apple is required by App Store review because Google sign-in is offered.
 export default function SignIn() {
   const { signInWithPassword } = useAuth();
   const [email, setEmail] = useState("");
@@ -59,6 +59,8 @@ export default function SignIn() {
         ) : null}
 
         <Button label="Sign in" onPress={submit} loading={loading} />
+
+        <SocialAuthButtons />
       </View>
     </Screen>
   );

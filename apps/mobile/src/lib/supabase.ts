@@ -28,5 +28,10 @@ export const supabase = createClient(url ?? "", anonKey ?? "", {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE is the secure OAuth flow for native apps: signInWithOAuth returns a
+    // URL, the code verifier is stashed in SecureStore, and we finish with
+    // exchangeCodeForSession(code) after the browser redirects back. (Sign in
+    // with Apple uses the native id-token flow instead, no redirect.)
+    flowType: "pkce",
   },
 });
