@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import type { MobileWaitlistResponse } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -26,5 +27,8 @@ export async function GET(req: Request) {
   const { data, error } = await query;
   if (error) return mobileError(500, error.message);
 
-  return mobileOk({ items: data ?? [] });
+  const responseBody: MobileWaitlistResponse = {
+    items: (data ?? []) as MobileWaitlistResponse["items"],
+  };
+  return mobileOk(responseBody);
 }

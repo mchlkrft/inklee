@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,6 +10,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { apiDelete } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { captureError } from "@/lib/telemetry";
 import { Button } from "@/components/Button";
 import { colors } from "@/lib/tokens";
 
@@ -29,6 +31,10 @@ export default function DeleteAccountScreen() {
   } = useAuth();
   const provider = session?.user?.app_metadata?.provider ?? "email";
   const email = session?.user?.email ?? "";
+  // Pin the account-to-delete at mount. Re-auth (esp. the Apple/Google sheet)
+  // SWAPS the active session, so we compare the post-re-auth user id against this
+  // to refuse deleting a *different* account than the one shown (shared device).
+  const accountToDeleteId = useRef(session?.user?.id ?? null);
 
   const [confirm, setConfirm] = useState("");
   const [password, setPassword] = useState("");
@@ -43,6 +49,20 @@ export default function DeleteAccountScreen() {
     setReauthPending(true);
     try {
       await fn();
+      // Re-auth may have swapped the session — confirm it's still the SAME
+      // account we're about to delete, never a different one signed in just now.
+      const { data: fresh } = await supabase.auth.getSession();
+      const freshId = fresh.session?.user?.id ?? null;
+      if (
+        accountToDeleteId.current &&
+        freshId &&
+        freshId !== accountToDeleteId.current
+      ) {
+        setReauthError(
+          "That was a different account. Sign in as the account you want to delete.",
+        );
+        return;
+      }
       setReauthed(true);
     } catch (e) {
       // The user cancelling the Apple/Google sheet isn't an error.
@@ -71,6 +91,7 @@ export default function DeleteAccountScreen() {
       // Account is gone — clearing the session flips the auth gate to sign-in.
       await signOut();
     } catch (e) {
+      captureError(e, { op: "deleteAccount" });
       setError(
         e instanceof Error ? e.message : "Couldn't delete your account.",
       );
@@ -95,7 +116,7 @@ export default function DeleteAccountScreen() {
 
       {/* Step 1 — re-authenticate */}
       <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-shell-mute">
-        Confirm it's you
+        Confirm it&apos;s you
       </Text>
       {reauthed ? (
         <View className="flex-row items-center gap-2">

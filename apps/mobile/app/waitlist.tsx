@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/Card";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
 import { apiPost, useApiQuery } from "@/lib/api";
 import { relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
@@ -129,18 +130,11 @@ export default function WaitlistScreen() {
               <ActivityIndicator color={colors.mustard} />
             </View>
           ) : error ? (
-            <View className="items-center pt-8">
-              <EmptyState title="Couldn't load waitlist" subtitle={error} />
-              <Pressable
-                accessibilityRole="button"
-                onPress={refresh}
-                className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
-              >
-                <Text className="text-sm font-semibold text-bone">
-                  Try again
-                </Text>
-              </Pressable>
-            </View>
+            <ErrorState
+              title="Couldn't load waitlist"
+              subtitle={error}
+              onRetry={refresh}
+            />
           ) : (
             <EmptyState
               title="No one waiting"

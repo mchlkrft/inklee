@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-nativ
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
 import { invalidateBookingViews, useApiQuery } from "@/lib/api";
+import { captureError } from "@/lib/telemetry";
 import {
   approveBooking,
   canRefundDeposit,
@@ -55,6 +56,7 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
       await fn();
       void invalidate();
     } catch (e) {
+      captureError(e, { op: "bookingAction", action: key });
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setPending(null);
@@ -278,6 +280,7 @@ function ConfirmAction({
               setBusy(false);
               setOpen(false);
             } catch (e) {
+              captureError(e, { op: "bookingConfirm", action: trigger });
               setError(e instanceof Error ? e.message : "Action failed.");
               setBusy(false);
             }
@@ -378,6 +381,7 @@ function DepositRequestForm({
       await requestDeposit(booking.id, value, dueAt, note.trim() || null);
       onDone();
     } catch (e) {
+      captureError(e, { op: "requestDeposit" });
       setError(e instanceof Error ? e.message : "Could not request deposit.");
       setSubmitting(false);
     }

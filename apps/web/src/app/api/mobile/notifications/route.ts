@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import type { MobileNotificationsResponse } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -29,8 +30,9 @@ export async function GET(req: Request) {
 
   if (listRes.error) return mobileError(500, listRes.error.message);
 
-  return mobileOk({
-    items: listRes.data ?? [],
+  const responseBody: MobileNotificationsResponse = {
+    items: (listRes.data ?? []) as MobileNotificationsResponse["items"],
     unread: unreadRes.count ?? 0,
-  });
+  };
+  return mobileOk(responseBody);
 }

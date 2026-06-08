@@ -10,6 +10,7 @@ import { Stack, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
 import {
   invalidateNotifications,
@@ -113,7 +114,11 @@ export default function NotificationsScreen() {
               <ActivityIndicator color={colors.mustard} />
             </View>
           ) : error ? (
-            <EmptyState title="Couldn't load notifications" subtitle={error} />
+            <ErrorState
+              title="Couldn't load notifications"
+              subtitle={error}
+              onRetry={refresh}
+            />
           ) : (
             <EmptyState
               title="You're all caught up"

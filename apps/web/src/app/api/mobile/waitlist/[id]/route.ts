@@ -31,12 +31,19 @@ export async function POST(
     return mobileError(400, "status must be 'contacted' or 'dismissed'.");
   }
 
-  const { error } = await supabase
+  // .select() so a zero-row update (a foreign or nonexistent id — RLS + the
+  // artist_id filter already prevent any cross-tenant write) is distinguishable
+  // from a real update and returns 404 rather than a misleading 200.
+  const { data: updated, error } = await supabase
     .from("waitlist_entries")
     .update({ status: body.status })
     .eq("id", id)
-    .eq("artist_id", userId);
+    .eq("artist_id", userId)
+    .select("id");
   if (error) return mobileError(500, error.message);
+  if (!updated || updated.length === 0) {
+    return mobileError(404, "Waitlist entry not found.");
+  }
 
   return mobileOk({ id, status: body.status });
 }

@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import type { MobileAnalytics } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -73,7 +74,7 @@ export async function GET(req: Request) {
     .slice(-6)
     .map(([month, count]) => ({ month, count }));
 
-  return mobileOk({
+  const responseBody: MobileAnalytics = {
     range,
     total,
     approved,
@@ -91,5 +92,6 @@ export async function GET(req: Request) {
         ? Math.round((depositPaid / depositRequested) * 100)
         : null,
     months,
-  });
+  };
+  return mobileOk(responseBody);
 }

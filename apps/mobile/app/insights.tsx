@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
 import { MONTH_LONG } from "@/lib/date";
 import { colors } from "@/lib/tokens";
@@ -73,19 +74,11 @@ export default function InsightsScreen() {
             <ActivityIndicator color={colors.mustard} />
           </View>
         ) : (
-          <View className="items-center pt-8">
-            <EmptyState
-              title="Couldn't load insights"
-              subtitle={error ?? undefined}
-            />
-            <Pressable
-              accessibilityRole="button"
-              onPress={refresh}
-              className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
-            >
-              <Text className="text-sm font-semibold text-bone">Try again</Text>
-            </Pressable>
-          </View>
+          <ErrorState
+            title="Couldn't load insights"
+            subtitle={error ?? undefined}
+            onRetry={refresh}
+          />
         )
       ) : data.total === 0 ? (
         <EmptyState

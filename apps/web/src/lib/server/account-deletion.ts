@@ -187,27 +187,49 @@ export async function deleteOwnAccountCore(
   // 3. Retain the PSEUDONYMISED financial record BEFORE the cascade deletes it.
   //    Includes EVERY paid deposit (resolved + unresolved) — an unresolved one's
   //    record (intent id + amount + resolved:false) preserves the client's refund
-  //    route per counsel §3.
+  //    route per counsel §3. This insert is the ONLY DB-side survival of that
+  //    refund pointer AND of the counsel-mandated 7-year record, so when there IS
+  //    money to retain it MUST succeed before the step-4 cascade destroys the
+  //    source rows. If it fails (e.g. migration 0047 not applied → "relation does
+  //    not exist", or a transient DB error), STOP and surface a transient ERROR —
+  //    nothing irreversible has happened yet (the intent cancels above are safe to
+  //    repeat). Only when there is genuinely nothing to retain do we proceed.
   try {
-    const { data: orders } = await serviceClient
+    const { data: orders, error: ordersError } = await serviceClient
       .from("orders")
       .select("*")
       .eq("artist_id", userId)
       .in("status", ORDER_MONEY_STATES);
+    if (ordersError) throw ordersError;
     const pseudonymizedOrders = (orders ?? []).map((o) =>
       pseudonymizeOrder(o as Record<string, unknown>),
     );
     if (paid.length > 0 || pseudonymizedOrders.length > 0) {
-      await serviceClient.from("deleted_account_records").insert({
-        artist_id: userId,
-        stripe_account_id: profile?.stripe_account_id ?? null,
-        record: buildFinancialSnapshot(paid, resolvedIds, pseudonymizedOrders),
-      });
+      const { error: archiveError } = await serviceClient
+        .from("deleted_account_records")
+        .insert({
+          artist_id: userId,
+          stripe_account_id: profile?.stripe_account_id ?? null,
+          record: buildFinancialSnapshot(
+            paid,
+            resolvedIds,
+            pseudonymizedOrders,
+          ),
+        });
+      if (archiveError) throw archiveError;
     }
   } catch (e) {
-    // Non-fatal: Stripe retains the authoritative transaction records. Don't
-    // strand a half-deleted account because the local archive write failed.
+    // There IS money/records to retain (or we couldn't even read orders to know)
+    // and we could NOT persist the mandated record. Refusing here is strictly
+    // safer than destroying the legally-required record + the unresolved client's
+    // refund pointer in the cascade below. Surface as transient → caller retries.
     console.error("[account-deletion] financial archive failed:", e);
+    return {
+      ok: false,
+      code: "ERROR",
+      message:
+        "Account deletion is temporarily unavailable. Please try again in a moment.",
+    };
   }
 
   // 4. Delete the profiles row — THE cascade trigger. Must succeed or STOP

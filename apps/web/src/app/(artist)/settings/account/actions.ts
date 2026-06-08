@@ -10,7 +10,10 @@ type State = { error: string } | { success: true } | null;
 
 // Self-service account deletion (closes the web GDPR Art.17 gap). Subject is the
 // cookie-session user only. Shares the exact same audited core as the mobile API
-// and the admin path. Returns the block message when client money is in flight.
+// and the admin path. Per counsel §3 deletion is NEVER blocked on financial
+// state — it always proceeds (unresolved deposits are retained, not blocking);
+// the only failure surfaced is a transient ERROR (e.g. Stripe briefly
+// unreachable / a live intent couldn't be cancelled) → the UI says "try again".
 export async function deleteOwnAccountAction(
   confirm: string,
 ): Promise<{ error: string } | { deleted: true }> {

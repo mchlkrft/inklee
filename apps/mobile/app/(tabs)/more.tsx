@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Linking,
-  Pressable,
   RefreshControl,
   ScrollView,
   Text,
@@ -13,7 +12,7 @@ import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
 import { SettingsRow } from "@/components/SettingsRow";
 import { useApiQuery } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -70,19 +69,11 @@ export default function MoreScreen() {
             <ActivityIndicator color={colors.mustard} />
           </View>
         ) : (
-          <View className="items-center pt-8">
-            <EmptyState
-              title="Couldn't load your account"
-              subtitle={meQ.error ?? undefined}
-            />
-            <Pressable
-              accessibilityRole="button"
-              onPress={meQ.refresh}
-              className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
-            >
-              <Text className="text-sm font-semibold text-bone">Try again</Text>
-            </Pressable>
-          </View>
+          <ErrorState
+            title="Couldn't load your account"
+            subtitle={meQ.error ?? undefined}
+            onRetry={meQ.refresh}
+          />
         )}
       </Screen>
     );

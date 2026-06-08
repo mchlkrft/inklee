@@ -31,6 +31,10 @@ export function categorizeDepositBookings(
   const withIntent = rows.filter((r) => r.deposit_payment_intent_id);
   const liveUnpaid = withIntent.filter((r) => !r.deposit_paid_at);
   const paid = withIntent.filter((r) => r.deposit_paid_at);
+  // `paidUnresolved` is a leftover from the pre-counsel block era — the
+  // orchestrator no longer consumes it (it retains ALL paid deposits with a
+  // per-row `resolved` flag instead). Kept only to document intent + for the
+  // unit tests; deletion never branches on it.
   const paidUnresolved = paid.filter((r) => !resolvedBookingIds.has(r.id));
   return { liveUnpaid, paid, paidUnresolved };
 }
