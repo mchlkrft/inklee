@@ -15,8 +15,13 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(workspaceRoot, "node_modules"),
 ];
+// REQUIRED in this pnpm monorepo: confine resolution to nodeModulesPaths only.
+// Without it, Metro's hierarchical walk pulls a SECOND copy of React — e.g.
+// react-native-safe-area-context -> use-sync-external-store/node_modules/react
+// (19.2.4, hoisted for the web app) clashes with the app's React 19.1.0, which
+// surfaces on-device as "Invalid hook call / Cannot read property 'useRef' of
+// null". Pinning to the explicit paths makes every package resolve the single
+// root React 19.1.0. (Package exports is on by default in SDK 54's Metro.)
 config.resolver.disableHierarchicalLookup = true;
-// @inklee/shared exposes subpaths (./platform-fee, ...) via its package "exports".
-config.resolver.unstable_enablePackageExports = true;
 
 module.exports = withNativeWind(config, { input: "./global.css" });
