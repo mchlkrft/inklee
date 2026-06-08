@@ -26,14 +26,14 @@ describe("categorizeDepositBookings", () => {
     expect(r.paidUnresolved).toHaveLength(0);
   });
 
-  it("classifies an intent without paid_at as live-unpaid (cancellable, not blocking)", () => {
+  it("classifies an intent without paid_at as live-unpaid (cancellable)", () => {
     const rows = [row({ id: "a", deposit_payment_intent_id: "pi_1" })];
     const r = categorizeDepositBookings(rows, new Set());
     expect(r.liveUnpaid.map((x) => x.id)).toEqual(["a"]);
     expect(r.paidUnresolved).toHaveLength(0);
   });
 
-  it("a paid + refunded deposit is paid but NOT blocking", () => {
+  it("a paid + refunded deposit is resolved (not unresolved)", () => {
     const rows = [
       row({
         id: "a",
@@ -46,7 +46,7 @@ describe("categorizeDepositBookings", () => {
     expect(r.paidUnresolved).toHaveLength(0);
   });
 
-  it("a paid + NOT-refunded deposit blocks deletion (client money in flight)", () => {
+  it("a paid + NOT-refunded deposit is unresolved (record retained for refund route)", () => {
     const rows = [
       row({
         id: "a",
