@@ -73,6 +73,11 @@ export function useApiQuery<T>(path: string): ApiQuery<T> {
     async (isRefresh: boolean) => {
       isRefresh ? setRefreshing(true) : setLoading(true);
       setError(null);
+      // A non-refresh load means a fresh mount or a path change (e.g. the
+      // calendar moving to a new month). Drop stale data so a dynamic-path
+      // consumer never renders the previous resource's data for a beat.
+      // Pull-to-refresh keeps the current data visible underneath.
+      if (!isRefresh) setData(null);
       try {
         setData(await apiGet<T>(path));
       } catch (e) {
