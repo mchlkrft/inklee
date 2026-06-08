@@ -16,6 +16,7 @@ import * as Sentry from "@sentry/nextjs";
 import { formatSize } from "@/lib/booking-schema";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
 import { canTransition } from "@/lib/booking-fsm";
+import { isDateKey, isDateKeyBefore, localDateKey } from "@/lib/date-utils";
 import {
   sendBookingEmail,
   sendDepositRequestedEmail,
@@ -535,6 +536,11 @@ async function notifyDepositRequested(
   });
 }
 
+// Upper bound for a single deposit request (any currency). Generous for even a
+// large custom piece, but blocks an absurd/typo charge. Mirrors the
+// deposit-defaults parser's MAX_AMOUNT (deposit-settings.ts).
+const MAX_DEPOSIT_AMOUNT = 100_000;
+
 export async function requestDepositCore(
   supabase: SupabaseClient,
   userId: string,
@@ -561,6 +567,23 @@ export async function requestDepositCore(
   // paying Stripe's fee) and isn't a meaningful deposit. Currency-neutral.
   if (!Number.isFinite(amount) || amount < 1) {
     return { error: "Deposit amount must be at least 1." };
+  }
+
+  // Audit 2026-06-08 (D-M2): cap the amount and reject sub-cent precision. The
+  // floor alone let a typo or a compromised session create an absurd
+  // PaymentIntent against a real client card; the 2-decimal guard keeps the
+  // charged cents (Math.round(amount*100)) equal to the stored deposit_amount.
+  if (amount > MAX_DEPOSIT_AMOUNT) {
+    return { error: `Deposit amount can't exceed ${MAX_DEPOSIT_AMOUNT}.` };
+  }
+  if (Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) {
+    return { error: "Deposit amount can't have more than 2 decimal places." };
+  }
+  // Audit 2026-06-08 (D-L1): validate the due date server-side — the UI checks
+  // isDateKey, but the server must not trust the client (a garbage/past date
+  // otherwise reaches the client-facing email). Must be YYYY-MM-DD, today+.
+  if (!isDateKey(dueAt) || isDateKeyBefore(dueAt, localDateKey())) {
+    return { error: "Deposit due date must be a valid date, today or later." };
   }
 
   // Q9: snapshot the artist's current deposit policy onto the booking now, so
