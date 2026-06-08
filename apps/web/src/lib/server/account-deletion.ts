@@ -86,6 +86,7 @@ async function purgeStoragePrefix(
  */
 export async function deleteOwnAccountCore(
   userId: string,
+  opts: { surface: "mobile" | "web" | "admin" },
 ): Promise<DeleteAccountResult> {
   // 1. Profile (for the Connect account) + deposit bookings (money pre-flight).
   const { data: profile } = await serviceClient
@@ -221,7 +222,7 @@ export async function deleteOwnAccountCore(
     action: "account_deleted",
     actor: userId,
     category: "system",
-    details: { self_service: true },
+    details: { surface: opts.surface },
   });
 
   return { ok: true };

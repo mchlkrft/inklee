@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getAdminId } from "@/lib/admin-guard";
 import { writeAudit } from "@/lib/audit";
 import { serviceClient } from "@/lib/supabase/service";
+import { deleteOwnAccountCore } from "@/lib/server/account-deletion";
 import {
   ENTITLEMENT_FEATURES,
   type EntitlementFeature,
@@ -272,25 +273,12 @@ export async function deleteAccountPermanentlyAction(
     display_name: profile.display_name,
   });
 
-  // Delete auth user — may not exist for manually seeded/test accounts
-  const { error: authError } =
-    await serviceClient.auth.admin.deleteUser(targetUserId);
-
-  if (
-    authError &&
-    !authError.message.toLowerCase().includes("not found") &&
-    !authError.message.toLowerCase().includes("does not exist")
-  ) {
-    return { error: authError.message };
-  }
-
-  // Always clean up the profile row (handles orphaned profiles too)
-  const { error: profileError } = await serviceClient
-    .from("profiles")
-    .delete()
-    .eq("id", targetUserId);
-
-  if (profileError) return { error: profileError.message };
+  // Shared audited core: money pre-flight + Stripe teardown + storage purge of
+  // BOTH buckets + the auth+profile delete. The old inline path here skipped
+  // storage AND Stripe entirely (it leaked every uploaded file + orphaned the
+  // Connect account); routing through the core fixes that for admin deletes too.
+  const result = await deleteOwnAccountCore(targetUserId, { surface: "admin" });
+  if (!result.ok) return { error: result.message };
 
   revalidatePath("/admin");
   return {};

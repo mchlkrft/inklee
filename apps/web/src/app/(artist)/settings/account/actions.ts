@@ -4,8 +4,27 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
+import { deleteOwnAccountCore } from "@/lib/server/account-deletion";
 
 type State = { error: string } | { success: true } | null;
+
+// Self-service account deletion (closes the web GDPR Art.17 gap). Subject is the
+// cookie-session user only. Shares the exact same audited core as the mobile API
+// and the admin path. Returns the block message when client money is in flight.
+export async function deleteOwnAccountAction(
+  confirm: string,
+): Promise<{ error: string } | { deleted: true }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+  if (confirm !== "DELETE") return { error: "Type DELETE to confirm." };
+
+  const result = await deleteOwnAccountCore(user.id, { surface: "web" });
+  if (result.ok) return { deleted: true };
+  return { error: result.message };
+}
 
 export async function saveGeneralAction(
   _prev: State,

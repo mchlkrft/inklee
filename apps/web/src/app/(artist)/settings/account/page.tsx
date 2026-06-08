@@ -3,6 +3,7 @@ import Link from "next/link";
 import GeneralForm from "./general-form";
 import SecurityForm from "./security-form";
 import TwoFactorSection from "./two-factor-section";
+import DeleteAccountSection from "./delete-account-section";
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -108,6 +109,13 @@ export default async function AccountPage() {
             Download export
           </a>
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-destructive border-b border-border pb-3">
+          Delete account
+        </h2>
+        <DeleteAccountSection />
       </section>
     </div>
   );
