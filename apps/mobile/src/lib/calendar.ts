@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { useApiQuery } from "./api";
+import { MONTH_LONG } from "./date";
 import { localDateKey } from "@inklee/shared/date-utils";
+
+// Re-exported so existing importers (MonthGrid, DayAgenda) keep their path.
+export { formatDayLabel } from "./date";
 
 // One confirmed appointment from GET /api/mobile/calendar (approved, dated
 // bookings). `date` is a bare YYYY-MM-DD date-key — bookings have no time.
@@ -23,42 +27,6 @@ export type DayCell = {
 
 type Cursor = { year: number; month: number }; // month is 0-indexed
 
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-/**
- * Human label for a YYYY-MM-DD date-key, e.g. "Friday, 12 June 2026".
- * Hand-rolled (no Intl.DateTimeFormat) because Hermes ships Intl only on
- * Android — formatting via Intl would crash on iOS. Parses the key into a LOCAL
- * date from its parts (no UTC string parse), so the weekday is always correct.
- */
-export function formatDayLabel(dateKey: string): string {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return `${WEEKDAY_NAMES[date.getDay()]}, ${d} ${MONTH_NAMES[m - 1]} ${y}`;
-}
 
 // 6 rows × 7 cols, Monday-first, matching the web calendar grid. Built from
 // local Date arithmetic (which rolls negative/overflow days over month and year
@@ -159,7 +127,7 @@ export function useCalendarMonth() {
   );
 
   return {
-    monthLabel: `${MONTH_NAMES[cursor.month]} ${cursor.year}`,
+    monthLabel: `${MONTH_LONG[cursor.month]} ${cursor.year}`,
     weeks,
     selectedDate,
     selectDay: setSelectedDate,

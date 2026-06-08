@@ -38,6 +38,16 @@ function RootNavigator() {
             headerShadowVisible: false,
           }}
         />
+        <Stack.Screen
+          name="clients/[email]"
+          options={{
+            headerShown: true,
+            title: "Client",
+            headerStyle: { backgroundColor: "#1e1e1e" },
+            headerTintColor: "#e5e1d5",
+            headerShadowVisible: false,
+          }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" />
