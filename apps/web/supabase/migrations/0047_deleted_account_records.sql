@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS deleted_account_records (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   artist_id         uuid NOT NULL,            -- bare uuid, intentionally NO FK
   stripe_account_id text,                     -- retained Connect pointer
-  record            jsonb NOT NULL,           -- anonymized financial snapshot
+  record            jsonb NOT NULL,           -- pseudonymised financial snapshot
   deleted_at        timestamptz NOT NULL DEFAULT now()
 );
 
