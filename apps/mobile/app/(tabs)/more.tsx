@@ -178,6 +178,14 @@ export default function MoreScreen() {
           </View>
         </Card>
 
+        <SectionLabel>Grow</SectionLabel>
+        <Card>
+          <SettingsRow
+            label="Insights"
+            onPress={() => router.push("/insights")}
+          />
+        </Card>
+
         <SectionLabel>Account</SectionLabel>
         <Card>
           {publicUrl ? (

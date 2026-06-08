@@ -1,4 +1,5 @@
 import {
+  keepPreviousData,
   useQuery,
   type QueryClient,
 } from "@tanstack/react-query";
@@ -96,10 +97,17 @@ type ApiQuery<T> = {
  * (calendar month nav) switches to that key's own cache rather than flashing
  * the previous resource's data.
  */
-export function useApiQuery<T>(path: string): ApiQuery<T> {
+export function useApiQuery<T>(
+  path: string,
+  opts?: { keepPrevious?: boolean },
+): ApiQuery<T> {
   const q = useQuery({
     queryKey: ["api", path],
     queryFn: ({ signal }) => apiGet<T>(path, signal),
+    // For dynamic-path screens that switch a filter (e.g. Insights' range), keep
+    // the previous result visible during the swap instead of blanking to a
+    // spinner. Off by default (calendar deliberately drops stale cross-month data).
+    placeholderData: opts?.keepPrevious ? keepPreviousData : undefined,
   });
   return {
     data: q.data ?? null,

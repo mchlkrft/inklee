@@ -121,6 +121,23 @@ export type MobileCalendarResponse = {
   items: MobileCalendarAppointment[];
 };
 
+/** GET /api/mobile/analytics?range=30|90|all — headline booking metrics. */
+export type MobileAnalytics = {
+  range: string;
+  total: number;
+  approved: number;
+  rejected: number;
+  conversionRate: number;
+  rejectionRate: number;
+  uniqueClients: number;
+  repeatClients: number;
+  returnRate: number;
+  depositRequested: number;
+  depositPaid: number;
+  depositRate: number | null;
+  months: { month: string; count: number }[];
+};
+
 /** GET /api/mobile/notifications — the feed (newest first) + unread count. */
 export type MobileNotificationsResponse = {
   items: import("./notification-types").Notification[];
