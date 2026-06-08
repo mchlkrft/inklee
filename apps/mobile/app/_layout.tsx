@@ -87,6 +87,16 @@ function RootNavigator() {
             headerShadowVisible: false,
           }}
         />
+        <Stack.Screen
+          name="account/delete"
+          options={{
+            headerShown: true,
+            title: "Delete account",
+            headerStyle: { backgroundColor: "#1e1e1e" },
+            headerTintColor: "#e5e1d5",
+            headerShadowVisible: false,
+          }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" />

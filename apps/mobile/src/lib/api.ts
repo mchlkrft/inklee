@@ -59,6 +59,23 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return json.data as T;
 }
 
+export async function apiDelete<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}/api/mobile${path}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(
+      json?.error?.message ?? `Request failed (${res.status})`,
+      res.status,
+      json?.error?.code ?? "error",
+    );
+  }
+  return json.data as T;
+}
+
 type ApiQuery<T> = {
   data: T | null;
   error: string | null;

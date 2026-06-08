@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -46,6 +47,7 @@ const safeOpen = (url: string) => {
 
 export default function MoreScreen() {
   const { signOut } = useAuth();
+  const router = useRouter();
   const meQ = useApiQuery<MobileMe>("/me");
   const profileQ = useApiQuery<MobileProfile>("/settings/profile");
   const payoutsQ = useApiQuery<MobilePayouts>("/settings/payouts");
@@ -189,6 +191,12 @@ export default function MoreScreen() {
             label="Timezone"
             value={me.timezone}
             divider={!!publicUrl}
+          />
+          <SettingsRow
+            label="Delete account"
+            danger
+            divider
+            onPress={() => router.push("/account/delete")}
           />
         </Card>
 
