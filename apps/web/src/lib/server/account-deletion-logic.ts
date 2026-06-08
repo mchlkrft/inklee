@@ -27,10 +27,44 @@ export function categorizeDepositBookings(
   return { liveUnpaid, paid, paidUnresolved };
 }
 
+// Order statuses that represent money having moved — only these are retained
+// (never-paid order shells carry no tax/AML obligation).
+export const ORDER_MONEY_STATES = ["paid", "refunded", "partially_refunded"];
+
+// ALLOWLIST of order columns kept in the retained snapshot. Inverting the old
+// denylist (strip client_email) to an allowlist means a future PII column added
+// to `orders` can NEVER silently leak into the long-retained, FK-less archive.
+// Money + Stripe identifiers only; no client PII.
+const ORDER_RETAINED_FIELDS = [
+  "id",
+  "booking_id",
+  "stripe_payment_intent_id",
+  "stripe_checkout_session_id",
+  "status",
+  "deposit_amount",
+  "goods_amount",
+  "subtotal_amount",
+  "platform_fee_amount",
+  "currency",
+  "fulfillment_status",
+  "created_at",
+];
+
+/** Pick ONLY the allowlisted financial fields from an order row. */
+export function anonymizeOrder(
+  order: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ORDER_RETAINED_FIELDS) {
+    if (key in order) out[key] = order[key];
+  }
+  return out;
+}
+
 /**
  * The anonymized financial snapshot retained past deletion. Money + Stripe
- * identifiers ONLY — never client PII. Orders are passed already stripped of
- * client_email. ⚠️ Conservative default; counsel must confirm the field set.
+ * identifiers ONLY — never client PII. Orders are passed already anonymized via
+ * anonymizeOrder. ⚠️ Conservative default; counsel must confirm the field set.
  */
 export function buildFinancialSnapshot(
   paidDeposits: DepositBookingRow[],

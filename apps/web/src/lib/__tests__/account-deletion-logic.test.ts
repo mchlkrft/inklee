@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  anonymizeOrder,
   buildFinancialSnapshot,
   categorizeDepositBookings,
   type DepositBookingRow,
@@ -131,5 +132,28 @@ describe("buildFinancialSnapshot", () => {
     const snap = buildFinancialSnapshot([], orders);
     expect(snap.orders).toEqual(orders);
     expect(snap.schemaVersion).toBe(1);
+  });
+});
+
+describe("anonymizeOrder", () => {
+  it("keeps only allowlisted financial fields and drops any PII column", () => {
+    const out = anonymizeOrder({
+      id: "o1",
+      booking_id: "b1",
+      stripe_payment_intent_id: "pi_o",
+      status: "paid",
+      deposit_amount: 200,
+      currency: "eur",
+      // PII that must NOT survive — current + hypothetical future columns:
+      client_email: "client@example.com",
+      client_name: "Jane Client",
+      client_phone: "+37212345678",
+      shipping_address: "Somewhere 1",
+    });
+    expect(out.id).toBe("o1");
+    expect(out.stripe_payment_intent_id).toBe("pi_o");
+    expect(out.deposit_amount).toBe(200);
+    // Allowlist is additive-safe: no client/PII key survives, present or future.
+    expect(JSON.stringify(out)).not.toMatch(/client|email|phone|address|name/i);
   });
 });

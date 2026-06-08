@@ -79,4 +79,41 @@ clear; Apple requires TRUE deletion (not deactivate / "manage on web").
 - A full-residue integration test (create an artist touching every table + both buckets + a Connect
   account → delete → assert nothing survives except the intentionally-retained anonymized set).
 
-— Source: workflow `wf_c6c5e5e1-a3d`; raw findings in session transcript.
+## Adversarial review (2026-06-08, workflow wf_06f85854-ea1)
+
+Four parallel lenses. **Security: PASS** (no cross-user escalation; the deletion
+subject is always the server-validated identity — mobile = JWT userId only, never
+a body id; web = cookie session; admin = guarded target). Money / completeness /
+GDPR: PASS-WITH-FIXES.
+
+**Fixes applied (committed):**
+- Stripe unreachable (`stripe===null`) with any Stripe state → refuse (was silently
+  skipping the balance check + intent cancel → orphaned chargeable intent).
+- Intent-cancel now verifies status and STOPS before the cascade if any intent
+  isn't confirmed canceled (transient-error or race-succeeded orphan/strand).
+- Forfeited deposits (`deposit_forfeited`) treated as resolved → don't block forever.
+- Block on `connectedBalanceCents !== 0` (negative balance / owed-debt also blocks).
+- Orders snapshot switched denylist → **allowlist** + money-state filter + a
+  regression test (a future PII column can't leak into the retained archive).
+- Storage `.list()` paginated (heavy accounts no longer silently miss files).
+- Auth-delete failure writes a discoverable `account_auth_delete_failed` audit row.
+
+**Documented deferrals (NOT bugs — policy / follow-up, must resolve before/around launch):**
+- **Stripe `accounts.del` at retention-window end** — v1 retains the `acct_*`
+  (archived with `deleted_at`) per the deauthorize-and-retain decision; the
+  scheduled deletion of the Connect account (which removes Stripe-side KYC PII) is
+  a deferred cron the archive already enables. Custom accounts have no OAuth grant
+  to "deauthorize", so nothing to revoke at delete time.
+- **Instagram token revoke at Meta** — the row + token cascade-delete from our DB;
+  Meta-side revoke needs a new Graph API primitive (none exists in the codebase;
+  `disconnectInstagramAction` only flips a flag). Follow-up.
+- **Re-auth step-up before deletion** (v2) — today a valid Bearer session +
+  type-to-confirm gate it; a leaked-but-valid token could self-delete. Add an AAL/
+  nonce re-auth check. (Apple-compliant as-is; this is a security hardening.)
+- **`order_items` retention** — only order roll-ups are snapshotted; line-item
+  detail hard-deletes. Counsel decision #6 (whether the tax record needs items).
+- **Partial-refund precision** — a dashboard partial refund logs one
+  `deposit_refunded` row → treated as fully resolved (backstopped by the balance
+  check). In-app refunds are full-refund-only, so low impact.
+
+— Discovery source: workflow `wf_c6c5e5e1-a3d`; review: `wf_06f85854-ea1`.

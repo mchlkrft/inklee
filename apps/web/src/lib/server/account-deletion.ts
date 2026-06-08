@@ -2,6 +2,8 @@ import { serviceClient } from "@/lib/supabase/service";
 import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
 import {
+  ORDER_MONEY_STATES,
+  anonymizeOrder,
   buildFinancialSnapshot,
   categorizeDepositBookings,
   type DepositBookingRow,
@@ -41,17 +43,24 @@ async function listAllStorageFiles(
   prefix: string,
 ): Promise<string[]> {
   const out: string[] = [];
-  const { data: entries } = await serviceClient.storage
-    .from(bucket)
-    .list(prefix, { limit: 1000 });
-  for (const entry of entries ?? []) {
-    if (entry.id === null) {
-      out.push(
-        ...(await listAllStorageFiles(bucket, `${prefix}/${entry.name}`)),
-      );
-    } else {
-      out.push(`${prefix}/${entry.name}`);
+  const PAGE = 1000;
+  // Paginate each level — .list() returns at most `limit` entries with no
+  // continuation, so a busy artist's files would otherwise be silently missed.
+  for (let offset = 0; ; offset += PAGE) {
+    const { data: entries } = await serviceClient.storage
+      .from(bucket)
+      .list(prefix, { limit: PAGE, offset });
+    const page = entries ?? [];
+    for (const entry of page) {
+      if (entry.id === null) {
+        out.push(
+          ...(await listAllStorageFiles(bucket, `${prefix}/${entry.name}`)),
+        );
+      } else {
+        out.push(`${prefix}/${entry.name}`);
+      }
     }
+    if (page.length < PAGE) break;
   }
   return out;
 }
@@ -104,24 +113,38 @@ export async function deleteOwnAccountCore(
     .not("deposit_payment_intent_id", "is", null);
   const rows = (depositRows ?? []) as DepositBookingRow[];
 
-  // Refund state is derived from the audit log (no dedicated column).
+  // A paid deposit is "resolved" (no client money owed) if it was refunded OR
+  // forfeited on a client cancellation — both are derived from the audit log.
+  // (A forfeited deposit is legitimately the artist's; it must not block.)
   const paidIds = rows.filter((r) => r.deposit_paid_at).map((r) => r.id);
-  const refundedIds = new Set<string>();
+  const resolvedIds = new Set<string>();
   if (paidIds.length) {
-    const { data: refunds } = await serviceClient
+    const { data: resolved } = await serviceClient
       .from("audit_log")
       .select("booking_id")
-      .eq("action", "deposit_refunded")
+      .in("action", ["deposit_refunded", "deposit_forfeited"])
       .in("booking_id", paidIds);
-    for (const r of refunds ?? []) {
-      if (r.booking_id) refundedIds.add(r.booking_id as string);
+    for (const r of resolved ?? []) {
+      if (r.booking_id) resolvedIds.add(r.booking_id as string);
     }
   }
 
   const { liveUnpaid, paid, paidUnresolved } = categorizeDepositBookings(
     rows,
-    refundedIds,
+    resolvedIds,
   );
+
+  // If Stripe is unreachable (key unset/rotated) we can neither verify the
+  // Connect balance nor cancel live intents — proceeding would orphan a
+  // chargeable intent or miss a balance. Refuse when any Stripe state exists.
+  if (!stripe && (rows.length > 0 || profile?.stripe_account_id)) {
+    return {
+      ok: false,
+      code: "ERROR",
+      message:
+        "Account deletion is temporarily unavailable. Please try again later.",
+    };
+  }
 
   // 2. Connected-account Stripe balance (available + pending). The
   //    Stripe-Account header is the request-options arg, not the params.
@@ -141,8 +164,10 @@ export async function deleteOwnAccountCore(
     }
   }
 
-  // 3. BLOCK on in-flight client money — nothing has been mutated yet.
-  if (paidUnresolved.length > 0 || connectedBalanceCents > 0) {
+  // 3. BLOCK on in-flight client money — nothing has been mutated yet. A
+  //    non-zero balance includes a NEGATIVE balance (artist owes Stripe), which
+  //    must also settle before the account can leave.
+  if (paidUnresolved.length > 0 || connectedBalanceCents !== 0) {
     return {
       ok: false,
       code: "MONEY_NOT_RESOLVED",
@@ -155,15 +180,38 @@ export async function deleteOwnAccountCore(
     };
   }
 
-  // 4. Cancel live unpaid PaymentIntents so no client can pay into a gone account.
+  // 4. Cancel live unpaid PaymentIntents so no client can pay into a gone
+  //    account. If any intent can't be CONFIRMED canceled, STOP before the
+  //    cascade — deleting its booking row would orphan a still-chargeable intent
+  //    (or strand money if it just succeeded in a race).
   if (stripe) {
+    let cancelFailed = false;
     for (const b of liveUnpaid) {
       if (!b.deposit_payment_intent_id) continue;
       try {
         await stripe.paymentIntents.cancel(b.deposit_payment_intent_id);
       } catch {
-        // already canceled/expired — idempotent best-effort
+        // cancel() also throws when the intent is already canceled/succeeded —
+        // re-read the real status; only continue if it is genuinely canceled.
+        let canceled = false;
+        try {
+          const pi = await stripe.paymentIntents.retrieve(
+            b.deposit_payment_intent_id,
+          );
+          canceled = pi.status === "canceled";
+        } catch {
+          // couldn't verify — don't risk orphaning a chargeable intent
+        }
+        if (!canceled) cancelFailed = true;
       }
+    }
+    if (cancelFailed) {
+      return {
+        ok: false,
+        code: "ERROR",
+        message:
+          "Couldn't cancel a pending card payment. Please try again in a moment.",
+      };
     }
   }
 
@@ -172,14 +220,11 @@ export async function deleteOwnAccountCore(
     const { data: orders } = await serviceClient
       .from("orders")
       .select("*")
-      .eq("artist_id", userId);
-    const anonymizedOrders = (orders ?? []).map((o) => {
-      const { client_email: _clientEmail, ...rest } = o as Record<
-        string,
-        unknown
-      >;
-      return rest;
-    });
+      .eq("artist_id", userId)
+      .in("status", ORDER_MONEY_STATES);
+    const anonymizedOrders = (orders ?? []).map((o) =>
+      anonymizeOrder(o as Record<string, unknown>),
+    );
     if (paid.length > 0 || anonymizedOrders.length > 0) {
       await serviceClient.from("deleted_account_records").insert({
         artist_id: userId,
@@ -213,7 +258,14 @@ export async function deleteOwnAccountCore(
     await serviceClient.auth.admin.deleteUser(userId);
   if (authError && !/not found|does not exist/i.test(authError.message)) {
     // Profile + all PII are already gone; an orphaned auth row (email only) is
-    // sweepable. Surface so the caller can retry the auth delete.
+    // sweepable. Record it (booking_id null → survives the cascade) so a sweep
+    // can finish the auth-email erasure without manual digging, then surface.
+    await writeAudit({
+      action: "account_auth_delete_failed",
+      actor: userId,
+      category: "system",
+      details: { message: authError.message },
+    });
     return { ok: false, code: "ERROR", message: authError.message };
   }
 
