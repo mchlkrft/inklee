@@ -1,9 +1,32 @@
 import "../global.css";
-import { ActivityIndicator, View } from "react-native";
-import { Stack } from "expo-router";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/lib/auth";
+
+// Expo Router renders this for any uncaught render error in the tree instead of
+// white-screening the whole app. Charcoal fallback + retry (re-mounts the
+// segment). Telemetry is wired in src/lib/telemetry once it lands.
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <View className="flex-1 items-center justify-center bg-charcoal px-8">
+      <Text className="text-lg font-semibold text-bone">
+        Something went wrong
+      </Text>
+      <Text className="mt-2 text-center text-sm text-shell-dim">
+        {error.message || "An unexpected error occurred."}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={retry}
+        className="mt-5 h-11 items-center justify-center rounded-xl border border-shell-border px-6 active:opacity-80"
+      >
+        <Text className="text-sm font-semibold text-bone">Try again</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 function RootNavigator() {
   const { session, loading } = useAuth();

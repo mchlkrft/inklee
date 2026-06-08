@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { config } from "./config";
 import { supabase } from "./supabase";
 
 // Thin client for the Bearer-JWT JSON API at <web>/api/mobile/*. Mirrors the
 // server envelope: success -> { data }, failure -> { error: { code, message } }.
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? "";
+const BASE = config.apiUrl;
 
 export class ApiError extends Error {
   constructor(

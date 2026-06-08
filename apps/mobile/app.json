@@ -17,7 +17,7 @@
     "android": {
       "package": "ee.inkl.app",
       "edgeToEdgeEnabled": true,
-      "permissions": [
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ]
     },

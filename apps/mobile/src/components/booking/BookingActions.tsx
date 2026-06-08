@@ -27,6 +27,7 @@ import {
   isDateKey,
   localDateKey,
 } from "@inklee/shared/date-utils";
+import { isTerminal } from "@inklee/shared/booking-fsm";
 import { artistDepositCurrency } from "@inklee/shared/connect-countries";
 
 type PayoutStatus = {
@@ -72,10 +73,11 @@ export function BookingActions({
   const isPending = status === "pending";
   const isDepositPending = status === "deposit_pending";
   const isApproved = status === "approved";
-  const isTerminal = status === "rejected" || status === "cancelled";
   const busy = pending !== null;
 
-  if (isTerminal) return null;
+  // Terminal-state check from the shared FSM (the server's source of truth)
+  // rather than a local string compare, so the gating can't drift from it.
+  if (isTerminal(status)) return null;
 
   // A paid, not-yet-refunded card deposit: refundable in-app, and an artist
   // cancel will auto-refund it. Web only ever surfaces refund alongside the

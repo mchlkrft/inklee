@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { SettingsRow } from "@/components/SettingsRow";
 import { useApiQuery } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { config } from "@/lib/config";
 import { formatMoney } from "@/lib/bookings";
 import { colors } from "@/lib/tokens";
 import type { DepositDefaults } from "@inklee/shared/deposit-settings";
@@ -49,7 +50,7 @@ type Payouts = {
 
 // The apex origin the app talks to (e.g. https://inkl.ee) — proven on-device.
 // It serves the API and the legal pages; the public bio page is a subdomain.
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? "https://inkl.ee";
+const BASE = config.apiUrl;
 
 const PAYOUT_STATUS: Record<string, { label: string; tone: string }> = {
   unset: { label: "Not set up", tone: "text-shell-dim" },
@@ -114,7 +115,7 @@ export default function MoreScreen() {
     : (profile?.location ?? (slug ? `${slug}.inkl.ee` : null));
 
   // Public bio page = a subdomain of the apex (e.g. https://jane.inkl.ee).
-  const publicUrl = slug ? BASE.replace("https://", `https://${slug}.`) : null;
+  const publicUrl = slug ? config.publicUrl(slug) : null;
   const showLogo = !!profile?.logoUrl && !avatarFailed;
 
   const payout = payouts

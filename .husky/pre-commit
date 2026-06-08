@@ -8,6 +8,11 @@ if git diff --cached -U0 | grep -E '^\+' | grep -E '(sk|rk)_(live|test)_[0-9a-zA
   exit 1
 fi
 
+# Mobile (apps/mobile): typecheck the Expo app too. Run in a subshell so it
+# doesn't disturb the `cd apps/web` below. No build — tsc catches type errors
+# (incl. the shared API-response contract) without slow Metro bundling.
+( cd apps/mobile && pnpm typecheck )
+
 # Monorepo (M0): the Next app lives in apps/web. Run its checks there.
 cd apps/web
 pnpm typecheck
