@@ -1,4 +1,5 @@
 import { FlatList, RefreshControl, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { StatusPill } from "@/components/StatusPill";
@@ -24,13 +25,13 @@ type BookingsPage = {
   nextCursor: string | null;
 };
 
-function RequestCard({ b }: { b: BookingItem }) {
+function RequestCard({ b, onPress }: { b: BookingItem; onPress: () => void }) {
   const detail = [b.placement, b.size, b.preferredDate]
     .filter(Boolean)
     .join(" · ");
   return (
     <View className="mb-2">
-      <Card>
+      <Card onPress={onPress}>
         <View className="mb-1.5 flex-row items-center justify-between">
           <Text className="flex-1 pr-2 text-base font-semibold text-bone">
             {b.client}
@@ -51,6 +52,7 @@ function RequestCard({ b }: { b: BookingItem }) {
 }
 
 export default function RequestsScreen() {
+  const router = useRouter();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<BookingsPage>("/bookings");
 
@@ -60,7 +62,12 @@ export default function RequestsScreen() {
       <FlatList
         data={data?.items ?? []}
         keyExtractor={(b) => b.id}
-        renderItem={({ item }) => <RequestCard b={item} />}
+        renderItem={({ item }) => (
+          <RequestCard
+            b={item}
+            onPress={() => router.push(`/bookings/${item.id}`)}
+          />
+        )}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

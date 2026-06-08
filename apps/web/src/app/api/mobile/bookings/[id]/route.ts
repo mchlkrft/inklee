@@ -50,6 +50,21 @@ export async function GET(
   const b = data as unknown as BookingDetail;
   const fd = b.form_data ?? {};
 
+  // RS-6: refund state is derived from the audit log (no dedicated column),
+  // exactly as the web detail page does. Only meaningful for a paid card
+  // deposit, so we only look it up then. Gates the in-app refund button and the
+  // cancel-copy so the artist isn't told a deposit will be refunded twice.
+  let depositRefunded = false;
+  if (b.deposit_payment_intent_id && b.deposit_paid_at) {
+    const { data: log } = await supabase
+      .from("audit_log")
+      .select("action")
+      .eq("booking_id", id)
+      .eq("action", "deposit_refunded")
+      .limit(1);
+    depositRefunded = !!log && log.length > 0;
+  }
+
   return mobileOk({
     id: b.id,
     status: b.status,
@@ -73,6 +88,7 @@ export async function GET(
             note: b.deposit_note,
             paid: !!b.deposit_paid_at,
             hasCardIntent: !!b.deposit_payment_intent_id,
+            refunded: depositRefunded,
           }
         : null,
   });
