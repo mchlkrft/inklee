@@ -184,18 +184,23 @@ export default function MoreScreen() {
 
         <SectionLabel>Account</SectionLabel>
         <Card>
+          <SettingsRow
+            label="Edit profile"
+            onPress={() => router.push("/settings/profile")}
+          />
+          <SettingsRow
+            label="Booking settings"
+            divider
+            onPress={() => router.push("/settings/books")}
+          />
           {publicUrl ? (
             <SettingsRow
               label="View public page"
               external
+              divider
               onPress={() => safeOpen(publicUrl)}
             />
           ) : null}
-          <SettingsRow
-            label="Timezone"
-            value={me.timezone}
-            divider={!!publicUrl}
-          />
           <SettingsRow
             label="Delete account"
             danger
@@ -207,14 +212,17 @@ export default function MoreScreen() {
         <SectionLabel>Payments</SectionLabel>
         <Card>
           <SettingsRow
-            label="Payout status"
+            label="Payouts"
             value={payout?.label ?? null}
             valueTone={payout?.tone ?? "text-shell-dim"}
+            onPress={() => router.push("/settings/payouts")}
           />
-          <SettingsRow label="Default deposit" value={depositSummary} divider />
-          <Text className="mt-2 text-xs text-shell-mute">
-            Set up payouts and deposit defaults on the web for now.
-          </Text>
+          <SettingsRow
+            label="Deposit defaults"
+            value={depositSummary}
+            divider
+            onPress={() => router.push("/settings/deposit-defaults")}
+          />
         </Card>
 
         <SectionLabel>About</SectionLabel>

@@ -140,6 +140,7 @@ function RootNavigator() {
 
       <Stack.Protected guard={onboarded}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="settings" />
         <Stack.Screen
           name="bookings/[id]"
           options={{
