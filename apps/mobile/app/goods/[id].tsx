@@ -1,0 +1,333 @@
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Image } from "expo-image";
+import { useQueryClient } from "@tanstack/react-query";
+import type { MobileProductDetail } from "@inklee/shared/mobile-api";
+import { Screen } from "@/components/Screen";
+import { Button } from "@/components/Button";
+import { TextField } from "@/components/TextField";
+import { Segmented } from "@/components/Segmented";
+import { ErrorState } from "@/components/ErrorState";
+import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
+import {
+  PRODUCT_CATEGORY_OPTIONS,
+  PRODUCT_STATUS_OPTIONS,
+  formatProductPrice,
+  isSupportedCurrency,
+  parseEuAmount,
+} from "@/lib/goods";
+import { captureError } from "@/lib/telemetry";
+import { colors } from "@/lib/tokens";
+
+type Category = (typeof PRODUCT_CATEGORY_OPTIONS)[number]["value"];
+type Status = (typeof PRODUCT_STATUS_OPTIONS)[number]["value"];
+
+function Label({ children }: { children: string }) {
+  return <Text className="mb-1.5 text-sm font-medium text-bone">{children}</Text>;
+}
+
+function invalidateGoods(client: ReturnType<typeof useQueryClient>) {
+  return client.invalidateQueries({
+    predicate: (query) =>
+      typeof query.queryKey[1] === "string" &&
+      (query.queryKey[1] as string).startsWith("/goods"),
+  });
+}
+
+export default function ProductScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const isNew = id === "new";
+  const q = useApiQuery<MobileProductDetail>(`/goods/${id}`, {
+    enabled: !isNew,
+  });
+
+  if (!isNew && !q.data) {
+    return (
+      <Screen edges={["left", "right"]}>
+        <View className="flex-1 items-center justify-center">
+          {q.loading ? (
+            <ActivityIndicator color={colors.mustard} />
+          ) : (
+            <ErrorState
+              title="Couldn't load product"
+              subtitle={q.error ?? undefined}
+              onRetry={q.refresh}
+            />
+          )}
+        </View>
+      </Screen>
+    );
+  }
+
+  return <ProductForm isNew={isNew} id={id} initial={isNew ? null : q.data!} />;
+}
+
+function ProductForm({
+  isNew,
+  id,
+  initial,
+}: {
+  isNew: boolean;
+  id: string;
+  initial: MobileProductDetail | null;
+}) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [price, setPrice] = useState(
+    initial?.price != null ? String(initial.price) : "",
+  );
+  const [currency, setCurrency] = useState(initial?.currency ?? "eur");
+  // Coerce to a known option so an enum the mobile list hasn't mirrored yet shows
+  // a real selection (and a save can't silently downgrade it on an unrelated edit).
+  const [category, setCategory] = useState<Category>(() =>
+    PRODUCT_CATEGORY_OPTIONS.some((o) => o.value === initial?.category)
+      ? (initial!.category as Category)
+      : "other",
+  );
+  const [status, setStatus] = useState<Status>(() =>
+    PRODUCT_STATUS_OPTIONS.some((o) => o.value === initial?.status)
+      ? (initial!.status as Status)
+      : "active",
+  );
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [pickupNote, setPickupNote] = useState(initial?.pickupNote ?? "");
+  const [quantity, setQuantity] = useState(
+    initial?.quantity != null ? String(initial.quantity) : "",
+  );
+  const [isPublicVisible, setIsPublicVisible] = useState(
+    initial?.isPublicVisible ?? true,
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Echo the parsed price back so a mis-typed amount (e.g. EU grouping) is
+  // visible before the artist saves.
+  const pricePreview = parseEuAmount(price);
+
+  async function save() {
+    if (!title.trim()) {
+      setError("Title is required.");
+      return;
+    }
+    const amount = parseEuAmount(price);
+    if (amount === null) {
+      setError("Enter a valid price.");
+      return;
+    }
+    const cur = currency.trim().toLowerCase() || "eur";
+    if (!isSupportedCurrency(cur)) {
+      setError("Use a supported currency code (e.g. eur, usd, gbp).");
+      return;
+    }
+    const qty = quantity.trim() === "" ? null : Number(quantity.trim());
+    if (qty !== null && (!Number.isInteger(qty) || qty < 0)) {
+      setError("Quantity must be a whole number, or leave it empty.");
+      return;
+    }
+
+    Keyboard.dismiss();
+    setSaving(true);
+    setError(null);
+    const payload = {
+      title: title.trim(),
+      price: amount,
+      currency: cur,
+      category,
+      status,
+      description: description.trim() || null,
+      pickupNote: pickupNote.trim() || null,
+      quantity: qty,
+      isPublicVisible,
+    };
+    try {
+      if (isNew) await apiPost("/goods", payload);
+      else await apiPut(`/goods/${id}`, payload);
+      await invalidateGoods(queryClient);
+      router.back();
+    } catch (e) {
+      captureError(e, { op: "saveProduct" });
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    setSaving(true);
+    setError(null);
+    try {
+      await apiDelete(`/goods/${id}`);
+      await invalidateGoods(queryClient);
+      router.back();
+    } catch (e) {
+      captureError(e, { op: "deleteProduct" });
+      setError(e instanceof Error ? e.message : "Couldn't delete. Try again.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Screen edges={["left", "right"]}>
+      <Stack.Screen options={{ title: isNew ? "New product" : "Product" }} />
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+      >
+        {!isNew && initial?.imageUrl ? (
+          <View className="mb-4 items-center">
+            <Image
+              source={{ uri: initial.imageUrl }}
+              style={{ width: 120, height: 120, borderRadius: 16 }}
+              contentFit="cover"
+            />
+            <Text className="mt-2 text-xs text-shell-mute">
+              Manage product photos on the web.
+            </Text>
+          </View>
+        ) : null}
+
+        <TextField
+          label="Title"
+          value={title}
+          onChangeText={setTitle}
+          autoCapitalize="sentences"
+        />
+
+        <View className="flex-row gap-3">
+          <View className="flex-1">
+            <TextField
+              label="Price"
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 25"
+            />
+          </View>
+          <View className="w-28">
+            <TextField
+              label="Currency"
+              value={currency}
+              onChangeText={(v) => setCurrency(v.toLowerCase())}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="eur"
+              maxLength={3}
+            />
+          </View>
+        </View>
+        {pricePreview !== null ? (
+          <Text className="-mt-1 mb-3 text-xs text-shell-mute">
+            ={" "}
+            {formatProductPrice(
+              pricePreview,
+              currency.trim().toLowerCase() || "eur",
+            )}
+          </Text>
+        ) : null}
+
+        <Label>Category</Label>
+        <Segmented
+          options={PRODUCT_CATEGORY_OPTIONS}
+          value={category}
+          onChange={setCategory}
+        />
+
+        <Label>Status</Label>
+        <Segmented
+          options={PRODUCT_STATUS_OPTIONS}
+          value={status}
+          onChange={setStatus}
+        />
+
+        <Label>Description (optional)</Label>
+        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            maxLength={500}
+            placeholder="What is it?"
+            placeholderTextColor={colors.shell.mute}
+            className="min-h-[64px] text-base text-bone"
+            style={{ textAlignVertical: "top" }}
+          />
+        </View>
+
+        <Label>Pickup note (optional)</Label>
+        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
+          <TextInput
+            value={pickupNote}
+            onChangeText={setPickupNote}
+            multiline
+            maxLength={200}
+            placeholder="e.g. collect at your appointment"
+            placeholderTextColor={colors.shell.mute}
+            className="min-h-[48px] text-base text-bone"
+            style={{ textAlignVertical: "top" }}
+          />
+        </View>
+
+        <TextField
+          label="Quantity (optional)"
+          value={quantity}
+          onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ""))}
+          keyboardType="number-pad"
+          placeholder="Leave empty for unlimited"
+        />
+
+        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] px-4 py-3">
+          <View className="flex-1 pr-3">
+            <Text className="text-base text-bone">Show on your page</Text>
+            <Text className="mt-0.5 text-sm text-shell-dim">
+              Off keeps it as a draft.
+            </Text>
+          </View>
+          <Switch
+            value={isPublicVisible}
+            onValueChange={setIsPublicVisible}
+            trackColor={{ false: "rgba(0,0,0,0.35)", true: colors.mustard }}
+            thumbColor={colors.bone}
+            ios_backgroundColor="rgba(0,0,0,0.35)"
+          />
+        </View>
+
+        {error ? (
+          <Text className="mb-3 text-sm text-danger">{error}</Text>
+        ) : null}
+
+        <Button
+          label={isNew ? "Create product" : "Save"}
+          onPress={save}
+          loading={saving}
+          disabled={!title.trim()}
+        />
+
+        {!isNew ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={remove}
+            disabled={saving}
+            className="mt-6 h-11 items-center justify-center active:opacity-70"
+          >
+            <Text className="text-sm font-semibold text-danger">
+              Delete product
+            </Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+    </Screen>
+  );
+}

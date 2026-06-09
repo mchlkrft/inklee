@@ -178,6 +178,11 @@ export default function MoreScreen() {
             onPress={() => router.push("/travel")}
           />
           <SettingsRow
+            label="Goods"
+            divider
+            onPress={() => router.push("/goods")}
+          />
+          <SettingsRow
             label="Insights"
             divider
             onPress={() => router.push("/insights")}
