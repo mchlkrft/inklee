@@ -11,9 +11,36 @@ export type MobileMe = {
   slug: string | null;
   displayName: string | null;
   timezone: string;
+  bookingMode: string;
+  booksOpen: boolean;
   onboardingCompleted: boolean;
   plan: string;
   canCollectDeposits: boolean;
+};
+
+/** GET /api/mobile/onboarding/slug-check?slug= — live availability for the claim screen. */
+export type MobileSlugCheck = {
+  slug: string;
+  available: boolean;
+  owned: boolean;
+  error: string | null;
+};
+
+/** POST /api/mobile/onboarding/profile — result of claiming the booking link. */
+export type MobileOnboardingProfile = {
+  slug: string;
+  displayName: string;
+};
+
+/** POST /api/mobile/onboarding/booking — result of the booking-setup write. */
+export type MobileOnboardingBooking = {
+  bookingMode: string;
+  booksOpen: boolean;
+};
+
+/** POST /api/mobile/onboarding/complete — onboarding marked done. */
+export type MobileOnboardingComplete = {
+  onboardingCompleted: true;
 };
 
 /** GET /api/mobile/settings/profile — the editable profile fields. */
