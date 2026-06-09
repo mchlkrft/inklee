@@ -319,6 +319,35 @@ export type MobileTrip = {
 
 export type MobileTripsResponse = { items: MobileTrip[] };
 
+/** One product row in the goods showcase list (GET /api/mobile/goods). */
+export type MobileProduct = {
+  id: string;
+  title: string;
+  category: string;
+  price: number;
+  currency: string;
+  status: string; // active | hidden | sold_out
+  isPublicVisible: boolean;
+  imageUrl: string | null;
+};
+
+export type MobileProductsResponse = { items: MobileProduct[] };
+
+/** GET /api/mobile/goods/:id — the full editable product (metadata only). */
+export type MobileProductDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  price: number;
+  currency: string;
+  status: string;
+  pickupNote: string | null;
+  quantity: number | null;
+  isPublicVisible: boolean;
+  imageUrl: string | null;
+};
+
 /** GET /api/mobile/travel/trips/:id — a trip with its legs + the artist's studios. */
 export type MobileTripDetail = {
   id: string;
