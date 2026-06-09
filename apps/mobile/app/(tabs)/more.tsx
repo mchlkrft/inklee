@@ -173,6 +173,11 @@ export default function MoreScreen() {
         <Card>
           <SettingsRow label="Flash" onPress={() => router.push("/flash")} />
           <SettingsRow
+            label="Guest spots"
+            divider
+            onPress={() => router.push("/travel")}
+          />
+          <SettingsRow
             label="Insights"
             divider
             onPress={() => router.push("/insights")}

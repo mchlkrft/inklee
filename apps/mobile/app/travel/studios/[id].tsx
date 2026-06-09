@@ -1,0 +1,229 @@
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  VISIBILITY_MODES,
+  type VisibilityMode,
+} from "@inklee/shared/studio-validation";
+import type { MobileStudio } from "@inklee/shared/mobile-api";
+import { Screen } from "@/components/Screen";
+import { Button } from "@/components/Button";
+import { TextField } from "@/components/TextField";
+import { RadioList } from "@/components/RadioList";
+import { ErrorState } from "@/components/ErrorState";
+import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { VISIBILITY_OPTIONS } from "@/lib/travel";
+import { captureError } from "@/lib/telemetry";
+import { colors } from "@/lib/tokens";
+
+function invalidateTravel(client: QueryClient) {
+  return client.invalidateQueries({
+    predicate: (query) =>
+      typeof query.queryKey[1] === "string" &&
+      (query.queryKey[1] as string).startsWith("/travel"),
+  });
+}
+
+function Label({ children }: { children: string }) {
+  return <Text className="mb-1.5 text-sm font-medium text-bone">{children}</Text>;
+}
+
+export default function StudioScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const isNew = id === "new";
+  const q = useApiQuery<MobileStudio>(`/travel/studios/${id}`, {
+    enabled: !isNew,
+  });
+
+  if (!isNew && !q.data) {
+    return (
+      <Screen edges={["left", "right"]}>
+        <View className="flex-1 items-center justify-center">
+          {q.loading ? (
+            <ActivityIndicator color={colors.mustard} />
+          ) : (
+            <ErrorState
+              title="Couldn't load studio"
+              subtitle={q.error ?? undefined}
+              onRetry={q.refresh}
+            />
+          )}
+        </View>
+      </Screen>
+    );
+  }
+
+  return <StudioForm isNew={isNew} id={id} initial={isNew ? null : q.data!} />;
+}
+
+function StudioForm({
+  isNew,
+  id,
+  initial,
+}: {
+  isNew: boolean;
+  id: string;
+  initial: MobileStudio | null;
+}) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const [name, setName] = useState(initial?.name ?? "");
+  const [city, setCity] = useState(initial?.city ?? "");
+  const [country, setCountry] = useState(initial?.country ?? "");
+  const [address, setAddress] = useState(initial?.address ?? "");
+  const [publicNote, setPublicNote] = useState(initial?.publicNote ?? "");
+  const [visibility, setVisibility] = useState<VisibilityMode>(() => {
+    const v = initial?.visibilityMode;
+    return (VISIBILITY_MODES as readonly string[]).includes(v ?? "")
+      ? (v as VisibilityMode)
+      : "hidden";
+  });
+  const [isPrimary, setIsPrimary] = useState(initial?.isPrimary ?? false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (!name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    Keyboard.dismiss();
+    setSaving(true);
+    setError(null);
+    const payload = {
+      name: name.trim(),
+      city: city.trim(),
+      country: country.trim(),
+      address: address.trim() || null,
+      public_note: publicNote.trim() || null,
+      visibility_mode: visibility,
+      is_primary: isPrimary,
+    };
+    try {
+      if (isNew) await apiPost("/travel/studios", payload);
+      else await apiPut(`/travel/studios/${id}`, payload);
+      await invalidateTravel(queryClient);
+      router.back();
+    } catch (e) {
+      captureError(e, { op: "saveStudio" });
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    setSaving(true);
+    setError(null);
+    try {
+      await apiDelete(`/travel/studios/${id}`);
+      await invalidateTravel(queryClient);
+      router.back();
+    } catch (e) {
+      captureError(e, { op: "deleteStudio" });
+      setError(e instanceof Error ? e.message : "Couldn't delete. Try again.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Screen edges={["left", "right"]}>
+      <Stack.Screen options={{ title: isNew ? "New studio" : "Studio" }} />
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+      >
+        <TextField
+          label="Name"
+          value={name}
+          onChangeText={setName}
+          placeholder="Studio name"
+          autoCapitalize="words"
+        />
+        <TextField
+          label="City"
+          value={city}
+          onChangeText={setCity}
+          autoCapitalize="words"
+        />
+        <TextField
+          label="Country"
+          value={country}
+          onChangeText={setCountry}
+          autoCapitalize="words"
+        />
+        <TextField
+          label="Address (optional)"
+          value={address}
+          onChangeText={setAddress}
+        />
+
+        <Label>Public note (optional)</Label>
+        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
+          <TextInput
+            value={publicNote}
+            onChangeText={setPublicNote}
+            multiline
+            placeholder="Shown to clients when this studio is public"
+            placeholderTextColor={colors.shell.mute}
+            className="min-h-[56px] text-base text-bone"
+            style={{ textAlignVertical: "top" }}
+          />
+        </View>
+
+        <Label>Visibility</Label>
+        <RadioList
+          options={VISIBILITY_OPTIONS}
+          value={visibility}
+          onChange={setVisibility}
+        />
+
+        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] px-4 py-3">
+          <Text className="text-base text-bone">Primary studio</Text>
+          <Switch
+            value={isPrimary}
+            onValueChange={setIsPrimary}
+            trackColor={{ false: "rgba(0,0,0,0.35)", true: colors.mustard }}
+            thumbColor={colors.bone}
+            ios_backgroundColor="rgba(0,0,0,0.35)"
+          />
+        </View>
+
+        {error ? (
+          <Text className="mb-3 text-sm text-danger">{error}</Text>
+        ) : null}
+
+        <Button
+          label={isNew ? "Create studio" : "Save"}
+          onPress={save}
+          loading={saving}
+          disabled={!name.trim()}
+        />
+
+        {!isNew ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={remove}
+            disabled={saving}
+            className="mt-6 h-11 items-center justify-center active:opacity-70"
+          >
+            <Text className="text-sm font-semibold text-danger">
+              Delete studio
+            </Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+    </Screen>
+  );
+}

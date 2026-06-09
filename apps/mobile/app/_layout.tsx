@@ -142,6 +142,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="flash" />
+        <Stack.Screen name="travel" />
         <Stack.Screen
           name="bookings/[id]"
           options={{
