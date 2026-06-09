@@ -4,9 +4,80 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { normalizeBooksConfig } from "@/lib/mobile-settings";
 import { writeAudit } from "@/lib/audit";
+import type { BooksSettings } from "@inklee/shared/books-settings";
 
 export const runtime = "nodejs";
+
+// GET /api/mobile/settings/books — the full books settings for the edit screen
+// (the Home toggle reads booksOpen off /home; this is the settings form's source).
+export async function GET(req: Request) {
+  const auth = await requireMobileUser(req);
+  if (!auth.ok) return mobileError(auth.status, auth.error);
+  const { userId, supabase } = auth;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", userId)
+    .single();
+  if (error || !data) {
+    return mobileError(500, error?.message ?? "Profile not found.");
+  }
+  const settings = (data.settings ?? {}) as Record<string, unknown>;
+  const body: BooksSettings = parseBooksSettings(settings.books_settings);
+  return mobileOk(body);
+}
+
+// PUT /api/mobile/settings/books — save the full books settings form (open + cap
+// + window + closed message). Ports saveBooksSettingsAction, but preserves the
+// booking-form theme (form_appearance) the app doesn't edit. The Home toggle uses
+// POST (open-only) below.
+export async function PUT(req: Request) {
+  const auth = await requireMobileUser(req);
+  if (!auth.ok) return mobileError(auth.status, auth.error);
+  const { userId, supabase } = auth;
+
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    return mobileError(400, "Invalid JSON body.");
+  }
+
+  const { data: profile, error: readError } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", userId)
+    .single();
+  if (readError || !profile) {
+    return mobileError(500, readError?.message ?? "Profile not found.");
+  }
+  const current = (profile.settings ?? {}) as Record<string, unknown>;
+  const currentBooks = parseBooksSettings(current.books_settings);
+
+  const parsed = normalizeBooksConfig(raw, currentBooks);
+  if (!parsed.ok) return mobileError(400, parsed.error);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      settings: { ...current, books_settings: parsed.value },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+  if (error) return mobileError(500, error.message);
+
+  void writeAudit({
+    action: parsed.value.books_open ? "books_opened" : "books_closed",
+    actor: userId,
+    category: "settings",
+    details: { books_open: parsed.value.books_open },
+  });
+
+  return mobileOk(parsed.value);
+}
 
 // POST /api/mobile/settings/books  { open: boolean } — flip the artist's books
 // open/closed (the "one source of truth" control). Preserves the other

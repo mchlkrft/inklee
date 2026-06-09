@@ -54,12 +54,18 @@ export type MobileProfile = {
   instagramHandle: string | null;
 };
 
-/** GET /api/mobile/settings/payouts — the artist's stored Stripe Connect payout status. */
+/** GET/POST /api/mobile/settings/payouts — the artist's stored Stripe Connect payout status. */
 export type MobilePayouts = {
   status: string;
   chargesEnabled: boolean;
   payoutsEnabled: boolean;
   country: string | null;
+};
+
+/** POST /api/mobile/settings/connect-link — a one-time link that opens the web
+ *  Connect KYC (or another artist settings page) authed in an in-app browser. */
+export type MobileConnectLink = {
+  url: string;
 };
 
 /** One booking row in the Home aggregate (pending / upcoming). */
