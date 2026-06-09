@@ -276,3 +276,55 @@ export type MobileFlashDay = {
 };
 
 export type MobileFlashDaysResponse = { items: MobileFlashDay[] };
+
+/** One studio (GET /api/mobile/travel/studios). */
+export type MobileStudio = {
+  id: string;
+  name: string;
+  city: string | null;
+  country: string | null;
+  address: string | null;
+  publicNote: string | null;
+  visibilityMode: string;
+  isPrimary: boolean;
+};
+
+export type MobileStudiosResponse = { items: MobileStudio[] };
+
+/** A studio as a picker option on a trip leg. */
+export type MobileStudioOption = {
+  id: string;
+  name: string;
+  city: string | null;
+};
+
+/** One leg (date range + optional studio) of a trip. */
+export type MobileTripLeg = {
+  id: string;
+  startsOn: string;
+  endsOn: string;
+  studioId: string | null;
+  studioName: string | null;
+  notes: string | null;
+};
+
+/** One trip row (GET /api/mobile/travel/trips). */
+export type MobileTrip = {
+  id: string;
+  title: string;
+  description: string | null;
+  showOnBookingForm: boolean;
+  legCount: number;
+};
+
+export type MobileTripsResponse = { items: MobileTrip[] };
+
+/** GET /api/mobile/travel/trips/:id — a trip with its legs + the artist's studios. */
+export type MobileTripDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  showOnBookingForm: boolean;
+  legs: MobileTripLeg[];
+  studios: MobileStudioOption[];
+};

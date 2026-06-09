@@ -16,7 +16,7 @@ export const VISIBILITY_LABELS: Record<VisibilityMode, string> = {
   hidden: "Hide from booking form",
 };
 
-const studioSchema = z.object({
+export const studioSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   city: z.string().max(100).optional().default(""),
   country: z.string().max(100).optional().default(""),
