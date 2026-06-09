@@ -9,7 +9,6 @@ import {
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Image } from "expo-image";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MobileProductDetail } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
@@ -17,6 +16,7 @@ import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
 import { DangerButton } from "@/components/DangerButton";
+import { ImageUploadField } from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
 import {
@@ -186,18 +186,24 @@ function ProductForm({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
       >
-        {!isNew && initial?.imageUrl ? (
-          <View className="mb-4 items-center">
-            <Image
-              source={{ uri: initial.imageUrl }}
-              style={{ width: 120, height: 120, borderRadius: 16 }}
-              contentFit="cover"
-            />
-            <Text className="mt-2 text-xs text-shell-mute">
-              Manage product photos on the web.
-            </Text>
-          </View>
-        ) : null}
+        {!isNew ? (
+          <ImageUploadField
+            label="Photo"
+            imageUrl={initial?.imageUrl ?? null}
+            endpoint={`/goods/${id}/image`}
+            onUploaded={() =>
+              queryClient.invalidateQueries({
+                predicate: (q) =>
+                  typeof q.queryKey[1] === "string" &&
+                  (q.queryKey[1] as string).startsWith("/goods"),
+              })
+            }
+          />
+        ) : (
+          <Text className="mb-4 text-center text-xs text-shell-mute">
+            Save the product, then reopen it to add a photo.
+          </Text>
+        )}
 
         <TextField
           label="Title"

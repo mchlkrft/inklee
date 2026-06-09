@@ -15,6 +15,7 @@ import type { MobileProfile } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
+import { ImageUploadField } from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
@@ -94,6 +95,14 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
       >
+        <ImageUploadField
+          label="Logo"
+          imageUrl={initial.logoUrl}
+          endpoint="/settings/profile/logo"
+          shape="circle"
+          onUploaded={() => invalidateIdentity(queryClient)}
+        />
+
         <TextField
           label="Artist / studio name"
           value={displayName}

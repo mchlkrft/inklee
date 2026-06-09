@@ -77,6 +77,35 @@ export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
   return json.data as T;
 }
 
+// Multipart upload (image picker → /api/mobile/.../image). No explicit
+// Content-Type so fetch sets the multipart boundary; the RN file descriptor
+// ({uri,name,type}) is what FormData expects on native.
+export async function apiUpload<T>(
+  path: string,
+  file: { uri: string; name: string; type: string },
+): Promise<T> {
+  const form = new FormData();
+  form.append("image", {
+    uri: file.uri,
+    name: file.name,
+    type: file.type,
+  } as unknown as Blob);
+  const res = await fetch(`${BASE}/api/mobile${path}`, {
+    method: "POST",
+    headers: { ...(await authHeader()) },
+    body: form,
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(
+      json?.error?.message ?? `Upload failed (${res.status})`,
+      res.status,
+      json?.error?.code ?? "error",
+    );
+  }
+  return json.data as T;
+}
+
 export async function apiDelete<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     method: "DELETE",

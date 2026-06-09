@@ -9,13 +9,13 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Image } from "expo-image";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MobileFlashItemDetail } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
+import { ImageUploadField } from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPut } from "@/lib/api";
 import {
@@ -175,18 +175,18 @@ function ItemForm({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
       >
-        {initial.previewImageUrl ? (
-          <View className="mb-4 items-center">
-            <Image
-              source={{ uri: initial.previewImageUrl }}
-              style={{ width: 120, height: 120, borderRadius: 16 }}
-              contentFit="cover"
-            />
-            <Text className="mt-2 text-xs text-shell-mute">
-              Change the image on the web.
-            </Text>
-          </View>
-        ) : null}
+        <ImageUploadField
+          label="Design image"
+          imageUrl={initial.previewImageUrl}
+          endpoint={`/flash/items/${id}/image`}
+          onUploaded={() =>
+            queryClient.invalidateQueries({
+              predicate: (q) =>
+                typeof q.queryKey[1] === "string" &&
+                (q.queryKey[1] as string).startsWith("/flash"),
+            })
+          }
+        />
 
         <TextField
           label="Title"
