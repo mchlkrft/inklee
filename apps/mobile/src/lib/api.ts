@@ -99,7 +99,7 @@ type ApiQuery<T> = {
  */
 export function useApiQuery<T>(
   path: string,
-  opts?: { keepPrevious?: boolean },
+  opts?: { keepPrevious?: boolean; enabled?: boolean },
 ): ApiQuery<T> {
   const q = useQuery({
     queryKey: ["api", path],
@@ -108,6 +108,9 @@ export function useApiQuery<T>(
     // the previous result visible during the swap instead of blanking to a
     // spinner. Off by default (calendar deliberately drops stale cross-month data).
     placeholderData: opts?.keepPrevious ? keepPreviousData : undefined,
+    // Gate the fetch on a precondition (e.g. /me only once a session exists).
+    // undefined → enabled (the default for every other screen).
+    enabled: opts?.enabled,
   });
   return {
     data: q.data ?? null,
@@ -116,7 +119,10 @@ export function useApiQuery<T>(
         ? q.error.message
         : "Something went wrong."
       : null,
-    loading: q.isLoading,
+    // A disabled query (enabled:false) reports status "pending" in v5; gate on
+    // fetchStatus so it never reports loading:true — otherwise a screen that
+    // renders a spinner off `loading` would spin forever while the query is off.
+    loading: q.isLoading && q.fetchStatus !== "idle",
     // Background refetch (pull-to-refresh / invalidation) while data is present.
     refreshing: q.isFetching && !q.isLoading,
     refresh: () => {
@@ -138,6 +144,24 @@ export function invalidateBookingViews(client: QueryClient): Promise<void> {
       return (
         typeof path === "string" &&
         BOOKING_VIEW_PREFIXES.some((p) => path.startsWith(p))
+      );
+    },
+  });
+}
+
+// Identity / onboarding-scoped views. `invalidateBookingViews` covers /home but
+// not /me — completing onboarding invalidates these so the root navigator's /me
+// gate re-reads `onboardingCompleted` and swaps the onboarding stack for the
+// tabs (the same elegant pattern as the session gate).
+const IDENTITY_VIEW_PREFIXES = ["/me", "/home", "/settings/profile"];
+
+export function invalidateIdentity(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({
+    predicate: (query) => {
+      const path = query.queryKey[1];
+      return (
+        typeof path === "string" &&
+        IDENTITY_VIEW_PREFIXES.some((p) => path.startsWith(p))
       );
     },
   });
