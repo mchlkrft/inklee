@@ -171,8 +171,10 @@ export default function MoreScreen() {
 
         <SectionLabel>Grow</SectionLabel>
         <Card>
+          <SettingsRow label="Flash" onPress={() => router.push("/flash")} />
           <SettingsRow
             label="Insights"
+            divider
             onPress={() => router.push("/insights")}
           />
           <SettingsRow
