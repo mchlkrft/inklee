@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -13,6 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "./supabase";
 import { track } from "./analytics";
+import { deregisterPushTokenAsync, registerPushTokenAsync } from "./push";
 
 // Lets expo-web-browser tear down the auth session cleanly once the OAuth
 // redirect comes back to the app.
@@ -38,6 +40,10 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const userId = session?.user?.id;
+  // The Expo push token for this device, held so signOut can deregister it
+  // while the session (and thus the Bearer token) is still valid.
+  const pushTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -49,6 +55,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Register this device for push once a user is signed in (re-runs only when
+  // the user changes, not on token refresh; the server upsert makes a repeat
+  // harmless). Deregistration happens in signOut, before the session is cleared.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    registerPushTokenAsync().then((token) => {
+      // If the user changed / signed out before this resolved, drop the token
+      // instead of writing a now-stale ref. A device_tokens row the server may
+      // have already upserted is benign and self-heals — the next sign-in on
+      // this device reclaims the token via the unique-on-token upsert.
+      if (!cancelled && token) pushTokenRef.current = token;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const value = useMemo<AuthState>(
     () => ({
@@ -116,6 +140,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         track("sign_in", { method: "apple" });
       },
       signOut: async () => {
+        // Deregister while still authenticated; deregister swallows its own
+        // errors so a failure here never blocks sign-out.
+        const token = pushTokenRef.current;
+        if (token) {
+          await deregisterPushTokenAsync(token);
+          pushTokenRef.current = null;
+        }
         await supabase.auth.signOut();
       },
     }),

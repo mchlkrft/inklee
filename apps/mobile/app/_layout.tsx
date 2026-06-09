@@ -12,6 +12,7 @@ import {
 import type { MobileMe } from "@inklee/shared/mobile-api";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useApiQuery } from "@/lib/api";
+import { usePushResponseObserver } from "@/lib/push";
 import { captureError } from "@/lib/telemetry";
 import { t } from "@/lib/i18n";
 
@@ -109,6 +110,11 @@ function RootNavigator() {
   const meReady = !!me.data && me.data.userId === userId;
   const needsOnboarding = meReady && me.data?.onboardingCompleted !== true;
   const onboarded = meReady && me.data?.onboardingCompleted === true;
+
+  // Deep-link a tapped push notification to its screen. Gated on `onboarded` so
+  // it never targets a route that isn't mounted (the protected stack); a tap
+  // that lands during cold start is routed once the gate resolves.
+  usePushResponseObserver(onboarded);
 
   // Session bootstrapping.
   if (loading) return <Splash />;
