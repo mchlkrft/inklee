@@ -220,3 +220,59 @@ export type MobileClientDetail = {
   bookingCount: number;
   history: MobileClientHistoryItem[];
 };
+
+/** One flash item row in the artist's flash list (GET /api/mobile/flash/items). */
+export type MobileFlashItem = {
+  id: string;
+  title: string;
+  status: string; // draft | published | archived
+  priceType: string; // fixed | from | request
+  price: number | null;
+  isBookable: boolean;
+  previewImageUrl: string | null;
+  bookingMode: string; // unique | limited | repeatable
+  flashDayId: string | null;
+};
+
+export type MobileFlashItemsResponse = { items: MobileFlashItem[] };
+
+/** One of the artist's flash days, as an option for the item's day picker. */
+export type MobileFlashDayOption = {
+  id: string;
+  title: string;
+  scheduledOn: string | null;
+};
+
+/** GET /api/mobile/flash/items/:id — full editable item + the artist's flash days. */
+export type MobileFlashItemDetail = {
+  id: string;
+  title: string;
+  status: string;
+  priceType: string;
+  price: number | null;
+  shortDescription: string | null;
+  sizeInfo: string | null;
+  placementNotes: string | null;
+  bookingMode: string;
+  maxBookings: number | null;
+  isBookable: boolean;
+  availableFrom: string | null;
+  availableUntil: string | null;
+  flashDayId: string | null;
+  previewImageUrl: string | null;
+  flashDays: MobileFlashDayOption[];
+};
+
+/** One flash day (GET /api/mobile/flash/days, GET /api/mobile/flash/days/:id). */
+export type MobileFlashDay = {
+  id: string;
+  title: string;
+  scheduledOn: string | null;
+  location: string | null;
+  description: string | null;
+  status: string; // upcoming | active | past | cancelled
+  isPublic: boolean;
+  itemCount: number;
+};
+
+export type MobileFlashDaysResponse = { items: MobileFlashDay[] };
