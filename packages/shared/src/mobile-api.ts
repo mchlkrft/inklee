@@ -319,6 +319,9 @@ export type MobileTrip = {
 
 export type MobileTripsResponse = { items: MobileTrip[] };
 
+/** POST /api/mobile/.../image — the public URL of a freshly uploaded image. */
+export type MobileImageUpload = { url: string };
+
 /** One product row in the goods showcase list (GET /api/mobile/goods). */
 export type MobileProduct = {
   id: string;
