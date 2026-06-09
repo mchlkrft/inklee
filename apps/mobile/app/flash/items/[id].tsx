@@ -5,9 +5,9 @@ import {
   ScrollView,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MobileFlashItemDetail } from "@inklee/shared/mobile-api";
@@ -246,18 +246,13 @@ function ItemForm({
         ) : null}
 
         <Label>Short description</Label>
-        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={shortDescription}
-            onChangeText={setShortDescription}
-            multiline
-            maxLength={280}
-            placeholder="A short line clients see"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[56px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
+        <TextArea
+          value={shortDescription}
+          onChangeText={setShortDescription}
+          maxLength={280}
+          placeholder="A short line clients see"
+          minHeight={56}
+        />
 
         <TextField
           label="Size"

@@ -4,9 +4,9 @@ import {
   Keyboard,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DepositDefaults } from "@inklee/shared/deposit-settings";
@@ -132,21 +132,13 @@ function DepositForm({ initial }: { initial: DepositDefaults }) {
         <Text className="mb-1.5 text-sm font-medium text-bone">
           Note to client (optional)
         </Text>
-        <View className="rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            multiline
-            maxLength={NOTE_MAX}
-            placeholder="Shown in the deposit request email"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[64px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
-        <Text className="mb-3 mt-1 text-right text-xs text-shell-mute">
-          {note.length}/{NOTE_MAX}
-        </Text>
+        <TextArea
+          value={note}
+          onChangeText={setNote}
+          maxLength={NOTE_MAX}
+          placeholder="Shown in the deposit request email"
+          showCounter
+        />
 
         {error ? (
           <Text className="mb-3 text-sm text-danger">{error}</Text>

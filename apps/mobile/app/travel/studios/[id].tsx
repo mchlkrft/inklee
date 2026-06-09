@@ -5,9 +5,9 @@ import {
   ScrollView,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
@@ -170,17 +170,12 @@ function StudioForm({
         />
 
         <Label>Public note (optional)</Label>
-        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={publicNote}
-            onChangeText={setPublicNote}
-            multiline
-            placeholder="Shown to clients when this studio is public"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[56px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
+        <TextArea
+          value={publicNote}
+          onChangeText={setPublicNote}
+          placeholder="Shown to clients when this studio is public"
+          minHeight={56}
+        />
 
         <Label>Visibility</Label>
         <RadioList

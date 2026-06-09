@@ -6,9 +6,9 @@ import {
   ScrollView,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
@@ -116,17 +116,11 @@ function CreateTrip() {
           autoCapitalize="sentences"
         />
         <Label>Description (optional)</Label>
-        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            placeholder="Details clients see"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[64px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
+        <TextArea
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Details clients see"
+        />
         <ShowToggle value={show} onChange={setShow} />
         {error ? (
           <Text className="mb-3 text-sm text-danger">{error}</Text>
@@ -202,17 +196,11 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           autoCapitalize="sentences"
         />
         <Label>Description (optional)</Label>
-        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            placeholder="Details clients see"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[64px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
+        <TextArea
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Details clients see"
+        />
         <ShowToggle value={show} onChange={setShow} />
         <Button label="Save trip" onPress={saveTrip} loading={saving} />
 

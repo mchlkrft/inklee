@@ -5,9 +5,9 @@ import {
   ScrollView,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MobileProductDetail } from "@inklee/shared/mobile-api";
@@ -259,32 +259,21 @@ function ProductForm({
         />
 
         <Label>Description (optional)</Label>
-        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            maxLength={500}
-            placeholder="What is it?"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[64px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
+        <TextArea
+          value={description}
+          onChangeText={setDescription}
+          maxLength={500}
+          placeholder="What is it?"
+        />
 
         <Label>Pickup note (optional)</Label>
-        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={pickupNote}
-            onChangeText={setPickupNote}
-            multiline
-            maxLength={200}
-            placeholder="e.g. collect at your appointment"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[48px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
+        <TextArea
+          value={pickupNote}
+          onChangeText={setPickupNote}
+          maxLength={200}
+          placeholder="e.g. collect at your appointment"
+          minHeight={48}
+        />
 
         <TextField
           label="Quantity (optional)"

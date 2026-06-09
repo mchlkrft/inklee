@@ -5,9 +5,9 @@ import {
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { useRouter } from "expo-router";
 import { getCalendars } from "expo-localization";
 import { useQueryClient } from "@tanstack/react-query";
@@ -111,21 +111,14 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
         />
 
         <Text className="mb-1.5 text-sm font-medium text-bone">Bio</Text>
-        <View className="rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={bio}
-            onChangeText={setBio}
-            multiline
-            maxLength={BIO_MAX}
-            placeholder="A short line clients see on your page"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[72px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
-        <Text className="mb-3 mt-1 text-right text-xs text-shell-mute">
-          {bio.length}/{BIO_MAX}
-        </Text>
+        <TextArea
+          value={bio}
+          onChangeText={setBio}
+          maxLength={BIO_MAX}
+          placeholder="A short line clients see on your page"
+          minHeight={72}
+          showCounter
+        />
 
         <TextField
           label="Instagram"

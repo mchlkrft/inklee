@@ -5,9 +5,9 @@ import {
   ScrollView,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MobileFlashDay } from "@inklee/shared/mobile-api";
@@ -145,17 +145,11 @@ function DayForm({
         />
 
         <Label>Description (optional)</Label>
-        <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            placeholder="Details clients see on the public day page"
-            placeholderTextColor={colors.shell.mute}
-            className="min-h-[64px] text-base text-bone"
-            style={{ textAlignVertical: "top" }}
-          />
-        </View>
+        <TextArea
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Details clients see on the public day page"
+        />
 
         <Label>Status</Label>
         <Segmented options={DAY_STATUS_OPTIONS} value={status} onChange={setStatus} />

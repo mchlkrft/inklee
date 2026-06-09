@@ -5,9 +5,9 @@ import {
   ScrollView,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { TextArea } from "@/components/TextArea";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { BooksSettings } from "@inklee/shared/books-settings";
@@ -135,21 +135,13 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
             <Text className="mb-1.5 text-sm font-medium text-bone">
               Closed message (optional)
             </Text>
-            <View className="rounded-xl border border-shell-border px-4 py-3">
-              <TextInput
-                value={closedMessage}
-                onChangeText={setClosedMessage}
-                multiline
-                maxLength={CLOSED_MESSAGE_MAX}
-                placeholder="Books reopen in July"
-                placeholderTextColor={colors.shell.mute}
-                className="min-h-[64px] text-base text-bone"
-                style={{ textAlignVertical: "top" }}
-              />
-            </View>
-            <Text className="mb-3 mt-1 text-right text-xs text-shell-mute">
-              {closedMessage.length}/{CLOSED_MESSAGE_MAX}
-            </Text>
+            <TextArea
+              value={closedMessage}
+              onChangeText={setClosedMessage}
+              maxLength={CLOSED_MESSAGE_MAX}
+              placeholder="Books reopen in July"
+              showCounter
+            />
           </>
         ) : null}
 
