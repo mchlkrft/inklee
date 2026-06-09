@@ -6,6 +6,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { BooksToggle } from "@/components/BooksToggle";
 import { useApiQuery } from "@/lib/api";
 import { colors } from "@/lib/tokens";
+import { useScreenView } from "@/lib/analytics";
 import type {
   MobileHome,
   MobileHomeBooking,
@@ -35,6 +36,7 @@ function BookingRow({ b }: { b: MobileHomeBooking }) {
 }
 
 export default function HomeScreen() {
+  useScreenView("home");
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileHome>("/home");
 

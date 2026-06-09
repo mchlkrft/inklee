@@ -20,6 +20,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { RadioList } from "@/components/RadioList";
+import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { formatDateRange } from "@/lib/travel";
@@ -244,14 +245,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           <Text className="mt-3 text-sm text-danger">{error}</Text>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={deleteTrip}
-          disabled={saving}
-          className="mt-8 h-11 items-center justify-center active:opacity-70"
-        >
-          <Text className="text-sm font-semibold text-danger">Delete trip</Text>
-        </Pressable>
+        <DangerButton label="Delete trip" onPress={deleteTrip} disabled={saving} />
       </ScrollView>
     </Screen>
   );

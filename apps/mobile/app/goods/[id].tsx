@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
-  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -17,6 +16,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
+import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
 import {
@@ -316,16 +316,11 @@ function ProductForm({
         />
 
         {!isNew ? (
-          <Pressable
-            accessibilityRole="button"
+          <DangerButton
+            label="Delete product"
             onPress={remove}
             disabled={saving}
-            className="mt-6 h-11 items-center justify-center active:opacity-70"
-          >
-            <Text className="text-sm font-semibold text-danger">
-              Delete product
-            </Text>
-          </Pressable>
+          />
         ) : null}
       </ScrollView>
     </Screen>

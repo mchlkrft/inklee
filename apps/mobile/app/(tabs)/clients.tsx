@@ -10,6 +10,7 @@ import { useApiQuery } from "@/lib/api";
 import type { ClientListItem } from "@/lib/clients";
 import { relativeTime } from "@/lib/date";
 import { colors } from "@/lib/tokens";
+import { useScreenView } from "@/lib/analytics";
 
 function ClientRow({
   item,
@@ -45,6 +46,7 @@ function ClientRow({
 }
 
 export default function ClientsScreen() {
+  useScreenView("clients");
   const router = useRouter();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<{ items: ClientListItem[] }>("/clients");

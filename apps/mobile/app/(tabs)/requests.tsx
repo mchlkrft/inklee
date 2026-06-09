@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { colors } from "@/lib/tokens";
+import { useScreenView } from "@/lib/analytics";
 import type {
   MobileBookingListItem,
   MobileBookingsPage,
@@ -44,6 +45,7 @@ function RequestCard({
 }
 
 export default function RequestsScreen() {
+  useScreenView("requests");
   const router = useRouter();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileBookingsPage>("/bookings");

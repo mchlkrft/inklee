@@ -12,6 +12,7 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "./supabase";
+import { track } from "./analytics";
 
 // Lets expo-web-browser tear down the auth session cleanly once the OAuth
 // redirect comes back to the app.
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password,
         });
         if (error) throw new Error(error.message);
+        track("sign_in", { method: "password" });
       },
       // Google: open Supabase's OAuth URL in an in-app browser, then exchange
       // the returned PKCE code for a session. Mirrors the web GoogleAuthButton
@@ -91,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error: exchangeError } =
           await supabase.auth.exchangeCodeForSession(code);
         if (exchangeError) throw new Error(exchangeError.message);
+        track("sign_in", { method: "google" });
       },
       // Apple (iOS only): native Sign in with Apple → exchange the identity
       // token for a Supabase session. Required by App Store review because we
@@ -110,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           token: credential.identityToken,
         });
         if (error) throw new Error(error.message);
+        track("sign_in", { method: "apple" });
       },
       signOut: async () => {
         await supabase.auth.signOut();

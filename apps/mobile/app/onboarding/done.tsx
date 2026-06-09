@@ -17,6 +17,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { useApiQuery, apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
+import { track } from "@/lib/analytics";
 import { config } from "@/lib/config";
 import { colors } from "@/lib/tokens";
 
@@ -34,6 +35,7 @@ export default function YoureLive() {
     setError(null);
     try {
       await apiPost<MobileOnboardingComplete>("/onboarding/complete");
+      track("onboarding_completed");
       // Flip the gate deterministically off the cache, NOT the refetch:
       // invalidateIdentity resolves even when its background /me refetch fails,
       // which could strand the artist on a spinning button after the server has

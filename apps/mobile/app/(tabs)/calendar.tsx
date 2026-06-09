@@ -11,12 +11,14 @@ import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { DayAgenda } from "@/components/calendar/DayAgenda";
 import { useCalendarMonth } from "@/lib/calendar";
 import { colors } from "@/lib/tokens";
+import { useScreenView } from "@/lib/analytics";
 
 // Month grid of confirmed appointments + the selected day's agenda. Tapping an
 // appointment opens the shared booking detail screen. Trips, flash, slots and
 // appointment-create are web-only for now (the mobile calendar endpoint is
 // approved-bookings-only) — see E5 follow-ups.
 export default function CalendarScreen() {
+  useScreenView("calendar");
   const cal = useCalendarMonth();
 
   return (

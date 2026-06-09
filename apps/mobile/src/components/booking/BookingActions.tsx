@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
 import { invalidateBookingViews, useApiQuery } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
+import { track, type AnalyticsEvent } from "@/lib/analytics";
 import {
   approveBooking,
   canRefundDeposit,
@@ -54,6 +55,11 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
     setError(null);
     try {
       await fn();
+      const ev: Record<string, AnalyticsEvent> = {
+        accept: "booking_accepted",
+        mark: "deposit_marked_received",
+      };
+      if (ev[key]) track(ev[key]);
       void invalidate();
     } catch (e) {
       captureError(e, { op: "bookingAction", action: key });
@@ -122,6 +128,7 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
             body="Sends the client a polite decline by email."
             confirmLabel="Yes, pass"
             onConfirm={() => rejectBooking(booking.id).then(invalidate)}
+            event="booking_rejected"
           />
         </>
       ) : null}
@@ -171,6 +178,7 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
             body="Sends the client a polite decline by email."
             confirmLabel="Yes, pass"
             onConfirm={() => rejectBooking(booking.id).then(invalidate)}
+            event="booking_rejected"
           />
         </>
       ) : null}
@@ -191,6 +199,7 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
               body="The full deposit is returned. Inklee returns its platform fee; Stripe's card-processing fee stays on your account."
               confirmLabel="Yes, refund"
               onConfirm={() => refundDeposit(booking.id).then(invalidate)}
+              event="deposit_refunded"
             />
           ) : null}
 
@@ -207,6 +216,7 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
             }
             confirmLabel="Yes, cancel booking"
             onConfirm={() => cancelBooking(booking.id).then(invalidate)}
+            event="booking_cancelled"
           />
         </>
       ) : null}
@@ -233,12 +243,14 @@ function ConfirmAction({
   body,
   confirmLabel,
   onConfirm,
+  event,
 }: {
   trigger: string;
   title: string;
   body?: string;
   confirmLabel: string;
   onConfirm: () => Promise<unknown>;
+  event?: AnalyticsEvent;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -273,6 +285,7 @@ function ConfirmAction({
             setError(null);
             try {
               await onConfirm();
+              if (event) track(event);
               // Reset on success too: a refund keeps the booking approved (it
               // doesn't go terminal), so this subtree stays mounted and would
               // otherwise be stuck spinning. Cancel/reject unmount us, where
@@ -379,6 +392,7 @@ function DepositRequestForm({
     setSubmitting(true);
     try {
       await requestDeposit(booking.id, value, dueAt, note.trim() || null);
+      track("deposit_requested");
       onDone();
     } catch (e) {
       captureError(e, { op: "requestDeposit" });

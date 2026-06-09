@@ -3,9 +3,13 @@
 // Per the mobile plan, events carry NO client or tattoo PII — event names plus
 // coarse, non-identifying props (counts, booleans, enum-ish strings) only.
 
+import { useCallback } from "react";
+import { useFocusEffect } from "expo-router";
+
 export type AnalyticsEvent =
   | "screen_view"
   | "sign_in"
+  | "onboarding_completed"
   | "booking_accepted"
   | "booking_rejected"
   | "booking_cancelled"
@@ -25,4 +29,14 @@ export function track(event: AnalyticsEvent, props?: AnalyticsProps) {
 /** Hook form for screens/components, matching the rest of the app's lib hooks. */
 export function useAnalytics() {
   return { track };
+}
+
+/** Fire a `screen_view` each time a screen gains focus (expo-router). `screen`
+ *  is a coarse, non-identifying name — never a slug/email/id. */
+export function useScreenView(screen: string) {
+  useFocusEffect(
+    useCallback(() => {
+      track("screen_view", { screen });
+    }, [screen]),
+  );
 }

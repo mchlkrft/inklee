@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { formatMoney } from "@/lib/bookings";
 import { colors } from "@/lib/tokens";
+import { useScreenView } from "@/lib/analytics";
 import type { DepositDefaults } from "@inklee/shared/deposit-settings";
 import type {
   MobileMe,
@@ -45,6 +46,7 @@ const safeOpen = (url: string) => {
 };
 
 export default function MoreScreen() {
+  useScreenView("more");
   const { signOut } = useAuth();
   const router = useRouter();
   const meQ = useApiQuery<MobileMe>("/me");
