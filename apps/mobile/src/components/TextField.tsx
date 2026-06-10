@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
 import { colors } from "@/lib/tokens";
 
@@ -10,28 +10,45 @@ type TextFieldProps = TextInputProps & {
   rightSlot?: ReactNode;
 };
 
-// Bordered charcoal input, factored out of the hand-copied version in
-// sign-in.tsx / account/delete.tsx now that onboarding adds four more fields.
-// Label + optional hint/error line + an optional right slot. Caller TextInput
-// props (value, onChangeText, autoCapitalize, …) spread through; the field's own
-// className + placeholderTextColor are applied AFTER the spread, so they win over
-// any caller-passed values (last JSX prop wins — NativeWind does not merge two
-// className props on one element).
+// Bordered charcoal input. MB-2: signature 1.5px border (border-brand) with a
+// rosa focus ring and a danger border on error, matching the web input feel.
+// Caller TextInput props spread through; onFocus/onBlur are wrapped so the focus
+// ring works AND the caller's handlers still fire. The field's own className +
+// placeholderTextColor are applied AFTER the spread so they win (NativeWind does
+// not merge two className props on one element).
 export function TextField({
   label,
   hint,
   error,
   rightSlot,
+  onFocus,
+  onBlur,
   ...input
 }: TextFieldProps) {
+  const [focused, setFocused] = useState(false);
+  const borderColor = error
+    ? "border-danger"
+    : focused
+      ? "border-rosa"
+      : "border-shell-border";
   return (
     <View className="mb-3">
       {label ? (
         <Text className="mb-1.5 text-sm font-medium text-bone">{label}</Text>
       ) : null}
-      <View className="h-12 flex-row items-center rounded-xl border border-shell-border px-4">
+      <View
+        className={`h-12 flex-row items-center rounded-xl border-brand px-4 ${borderColor}`}
+      >
         <TextInput
           {...input}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
           placeholderTextColor={colors.shell.mute}
           className="h-full flex-1 text-base text-bone"
         />

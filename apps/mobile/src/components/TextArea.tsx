@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
 import { colors } from "@/lib/tokens";
 
@@ -8,31 +9,42 @@ type TextAreaProps = Omit<TextInputProps, "multiline"> & {
   minHeight?: number;
 };
 
-// Bordered multiline input, factored out of the hand-copied
-// <View border><TextInput multiline/></View> blocks across the edit screens.
-// Caller TextInput props spread through; the field's own styling is applied last
-// so it can't be clobbered.
+// Bordered multiline input. MB-2: 1.5px border (border-brand) + rosa focus ring,
+// matching TextField. Caller TextInput props spread through; onFocus/onBlur are
+// wrapped so the focus ring works without dropping the caller's handlers.
 export function TextArea({
   label,
   showCounter = false,
   minHeight = 64,
   value,
   maxLength,
+  onFocus,
+  onBlur,
   ...input
 }: TextAreaProps) {
+  const [focused, setFocused] = useState(false);
   const length = typeof value === "string" ? value.length : 0;
+  const borderColor = focused ? "border-rosa" : "border-shell-border";
   return (
     <View className="mb-3">
       {label ? (
         <Text className="mb-1.5 text-sm font-medium text-bone">{label}</Text>
       ) : null}
-      <View className="rounded-xl border border-shell-border px-4 py-3">
+      <View className={`rounded-xl border-brand px-4 py-3 ${borderColor}`}>
         <TextInput
           value={value}
           maxLength={maxLength}
           multiline
           placeholderTextColor={colors.shell.mute}
           {...input}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
           style={[{ minHeight, textAlignVertical: "top" }, input.style]}
           className="text-base text-bone"
         />

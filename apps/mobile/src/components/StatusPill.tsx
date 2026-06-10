@@ -1,26 +1,31 @@
 import { Text, View } from "react-native";
 import { humanStatusLabel } from "@inklee/shared/status-labels";
 
-// Maps a raw booking/waitlist status to brand-tinted pill. Label text comes from
-// the SHARED module so web and mobile read identically (proves the shared layer).
-const TONE: Record<string, string> = {
-  pending: "bg-mustard/20 text-mustard",
-  approved: "bg-success/20 text-success",
-  deposit_pending: "bg-rosa/20 text-rosa",
-  rejected: "bg-shell-mute/20 text-shell-dim",
-  cancelled: "bg-shell-mute/20 text-shell-dim",
-  // Waitlist statuses (so they're distinguishable in the All filter).
-  waiting: "bg-mustard/20 text-mustard",
-  contacted: "bg-rosa/20 text-rosa",
-  converted: "bg-success/20 text-success",
-  dismissed: "bg-shell-mute/20 text-shell-dim",
+// Solid status fills (plan §3.6), adapted for the dark shell. Saturated brand
+// colors read on charcoal as-is; the web's neutral fills are flipped for the
+// dark background: the web "approved = charcoal pill" becomes a bone-solid pill
+// (high-contrast "confirmed"), and the web "cancelled = charcoal/10" muted state
+// becomes a bone-wash. Label text comes from the SHARED module so web and mobile
+// read identically.
+const TONE: Record<string, { bg: string; text: string }> = {
+  pending: { bg: "bg-mustard", text: "text-charcoal" },
+  waiting: { bg: "bg-mustard", text: "text-charcoal" },
+  deposit_pending: { bg: "bg-rosa", text: "text-charcoal" },
+  contacted: { bg: "bg-rosa", text: "text-charcoal" },
+  approved: { bg: "bg-bone", text: "text-charcoal" },
+  converted: { bg: "bg-success", text: "text-bone" },
+  rejected: { bg: "bg-danger", text: "text-bone" },
+  cancelled: { bg: "bg-shell-hover", text: "text-shell-dim" },
+  dismissed: { bg: "bg-shell-hover", text: "text-shell-dim" },
 };
 
+const FALLBACK = { bg: "bg-shell-hover", text: "text-shell-dim" };
+
 export function StatusPill({ status }: { status: string }) {
-  const tone = TONE[status] ?? "bg-shell-mute/20 text-shell-dim";
+  const tone = TONE[status] ?? FALLBACK;
   return (
-    <View className={`self-start rounded-full px-2.5 py-1 ${tone.split(" ")[0]}`}>
-      <Text className={`text-xs font-semibold ${tone.split(" ")[1]}`}>
+    <View className={`self-start rounded-full px-2.5 py-1 ${tone.bg}`}>
+      <Text className={`text-xs font-semibold ${tone.text}`}>
         {humanStatusLabel(status)}
       </Text>
     </View>
