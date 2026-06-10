@@ -405,6 +405,25 @@ export async function submitBookingAction(
   };
   const uploadedImages: UploadedImage[] = [];
 
+  // Roll back the optimistic slot lock + any uploaded images on every failure
+  // path between locking the slot and inserting the booking. Without reopening
+  // the slot, a failed image step would strand it in 'locked' forever (no
+  // booking row, and deleteSlotAction only removes 'open' slots), making it
+  // permanently unbookable and undeletable.
+  const rollbackSlotAndImages = async () => {
+    if (slotId) {
+      await serviceClient
+        .from("slots")
+        .update({ status: "open" })
+        .eq("id", slotId);
+    }
+    if (uploadedImages.length > 0) {
+      await serviceClient.storage
+        .from("bookings")
+        .remove(uploadedImages.map((u) => u.path));
+    }
+  };
+
   for (const file of realImages) {
     const path = `${artistId}/${bookingId}/${crypto.randomUUID()}.webp`;
     let processed;
@@ -415,11 +434,7 @@ export async function submitBookingAction(
         tags: { action: "booking_image_process" },
         extra: { bookingId, filename: file.name, size: file.size },
       });
-      if (uploadedImages.length > 0) {
-        await serviceClient.storage
-          .from("bookings")
-          .remove(uploadedImages.map((u) => u.path));
-      }
+      await rollbackSlotAndImages();
       return { error: "Image processing failed. Try a different file." };
     }
 
@@ -434,11 +449,7 @@ export async function submitBookingAction(
           tags: { action: "booking_upload" },
           extra: { bookingId, path, message: uploadError.message },
         });
-        if (uploadedImages.length > 0) {
-          await serviceClient.storage
-            .from("bookings")
-            .remove(uploadedImages.map((u) => u.path));
-        }
+        await rollbackSlotAndImages();
         return { error: "Image upload failed. Try again." };
       }
     } catch (error) {
@@ -446,11 +457,7 @@ export async function submitBookingAction(
         tags: { action: "booking_upload" },
         extra: { bookingId, path },
       });
-      if (uploadedImages.length > 0) {
-        await serviceClient.storage
-          .from("bookings")
-          .remove(uploadedImages.map((u) => u.path));
-      }
+      await rollbackSlotAndImages();
       return { error: "Image upload failed. Try again." };
     }
 
@@ -534,19 +541,7 @@ export async function submitBookingAction(
     Sentry.captureException(insertError, {
       tags: { action: "booking_insert" },
     });
-    if (slotId) {
-      // Service-role rollback: anon UPDATE policy only allows open→locked,
-      // so the inverse rollback must bypass RLS.
-      await serviceClient
-        .from("slots")
-        .update({ status: "open" })
-        .eq("id", slotId);
-    }
-    if (uploadedImages.length > 0) {
-      await serviceClient.storage
-        .from("bookings")
-        .remove(uploadedImages.map((u) => u.path));
-    }
+    await rollbackSlotAndImages();
     return { error: "Something went wrong. Try again." };
   }
 
