@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
+import { cancelBookingCore } from "@/lib/server/bookings";
 
 type ActionResult = { error: string } | { success: true };
 
@@ -145,77 +146,19 @@ export async function editAppointmentAction(
 export async function cancelAppointmentAction(
   id: string,
 ): Promise<ActionResult> {
+  // Delegate to the shared mutation core so the calendar cancel behaves exactly
+  // like the booking-detail and mobile cancel paths: it enforces the FSM guard,
+  // refunds a paid card deposit BEFORE cancelling (and cancels a live unpaid
+  // intent), releases the slot with rollback, and emails the client. The
+  // previous bespoke implementation did none of that — it cancelled
+  // deposit-paid bookings with no refund and hardcoded from:"approved".
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: booking } = await supabase
-    .from("booking_requests")
-    .select("artist_id, customer_email, slot_id")
-    .eq("id", id)
-    .single();
-
-  if (!booking || booking.artist_id !== user.id) return { error: "Not found." };
-
-  const updatedAt = new Date().toISOString();
-  const { error } = await supabase
-    .from("booking_requests")
-    .update({ status: "cancelled", updated_at: updatedAt })
-    .eq("id", id);
-
-  if (error) return { error: error.message };
-
-  if (booking.slot_id) {
-    const { error: slotError } = await supabase
-      .from("slots")
-      .update({ status: "open" })
-      .eq("id", booking.slot_id);
-
-    if (slotError) {
-      await supabase
-        .from("booking_requests")
-        .update({ status: "approved", updated_at: new Date().toISOString() })
-        .eq("id", id);
-      return { error: "The slot could not be released. Please try again." };
-    }
-  }
-
-  await supabase.from("audit_log").insert({
-    booking_id: id,
-    action: "status_changed",
-    actor: user.id,
-    details: { from: "approved", to: "cancelled", by: "artist" },
-  });
-
-  if (booking.customer_email) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("display_name, slug")
-      .eq("id", user.id)
-      .single();
-    const { data: cancelledBooking } = await supabase
-      .from("booking_requests")
-      .select("customer_handle, preferred_date, form_data")
-      .eq("id", id)
-      .single();
-    const fd = cancelledBooking?.form_data as Record<string, string> | null;
-
-    await sendBookingEmail({
-      type: "customer_booking_cancelled_by_artist",
-      to: booking.customer_email,
-      artistId: user.id,
-      vars: {
-        customer_handle: cancelledBooking?.customer_handle ?? "",
-        artist_name: profile?.display_name ?? "",
-        artist_slug: profile?.slug ?? "",
-        placement: fd?.placement ?? "",
-        date: cancelledBooking?.preferred_date ?? "",
-      },
-    });
-  }
-
-  revalidateBookingViews(id);
-  return { success: true };
+  const result = await cancelBookingCore(supabase, user.id, id);
+  if ("success" in result) revalidateBookingViews(id);
+  return result;
 }

@@ -99,6 +99,20 @@ export async function checkDepositRequestRateLimit(userId: string) {
   return check(depositRequestRl, userId);
 }
 
+// MFA recovery-code verification: 5 attempts / user / hour. The endpoint
+// requires an authenticated (AAL1) session and an 8-char code, so without a cap
+// an attacker holding the victim's password could brute-force the code to
+// unenroll TOTP and defeat 2FA. Keyed by user id (the session identity) so the
+// limit can't be sidestepped by rotating IPs. Fails closed in production if
+// Upstash is unconfigured — acceptable for a recovery flow.
+const mfaRecoverRl = makeLimit(
+  Ratelimit.slidingWindow(5, "1 h"),
+  "inklee:mfa-recover",
+);
+export async function checkMfaRecoverRateLimit(userId: string) {
+  return check(mfaRecoverRl, userId);
+}
+
 // Mobile-app launch waitlist (/download): 3 submissions / IP / hour.
 // Same shape as the artist-side waitlist limit — low ceiling because the
 // form is a one-off signup, not a recurring action.

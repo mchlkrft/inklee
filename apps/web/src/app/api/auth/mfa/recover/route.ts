@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
+import { checkMfaRecoverRateLimit } from "@/lib/ratelimit";
 
 async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest(
@@ -21,7 +22,26 @@ export async function POST(request: Request) {
   if (!user)
     return NextResponse.json({ error: "not authenticated" }, { status: 401 });
 
-  const body = (await request.json()) as { code?: string };
+  // Throttle brute-force of the 8-char recovery code. Keyed by the session
+  // user so an attacker can't rotate IPs to widen the search; bounds attempts
+  // before a code could be guessed and the TOTP factor unenrolled.
+  const { allowed } = await checkMfaRecoverRateLimit(user.id);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429 },
+    );
+  }
+
+  let body: { code?: string };
+  try {
+    body = (await request.json()) as { code?: string };
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid recovery code" },
+      { status: 400 },
+    );
+  }
   const code = (body.code ?? "").trim().toUpperCase();
   if (!code || code.length !== 8) {
     return NextResponse.json(

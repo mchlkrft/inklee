@@ -424,21 +424,63 @@ export async function rejectBookingCore(
   const guard = canTransition(booking.status, "rejected");
   if (!guard.ok) return { error: guard.reason };
 
+  // Deposit handling before rejecting. A deposit_pending booking can carry a
+  // live in-app card PaymentIntent; if it isn't cancelled, the client could
+  // still pay (from an already-open payment page) for a booking that's been
+  // passed — money captured with no record. Mirror markDepositReceivedCore /
+  // cancelBookingCore: refuse to reject a PAID deposit (steer the artist to
+  // cancel, which refunds), and cancel a live UNPAID intent.
+  const { data: depo } = await supabase
+    .from("booking_requests")
+    .select("deposit_payment_intent_id, deposit_paid_at")
+    .eq("id", id)
+    .single();
+  if (depo?.deposit_paid_at) {
+    return {
+      error:
+        "This booking has a paid deposit. Cancel it instead so the deposit is refunded.",
+    };
+  }
+  if (stripe && depo?.deposit_payment_intent_id) {
+    try {
+      await stripe.paymentIntents.cancel(depo.deposit_payment_intent_id);
+    } catch (cancelErr) {
+      Sentry.captureException(cancelErr, {
+        tags: { action: "stripe_cancel_intent_on_reject" },
+        extra: { bookingId: id },
+      });
+    }
+  }
+
   const decidedAt = new Date().toISOString();
-  const { error } = await supabase
+  // Conditional UPDATE: only reject if the row is still in the status we read
+  // AND still has no paid deposit. Closes the TOCTOU window where the deposit
+  // webhook flips the booking to approved + sets deposit_paid_at between our
+  // re-select above and this write — without the precondition, last-writer-wins
+  // would mark a now-paid booking 'rejected' with money captured.
+  const { data: updated, error } = await supabase
     .from("booking_requests")
     .update({
       status: "rejected",
       updated_at: decidedAt,
       decided_at: decidedAt,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", booking.status)
+    .is("deposit_paid_at", null)
+    .select("id");
 
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+
+  if (!updated || updated.length === 0) {
+    return {
+      error: "This booking just changed. Refresh and try again.",
+    };
   }
 
   if (booking.slot_id) {

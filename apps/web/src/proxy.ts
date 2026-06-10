@@ -10,6 +10,10 @@ const ARTIST_PATHS = [
   "/settings",
   "/onboarding",
   "/analytics",
+  // Defense in depth: /admin also gets the login + AAL2 step-up redirects at the
+  // edge. Admin-ness (ADMIN_EMAILS) and the authoritative AAL2 fail-closed check
+  // live in lib/admin-guard.ts, which also covers directly-invoked admin actions.
+  "/admin",
 ];
 
 /** Header forwarded to downstream pages so a server component can tell
@@ -98,8 +102,10 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // Check profile exists for non-onboarding artist paths
-    if (!pathname.startsWith("/onboarding")) {
+    // Check profile exists for non-onboarding artist paths. /admin is excluded:
+    // admins are gated by ADMIN_EMAILS in admin-guard.ts, not by having an artist
+    // profile, so a profile-less admin must not be bounced to onboarding.
+    if (!pathname.startsWith("/onboarding") && !pathname.startsWith("/admin")) {
       const { data: profile } = await supabase
         .from("profiles")
         .select("slug")
