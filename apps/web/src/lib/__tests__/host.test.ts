@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   decideHostRouting,
+  isAllowedBookingOrigin,
   parseHost,
   prependSlugToPath,
   type HostRouting,
@@ -370,5 +371,47 @@ describe("decideHostRouting", () => {
       url: "https://inklee.app/",
       permanent: true,
     });
+  });
+});
+
+describe("isAllowedBookingOrigin", () => {
+  const APP = "https://inklee.app";
+
+  it("accepts an absent Origin (matches the prior check's behaviour)", () => {
+    expect(isAllowedBookingOrigin(null, APP)).toBe(true);
+    expect(isAllowedBookingOrigin(undefined, APP)).toBe(true);
+    expect(isAllowedBookingOrigin("", APP)).toBe(true);
+  });
+
+  it("accepts the exact app URL and the marketing hosts", () => {
+    expect(isAllowedBookingOrigin(APP, APP)).toBe(true);
+    expect(isAllowedBookingOrigin("https://inklee.app", APP)).toBe(true);
+    expect(isAllowedBookingOrigin("https://www.inklee.app", APP)).toBe(true);
+  });
+
+  it("accepts artist bio-domain subdomains (and local-dev equivalents)", () => {
+    expect(isAllowedBookingOrigin("https://studioname.inkl.ee", APP)).toBe(
+      true,
+    );
+    expect(
+      isAllowedBookingOrigin("http://studioname.localhost:3000", APP),
+    ).toBe(true);
+  });
+
+  it("rejects unrelated or look-alike domains", () => {
+    expect(isAllowedBookingOrigin("https://evil.com", APP)).toBe(false);
+    expect(isAllowedBookingOrigin("https://inklee.app.evil.com", APP)).toBe(
+      false,
+    );
+  });
+
+  it("rejects the shortlink apex and reserved/invalid subdomains", () => {
+    expect(isAllowedBookingOrigin("https://inkl.ee", APP)).toBe(false);
+    expect(isAllowedBookingOrigin("https://admin.inkl.ee", APP)).toBe(false);
+    expect(isAllowedBookingOrigin("https://ab.inkl.ee", APP)).toBe(false);
+  });
+
+  it("rejects a malformed Origin", () => {
+    expect(isAllowedBookingOrigin("not a url", APP)).toBe(false);
   });
 });

@@ -41,7 +41,11 @@ Severities reflect the adversarial verifiers' final calibration (many round-1 "h
 - ✅ **Retention purge cron**: monthly `retention-purge` — `deleted_account_records` 7y from calendar-year-end; `audit_log` (booking_id-null) + `admin_action_log` at 24mo; booking-linked financial rows preserved (§8).
 - ✅ **Privacy notice**: counsel's §10 clauses published verbatim into `privacy.md` v2026-06-10 + frozen snapshot; retention table corrected.
 
-**Still open** (see backlog below): making the webhook status flip a conditional UPDATE (symmetric with the cores — the orphan-flagging now covers the observability half); Apple sign-in nonce (needs `expo-crypto`; low); client/end-customer SAR admin tooling (deferred — manual via support@ is GDPR-acceptable at this scale); CI + booking-core/webhook tests; em-dash copy sweep; remaining Low hardening (CSP unsafe-inline/eval, `*.supabase.co` wildcard pin, `import "server-only"` on service.ts, `.env.example` drift, mobile sign-out offline, push-token-in-URL). Operational: `supabase db push` for migration 0048 (indexes).
+**CI + core tests — fixed 2026-06-10** (the audit's #1 test-coverage finding: nothing automated ran the suite):
+- ✅ **CI pipeline** (`.github/workflows/ci.yml`): runs install (frozen lockfile) → web typecheck → web lint → web unit tests → mobile typecheck on every PR and on push to master, so untested/broken code can no longer reach master. Pinned `packageManager: pnpm@10.33.0` in the root manifest.
+- ✅ **Core pure tests** (392 tests, up from 353): the booking FSM transition matrix (`booking-fsm.test.ts` — the gate every transition + the conditional-UPDATE fixes depend on), the re-auth freshness helper (`account-reauth.test.ts`, fail-closed), and the booking-origin allowlist (extended `host.test.ts`).
+
+**Still open** (see backlog below): the booking-`*Core` / Stripe-webhook **integration** tests (need a Supabase-client mock harness — no mock pattern exists in the suite yet, best built in a focused pass); making the webhook status flip a conditional UPDATE (symmetric with the cores — the orphan-flagging now covers the observability half); Apple sign-in nonce (needs `expo-crypto`; low); client/end-customer SAR admin tooling (deferred — manual via support@ is GDPR-acceptable at this scale); em-dash copy sweep; remaining Low hardening (CSP unsafe-inline/eval, `*.supabase.co` wildcard pin, `import "server-only"` on service.ts, `.env.example` drift, mobile sign-out offline, push-token-in-URL). Operational: `supabase db push` for migration 0048 (indexes).
 
 ---
 

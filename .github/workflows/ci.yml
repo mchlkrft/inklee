@@ -1,0 +1,45 @@
+name: CI
+
+# Runs the checks that previously only lived in the local pre-commit hook (which
+# is bypassable with --no-verify) PLUS the unit-test suite, which nothing
+# automated ran before — so a change that breaks fee math, the booking FSM, or
+# any of the existing tests can no longer reach master unnoticed.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads the pnpm version from the root package.json "packageManager" field.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (web)
+        run: pnpm --filter inklee typecheck
+
+      - name: Lint (web)
+        run: pnpm --filter inklee lint
+
+      - name: Unit tests (web)
+        run: pnpm --filter inklee test
+
+      - name: Typecheck (mobile)
+        run: pnpm --filter @inklee/mobile typecheck
