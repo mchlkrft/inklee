@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { MobileTrip, MobileTripsResponse } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
@@ -41,6 +42,7 @@ export default function TripsList() {
   return (
     <Screen edges={["left", "right"]}>
       <View className="flex-1">
+        <PageHeader title="Guest Spots" />
         <View className="gap-2 py-3">
           <Button
             label="New trip"

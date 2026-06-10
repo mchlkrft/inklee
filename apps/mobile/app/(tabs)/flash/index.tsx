@@ -14,6 +14,7 @@ import type {
   MobileFlashItemsResponse,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
+import { PageHeader } from "@/components/PageHeader";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
@@ -44,6 +45,7 @@ export default function FlashItemsList() {
 
   return (
     <Screen edges={["left", "right"]}>
+      <PageHeader title="Flash" />
       <Pressable
         accessibilityRole="button"
         onPress={() => router.push("/flash/days")}

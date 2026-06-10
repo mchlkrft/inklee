@@ -27,8 +27,11 @@ import type {
   MobilePayouts,
 } from "@inklee/shared/mobile-api";
 
-// The apex origin the app talks to (e.g. https://inkl.ee) — proven on-device.
-// It serves the API and the legal pages; the public bio page is a subdomain.
+// Settings hub — the account / configuration surface, reached from the top-bar
+// account menu. Re-homes everything the old More tab held except the Flash /
+// Guest Spots / Goods links (now bottom-nav tabs). Title comes from the native
+// stack header ("Settings"). The full-parity build (Bio page, Emails, Calendar,
+// Home widgets) adds rows + screens here later.
 const BASE = config.apiUrl;
 
 const PAYOUT_STATUS: Record<string, { label: string; tone: string }> = {
@@ -39,14 +42,14 @@ const PAYOUT_STATUS: Record<string, { label: string; tone: string }> = {
   disabled: { label: "Disabled", tone: "text-danger" },
 };
 
-// openURL rejects on Android when nothing can handle the link; swallow it so we
-// never throw an unhandled rejection for a tap on an external link.
+// openURL rejects on Android when nothing can handle the link; swallow it so a
+// tap on an external link never throws an unhandled rejection.
 const safeOpen = (url: string) => {
   void Linking.openURL(url).catch(() => {});
 };
 
-export default function MoreScreen() {
-  useScreenView("more");
+export default function SettingsHubScreen() {
+  useScreenView("settings");
   const { signOut } = useAuth();
   const router = useRouter();
   const meQ = useApiQuery<MobileMe>("/me");
@@ -65,7 +68,6 @@ export default function MoreScreen() {
   if (!me) {
     return (
       <Screen edges={["left", "right"]}>
-        <Text className="py-2 text-2xl font-bold text-bone">More</Text>
         {meQ.loading ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator color={colors.mustard} />
@@ -114,10 +116,10 @@ export default function MoreScreen() {
   };
 
   return (
-    <Screen>
+    <Screen edges={["left", "right"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: 40 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -126,8 +128,6 @@ export default function MoreScreen() {
           />
         }
       >
-        <Text className="py-2 text-2xl font-bold text-bone">More</Text>
-
         <Card>
           <View className="flex-row items-center gap-3">
             {showLogo ? (
@@ -171,31 +171,6 @@ export default function MoreScreen() {
           </View>
         </Card>
 
-        <SectionLabel>Grow</SectionLabel>
-        <Card>
-          <SettingsRow label="Flash" onPress={() => router.push("/flash")} />
-          <SettingsRow
-            label="Guest spots"
-            divider
-            onPress={() => router.push("/travel")}
-          />
-          <SettingsRow
-            label="Goods"
-            divider
-            onPress={() => router.push("/goods")}
-          />
-          <SettingsRow
-            label="Insights"
-            divider
-            onPress={() => router.push("/insights")}
-          />
-          <SettingsRow
-            label="Waitlist"
-            divider
-            onPress={() => router.push("/waitlist")}
-          />
-        </Card>
-
         <SectionLabel>Account</SectionLabel>
         <Card>
           <SettingsRow
@@ -236,6 +211,19 @@ export default function MoreScreen() {
             value={depositSummary}
             divider
             onPress={() => router.push("/settings/deposit-defaults")}
+          />
+        </Card>
+
+        <SectionLabel>Tools</SectionLabel>
+        <Card>
+          <SettingsRow
+            label="Insights"
+            onPress={() => router.push("/insights")}
+          />
+          <SettingsRow
+            label="Waitlist"
+            divider
+            onPress={() => router.push("/waitlist")}
           />
         </Card>
 

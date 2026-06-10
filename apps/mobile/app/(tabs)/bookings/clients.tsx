@@ -64,7 +64,6 @@ export default function ClientsScreen() {
 
   return (
     <Screen edges={["left", "right"]}>
-      <Text className="py-2 text-2xl font-bold text-bone">Clients</Text>
       <TextInput
         value={query}
         onChangeText={setQuery}

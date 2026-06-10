@@ -1,71 +1,28 @@
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { TopBar } from "@/components/TopBar";
-import { colors } from "@/lib/tokens";
-import { t } from "@/lib/i18n";
+import { BottomNav } from "@/components/BottomNav";
 
-// 5-tab artist nav (Home · Requests · Calendar · Clients · More). The persistent
-// top bar (TopBar) carries the wordmark, books-status pill, notification bell,
-// and account menu across every tab, mirroring the web mobile-top-bar.tsx.
+// 5-tab artist nav mirroring the web MOBILE_BOTTOM_NAV (nav-config.ts):
+// Dashboard, Flash, Bookings (raised center FAB), Guest Spots, Goods. The tab
+// bar is the custom BottomNav; the top chrome is the floating TopBar. The
+// dashboard is a single screen, so it takes the TopBar as its tab header; the
+// flash / bookings / travel / goods tabs are nested layouts that render the
+// TopBar themselves (stack-index header or in-content), hence headerShown:false.
+// Declaration order sets the bar order, so Bookings sits at the center slot.
 export default function TabsLayout() {
   return (
     <Tabs
-      screenOptions={{
-        headerShown: true,
-        header: () => <TopBar />,
-        tabBarActiveTintColor: colors.mustard,
-        tabBarInactiveTintColor: colors.shell.mute,
-        tabBarStyle: {
-          backgroundColor: colors.charcoal,
-          borderTopColor: colors.shell.border,
-        },
-      }}
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <BottomNav {...props} />}
     >
       <Tabs.Screen
         name="index"
-        options={{
-          title: t("tab.home"),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" color={color} size={size} />
-          ),
-        }}
+        options={{ headerShown: true, header: () => <TopBar /> }}
       />
-      <Tabs.Screen
-        name="requests"
-        options={{
-          title: t("tab.requests"),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="albums-outline" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: t("tab.calendar"),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="clients"
-        options={{
-          title: t("tab.clients"),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: t("tab.more"),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ellipsis-horizontal" color={color} size={size} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="flash" />
+      <Tabs.Screen name="bookings" />
+      <Tabs.Screen name="travel" />
+      <Tabs.Screen name="goods" />
     </Tabs>
   );
 }

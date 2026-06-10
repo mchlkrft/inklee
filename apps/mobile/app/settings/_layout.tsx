@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
 
-// Settings edit stack — native headers (with a back button), charcoal. Reached
-// from the More tab; gated under the onboarded group by the root navigator.
+// Settings stack — native headers (with a back button), charcoal. The index is
+// the Settings hub (reached from the top-bar account menu); the rest are edit
+// screens. Gated under the onboarded group by the root navigator.
 export default function SettingsLayout() {
   return (
     <Stack
@@ -13,6 +14,7 @@ export default function SettingsLayout() {
         contentStyle: { backgroundColor: "#1e1e1e" },
       }}
     >
+      <Stack.Screen name="index" options={{ title: "Settings" }} />
       <Stack.Screen name="profile" options={{ title: "Edit profile" }} />
       <Stack.Screen name="books" options={{ title: "Booking settings" }} />
       <Stack.Screen

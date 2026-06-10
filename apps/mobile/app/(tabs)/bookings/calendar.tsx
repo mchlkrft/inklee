@@ -23,7 +23,6 @@ export default function CalendarScreen() {
 
   return (
     <Screen edges={["left", "right"]}>
-      <Text className="py-2 text-2xl font-bold text-bone">Calendar</Text>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}

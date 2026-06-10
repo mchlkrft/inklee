@@ -124,7 +124,7 @@ export function AccountMenuSheet({
             <MenuRow
               icon={SettingsIcon}
               label="Settings"
-              onPress={() => go(() => router.push("/settings/profile"))}
+              onPress={() => go(() => router.push("/settings"))}
             />
             {publicUrl ? (
               <MenuRow
