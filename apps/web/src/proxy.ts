@@ -10,6 +10,8 @@ const ARTIST_PATHS = [
   "/settings",
   "/onboarding",
   "/analytics",
+  "/goods",
+  "/notifications",
   // Defense in depth: /admin also gets the login + AAL2 step-up redirects at the
   // edge. Admin-ness (ADMIN_EMAILS) and the authoritative AAL2 fail-closed check
   // live in lib/admin-guard.ts, which also covers directly-invoked admin actions.

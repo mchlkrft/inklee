@@ -120,6 +120,36 @@ async function restoreBookingAfterSlotFailure(
     .eq("id", bookingId);
 }
 
+// When a deposit_pending booking is approved DIRECTLY (artist hits Accept
+// instead of "deposit received"), any outstanding in-app card PaymentIntent must
+// be cancelled — otherwise the client could still pay from an already-open
+// payment page for a booking that's now approved, and the webhook would swallow
+// that payment as a replay (money captured, no record). Mirrors
+// markDepositReceivedCore's F7 handling. Best-effort; only touches an UNPAID
+// intent (a paid one means the webhook already moved the booking to approved).
+async function cancelLiveDepositIntentOnApprove(
+  supabase: SupabaseClient,
+  id: string,
+  priorStatus: string,
+): Promise<void> {
+  if (priorStatus !== "deposit_pending" || !stripe) return;
+  const { data: depo } = await supabase
+    .from("booking_requests")
+    .select("deposit_payment_intent_id, deposit_paid_at")
+    .eq("id", id)
+    .single();
+  if (depo?.deposit_payment_intent_id && !depo?.deposit_paid_at) {
+    try {
+      await stripe.paymentIntents.cancel(depo.deposit_payment_intent_id);
+    } catch (cancelErr) {
+      Sentry.captureException(cancelErr, {
+        tags: { action: "stripe_cancel_intent_on_approve" },
+        extra: { bookingId: id },
+      });
+    }
+  }
+}
+
 export async function approveBookingCore(
   supabase: SupabaseClient,
   userId: string,
@@ -132,6 +162,8 @@ export async function approveBookingCore(
   const guard = canTransition(booking.status, "approved");
   if (!guard.ok) return { error: guard.reason };
 
+  await cancelLiveDepositIntentOnApprove(supabase, id, booking.status);
+
   const newToken = booking.customer_email
     ? crypto.randomBytes(32).toString("hex")
     : null;
@@ -140,7 +172,10 @@ export async function approveBookingCore(
     : null;
   const decidedAt = new Date().toISOString();
 
-  const { error } = await supabase
+  // Conditional UPDATE: only flip if the row is still in the status we read, so
+  // a concurrent transition (e.g. the deposit webhook) can't be clobbered by a
+  // stale last-writer-wins update.
+  const { data: approvedRows, error } = await supabase
     .from("booking_requests")
     .update({
       status: "approved",
@@ -148,13 +183,19 @@ export async function approveBookingCore(
       decided_at: decidedAt,
       customer_token_hash: newHash,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", booking.status)
+    .select("id");
 
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+
+  if (!approvedRows || approvedRows.length === 0) {
+    return { error: "This booking just changed. Refresh and try again." };
   }
 
   if (booking.slot_id) {
@@ -220,6 +261,8 @@ export async function approveBookingWithInterestDecisionsCore(
   const guard = canTransition(booking.status, "approved");
   if (!guard.ok) return { error: guard.reason };
 
+  await cancelLiveDepositIntentOnApprove(supabase, id, booking.status);
+
   // Pull all interests for this booking once so the per-decision update is
   // validated against existing rows and the email surface is built from the
   // snapshot fields (title/variant/qty stay accurate even if the product was
@@ -273,7 +316,10 @@ export async function approveBookingWithInterestDecisionsCore(
     : null;
   const decidedAt = new Date().toISOString();
 
-  const { error } = await supabase
+  // Conditional UPDATE: only flip if the row is still in the status we read, so
+  // a concurrent transition (e.g. the deposit webhook) can't be clobbered by a
+  // stale last-writer-wins update.
+  const { data: approvedRows, error } = await supabase
     .from("booking_requests")
     .update({
       status: "approved",
@@ -281,13 +327,19 @@ export async function approveBookingWithInterestDecisionsCore(
       decided_at: decidedAt,
       customer_token_hash: newHash,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", booking.status)
+    .select("id");
 
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+
+  if (!approvedRows || approvedRows.length === 0) {
+    return { error: "This booking just changed. Refresh and try again." };
   }
 
   if (booking.slot_id) {
@@ -901,7 +953,7 @@ export async function markDepositReceivedCore(
   }
 
   const decidedAt = new Date().toISOString();
-  const { error } = await supabase
+  const { data: markedRows, error } = await supabase
     .from("booking_requests")
     .update({
       status: "approved",
@@ -909,13 +961,19 @@ export async function markDepositReceivedCore(
       decided_at: booking.decided_at ?? decidedAt,
       deposit_paid_at: decidedAt,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", booking.status)
+    .select("id");
 
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+
+  if (!markedRows || markedRows.length === 0) {
+    return { error: "This booking just changed. Refresh and try again." };
   }
 
   if (booking.slot_id) {
@@ -1050,8 +1108,19 @@ export async function cancelBookingCore(
   if (depo?.deposit_payment_intent_id && depo?.deposit_paid_at) {
     // Refund first, while the booking is still in its current state. If we
     // can't return the money, abort the cancellation and surface the error.
-    const refund = await refundDepositCore(supabase, userId, id);
-    if ("error" in refund) return refund;
+    // Skip when a refund is already recorded (in-app refund, or a Stripe-
+    // dashboard refund mirrored by the charge.refunded webhook): otherwise
+    // refundDepositCore's idempotency guard would error and abort the whole
+    // cancellation, permanently wedging the booking in 'approved'.
+    const { count: alreadyRefunded } = await supabase
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", id)
+      .eq("action", "deposit_refunded");
+    if ((alreadyRefunded ?? 0) === 0) {
+      const refund = await refundDepositCore(supabase, userId, id);
+      if ("error" in refund) return refund;
+    }
   } else if (stripe && depo?.deposit_payment_intent_id) {
     try {
       await stripe.paymentIntents.cancel(depo.deposit_payment_intent_id);
@@ -1064,16 +1133,22 @@ export async function cancelBookingCore(
   }
 
   const cancelledAt = new Date().toISOString();
-  const { error } = await supabase
+  const { data: cancelledRows, error } = await supabase
     .from("booking_requests")
     .update({ status: "cancelled", updated_at: cancelledAt })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", booking.status)
+    .select("id");
 
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+
+  if (!cancelledRows || cancelledRows.length === 0) {
+    return { error: "This booking just changed. Refresh and try again." };
   }
 
   if (booking.slot_id) {

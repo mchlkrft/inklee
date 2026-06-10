@@ -49,6 +49,22 @@ export async function checkLoginRateLimit(ip: string) {
   return check(loginRl, ip);
 }
 
+// Signup: 5 / IP / hour. Signup is a one-off; cap mass account creation and the
+// confirmation-email amplification (each attempt can trigger an email), and blunt
+// account-existence enumeration via the differing "already exists" response.
+const signupRl = makeLimit(Ratelimit.slidingWindow(5, "1 h"), "inklee:signup");
+export async function checkSignupRateLimit(ip: string) {
+  return check(signupRl, ip);
+}
+
+// DSA report submissions (public, unauthenticated): 3 / IP / hour. Each accepted
+// call sends two emails (operator + reporter ack) with attacker-supplied text,
+// so cap to prevent using it as a mail relay / inbox flood.
+const reportRl = makeLimit(Ratelimit.slidingWindow(3, "1 h"), "inklee:report");
+export async function checkReportRateLimit(ip: string) {
+  return check(reportRl, ip);
+}
+
 // Password reset: 5 / IP / hour, also 5 / email / hour
 const passwordResetRl = makeLimit(
   Ratelimit.slidingWindow(5, "1 h"),

@@ -2,6 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { checkSignupRateLimit } from "@/lib/ratelimit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 type State = { error: string } | { sent: true } | null;
 
@@ -15,6 +18,12 @@ export async function signUpAction(
   if (!email || !password) return { error: "Email and password are required." };
   if (password.length < 8)
     return { error: "Password must be at least 8 characters." };
+
+  const ip = getClientIp(await headers());
+  const { allowed } = await checkSignupRateLimit(ip);
+  if (!allowed) {
+    return { error: "Too many sign-up attempts — please wait a few minutes." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({

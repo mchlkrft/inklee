@@ -3,6 +3,8 @@
 import { headers } from "next/headers";
 import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
 import { sendEmail } from "@/lib/email/send";
+import { checkReportRateLimit } from "@/lib/ratelimit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export type ReportState =
   | { error: string; field?: string }
@@ -50,6 +52,17 @@ export async function submitReportAction(
   if (isHoneypotTriggered(formData.get(HONEYPOT_FIELD))) {
     // Fake success — bots don't learn anything from a failure response.
     return { sent: true, reference: "DSA-IGNORED" };
+  }
+
+  // Cap unauthenticated submissions per network: each accepted report sends two
+  // emails with attacker-controlled text, so this is the abuse boundary.
+  const ip = getClientIp(await headers());
+  const { allowed } = await checkReportRateLimit(ip);
+  if (!allowed) {
+    return {
+      error:
+        "Too many reports from this network. Please wait a while and try again.",
+    };
   }
 
   const category = String(formData.get("category") ?? "");

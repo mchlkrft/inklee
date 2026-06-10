@@ -19,7 +19,14 @@ Severities reflect the adversarial verifiers' final calibration (many round-1 "h
 - ✅ **High 4** — `(artist)/bookings/calendar/actions.ts` `cancelAppointmentAction`: delegates to `cancelBookingCore` (refund-before-cancel, FSM guard, intent cancel, slot rollback).
 - ✅ **High 5** — Next.js `16.2.4 → 16.2.9` (+ `eslint-config-next`), lockfile updated.
 
-Medium / Low backlog below is not yet started.
+**Medium slice — fixed 2026-06-10** (typecheck + 353 tests + mobile typecheck green; independent adversarial review, zero blockers):
+- ✅ **Booking-core money integrity** (`lib/server/bookings.ts`): `approve` / `markDepositReceived` / `cancel` status flips are now conditional UPDATEs (`.eq("status", priorStatus)` + 0-row guard) that refuse on a concurrent transition; plain approve of a `deposit_pending` booking cancels the live unpaid intent (`cancelLiveDepositIntentOnApprove`); `cancelBookingCore` skips the refund when one is already recorded — closing the dead-end where a refunded booking could never be cancelled. (`reject` was handled in the High slice.)
+- ✅ **Abuse limiters**: `checkSignupRateLimit` (5/IP/hr) and `checkReportRateLimit` (3/IP/hr) gate the signup and DSA-report email surfaces before any send.
+- ✅ **Proxy gate**: `/goods` + `/notifications` added to `ARTIST_PATHS` (were missing the login + AAL2 redirects).
+- ✅ **Mobile reference_link**: opened via `Linking.openURL` only for `http(s)`; other schemes render copy-only (closes the `tel:`/app-scheme tap sink).
+- ✅ **DB indexes**: `migrations/0048_perf_indexes.sql` (booking_requests, audit_log, slots, waitlist_entries, booking_images). **Requires `supabase db push` to take effect.**
+
+**Still open** (see backlog below): webhook orphaned-payment reconciliation rows + making the webhook status flip a conditional UPDATE (symmetric with the cores); add-on EUR/non-EUR currency (gated, latent); slot-lock rollback + subdomain-origin allowlist in `[slug]/actions.ts`; the GDPR retention cluster (audit-log PII scrub, retention purge cron, cleanup-cron financial cascade, account-deletion re-auth, privacy-notice rewrite) — several need a founder/counsel decision on exact periods; CI + booking-core/webhook tests; Sentry `onRequestError` wiring; em-dash copy sweep; remaining Low hardening.
 
 ---
 

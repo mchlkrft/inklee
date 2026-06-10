@@ -84,17 +84,36 @@ export default function BookingDetailScreen() {
       {(b.referenceLink || b.referenceImagePaths.length > 0) && (
         <Section title="Reference">
           {b.referenceLink ? (
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => Linking.openURL(b.referenceLink!)}
-            >
-              <Text className="text-xs uppercase tracking-wide text-shell-mute">
-                Link
-              </Text>
-              <Text className="mt-0.5 text-sm text-mustard" numberOfLines={1}>
-                {b.referenceLink}
-              </Text>
-            </Pressable>
+            // The link is client-supplied via the public booking form. Only open
+            // http(s) URLs — zod's .url() accepts arbitrary schemes (tel:, sms:,
+            // app deep links), so opening verbatim would be a scheme-abuse sink.
+            // Non-http links render as copy-only text, never tappable.
+            /^https?:\/\//i.test(b.referenceLink) ? (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => Linking.openURL(b.referenceLink!)}
+              >
+                <Text className="text-xs uppercase tracking-wide text-shell-mute">
+                  Link
+                </Text>
+                <Text className="mt-0.5 text-sm text-mustard" numberOfLines={1}>
+                  {b.referenceLink}
+                </Text>
+              </Pressable>
+            ) : (
+              <>
+                <Text className="text-xs uppercase tracking-wide text-shell-mute">
+                  Link
+                </Text>
+                <Text
+                  className="mt-0.5 text-sm text-shell-dim"
+                  numberOfLines={1}
+                  selectable
+                >
+                  {b.referenceLink}
+                </Text>
+              </>
+            )
           ) : null}
           {b.referenceImagePaths.length > 0 ? (
             <Text className="mt-2 text-sm text-shell-dim">
