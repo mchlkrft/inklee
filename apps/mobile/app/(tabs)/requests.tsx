@@ -51,7 +51,7 @@ export default function RequestsScreen() {
     useApiQuery<MobileBookingsPage>("/bookings");
 
   return (
-    <Screen>
+    <Screen edges={["left", "right"]}>
       <Text className="py-2 text-2xl font-bold text-bone">Requests</Text>
       <FlatList
         data={data?.items ?? []}

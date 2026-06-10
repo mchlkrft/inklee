@@ -63,7 +63,7 @@ export default function ClientsScreen() {
   }, [items, query]);
 
   return (
-    <Screen>
+    <Screen edges={["left", "right"]}>
       <Text className="py-2 text-2xl font-bold text-bone">Clients</Text>
       <TextInput
         value={query}

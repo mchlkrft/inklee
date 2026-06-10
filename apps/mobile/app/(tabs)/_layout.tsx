@@ -1,15 +1,18 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { TopBar } from "@/components/TopBar";
 import { colors } from "@/lib/tokens";
 import { t } from "@/lib/i18n";
 
-// 5-tab artist nav (Home · Requests · Calendar · Clients · More). Notifications
-// live in a top-bar bell per screen; secondary modules sit under More.
+// 5-tab artist nav (Home · Requests · Calendar · Clients · More). The persistent
+// top bar (TopBar) carries the wordmark, books-status pill, notification bell,
+// and account menu across every tab, mirroring the web mobile-top-bar.tsx.
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        header: () => <TopBar />,
         tabBarActiveTintColor: colors.mustard,
         tabBarInactiveTintColor: colors.shell.mute,
         tabBarStyle: {

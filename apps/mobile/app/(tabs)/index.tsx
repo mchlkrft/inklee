@@ -2,7 +2,6 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
-import { NotificationBell } from "@/components/NotificationBell";
 import { BooksToggle } from "@/components/BooksToggle";
 import { useApiQuery } from "@/lib/api";
 import { colors } from "@/lib/tokens";
@@ -41,7 +40,7 @@ export default function HomeScreen() {
     useApiQuery<MobileHome>("/home");
 
   return (
-    <Screen>
+    <Screen edges={["left", "right"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -52,12 +51,9 @@ export default function HomeScreen() {
           />
         }
       >
-        <View className="flex-row items-center justify-between pt-2">
-          <Text className="text-2xl font-bold text-bone">
-            {data?.displayName ? `Hi, ${data.displayName}` : "Home"}
-          </Text>
-          <NotificationBell />
-        </View>
+        <Text className="pt-2 text-2xl font-bold text-bone">
+          {data?.displayName ? `Hi, ${data.displayName}` : "Home"}
+        </Text>
         {data ? (
           <View className="mb-5 mt-3">
             <BooksToggle open={data.booksOpen} />

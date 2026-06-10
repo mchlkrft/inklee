@@ -64,7 +64,7 @@ export default function MoreScreen() {
   // profile row) is non-fatal: we fall back to /me's name + slug.
   if (!me) {
     return (
-      <Screen>
+      <Screen edges={["left", "right"]}>
         <Text className="py-2 text-2xl font-bold text-bone">More</Text>
         {meQ.loading ? (
           <View className="flex-1 items-center justify-center">
