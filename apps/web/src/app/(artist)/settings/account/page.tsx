@@ -20,6 +20,11 @@ export default async function AccountPage() {
   // Detect whether the account has a password (vs Google-only)
   const identities = user?.identities ?? [];
   const hasPassword = identities.some((i) => i.provider === "email");
+  // For OAuth-only accounts, the provider to re-verify with before deletion
+  // (counsel §9 re-auth, enforced server-side via last_sign_in_at freshness).
+  const oauthProvider = hasPassword
+    ? null
+    : (identities.find((i) => i.provider !== "email")?.provider ?? null);
 
   // Check TOTP enrollment
   const { data: factors } = await supabase.auth.mfa.listFactors();
@@ -118,6 +123,7 @@ export default async function AccountPage() {
         <DeleteAccountSection
           email={user?.email ?? ""}
           hasPassword={hasPassword}
+          oauthProvider={oauthProvider}
         />
       </section>
     </div>

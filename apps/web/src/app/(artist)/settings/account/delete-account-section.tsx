@@ -5,18 +5,19 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { deleteOwnAccountAction } from "./actions";
 
-// Counsel §9: re-authentication before the irreversible delete. Password users
-// re-enter their password (verified via signInWithPassword, which also refreshes
-// the session); type-to-confirm is always required.
-// NOTE: OAuth-only web accounts (no password) currently proceed on type-to-confirm
-// alone — adding social re-auth here without losing the page is a documented
-// follow-up. The mobile app (the Apple-gated surface) has full provider re-auth.
+// Counsel §9: re-authentication before the irreversible delete, enforced
+// server-side via last_sign_in_at freshness. Password users re-enter their
+// password (signInWithPassword bumps last_sign_in_at). OAuth-only accounts
+// re-verify with their provider: an OAuth round-trip that returns to this page
+// and bumps last_sign_in_at. Type-to-confirm is always required.
 export default function DeleteAccountSection({
   email,
   hasPassword,
+  oauthProvider,
 }: {
   email: string;
   hasPassword: boolean;
+  oauthProvider: string | null;
 }) {
   const router = useRouter();
   const [confirm, setConfirm] = useState("");
@@ -41,6 +42,24 @@ export default function DeleteAccountSection({
     }
     setReauthed(true);
   }
+
+  // OAuth-only re-auth: provider round-trip that returns to this page (the
+  // callback honours ?next), which bumps last_sign_in_at so the server-side
+  // re-auth check passes. State is not preserved across the redirect; the user
+  // returns and types DELETE, and the server enforces the freshness window.
+  async function reauthOAuth() {
+    if (!oauthProvider) return;
+    await createClient().auth.signInWithOAuth({
+      provider: oauthProvider as "google" | "apple",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/settings/account`,
+      },
+    });
+  }
+
+  const providerLabel = oauthProvider
+    ? oauthProvider.charAt(0).toUpperCase() + oauthProvider.slice(1)
+    : "";
 
   function onDelete() {
     setError(null);
@@ -98,6 +117,20 @@ export default function DeleteAccountSection({
             )}
           </div>
         )
+      ) : oauthProvider ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Because you sign in with {providerLabel}, re-verify your identity
+            before deleting. You return here to confirm.
+          </p>
+          <button
+            type="button"
+            onClick={reauthOAuth}
+            className="rounded-md border border-border px-4 py-2 text-sm text-foreground"
+          >
+            Re-verify with {providerLabel}
+          </button>
+        </div>
       ) : null}
 
       <div className="space-y-2 pt-1">

@@ -33,7 +33,15 @@ Severities reflect the adversarial verifiers' final calibration (many round-1 "h
 - ✅ **Add-on currency guard** (`request/[token]/actions.ts`): refuses the goods path unless the deposit is EUR (closes the latent EUR-into-non-EUR mis-charge before goods commerce is un-parked).
 - ✅ **Webhook orphaned-payment flagging** (`api/stripe/webhook/route.ts`): all six branches that return early after a *captured* payment now `Sentry.captureMessage` an unreconciled-payment alert (additive, idempotent-safe) so money never vanishes with no trail.
 
-**Still open** (see backlog below): making the webhook status flip a conditional UPDATE (symmetric with the cores — the orphan-flagging now covers the observability half); Apple sign-in nonce (needs `expo-crypto`; low); the GDPR retention cluster (audit-log PII scrub, retention purge cron, cleanup-cron financial cascade, account-deletion re-auth, privacy-notice rewrite) — several need a founder/counsel decision on exact periods; CI + booking-core/webhook tests; Sentry `onRequestError` wiring; em-dash copy sweep; remaining Low hardening.
+**GDPR retention cluster — fixed 2026-06-10** (to counsel `account-deletion-handoff.md` + founder decisions; typecheck + 353 tests green; independent adversarial review, 2 majors found and fixed):
+- ✅ **Cleanup-cron financial retention** (§4): money-state bookings (paid deposit, or paid/refunded order) are no longer cascade-deleted at 30 days — orders + deposit audit rows survive; images still purge at 30 days (§6).
+- ✅ **Deletion PII scrub** (§8): `deleteOwnAccountCore` redacts `audit_log.details` (actor rows AND admin rows targeting the user) + `admin_action_log.metadata` to a pseudonymous marker before the clean tombstone. (The admin-mirror `audit_log` row was the review's major-1 miss, now fixed.)
+- ✅ **Waitlist purge**: deletes the user's `mobile_waitlist` row on deletion (lowercased email); after-send half noted for when the launch-send path is built.
+- ✅ **Re-auth enforcement** (§9): server requires `last_sign_in_at` within 5 min (fails closed) on both web action and mobile route. Web OAuth-only users now get an in-flow "Re-verify with {provider}" button (review major-2) that round-trips through `/auth/callback?next=/settings/account`.
+- ✅ **Retention purge cron**: monthly `retention-purge` — `deleted_account_records` 7y from calendar-year-end; `audit_log` (booking_id-null) + `admin_action_log` at 24mo; booking-linked financial rows preserved (§8).
+- ✅ **Privacy notice**: counsel's §10 clauses published verbatim into `privacy.md` v2026-06-10 + frozen snapshot; retention table corrected.
+
+**Still open** (see backlog below): making the webhook status flip a conditional UPDATE (symmetric with the cores — the orphan-flagging now covers the observability half); Apple sign-in nonce (needs `expo-crypto`; low); client/end-customer SAR admin tooling (deferred — manual via support@ is GDPR-acceptable at this scale); CI + booking-core/webhook tests; em-dash copy sweep; remaining Low hardening (CSP unsafe-inline/eval, `*.supabase.co` wildcard pin, `import "server-only"` on service.ts, `.env.example` drift, mobile sign-out offline, push-token-in-URL). Operational: `supabase db push` for migration 0048 (indexes).
 
 ---
 

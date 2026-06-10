@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
+import { ORDER_MONEY_STATES } from "@/lib/server/account-deletion-logic";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
 
   const { data: stale, error: fetchError } = await serviceClient
     .from("booking_requests")
-    .select("id, artist_id")
+    .select("id, artist_id, deposit_paid_at")
     .in("status", ["rejected", "cancelled"])
     .lt("updated_at", cutoff);
 
@@ -26,9 +27,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ deleted: 0 });
   }
 
-  const ids = stale.map((r) => r.id);
+  const staleIds = stale.map((r) => r.id);
 
-  // Delete storage files for each booking
+  // Counsel §4: a booking that captured money — a paid deposit, or a paid/
+  // refunded goods order — carries a financial record Inklee must retain for 7
+  // years. Hard-deleting it here would cascade away the order + deposit audit
+  // rows (orders.booking_id and audit_log.booking_id are ON DELETE CASCADE), so
+  // those rows are KEPT (pseudonymised at account deletion or by the retention
+  // purge). Their reference IMAGES are still purged at 30 days per counsel §6,
+  // exactly like non-money bookings. Only non-money booking rows are deleted.
+  const { data: moneyOrders } = await serviceClient
+    .from("orders")
+    .select("booking_id")
+    .in("booking_id", staleIds)
+    .in("status", ORDER_MONEY_STATES);
+  const moneyBookingIds = new Set<string>(
+    (moneyOrders ?? []).map((o) => o.booking_id as string),
+  );
+  for (const r of stale) {
+    if (r.deposit_paid_at) moneyBookingIds.add(r.id);
+  }
+  const deletableIds = staleIds.filter((id) => !moneyBookingIds.has(id));
+
+  // Delete reference images for ALL stale bookings (PII; counsel §6 30-day rule),
+  // including money-state ones whose rows we retain.
   for (const booking of stale) {
     const folder = `${booking.artist_id}/${booking.id}`;
     const { data: files } = await serviceClient.storage
@@ -41,13 +63,15 @@ export async function GET(request: Request) {
     }
   }
 
-  const { error: deleteError } = await serviceClient
-    .from("booking_requests")
-    .delete()
-    .in("id", ids);
+  if (deletableIds.length > 0) {
+    const { error: deleteError } = await serviceClient
+      .from("booking_requests")
+      .delete()
+      .in("id", deletableIds);
 
-  if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    }
   }
 
   // ── Unreconciled deposit check ────────────────────────────────────────────
@@ -91,7 +115,8 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    deleted: ids.length,
+    deleted: deletableIds.length,
+    retained_with_financial_record: moneyBookingIds.size,
     flagged_unreconciled: flagged,
   });
 }

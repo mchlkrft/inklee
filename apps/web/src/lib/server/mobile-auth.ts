@@ -11,7 +11,14 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export type MobileAuth =
-  | { ok: true; userId: string; supabase: SupabaseClient }
+  | {
+      ok: true;
+      userId: string;
+      /** Supabase last real sign-in time (not bumped by token refresh) — used to
+       *  gate re-auth-sensitive actions like account deletion. */
+      lastSignInAt: string | null;
+      supabase: SupabaseClient;
+    }
   | { ok: false; status: number; error: string };
 
 /** Validate the Bearer token and return an RLS-scoped client for the artist. */
@@ -33,7 +40,12 @@ export async function requireMobileUser(req: Request): Promise<MobileAuth> {
   if (error || !data.user) {
     return { ok: false, status: 401, error: "Invalid or expired session." };
   }
-  return { ok: true, userId: data.user.id, supabase };
+  return {
+    ok: true,
+    userId: data.user.id,
+    lastSignInAt: data.user.last_sign_in_at ?? null,
+    supabase,
+  };
 }
 
 /** Standard success envelope: `{ data }`. */

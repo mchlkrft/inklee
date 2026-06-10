@@ -27,6 +27,23 @@ import {
 // §4/§5: the retained record is pseudonymised (in-scope personal data), money +
 // Stripe ids only, retained 7 years for Estonian accounting/tax law.
 
+// Counsel §9: deletion must be confirmed by re-authentication immediately before
+// the irreversible operation. last_sign_in_at is set by Supabase on a REAL
+// sign-in (password or OAuth/Apple) and is NOT bumped by silent token refresh,
+// so a recent value is server-side proof that the user just re-authenticated —
+// which is exactly what the clients' re-auth step produces. Both deletion entry
+// points (web action + mobile route) gate on this so the check lives on the
+// enforceable side of the trust boundary, not only in the UI.
+export const REAUTH_WINDOW_MS = 5 * 60 * 1000;
+export function isReauthFresh(
+  lastSignInAt: string | null | undefined,
+): boolean {
+  if (!lastSignInAt) return false;
+  const t = Date.parse(lastSignInAt);
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t <= REAUTH_WINDOW_MS;
+}
+
 export type DeleteAccountResult =
   | { ok: true }
   | {
@@ -107,6 +124,13 @@ export async function deleteOwnAccountCore(
     .select("stripe_account_id")
     .eq("id", userId)
     .single();
+
+  // Capture the auth email up front — needed to purge this person's single-
+  // purpose mobile launch-waitlist row(s) (keyed by email, no FK so the cascade
+  // never reaches them), and it is gone once the auth user is deleted at step 6.
+  const { data: authUserData } =
+    await serviceClient.auth.admin.getUserById(userId);
+  const userEmail = authUserData?.user?.email ?? null;
 
   const { data: depositRows } = await serviceClient
     .from("booking_requests")
@@ -263,7 +287,49 @@ export async function deleteOwnAccountCore(
     return { ok: false, code: "ERROR", message: authError.message };
   }
 
+  // 6b. Counsel §8: records that outlive the cascade must be PSEUDONYMOUS — a
+  //     bare actor uuid + action + timestamp, with no name/email. Redact the
+  //     free-form detail blobs that can carry PII on every row tied to this user:
+  //     audit_log.details (booking_id-null rows survive the cascade) and
+  //     admin_action_log.metadata (no FK, never cascades). action/actor/timestamp
+  //     remain as the pseudonymous record. Best-effort — never blocks completion.
+  const redacted = { redacted_on_account_deletion: true };
+  await serviceClient
+    .from("audit_log")
+    .update({ details: redacted })
+    .eq("actor", userId);
+  // Admin-initiated actions mirror into audit_log with actor = the ADMIN's id and
+  // details.target_user_id = THIS user (and can carry the user's display_name /
+  // email in details, e.g. permanent_delete / password_reset). The actor scrub
+  // above misses those, so also redact admin rows that target this user.
+  await serviceClient
+    .from("audit_log")
+    .update({ details: redacted })
+    .eq("event_category", "admin")
+    .filter("details->>target_user_id", "eq", userId);
+  await serviceClient
+    .from("admin_action_log")
+    .update({ metadata: redacted })
+    .eq("target_user_id", userId);
+  await serviceClient
+    .from("admin_action_log")
+    .update({ metadata: redacted })
+    .eq("admin_user_id", userId);
+
+  // 6c. Single-purpose mobile launch-waitlist consent (counsel/founder decision):
+  //     delete this person's waitlist row(s). No FK → not reached by the cascade.
+  //     (The launch-send path, when built, must also delete each row after it is
+  //     emailed — the other half of the same decision.)
+  if (userEmail) {
+    // mobile_waitlist.email is stored lowercase (CHECK email = lower(email)).
+    await serviceClient
+      .from("mobile_waitlist")
+      .delete()
+      .eq("email", userEmail.toLowerCase());
+  }
+
   // 7. Tombstone (booking_id null → survives the cascade; bare uuid, no live PII).
+  //    Written AFTER the 6b redaction so this clean record is not itself redacted.
   await writeAudit({
     action: "account_deleted",
     actor: userId,

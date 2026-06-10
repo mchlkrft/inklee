@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
-import { deleteOwnAccountCore } from "@/lib/server/account-deletion";
+import {
+  deleteOwnAccountCore,
+  isReauthFresh,
+} from "@/lib/server/account-deletion";
 
 type State = { error: string } | { success: true } | null;
 
@@ -23,6 +26,16 @@ export async function deleteOwnAccountAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
   if (confirm !== "DELETE") return { error: "Type DELETE to confirm." };
+
+  // Counsel §9: require a recent re-authentication, verified server-side. The
+  // delete UI re-authenticates the user (password re-entry, or re-login for
+  // OAuth) immediately before calling — that bumps last_sign_in_at, which we
+  // check here so the control is enforced, not merely client-side. Fails closed.
+  if (!isReauthFresh(user.last_sign_in_at)) {
+    return {
+      error: "For your security, sign in again and then delete your account.",
+    };
+  }
 
   const result = await deleteOwnAccountCore(user.id, { surface: "web" });
   if (result.ok) return { deleted: true };
