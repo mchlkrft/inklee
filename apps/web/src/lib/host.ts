@@ -190,3 +190,31 @@ export function prependSlugToPath(slug: string, pathname: string): string {
   if (pathname === "" || pathname === "/") return `/${slug}`;
   return `/${slug}${pathname}`;
 }
+
+/** Whether an Origin header is an acceptable source for a public
+ *  booking/flash/waitlist submission. Accepts the canonical app URL, the
+ *  marketing hosts, and any artist subdomain on the public-bio domain (plus
+ *  their local-dev equivalents) — the booking form is served on all of them, so
+ *  a strict `origin === NEXT_PUBLIC_APP_URL` check would reject every submission
+ *  once `*.inkl.ee` subdomain mode is live. An absent Origin is treated as
+ *  acceptable (some privacy modes strip it; matches prior behaviour); a
+ *  malformed Origin is rejected. */
+export function isAllowedBookingOrigin(
+  origin: string | null | undefined,
+  appUrl: string | null | undefined,
+): boolean {
+  if (!origin) return true;
+  if (appUrl && origin === appUrl) return true;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  const routing = parseHost(host);
+  return (
+    routing.kind === "marketing" ||
+    routing.kind === "artist-subdomain" ||
+    (routing.kind === "local" && routing.slug !== null)
+  );
+}

@@ -19,7 +19,10 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://plausible.io https://js.stripe.com https://maps.googleapis.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co https://plausible.io https://api.stripe.com https://maps.googleapis.com https://places.googleapis.com",
+      // *.ingest.*.sentry.io covers the region-scoped Sentry ingest hosts so the
+      // browser Sentry client (instrumentation-client.ts) can actually upload
+      // captured errors; without it the fetch is CSP-blocked and fails silently.
+      "connect-src 'self' https://*.supabase.co https://plausible.io https://api.stripe.com https://maps.googleapis.com https://places.googleapis.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
       "font-src 'self'",
       "frame-src https://js.stripe.com",
       "frame-ancestors 'none'",

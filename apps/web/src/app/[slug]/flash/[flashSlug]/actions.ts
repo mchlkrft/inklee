@@ -10,6 +10,7 @@ import { createNotification } from "@/lib/notifications";
 import { customerLabel } from "@/lib/booking-domain";
 import { computeFlashAvailability } from "@/lib/flash";
 import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
+import { isAllowedBookingOrigin } from "@/lib/host";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -32,11 +33,15 @@ export async function submitFlashBookingAction(
   // Honeypot — silently succeed so bots don't know they were blocked.
   if (isHoneypotTriggered(formData.get(HONEYPOT_FIELD))) return null;
 
-  // Origin check
+  // Origin check — accepts the app host and artist bio-domain subdomains (the
+  // form is served on both), so flash bookings keep working under *.inkl.ee.
   const headersList = await headers();
-  const origin = headersList.get("origin") ?? "";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  if (appUrl && origin && origin !== appUrl) {
+  if (
+    !isAllowedBookingOrigin(
+      headersList.get("origin"),
+      process.env.NEXT_PUBLIC_APP_URL,
+    )
+  ) {
     return { error: "invalid request origin" };
   }
 

@@ -27,7 +27,13 @@ Severities reflect the adversarial verifiers' final calibration (many round-1 "h
 - ✅ **DB indexes**: `migrations/0048_perf_indexes.sql` (booking_requests, audit_log, slots, waitlist_entries, booking_images). **Requires `supabase db push` to take effect.**
 - ✅ **Slot-lock leak** (`[slug]/actions.ts`): every failure path between locking the slot and inserting the booking now reopens the slot (and removes uploaded images) via a shared rollback helper, so a failed image step no longer strands the slot `locked`/unbookable.
 
-**Still open** (see backlog below): webhook orphaned-payment reconciliation rows + making the webhook status flip a conditional UPDATE (symmetric with the cores); add-on EUR/non-EUR currency (gated, latent); subdomain-origin allowlist in `[slug]/actions.ts`; the GDPR retention cluster (audit-log PII scrub, retention purge cron, cleanup-cron financial cascade, account-deletion re-auth, privacy-notice rewrite) — several need a founder/counsel decision on exact periods; CI + booking-core/webhook tests; Sentry `onRequestError` wiring; em-dash copy sweep; remaining Low hardening.
+**Continue-fixes slice — fixed 2026-06-10** (typecheck + 353 tests green; independent adversarial review, zero blockers):
+- ✅ **Sentry observability**: `instrumentation.ts` exports `onRequestError = Sentry.captureRequestError` (route handlers, server actions, crons, webhook, all mobile routes now auto-report); dead `sentry.client.config.ts` replaced by Next-native `instrumentation-client.ts`; Sentry ingest hosts added to the CSP `connect-src`.
+- ✅ **Subdomain-origin allowlist** (`lib/host.ts` `isAllowedBookingOrigin`, wired into booking + flash submit): accepts the app host and `*.inkl.ee` artist subdomains, so bookings don't break under bio-domain mode; rejects unrelated/malformed origins.
+- ✅ **Add-on currency guard** (`request/[token]/actions.ts`): refuses the goods path unless the deposit is EUR (closes the latent EUR-into-non-EUR mis-charge before goods commerce is un-parked).
+- ✅ **Webhook orphaned-payment flagging** (`api/stripe/webhook/route.ts`): all six branches that return early after a *captured* payment now `Sentry.captureMessage` an unreconciled-payment alert (additive, idempotent-safe) so money never vanishes with no trail.
+
+**Still open** (see backlog below): making the webhook status flip a conditional UPDATE (symmetric with the cores — the orphan-flagging now covers the observability half); Apple sign-in nonce (needs `expo-crypto`; low); the GDPR retention cluster (audit-log PII scrub, retention purge cron, cleanup-cron financial cascade, account-deletion re-auth, privacy-notice rewrite) — several need a founder/counsel decision on exact periods; CI + booking-core/webhook tests; Sentry `onRequestError` wiring; em-dash copy sweep; remaining Low hardening.
 
 ---
 

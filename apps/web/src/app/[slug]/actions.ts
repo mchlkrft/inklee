@@ -15,6 +15,7 @@ import { validateCustomAnswers } from "@/lib/custom-fields";
 import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { isAllowedBookingOrigin } from "@/lib/host";
 import { parseFormSettings } from "@/lib/form-settings";
 import { processImage } from "@/lib/image-processing";
 import {
@@ -52,11 +53,16 @@ export async function submitBookingAction(
   // browser autofill writing into the hidden field doesn't false-positive.
   if (isHoneypotTriggered(formData.get(HONEYPOT_FIELD))) return null;
 
-  // Origin check — reject submissions from unexpected domains
+  // Origin check — reject submissions from unexpected domains. Accepts the app
+  // host AND artist bio-domain subdomains (the form is served on both), so this
+  // does not break bookings once *.inkl.ee subdomain mode is live.
   const headersList = await headers();
-  const origin = headersList.get("origin") ?? "";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  if (appUrl && origin && origin !== appUrl) {
+  if (
+    !isAllowedBookingOrigin(
+      headersList.get("origin"),
+      process.env.NEXT_PUBLIC_APP_URL,
+    )
+  ) {
     return { error: "Invalid request origin." };
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { formatSize } from "@/lib/booking-schema";
 import {
@@ -183,6 +184,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true });
     }
 
+    // The branches below return early WITHOUT advancing the booking, even though
+    // this is payment_intent.succeeded — i.e. the client's card was already
+    // charged. Flag each so a human can refund/reconcile instead of the payment
+    // vanishing with no record (the audit_log deposit_paid row is only written on
+    // the happy path). Sentry-only keeps this additive and idempotent-safe across
+    // Stripe's retries (it aggregates duplicates); it does not change any logic.
+    const flagOrphanedPayment = (reason: string) =>
+      Sentry.captureMessage("Stripe deposit payment not reconciled", {
+        level: "error",
+        tags: { action: "deposit_payment_orphaned" },
+        extra: {
+          bookingId,
+          paymentIntentId: intent.id,
+          amountReceived: intent.amount,
+          bookingStatus: booking.status,
+          reason,
+        },
+      });
+
     // Booking-side idempotency. The audit_log row + the booking's terminal
     // status BOTH signal that the deposit was already processed. We compute
     // this up front but no longer short-circuit the whole handler — the
@@ -208,6 +228,7 @@ export async function POST(request: Request) {
     // bad request, not a retry. If the booking is already approved (terminal
     // success) we still allow the order-side flip below.
     if (!bookingAlreadyDone && booking.status !== "deposit_pending") {
+      flagOrphanedPayment(`unexpected booking status ${booking.status}`);
       return NextResponse.json(
         { error: "booking is not awaiting a deposit" },
         { status: 409 },
@@ -218,7 +239,12 @@ export async function POST(request: Request) {
       (booking.status === "rejected" || booking.status === "cancelled")
     ) {
       // Audit said this intent has been logged, but the booking is in a
-      // terminal-rejected state — nothing more to do.
+      // terminal-rejected state — nothing more to do. If it was NOT logged, the
+      // client paid for a booking that is already rejected/cancelled — an
+      // orphaned payment that needs a manual refund.
+      if ((alreadyLogged ?? 0) === 0) {
+        flagOrphanedPayment("paid for an already rejected/cancelled booking");
+      }
       return NextResponse.json({ received: true, skipped: true });
     }
 
@@ -237,6 +263,7 @@ export async function POST(request: Request) {
         .eq("id", orderId)
         .single();
       if (!orderRow || orderRow.booking_id !== bookingId) {
+        flagOrphanedPayment("order_id in metadata does not match the booking");
         return NextResponse.json(
           { error: "order does not match this booking" },
           { status: 409 },
@@ -252,6 +279,7 @@ export async function POST(request: Request) {
         : null;
 
     if (expectedAmount === null || Number.isNaN(expectedAmount)) {
+      flagOrphanedPayment("expected deposit/order amount missing");
       return NextResponse.json(
         { error: "booking deposit amount is missing" },
         { status: 409 },
@@ -259,6 +287,9 @@ export async function POST(request: Request) {
     }
 
     if (intent.amount !== expectedAmount) {
+      flagOrphanedPayment(
+        `amount mismatch: expected ${expectedAmount}, received ${intent.amount}`,
+      );
       return NextResponse.json(
         {
           error: `payment amount mismatch: expected ${expectedAmount}, received ${intent.amount}`,
@@ -271,6 +302,9 @@ export async function POST(request: Request) {
       booking.deposit_payment_intent_id &&
       booking.deposit_payment_intent_id !== intent.id
     ) {
+      flagOrphanedPayment(
+        "intent id does not match the booking's stored intent",
+      );
       return NextResponse.json(
         { error: "payment intent does not match this booking" },
         { status: 409 },

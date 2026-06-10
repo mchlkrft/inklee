@@ -306,7 +306,7 @@ export async function prepareCheckoutAction(
   const { data: booking } = await serviceClient
     .from("booking_requests")
     .select(
-      "id, status, created_at, deposit_amount, deposit_payment_intent_id, artist_id, customer_email",
+      "id, status, created_at, deposit_amount, deposit_currency, deposit_payment_intent_id, artist_id, customer_email",
     )
     .eq("customer_token_hash", tokenHash)
     .single();
@@ -365,6 +365,22 @@ export async function prepareCheckoutAction(
       return { error: "Could not prepare the payment. Try again." };
     }
     return { ok: true, totalEur: depositAmount };
+  }
+
+  // Goods are priced in EUR only (getAddonProducts filters to currency='eur'),
+  // but the deposit PaymentIntent is created in the artist's settlement currency
+  // (Slice 79d / 0044), which may be non-EUR. Summing EUR goods into a non-EUR
+  // intent would mis-charge (e.g. a EUR 30 item collected as 30 CZK). Refuse the
+  // add-on path unless the deposit is EUR; the client can still pay the deposit
+  // alone. This also keeps the order rows' hard-coded currency:"eur" correct.
+  const depositCurrency = (
+    (booking.deposit_currency as string | null) ?? "eur"
+  ).toLowerCase();
+  if (depositCurrency !== "eur") {
+    return {
+      error:
+        "Add-on items aren’t available for this booking. You can still pay the deposit on its own.",
+    };
   }
 
   // SECURITY: confirm every selection is actually approved for THIS
