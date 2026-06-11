@@ -56,14 +56,19 @@ export async function GET(
   // deposit, so we only look it up then. Gates the in-app refund button and the
   // cancel-copy so the artist isn't told a deposit will be refunded twice.
   let depositRefunded = false;
+  let depositRefundedAt: string | null = null;
   if (b.deposit_payment_intent_id && b.deposit_paid_at) {
     const { data: log } = await supabase
       .from("audit_log")
-      .select("action")
+      .select("created_at")
       .eq("booking_id", id)
       .eq("action", "deposit_refunded")
+      .order("created_at", { ascending: false })
       .limit(1);
-    depositRefunded = !!log && log.length > 0;
+    if (log && log.length > 0) {
+      depositRefunded = true;
+      depositRefundedAt = (log[0] as { created_at: string }).created_at;
+    }
   }
 
   const body: MobileBookingDetail = {
@@ -90,6 +95,7 @@ export async function GET(
             paid: !!b.deposit_paid_at,
             hasCardIntent: !!b.deposit_payment_intent_id,
             refunded: depositRefunded,
+            refundedAt: depositRefundedAt,
           }
         : null,
   };

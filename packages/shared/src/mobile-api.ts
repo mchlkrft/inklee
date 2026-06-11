@@ -140,6 +140,8 @@ export type MobileBookingDeposit = {
   paid: boolean;
   hasCardIntent: boolean;
   refunded: boolean;
+  /** When the refund was issued (from the audit log), for the "Refunded on" note. */
+  refundedAt: string | null;
 };
 
 /** GET /api/mobile/bookings/:id — full request detail (the core screen). */

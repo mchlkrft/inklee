@@ -75,6 +75,13 @@ export default function BookingDetailScreen() {
         Requested {relativeTime(b.createdAt)}
       </Text>
 
+      {b.handle || b.email ? (
+        <Section title="Client">
+          {b.handle ? <Field label="Instagram" value={`@${b.handle}`} /> : null}
+          {b.email ? <Field label="Email" value={b.email} /> : null}
+        </Section>
+      ) : null}
+
       <Section title="Tattoo">
         <Field label="Placement" value={b.placement} />
         <Field label="Size" value={b.size} />
@@ -147,6 +154,9 @@ export default function BookingDetailScreen() {
                     : "Awaiting payment"
             }
           />
+          {d.refunded && d.refundedAt ? (
+            <Field label="Refunded on" value={formatShortDate(d.refundedAt)} />
+          ) : null}
           {d.dueAt ? (
             <Field label="Due by" value={formatShortDate(d.dueAt)} />
           ) : null}

@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
 import { invalidateBookingViews, useApiQuery } from "@/lib/api";
@@ -339,6 +340,7 @@ function DepositRequestForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const router = useRouter();
   const defaults = useApiQuery<DepositDefaults>("/settings/deposit-defaults");
   const payouts = useApiQuery<MobilePayouts>("/settings/payouts");
 
@@ -405,13 +407,27 @@ function DepositRequestForm({
     <View className="gap-3 rounded-xl border border-shell-border p-4">
       <Text className="text-sm font-medium text-foreground">Request deposit</Text>
 
-      <Text className="text-xs text-shell-dim">
-        {!payoutsReady
-          ? "Checking your payout setup…"
-          : canCollectInApp
-            ? "The client pays by card via a link in their email."
-            : "You'll collect this deposit directly (e.g. bank transfer — add details in the note) and mark it received. Connect Stripe in Settings to take card payments in-app."}
-      </Text>
+      {!payoutsReady ? (
+        <Text className="text-xs text-shell-dim">
+          Checking your payout setup…
+        </Text>
+      ) : canCollectInApp ? (
+        <Text className="text-xs text-shell-dim">
+          The client pays by card via a link in their email.
+        </Text>
+      ) : (
+        <Text className="text-xs text-shell-dim">
+          You&apos;ll collect this deposit directly (e.g. bank transfer, add
+          details in the note) and mark it received.{" "}
+          <Text
+            className="font-medium text-mustard"
+            onPress={() => router.push("/settings/payouts")}
+          >
+            Connect Stripe in Settings
+          </Text>{" "}
+          to take card payments in-app.
+        </Text>
+      )}
 
       <View className="gap-1">
         <Text className="text-xs text-shell-dim">Amount *</Text>
