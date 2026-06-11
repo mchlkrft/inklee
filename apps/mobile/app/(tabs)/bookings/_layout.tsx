@@ -28,7 +28,7 @@ export default function BookingsLayout() {
       <TopBar />
       <View className="px-5">
         <PageHeader title="Bookings" />
-        <View className="-mt-2 mb-3 flex-row gap-2">
+        <View className="mb-3 flex-row gap-2">
           {SUBNAV.map((item) => (
             <FilterChip
               key={item.path}

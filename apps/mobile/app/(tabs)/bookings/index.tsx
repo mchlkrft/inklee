@@ -19,6 +19,8 @@ import { FilterChip } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { config } from "@/lib/config";
 import { formatShortDate, relativeTime } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
@@ -133,15 +135,18 @@ export default function RequestsScreen() {
   const path = status ? `/bookings?status=${status}` : "/bookings";
   const q = useInfiniteApiQuery<MobileBookingListItem>(path);
   const me = useApiQuery<MobileMe>("/me");
+  const onScroll = useScrollHide();
   const bookingUrl = me.data?.slug ? config.publicUrl(me.data.slug) : null;
 
   return (
     <Screen edges={["left", "right"]}>
+      {/* flexGrow:0 keeps the chip strip from stealing list space; no max-h so
+          the chips are never clipped. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingVertical: 8 }}
-        className="max-h-12 flex-grow-0"
+        contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
+        style={{ flexGrow: 0 }}
       >
         {FILTERS.map((f) => (
           <FilterChip
@@ -163,7 +168,9 @@ export default function RequestsScreen() {
           />
         )}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={q.refreshing}

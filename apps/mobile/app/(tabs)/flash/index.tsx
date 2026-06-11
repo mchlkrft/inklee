@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,16 +16,37 @@ import type {
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
-import { useApiQuery } from "@/lib/api";
+import { apiPost, useApiQuery } from "@/lib/api";
+import { captureError } from "@/lib/telemetry";
 import { flashLabel, flashStatusTone, formatFlashPrice } from "@/lib/flash";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 
 export default function FlashItemsList() {
   const router = useRouter();
   const q = useApiQuery<MobileFlashItemsResponse>("/flash/items");
   const colors = useColors();
+  const onScroll = useScrollHide();
+  const [creating, setCreating] = useState(false);
+
+  // One-tap quick create (web parity): mint a draft immediately and land on
+  // the photo-first editor — no save-the-form-before-the-photo friction.
+  async function newDesign() {
+    setCreating(true);
+    try {
+      const { id } = await apiPost<{ id: string }>("/flash/items");
+      q.refresh();
+      router.push(`/flash/items/${id}`);
+    } catch (e) {
+      captureError(e, { op: "createFlashItem" });
+    } finally {
+      setCreating(false);
+    }
+  }
 
   if (!q.data) {
     return (
@@ -47,6 +69,14 @@ export default function FlashItemsList() {
   return (
     <Screen edges={["left", "right"]}>
       <PageHeader title="Flash" />
+      <View className="pt-2">
+        <Button
+          label="New design"
+          size="sm"
+          onPress={newDesign}
+          loading={creating}
+        />
+      </View>
       <Pressable
         accessibilityRole="button"
         onPress={() => router.push("/flash/days")}
@@ -62,7 +92,9 @@ export default function FlashItemsList() {
       <FlatList
         data={q.data.items}
         keyExtractor={(it) => it.id}
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: TAB_BAR_CLEARANCE }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={q.refreshing}

@@ -104,14 +104,37 @@ export default function ClientDetailScreen() {
         />
       }
     >
-      <Text className="text-2xl font-bold text-foreground">{data.client}</Text>
-      {showEmail ? (
-        <Text className="mt-0.5 text-sm text-shell-dim">{data.email}</Text>
-      ) : null}
-      <Text className="mt-1 text-xs text-shell-mute">
-        {data.bookingCount} booking{data.bookingCount === 1 ? "" : "s"} ·{" "}
-        {approved} approved
-      </Text>
+      {/* Profile header: avatar + name at display size + readable contact line
+          + stat chips (founder: main information must be readable at a glance). */}
+      <View className="flex-row items-center gap-4">
+        <View className="h-16 w-16 items-center justify-center rounded-full bg-mustard/20">
+          <Text className="text-2xl font-bold text-mustard">
+            {data.client.replace(/^@/, "").charAt(0).toUpperCase() || "·"}
+          </Text>
+        </View>
+        <View className="flex-1">
+          <Text className="text-display font-bold text-foreground" numberOfLines={1}>
+            {data.client}
+          </Text>
+          {showEmail ? (
+            <Text className="mt-0.5 text-base text-shell-dim" numberOfLines={1}>
+              {data.email}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      <View className="mt-4 flex-row gap-2">
+        <View className="rounded-full bg-glass px-3 py-1.5">
+          <Text className="text-sm font-semibold text-foreground">
+            {data.bookingCount} booking{data.bookingCount === 1 ? "" : "s"}
+          </Text>
+        </View>
+        <View className="rounded-full bg-success/15 px-3 py-1.5">
+          <Text className="text-sm font-semibold text-success">
+            {approved} approved
+          </Text>
+        </View>
+      </View>
 
       <View className="mt-6">
         <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-shell-mute">
@@ -168,15 +191,15 @@ function HistoryRow({ item }: { item: ClientHistoryItem }) {
   return (
     <Card onPress={() => router.push(`/bookings/${item.id}`)}>
       <View className="mb-1 flex-row items-center justify-between gap-2">
-        <Text className="flex-1 text-base font-semibold text-foreground">
+        <Text className="flex-1 text-lg font-semibold text-foreground">
           {item.placement ?? "Tattoo request"}
         </Text>
         <StatusPill status={item.status} />
       </View>
       {item.size ? (
-        <Text className="text-sm text-shell-dim">{item.size}</Text>
+        <Text className="text-base text-shell-dim">{item.size}</Text>
       ) : null}
-      <Text className="mt-0.5 text-xs text-shell-mute">
+      <Text className="mt-1 text-sm text-shell-dim">
         {dateLabel} · submitted {relativeTime(item.createdAt)}
       </Text>
     </Card>

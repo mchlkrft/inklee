@@ -112,7 +112,7 @@ function CreateTrip() {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
       >
         <TextField
           label="Title"
@@ -201,7 +201,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
       >
         {/* Header fields seed from `initial` once; a leg add/delete refetch
             updates the legs list below but intentionally does NOT re-seed these

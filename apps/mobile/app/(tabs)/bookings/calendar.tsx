@@ -13,6 +13,8 @@ import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { DayAgenda } from "@/components/calendar/DayAgenda";
 import { useCalendarMonth } from "@/lib/calendar";
 import { colors } from "@/lib/tokens";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
 
 // Month grid of confirmed appointments + the selected day's agenda. Tapping an
@@ -23,12 +25,15 @@ export default function CalendarScreen() {
   useScreenView("calendar");
   const cal = useCalendarMonth();
   const router = useRouter();
+  const onScroll = useScrollHide();
 
   return (
     <Screen edges={["left", "right"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={cal.refreshing}

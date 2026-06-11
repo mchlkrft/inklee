@@ -11,6 +11,8 @@ import type { ClientListItem } from "@/lib/clients";
 import { relativeTime } from "@/lib/date";
 import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
 
 function ClientRow({
@@ -50,6 +52,7 @@ export default function ClientsScreen() {
   useScreenView("clients");
   const router = useRouter();
   const themed = useColors();
+  const onScroll = useScrollHide();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<{ items: ClientListItem[] }>("/clients");
   const [query, setQuery] = useState("");
@@ -96,6 +99,9 @@ export default function ClientsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

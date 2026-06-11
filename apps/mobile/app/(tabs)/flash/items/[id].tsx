@@ -220,8 +220,24 @@ function ItemForm({
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
       >
+        {/* The design IS the product — the photo leads the screen (founder
+            direction), everything else follows. */}
+        <ImageUploadField
+          label="Design image"
+          hero
+          imageUrl={initial.previewImageUrl}
+          endpoint={`/flash/items/${id}/image`}
+          onUploaded={() =>
+            queryClient.invalidateQueries({
+              predicate: (q) =>
+                typeof q.queryKey[1] === "string" &&
+                (q.queryKey[1] as string).startsWith("/flash"),
+            })
+          }
+        />
+
         <View className="mb-4 rounded-2xl border border-shell-border bg-glass">
           <StatRow
             label="Availability"
@@ -265,19 +281,6 @@ function ItemForm({
             <Text className="text-sm text-shell-dim">View related bookings</Text>
           </Pressable>
         ) : null}
-
-        <ImageUploadField
-          label="Design image"
-          imageUrl={initial.previewImageUrl}
-          endpoint={`/flash/items/${id}/image`}
-          onUploaded={() =>
-            queryClient.invalidateQueries({
-              predicate: (q) =>
-                typeof q.queryKey[1] === "string" &&
-                (q.queryKey[1] as string).startsWith("/flash"),
-            })
-          }
-        />
 
         <TextField
           label="Title"

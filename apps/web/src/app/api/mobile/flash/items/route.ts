@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import {
   requireMobileUser,
   mobileOk,
@@ -7,6 +8,7 @@ import { FLASH_ITEM_STATUSES } from "@/lib/mobile-flash";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
+  slugify,
 } from "@/lib/flash";
 import type {
   MobileFlashItem,
@@ -98,4 +100,52 @@ export async function GET(req: Request) {
   });
   const body: MobileFlashItemsResponse = { items };
   return mobileOk(body);
+}
+
+// POST /api/mobile/flash/items — one-tap draft create (mirrors the web
+// createFlashItemAction quick-create defaults: optional title falling back to
+// "Untitled flash", auto slug, draft status, unique booking mode, on-request
+// pricing). Returns { id } so the app lands straight on the photo-first edit
+// screen, where the image upload (which needs the row id) is available.
+export async function POST(req: Request) {
+  const auth = await requireMobileUser(req);
+  if (!auth.ok) return mobileError(auth.status, auth.error);
+  const { userId, supabase } = auth;
+
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = ((await req.json()) ?? {}) as Record<string, unknown>;
+  } catch {
+    // No body is fine — quick-create uses defaults.
+  }
+
+  const itemId = crypto.randomUUID();
+  const titleInput =
+    typeof raw.title === "string" && raw.title.trim()
+      ? raw.title.trim().slice(0, 200)
+      : null;
+  const title = titleInput ?? "Untitled flash";
+  const slug =
+    (titleInput ? slugify(titleInput) : "") || `flash-${itemId.slice(0, 8)}`;
+
+  const { error } = await supabase.from("flash_items").insert({
+    id: itemId,
+    artist_id: userId,
+    title,
+    slug,
+    status: "draft",
+    price_type: "request",
+    price: null,
+    booking_mode: "unique",
+    max_bookings: null,
+    is_bookable: true,
+  });
+  if (error) {
+    if (error.message.includes("unique")) {
+      return mobileError(409, "A flash item with this slug already exists.");
+    }
+    return mobileError(500, error.message);
+  }
+
+  return mobileOk({ id: itemId });
 }

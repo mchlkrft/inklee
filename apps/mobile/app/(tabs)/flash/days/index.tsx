@@ -63,7 +63,7 @@ export default function FlashDaysList() {
         <FlatList
           data={q.data.items}
           keyExtractor={(d) => d.id}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 120 /* tab bar clearance */ }}
           refreshControl={
             <RefreshControl
               refreshing={q.refreshing}

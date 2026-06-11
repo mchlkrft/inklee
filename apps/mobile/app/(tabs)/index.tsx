@@ -28,6 +28,8 @@ import { BooksToggle } from "@/components/BooksToggle";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { config } from "@/lib/config";
 import { formatShortDate } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
@@ -36,6 +38,7 @@ import type {
   MobileHomeBooking,
   MobileGuestSpot,
 } from "@inklee/shared/mobile-api";
+import { DEFAULT_DASHBOARD_WIDGETS } from "@inklee/shared/dashboard-settings";
 
 // A small right-aligned header link (View all / Calendar / Plan / View / Edit).
 function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) {
@@ -136,10 +139,13 @@ export default function HomeScreen() {
   useScreenView("home");
   const router = useRouter();
   const colors = useColors();
+  const onScroll = useScrollHide();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileHome>("/home");
 
-  const widgets = data?.dashboardWidgets;
+  // Default to ALL widgets visible when the flags are missing (e.g. a cached
+  // payload from an older API) — never an unexplained empty dashboard.
+  const widgets = data?.dashboardWidgets ?? DEFAULT_DASHBOARD_WIDGETS;
   const isZeroRequest =
     !!data &&
     data.onboardingCompleted &&
@@ -166,7 +172,9 @@ export default function HomeScreen() {
     <Screen edges={["left", "right"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

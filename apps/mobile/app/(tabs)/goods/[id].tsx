@@ -153,10 +153,18 @@ function ProductForm({
       isPublicVisible,
     };
     try {
-      if (isNew) await apiPost("/goods", payload);
-      else await apiPut(`/goods/${id}`, payload);
-      await invalidateGoods(queryClient);
-      router.back();
+      if (isNew) {
+        // The image endpoint needs a product id, so a brand-new product can't
+        // upload before its first save. Land straight on the saved product's
+        // edit screen so the photo step follows immediately (no back-and-find).
+        const created = await apiPost<{ id: string }>("/goods", payload);
+        await invalidateGoods(queryClient);
+        router.replace(`/goods/${created.id}`);
+      } else {
+        await apiPut(`/goods/${id}`, payload);
+        await invalidateGoods(queryClient);
+        router.back();
+      }
     } catch (e) {
       captureError(e, { op: "saveProduct" });
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
@@ -198,11 +206,12 @@ function ProductForm({
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
       >
         {!isNew ? (
           <ImageUploadField
             label="Photo"
+            hero
             imageUrl={initial?.imageUrl ?? null}
             endpoint={`/goods/${id}/image`}
             onUploaded={() =>
@@ -214,9 +223,16 @@ function ProductForm({
             }
           />
         ) : (
-          <Text className="mb-4 text-center text-xs text-shell-mute">
-            Save the product, then reopen it to add a photo.
-          </Text>
+          // The image endpoint needs the product's id, so the photo step comes
+          // right after the first save (you land back here with it ready).
+          <View
+            className="mb-4 items-center justify-center rounded-[20px] border border-dashed border-shell-border bg-glass"
+            style={{ height: 160 }}
+          >
+            <Text className="px-6 text-center text-sm text-shell-dim">
+              Save the product and the photo upload appears right here.
+            </Text>
+          </View>
         )}
 
         <TextField

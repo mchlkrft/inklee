@@ -86,13 +86,16 @@ export function MonthGrid(props: {
                 className="flex-1"
               >
                 <View
-                  className={`m-0.5 aspect-square items-center justify-center rounded-xl ${
+                  className={`m-0.5 aspect-square items-center justify-center ${
                     isSelected
                       ? "bg-mustard"
                       : cell.isToday
                         ? "border border-mustard active:bg-shell-mute/20"
                         : "active:bg-shell-mute/20"
                   }`}
+                  // Inline so the radius always renders on the active/today
+                  // cell (the className path was not applying reliably).
+                  style={{ borderRadius: 12, overflow: "hidden" }}
                 >
                   <Text className={`text-sm font-semibold ${numberTone}`}>
                     {cell.day}

@@ -53,7 +53,7 @@ export default function StudiosList() {
         <FlatList
           data={q.data.items}
           keyExtractor={(s) => s.id}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 120 /* tab bar clearance */ }}
           refreshControl={
             <RefreshControl
               refreshing={q.refreshing}

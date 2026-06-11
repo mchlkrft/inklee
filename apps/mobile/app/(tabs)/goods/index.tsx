@@ -25,11 +25,14 @@ import { useApiQuery, apiPatch } from "@/lib/api";
 import { formatProductPrice, productStatusLabel } from "@/lib/goods";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 
 export default function GoodsList() {
   const router = useRouter();
   const q = useApiQuery<MobileProductsResponse>("/goods");
   const colors = useColors();
+  const onScroll = useScrollHide();
 
   if (!q.data) {
     return (
@@ -70,7 +73,9 @@ export default function GoodsList() {
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={{ paddingBottom: 40, gap: 12 }}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE, gap: 12 }}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={q.refreshing}

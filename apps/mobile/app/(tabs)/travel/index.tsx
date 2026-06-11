@@ -16,11 +16,14 @@ import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 
 export default function TripsList() {
   const router = useRouter();
   const q = useApiQuery<MobileTripsResponse>("/travel/trips");
   const colors = useColors();
+  const onScroll = useScrollHide();
 
   if (!q.data) {
     return (
@@ -69,7 +72,9 @@ export default function TripsList() {
         <FlatList
           data={q.data.items}
           keyExtractor={(t) => t.id}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={q.refreshing}

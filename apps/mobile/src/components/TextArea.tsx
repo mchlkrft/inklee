@@ -36,6 +36,11 @@ export function TextArea({
           value={value}
           maxLength={maxLength}
           multiline
+          // A multiline input scrolls internally and CONSUMES the drag gesture,
+          // blocking the page scroll when the swipe starts on the field. The
+          // field grows with its content anyway, so disable inner scrolling and
+          // let the surrounding ScrollView own the gesture (form best practice).
+          scrollEnabled={false}
           placeholderTextColor={colors.shell.mute}
           {...input}
           onFocus={(e) => {

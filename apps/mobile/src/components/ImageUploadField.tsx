@@ -19,6 +19,7 @@ export function ImageUploadField({
   shape = "square",
   maxBytes = 4 * 1024 * 1024,
   hint,
+  hero = false,
   onUploaded,
 }: {
   label: string;
@@ -31,6 +32,9 @@ export function ImageUploadField({
   maxBytes?: number;
   /** Muted helper line under the field (format / size / resize note). */
   hint?: string;
+  /** Full-width tall preview (the image IS the content, e.g. a flash design)
+   *  instead of the small avatar-style square. */
+  hero?: boolean;
   onUploaded?: (url: string) => void;
 }) {
   const colors = useColors();
@@ -86,32 +90,36 @@ export function ImageUploadField({
 
   const size = 96;
   const radius = shape === "circle" ? size / 2 : 16;
+  const imageStyle = hero
+    ? { width: "100%" as const, height: 260, borderRadius: 20 }
+    : { width: size, height: size, borderRadius: radius };
 
   return (
-    <View className="mb-4 items-center">
+    <View className={`mb-4 ${hero ? "" : "items-center"}`}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label} — choose a photo`}
         onPress={pick}
         disabled={busy}
-        className="items-center active:opacity-80"
+        className={`${hero ? "" : "items-center"} active:opacity-80`}
       >
         {localUrl ? (
-          <Image
-            source={{ uri: localUrl }}
-            style={{ width: size, height: size, borderRadius: radius }}
-            contentFit="cover"
-          />
+          <Image source={{ uri: localUrl }} style={imageStyle} contentFit="cover" />
         ) : (
           <View
-            style={{ width: size, height: size, borderRadius: radius }}
+            style={imageStyle}
             className="items-center justify-center border border-shell-border bg-glass"
           >
             <Ionicons
               name="camera-outline"
-              size={28}
+              size={hero ? 40 : 28}
               color={colors.shell.mute}
             />
+            {hero ? (
+              <Text className="mt-2 text-sm text-shell-dim">
+                Add the design photo
+              </Text>
+            ) : null}
           </View>
         )}
         <View className="mt-2 h-5 items-center justify-center">
