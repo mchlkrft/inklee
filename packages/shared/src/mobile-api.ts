@@ -404,6 +404,37 @@ export type MobileTripDetail = {
   studios: MobileStudioOption[];
 };
 
+/** One row in the mobile booking-form summary: standard + custom fields
+ *  interleaved in the artist's saved field order. */
+export type MobileBookingFormField = {
+  /** Standard-field id (e.g. "email") or the custom field's uuid. */
+  id: string;
+  kind: "standard" | "custom";
+  label: string;
+  /** Custom-field type badge (Text, Dropdown, …); null for standard fields. */
+  typeLabel: string | null;
+  /** False when a standard field is hidden or a custom field is inactive. */
+  enabled: boolean;
+  required: boolean;
+  /** Email + preferred date can never be hidden on the public form. */
+  alwaysOn: boolean;
+};
+
+/** GET /api/mobile/booking-form — read-only aggregate for the booking-form
+ *  summary screen (share link + availability + the configured field list). */
+export type MobileBookingForm = {
+  slug: string | null;
+  bookingMode: string;
+  /** books_open AND the booking window has not expired (matches the web rule). */
+  isOpen: boolean;
+  windowExpired: boolean;
+  openSlotCount: number;
+  /** Fixed-slots mode with zero open slots — the public page appears closed. */
+  isFixedSlotsWithoutSlots: boolean;
+  allowPhotoAnnotations: boolean;
+  fields: MobileBookingFormField[];
+};
+
 /** GET /api/mobile/account — account + security overview (mirrors web settings/account). */
 export type MobileAccount = {
   email: string | null;

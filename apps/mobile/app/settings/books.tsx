@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
+  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -14,8 +15,9 @@ import type { BooksSettings } from "@inklee/shared/books-settings";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
+import { DateField } from "@/components/DateField";
 import { ErrorState } from "@/components/ErrorState";
-import { useApiQuery, apiPut } from "@/lib/api";
+import { useApiQuery, apiPost, apiPut } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
 
@@ -56,8 +58,34 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
   const [closedMessage, setClosedMessage] = useState(
     initial.books_closed_message ?? "",
   );
+  const [windowEndsAt, setWindowEndsAt] = useState<string | null>(
+    initial.booking_window_ends_at,
+  );
+  const [toggling, setToggling] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Mirror the web availability form: the open/closed switch saves instantly
+  // via the open-only POST (cap/window/message untouched), optimistic with a
+  // revert on failure. The Save button persists the rest of the form.
+  async function toggleOpen(next: boolean) {
+    setOpen(next);
+    setToggling(true);
+    setError(null);
+    try {
+      await apiPost("/settings/books", { open: next });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["api", "/settings/books"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "/home"] }),
+      ]);
+    } catch (e) {
+      captureError(e, { op: "toggleBooks" });
+      setOpen(!next);
+      setError("Couldn't update. Try again.");
+    } finally {
+      setToggling(false);
+    }
+  }
 
   async function save() {
     Keyboard.dismiss();
@@ -74,11 +102,12 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
     setSaving(true);
     setError(null);
     try {
-      // bookingWindowEndsAt is intentionally omitted → preserved server-side
-      // (the booking-window auto-close is a web-only setting).
+      // null clears the window server-side; a date-key sets the auto-close
+      // (normalizeBooksConfig already accepts bookingWindowEndsAt).
       await apiPut("/settings/books", {
         open,
         bookingCap,
+        bookingWindowEndsAt: windowEndsAt,
         booksClosedMessage: closedMessage.trim() || null,
       });
       await Promise.all([
@@ -114,7 +143,10 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
           </View>
           <Switch
             value={open}
-            onValueChange={setOpen}
+            onValueChange={(v) => {
+              void toggleOpen(v);
+            }}
+            disabled={toggling}
             trackColor={{ false: "rgba(0,0,0,0.35)", true: colors.mustard }}
             thumbColor={colors.bone}
             ios_backgroundColor="rgba(0,0,0,0.35)"
@@ -129,6 +161,27 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
           keyboardType="number-pad"
           hint="Pause requests after this many are open."
         />
+
+        <DateField
+          label="Close books on (optional)"
+          value={windowEndsAt}
+          onChange={setWindowEndsAt}
+          minimumDate={new Date()}
+        />
+        <View className="-mt-1 mb-3 flex-row items-center justify-between">
+          <Text className="flex-1 pr-3 text-xs text-shell-dim">
+            Books auto-close at midnight on this date.
+          </Text>
+          {windowEndsAt ? (
+            <Pressable
+              onPress={() => setWindowEndsAt(null)}
+              hitSlop={8}
+              className="active:opacity-70"
+            >
+              <Text className="text-xs font-medium text-mustard">Clear</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         {!open ? (
           <>

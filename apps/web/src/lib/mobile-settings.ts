@@ -253,6 +253,9 @@ export const CONNECT_LINK_ALLOWED_NEXT = new Set([
   // handed off from the app's Account & security screen.
   "/settings/account",
   "/settings/export",
+  // The web booking-form/field editor, handed off from the app's read-only
+  // booking-form summary screen.
+  "/bookings/booking-form",
 ]);
 
 export function resolveConnectNext(next: unknown): string {
