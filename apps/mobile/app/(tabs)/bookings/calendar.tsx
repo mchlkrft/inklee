@@ -5,7 +5,9 @@ import {
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
+import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { DayAgenda } from "@/components/calendar/DayAgenda";
@@ -20,6 +22,7 @@ import { useScreenView } from "@/lib/analytics";
 export default function CalendarScreen() {
   useScreenView("calendar");
   const cal = useCalendarMonth();
+  const router = useRouter();
 
   return (
     <Screen edges={["left", "right"]}>
@@ -34,6 +37,15 @@ export default function CalendarScreen() {
           />
         }
       >
+        <View className="pb-3">
+          <Button
+            label="New appointment"
+            size="sm"
+            onPress={() =>
+              router.push(`/bookings/new?date=${cal.selectedDate}`)
+            }
+          />
+        </View>
         <MonthGrid
           monthLabel={cal.monthLabel}
           weeks={cal.weeks}

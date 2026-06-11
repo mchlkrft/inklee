@@ -173,6 +173,10 @@ function RootNavigator() {
           options={{ ...stackHeader, title: "Request" }}
         />
         <Stack.Screen
+          name="bookings/new"
+          options={{ ...stackHeader, title: "New appointment" }}
+        />
+        <Stack.Screen
           name="clients/[email]"
           options={{ ...stackHeader, title: "Client" }}
         />
