@@ -52,6 +52,26 @@ const markdownComponents: Components = {
   ),
   code: ({ children }) => <code className="text-foreground">{children}</code>,
   hr: () => <hr className="my-6 border-border" />,
+  // GFM tables (cookies, subprocessors, privacy): without these overrides the
+  // raw <table> elements render with Tailwind preflight's reset — no borders,
+  // no padding, columns mashed together. Mirrors the marketing comparison
+  // table's idiom (overflow scroll on narrow screens, hairline row borders).
+  table: ({ children }) => (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] text-left text-xs">
+        {children}
+      </table>
+    </div>
+  ),
+  tr: ({ children }) => <tr className="border-b border-border">{children}</tr>,
+  th: ({ children }) => (
+    <th className="py-2 pr-4 align-top font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className="py-2 pr-4 align-top leading-relaxed">{children}</td>
+  ),
 };
 
 export function LegalPageLayout({ doc }: { doc: LegalDoc }) {
