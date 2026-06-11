@@ -91,6 +91,11 @@ export default function ClientDetailScreen() {
       className="flex-1 bg-background"
       contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
+      // The notes editor sits in this scroll: let the Save tap land on the
+      // first press with the keyboard open, and keep the field above it.
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
       refreshControl={
         <RefreshControl
           refreshing={refreshing}

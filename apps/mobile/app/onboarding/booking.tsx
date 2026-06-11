@@ -11,6 +11,7 @@ import { TextField } from "@/components/TextField";
 import { apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 const MODES: { value: BookingMode; title: string; body: string }[] = [
   {
@@ -49,14 +50,23 @@ function ModeCard({
     >
       <View className="flex-row items-center justify-between">
         <Text className="text-base font-semibold text-foreground">{title}</Text>
-        <Ionicons
-          name={selected ? "radio-button-on" : "radio-button-off"}
-          size={20}
-          color={selected ? colors.mustard : colors.shell.mute}
-        />
+        <ThemedRadioIcon selected={selected} />
       </View>
       <Text className="mt-1 text-sm text-shell-dim">{body}</Text>
     </Pressable>
+  );
+}
+
+// Themed radio glyph: the idle state must follow the scheme (the static dark
+// token is invisible on the light background).
+function ThemedRadioIcon({ selected }: { selected: boolean }) {
+  const themed = useColors();
+  return (
+    <Ionicons
+      name={selected ? "radio-button-on" : "radio-button-off"}
+      size={20}
+      color={selected ? colors.mustard : themed.shell.mute}
+    />
   );
 }
 
@@ -92,6 +102,7 @@ function StatusPill({
 export default function BookingSetup() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const themed = useColors();
 
   const [mode, setMode] = useState<BookingMode>("preferred_date");
   const [booksOpen, setBooksOpen] = useState(true);
@@ -134,7 +145,7 @@ export default function BookingSetup() {
           onPress={() => router.back()}
           className="-ml-2 mt-1 h-9 w-9 items-center justify-center rounded-full active:opacity-70"
         >
-          <Ionicons name="chevron-back" size={24} color={colors.bone} />
+          <Ionicons name="chevron-back" size={24} color={themed.bone} />
         </Pressable>
 
         <View className="pb-6 pt-2">

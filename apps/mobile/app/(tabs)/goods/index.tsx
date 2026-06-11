@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -115,10 +115,14 @@ function ProductTile({
   const colors = useColors();
   const queryClient = useQueryClient();
   // Optimistic local status so the sold-out toggle feels instant; reverts if the
-  // PATCH fails (mirrors the web GoodsTile).
+  // PATCH fails (mirrors the web GoodsTile). Resyncs whenever the server value
+  // changes (refetch / edit-on-detail), or the tile keeps showing a stale badge.
   const [status, setStatus] = useState(product.status);
   const [revealed, setRevealed] = useState(false);
   const [pending, setPending] = useState(false);
+  useEffect(() => {
+    setStatus(product.status);
+  }, [product.status]);
 
   const soldOut = status === "sold_out";
   const dimmed = status === "sold_out" || status === "hidden";
@@ -146,9 +150,13 @@ function ProductTile({
       accessibilityRole="button"
       onPress={() => (revealed ? setRevealed(false) : onPress())}
       onLongPress={() => setRevealed(true)}
+      // max-w caps the LAST tile of an odd-count grid: with numColumns={2},
+      // flex-1 alone stretches it to full row width (and aspect-square then
+      // doubles its height). 48.5% ~ half the row minus the 12px column gap.
       className={`relative aspect-square flex-1 overflow-hidden rounded-2xl border border-shell-border bg-glass ${
         dimmed ? "opacity-70" : ""
       }`}
+      style={{ maxWidth: "48.5%" }}
     >
       {product.imageUrl ? (
         <Image

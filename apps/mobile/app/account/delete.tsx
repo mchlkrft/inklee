@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { captureError } from "@/lib/telemetry";
 import { Button } from "@/components/Button";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 // Apple 5.1.1(v) + counsel §9 in-app account deletion. A deliberate full-screen
 // flow that requires BOTH re-authentication (re-enter password / re-complete
@@ -22,6 +23,7 @@ import { colors } from "@/lib/tokens";
 // financial state; on success the session is cleared and the auth gate routes
 // back to sign-in.
 export default function DeleteAccountScreen() {
+  const themed = useColors();
   const {
     session,
     signInWithPassword,
@@ -109,7 +111,7 @@ export default function DeleteAccountScreen() {
     >
       <Text className="text-xl font-bold text-foreground">Delete your account</Text>
       <Text className="mt-3 text-sm text-shell-dim">
-        This permanently deletes your Inklee account — your booking history,
+        This permanently deletes your Inklee account: your booking history,
         client data, uploaded photos, and your public page. This cannot be
         undone.
       </Text>
@@ -133,7 +135,7 @@ export default function DeleteAccountScreen() {
             secureTextEntry
             autoCapitalize="none"
             placeholder="Your password"
-            placeholderTextColor="rgba(229,225,213,0.32)"
+            placeholderTextColor={themed.shell.mute}
             className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
           />
           <Button
@@ -173,7 +175,7 @@ export default function DeleteAccountScreen() {
         autoCapitalize="characters"
         autoCorrect={false}
         placeholder="DELETE"
-        placeholderTextColor="rgba(229,225,213,0.32)"
+        placeholderTextColor={themed.shell.mute}
         accessibilityLabel="Type DELETE to confirm account deletion"
         className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
       />

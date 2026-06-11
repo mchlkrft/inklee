@@ -97,6 +97,14 @@ export async function PUT(
     return mobileError(400, "Invalid JSON body.");
   }
   const notes = typeof raw.notes === "string" ? raw.notes.trim() : "";
+  // Bound the input like every other mobile write (the web action relies on the
+  // Server Action body cap; this bearer route has no such backstop).
+  if (notes.length > 5000) {
+    return mobileError(400, "Notes can be at most 5000 characters.");
+  }
+  if (!decoded.trim() || decoded.length > 320 || !decoded.includes("@")) {
+    return mobileError(400, "Invalid client email.");
+  }
 
   const { error } = await supabase.from("client_notes").upsert(
     {

@@ -20,6 +20,7 @@ import { config } from "@/lib/config";
 import { relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import { customerLabel } from "@inklee/shared/booking-domain";
 import type {
   MobileMe,
@@ -300,6 +301,7 @@ function ActionBtn({
   disabled: boolean;
   danger?: boolean;
 }) {
+  const themed = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -311,7 +313,7 @@ function ActionBtn({
       } ${disabled ? "opacity-50" : "active:opacity-80"}`}
     >
       {loading ? (
-        <ActivityIndicator color={danger ? colors.danger : colors.bone} />
+        <ActivityIndicator color={danger ? colors.danger : themed.bone} />
       ) : (
         <Text
           className={`text-sm font-semibold ${danger ? "text-danger" : "text-foreground"}`}

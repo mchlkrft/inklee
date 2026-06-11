@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Switch, Text, View } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -23,6 +24,7 @@ const ROWS: { key: keyof DashboardWidgets; label: string }[] = [
 export default function DashboardSettingsScreen() {
   useScreenView("settings_dashboard");
   const colors = useColors();
+  const queryClient = useQueryClient();
   const q = useApiQuery<DashboardWidgets>("/settings/dashboard");
   const [widgets, setWidgets] = useState<DashboardWidgets | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,6 +63,14 @@ export default function DashboardSettingsScreen() {
     setError(null);
     try {
       await apiPost("/settings/dashboard", widgets);
+      // The Home grid reads these flags off /home; refresh both views so the
+      // change shows without an app restart.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["api", "/home"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["api", "/settings/dashboard"],
+        }),
+      ]);
       setSaved(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");

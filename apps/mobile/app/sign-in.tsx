@@ -4,11 +4,13 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { useAuth } from "@/lib/auth";
+import { useColors } from "@/lib/theme";
 
 // E1 sign-in: email + password, plus Sign in with Apple (iOS) and Google.
 // Apple is required by App Store review because Google sign-in is offered.
 export default function SignIn() {
   const { signInWithPassword } = useAuth();
+  const colors = useColors();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export default function SignIn() {
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
-          placeholderTextColor="rgba(229,225,213,0.32)"
+          placeholderTextColor={colors.shell.mute}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
@@ -48,7 +50,7 @@ export default function SignIn() {
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
-          placeholderTextColor="rgba(229,225,213,0.32)"
+          placeholderTextColor={colors.shell.mute}
           secureTextEntry
           autoComplete="current-password"
           className="mb-4 h-12 rounded-xl border border-shell-border px-4 text-foreground"

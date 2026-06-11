@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import * as Sentry from "@sentry/nextjs";
 import {
   requireMobileUser,
   mobileOk,
@@ -41,6 +42,21 @@ export async function POST(
     .eq("id", userId)
     .single();
 
+  // Claim the entry FIRST with a conditional update so two concurrent converts
+  // (web + app, double tap across devices, retry-after-timeout) can't both
+  // insert a booking and double-email the client. Zero rows = someone else won.
+  const { data: claimed, error: claimError } = await supabase
+    .from("waitlist_entries")
+    .update({ status: "converted" })
+    .eq("id", id)
+    .eq("artist_id", userId)
+    .neq("status", "converted")
+    .select("id");
+  if (claimError) return mobileError(500, claimError.message);
+  if (!claimed || claimed.length === 0) {
+    return mobileError(409, "This entry was already converted.");
+  }
+
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
   const decidedAt = new Date().toISOString();
@@ -56,12 +72,17 @@ export async function POST(
     decided_at: decidedAt,
     updated_at: decidedAt,
   });
-  if (error) return mobileError(500, error.message);
-
-  await supabase
-    .from("waitlist_entries")
-    .update({ status: "converted" })
-    .eq("id", id);
+  if (error) {
+    // Mirror the web action's observability (Sentry tag waitlist_convert), and
+    // release the claim so the entry stays convertible after a failed insert.
+    Sentry.captureException(error, { tags: { action: "waitlist_convert" } });
+    await supabase
+      .from("waitlist_entries")
+      .update({ status: entry.status })
+      .eq("id", id)
+      .eq("artist_id", userId);
+    return mobileError(500, error.message);
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   await sendWaitlistConversionEmail({

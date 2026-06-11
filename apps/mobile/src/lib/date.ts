@@ -50,7 +50,10 @@ const WEEKDAY_LONG = [
 ];
 
 // Accepts a YYYY-MM-DD date-key (parsed as a local date) or an ISO timestamp.
-function toLocalDate(value: string): Date {
+// Exported for Date-typed props (e.g. a picker's minimumDate): a bare
+// `new Date("YYYY-MM-DD")` parses as UTC midnight, which is the PREVIOUS local
+// day west of UTC — this keeps date-keys on the local calendar day.
+export function toLocalDate(value: string): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   return new Date(value);

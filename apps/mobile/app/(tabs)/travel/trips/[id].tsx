@@ -26,14 +26,18 @@ import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { formatDateRange, legIsActive, rangesOverlap } from "@/lib/travel";
+import { toLocalDate } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
 
 function invalidateTravel(client: QueryClient) {
+  // /home renders the guest-spots widget from the same trips data, so a leg or
+  // trip change must refresh it too — not just the /travel views.
   return client.invalidateQueries({
     predicate: (query) =>
       typeof query.queryKey[1] === "string" &&
-      (query.queryKey[1] as string).startsWith("/travel"),
+      ((query.queryKey[1] as string).startsWith("/travel") ||
+        (query.queryKey[1] as string).startsWith("/home")),
   });
 }
 
@@ -424,7 +428,7 @@ function AddLeg({
         label="End date"
         value={endsOn}
         onChange={setEndsOn}
-        minimumDate={startsOn ? new Date(startsOn) : undefined}
+        minimumDate={startsOn ? toLocalDate(startsOn) : undefined}
       />
       {studios.length > 0 ? (
         <>

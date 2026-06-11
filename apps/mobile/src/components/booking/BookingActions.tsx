@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
 import { invalidateBookingViews, useApiQuery } from "@/lib/api";
+import { useColors } from "@/lib/theme";
 import { captureError } from "@/lib/telemetry";
 import { track, type AnalyticsEvent } from "@/lib/analytics";
 import {
@@ -341,10 +342,15 @@ function DepositRequestForm({
   onCancel: () => void;
 }) {
   const router = useRouter();
+  const colors = useColors();
   const defaults = useApiQuery<DepositDefaults>("/settings/deposit-defaults");
   const payouts = useApiQuery<MobilePayouts>("/settings/payouts");
 
-  const canCollectInApp = !!payouts.data?.chargesEnabled;
+  // routeCharges is the SERVER's card-routing gate (active status AND charges
+  // enabled, via deriveConnectRouting) — the loose chargesEnabled flag can be
+  // true for a restricted account the server would refuse to route, which
+  // would show card copy + a fee split for a deposit that lands as manual.
+  const canCollectInApp = !!payouts.data?.routeCharges;
   const currency =
     booking.deposit?.currency ?? artistDepositCurrency(payouts.data?.country);
 
@@ -437,7 +443,7 @@ function DepositRequestForm({
             value={amount}
             onChangeText={setAmount}
             placeholder="200"
-            placeholderTextColor="rgba(229,225,213,0.32)"
+            placeholderTextColor={colors.shell.mute}
             keyboardType="decimal-pad"
             className="flex-1 text-foreground"
           />
@@ -457,7 +463,7 @@ function DepositRequestForm({
           value={dueAt}
           onChangeText={setDueAt}
           placeholder="2026-06-30"
-          placeholderTextColor="rgba(229,225,213,0.32)"
+          placeholderTextColor={colors.shell.mute}
           autoCapitalize="none"
           className="h-12 rounded-xl border border-shell-border px-3 text-foreground"
         />
@@ -469,7 +475,7 @@ function DepositRequestForm({
           value={note}
           onChangeText={setNote}
           placeholder="e.g. bank transfer details or payment method"
-          placeholderTextColor="rgba(229,225,213,0.32)"
+          placeholderTextColor={colors.shell.mute}
           maxLength={300}
           className="h-12 rounded-xl border border-shell-border px-3 text-foreground"
         />

@@ -20,8 +20,10 @@ import { captureError } from "@/lib/telemetry";
 import { track } from "@/lib/analytics";
 import { config } from "@/lib/config";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 export default function YoureLive() {
+  const themed = useColors();
   const queryClient = useQueryClient();
   const me = useApiQuery<MobileMe>("/me");
   const [finishing, setFinishing] = useState(false);
@@ -125,7 +127,7 @@ export default function YoureLive() {
         {/* The link */}
         <View className="mt-7 rounded-2xl border border-shell-border bg-glass p-4">
           <View className="flex-row items-center gap-2">
-            <Ionicons name="link" size={15} color={colors.shell.mute} />
+            <Ionicons name="link" size={15} color={themed.shell.mute} />
             <Text className="text-xs uppercase tracking-widest text-shell-mute">
               Your booking link
             </Text>
@@ -137,7 +139,7 @@ export default function YoureLive() {
               className={`h-2 w-2 rounded-full ${booksOpen ? "bg-success" : "bg-shell-border"}`}
             />
             <Text className="text-sm text-shell-dim">
-              {booksOpen ? "Open — accepting requests" : "Closed for now"}
+              {booksOpen ? "Open, accepting requests" : "Closed for now"}
             </Text>
           </View>
         </View>
@@ -163,7 +165,7 @@ export default function YoureLive() {
           <Ionicons
             name="bulb-outline"
             size={15}
-            color={colors.shell.mute}
+            color={themed.shell.mute}
             style={{ marginTop: 2 }}
           />
           <Text className="flex-1 text-xs leading-relaxed text-shell-dim">

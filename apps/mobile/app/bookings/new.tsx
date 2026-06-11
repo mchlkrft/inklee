@@ -143,6 +143,7 @@ export default function AppointmentFormScreen() {
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
       >
         <Text className="mb-1.5 text-sm font-medium text-foreground">
           Instagram handle

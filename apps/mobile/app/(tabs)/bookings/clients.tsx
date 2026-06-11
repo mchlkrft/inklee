@@ -10,6 +10,7 @@ import { useApiQuery } from "@/lib/api";
 import type { ClientListItem } from "@/lib/clients";
 import { relativeTime } from "@/lib/date";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import { useScreenView } from "@/lib/analytics";
 
 function ClientRow({
@@ -48,6 +49,7 @@ function ClientRow({
 export default function ClientsScreen() {
   useScreenView("clients");
   const router = useRouter();
+  const themed = useColors();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<{ items: ClientListItem[] }>("/clients");
   const [query, setQuery] = useState("");
@@ -68,7 +70,7 @@ export default function ClientsScreen() {
         value={query}
         onChangeText={setQuery}
         placeholder="Search by handle or email"
-        placeholderTextColor="rgba(229,225,213,0.32)"
+        placeholderTextColor={themed.shell.mute}
         autoCapitalize="none"
         autoCorrect={false}
         returnKeyType="search"

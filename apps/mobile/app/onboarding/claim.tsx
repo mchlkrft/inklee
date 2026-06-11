@@ -23,6 +23,7 @@ import { apiGet, apiPost, ApiError, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { config } from "@/lib/config";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 type SlugStatus =
   | "idle"
@@ -92,6 +93,7 @@ function useSlugCheck(slug: string) {
 export default function ClaimLink() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const themed = useColors();
 
   const [displayName, setDisplayName] = useState("");
   const [slug, setSlug] = useState("");
@@ -141,7 +143,7 @@ export default function ClaimLink() {
   // Right-aligned availability indicator inside the slug field.
   const slugRightSlot =
     status === "checking" ? (
-      <ActivityIndicator color={colors.shell.mute} />
+      <ActivityIndicator color={themed.shell.mute} />
     ) : status === "available" || status === "owned" ? (
       <Ionicons name="checkmark-circle" size={20} color={colors.success} />
     ) : status === "taken" ? (
@@ -152,13 +154,13 @@ export default function ClaimLink() {
   // unless the link is taken/invalid — then the error line takes over.
   const slugHint =
     slug.trim().length === 0
-      ? "Letters, numbers and dashes — e.g. jane"
+      ? "Letters, numbers and dashes, e.g. jane"
       : status === "owned"
         ? `${previewHost} · already yours`
         : previewHost;
   const slugFieldError =
     status === "taken"
-      ? "That link is taken — try another."
+      ? "That link is taken. Try another."
       : status === "invalid"
         ? slugError
         : undefined;
@@ -189,7 +191,7 @@ export default function ClaimLink() {
           onPress={() => router.back()}
           className="-ml-2 mt-1 h-9 w-9 items-center justify-center rounded-full active:opacity-70"
         >
-          <Ionicons name="chevron-back" size={24} color={colors.bone} />
+          <Ionicons name="chevron-back" size={24} color={themed.bone} />
         </Pressable>
 
         <View className="pb-6 pt-2">
@@ -202,7 +204,7 @@ export default function ClaimLink() {
         </View>
 
         <View className="mb-2 flex-row items-center gap-2">
-          <Ionicons name="eye-outline" size={14} color={colors.shell.mute} />
+          <Ionicons name="eye-outline" size={14} color={themed.shell.mute} />
           <Text className="text-xs uppercase tracking-widest text-shell-mute">
             Clients see this
           </Text>

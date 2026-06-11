@@ -74,10 +74,20 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
     setError(null);
     try {
       await apiPost("/settings/books", { open: next });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["api", "/settings/books"] }),
-        queryClient.invalidateQueries({ queryKey: ["api", "/home"] }),
-      ]);
+      // /me drives the always-mounted top-bar Books pill and /booking-form the
+      // Availability card — refresh them with the form + Home or they contradict
+      // the change until an unrelated refetch.
+      await queryClient.invalidateQueries({
+        predicate: (query) => {
+          const p = query.queryKey[1];
+          return (
+            typeof p === "string" &&
+            ["/settings/books", "/home", "/me", "/booking-form"].some((k) =>
+              p.startsWith(k),
+            )
+          );
+        },
+      });
     } catch (e) {
       captureError(e, { op: "toggleBooks" });
       setOpen(!next);
@@ -110,10 +120,17 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
         bookingWindowEndsAt: windowEndsAt,
         booksClosedMessage: closedMessage.trim() || null,
       });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["api", "/settings/books"] }),
-        queryClient.invalidateQueries({ queryKey: ["api", "/home"] }),
-      ]);
+      await queryClient.invalidateQueries({
+        predicate: (query) => {
+          const p = query.queryKey[1];
+          return (
+            typeof p === "string" &&
+            ["/settings/books", "/home", "/me", "/booking-form"].some((k) =>
+              p.startsWith(k),
+            )
+          );
+        },
+      });
       router.back();
     } catch (e) {
       captureError(e, { op: "saveBooks" });

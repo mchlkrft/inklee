@@ -58,16 +58,19 @@ export async function GET(
   let depositRefunded = false;
   let depositRefundedAt: string | null = null;
   if (b.deposit_payment_intent_id && b.deposit_paid_at) {
+    // audit_log's time column is `timestamp` (db/schema.ts auditLog), NOT
+    // created_at — selecting the wrong column errors the query and silently
+    // reads every refund as "not refunded" (re-arming the refund button).
     const { data: log } = await supabase
       .from("audit_log")
-      .select("created_at")
+      .select("timestamp")
       .eq("booking_id", id)
       .eq("action", "deposit_refunded")
-      .order("created_at", { ascending: false })
+      .order("timestamp", { ascending: false })
       .limit(1);
     if (log && log.length > 0) {
       depositRefunded = true;
-      depositRefundedAt = (log[0] as { created_at: string }).created_at;
+      depositRefundedAt = (log[0] as { timestamp: string }).timestamp;
     }
   }
 
@@ -123,11 +126,17 @@ export async function PATCH(
 
   const { data: booking } = await supabase
     .from("booking_requests")
-    .select("artist_id, form_data")
+    .select("artist_id, status, form_data")
     .eq("id", id)
     .single();
   if (!booking || booking.artist_id !== userId) {
     return mobileError(404, "Booking not found.", "not_found");
+  }
+  // Appointment editing is an approved-booking surface (the web drawer and the
+  // mobile Edit link both only exist there). Refusing other statuses keeps a
+  // raw API call from rewriting a terminal or deposit-pending booking's fields.
+  if (booking.status !== "approved") {
+    return mobileError(409, "Only accepted appointments can be edited.");
   }
   const fd = (booking.form_data ?? {}) as Record<string, string>;
 
