@@ -4,33 +4,15 @@ import {
   DEFAULT_SUBJECTS,
   ALLOWED_VARS,
 } from "@/lib/email/booking-templates";
+import { EMAIL_TEMPLATE_TYPES } from "@inklee/shared/email-templates";
 import { parseReminderSettings } from "@/lib/reminder-settings";
 import RemindersForm from "../reminders/reminders-form";
 import EmailTemplatesList from "./email-templates-list";
 import type { TemplateData } from "./email-templates-list";
 
-const TEMPLATE_TYPES = [
-  {
-    type: "customer_booking_submitted",
-    label: "Booking received (to customer)",
-  },
-  {
-    type: "customer_booking_approved",
-    label: "Booking approved (to customer)",
-  },
-  {
-    type: "customer_booking_rejected",
-    label: "Booking rejected (to customer)",
-  },
-  {
-    type: "customer_booking_cancelled_by_artist",
-    label: "You cancelled (to customer)",
-  },
-  {
-    type: "artist_new_booking_request",
-    label: "New request (to you)",
-  },
-] as const;
+// Template types + labels live in @inklee/shared/email-templates (shared with
+// the mobile app and the /api/mobile routes) so the lists cannot drift.
+const TEMPLATE_TYPES = EMAIL_TEMPLATE_TYPES;
 
 export default async function EmailsPage() {
   const supabase = await createClient();

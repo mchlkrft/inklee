@@ -209,6 +209,11 @@ export default function SettingsHubScreen() {
             onPress={() => router.push("/settings/books")}
           />
           <SettingsRow
+            label="Emails"
+            divider
+            onPress={() => router.push("/settings/emails")}
+          />
+          <SettingsRow
             label="Booking form"
             divider
             onPress={() => router.push("/settings/booking-form")}

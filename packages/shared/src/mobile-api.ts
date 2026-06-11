@@ -404,6 +404,34 @@ export type MobileTripDetail = {
   studios: MobileStudioOption[];
 };
 
+/** One of the five per-status booking email templates
+ *  (GET /api/mobile/settings/email-templates). */
+export type MobileEmailTemplate = {
+  type: import("./email-templates").EmailTemplateType;
+  label: string;
+  /** Fixed subject line (system default; not editable). */
+  subject: string;
+  /** Body shown in the editor — the artist's saved custom body, falling back
+   *  to the system default when none is saved. */
+  body: string;
+  /** True when the body differs from the system default (the "Edited" chip). */
+  edited: boolean;
+  /** False when the type is in profiles.settings.disabled_emails (not sent). */
+  enabled: boolean;
+};
+
+/** GET /api/mobile/settings/email-templates — the editable booking emails plus
+ *  the merge variables a body may reference. */
+export type MobileEmailTemplatesResponse = {
+  items: MobileEmailTemplate[];
+  allowedVars: string[];
+};
+
+/** POST /api/mobile/settings/email-templates/reset — the restored default body. */
+export type MobileEmailTemplateReset = {
+  body: string;
+};
+
 /** One row in the mobile booking-form summary: standard + custom fields
  *  interleaved in the artist's saved field order. */
 export type MobileBookingFormField = {

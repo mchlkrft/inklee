@@ -1,33 +1,20 @@
-import { z } from "zod";
 import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { formatCustomAnswer } from "@/lib/custom-fields";
 import { renderEmailShell } from "./layout";
+import {
+  ALLOWED_VARS,
+  type TemplateVars,
+} from "@inklee/shared/email-templates";
 
-export const ALLOWED_VARS = [
-  "customer_handle",
-  "artist_name",
-  "artist_slug",
-  "date",
-  "placement",
-  "size",
-  "magic_link",
-] as const;
-
-export type TemplateVars = Partial<
-  Record<(typeof ALLOWED_VARS)[number], string>
->;
-
-export const templateBodySchema = z
-  .string()
-  .min(1, "Body is required")
-  .max(2000, "Max 2000 characters")
-  .refine((s) => !/<[^>]*>/.test(s), { message: "HTML tags are not allowed" })
-  .refine((s) => !/javascript:/i.test(s), {
-    message: "javascript: is not allowed",
-  })
-  .refine((s) => !/on\w+\s*=/i.test(s), {
-    message: "Event handlers are not allowed",
-  });
+// The editor-facing pieces (allowed vars, template types/labels, body
+// validation) live in @inklee/shared/email-templates so the mobile app and
+// the /api/mobile routes share them; re-exported here so existing imports
+// keep working. The send-time rendering below stays server-only.
+export {
+  ALLOWED_VARS,
+  templateBodySchema,
+} from "@inklee/shared/email-templates";
+export type { TemplateVars } from "@inklee/shared/email-templates";
 
 function escapeHtml(s: string): string {
   return s
