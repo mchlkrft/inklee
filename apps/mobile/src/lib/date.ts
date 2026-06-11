@@ -67,3 +67,12 @@ export function formatShortDate(value: string): string {
   const d = toLocalDate(value);
   return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
+
+/** "12 Jun 2026, 14:30" — absolute date + time for feed timestamps (ISO input).
+ *  Mirrors the web feed's medium-date + short-time format, Intl-free. */
+export function formatShortDateTime(value: string): string {
+  const d = toLocalDate(value);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`;
+}

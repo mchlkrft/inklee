@@ -8,7 +8,8 @@ import type { MobileNotificationsResponse } from "@inklee/shared/mobile-api";
 export const runtime = "nodejs";
 
 // GET /api/mobile/notifications — the notification feed + unread count for the
-// badge. Mirrors fetchNotificationsAction; RLS scopes to the artist.
+// badge. Mirrors fetchNotificationsAction; RLS scopes to the artist. Capped at
+// 100 to match the web feed page (the bell only renders a subset anyway).
 export async function GET(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
       .select("*")
       .eq("artist_id", userId)
       .order("created_at", { ascending: false })
-      .limit(60),
+      .limit(100),
     supabase
       .from("notifications")
       .select("*", { count: "exact", head: true })

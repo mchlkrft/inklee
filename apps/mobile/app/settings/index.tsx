@@ -203,6 +203,11 @@ export default function SettingsHubScreen() {
             divider
             onPress={() => router.push("/settings/books")}
           />
+          <SettingsRow
+            label="Reminder emails"
+            divider
+            onPress={() => router.push("/settings/reminders")}
+          />
           {publicUrl ? (
             <SettingsRow
               label="View public page"

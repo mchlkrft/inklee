@@ -62,6 +62,26 @@ export function notificationTarget(data: unknown): string | null {
 }
 
 /**
+ * Map a notification's web `cta_href` (a web-relative path, e.g.
+ * /bookings/requests/:id) onto the equivalent in-app route, or null when it has
+ * no mobile destination. Shared by the in-app feed (app/notifications.tsx) and
+ * any future push payloads so both use ONE defensive resolver: only the known
+ * web shapes plus the same allowlist as `notificationTarget` are honoured.
+ */
+export function webHrefToRoute(href: unknown): string | null {
+  if (typeof href !== "string" || !href.startsWith("/")) return null;
+  // Web booking detail -> mobile booking detail.
+  const request = /^\/bookings\/requests\/([^/?#]+)$/.exec(href);
+  if (request) return `/bookings/${request[1]}`;
+  // Web booking settings (slots / books warnings) -> mobile booking settings.
+  if (href === "/bookings/settings") return "/settings/books";
+  if (PUSH_ROUTABLE_PREFIXES.some((p) => href === p || href.startsWith(p))) {
+    return href;
+  }
+  return null;
+}
+
+/**
  * Ask for permission (once — never re-nags if denied), get this device's Expo
  * push token, and register it with the backend. Returns the token so the caller
  * can deregister it on sign-out, or null if push is unavailable (web, simulator,

@@ -8,7 +8,6 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
@@ -17,11 +16,16 @@ import {
   markAllNotificationsRead,
   markNotificationsRead,
 } from "@/lib/notifications";
-import { relativeTime } from "@/lib/date";
+import { formatShortDateTime } from "@/lib/date";
+import { webHrefToRoute } from "@/lib/push";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
 import type { MobileNotificationsResponse } from "@inklee/shared/mobile-api";
-import type { Notification } from "@inklee/shared/notification-types";
+import type {
+  Notification,
+  NotificationCategory,
+  NotificationPriority,
+} from "@inklee/shared/notification-types";
 
 const KEY = ["api", "/notifications"];
 
@@ -61,11 +65,17 @@ export default function NotificationsScreen() {
         .catch((e) => captureError(e, { op: "markNotificationsRead" }))
         .finally(() => void invalidateNotifications(queryClient));
     }
+    // Route via the booking id when present, else fall back to the web
+    // cta_href mapped onto an in-app route — so warnings / client updates that
+    // carry only a cta no longer dead-end after marking read.
     const bookingId =
       n.metadata && typeof n.metadata.booking_id === "string"
         ? n.metadata.booking_id
         : null;
-    if (bookingId) router.push(`/bookings/${bookingId}`);
+    const target = bookingId
+      ? `/bookings/${bookingId}`
+      : webHrefToRoute(n.cta_href);
+    if (target) router.push(target as never);
   }
 
   const items = data?.items ?? [];
@@ -131,6 +141,22 @@ export default function NotificationsScreen() {
   );
 }
 
+// Same emoji map as the web bell (notification-bell.tsx CATEGORY_ICON).
+const CATEGORY_ICON: Record<NotificationCategory, string> = {
+  booking_activity: "📋",
+  client_update: "👤",
+  system_warning: "⚠️",
+  info: "ℹ️",
+};
+
+// Web PRIORITY_DOT (red/orange/blue/muted) mapped onto the brand palette.
+const PRIORITY_DOT: Record<NotificationPriority, string> = {
+  critical: "bg-danger",
+  high: "bg-mustard",
+  medium: "bg-cobalt",
+  low: "bg-shell-mute",
+};
+
 function NotificationRow({
   n,
   onPress,
@@ -138,32 +164,68 @@ function NotificationRow({
   n: Notification;
   onPress: () => void;
 }) {
+  // Mirrors the web feed row: rosa/10 tint + "Unread" chip while unread, a
+  // "Critical" chip on critical priority, the bell's category emoji + priority
+  // dot, an absolute timestamp, and the cta_label as an explicit affordance
+  // when the cta resolves to an in-app route (the whole row navigates).
+  const showCta = !!n.cta_label && !!webHrefToRoute(n.cta_href);
   return (
     <View className="mb-2">
-      <Card onPress={onPress}>
-        <View className="flex-row items-start gap-2">
-          <View
-            className={`mt-1.5 h-2 w-2 rounded-full ${
-              n.is_read ? "" : "bg-rosa"
-            }`}
-          />
+      {/* Hand-rolled Card motif (rounded-card + brand border) — Card's bg-card
+          is fixed, and the unread state needs the surface itself to swap to a
+          rosa wash. Conditional whole-class strings avoid tailwind-order
+          override pitfalls. */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        className={`rounded-card border-brand border-shell-border p-5 ${
+          n.is_read ? "bg-card" : "bg-rosa/10"
+        }`}
+        style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}
+      >
+        <View className="flex-row items-start gap-3">
+          <Text className="mt-0.5 text-base">{CATEGORY_ICON[n.category]}</Text>
           <View className="flex-1">
-            <Text
-              className={`text-base ${
-                n.is_read
-                  ? "font-medium text-shell-dim"
-                  : "font-semibold text-foreground"
-              }`}
-            >
-              {n.title}
-            </Text>
+            <View className="flex-row flex-wrap items-center gap-1.5">
+              <View
+                className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[n.priority]}`}
+              />
+              <Text
+                className={`shrink text-base ${
+                  n.is_read
+                    ? "font-medium text-shell-dim"
+                    : "font-semibold text-foreground"
+                }`}
+              >
+                {n.title}
+              </Text>
+              {!n.is_read ? (
+                <View className="rounded-full bg-rosa px-2 py-0.5">
+                  <Text className="text-[10px] font-semibold uppercase tracking-wide text-charcoal">
+                    Unread
+                  </Text>
+                </View>
+              ) : null}
+              {n.priority === "critical" ? (
+                <View className="rounded-full bg-danger px-2 py-0.5">
+                  <Text className="text-[10px] font-semibold uppercase tracking-wide text-bone">
+                    Critical
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <Text className="mt-0.5 text-sm text-shell-dim">{n.message}</Text>
             <Text className="mt-1 text-xs text-shell-mute">
-              {relativeTime(n.created_at)}
+              {formatShortDateTime(n.created_at)}
             </Text>
+            {showCta ? (
+              <Text className="mt-2 text-sm font-semibold text-mustard">
+                {n.cta_label}
+              </Text>
+            ) : null}
           </View>
         </View>
-      </Card>
+      </Pressable>
     </View>
   );
 }

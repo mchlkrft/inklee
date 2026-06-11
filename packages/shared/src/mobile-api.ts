@@ -403,3 +403,16 @@ export type MobileTripDetail = {
   legs: MobileTripLeg[];
   studios: MobileStudioOption[];
 };
+
+/** GET/POST /api/mobile/settings/reminders — the artist's automated reminder
+ *  email settings (profiles.settings.reminder_settings), parsed/clamped with
+ *  the same rules as the web Emails page and the daily reminder cron. */
+export type MobileReminderSettings = {
+  deposit_overdue_enabled: boolean;
+  appointment_reminder_enabled: boolean;
+  /** Days before the appointment (clamped 1-14). */
+  appointment_reminder_days: number;
+  reconfirmation_enabled: boolean;
+  /** Days before the appointment (clamped 3-30). */
+  reconfirmation_days: number;
+};
