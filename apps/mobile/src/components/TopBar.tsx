@@ -6,7 +6,7 @@ import { NotificationBell } from "./NotificationBell";
 import { BooksStatusPill } from "./BooksStatusPill";
 import { AccountMenuSheet } from "./AccountMenuSheet";
 import { border } from "@/lib/tokens";
-import { useThemeColors } from "@/lib/theme";
+import { useThemeColors, chrome } from "@/lib/theme";
 
 // The floating themed pill mounted as the tab navigator's custom header, mirroring
 // the web mobile-top-bar.tsx: wordmark (left) + books-status pill, notification
@@ -26,9 +26,9 @@ export function TopBar() {
       <View
         className="mx-3 mb-2 h-16 flex-row items-center justify-between rounded-full px-4"
         style={{
-          backgroundColor: theme.chrome,
+          backgroundColor: chrome.bg,
           borderWidth: border.hairline,
-          borderColor: theme.border,
+          borderColor: chrome.border,
           shadowColor: "#000",
           shadowOpacity: 0.16,
           shadowRadius: 10,
@@ -36,7 +36,7 @@ export function TopBar() {
           elevation: 4,
         }}
       >
-        <Text className="pl-1 text-2xl font-bold lowercase text-foreground">
+        <Text className="pl-1 text-2xl font-bold lowercase text-bone">
           inklee
         </Text>
 
@@ -51,10 +51,10 @@ export function TopBar() {
             className="h-10 w-10 items-center justify-center rounded-full active:opacity-70"
             style={{
               borderWidth: border.hairline,
-              borderColor: theme.border,
+              borderColor: chrome.border,
             }}
           >
-            <Menu size={20} color={theme.foreground} />
+            <Menu size={20} color={chrome.fg} />
           </Pressable>
         </View>
       </View>

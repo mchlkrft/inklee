@@ -10,7 +10,7 @@ import {
 } from "lucide-react-native";
 import { Spiderweb } from "./icons/Spiderweb";
 import { border, colors as brand } from "@/lib/tokens";
-import { useThemeColors } from "@/lib/theme";
+import { useThemeColors, chrome } from "@/lib/theme";
 
 // Per-route lucide icon (Flash uses the brand Spiderweb instead). Mirrors the web
 // MOBILE_BOTTOM_NAV order: Dashboard, Flash, Bookings (center), Guest Spots, Goods.
@@ -49,9 +49,9 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
       <View
         className="mx-3 flex-row items-end justify-between rounded-full px-2 py-2"
         style={{
-          backgroundColor: theme.chrome,
+          backgroundColor: chrome.bg,
           borderWidth: border.hairline,
-          borderColor: theme.border,
+          borderColor: chrome.border,
           shadowColor: "#000",
           shadowOpacity: 0.16,
           shadowRadius: 10,
@@ -105,7 +105,7 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
                 <Text
                   className="text-[11px]"
                   style={{
-                    color: focused ? brand.rosa : theme.mutedForeground,
+                    color: focused ? brand.rosa : chrome.mutedFg,
                     fontWeight: focused ? "500" : "400",
                   }}
                 >
@@ -115,7 +115,7 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
             );
           }
 
-          const iconColor = focused ? brand.charcoal : theme.mutedForeground;
+          const iconColor = focused ? brand.charcoal : chrome.mutedFg;
           return (
             <Pressable
               key={route.key}

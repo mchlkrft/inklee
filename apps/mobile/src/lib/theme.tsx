@@ -105,6 +105,18 @@ const BRAND = {
   charcoal: "#1e1e1e",
 } as const;
 
+// The nav/top-bar chrome is a FIXED dark shell in BOTH themes, mirroring the web's
+// two-tone design (a dark shell around a light bone workspace). The content flips
+// light/dark; the floating nav pills stay dark with bone text/icons either way.
+export const chrome = {
+  bg: "#2a2a2a", // pill fill (slightly elevated off charcoal)
+  border: "rgba(229,225,213,0.18)",
+  fg: "#e5e1d5", // bone text / icons
+  mutedFg: "rgba(229,225,213,0.55)",
+  subtleFg: "rgba(229,225,213,0.32)",
+  hover: "rgba(229,225,213,0.10)", // inner chip wash (books pill)
+} as const;
+
 type ThemeContextValue = {
   preference: ThemePreference;
   setPreference: (p: ThemePreference) => void;
