@@ -7,17 +7,22 @@ import {
   Text,
   View,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/Card";
+import { Button } from "@/components/Button";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
-import { apiPost, useApiQuery } from "@/lib/api";
+import { apiPost, invalidateBookingViews, useApiQuery } from "@/lib/api";
+import { config } from "@/lib/config";
 import { relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
 import { customerLabel } from "@inklee/shared/booking-domain";
 import type {
+  MobileMe,
   MobileWaitlistEntry,
   MobileWaitlistResponse,
 } from "@inklee/shared/mobile-api";
@@ -34,6 +39,8 @@ export default function WaitlistScreen() {
     useApiQuery<MobileWaitlistResponse>(`/waitlist?status=${filter}`, {
       keepPrevious: true,
     });
+  const me = useApiQuery<MobileMe>("/me");
+  const waitlistUrl = me.data?.slug ? config.waitlistUrl(me.data.slug) : null;
 
   // A status change can drop an entry from the "waiting" list AND change the
   // Home waitlist count — refresh both views.
@@ -78,6 +85,20 @@ export default function WaitlistScreen() {
     }
   }
 
+  // Convert creates an accepted booking + emails the client a magic link, so it
+  // refreshes the booking views too (not just the waitlist + Home count).
+  async function onConvert(entryId: string, prevStatus: string) {
+    patch(entryId, "converted");
+    try {
+      await apiPost(`/waitlist/${entryId}/convert`);
+      invalidate();
+      void invalidateBookingViews(queryClient);
+    } catch (e) {
+      patch(entryId, prevStatus); // revert
+      throw e;
+    }
+  }
+
   const items = data?.items ?? [];
 
   return (
@@ -114,8 +135,11 @@ export default function WaitlistScreen() {
         keyExtractor={(e) => e.id}
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          waitlistUrl ? <ShareWaitlistCard url={waitlistUrl} /> : null
+        }
         renderItem={({ item }) => (
-          <WaitlistRow entry={item} onAction={onAction} />
+          <WaitlistRow entry={item} onAction={onAction} onConvert={onConvert} />
         )}
         refreshControl={
           <RefreshControl
@@ -150,6 +174,7 @@ export default function WaitlistScreen() {
 function WaitlistRow({
   entry,
   onAction,
+  onConvert,
 }: {
   entry: MobileWaitlistEntry;
   onAction: (
@@ -157,9 +182,23 @@ function WaitlistRow({
     prev: string,
     status: "contacted" | "dismissed",
   ) => Promise<void>;
+  onConvert: (id: string, prev: string) => Promise<void>;
 }) {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function convert() {
+    setPending("convert");
+    setError(null);
+    try {
+      await onConvert(entry.id, entry.status);
+    } catch (e) {
+      captureError(e, { op: "waitlistConvert" });
+      setError("Couldn't move to booking. Try again.");
+    } finally {
+      setPending(null);
+    }
+  }
 
   async function setStatus(status: "contacted" | "dismissed") {
     setPending(status);
@@ -177,6 +216,9 @@ function WaitlistRow({
   const label = customerLabel(entry.customer_handle, entry.customer_email);
   const isWaiting = entry.status === "waiting";
   const canDismiss = entry.status === "waiting" || entry.status === "contacted";
+  const canConvert =
+    (entry.status === "waiting" || entry.status === "contacted") &&
+    !!entry.customer_email;
   const busy = pending !== null;
 
   return (
@@ -203,24 +245,37 @@ function WaitlistRow({
           Joined {relativeTime(entry.created_at)}
         </Text>
 
-        {isWaiting || canDismiss ? (
-          <View className="mt-3 flex-row gap-2">
-            {isWaiting ? (
-              <ActionBtn
-                label="Mark contacted"
-                loading={pending === "contacted"}
+        {canConvert || isWaiting || canDismiss ? (
+          <View className="mt-3 gap-2">
+            {canConvert ? (
+              <Button
+                label="Move to booking"
+                size="sm"
+                loading={pending === "convert"}
                 disabled={busy}
-                onPress={() => setStatus("contacted")}
+                onPress={convert}
               />
             ) : null}
-            {canDismiss ? (
-              <ActionBtn
-                label="Dismiss"
-                danger
-                loading={pending === "dismissed"}
-                disabled={busy}
-                onPress={() => setStatus("dismissed")}
-              />
+            {isWaiting || canDismiss ? (
+              <View className="flex-row gap-2">
+                {isWaiting ? (
+                  <ActionBtn
+                    label="Mark contacted"
+                    loading={pending === "contacted"}
+                    disabled={busy}
+                    onPress={() => setStatus("contacted")}
+                  />
+                ) : null}
+                {canDismiss ? (
+                  <ActionBtn
+                    label="Dismiss"
+                    danger
+                    loading={pending === "dismissed"}
+                    disabled={busy}
+                    onPress={() => setStatus("dismissed")}
+                  />
+                ) : null}
+              </View>
             ) : null}
           </View>
         ) : null}
@@ -265,5 +320,43 @@ function ActionBtn({
         </Text>
       )}
     </Pressable>
+  );
+}
+
+// Shareable public waitlist link (always shown, like web). Copy via clipboard,
+// Preview via the in-app browser.
+function ShareWaitlistCard({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <View className="mb-3">
+      <Card>
+        <Text className="text-sm font-medium text-foreground">Waitlist link</Text>
+        <Text className="mt-1 text-sm text-shell-dim" numberOfLines={1}>
+          {url.replace(/^https?:\/\//, "")}
+        </Text>
+        <View className="mt-2 flex-row gap-2">
+          <Pressable
+            onPress={async () => {
+              await Clipboard.setStringAsync(url);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
+          >
+            <Text className="text-label text-foreground">
+              {copied ? "Copied" : "Copy link"}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              void WebBrowser.openBrowserAsync(url);
+            }}
+            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
+          >
+            <Text className="text-label text-foreground">Preview</Text>
+          </Pressable>
+        </View>
+      </Card>
+    </View>
   );
 }
