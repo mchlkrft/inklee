@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   ScrollView,
   Switch,
@@ -163,7 +164,7 @@ function ProductForm({
     }
   }
 
-  async function remove() {
+  async function doDelete() {
     setSaving(true);
     setError(null);
     try {
@@ -175,6 +176,19 @@ function ProductForm({
       setError(e instanceof Error ? e.message : "Couldn't delete. Try again.");
       setSaving(false);
     }
+  }
+
+  // Native two-button confirm before the destructive delete (the web shows an
+  // inline confirm step; there was none on mobile before).
+  function remove() {
+    Alert.alert(
+      "Delete product",
+      "This removes it from your public page. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: doDelete },
+      ],
+    );
   }
 
   return (

@@ -369,6 +369,9 @@ export type MobileProduct = {
   status: string; // active | hidden | sold_out
   isPublicVisible: boolean;
   imageUrl: string | null;
+  /** Total number of images on this product (length of image_urls, falling back
+   *  to the single image_url). Drives the tile's "+N" gallery badge. */
+  imageCount: number;
 };
 
 export type MobileProductsResponse = { items: MobileProduct[] };

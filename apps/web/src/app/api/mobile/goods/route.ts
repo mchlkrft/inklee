@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { normalizeProductInput } from "@/lib/mobile-goods";
+import { revalidatePublicPage } from "@/lib/server/mobile-goods-server";
 import { toPriceNumber } from "@/lib/goods";
 import type {
   MobileProduct,
@@ -22,23 +23,34 @@ export async function GET(req: Request) {
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, title, category, price_amount, currency, status, is_public_visible, image_url",
+      "id, title, category, price_amount, currency, status, is_public_visible, image_url, image_urls",
     )
     .eq("artist_id", userId)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
   if (error) return mobileError(500, error.message);
 
-  const items: MobileProduct[] = (data ?? []).map((r) => ({
-    id: r.id,
-    title: r.title,
-    category: r.category,
-    price: toPriceNumber(r.price_amount),
-    currency: r.currency,
-    status: r.status,
-    isPublicVisible: r.is_public_visible,
-    imageUrl: r.image_url,
-  }));
+  const items: MobileProduct[] = (data ?? []).map((r) => {
+    // image_urls is the canonical multi-image source post-migration 0038; fall
+    // back to the single image_url for rows that haven't been re-saved yet.
+    const urls =
+      Array.isArray(r.image_urls) && r.image_urls.length > 0
+        ? (r.image_urls as string[])
+        : r.image_url
+          ? [r.image_url as string]
+          : [];
+    return {
+      id: r.id,
+      title: r.title,
+      category: r.category,
+      price: toPriceNumber(r.price_amount),
+      currency: r.currency,
+      status: r.status,
+      isPublicVisible: r.is_public_visible,
+      imageUrl: urls[0] ?? null,
+      imageCount: urls.length,
+    };
+  });
   const body: MobileProductsResponse = { items };
   return mobileOk(body);
 }
@@ -85,5 +97,6 @@ export async function POST(req: Request) {
     .single();
   if (error) return mobileError(500, error.message);
 
+  await revalidatePublicPage(supabase, userId);
   return mobileOk({ id: data.id });
 }

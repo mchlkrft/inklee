@@ -5,6 +5,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { readImageFile, processAndUpload } from "@/lib/mobile-image";
+import { revalidatePublicPage } from "@/lib/server/mobile-goods-server";
 import type { MobileImageUpload } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -78,6 +79,7 @@ export async function POST(
     .eq("artist_id", userId);
   if (error) return mobileError(500, error.message);
 
+  await revalidatePublicPage(supabase, userId);
   const body: MobileImageUpload = { url: up.url };
   return mobileOk(body);
 }

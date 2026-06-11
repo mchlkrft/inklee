@@ -4,6 +4,10 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { normalizeProductInput } from "@/lib/mobile-goods";
+import {
+  revalidatePublicPage,
+  sweepGoodsStorage,
+} from "@/lib/server/mobile-goods-server";
 import { toPriceNumber } from "@/lib/goods";
 import type { MobileProductDetail } from "@inklee/shared/mobile-api";
 
@@ -96,14 +100,14 @@ export async function PUT(
     .eq("artist_id", userId);
   if (error) return mobileError(500, error.message);
 
+  await revalidatePublicPage(supabase, userId);
   return mobileOk({ ok: true });
 }
 
 // DELETE /api/mobile/goods/:id — remove a product. Variants cascade via FK.
-// NOTE: storage image files are NOT cleaned up here (the web action does that via
-// the image-path security helpers); orphaned webp files under the artist's own
-// namespace are a known v1 follow-up bundled with the image-upload slice — no
-// cross-artist exposure since deletion is artist-scoped.
+// Storage image files are swept via the shared ownedGoodsStoragePath helper
+// (artist+product-scoped), mirroring deleteProductAction so a mobile delete no
+// longer leaves orphaned webp files. The public page is revalidated too.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -113,6 +117,24 @@ export async function DELETE(
   const { userId, supabase } = auth;
   const { id } = await params;
 
+  // Snapshot the image URLs first so the storage sweep can include every
+  // per-image file plus the legacy single-image path.
+  const { data: imageRow } = await supabase
+    .from("products")
+    .select("image_urls, image_url")
+    .eq("id", id)
+    .eq("artist_id", userId)
+    .maybeSingle();
+  const allImageUrls: string[] = Array.isArray(imageRow?.image_urls)
+    ? (imageRow!.image_urls as string[])
+    : [];
+  if (
+    imageRow?.image_url &&
+    !allImageUrls.includes(imageRow.image_url as string)
+  ) {
+    allImageUrls.push(imageRow.image_url as string);
+  }
+
   const { error } = await supabase
     .from("products")
     .delete()
@@ -120,5 +142,7 @@ export async function DELETE(
     .eq("artist_id", userId);
   if (error) return mobileError(500, error.message);
 
+  await sweepGoodsStorage(userId, id, allImageUrls);
+  await revalidatePublicPage(supabase, userId);
   return mobileOk({ ok: true });
 }
