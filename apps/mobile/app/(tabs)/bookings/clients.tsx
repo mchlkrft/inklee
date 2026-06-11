@@ -75,6 +75,11 @@ export default function ClientsScreen() {
         accessibilityLabel="Search clients"
         className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
       />
+      {items.length > 0 ? (
+        <Text className="mb-2 text-xs text-shell-mute">
+          {items.length} unique customer{items.length === 1 ? "" : "s"}
+        </Text>
+      ) : null}
       <FlatList
         data={filtered}
         keyExtractor={(c) => c.email}

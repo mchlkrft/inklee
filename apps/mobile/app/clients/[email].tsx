@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -7,12 +8,16 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/Card";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
-import { useApiQuery } from "@/lib/api";
+import { TextArea } from "@/components/TextArea";
+import { Button } from "@/components/Button";
+import { apiPut, invalidateBookingViews, useApiQuery } from "@/lib/api";
 import type { ClientDetail, ClientHistoryItem } from "@/lib/clients";
 import { formatShortDate, relativeTime } from "@/lib/date";
+import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
 
 export default function ClientDetailScreen() {
@@ -20,8 +25,38 @@ export default function ClientDetailScreen() {
   // re-encode it for the API path (the server decodes once).
   const { email: param } = useLocalSearchParams<{ email: string }>();
   const email = param ?? "";
+  const queryClient = useQueryClient();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<ClientDetail>(`/clients/${encodeURIComponent(email)}`);
+
+  const [notes, setNotes] = useState("");
+  const [notesReady, setNotesReady] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (data && !notesReady) {
+      setNotes(data.notes ?? "");
+      setNotesReady(true);
+    }
+  }, [data, notesReady]);
+
+  async function saveNotes() {
+    setSavingNotes(true);
+    setNotesError(null);
+    try {
+      await apiPut(`/clients/${encodeURIComponent(email)}`, { notes });
+      await invalidateBookingViews(queryClient);
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
+    } catch (e) {
+      captureError(e, { op: "saveClientNotes" });
+      setNotesError(e instanceof Error ? e.message : "Couldn't save.");
+    } finally {
+      setSavingNotes(false);
+    }
+  }
 
   if (!data) {
     return (
@@ -73,16 +108,37 @@ export default function ClientDetailScreen() {
         {approved} approved
       </Text>
 
-      {data.notes && data.notes.trim() ? (
-        <View className="mt-6">
-          <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-shell-mute">
-            Notes (private)
-          </Text>
-          <Card>
-            <Text className="text-sm text-foreground">{data.notes}</Text>
-          </Card>
+      <View className="mt-6">
+        <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-shell-mute">
+          Notes (private)
+        </Text>
+        <TextArea
+          value={notes}
+          onChangeText={(t) => {
+            setNotes(t);
+            setNotesSaved(false);
+          }}
+          placeholder="Private notes about this client (only you can see these)."
+          minHeight={88}
+        />
+        {notesError ? (
+          <Text className="mb-2 text-xs text-danger">{notesError}</Text>
+        ) : null}
+        <View className="flex-row items-center gap-3">
+          <View className="w-32">
+            <Button
+              label="Save notes"
+              variant="secondary"
+              size="sm"
+              onPress={saveNotes}
+              loading={savingNotes}
+            />
+          </View>
+          {notesSaved ? (
+            <Text className="text-xs text-success">Saved.</Text>
+          ) : null}
         </View>
-      ) : null}
+      </View>
 
       <View className="mt-6">
         <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-shell-mute">
