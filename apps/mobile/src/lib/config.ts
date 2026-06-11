@@ -21,4 +21,8 @@ export const config = {
    * (https://<slug>.inkl.ee). Mirrors the web `publicArtistUrl` subdomain mode.
    */
   publicUrl: (slug: string) => API_URL.replace(/^https:\/\//, `https://${slug}.`),
+  /** Public waitlist join page (the bio subdomain + /waitlist). Mirrors the web
+   *  `publicArtistUrl(slug, { subpath: "/waitlist" })`. */
+  waitlistUrl: (slug: string) =>
+    `${API_URL.replace(/^https:\/\//, `https://${slug}.`)}/waitlist`,
 } as const;

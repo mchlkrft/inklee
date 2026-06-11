@@ -246,6 +246,11 @@ export default function SettingsHubScreen() {
             divider
             onPress={() => router.push("/waitlist")}
           />
+          <SettingsRow
+            label="Home widgets"
+            divider
+            onPress={() => router.push("/settings/dashboard")}
+          />
         </Card>
 
         <SectionLabel>About</SectionLabel>
