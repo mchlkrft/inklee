@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   Pressable,
   ScrollView,
@@ -19,11 +20,12 @@ import type {
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
+import { DateField } from "@/components/DateField";
 import { RadioList } from "@/components/RadioList";
 import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
-import { formatDateRange } from "@/lib/travel";
+import { formatDateRange, legIsActive, rangesOverlap } from "@/lib/travel";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
 
@@ -164,6 +166,17 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
     }
   }
 
+  function confirmDeleteTrip() {
+    Alert.alert(
+      "Delete trip",
+      "Delete this trip and all its dates? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: deleteTrip },
+      ],
+    );
+  }
+
   async function deleteTrip() {
     setSaving(true);
     setError(null);
@@ -223,6 +236,8 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           </View>
         )}
 
+        {rangesOverlap(initial.legs) ? <OverlapNotice /> : null}
+
         <AddLeg
           tripId={id}
           studios={initial.studios}
@@ -233,9 +248,26 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           <Text className="mt-3 text-sm text-danger">{error}</Text>
         ) : null}
 
-        <DangerButton label="Delete trip" onPress={deleteTrip} disabled={saving} />
+        <DangerButton
+          label="Delete trip"
+          onPress={confirmDeleteTrip}
+          disabled={saving}
+        />
       </ScrollView>
     </Screen>
+  );
+}
+
+function OverlapNotice() {
+  return (
+    <View className="mb-3 rounded-2xl border border-mustard/40 bg-mustard/10 px-3 py-2.5">
+      <Text className="text-xs leading-snug text-foreground">
+        <Text className="font-semibold">These dates overlap.</Text> That's fine
+        if you're working more than one studio at once, but clients booking on
+        those days will see every matching studio and be asked to wait for your
+        confirmation. Remember to tell each client which studio to come to.
+      </Text>
+    </View>
   );
 }
 
@@ -274,6 +306,14 @@ function LegRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const active = legIsActive(leg.startsOn, leg.endsOn);
+
+  function confirmRemove() {
+    Alert.alert("Remove stop", "Remove this date stop from the trip?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: remove },
+    ]);
+  }
 
   async function remove() {
     setBusy(true);
@@ -292,9 +332,14 @@ function LegRow({
     <View className="rounded-2xl border border-shell-border bg-glass p-3">
       <View className="flex-row items-center justify-between">
         <View className="flex-1 pr-2">
-          <Text className="text-base font-medium text-foreground">
-            {formatDateRange(leg.startsOn, leg.endsOn)}
-          </Text>
+          <View className="flex-row items-center gap-2">
+            <Text className="text-base font-medium text-foreground">
+              {formatDateRange(leg.startsOn, leg.endsOn)}
+            </Text>
+            {active ? (
+              <Text className="text-xs font-medium text-success">Now</Text>
+            ) : null}
+          </View>
           <Text className="mt-0.5 text-sm text-shell-dim">
             {leg.studioName ?? "No studio"}
             {leg.notes ? ` · ${leg.notes}` : ""}
@@ -303,7 +348,7 @@ function LegRow({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Remove stop"
-          onPress={remove}
+          onPress={confirmRemove}
           disabled={busy}
           hitSlop={8}
           className="h-9 w-9 items-center justify-center active:opacity-70"
@@ -331,8 +376,8 @@ function AddLeg({
   studios: MobileTripDetail["studios"];
   onAdded: () => void;
 }) {
-  const [startsOn, setStartsOn] = useState("");
-  const [endsOn, setEndsOn] = useState("");
+  const [startsOn, setStartsOn] = useState<string | null>(null);
+  const [endsOn, setEndsOn] = useState<string | null>(null);
   const [studioId, setStudioId] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -344,7 +389,7 @@ function AddLeg({
   ];
 
   async function add() {
-    if (!startsOn.trim() || !endsOn.trim()) {
+    if (!startsOn || !endsOn) {
       setError("Start and end dates are required.");
       return;
     }
@@ -353,13 +398,13 @@ function AddLeg({
     setError(null);
     try {
       await apiPost(`/travel/trips/${tripId}/legs`, {
-        startsOn: startsOn.trim(),
-        endsOn: endsOn.trim(),
+        startsOn,
+        endsOn,
         studioId: studioId || null,
         notes: notes.trim() || null,
       });
-      setStartsOn("");
-      setEndsOn("");
+      setStartsOn(null);
+      setEndsOn(null);
       setStudioId("");
       setNotes("");
       onAdded();
@@ -374,19 +419,12 @@ function AddLeg({
   return (
     <View className="rounded-2xl border border-shell-border p-4">
       <Text className="mb-3 text-sm font-medium text-foreground">Add a stop</Text>
-      <TextField
-        label="Start date"
-        value={startsOn}
-        onChangeText={setStartsOn}
-        placeholder="YYYY-MM-DD"
-        autoCapitalize="none"
-      />
-      <TextField
+      <DateField label="Start date" value={startsOn} onChange={setStartsOn} />
+      <DateField
         label="End date"
         value={endsOn}
-        onChangeText={setEndsOn}
-        placeholder="YYYY-MM-DD"
-        autoCapitalize="none"
+        onChange={setEndsOn}
+        minimumDate={startsOn ? new Date(startsOn) : undefined}
       />
       {studios.length > 0 ? (
         <>

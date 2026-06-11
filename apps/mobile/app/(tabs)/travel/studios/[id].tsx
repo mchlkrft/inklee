@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   ScrollView,
   Switch,
@@ -122,6 +123,17 @@ function StudioForm({
     }
   }
 
+  function confirmRemove() {
+    Alert.alert(
+      "Delete studio",
+      "Remove this studio from your library?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: remove },
+      ],
+    );
+  }
+
   async function remove() {
     setSaving(true);
     setError(null);
@@ -209,7 +221,7 @@ function StudioForm({
         {!isNew ? (
           <DangerButton
             label="Delete studio"
-            onPress={remove}
+            onPress={confirmRemove}
             disabled={saving}
           />
         ) : null}
