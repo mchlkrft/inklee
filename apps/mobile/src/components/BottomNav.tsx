@@ -1,5 +1,4 @@
 import { Pressable, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import {
   Inbox,
@@ -38,7 +37,6 @@ const LABELS: Record<string, string> = {
 // (Bookings) is a raised FAB: mustard when active, rosa when idle, ringed in
 // the pill colour so it cuts cleanly. Icons only, sized up.
 export function BottomNav({ state, navigation }: BottomTabBarProps) {
-  const insets = useSafeAreaInsets();
   const centerIndex = Math.floor(state.routes.length / 2);
 
   return (
@@ -50,7 +48,9 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
         right: 0,
         bottom: 0,
         backgroundColor: "transparent",
-        paddingBottom: insets.bottom + 10,
+        // Same 16px breathing room as the mx-4 side gaps (founder direction):
+        // the pill hugs the bottom edge instead of floating high above it.
+        paddingBottom: 16,
       }}
     >
       <View

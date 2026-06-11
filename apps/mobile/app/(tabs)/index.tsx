@@ -21,6 +21,7 @@ import {
   Users,
 } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
+import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { Card } from "@/components/Card";
 import { CardHeader } from "@/components/CardHeader";
 import { StatusPill } from "@/components/StatusPill";
@@ -140,6 +141,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const colors = useColors();
   const onScroll = useScrollHide();
+  const topBarHeight = useTopBarHeight();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileHome>("/home");
 
@@ -169,10 +171,13 @@ export default function HomeScreen() {
   const waitlistUrl = data?.slug ? config.waitlistUrl(data.slug) : null;
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} topBar={<TopBar />}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        contentContainerStyle={{
+          paddingTop: topBarHeight,
+          paddingBottom: TAB_BAR_CLEARANCE,
+        }}
         onScroll={onScroll}
         scrollEventThrottle={16}
         refreshControl={
@@ -180,6 +185,7 @@ export default function HomeScreen() {
             refreshing={refreshing}
             onRefresh={refresh}
             tintColor={colors.mustard}
+            progressViewOffset={topBarHeight}
           />
         }
       >

@@ -17,7 +17,9 @@ import type {
   MobileProductsResponse,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
+import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
+import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
@@ -33,13 +35,14 @@ export default function GoodsList() {
   const q = useApiQuery<MobileProductsResponse>("/goods");
   const colors = useColors();
   const onScroll = useScrollHide();
+  const topBarHeight = useTopBarHeight();
 
   if (!q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} topBar={<TopBar />}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <BrandLoader />
           ) : (
             <ErrorState
               title="Couldn't load goods"
@@ -54,26 +57,37 @@ export default function GoodsList() {
 
   const isEmpty = q.data.items.length === 0;
 
+  // Header scrolls WITH the grid so the overlay TopBar reclaims its space.
+  const listHeader = (
+    <>
+      <PageHeader
+        title="Goods"
+        subtitle="Products your clients can pick up at their appointment. Shown on your public page and offered as add-ons when a client pays a deposit."
+      />
+      {/* Web hides the header create button when empty (the empty state has its
+          own CTA); mirror that to avoid a duplicate button. */}
+      {!isEmpty ? (
+        <View className="pb-3">
+          <Button label="New product" onPress={() => router.push("/goods/new")} />
+        </View>
+      ) : null}
+    </>
+  );
+
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} topBar={<TopBar />}>
       <View className="flex-1">
-        <PageHeader
-          title="Goods"
-          subtitle="Products your clients can pick up at their appointment. Shown on your public page and offered as add-ons when a client pays a deposit."
-        />
-        {/* Web hides the header create button when empty (the empty state has its
-            own CTA); mirror that to avoid a duplicate button. */}
-        {!isEmpty ? (
-          <View className="pb-3">
-            <Button label="New product" onPress={() => router.push("/goods/new")} />
-          </View>
-        ) : null}
         <FlatList
           data={q.data.items}
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE, gap: 12 }}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={{
+            paddingTop: topBarHeight,
+            paddingBottom: TAB_BAR_CLEARANCE,
+            gap: 12,
+          }}
           onScroll={onScroll}
           scrollEventThrottle={16}
           refreshControl={
@@ -81,6 +95,7 @@ export default function GoodsList() {
               refreshing={q.refreshing}
               onRefresh={q.refresh}
               tintColor={colors.mustard}
+              progressViewOffset={topBarHeight}
             />
           }
           ListEmptyComponent={

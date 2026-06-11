@@ -10,7 +10,9 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { MobileTrip, MobileTripsResponse } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
+import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
+import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
@@ -24,13 +26,14 @@ export default function TripsList() {
   const q = useApiQuery<MobileTripsResponse>("/travel/trips");
   const colors = useColors();
   const onScroll = useScrollHide();
+  const topBarHeight = useTopBarHeight();
 
   if (!q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} topBar={<TopBar />}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <BrandLoader />
           ) : (
             <ErrorState
               title="Couldn't load trips"
@@ -43,36 +46,41 @@ export default function TripsList() {
     );
   }
 
-  return (
-    <Screen edges={["left", "right"]}>
-      <View className="flex-1">
-        <PageHeader title="Guest Spots" />
-        <View className="gap-2 py-3">
-          <Button
-            label="New trip"
-            onPress={() => router.push("/travel/trips/new")}
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/travel/studios")}
-            className="flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
-          >
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="business-outline" size={18} color={colors.mustard} />
-              <Text className="text-base font-semibold text-foreground">Studios</Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={colors.shell.mute}
-            />
-          </Pressable>
-        </View>
+  // Header scrolls WITH the list so the overlay TopBar reclaims its space.
+  const listHeader = (
+    <>
+      <PageHeader title="Guest Spots" />
+      <View className="gap-2 py-3">
+        <Button
+          label="New trip"
+          onPress={() => router.push("/travel/trips/new")}
+        />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/travel/studios")}
+          className="flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
+        >
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="business-outline" size={18} color={colors.mustard} />
+            <Text className="text-base font-semibold text-foreground">Studios</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />
+        </Pressable>
+      </View>
+    </>
+  );
 
+  return (
+    <Screen edges={["left", "right"]} topBar={<TopBar />}>
+      <View className="flex-1">
         <FlatList
           data={q.data.items}
           keyExtractor={(t) => t.id}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={{
+            paddingTop: topBarHeight,
+            paddingBottom: TAB_BAR_CLEARANCE,
+          }}
           onScroll={onScroll}
           scrollEventThrottle={16}
           refreshControl={
@@ -80,6 +88,7 @@ export default function TripsList() {
               refreshing={q.refreshing}
               onRefresh={q.refresh}
               tintColor={colors.mustard}
+              progressViewOffset={topBarHeight}
             />
           }
           ListEmptyComponent={

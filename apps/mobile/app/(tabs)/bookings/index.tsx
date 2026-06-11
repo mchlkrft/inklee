@@ -19,7 +19,6 @@ import { FilterChip } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
-import { useScrollHide } from "@/lib/scroll-hide";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { config } from "@/lib/config";
 import { formatShortDate, relativeTime } from "@/lib/date";
@@ -135,7 +134,6 @@ export default function RequestsScreen() {
   const path = status ? `/bookings?status=${status}` : "/bookings";
   const q = useInfiniteApiQuery<MobileBookingListItem>(path);
   const me = useApiQuery<MobileMe>("/me");
-  const onScroll = useScrollHide();
   const bookingUrl = me.data?.slug ? config.publicUrl(me.data.slug) : null;
 
   return (
@@ -169,8 +167,6 @@ export default function RequestsScreen() {
         )}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={q.refreshing}

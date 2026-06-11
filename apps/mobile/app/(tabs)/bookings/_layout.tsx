@@ -1,6 +1,6 @@
 import { Stack, usePathname, useRouter } from "expo-router";
 import { View } from "react-native";
-import { TopBar } from "@/components/TopBar";
+import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
 import { FilterChip } from "@/components/Chip";
 import { useThemeColors } from "@/lib/theme";
@@ -22,11 +22,13 @@ export default function BookingsLayout() {
   const pathname = usePathname();
   const router = useRouter();
   const theme = useThemeColors();
+  const topBarHeight = useTopBarHeight();
 
   return (
     <View className="flex-1 bg-background">
-      <TopBar />
-      <View className="px-5">
+      {/* The PageHeader + sub-nav are static here, so the bookings screens do
+          NOT drive the scroll-hide (the bar stays put; no orphaned gap). */}
+      <View className="px-5" style={{ paddingTop: topBarHeight }}>
         <PageHeader title="Bookings" />
         <View className="mb-3 flex-row gap-2">
           {SUBNAV.map((item) => (
@@ -50,6 +52,7 @@ export default function BookingsLayout() {
           }}
         />
       </View>
+      <TopBar />
     </View>
   );
 }

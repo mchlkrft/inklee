@@ -10,30 +10,41 @@ import { border } from "@/lib/tokens";
 import { useThemeColors, chrome } from "@/lib/theme";
 import { topBarProgress } from "@/lib/scroll-hide";
 
-// The floating themed pill mounted as the tab navigator's custom header, mirroring
-// the web mobile-top-bar.tsx: wordmark (left) + books-status pill, notification
-// bell, and the account-menu trigger (right). Rendered on a themed band so the
-// faintly-elevated pill reads against the app canvas; the bar owns the top safe
-// area, so tab screens drop their own top edge (see Screen.tsx). MB-13: themed +
-// slightly larger overall. The account menu opens from the top, near the trigger.
+// Total height the bar occupies (band padding + 64px pill + 8px tail). Screens
+// hosting the overlay TopBar pad their content by this.
+export function useTopBarHeight() {
+  const insets = useSafeAreaInsets();
+  return insets.top + 12 + 64 + 8;
+}
+
+// The floating top bar, mounted INSIDE each tab screen as an ABSOLUTE overlay
+// (best-practice scrolling header: content scrolls under it; hiding animates
+// transform ONLY, never layout, so the scroll position is untouched and there
+// is no jitter feedback loop). Screens pad their scroll content by
+// useTopBarHeight() and drive topBarProgress via useScrollHide().
 export function TopBar() {
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
   const [menuOpen, setMenuOpen] = useState(false);
+  const barHeight = useTopBarHeight();
 
-  // Scroll-hide: slide the whole bar up and pull the content after it (the
-  // negative bottom margin collapses the reserved header space), driven by the
-  // shared topBarProgress that the screens' scroll handlers animate.
-  const barHeight = insets.top + 12 + 64 + 8;
   const collapse = useAnimatedStyle(() => ({
     transform: [{ translateY: -topBarProgress.value * barHeight }],
-    marginBottom: -topBarProgress.value * barHeight,
   }));
 
   return (
     <Animated.View
+      pointerEvents="box-none"
       style={[
-        { backgroundColor: theme.background, paddingTop: insets.top + 12 },
+        {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 40,
+          backgroundColor: theme.background,
+          paddingTop: insets.top + 12,
+        },
         collapse,
       ]}
     >

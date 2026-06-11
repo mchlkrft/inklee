@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type { MobileMe } from "@inklee/shared/mobile-api";
+import { BrandLoader } from "@/components/BrandLoader";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
@@ -59,7 +60,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 function Splash() {
   return (
     <View className="flex-1 items-center justify-center bg-background">
-      <ActivityIndicator color="#e9b22b" />
+      <BrandLoader />
     </View>
   );
 }

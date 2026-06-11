@@ -15,7 +15,9 @@ import type {
   MobileFlashItemsResponse,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
+import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
+import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
@@ -31,6 +33,7 @@ export default function FlashItemsList() {
   const q = useApiQuery<MobileFlashItemsResponse>("/flash/items");
   const colors = useColors();
   const onScroll = useScrollHide();
+  const topBarHeight = useTopBarHeight();
   const [creating, setCreating] = useState(false);
 
   // One-tap quick create (web parity): mint a draft immediately and land on
@@ -50,10 +53,10 @@ export default function FlashItemsList() {
 
   if (!q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} topBar={<TopBar />}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <BrandLoader />
           ) : (
             <ErrorState
               title="Couldn't load flash"
@@ -66,8 +69,10 @@ export default function FlashItemsList() {
     );
   }
 
-  return (
-    <Screen edges={["left", "right"]}>
+  // Header scrolls WITH the list (ListHeaderComponent) so the overlay TopBar
+  // can reclaim its space when it hides on scroll.
+  const listHeader = (
+    <>
       <PageHeader title="Flash" />
       <View className="pt-2">
         <Button
@@ -88,11 +93,20 @@ export default function FlashItemsList() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />
       </Pressable>
+      <View className="h-2" />
+    </>
+  );
 
+  return (
+    <Screen edges={["left", "right"]} topBar={<TopBar />}>
       <FlatList
         data={q.data.items}
         keyExtractor={(it) => it.id}
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: TAB_BAR_CLEARANCE }}
+        ListHeaderComponent={listHeader}
+        contentContainerStyle={{
+          paddingTop: topBarHeight,
+          paddingBottom: TAB_BAR_CLEARANCE,
+        }}
         onScroll={onScroll}
         scrollEventThrottle={16}
         refreshControl={
@@ -100,6 +114,7 @@ export default function FlashItemsList() {
             refreshing={q.refreshing}
             onRefresh={q.refresh}
             tintColor={colors.mustard}
+            progressViewOffset={topBarHeight}
           />
         }
         ListEmptyComponent={
