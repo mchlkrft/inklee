@@ -3,7 +3,8 @@ import { Text, View } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
 import { IconChip } from "./IconChip";
 import { Card } from "./Card";
-import { border, colors, type TintRole } from "@/lib/tokens";
+import { border, type TintRole } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 // Overline label (+ optional icon chip / description) above a 1.5px bottom
 // border — the web settings-section pattern (bookings/settings/page.tsx). The
@@ -19,6 +20,7 @@ export function SectionHeader({
   label: string;
   description?: string;
 }) {
+  const colors = useColors();
   return (
     <View
       className="flex-row items-center gap-3 pb-3"

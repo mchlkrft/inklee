@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 type TextFieldProps = TextInputProps & {
   label?: string;
@@ -25,6 +25,7 @@ export function TextField({
   onBlur,
   ...input
 }: TextFieldProps) {
+  const colors = useColors();
   const [focused, setFocused] = useState(false);
   const borderColor = error
     ? "border-danger"

@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { TopBar } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
 import { FilterChip } from "@/components/Chip";
-import { colors } from "@/lib/tokens";
+import { useThemeColors } from "@/lib/theme";
 
 // The three Bookings sub-views, each a sibling route under (tabs)/bookings.
 const SUBNAV = [
@@ -21,6 +21,7 @@ const SUBNAV = [
 export default function BookingsLayout() {
   const pathname = usePathname();
   const router = useRouter();
+  const theme = useThemeColors();
 
   return (
     <View className="flex-1 bg-background">
@@ -45,7 +46,7 @@ export default function BookingsLayout() {
           screenOptions={{
             headerShown: false,
             animation: "none",
-            contentStyle: { backgroundColor: colors.charcoal },
+            contentStyle: { backgroundColor: theme.background },
           }}
         />
       </View>

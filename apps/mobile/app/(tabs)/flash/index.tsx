@@ -19,11 +19,12 @@ import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { flashLabel, flashStatusTone, formatFlashPrice } from "@/lib/flash";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 export default function FlashItemsList() {
   const router = useRouter();
   const q = useApiQuery<MobileFlashItemsResponse>("/flash/items");
+  const colors = useColors();
 
   if (!q.data) {
     return (
@@ -94,6 +95,7 @@ function FlashItemRow({
   item: MobileFlashItem;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       accessibilityRole="button"

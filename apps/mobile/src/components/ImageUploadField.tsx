@@ -5,7 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { apiUpload } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import type { MobileImageUpload } from "@inklee/shared/mobile-api";
 
 // Pick a photo from the library (compressed on-device via the picker's quality),
@@ -26,6 +26,7 @@ export function ImageUploadField({
   shape?: "square" | "circle";
   onUploaded?: (url: string) => void;
 }) {
+  const colors = useColors();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(imageUrl);

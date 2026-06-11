@@ -14,11 +14,13 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { SettingsRow } from "@/components/SettingsRow";
+import { Segmented } from "@/components/Segmented";
 import { useApiQuery } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { formatMoney } from "@/lib/bookings";
 import { colors } from "@/lib/tokens";
+import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { useScreenView } from "@/lib/analytics";
 import type { DepositDefaults } from "@inklee/shared/deposit-settings";
 import type {
@@ -42,6 +44,12 @@ const PAYOUT_STATUS: Record<string, { label: string; tone: string }> = {
   disabled: { label: "Disabled", tone: "text-danger" },
 };
 
+const THEME_OPTIONS: readonly { value: ThemePreference; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
 // openURL rejects on Android when nothing can handle the link; swallow it so a
 // tap on an external link never throws an unhandled rejection.
 const safeOpen = (url: string) => {
@@ -51,6 +59,7 @@ const safeOpen = (url: string) => {
 export default function SettingsHubScreen() {
   useScreenView("settings");
   const { signOut } = useAuth();
+  const { preference, setPreference } = useThemePreference();
   const router = useRouter();
   const meQ = useApiQuery<MobileMe>("/me");
   const profileQ = useApiQuery<MobileProfile>("/settings/profile");
@@ -169,6 +178,18 @@ export default function SettingsHubScreen() {
               </View>
             ) : null}
           </View>
+        </Card>
+
+        <SectionLabel>Appearance</SectionLabel>
+        <Card>
+          <Segmented
+            options={THEME_OPTIONS}
+            value={preference}
+            onChange={setPreference}
+          />
+          <Text className="text-xs text-shell-dim">
+            System follows your phone&apos;s light or dark setting.
+          </Text>
         </Card>
 
         <SectionLabel>Account</SectionLabel>

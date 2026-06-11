@@ -33,6 +33,7 @@ export const palettes: Record<
     subtleForeground: string;
     border: string;
     hover: string;
+    hoverStrong: string;
     chrome: string;
   }
 > = {
@@ -46,6 +47,7 @@ export const palettes: Record<
     subtleForeground: "rgba(30,30,30,0.4)",
     border: "rgba(30,30,30,0.18)",
     hover: "rgba(30,30,30,0.06)",
+    hoverStrong: "rgba(30,30,30,0.1)",
     chrome: "#ece8dd",
   },
   dark: {
@@ -58,9 +60,20 @@ export const palettes: Record<
     subtleForeground: "rgba(229,225,213,0.32)",
     border: "rgba(229,225,213,0.18)",
     hover: "rgba(229,225,213,0.12)",
+    hoverStrong: "rgba(229,225,213,0.2)",
     chrome: "rgba(229,225,213,0.06)",
   },
 };
+
+// Brand atoms — identical in both themes.
+const BRAND = {
+  mustard: "#e9b22b",
+  rosa: "#db88b9",
+  cobalt: "#0b3d9f",
+  danger: "#cf2e2c",
+  success: "#105f2d",
+  charcoal: "#1e1e1e",
+} as const;
 
 type ThemeContextValue = {
   preference: ThemePreference;
@@ -120,4 +133,28 @@ export function useThemePreference(): ThemeContextValue {
 export function useThemeColors() {
   const { colorScheme } = useColorScheme();
   return palettes[colorScheme === "dark" ? "dark" : "light"];
+}
+
+// Theme-aware drop-in for the old static `colors` token (src/lib/tokens.ts).
+// Same shape, so an inline-color consumer migrates by swapping the import and
+// adding `const colors = useColors()` — every `colors.bone` / `colors.shell.dim`
+// reference then follows the theme. Neutral roles flip (bone = the readable
+// foreground, shell.* = the muted/border/hover scale); brand atoms stay fixed,
+// and `charcoal` stays literal because inline charcoal is icon/text on a light
+// brand fill (mustard/rosa), not a neutral surface.
+export function useColors() {
+  const c = useThemeColors();
+  return {
+    ...BRAND,
+    bone: c.foreground,
+    shell: {
+      bg: c.background,
+      fg: c.foreground,
+      dim: c.mutedForeground,
+      mute: c.subtleForeground,
+      border: c.border,
+      hover: c.hover,
+      hoverStrong: c.hoverStrong,
+    },
+  };
 }

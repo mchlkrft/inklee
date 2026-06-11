@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
-import { border, colors } from "@/lib/tokens";
+import { border } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 // Unifies the hand-rolled rows (requests, clients, flash, products). Variants by
 // prop: `leading` thumbnail/icon-chip, `status` trailing pill, `showChevron` for
@@ -25,6 +26,7 @@ export function ListRow({
   showChevron?: boolean;
   divider?: boolean;
 }) {
+  const colors = useColors();
   const inner = (
     <View
       className="flex-row items-center gap-3 py-3"

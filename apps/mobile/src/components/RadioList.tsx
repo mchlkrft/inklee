@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 type Option<T extends string> = { value: T; label: string };
 
@@ -15,6 +15,7 @@ export function RadioList<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const colors = useColors();
   return (
     <View className="mb-3 overflow-hidden rounded-2xl border border-shell-border">
       {options.map((o, i) => {

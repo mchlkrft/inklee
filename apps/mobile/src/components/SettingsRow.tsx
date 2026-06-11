@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 // A single settings row: a label on the left, an optional value/affordance on
 // the right. Tappable rows show a chevron (or an "external" icon for links).
@@ -22,6 +22,7 @@ export function SettingsRow({
   divider?: boolean;
   danger?: boolean;
 }) {
+  const colors = useColors();
   const body = (
     <View
       className={`flex-row items-center justify-between py-3 ${

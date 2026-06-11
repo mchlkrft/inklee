@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/Card";
 import { apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import type { MobileHome } from "@inklee/shared/mobile-api";
 
 const HOME_KEY = ["api", "/home"];
@@ -14,6 +14,7 @@ const HOME_KEY = ["api", "/home"];
 // on failure.
 export function BooksToggle({ open }: { open: boolean }) {
   const queryClient = useQueryClient();
+  const colors = useColors();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

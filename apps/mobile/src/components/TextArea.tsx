@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 type TextAreaProps = Omit<TextInputProps, "multiline"> & {
   label?: string;
@@ -22,6 +22,7 @@ export function TextArea({
   onBlur,
   ...input
 }: TextAreaProps) {
+  const colors = useColors();
   const [focused, setFocused] = useState(false);
   const length = typeof value === "string" ? value.length : 0;
   const borderColor = focused ? "border-rosa" : "border-shell-border";

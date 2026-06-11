@@ -19,11 +19,12 @@ import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { flashLabel, flashStatusTone } from "@/lib/flash";
 import { formatShortDate } from "@/lib/date";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 export default function FlashDaysList() {
   const router = useRouter();
   const q = useApiQuery<MobileFlashDaysResponse>("/flash/days");
+  const colors = useColors();
 
   if (!q.data) {
     return (
@@ -83,6 +84,7 @@ export default function FlashDaysList() {
 }
 
 function DayRow({ day, onPress }: { day: MobileFlashDay; onPress: () => void }) {
+  const colors = useColors();
   const dateLabel = day.scheduledOn
     ? formatShortDate(day.scheduledOn)
     : "No date set";

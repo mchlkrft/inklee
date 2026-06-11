@@ -15,11 +15,12 @@ import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 export default function TripsList() {
   const router = useRouter();
   const q = useApiQuery<MobileTripsResponse>("/travel/trips");
+  const colors = useColors();
 
   if (!q.data) {
     return (

@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 // MB-2: optional bone-tinted Lucide icon above the title (the web empty states
 // have visual warmth; mobile was text-only). API stays backward-compatible.
@@ -13,6 +13,7 @@ export function EmptyState({
   subtitle?: string;
   icon?: LucideIcon;
 }) {
+  const colors = useColors();
   return (
     <View className="items-center justify-center py-16">
       {Icon ? (

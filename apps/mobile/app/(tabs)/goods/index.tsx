@@ -25,11 +25,12 @@ import {
   productStatusLabel,
   productStatusTone,
 } from "@/lib/goods";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 export default function GoodsList() {
   const router = useRouter();
   const q = useApiQuery<MobileProductsResponse>("/goods");
+  const colors = useColors();
 
   if (!q.data) {
     return (
@@ -96,6 +97,7 @@ function ProductRow({
   product: MobileProduct;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       accessibilityRole="button"

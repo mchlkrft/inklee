@@ -2,7 +2,7 @@ import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { DayCell } from "@/lib/calendar";
 import { formatDayLabel } from "@/lib/date";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -17,6 +17,7 @@ export function MonthGrid(props: {
   onNext: () => void;
 }): React.JSX.Element {
   const { monthLabel, weeks, selectedDate, onSelectDay, onPrev, onNext } = props;
+  const colors = useColors();
 
   return (
     <View>
@@ -32,7 +33,9 @@ export function MonthGrid(props: {
           <Ionicons name="chevron-back" size={22} color={colors.bone} />
         </Pressable>
 
-        <Text className="text-base font-semibold text-bone">{monthLabel}</Text>
+        <Text className="text-base font-semibold text-foreground">
+          {monthLabel}
+        </Text>
 
         <Pressable
           onPress={onNext}
@@ -64,7 +67,7 @@ export function MonthGrid(props: {
               : cell.isToday
                 ? "text-mustard"
                 : cell.inMonth
-                  ? "text-bone"
+                  ? "text-foreground"
                   : "text-shell-mute";
 
             return (
