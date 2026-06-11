@@ -195,7 +195,12 @@ export default function SettingsHubScreen() {
         <SectionLabel>Account</SectionLabel>
         <Card>
           <SettingsRow
+            label="Account & security"
+            onPress={() => router.push("/settings/account")}
+          />
+          <SettingsRow
             label="Edit profile"
+            divider
             onPress={() => router.push("/settings/profile")}
           />
           <SettingsRow

@@ -249,6 +249,10 @@ export const CONNECT_LINK_ALLOWED_NEXT = new Set([
   "/settings/payouts",
   "/bookings/deposits",
   "/settings/emails",
+  // Account management (email / password / 2FA) + the GDPR data export, both
+  // handed off from the app's Account & security screen.
+  "/settings/account",
+  "/settings/export",
 ]);
 
 export function resolveConnectNext(next: unknown): string {

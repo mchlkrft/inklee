@@ -404,6 +404,21 @@ export type MobileTripDetail = {
   studios: MobileStudioOption[];
 };
 
+/** GET /api/mobile/account — account + security overview (mirrors web settings/account). */
+export type MobileAccount = {
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string | null;
+  bookingMode: string;
+  /** True when an email+password identity exists (vs OAuth-only sign-in). */
+  hasPassword: boolean;
+  /** The OAuth provider for no-password accounts (e.g. "google", "apple"), else null. */
+  oauthProvider: string | null;
+  /** True when a verified TOTP factor is enrolled. */
+  mfaEnabled: boolean;
+};
+
 /** GET/POST /api/mobile/settings/reminders — the artist's automated reminder
  *  email settings (profiles.settings.reminder_settings), parsed/clamped with
  *  the same rules as the web Emails page and the daily reminder cron. */
