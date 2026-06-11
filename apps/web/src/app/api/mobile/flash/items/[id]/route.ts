@@ -4,6 +4,10 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { normalizeFlashItemUpdate } from "@/lib/mobile-flash";
+import {
+  computeFlashAvailability,
+  formatFlashAvailabilityLabel,
+} from "@/lib/flash";
 import type { MobileFlashItemDetail } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -36,6 +40,37 @@ export async function GET(
   if (error) return mobileError(500, error.message);
   if (!item) return mobileError(404, "Flash design not found.", "not_found");
 
+  // Stats sidebar. Mirror the web detail page: approved = confirmed (the active
+  // count fed to the availability engine), pending = pending (shown separately).
+  const [{ data: confirmed }, { data: pending }] = await Promise.all([
+    supabase
+      .from("booking_requests")
+      .select("id")
+      .eq("flash_item_id", id)
+      .eq("status", "approved"),
+    supabase
+      .from("booking_requests")
+      .select("id")
+      .eq("flash_item_id", id)
+      .eq("status", "pending"),
+  ]);
+  const confirmedCount = confirmed?.length ?? 0;
+  const pendingCount = pending?.length ?? 0;
+  const av = computeFlashAvailability(
+    {
+      id: item.id,
+      title: item.title,
+      slug: item.slug,
+      status: item.status,
+      booking_mode: item.booking_mode,
+      max_bookings: item.max_bookings,
+      is_bookable: item.is_bookable,
+      available_from: item.available_from,
+      available_until: item.available_until,
+    },
+    confirmedCount,
+  );
+
   const dayOptions = (days ?? []).map((d) => ({
     id: d.id,
     title: d.title,
@@ -65,6 +100,7 @@ export async function GET(
   const body: MobileFlashItemDetail = {
     id: item.id,
     title: item.title,
+    slug: item.slug,
     status: item.status,
     priceType: item.price_type,
     price: item.price != null ? Number(item.price) : null,
@@ -79,6 +115,11 @@ export async function GET(
     flashDayId: item.flash_day_id,
     previewImageUrl: item.preview_image_url,
     flashDays: dayOptions,
+    pendingCount,
+    confirmedCount,
+    bookable: av.bookable,
+    availabilityLabel: formatFlashAvailabilityLabel(av),
+    remaining: av.remaining ?? null,
   };
   return mobileOk(body);
 }

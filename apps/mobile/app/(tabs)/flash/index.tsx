@@ -127,7 +127,15 @@ function FlashItemRow({
           >
             {flashLabel(item.status)}
           </Text>
-          {!item.isBookable ? (
+          {item.availabilityLabel ? (
+            <Text
+              className={`text-xs font-medium ${
+                item.bookable ? "text-success" : "text-shell-mute"
+              }`}
+            >
+              · {item.availabilityLabel}
+            </Text>
+          ) : !item.isBookable ? (
             <Text className="text-xs text-shell-mute">· Not bookable</Text>
           ) : null}
         </View>

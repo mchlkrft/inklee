@@ -1,7 +1,9 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
+  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -10,14 +12,20 @@ import {
 import { TextArea } from "@/components/TextArea";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import type { MobileFlashItemDetail } from "@inklee/shared/mobile-api";
+import * as WebBrowser from "expo-web-browser";
+import type {
+  MobileFlashItemDetail,
+  MobileMe,
+} from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { DangerButton } from "@/components/DangerButton";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
 import { ImageUploadField } from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
-import { useApiQuery, apiPut } from "@/lib/api";
+import { useApiQuery, apiPut, apiPost } from "@/lib/api";
+import { config } from "@/lib/config";
 import {
   BOOKING_MODE_OPTIONS,
   ITEM_STATUS_OPTIONS,
@@ -59,6 +67,14 @@ export default function EditFlashItem() {
   return <ItemForm id={id} initial={q.data} />;
 }
 
+function invalidateFlash(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({
+    predicate: (query) =>
+      typeof query.queryKey[1] === "string" &&
+      (query.queryKey[1] as string).startsWith("/flash"),
+  });
+}
+
 function ItemForm({
   id,
   initial,
@@ -68,6 +84,41 @@ function ItemForm({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const me = useApiQuery<MobileMe>("/me");
+  const [archiving, setArchiving] = useState(false);
+
+  const publicUrl =
+    initial.status === "published" && me.data?.slug
+      ? `${config.publicUrl(me.data.slug)}/flash/${initial.slug}`
+      : null;
+  const hasRelatedBookings =
+    initial.pendingCount + initial.confirmedCount > 0;
+
+  function archive() {
+    Alert.alert(
+      "Archive design?",
+      "It stops accepting bookings and leaves your public flash page. You can republish it later.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Archive",
+          style: "destructive",
+          onPress: async () => {
+            setArchiving(true);
+            try {
+              await apiPost(`/flash/items/${id}/archive`);
+              await invalidateFlash(queryClient);
+              router.back();
+            } catch (e) {
+              captureError(e, { op: "archiveFlashItem" });
+              setArchiving(false);
+              Alert.alert("Couldn't archive", "Try again in a moment.");
+            }
+          },
+        },
+      ],
+    );
+  }
 
   const [title, setTitle] = useState(initial.title);
   const [status, setStatus] = useState<ItemStatus>(initial.status as ItemStatus);
@@ -154,11 +205,7 @@ function ItemForm({
       });
       // Reassigning a day changes the days-list counts + day detail too, so
       // invalidate every /flash view (list, detail, days).
-      await queryClient.invalidateQueries({
-        predicate: (query) =>
-          typeof query.queryKey[1] === "string" &&
-          (query.queryKey[1] as string).startsWith("/flash"),
-      });
+      await invalidateFlash(queryClient);
       router.back();
     } catch (e) {
       captureError(e, { op: "saveFlashItem" });
@@ -175,6 +222,50 @@ function ItemForm({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
       >
+        <View className="mb-4 rounded-2xl border border-shell-border bg-glass">
+          <StatRow
+            label="Availability"
+            value={initial.availabilityLabel}
+            tone={initial.bookable ? "text-success" : "text-shell-dim"}
+          />
+          <StatRow label="Pending" value={String(initial.pendingCount)} />
+          <StatRow label="Confirmed" value={String(initial.confirmedCount)} />
+          {initial.bookingMode === "limited" && initial.maxBookings ? (
+            <StatRow
+              label="Capacity"
+              value={`${initial.confirmedCount} / ${initial.maxBookings}`}
+            />
+          ) : null}
+        </View>
+
+        {publicUrl ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              void WebBrowser.openBrowserAsync(publicUrl);
+            }}
+            className="mb-3 items-center rounded-full border border-shell-border px-5 py-2.5 active:opacity-70"
+          >
+            <Text className="text-sm font-medium text-foreground">
+              View public page
+            </Text>
+          </Pressable>
+        ) : (
+          <Text className="mb-3 text-center text-xs text-shell-mute">
+            Publish this design to make it publicly visible.
+          </Text>
+        )}
+
+        {hasRelatedBookings ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/bookings")}
+            className="mb-4 items-center active:opacity-70"
+          >
+            <Text className="text-sm text-shell-dim">View related bookings</Text>
+          </Pressable>
+        ) : null}
+
         <ImageUploadField
           label="Design image"
           imageUrl={initial.previewImageUrl}
@@ -303,7 +394,34 @@ function ItemForm({
           loading={saving}
           disabled={!title.trim()}
         />
+
+        {initial.status !== "archived" ? (
+          <DangerButton
+            label="Archive design"
+            onPress={archive}
+            disabled={archiving || saving}
+          />
+        ) : null}
       </ScrollView>
     </Screen>
+  );
+}
+
+function StatRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <View className="flex-row items-center justify-between border-b border-shell-border px-4 py-3 last:border-b-0">
+      <Text className="text-sm text-shell-dim">{label}</Text>
+      <Text className={`text-sm font-medium ${tone ?? "text-foreground"}`}>
+        {value}
+      </Text>
+    </View>
   );
 }

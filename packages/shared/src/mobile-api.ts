@@ -253,6 +253,14 @@ export type MobileFlashItem = {
   previewImageUrl: string | null;
   bookingMode: string; // unique | limited | repeatable
   flashDayId: string | null;
+  /** Server-computed availability (the web flash engine runs on the server so
+   *  the engine is not re-ported into the RN bundle). `bookable` reflects the
+   *  full engine result (status + window + capacity), not raw is_bookable.
+   *  `availabilityLabel` is null on the default happy path (published, bookable,
+   *  unlimited) to keep rows uncluttered, matching the web tile rule. */
+  bookable: boolean;
+  availabilityLabel: string | null;
+  remaining: number | null;
 };
 
 export type MobileFlashItemsResponse = { items: MobileFlashItem[] };
@@ -268,6 +276,7 @@ export type MobileFlashDayOption = {
 export type MobileFlashItemDetail = {
   id: string;
   title: string;
+  slug: string;
   status: string;
   priceType: string;
   price: number | null;
@@ -282,6 +291,13 @@ export type MobileFlashItemDetail = {
   flashDayId: string | null;
   previewImageUrl: string | null;
   flashDays: MobileFlashDayOption[];
+  /** Stats sidebar (mirrors the web detail page): approved = confirmed,
+   *  pending = pending; availability is the server-computed engine result. */
+  pendingCount: number;
+  confirmedCount: number;
+  bookable: boolean;
+  availabilityLabel: string;
+  remaining: number | null;
 };
 
 /** One flash day (GET /api/mobile/flash/days, GET /api/mobile/flash/days/:id). */

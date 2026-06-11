@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -8,15 +9,19 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
 import type {
   MobileFlashDay,
   MobileFlashDaysResponse,
+  MobileMe,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
+import { config } from "@/lib/config";
 import { flashLabel, flashStatusTone } from "@/lib/flash";
 import { formatShortDate } from "@/lib/date";
 import { useColors } from "@/lib/theme";
@@ -24,6 +29,8 @@ import { useColors } from "@/lib/theme";
 export default function FlashDaysList() {
   const router = useRouter();
   const q = useApiQuery<MobileFlashDaysResponse>("/flash/days");
+  const me = useApiQuery<MobileMe>("/me");
+  const slug = me.data?.slug ?? null;
   const colors = useColors();
 
   if (!q.data) {
@@ -74,6 +81,11 @@ export default function FlashDaysList() {
           renderItem={({ item }) => (
             <DayRow
               day={item}
+              publicUrl={
+                item.isPublic && slug
+                  ? `${config.publicUrl(slug)}/flash/days/${item.id}`
+                  : null
+              }
               onPress={() => router.push(`/flash/days/${item.id}`)}
             />
           )}
@@ -83,8 +95,17 @@ export default function FlashDaysList() {
   );
 }
 
-function DayRow({ day, onPress }: { day: MobileFlashDay; onPress: () => void }) {
+function DayRow({
+  day,
+  publicUrl,
+  onPress,
+}: {
+  day: MobileFlashDay;
+  publicUrl: string | null;
+  onPress: () => void;
+}) {
   const colors = useColors();
+  const [copied, setCopied] = useState(false);
   const dateLabel = day.scheduledOn
     ? formatShortDate(day.scheduledOn)
     : "No date set";
@@ -119,6 +140,33 @@ function DayRow({ day, onPress }: { day: MobileFlashDay; onPress: () => void }) 
           <Text className="text-xs text-success"> · Public</Text>
         ) : null}
       </View>
+
+      {publicUrl ? (
+        <View className="mt-3 flex-row gap-2">
+          <Pressable
+            accessibilityRole="button"
+            onPress={async () => {
+              await Clipboard.setStringAsync(publicUrl);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
+          >
+            <Text className="text-xs font-medium text-foreground">
+              {copied ? "Copied" : "Copy link"}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              void WebBrowser.openBrowserAsync(publicUrl);
+            }}
+            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
+          >
+            <Text className="text-xs font-medium text-foreground">View</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
