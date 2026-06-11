@@ -6,6 +6,8 @@ type TextFieldProps = TextInputProps & {
   label?: string;
   hint?: string;
   error?: string | null;
+  /** Leading adornment inside the field (e.g. the fixed "@" on the Instagram handle). */
+  leftSlot?: ReactNode;
   /** Right-aligned adornment inside the field (e.g. the slug-availability tick). */
   rightSlot?: ReactNode;
 };
@@ -20,6 +22,7 @@ export function TextField({
   label,
   hint,
   error,
+  leftSlot,
   rightSlot,
   onFocus,
   onBlur,
@@ -40,6 +43,7 @@ export function TextField({
       <View
         className={`h-12 flex-row items-center rounded-xl border-brand px-4 ${borderColor}`}
       >
+        {leftSlot ? <View className="pr-2">{leftSlot}</View> : null}
         <TextInput
           {...input}
           onFocus={(e) => {

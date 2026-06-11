@@ -85,3 +85,29 @@ export function generateSubSlots(
 
   return slots;
 }
+
+// Curated timezone choices for the artist profile settings. The web form's
+// <select> and the mobile picker share this list so the two platforms cannot
+// drift. Arbitrary IANA values set through other paths (e.g. the mobile
+// "use device timezone" shortcut) remain valid; this is only the browse list.
+export const CURATED_TIMEZONES = [
+  "Europe/Berlin",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Amsterdam",
+  "Europe/Madrid",
+  "Europe/Rome",
+  "Europe/Warsaw",
+  "Europe/Stockholm",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Sao_Paulo",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Asia/Singapore",
+  "Asia/Dubai",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+] as const;

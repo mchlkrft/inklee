@@ -29,6 +29,26 @@ export const DEPOSIT_MAX_AMOUNT = 100_000;
 export const DEPOSIT_MAX_DUE_DAYS = 90;
 export const DEPOSIT_MAX_NOTE = 300;
 
+// Cover color for the public-page header — a brand swatch name or a raw #hex.
+// Mirrors sanitizeCoverColor in the web updateProfileAction so both write
+// paths accept exactly the same values.
+const COVER_COLOR_NAMES = new Set([
+  "mustard",
+  "rosa",
+  "cobalt",
+  "red",
+  "green",
+]);
+
+export function sanitizeCoverColor(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim().toLowerCase();
+  if (!v) return null;
+  if (COVER_COLOR_NAMES.has(v)) return v;
+  if (/^#[0-9a-f]{3,8}$/.test(v)) return v;
+  return null;
+}
+
 export type ProfileUpdate = {
   displayName: string;
   bio: string | null;
@@ -38,6 +58,10 @@ export type ProfileUpdate = {
   // conditionally so a partial save never clobbers an unchanged value.
   timezone?: string;
   bookingMode?: BookingMode;
+  // Tri-state like the web form's cover_color input: undefined = not sent
+  // (leave unchanged), null = clear, string = a sanitized swatch name / #hex
+  // to merge into profiles.settings.cover_color.
+  coverColor?: string | null;
 };
 
 /** Validate the editable text profile fields (no image upload — that stays web). */
@@ -87,6 +111,21 @@ export function normalizeProfileUpdate(body: unknown): Result<ProfileUpdate> {
       return { ok: false, error: "Invalid booking mode." };
     }
     value.bookingMode = b.bookingMode;
+  }
+
+  // Cover color: null / empty string clears, a valid swatch name or #hex sets,
+  // and anything else is silently skipped — the exact semantics of the web
+  // updateProfileAction (an invalid value never fails the rest of the save).
+  if (b.coverColor !== undefined) {
+    if (
+      b.coverColor === null ||
+      (typeof b.coverColor === "string" && b.coverColor.trim() === "")
+    ) {
+      value.coverColor = null;
+    } else {
+      const sanitized = sanitizeCoverColor(b.coverColor);
+      if (sanitized) value.coverColor = sanitized;
+    }
   }
 
   return { ok: true, value };

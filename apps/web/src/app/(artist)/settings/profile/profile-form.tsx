@@ -4,30 +4,13 @@ import { useActionState, useRef, useState } from "react";
 import Image from "next/image";
 import Spinner from "@/components/spinner";
 import { updateProfileAction } from "./actions";
+import { CURATED_TIMEZONES } from "@inklee/shared/timezone";
 
 type State = { error: string } | { success: true } | null;
 
-const TIMEZONES = [
-  "Europe/Berlin",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Amsterdam",
-  "Europe/Madrid",
-  "Europe/Rome",
-  "Europe/Warsaw",
-  "Europe/Stockholm",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Sao_Paulo",
-  "Asia/Tokyo",
-  "Asia/Seoul",
-  "Asia/Singapore",
-  "Asia/Dubai",
-  "Australia/Sydney",
-  "Pacific/Auckland",
-];
+// Shared with the mobile timezone picker (packages/shared/src/timezone.ts) so
+// the two platforms cannot drift.
+const TIMEZONES = CURATED_TIMEZONES;
 
 const COVER_COLORS = [
   { id: "mustard", hex: "#e9b22b", label: "Mustard" },

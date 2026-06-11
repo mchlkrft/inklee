@@ -54,6 +54,9 @@ export type MobileProfile = {
   location: string | null;
   logoUrl: string | null;
   instagramHandle: string | null;
+  /** Public-page cover (profiles.settings.cover_image_url / cover_color). */
+  coverImageUrl: string | null;
+  coverColor: string | null;
 };
 
 /** GET/POST /api/mobile/settings/payouts — the artist's stored Stripe Connect payout status. */

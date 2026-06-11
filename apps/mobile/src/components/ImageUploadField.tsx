@@ -17,6 +17,8 @@ export function ImageUploadField({
   endpoint,
   aspect = [1, 1],
   shape = "square",
+  maxBytes = 4 * 1024 * 1024,
+  hint,
   onUploaded,
 }: {
   label: string;
@@ -24,12 +26,18 @@ export function ImageUploadField({
   endpoint: string;
   aspect?: [number, number];
   shape?: "square" | "circle";
+  /** Client-side size cap — mirror the matching server route's limit so an
+   *  oversized photo fails with a clear message before it leaves the device. */
+  maxBytes?: number;
+  /** Muted helper line under the field (format / size / resize note). */
+  hint?: string;
   onUploaded?: (url: string) => void;
 }) {
   const colors = useColors();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(imageUrl);
+  const maxLabel = `${Math.round(maxBytes / (1024 * 1024))} MB`;
 
   async function pick() {
     setError(null);
@@ -49,8 +57,10 @@ export function ImageUploadField({
     // Match the server cap (and stay under the platform body limit) so an
     // oversized photo fails with a clear message instead of a generic upload
     // error from the platform rejecting the body.
-    if (asset.fileSize && asset.fileSize > 4 * 1024 * 1024) {
-      setError("That image is too large (max 4 MB). Try a smaller photo.");
+    if (asset.fileSize && asset.fileSize > maxBytes) {
+      setError(
+        `That image is too large (max ${maxLabel}). Try a smaller photo.`,
+      );
       return;
     }
     setBusy(true);
@@ -116,6 +126,8 @@ export function ImageUploadField({
       </Pressable>
       {error ? (
         <Text className="mt-1 text-xs text-danger">{error}</Text>
+      ) : hint ? (
+        <Text className="mt-1 text-xs text-shell-dim">{hint}</Text>
       ) : null}
     </View>
   );
