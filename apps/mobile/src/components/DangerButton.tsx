@@ -17,7 +17,7 @@ export function DangerButton({
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
-      className={`mt-6 h-11 items-center justify-center active:opacity-70 ${
+      className={`mt-6 h-12 items-center justify-center active:opacity-70 ${
         disabled ? "opacity-50" : ""
       }`}
     >

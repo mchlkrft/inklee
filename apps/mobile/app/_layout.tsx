@@ -1,6 +1,6 @@
 import "../global.css";
 import { useEffect, useRef } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-query";
 import type { MobileMe } from "@inklee/shared/mobile-api";
 import { BrandLoader } from "@/components/BrandLoader";
+import { Button } from "@/components/Button";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
@@ -42,15 +43,14 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       <Text className="mt-2 text-center text-sm text-shell-dim">
         {error.message || t("error.body")}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={retry}
-        className="mt-5 h-11 items-center justify-center rounded-xl border border-shell-border px-6 active:opacity-80"
-      >
-        <Text className="text-sm font-semibold text-foreground">
-          {t("common.tryAgain")}
-        </Text>
-      </Pressable>
+      <View className="mt-5 self-center">
+        <Button
+          label={t("common.tryAgain")}
+          variant="secondary"
+          size="sm"
+          onPress={retry}
+        />
+      </View>
     </View>
   );
 }
@@ -85,15 +85,14 @@ function RetrySplash({
   return (
     <View className="flex-1 items-center justify-center bg-background px-8">
       <Text className="text-center text-sm text-shell-dim">{message}</Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={onRetry}
-        className="mt-5 h-11 items-center justify-center rounded-xl border border-shell-border px-6 active:opacity-80"
-      >
-        <Text className="text-sm font-semibold text-foreground">
-          {t("common.tryAgain")}
-        </Text>
-      </Pressable>
+      <View className="mt-5 self-center">
+        <Button
+          label={t("common.tryAgain")}
+          variant="secondary"
+          size="sm"
+          onPress={onRetry}
+        />
+      </View>
     </View>
   );
 }
@@ -194,8 +193,12 @@ function RootNavigator() {
           options={{ ...stackHeader, title: "Insights" }}
         />
         <Stack.Screen
-          name="waitlist"
+          name="waitlist/index"
           options={{ ...stackHeader, title: "Waitlist" }}
+        />
+        <Stack.Screen
+          name="waitlist/[id]"
+          options={{ ...stackHeader, title: "Waitlist entry" }}
         />
       </Stack.Protected>
     </Stack>

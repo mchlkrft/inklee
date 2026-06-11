@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -12,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { IconButton } from "@/components/IconButton";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
@@ -255,7 +255,7 @@ function Stepper({
 
 function StepButton({
   label,
-  icon: Icon,
+  icon,
   color,
   disabled,
   onPress,
@@ -267,18 +267,15 @@ function StepButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
+    <IconButton
+      size="sm"
+      outlined
+      icon={icon}
+      label={label}
+      iconSize={16}
+      color={color}
       disabled={disabled}
       onPress={onPress}
-      hitSlop={6}
-      className={`h-9 w-9 items-center justify-center rounded-full border-brand border-shell-border ${
-        disabled ? "opacity-40" : "active:opacity-70"
-      }`}
-    >
-      <Icon size={16} color={color} strokeWidth={2.5} />
-    </Pressable>
+    />
   );
 }

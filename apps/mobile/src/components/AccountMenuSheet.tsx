@@ -18,6 +18,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react-native";
+import { IconButton } from "./IconButton";
 import { Spiderweb } from "./icons/Spiderweb";
 import { useApiQuery } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -168,24 +169,25 @@ export function AccountMenuSheet({
                   {name}
                 </Text>
                 {subline ? (
-                  <Text className="text-caption text-shell-dim" numberOfLines={1}>
+                  // Static shell color: the panel is fixed-dark chrome, so the
+                  // themed text-shell-dim would vanish in the light theme.
+                  <Text
+                    className="text-caption"
+                    style={{ color: colors.shell.dim }}
+                    numberOfLines={1}
+                  >
                     {subline}
                   </Text>
                 ) : null}
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close menu"
+              <IconButton
+                icon={X}
+                label="Close menu"
                 onPress={onClose}
-                hitSlop={8}
-                className="h-10 w-10 items-center justify-center rounded-full active:opacity-70"
-                style={{
-                  borderWidth: border.hairline,
-                  borderColor: colors.shell.border,
-                }}
-              >
-                <X size={20} color={colors.bone} />
-              </Pressable>
+                outlined
+                borderColor={colors.shell.border}
+                color={colors.bone}
+              />
             </View>
 
             <View className="pt-2">

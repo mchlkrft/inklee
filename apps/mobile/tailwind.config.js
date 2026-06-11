@@ -55,6 +55,9 @@ module.exports = {
         card: "20px",
       },
       // Named spacing rhythm (plan §3.4) alongside the default numeric scale.
+      // `13` (52px) is the standard button height (h-13) — 13 is absent from
+      // the default Tailwind scale, so it must be declared or NativeWind drops
+      // the class silently. Keep in sync with control in src/lib/tokens.ts.
       spacing: {
         xs: "4px",
         sm: "8px",
@@ -62,6 +65,7 @@ module.exports = {
         lg: "16px",
         xl: "24px",
         "2xl": "32px",
+        13: "52px",
       },
       // Named type scale (plan §3.2): text-display / text-title / … carry size +
       // line-height; weight is applied via font-* classes in the primitives.

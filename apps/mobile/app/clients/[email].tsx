@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   Text,
@@ -69,13 +68,14 @@ export default function ClientDetailScreen() {
               title="Couldn't load client"
               subtitle={error ?? undefined}
             />
-            <Pressable
-              accessibilityRole="button"
-              onPress={refresh}
-              className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
-            >
-              <Text className="text-sm font-semibold text-foreground">Try again</Text>
-            </Pressable>
+            <View className="mt-2">
+              <Button
+                label="Try again"
+                variant="secondary"
+                size="sm"
+                onPress={refresh}
+              />
+            </View>
           </View>
         )}
       </View>

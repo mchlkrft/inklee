@@ -50,7 +50,7 @@ export default function InsightsScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               onPress={() => setRange(r.key)}
-              className={`flex-1 items-center rounded-xl border px-3 py-3 ${
+              className={`h-11 flex-1 items-center justify-center rounded-xl border px-3 ${
                 active
                   ? "border-mustard bg-mustard/15"
                   : "border-shell-border active:opacity-80"
@@ -106,7 +106,7 @@ export default function InsightsScreen() {
           <View className="mb-6 flex-row gap-3">
             <Metric
               label="Deposit rate"
-              value={data.depositRate != null ? `${data.depositRate}%` : "—"}
+              value={data.depositRate != null ? `${data.depositRate}%` : "-"}
               sub={`${data.depositPaid}/${data.depositRequested} paid`}
             />
             <Metric

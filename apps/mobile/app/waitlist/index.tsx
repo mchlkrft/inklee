@@ -4,18 +4,30 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import { useQueryClient } from "@tanstack/react-query";
+import { MapPin } from "lucide-react-native";
 import { Card } from "@/components/Card";
+import { CardHeader } from "@/components/CardHeader";
 import { Button } from "@/components/Button";
+import { PillButton } from "@/components/PillButton";
+import { FilterChip } from "@/components/Chip";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
-import { apiPost, invalidateBookingViews, useApiQuery } from "@/lib/api";
+import { useApiQuery } from "@/lib/api";
+import {
+  buildCityDemand,
+  cityKey,
+  convertWaitlistEntry,
+  setWaitlistStatus,
+} from "@/lib/waitlist";
 import { config } from "@/lib/config";
 import { relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
@@ -35,28 +47,24 @@ const FILTERS = [
 
 export default function WaitlistScreen() {
   const [filter, setFilter] = useState("waiting");
+  const [city, setCity] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileWaitlistResponse>(`/waitlist?status=${filter}`, {
       keepPrevious: true,
     });
+  // The full set powers the city chips + demand card regardless of the status
+  // filter (same cache key the "All" chip uses, so no extra cost once visited).
+  const all = useApiQuery<MobileWaitlistResponse>("/waitlist?status=all", {
+    keepPrevious: true,
+  });
   const me = useApiQuery<MobileMe>("/me");
   const waitlistUrl = me.data?.slug ? config.waitlistUrl(me.data.slug) : null;
 
-  // A status change can drop an entry from the "waiting" list AND change the
-  // Home waitlist count — refresh both views.
-  function invalidate() {
-    void queryClient.invalidateQueries({
-      predicate: (q) => {
-        const p = q.queryKey[1];
-        return typeof p === "string" && (p.startsWith("/waitlist") || p === "/home");
-      },
-    });
-  }
-
   // Optimistically update the entry's status in the current list so its pill +
-  // actions change instantly; the invalidate after a successful POST then drops
-  // it from the "waiting" filter and refreshes the Home count.
+  // actions change instantly; the shared invalidation after a successful POST
+  // then drops it from the "waiting" filter and refreshes the Home count.
   function patch(entryId: string, status: string) {
     queryClient.setQueryData<MobileWaitlistResponse>(
       ["api", `/waitlist?status=${filter}`],
@@ -76,31 +84,37 @@ export default function WaitlistScreen() {
     prevStatus: string,
     status: "contacted" | "dismissed",
   ) {
+    // Cancel any in-flight list refetch (a previous action's invalidation) so
+    // its stale snapshot can't clobber this optimistic patch.
+    await queryClient.cancelQueries({
+      queryKey: ["api", `/waitlist?status=${filter}`],
+    });
     patch(entryId, status);
     try {
-      await apiPost(`/waitlist/${entryId}`, { status });
-      invalidate();
+      await setWaitlistStatus(queryClient, entryId, status);
     } catch (e) {
       patch(entryId, prevStatus); // revert
       throw e;
     }
   }
 
-  // Convert creates an accepted booking + emails the client a magic link, so it
-  // refreshes the booking views too (not just the waitlist + Home count).
   async function onConvert(entryId: string, prevStatus: string) {
+    await queryClient.cancelQueries({
+      queryKey: ["api", `/waitlist?status=${filter}`],
+    });
     patch(entryId, "converted");
     try {
-      await apiPost(`/waitlist/${entryId}/convert`);
-      invalidate();
-      void invalidateBookingViews(queryClient);
+      await convertWaitlistEntry(queryClient, entryId);
     } catch (e) {
       patch(entryId, prevStatus); // revert
       throw e;
     }
   }
 
-  const items = data?.items ?? [];
+  const demand = buildCityDemand(all.data?.items ?? []);
+  const items = (data?.items ?? []).filter(
+    (e) => !city || cityKey(e.city_text) === city,
+  );
 
   return (
     <View className="flex-1 bg-background">
@@ -113,7 +127,7 @@ export default function WaitlistScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               onPress={() => setFilter(f.key)}
-              className={`flex-1 items-center rounded-xl border px-3 py-2.5 ${
+              className={`h-11 flex-1 items-center justify-center rounded-xl border px-3 ${
                 active
                   ? "border-mustard bg-mustard/15 active:opacity-80"
                   : "border-shell-border active:opacity-80"
@@ -131,21 +145,66 @@ export default function WaitlistScreen() {
         })}
       </View>
 
+      {/* City filter: one chip per city, normalized the same way as the web
+          demand card so "berlin" and "Berlin " group. No counts on the chips —
+          they'd be all-time numbers next to a status-filtered list (the demand
+          card below carries the counts, clearly scoped). */}
+      {demand.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            gap: 8,
+            paddingHorizontal: 20,
+            paddingTop: 12,
+          }}
+          style={{ flexGrow: 0 }}
+        >
+          <FilterChip
+            label="All cities"
+            selected={city === null}
+            onPress={() => setCity(null)}
+          />
+          {demand.map((d) => {
+            const key = d.city.toLowerCase();
+            return (
+              <FilterChip
+                key={key}
+                label={d.city}
+                selected={city === key}
+                onPress={() => setCity(city === key ? null : key)}
+              />
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
       <FlatList
         data={items}
         keyExtractor={(e) => e.id}
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          waitlistUrl ? <ShareWaitlistCard url={waitlistUrl} /> : null
+          <>
+            {waitlistUrl ? <ShareWaitlistCard url={waitlistUrl} /> : null}
+            {demand.length > 0 ? <CityDemandCard demand={demand} /> : null}
+          </>
         }
         renderItem={({ item }) => (
-          <WaitlistRow entry={item} onAction={onAction} onConvert={onConvert} />
+          <WaitlistRow
+            entry={item}
+            onOpen={() => router.push(`/waitlist/${item.id}`)}
+            onAction={onAction}
+            onConvert={onConvert}
+          />
         )}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={refresh}
+            onRefresh={() => {
+              refresh();
+              all.refresh();
+            }}
             tintColor={colors.mustard}
           />
         }
@@ -159,6 +218,11 @@ export default function WaitlistScreen() {
               title="Couldn't load waitlist"
               subtitle={error}
               onRetry={refresh}
+            />
+          ) : city ? (
+            <EmptyState
+              title="No one here"
+              subtitle="Try another city or clear the filter."
             />
           ) : (
             <EmptyState
@@ -174,10 +238,12 @@ export default function WaitlistScreen() {
 
 function WaitlistRow({
   entry,
+  onOpen,
   onAction,
   onConvert,
 }: {
   entry: MobileWaitlistEntry;
+  onOpen: () => void;
   onAction: (
     id: string,
     prev: string,
@@ -185,6 +251,7 @@ function WaitlistRow({
   ) => Promise<void>;
   onConvert: (id: string, prev: string) => Promise<void>;
 }) {
+  const themed = useColors();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -224,7 +291,7 @@ function WaitlistRow({
 
   return (
     <View className="mb-2">
-      <Card>
+      <Card onPress={onOpen}>
         <View className="mb-1 flex-row items-center justify-between gap-2">
           <Text
             className="flex-1 text-base font-semibold text-foreground"
@@ -236,6 +303,14 @@ function WaitlistRow({
         </View>
         {entry.customer_email && label !== entry.customer_email ? (
           <Text className="text-sm text-shell-dim">{entry.customer_email}</Text>
+        ) : null}
+        {entry.city_text ? (
+          <View className="mt-1 flex-row items-center gap-1">
+            <MapPin size={12} color={themed.shell.dim} />
+            <Text className="text-sm text-shell-dim" numberOfLines={1}>
+              {entry.city_text}
+            </Text>
+          </View>
         ) : null}
         {entry.note ? (
           <Text className="mt-1 text-sm text-shell-dim" numberOfLines={2}>
@@ -260,21 +335,28 @@ function WaitlistRow({
             {isWaiting || canDismiss ? (
               <View className="flex-row gap-2">
                 {isWaiting ? (
-                  <ActionBtn
-                    label="Mark contacted"
-                    loading={pending === "contacted"}
-                    disabled={busy}
-                    onPress={() => setStatus("contacted")}
-                  />
+                  <View className="flex-1">
+                    <Button
+                      label="Mark contacted"
+                      variant="secondary"
+                      size="sm"
+                      loading={pending === "contacted"}
+                      disabled={busy}
+                      onPress={() => setStatus("contacted")}
+                    />
+                  </View>
                 ) : null}
                 {canDismiss ? (
-                  <ActionBtn
-                    label="Dismiss"
-                    danger
-                    loading={pending === "dismissed"}
-                    disabled={busy}
-                    onPress={() => setStatus("dismissed")}
-                  />
+                  <View className="flex-1">
+                    <Button
+                      label="Dismiss"
+                      variant="danger-outline"
+                      size="sm"
+                      loading={pending === "dismissed"}
+                      disabled={busy}
+                      onPress={() => setStatus("dismissed")}
+                    />
+                  </View>
                 ) : null}
               </View>
             ) : null}
@@ -288,40 +370,43 @@ function WaitlistRow({
   );
 }
 
-function ActionBtn({
-  label,
-  onPress,
-  loading,
-  disabled,
-  danger,
+// Demand by city — the web waitlist insight card, natively: top cities with
+// counts so guest spots can chase the demand.
+function CityDemandCard({
+  demand,
 }: {
-  label: string;
-  onPress: () => void;
-  loading: boolean;
-  disabled: boolean;
-  danger?: boolean;
+  demand: { city: string; count: number }[];
 }) {
-  const themed = useColors();
+  const total = demand.reduce((sum, d) => sum + d.count, 0);
+  const max = demand[0]?.count ?? 1;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
-      onPress={onPress}
-      className={`h-10 flex-1 items-center justify-center rounded-xl border ${
-        danger ? "border-danger/50" : "border-shell-border"
-      } ${disabled ? "opacity-50" : "active:opacity-80"}`}
-    >
-      {loading ? (
-        <ActivityIndicator color={danger ? colors.danger : themed.bone} />
-      ) : (
-        <Text
-          className={`text-sm font-semibold ${danger ? "text-danger" : "text-foreground"}`}
-        >
-          {label}
+    <View className="mb-3">
+      <Card>
+        <CardHeader icon={MapPin} tint="cobalt" title="Demand by city" />
+        <View className="mt-3 gap-2">
+          {demand.slice(0, 5).map((d) => (
+            <View key={d.city} className="flex-row items-center gap-3">
+              <Text className="w-24 text-sm text-foreground" numberOfLines={1}>
+                {d.city}
+              </Text>
+              <View className="h-1.5 flex-1 overflow-hidden rounded-full bg-shell-hover">
+                <View
+                  className="h-1.5 rounded-full bg-cobalt"
+                  style={{ width: `${Math.round((d.count / max) * 100)}%` }}
+                />
+              </View>
+              <Text className="w-6 text-right text-sm font-semibold text-foreground">
+                {d.count}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <Text className="mt-3 text-caption text-shell-dim">
+          {total} {total === 1 ? "person" : "people"} with a city on your
+          waitlist
         </Text>
-      )}
-    </Pressable>
+      </Card>
+    </View>
   );
 }
 
@@ -332,31 +417,27 @@ function ShareWaitlistCard({ url }: { url: string }) {
   return (
     <View className="mb-3">
       <Card>
-        <Text className="text-sm font-medium text-foreground">Waitlist link</Text>
+        <Text className="text-sm font-medium text-foreground">
+          Waitlist link
+        </Text>
         <Text className="mt-1 text-sm text-shell-dim" numberOfLines={1}>
           {url.replace(/^https?:\/\//, "")}
         </Text>
         <View className="mt-2 flex-row gap-2">
-          <Pressable
+          <PillButton
+            label={copied ? "Copied" : "Copy link"}
             onPress={async () => {
               await Clipboard.setStringAsync(url);
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
-            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
-          >
-            <Text className="text-label text-foreground">
-              {copied ? "Copied" : "Copy link"}
-            </Text>
-          </Pressable>
-          <Pressable
+          />
+          <PillButton
+            label="Preview"
             onPress={() => {
               void WebBrowser.openBrowserAsync(url);
             }}
-            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
-          >
-            <Text className="text-label text-foreground">Preview</Text>
-          </Pressable>
+          />
         </View>
       </Card>
     </View>

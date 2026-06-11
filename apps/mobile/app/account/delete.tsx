@@ -1,12 +1,5 @@
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiDelete } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -182,22 +175,15 @@ export default function DeleteAccountScreen() {
 
       {error ? <Text className="mt-3 text-sm text-danger">{error}</Text> : null}
 
-      <Pressable
-        accessibilityRole="button"
-        disabled={!canDelete}
-        onPress={onDelete}
-        className={`mt-6 h-12 items-center justify-center rounded-xl bg-danger ${
-          canDelete ? "active:opacity-80" : "opacity-50"
-        }`}
-      >
-        {pending ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text className="text-base font-semibold text-white">
-            Delete account
-          </Text>
-        )}
-      </Pressable>
+      <View className="mt-6">
+        <Button
+          label="Delete account"
+          variant="danger"
+          loading={pending}
+          disabled={!canDelete}
+          onPress={onDelete}
+        />
+      </View>
     </ScrollView>
   );
 }

@@ -6,6 +6,7 @@ import {
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { canAccess, effectivePlanTier } from "@/lib/entitlements";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import type { MobileMe } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -27,6 +28,13 @@ export async function GET(req: Request) {
   const overrides = await getAccountOverrides(userId);
   const settings = (profile?.settings ?? {}) as Record<string, unknown>;
   const books = parseBooksSettings(settings.books_settings);
+  // Effective state, matching /home and the public page: an expired booking
+  // window keeps the books closed even while the flag is on. The raw flag
+  // rides along for the quick-toggle Switch.
+  const today = todayInTimeZone(profile?.timezone ?? "Europe/Berlin");
+  const windowExpired =
+    books.booking_window_ends_at !== null &&
+    isDateKeyBefore(books.booking_window_ends_at, today);
 
   const body: MobileMe = {
     userId,
@@ -34,7 +42,9 @@ export async function GET(req: Request) {
     displayName: profile?.display_name ?? null,
     timezone: profile?.timezone ?? "Europe/Berlin",
     bookingMode: profile?.booking_mode ?? "preferred_date",
-    booksOpen: books.books_open,
+    booksOpen: books.books_open && !windowExpired,
+    booksOpenFlag: books.books_open,
+    bookingWindowExpired: windowExpired,
     onboardingCompleted: settings.onboarding_completed === true,
     plan: effectivePlanTier(overrides),
     canCollectDeposits: canAccess(overrides, "deposits"),

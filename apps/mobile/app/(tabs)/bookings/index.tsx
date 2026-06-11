@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   ScrollView,
   Text,
@@ -15,7 +14,10 @@ import { humanStatusLabel } from "@inklee/shared/status-labels";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { StatusPill } from "@/components/StatusPill";
+import { StatTile } from "@/components/StatTile";
 import { FilterChip } from "@/components/Chip";
+import { FilterToggle } from "@/components/FilterToggle";
+import { PillButton } from "@/components/PillButton";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
@@ -25,6 +27,7 @@ import { formatShortDate, relativeTime } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
 import type {
   MobileBookingListItem,
+  MobileBookingStats,
   MobileMe,
 } from "@inklee/shared/mobile-api";
 
@@ -103,22 +106,13 @@ function ShareZeroState({ bookingUrl }: { bookingUrl: string | null }) {
             {bookingUrl.replace(/^https?:\/\//, "")}
           </Text>
           <View className="mt-2 flex-row gap-2">
-            <Pressable
-              onPress={copy}
-              className="rounded-full border border-shell-border px-4 py-2 active:opacity-70"
-            >
-              <Text className="text-label text-foreground">
-                {copied ? "Copied" : "Copy link"}
-              </Text>
-            </Pressable>
-            <Pressable
+            <PillButton label={copied ? "Copied" : "Copy link"} onPress={copy} />
+            <PillButton
+              label="Preview"
               onPress={() => {
                 void WebBrowser.openBrowserAsync(bookingUrl);
               }}
-              className="rounded-full border border-shell-border px-4 py-2 active:opacity-70"
-            >
-              <Text className="text-label text-foreground">Preview</Text>
-            </Pressable>
+            />
           </View>
         </>
       ) : null}
@@ -131,30 +125,65 @@ export default function RequestsScreen() {
   const router = useRouter();
   const colors = useColors();
   const [status, setStatus] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const path = status ? `/bookings?status=${status}` : "/bookings";
   const q = useInfiniteApiQuery<MobileBookingListItem>(path);
+  const stats = useApiQuery<MobileBookingStats>("/bookings/stats");
   const me = useApiQuery<MobileMe>("/me");
   const bookingUrl = me.data?.slug ? config.publicUrl(me.data.slug) : null;
 
   return (
     <Screen edges={["left", "right"]}>
-      {/* flexGrow:0 keeps the chip strip from stealing list space; no max-h so
-          the chips are never clipped. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
-        style={{ flexGrow: 0 }}
-      >
-        {FILTERS.map((f) => (
-          <FilterChip
-            key={f ?? "all"}
-            label={f === null ? "All" : humanStatusLabel(f)}
-            selected={status === f}
-            onPress={() => setStatus(f)}
-          />
-        ))}
-      </ScrollView>
+      {/* Founder round 4: prominent big numbers for the booking pipeline.
+          Sourced from /bookings/stats (NOT the widget-gated /home counts). */}
+      <View className="flex-row gap-2 pt-1">
+        <StatTile
+          value={stats.data?.pendingCount ?? null}
+          label="Pending"
+          onPress={() => {
+            setStatus("pending");
+            setFiltersOpen(true);
+          }}
+        />
+        <StatTile
+          value={stats.data?.upcomingCount ?? null}
+          label="Upcoming"
+          onPress={() => router.replace("/bookings/calendar")}
+        />
+        <StatTile
+          value={stats.data?.thisMonthCount ?? null}
+          label="This month"
+        />
+      </View>
+
+      {/* Collapsed-by-default status filter (web filter-row parity): a single
+          Filter pill that reveals the chip strip; the active status stays
+          legible on the pill while collapsed. */}
+      <View className="flex-row items-center py-2.5">
+        <FilterToggle
+          open={filtersOpen}
+          onToggle={() => setFiltersOpen((v) => !v)}
+          activeCount={status ? 1 : 0}
+          activeLabel={status ? humanStatusLabel(status) : null}
+        />
+      </View>
+      {filtersOpen ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingBottom: 10 }}
+          style={{ flexGrow: 0 }}
+        >
+          {FILTERS.map((f) => (
+            <FilterChip
+              key={f ?? "all"}
+              label={f === null ? "All" : humanStatusLabel(f)}
+              selected={status === f}
+              onPress={() => setStatus(f)}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
 
       <FlatList
         data={q.items}
@@ -170,7 +199,10 @@ export default function RequestsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={q.refreshing}
-            onRefresh={q.refresh}
+            onRefresh={() => {
+              q.refresh();
+              stats.refresh();
+            }}
             tintColor={colors.mustard}
           />
         }

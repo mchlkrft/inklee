@@ -1,4 +1,5 @@
-import { Pressable, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Keyboard, Platform, Pressable, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import {
   Inbox,
@@ -38,6 +39,38 @@ const LABELS: Record<string, string> = {
 // the pill colour so it cuts cleanly. Icons only, sized up.
 export function BottomNav({ state, navigation }: BottomTabBarProps) {
   const centerIndex = Math.floor(state.routes.length / 2);
+
+  // Android's resize keyboard mode shrinks the window, which would park the
+  // absolutely-positioned pill + FAB right on top of the focused input — hide
+  // the bar while the keyboard is up. (iOS keyboards overlay; the bar behind
+  // the keyboard is harmless but hidden for consistency.)
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, () => setKeyboardUp(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardUp(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  // Nested detail/form screens (goods/[id], flash/items/[id], trips, studios)
+  // carry native back headers and must not wear the tab pill — the round-2
+  // overlay otherwise floats over their fields and buttons (the goods form
+  // "overlapping UI" bug). Root-pushed details (bookings/[id]) already escape
+  // the Tabs navigator; this catches the ones nested inside tab stacks. The
+  // focused tab's deepest route name has a [bracket] segment exactly on those
+  // screens; tab roots and the bookings sub-views (index/calendar/clients via
+  // router.replace) never do. Undefined nested state (first render) → show.
+  const nested = state.routes[state.index]?.state;
+  const deepest = nested?.routes?.[nested.index ?? nested.routes.length - 1]?.name;
+  const onDetailScreen = typeof deepest === "string" && deepest.includes("[");
+
+  if (keyboardUp || onDetailScreen) return null;
 
   return (
     <View

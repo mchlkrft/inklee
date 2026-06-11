@@ -161,7 +161,7 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
           <Pressable
             accessibilityRole="button"
             onPress={onDone}
-            className="h-10 items-center justify-center active:opacity-70"
+            className="h-11 items-center justify-center active:opacity-70"
           >
             <Text className="text-sm text-shell-dim">Skip intro</Text>
           </Pressable>

@@ -2,7 +2,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
-  Text,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -17,9 +16,9 @@ import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
 
 // Month grid of confirmed appointments + the selected day's agenda. Tapping an
-// appointment opens the shared booking detail screen. Trips, flash, slots and
-// appointment-create are web-only for now (the mobile calendar endpoint is
-// approved-bookings-only) — see E5 follow-ups.
+// appointment opens the shared booking detail screen; the CTA below creates an
+// artist-authored appointment (/bookings/new). Trips, flash and slots remain
+// web-only (the mobile calendar endpoint is approved-bookings-only).
 export default function CalendarScreen() {
   useScreenView("calendar");
   const cal = useCalendarMonth();
@@ -38,10 +37,10 @@ export default function CalendarScreen() {
           />
         }
       >
-        <View className="pb-3">
+        {/* Founder round 4: full md-height CTA (was an undersized sm). */}
+        <View className="pb-4">
           <Button
             label="New appointment"
-            size="sm"
             onPress={() =>
               router.push(`/bookings/new?date=${cal.selectedDate}`)
             }

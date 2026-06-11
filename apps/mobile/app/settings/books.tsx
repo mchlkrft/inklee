@@ -17,7 +17,7 @@ import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { DateField } from "@/components/DateField";
 import { ErrorState } from "@/components/ErrorState";
-import { useApiQuery, apiPost, apiPut } from "@/lib/api";
+import { useApiQuery, apiPost, apiPut, invalidateBooksViews } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
 
@@ -77,17 +77,7 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
       // /me drives the always-mounted top-bar Books pill and /booking-form the
       // Availability card — refresh them with the form + Home or they contradict
       // the change until an unrelated refetch.
-      await queryClient.invalidateQueries({
-        predicate: (query) => {
-          const p = query.queryKey[1];
-          return (
-            typeof p === "string" &&
-            ["/settings/books", "/home", "/me", "/booking-form"].some((k) =>
-              p.startsWith(k),
-            )
-          );
-        },
-      });
+      await invalidateBooksViews(queryClient);
     } catch (e) {
       captureError(e, { op: "toggleBooks" });
       setOpen(!next);
@@ -120,17 +110,7 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
         bookingWindowEndsAt: windowEndsAt,
         booksClosedMessage: closedMessage.trim() || null,
       });
-      await queryClient.invalidateQueries({
-        predicate: (query) => {
-          const p = query.queryKey[1];
-          return (
-            typeof p === "string" &&
-            ["/settings/books", "/home", "/me", "/booking-form"].some((k) =>
-              p.startsWith(k),
-            )
-          );
-        },
-      });
+      await invalidateBooksViews(queryClient);
       router.back();
     } catch (e) {
       captureError(e, { op: "saveBooks" });

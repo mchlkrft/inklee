@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from "react-native";
+import { View } from "react-native";
+import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
 import { t } from "@/lib/i18n";
 
@@ -19,15 +20,14 @@ export function ErrorState({
   return (
     <View className="items-center pt-8">
       <EmptyState title={title} subtitle={subtitle} />
-      <Pressable
-        accessibilityRole="button"
-        onPress={onRetry}
-        className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
-      >
-        <Text className="text-sm font-semibold text-foreground">
-          {t("common.tryAgain")}
-        </Text>
-      </Pressable>
+      <View className="mt-2">
+        <Button
+          label={t("common.tryAgain")}
+          variant="secondary"
+          size="sm"
+          onPress={onRetry}
+        />
+      </View>
     </View>
   );
 }

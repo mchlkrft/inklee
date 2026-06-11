@@ -1,22 +1,51 @@
 import { ActivityIndicator, Pressable, Text } from "react-native";
+import type { LucideIcon } from "lucide-react-native";
+import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 type ButtonProps = {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "danger" | "danger-outline";
   size?: "xs" | "sm" | "md" | "lg";
+  icon?: LucideIcon;
   loading?: boolean;
   disabled?: boolean;
 };
 
-// Primary = mustard on charcoal; secondary = outlined bone.
-// MB-2: pill shape (rounded-full) + size scale + press-translate to match the
-// web button feel. (Haptics on primary actions land in the MB-11 native pass.)
+// Primary = mustard on charcoal; secondary = outlined bone; danger = filled
+// red; danger-outline = red outline for less-loud destructive row actions.
+// Founder round 4 button sweep: ONE pill scale for every button in the app —
+// md (52px) is the full-width CTA default, sm (44px) covers inline/row actions
+// at Apple's 44pt minimum. h-13 = 52px is declared in tailwind.config.js.
 const SIZES = {
   xs: "h-9 px-4",
-  sm: "h-10 px-4",
-  md: "h-12 px-5",
-  lg: "h-14 px-6",
+  sm: "h-11 px-5",
+  md: "h-13 px-6",
+  lg: "h-14 px-7",
+} as const;
+
+const TONES = {
+  primary: {
+    box: "bg-mustard",
+    text: "text-charcoal",
+    spinner: () => colors.charcoal,
+  },
+  secondary: {
+    box: "border-brand border-shell-border bg-transparent",
+    text: "text-foreground",
+    spinner: (themed: ReturnType<typeof useColors>) => themed.bone,
+  },
+  danger: {
+    box: "bg-danger",
+    text: "text-bone",
+    spinner: () => colors.bone,
+  },
+  "danger-outline": {
+    box: "border-brand border-danger/50 bg-transparent",
+    text: "text-danger",
+    spinner: () => colors.danger,
+  },
 } as const;
 
 export function Button({
@@ -24,23 +53,34 @@ export function Button({
   onPress,
   variant = "primary",
   size = "md",
+  icon: Icon,
   loading = false,
   disabled = false,
 }: ButtonProps) {
-  const isPrimary = variant === "primary";
-  const base = `items-center justify-center rounded-full ${SIZES[size]}`;
-  const tone = isPrimary
-    ? "bg-mustard"
-    : "border-brand border-shell-border bg-transparent";
-  const textTone = isPrimary ? "text-charcoal" : "text-foreground";
+  const themed = useColors();
+  const tone = TONES[variant];
+  const base = `flex-row items-center justify-center gap-2 rounded-full ${SIZES[size]}`;
   const textSize = size === "xs" || size === "sm" ? "text-sm" : "text-base";
   const isDisabled = disabled || loading;
+  const fg =
+    variant === "primary"
+      ? colors.charcoal
+      : variant === "danger"
+        ? colors.bone
+        : variant === "danger-outline"
+          ? colors.danger
+          : themed.bone;
 
   return (
     <Pressable
+      accessibilityRole="button"
+      // The spinner replaces the label child while loading, so the accessible
+      // name must live on the Pressable or the button goes nameless mid-action.
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       onPress={onPress}
       disabled={isDisabled}
-      className={`${base} ${tone} ${isDisabled ? "opacity-50" : ""}`}
+      className={`${base} ${tone.box} ${isDisabled ? "opacity-50" : ""}`}
       style={({ pressed }) =>
         pressed && !isDisabled
           ? { transform: [{ translateY: 1 }], opacity: 0.9 }
@@ -48,9 +88,21 @@ export function Button({
       }
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? "#1e1e1e" : "#e5e1d5"} />
+        <ActivityIndicator color={tone.spinner(themed)} />
       ) : (
-        <Text className={`font-semibold ${textSize} ${textTone}`}>{label}</Text>
+        <>
+          {Icon ? <Icon size={18} color={fg} /> : null}
+          {/* Never wrap inside the fixed-height pill: a tight two-up row
+              shrinks the label slightly instead. */}
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            className={`font-semibold ${textSize} ${tone.text}`}
+          >
+            {label}
+          </Text>
+        </>
       )}
     </Pressable>
   );

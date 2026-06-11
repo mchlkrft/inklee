@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { Menu } from "lucide-react-native";
+import { IconButton } from "./IconButton";
 import { NotificationBell } from "./NotificationBell";
 import { BooksStatusPill } from "./BooksStatusPill";
 import { AccountMenuSheet } from "./AccountMenuSheet";
@@ -68,19 +69,14 @@ export function TopBar() {
         <View className="flex-row items-center gap-2.5">
           <BooksStatusPill />
           <NotificationBell />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Account menu"
+          <IconButton
+            icon={Menu}
+            label="Account menu"
             onPress={() => setMenuOpen(true)}
-            hitSlop={8}
-            className="h-10 w-10 items-center justify-center rounded-full active:opacity-70"
-            style={{
-              borderWidth: border.hairline,
-              borderColor: chrome.border,
-            }}
-          >
-            <Menu size={20} color={chrome.fg} />
-          </Pressable>
+            outlined
+            borderColor={chrome.border}
+            color={chrome.fg}
+          />
         </View>
       </View>
 

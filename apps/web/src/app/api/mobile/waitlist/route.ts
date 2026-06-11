@@ -16,9 +16,13 @@ export async function GET(req: Request) {
 
   const status = new URL(req.url).searchParams.get("status") ?? "waiting";
 
+  // Explicit columns so the wire contract matches MobileWaitlistEntry (and
+  // artist_id or future columns never leak to the device by accident).
   let query = supabase
     .from("waitlist_entries")
-    .select("*")
+    .select(
+      "id, customer_email, customer_handle, note, status, created_at, city_text",
+    )
     .eq("artist_id", userId)
     .order("created_at", { ascending: false })
     .limit(100);

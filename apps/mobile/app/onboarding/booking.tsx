@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { ChevronLeft } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type { BookingMode } from "@inklee/shared/booking-domain";
 import type { MobileOnboardingBooking } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
 import { apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
@@ -84,7 +86,7 @@ function StatusPill({
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      className={`flex-1 items-center justify-center rounded-xl border py-3 active:opacity-80 ${
+      className={`h-11 flex-1 items-center justify-center rounded-xl border active:opacity-80 ${
         selected ? "border-mustard bg-mustard" : "border-shell-border"
       }`}
     >
@@ -139,14 +141,15 @@ export default function BookingSetup() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
-          className="-ml-2 mt-1 h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-        >
-          <Ionicons name="chevron-back" size={24} color={themed.bone} />
-        </Pressable>
+        <View className="-ml-2 mt-1 self-start">
+          <IconButton
+            icon={ChevronLeft}
+            label="Back"
+            onPress={() => router.back()}
+            iconSize={22}
+            color={themed.bone}
+          />
+        </View>
 
         <View className="pb-6 pt-2">
           <Text className="text-2xl font-bold text-foreground">

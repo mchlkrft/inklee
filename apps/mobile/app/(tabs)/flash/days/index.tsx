@@ -18,6 +18,7 @@ import type {
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { PillButton } from "@/components/PillButton";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
@@ -143,28 +144,20 @@ function DayRow({
 
       {publicUrl ? (
         <View className="mt-3 flex-row gap-2">
-          <Pressable
-            accessibilityRole="button"
+          <PillButton
+            label={copied ? "Copied" : "Copy link"}
             onPress={async () => {
               await Clipboard.setStringAsync(publicUrl);
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
-            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
-          >
-            <Text className="text-xs font-medium text-foreground">
-              {copied ? "Copied" : "Copy link"}
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          />
+          <PillButton
+            label="View"
             onPress={() => {
               void WebBrowser.openBrowserAsync(publicUrl);
             }}
-            className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
-          >
-            <Text className="text-xs font-medium text-foreground">View</Text>
-          </Pressable>
+          />
         </View>
       ) : null}
     </Pressable>

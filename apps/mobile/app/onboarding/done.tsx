@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Linking,
-  Pressable,
   Share,
   Text,
   View,
@@ -68,15 +67,14 @@ export default function YoureLive() {
               <Text className="text-center text-sm text-shell-dim">
                 {me.error}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={me.refresh}
-                className="mt-5 h-11 items-center justify-center rounded-xl border border-shell-border px-6 active:opacity-80"
-              >
-                <Text className="text-sm font-semibold text-foreground">
-                  Try again
-                </Text>
-              </Pressable>
+              <View className="mt-5">
+                <Button
+                  label="Try again"
+                  variant="secondary"
+                  size="sm"
+                  onPress={me.refresh}
+                />
+              </View>
             </>
           ) : (
             <ActivityIndicator color={colors.mustard} />
@@ -121,7 +119,7 @@ export default function YoureLive() {
             ? "Publish your slots on the web to start taking bookings."
             : booksOpen
               ? "Your page is open and ready for requests."
-              : "Your page is set up. Open your books in More whenever you're ready."}
+              : "Your page is set up. Tap the status pill up top to open your books whenever you're ready."}
         </Text>
 
         {/* The link */}

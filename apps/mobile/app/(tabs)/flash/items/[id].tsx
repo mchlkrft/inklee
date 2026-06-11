@@ -220,7 +220,7 @@ function ItemForm({
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 48 /* no tab pill on detail forms */ }}
       >
         {/* The design IS the product — the photo leads the screen (founder
             direction), everything else follows. */}
@@ -255,17 +255,16 @@ function ItemForm({
         </View>
 
         {publicUrl ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              void WebBrowser.openBrowserAsync(publicUrl);
-            }}
-            className="mb-3 items-center rounded-full border border-shell-border px-5 py-2.5 active:opacity-70"
-          >
-            <Text className="text-sm font-medium text-foreground">
-              View public page
-            </Text>
-          </Pressable>
+          <View className="mb-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              label="View public page"
+              onPress={() => {
+                void WebBrowser.openBrowserAsync(publicUrl);
+              }}
+            />
+          </View>
         ) : (
           <Text className="mb-3 text-center text-xs text-shell-mute">
             Publish this design to make it publicly visible.
@@ -276,7 +275,7 @@ function ItemForm({
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push("/bookings")}
-            className="mb-4 items-center active:opacity-70"
+            className="mb-4 h-11 items-center justify-center active:opacity-70"
           >
             <Text className="text-sm text-shell-dim">View related bookings</Text>
           </Pressable>

@@ -21,7 +21,7 @@ export function NotificationBell() {
       }
       onPress={() => router.push("/notifications")}
       hitSlop={8}
-      className="h-10 w-10 items-center justify-center active:opacity-70"
+      className="h-10 w-10 items-center justify-center rounded-full active:opacity-70"
     >
       <Ionicons name="notifications-outline" size={24} color={chrome.fg} />
       {unread > 0 ? (

@@ -17,9 +17,12 @@ import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
 import { DangerButton } from "@/components/DangerButton";
-import { ImageUploadField } from "@/components/ImageUploadField";
+import {
+  ImageUploadField,
+  type PickedImage,
+} from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
-import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { useApiQuery, apiPost, apiPut, apiUpload, apiDelete } from "@/lib/api";
 import {
   PRODUCT_CATEGORY_OPTIONS,
   PRODUCT_STATUS_OPTIONS,
@@ -110,6 +113,10 @@ function ProductForm({
   const [isPublicVisible, setIsPublicVisible] = useState(
     initial?.isPublicVisible ?? true,
   );
+  // Create mode: the photo is picked up-front (deferred) and uploaded right
+  // after the product row exists — one save, no second step (founder hard
+  // requirement: no save-then-reopen-to-add-photo).
+  const [pendingPhoto, setPendingPhoto] = useState<PickedImage | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,12 +161,29 @@ function ProductForm({
     };
     try {
       if (isNew) {
-        // The image endpoint needs a product id, so a brand-new product can't
-        // upload before its first save. Land straight on the saved product's
-        // edit screen so the photo step follows immediately (no back-and-find).
+        // One user-visible save: create the row, then upload the photo picked
+        // during the form session against the fresh id (the web's
+        // create-then-upload semantics). The image endpoint needs a product
+        // id, so the upload can't happen before this point.
         const created = await apiPost<{ id: string }>("/goods", payload);
+        if (pendingPhoto) {
+          try {
+            await apiUpload(`/goods/${created.id}/image`, pendingPhoto);
+          } catch (e) {
+            // The product exists — never re-arm Create (a retry would mint a
+            // duplicate). Land on the edit screen where Add photo retries.
+            captureError(e, { op: "createProductPhoto" });
+            await invalidateGoods(queryClient);
+            router.replace(`/goods/${created.id}`);
+            Alert.alert(
+              "Product saved",
+              "The photo didn't upload. Tap Add photo to try again.",
+            );
+            return;
+          }
+        }
         await invalidateGoods(queryClient);
-        router.replace(`/goods/${created.id}`);
+        router.back();
       } else {
         await apiPut(`/goods/${id}`, payload);
         await invalidateGoods(queryClient);
@@ -206,7 +230,9 @@ function ProductForm({
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
+        // The tab pill no longer overlays nested detail forms (BottomNav hides
+        // on [bracket] routes), so plain scroll clearance is enough.
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 48 }}
       >
         {!isNew ? (
           <ImageUploadField
@@ -214,25 +240,17 @@ function ProductForm({
             hero
             imageUrl={initial?.imageUrl ?? null}
             endpoint={`/goods/${id}/image`}
-            onUploaded={() =>
-              queryClient.invalidateQueries({
-                predicate: (q) =>
-                  typeof q.queryKey[1] === "string" &&
-                  (q.queryKey[1] as string).startsWith("/goods"),
-              })
-            }
+            onUploaded={() => void invalidateGoods(queryClient)}
           />
         ) : (
-          // The image endpoint needs the product's id, so the photo step comes
-          // right after the first save (you land back here with it ready).
-          <View
-            className="mb-4 items-center justify-center rounded-[20px] border border-dashed border-shell-border bg-glass"
-            style={{ height: 160 }}
-          >
-            <Text className="px-6 text-center text-sm text-shell-dim">
-              Save the product and the photo upload appears right here.
-            </Text>
-          </View>
+          // Deferred pick: local preview now, upload right after the first
+          // save creates the product id (no separate photo step).
+          <ImageUploadField
+            label="Photo"
+            hero
+            imageUrl={null}
+            onPick={setPendingPhoto}
+          />
         )}
 
         <TextField

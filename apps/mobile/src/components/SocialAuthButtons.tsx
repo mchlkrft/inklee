@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native
 import { Ionicons } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "@/lib/auth";
+import { control } from "@/lib/tokens";
 
 // Sign in with Apple + Google for the sign-in screen. Apple is iOS-only (App
 // Store requires it because we offer Google); Google works on both platforms.
@@ -58,7 +59,7 @@ export function SocialAuthButtons() {
       <Pressable
         onPress={runGoogle}
         disabled={pending !== null}
-        className={`h-12 flex-row items-center justify-center gap-2.5 rounded-xl border border-shell-border px-5 active:opacity-80 ${
+        className={`h-13 flex-row items-center justify-center gap-2.5 rounded-full border border-shell-border px-5 active:opacity-80 ${
           pending !== null ? "opacity-50" : ""
         }`}
       >
@@ -82,8 +83,10 @@ export function SocialAuthButtons() {
           buttonStyle={
             AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
           }
-          cornerRadius={12}
-          style={{ height: 48, marginTop: 12 }}
+          // Native style props can't use the h-13/rounded-full classes, so the
+          // md control height (52) and half-height corner make the same pill.
+          cornerRadius={control.md / 2}
+          style={{ height: control.md, marginTop: 12 }}
           onPress={runApple}
         />
       ) : null}

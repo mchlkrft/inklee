@@ -8,13 +8,20 @@ import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import type { MobileImageUpload } from "@inklee/shared/mobile-api";
 
-// Pick a photo from the library (compressed on-device via the picker's quality),
-// upload it to a mobile multipart endpoint, and surface the resulting URL. Shows
-// the current/just-uploaded image as a thumbnail. Used for logo / flash / goods.
+/** RN file descriptor for a picked image, as apiUpload expects it. */
+export type PickedImage = { uri: string; name: string; type: string };
+
+// Pick a photo from the library (compressed on-device via the picker's quality)
+// and either upload it immediately to a mobile multipart endpoint (eager mode:
+// pass `endpoint`) or hand the picked file to the parent for a later upload
+// (deferred mode: pass `onPick` — the goods create flow uploads after the
+// product exists, with a local file:// preview in the meantime). Shows the
+// current/just-picked image as a thumbnail. Used for logo / flash / goods.
 export function ImageUploadField({
   label,
   imageUrl,
   endpoint,
+  onPick,
   aspect = [1, 1],
   shape = "square",
   maxBytes = 4 * 1024 * 1024,
@@ -24,7 +31,10 @@ export function ImageUploadField({
 }: {
   label: string;
   imageUrl: string | null;
-  endpoint: string;
+  /** Eager mode: multipart endpoint to upload to on pick. */
+  endpoint?: string;
+  /** Deferred mode: receive the picked file instead of uploading. */
+  onPick?: (file: PickedImage) => void;
   aspect?: [number, number];
   shape?: "square" | "circle";
   /** Client-side size cap — mirror the matching server route's limit so an
@@ -67,13 +77,22 @@ export function ImageUploadField({
       );
       return;
     }
+    const file: PickedImage = {
+      uri: asset.uri,
+      name: asset.fileName ?? "upload.jpg",
+      type: asset.mimeType ?? "image/jpeg",
+    };
+    if (onPick) {
+      // Deferred: instant local preview (expo-image renders file:// URIs); the
+      // parent owns the actual upload.
+      setLocalUrl(asset.uri);
+      onPick(file);
+      return;
+    }
+    if (!endpoint) return;
     setBusy(true);
     try {
-      const { url } = await apiUpload<MobileImageUpload>(endpoint, {
-        uri: asset.uri,
-        name: asset.fileName ?? "upload.jpg",
-        type: asset.mimeType ?? "image/jpeg",
-      });
+      const { url } = await apiUpload<MobileImageUpload>(endpoint, file);
       setLocalUrl(url);
       onUploaded?.(url);
     } catch (e) {
@@ -98,7 +117,7 @@ export function ImageUploadField({
     <View className={`mb-4 ${hero ? "" : "items-center"}`}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label} — choose a photo`}
+        accessibilityLabel={`${label}: choose a photo`}
         onPress={pick}
         disabled={busy}
         className={`${hero ? "" : "items-center"} active:opacity-80`}

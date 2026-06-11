@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
@@ -261,13 +261,12 @@ function ConfirmAction({
   if (!open) {
     return (
       <View className="gap-1">
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={trigger}
+          variant="secondary"
+          size="sm"
           onPress={() => setOpen(true)}
-          className="h-11 items-center justify-center rounded-xl border border-shell-border active:opacity-80"
-        >
-          <Text className="text-sm font-semibold text-shell-dim">{trigger}</Text>
-        </Pressable>
+        />
         {error ? <Text className="text-xs text-danger">{error}</Text> : null}
       </View>
     );
@@ -279,50 +278,44 @@ function ConfirmAction({
       {body ? <Text className="text-xs text-shell-dim">{body}</Text> : null}
       {error ? <Text className="text-xs text-danger">{error}</Text> : null}
       <View className="flex-row gap-2">
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              await onConfirm();
-              if (event) track(event);
-              // Reset on success too: a refund keeps the booking approved (it
-              // doesn't go terminal), so this subtree stays mounted and would
-              // otherwise be stuck spinning. Cancel/reject unmount us, where
-              // these setters are harmless no-ops.
-              setBusy(false);
-              setOpen(false);
-            } catch (e) {
-              captureError(e, { op: "bookingConfirm", action: trigger });
-              setError(e instanceof Error ? e.message : "Action failed.");
-              setBusy(false);
-            }
-          }}
-          className={`h-11 flex-1 items-center justify-center rounded-xl bg-danger ${
-            busy ? "opacity-50" : "active:opacity-80"
-          }`}
-        >
-          {busy ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-sm font-semibold text-white">
-              {confirmLabel}
-            </Text>
-          )}
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
+        <View className="flex-1">
+          <Button
+            label={confirmLabel}
+            variant="danger"
+            size="sm"
+            loading={busy}
+            onPress={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await onConfirm();
+                if (event) track(event);
+                // Reset on success too: a refund keeps the booking approved (it
+                // doesn't go terminal), so this subtree stays mounted and would
+                // otherwise be stuck spinning. Cancel/reject unmount us, where
+                // these setters are harmless no-ops.
+                setBusy(false);
+                setOpen(false);
+              } catch (e) {
+                captureError(e, { op: "bookingConfirm", action: trigger });
+                setError(e instanceof Error ? e.message : "Action failed.");
+                setBusy(false);
+              }
+            }}
+          />
+        </View>
+        {/* Content-width on purpose: the confirm label ("Yes, cancel booking")
+            needs the row's spare width or it shrinks on small screens. */}
+        <Button
+          label="Keep it"
+          variant="secondary"
+          size="sm"
           disabled={busy}
           onPress={() => {
             setOpen(false);
             setError(null);
           }}
-          className="h-11 items-center justify-center rounded-xl border border-shell-border px-4 active:opacity-80"
-        >
-          <Text className="text-sm text-shell-dim">Keep it</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );
@@ -492,14 +485,12 @@ function DepositRequestForm({
             onPress={submit}
           />
         </View>
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label="Cancel"
+          variant="secondary"
           disabled={submitting}
           onPress={onCancel}
-          className="h-12 items-center justify-center rounded-xl border border-shell-border px-4 active:opacity-80"
-        >
-          <Text className="text-sm text-shell-dim">Cancel</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );

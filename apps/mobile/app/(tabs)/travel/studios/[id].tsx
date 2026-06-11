@@ -154,7 +154,7 @@ function StudioForm({
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 48 /* no tab pill on detail forms */ }}
       >
         <TextField
           label="Name"

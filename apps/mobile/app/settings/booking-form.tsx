@@ -19,6 +19,7 @@ import type {
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { PillButton } from "@/components/PillButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { config } from "@/lib/config";
@@ -152,22 +153,16 @@ export default function BookingFormScreen() {
                 {publicUrl.replace(/^https?:\/\//, "")}
               </Text>
               <View className="mt-2.5 flex-row gap-2">
-                <Pressable
+                <PillButton
+                  label={copied ? "Copied" : "Copy link"}
                   onPress={copy}
-                  className="rounded-full border border-shell-border px-4 py-2 active:opacity-70"
-                >
-                  <Text className="text-label text-foreground">
-                    {copied ? "Copied" : "Copy link"}
-                  </Text>
-                </Pressable>
-                <Pressable
+                />
+                <PillButton
+                  label="Preview"
                   onPress={() => {
                     void WebBrowser.openBrowserAsync(publicUrl);
                   }}
-                  className="rounded-full border border-shell-border px-4 py-2 active:opacity-70"
-                >
-                  <Text className="text-label text-foreground">Preview</Text>
-                </Pressable>
+                />
               </View>
             </Card>
           </>

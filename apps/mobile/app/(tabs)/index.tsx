@@ -25,7 +25,7 @@ import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { Card } from "@/components/Card";
 import { CardHeader } from "@/components/CardHeader";
 import { StatusPill } from "@/components/StatusPill";
-import { BooksToggle } from "@/components/BooksToggle";
+import { PillButton } from "@/components/PillButton";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
@@ -115,22 +115,13 @@ function LinkRow({ label, url }: { label: string; url: string }) {
         {url.replace(/^https?:\/\//, "")}
       </Text>
       <View className="flex-row gap-2">
-        <Pressable
-          onPress={copy}
-          className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
-        >
-          <Text className="text-label text-foreground">
-            {copied ? "Copied" : "Copy link"}
-          </Text>
-        </Pressable>
-        <Pressable
+        <PillButton label={copied ? "Copied" : "Copy link"} onPress={copy} />
+        <PillButton
+          label="Preview"
           onPress={() => {
             void WebBrowser.openBrowserAsync(url);
           }}
-          className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
-        >
-          <Text className="text-label text-foreground">Preview</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );
@@ -209,9 +200,8 @@ export default function HomeScreen() {
               <Text className="text-sm text-shell-dim">Overview</Text>
             </View>
 
-            <View className="mb-1 mt-3">
-              <BooksToggle open={data.booksOpen} />
-            </View>
+            {/* Booking status moved to the top-bar pill (tap to toggle) in
+                founder round 4 — no dashboard card anymore, like the web. */}
 
             {/* Setup nudges */}
             {!data.onboardingCompleted ? (

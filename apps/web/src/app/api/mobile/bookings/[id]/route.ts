@@ -5,7 +5,11 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
-import type { MobileBookingDetail } from "@inklee/shared/mobile-api";
+import type {
+  MobileBookingDetail,
+  MobileBookingImage,
+  MobileImageAnnotation,
+} from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -23,11 +27,50 @@ type BookingDetail = {
   deposit_note: string | null;
   deposit_paid_at: string | null;
   deposit_payment_intent_id: string | null;
-  booking_images: { storage_path: string }[] | null;
+  booking_images:
+    | {
+        storage_path: string;
+        annotations: unknown;
+        width: number | null;
+        height: number | null;
+      }[]
+    | null;
 };
 
+// The annotations column holds whatever the public booking form sent (the
+// write path only checks Array.isArray), so each item must be validated before
+// it ships to the device — a crafted submission with a non-string comment
+// would otherwise crash the artist's lightbox render.
+function sanitizeAnnotations(raw: unknown): MobileImageAnnotation[] | null {
+  if (!Array.isArray(raw)) return null;
+  const clean = raw.flatMap((a): MobileImageAnnotation[] => {
+    if (typeof a !== "object" || a === null) return [];
+    const { id, x, y, comment } = a as Record<string, unknown>;
+    if (
+      typeof id !== "string" ||
+      typeof comment !== "string" ||
+      typeof x !== "number" ||
+      typeof y !== "number" ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
+      return [];
+    }
+    return [
+      {
+        id,
+        comment,
+        x: Math.min(1, Math.max(0, x)),
+        y: Math.min(1, Math.max(0, y)),
+      },
+    ];
+  });
+  return clean.length > 0 ? clean : null;
+}
+
 // GET /api/mobile/bookings/:id — full request detail (the core screen).
-// Reference-image *paths* are returned for now; signed URLs are a follow-up.
+// Reference images are signed server-side (1h TTL) exactly like the web detail
+// page; the RLS-scoped client passes the bookings_owner_select storage policy.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -40,7 +83,7 @@ export async function GET(
   const { data, error } = await supabase
     .from("booking_requests")
     .select(
-      "id, status, customer_handle, customer_email, preferred_date, form_data, created_at, deposit_amount, deposit_currency, deposit_due_at, deposit_note, deposit_paid_at, deposit_payment_intent_id, booking_images(storage_path)",
+      "id, status, customer_handle, customer_email, preferred_date, form_data, created_at, deposit_amount, deposit_currency, deposit_due_at, deposit_note, deposit_paid_at, deposit_payment_intent_id, booking_images(storage_path, annotations, width, height)",
     )
     .eq("id", id)
     .eq("artist_id", userId)
@@ -74,6 +117,40 @@ export async function GET(
     }
   }
 
+  // Batch-sign the private-bucket reference images (one storage round-trip;
+  // createSignedUrls preserves input order). Entries whose file is gone (the
+  // stale-booking cleanup job) sign to null and are dropped, never a 500. A
+  // wholesale storage failure is logged and yields an empty list; the app
+  // falls back to the referenceImagePaths count notice in that case.
+  const images = b.booking_images ?? [];
+  let referenceImages: MobileBookingImage[] = [];
+  if (images.length > 0) {
+    const { data: signed, error: signError } = await supabase.storage
+      .from("bookings")
+      .createSignedUrls(
+        images.map((i) => i.storage_path),
+        3600,
+      );
+    if (signError) {
+      console.error("mobile booking detail: signing reference images failed", {
+        bookingId: id,
+        error: signError.message,
+      });
+    }
+    referenceImages = images.flatMap((img, i) => {
+      const url = signed?.[i]?.signedUrl;
+      if (!url) return [];
+      return [
+        {
+          url,
+          width: img.width ?? null,
+          height: img.height ?? null,
+          annotations: sanitizeAnnotations(img.annotations),
+        },
+      ];
+    });
+  }
+
   const body: MobileBookingDetail = {
     id: b.id,
     status: b.status,
@@ -85,7 +162,8 @@ export async function GET(
     sizeRaw: fd.size ?? null,
     description: fd.description ?? null,
     referenceLink: fd.reference_link ?? null,
-    referenceImagePaths: (b.booking_images ?? []).map((i) => i.storage_path),
+    referenceImagePaths: images.map((i) => i.storage_path),
+    referenceImages,
     preferredDate: b.preferred_date,
     createdAt: b.created_at,
     deposit:

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
-  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -11,7 +10,7 @@ import {
 } from "react-native";
 import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Trash2 } from "lucide-react-native";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type {
   MobileTripDetail,
@@ -19,6 +18,7 @@ import type {
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
 import { DateField } from "@/components/DateField";
 import { RadioList } from "@/components/RadioList";
@@ -112,7 +112,7 @@ function CreateTrip() {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 48 /* no tab pill on detail forms */ }}
       >
         <TextField
           label="Title"
@@ -201,7 +201,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 /* tab bar clearance */ }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 48 /* no tab pill on detail forms */ }}
       >
         {/* Header fields seed from `initial` once; a leg add/delete refetch
             updates the legs list below but intentionally does NOT re-seed these
@@ -266,8 +266,8 @@ function OverlapNotice() {
   return (
     <View className="mb-3 rounded-2xl border border-mustard/40 bg-mustard/10 px-3 py-2.5">
       <Text className="text-xs leading-snug text-foreground">
-        <Text className="font-semibold">These dates overlap.</Text> That's fine
-        if you're working more than one studio at once, but clients booking on
+        <Text className="font-semibold">These dates overlap.</Text> That&apos;s
+        fine if you&apos;re working more than one studio at once, but clients booking on
         those days will see every matching studio and be asked to wait for your
         confirmation. Remember to tell each client which studio to come to.
       </Text>
@@ -349,20 +349,20 @@ function LegRow({
             {leg.notes ? ` · ${leg.notes}` : ""}
           </Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Remove stop"
-          onPress={confirmRemove}
-          disabled={busy}
-          hitSlop={8}
-          className="h-9 w-9 items-center justify-center active:opacity-70"
-        >
-          {busy ? (
+        {busy ? (
+          <View className="h-10 w-10 items-center justify-center">
             <ActivityIndicator color={colors.shell.mute} />
-          ) : (
-            <Ionicons name="trash-outline" size={18} color={colors.danger} />
-          )}
-        </Pressable>
+          </View>
+        ) : (
+          <IconButton
+            size="sm"
+            icon={Trash2}
+            label="Remove stop"
+            onPress={confirmRemove}
+            iconSize={18}
+            color={colors.danger}
+          />
+        )}
       </View>
       {error ? (
         <Text className="mt-1 text-xs text-danger">{error}</Text>

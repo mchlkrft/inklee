@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { ChevronLeft, ChevronRight } from "lucide-react-native";
+import { IconButton } from "@/components/IconButton";
 import type { DayCell } from "@/lib/calendar";
 import { formatDayLabel } from "@/lib/date";
 import { useColors } from "@/lib/theme";
@@ -23,29 +24,23 @@ export function MonthGrid(props: {
     <View>
       {/* Header: prev chevron · month label · next chevron */}
       <View className="mb-3 flex-row items-center justify-between">
-        <Pressable
+        <IconButton
+          icon={ChevronLeft}
+          label="Previous month"
           onPress={onPrev}
-          accessibilityRole="button"
-          accessibilityLabel="Previous month"
-          hitSlop={8}
-          className="h-9 w-9 items-center justify-center rounded-full active:opacity-60"
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.bone} />
-        </Pressable>
-
+          iconSize={22}
+          color={colors.bone}
+        />
         <Text className="text-base font-semibold text-foreground">
           {monthLabel}
         </Text>
-
-        <Pressable
+        <IconButton
+          icon={ChevronRight}
+          label="Next month"
           onPress={onNext}
-          accessibilityRole="button"
-          accessibilityLabel="Next month"
-          hitSlop={8}
-          className="h-9 w-9 items-center justify-center rounded-full active:opacity-60"
-        >
-          <Ionicons name="chevron-forward" size={22} color={colors.bone} />
-        </Pressable>
+          iconSize={22}
+          color={colors.bone}
+        />
       </View>
 
       {/* Weekday header */}
@@ -95,20 +90,26 @@ export function MonthGrid(props: {
                   }`}
                   // Inline so the radius always renders on the active/today
                   // cell (the className path was not applying reliably).
+                  // overflow hidden also clips the absolute marker dot inside
+                  // the rounded selected cell.
                   style={{ borderRadius: 12, overflow: "hidden" }}
                 >
-                  <Text className={`text-sm font-semibold ${numberTone}`}>
+                  {/* Founder round 4: larger numeral (16px, line box pinned at
+                      20px so cells don't grow), dead-centered now that the
+                      marker dot is out of flow as a footer accent. */}
+                  <Text
+                    className={`text-base font-semibold leading-5 ${numberTone}`}
+                  >
                     {cell.day}
                   </Text>
                   {cell.count > 0 ? (
                     <View
-                      className={`mt-1 h-1.5 w-1.5 rounded-full ${
+                      className={`absolute h-2 w-2 rounded-full ${
                         isSelected ? "bg-charcoal" : "bg-rosa"
                       }`}
+                      style={{ bottom: 6 }}
                     />
-                  ) : (
-                    <View className="mt-1 h-1.5 w-1.5" />
-                  )}
+                  ) : null}
                 </View>
               </Pressable>
             );

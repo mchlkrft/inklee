@@ -255,6 +255,23 @@ export function invalidateBookingViews(client: QueryClient): Promise<void> {
   });
 }
 
+// Every view that reflects the books open/closed state. A toggle (quick sheet
+// or settings form) invalidates the top-bar pill (/me), the Home aggregate, the
+// settings form, and the booking-form preview together.
+const BOOKS_VIEW_PREFIXES = ["/settings/books", "/home", "/me", "/booking-form"];
+
+export function invalidateBooksViews(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({
+    predicate: (query) => {
+      const path = query.queryKey[1];
+      return (
+        typeof path === "string" &&
+        BOOKS_VIEW_PREFIXES.some((p) => path.startsWith(p))
+      );
+    },
+  });
+}
+
 // Identity / onboarding-scoped views. `invalidateBookingViews` covers /home but
 // not /me — completing onboarding invalidates these so the root navigator's /me
 // gate re-reads `onboardingCompleted` and swaps the onboarding stack for the

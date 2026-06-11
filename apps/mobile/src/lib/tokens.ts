@@ -81,6 +81,21 @@ export const radius = {
   pill: 9999,
 } as const;
 
+// Control heights (founder round 4 button sweep): one scale for every
+// button-shaped control. md is the full-width CTA default; sm covers inline
+// row actions (>= Apple's 44pt minimum); icon sizes are the circular
+// icon-button diameters. Raw values for native style props (e.g. the Apple
+// auth button); the className mirror is h-9/h-11/h-13/h-14 + h-10/h-11
+// (tailwind.config.js declares the non-default `13`).
+export const control = {
+  xs: 36,
+  sm: 44,
+  md: 52,
+  lg: 56,
+  iconSm: 40,
+  iconMd: 44,
+} as const;
+
 // The signature 1.5px border motif (§3.3). Web overrides every border to 1.5px;
 // RN can't do a global override, so Inklee primitives use `border.brand`
 // explicitly. `hairline` is the default 1px for incidental dividers.

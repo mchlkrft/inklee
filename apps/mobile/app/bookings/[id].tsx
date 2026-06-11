@@ -11,7 +11,9 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
+import { Button } from "@/components/Button";
 import { BookingActions } from "@/components/booking/BookingActions";
+import { ReferenceImageGallery } from "@/components/booking/ReferenceImageGallery";
 import { useApiQuery } from "@/lib/api";
 import { formatMoney, type BookingDetail } from "@/lib/bookings";
 import { colors } from "@/lib/tokens";
@@ -34,13 +36,14 @@ export default function BookingDetailScreen() {
               title="Couldn't load request"
               subtitle={error ?? undefined}
             />
-            <Pressable
-              accessibilityRole="button"
-              onPress={refresh}
-              className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
-            >
-              <Text className="text-sm font-semibold text-foreground">Try again</Text>
-            </Pressable>
+            <View className="mt-2">
+              <Button
+                label="Try again"
+                variant="secondary"
+                size="sm"
+                onPress={refresh}
+              />
+            </View>
           </View>
         )}
       </View>
@@ -136,11 +139,18 @@ export default function BookingDetailScreen() {
               </>
             )
           ) : null}
-          {b.referenceImagePaths.length > 0 ? (
+          {(b.referenceImages ?? []).length > 0 ? (
+            <View className={b.referenceLink ? "mt-2" : undefined}>
+              <ReferenceImageGallery images={b.referenceImages ?? []} />
+            </View>
+          ) : b.referenceImagePaths.length > 0 ? (
+            // Images exist but didn't sign (storage hiccup) or the API
+            // predates signed URLs: keep the count visible, never imply the
+            // client attached nothing.
             <Text className="mt-2 text-sm text-shell-dim">
               {b.referenceImagePaths.length} reference image
-              {b.referenceImagePaths.length === 1 ? "" : "s"} attached — viewable
-              on the web dashboard.
+              {b.referenceImagePaths.length === 1 ? "" : "s"} attached. Pull to
+              refresh to load previews.
             </Text>
           ) : null}
         </Section>
@@ -201,7 +211,7 @@ function Field({ label, value }: { label: string; value: string | null }) {
     <View>
       <Text className="text-xs text-shell-mute">{label}</Text>
       <Text className="mt-0.5 text-sm text-foreground">
-        {value && value.trim() ? value : "—"}
+        {value && value.trim() ? value : "-"}
       </Text>
     </View>
   );

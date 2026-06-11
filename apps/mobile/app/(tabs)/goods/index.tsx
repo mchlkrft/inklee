@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
   Text,
   View,
 } from "react-native";
-import { FlatList } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -155,6 +154,10 @@ function ProductTile({
     setPending(true);
     try {
       await apiPatch(`/goods/${product.id}/status`, { status: next });
+      // Drop the cached detail outright (not just invalidate): the edit form
+      // seeds its status from the cached detail once on mount, so a stale
+      // entry would let a follow-up Save silently revert this toggle.
+      queryClient.removeQueries({ queryKey: ["api", `/goods/${product.id}`] });
       onRefresh();
     } catch (e) {
       captureError(e, { op: "toggleProductStatus" });
@@ -220,7 +223,7 @@ function ProductTile({
             onPress={toggleSoldOut}
             disabled={pending}
             accessibilityRole="button"
-            className="w-full flex-row items-center justify-center gap-1.5 rounded-full border border-bone/60 px-3 py-2 active:opacity-80"
+            className="h-10 w-full flex-row items-center justify-center gap-1.5 rounded-full border border-bone/60 px-3 active:opacity-80"
           >
             <Ionicons
               name={soldOut ? "refresh" : "checkmark"}
@@ -234,7 +237,7 @@ function ProductTile({
           <Pressable
             onPress={onPress}
             accessibilityRole="button"
-            className="w-full flex-row items-center justify-center gap-1.5 rounded-full bg-mustard px-3 py-2 active:opacity-90"
+            className="h-10 w-full flex-row items-center justify-center gap-1.5 rounded-full bg-mustard px-3 active:opacity-90"
           >
             <Ionicons name="pencil" size={15} color={colors.charcoal} />
             <Text className="text-sm font-semibold text-charcoal">Edit</Text>

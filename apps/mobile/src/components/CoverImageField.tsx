@@ -134,7 +134,7 @@ export function CoverImageField({
                     localUrl ? "Replace cover image" : "Upload a cover image"
                   }
                   onPress={pick}
-                  className="rounded-full px-4 py-1.5 active:opacity-80"
+                  className="h-8 items-center justify-center rounded-full px-4 active:opacity-80"
                   style={{ backgroundColor: colors.bone }}
                 >
                   <Text className="text-xs font-medium text-charcoal">
@@ -146,7 +146,7 @@ export function CoverImageField({
                     accessibilityRole="button"
                     accessibilityLabel="Remove cover image"
                     onPress={remove}
-                    className="rounded-full px-4 py-1.5 active:opacity-80"
+                    className="h-8 items-center justify-center rounded-full px-4 active:opacity-80"
                     style={{ backgroundColor: "rgba(30,30,30,0.6)" }}
                   >
                     <Text className="text-xs font-medium text-bone">

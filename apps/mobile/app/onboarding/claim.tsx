@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
-  Pressable,
   ScrollView,
   Text,
   View,
@@ -10,6 +9,7 @@ import {
 import { useRouter } from "expo-router";
 import { getCalendars } from "expo-localization";
 import { Ionicons } from "@expo/vector-icons";
+import { ChevronLeft } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { validateSlug } from "@inklee/shared/slug";
 import type {
@@ -18,6 +18,7 @@ import type {
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
 import { apiGet, apiPost, ApiError, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
@@ -185,14 +186,15 @@ export default function ClaimLink() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
-          className="-ml-2 mt-1 h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-        >
-          <Ionicons name="chevron-back" size={24} color={themed.bone} />
-        </Pressable>
+        <View className="-ml-2 mt-1 self-start">
+          <IconButton
+            icon={ChevronLeft}
+            label="Back"
+            onPress={() => router.back()}
+            iconSize={22}
+            color={themed.bone}
+          />
+        </View>
 
         <View className="pb-6 pt-2">
           <Text className="text-2xl font-bold text-foreground">

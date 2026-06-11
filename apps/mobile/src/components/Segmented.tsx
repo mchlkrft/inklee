@@ -23,7 +23,7 @@ export function Segmented<T extends string>({
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={() => onChange(o.value)}
-            className={`min-w-[88px] flex-1 items-center justify-center rounded-xl border py-2.5 active:opacity-80 ${
+            className={`h-11 min-w-[88px] flex-1 items-center justify-center rounded-xl border active:opacity-80 ${
               selected ? "border-mustard bg-mustard" : "border-shell-border"
             }`}
           >

@@ -1,15 +1,18 @@
 import { Stack, usePathname, useRouter } from "expo-router";
 import { View } from "react-native";
+import { CalendarDays, Inbox, Users } from "lucide-react-native";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
-import { FilterChip } from "@/components/Chip";
+import { SubNav } from "@/components/SubNav";
 import { useThemeColors } from "@/lib/theme";
 
 // The three Bookings sub-views, each a sibling route under (tabs)/bookings.
+// Icons mirror the web nav vocabulary (nav-config.ts: Inbox for Bookings,
+// CalendarDays + Users re-exported for exactly these sub-surfaces).
 const SUBNAV = [
-  { label: "Requests", path: "/bookings" },
-  { label: "Calendar", path: "/bookings/calendar" },
-  { label: "Clients", path: "/bookings/clients" },
+  { label: "Requests", path: "/bookings", icon: Inbox },
+  { label: "Calendar", path: "/bookings/calendar", icon: CalendarDays },
+  { label: "Clients", path: "/bookings/clients", icon: Users },
 ] as const;
 
 // Bookings tab shell: the floating TopBar, a "Bookings" title, and a segmented
@@ -30,17 +33,14 @@ export default function BookingsLayout() {
           NOT drive the scroll-hide (the bar stays put; no orphaned gap). */}
       <View className="px-5" style={{ paddingTop: topBarHeight }}>
         <PageHeader title="Bookings" />
-        <View className="mb-3 flex-row gap-2">
-          {SUBNAV.map((item) => (
-            <FilterChip
-              key={item.path}
-              label={item.label}
-              selected={pathname === item.path}
-              onPress={() => {
-                if (pathname !== item.path) router.replace(item.path);
-              }}
-            />
-          ))}
+        <View className="mb-3">
+          <SubNav
+            items={SUBNAV}
+            activePath={pathname}
+            onSelect={(path) => {
+              if (pathname !== path) router.replace(path);
+            }}
+          />
         </View>
       </View>
       <View className="flex-1">

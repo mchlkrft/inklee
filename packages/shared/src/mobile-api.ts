@@ -15,7 +15,15 @@ export type MobileMe = {
   displayName: string | null;
   timezone: string;
   bookingMode: string;
+  /** EFFECTIVE open state (books_open AND the booking window hasn't expired) —
+   *  matches /home. Cap-reached / slots-closed states are NOT reflected, so a
+   *  full book can still show open here while the public page shows closed. */
   booksOpen: boolean;
+  /** The raw books_open flag the artist controls (the quick-toggle Switch). */
+  booksOpenFlag: boolean;
+  /** True when a booking window end date has passed — books show closed even
+   *  while the flag is on (the quick sheet explains this). */
+  bookingWindowExpired: boolean;
   onboardingCompleted: boolean;
   plan: string;
   canCollectDeposits: boolean;
@@ -139,6 +147,18 @@ export type MobileBookingsPage = {
   nextCursor: string | null;
 };
 
+/** GET /api/mobile/bookings/stats — the Requests-tab big-number strip.
+ *  Counts are NOT widget-gated (unlike /home), so they're safe for the
+ *  bookings tab regardless of dashboard settings. */
+export type MobileBookingStats = {
+  /** Requests awaiting a reply (status = pending). */
+  pendingCount: number;
+  /** Accepted appointments dated today or later (mirrors the web dashboard). */
+  upcomingCount: number;
+  /** Requests received since the 1st of the current month. */
+  thisMonthCount: number;
+};
+
 // The deposit block on a booking detail. `hasCardIntent` is true when this is a
 // live in-app card PaymentIntent (vs a manual deposit paid to the artist
 // directly); `refunded` is true once a refund has been issued (derived
@@ -155,6 +175,22 @@ export type MobileBookingDeposit = {
   refundedAt: string | null;
 };
 
+/** One client annotation pinned on a reference image (normalized 0..1 coords). */
+export type MobileImageAnnotation = {
+  id: string;
+  x: number;
+  y: number;
+  comment: string;
+};
+
+/** One reference image on a booking, signed for in-app display (1h TTL). */
+export type MobileBookingImage = {
+  url: string;
+  width: number | null;
+  height: number | null;
+  annotations: MobileImageAnnotation[] | null;
+};
+
 /** GET /api/mobile/bookings/:id — full request detail (the core screen). */
 export type MobileBookingDetail = {
   id: string;
@@ -167,7 +203,10 @@ export type MobileBookingDetail = {
   sizeRaw: string | null;
   description: string | null;
   referenceLink: string | null;
+  /** @deprecated Raw storage paths; kept so older installed builds don't crash.
+   *  New code reads referenceImages (signed URLs). */
   referenceImagePaths: string[];
+  referenceImages: MobileBookingImage[];
   preferredDate: string | null;
   createdAt: string;
   deposit: MobileBookingDeposit | null;
@@ -186,12 +225,14 @@ export type MobileCalendarResponse = {
   items: MobileCalendarAppointment[];
 };
 
-/** One waitlist entry (GET /api/mobile/waitlist). */
+/** One waitlist entry (GET /api/mobile/waitlist, GET /api/mobile/waitlist/:id). */
 export type MobileWaitlistEntry = {
   id: string;
   customer_email: string;
   customer_handle: string;
   note: string | null;
+  /** Freetext city from the public waitlist form (max 100 chars). */
+  city_text: string | null;
   status: string; // waiting | contacted | converted | dismissed
   created_at: string;
 };
