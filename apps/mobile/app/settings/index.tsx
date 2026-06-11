@@ -253,6 +253,11 @@ export default function SettingsHubScreen() {
             divider
             onPress={() => router.push("/settings/deposit-defaults")}
           />
+          <SettingsRow
+            label="Cancellation & refunds"
+            divider
+            onPress={() => router.push("/settings/deposit-policy")}
+          />
         </Card>
 
         <SectionLabel>Tools</SectionLabel>

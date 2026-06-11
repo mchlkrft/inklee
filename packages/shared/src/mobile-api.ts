@@ -6,6 +6,7 @@
 // helpers wrap it in the `{ data }` / `{ error }` envelope.
 
 import type { DashboardWidgets } from "./dashboard-settings";
+import type { StripeMode } from "./deposit-settings";
 
 /** GET /api/mobile/me — the signed-in artist's identity + plan/entitlement state. */
 export type MobileMe = {
@@ -65,6 +66,13 @@ export type MobilePayouts = {
   chargesEnabled: boolean;
   payoutsEnabled: boolean;
   country: string | null;
+  /** Server-computed card-routing gate (account exists AND status active AND
+   *  charges enabled) — the same rule web derives via getConnectRoutingForArtist,
+   *  so the client never reconstructs it from looser flags. */
+  routeCharges: boolean;
+  /** Classification of the deployment's Stripe publishable key (the key itself
+   *  never ships to the device); "test" drives the test-mode deposits banner. */
+  stripeMode: StripeMode;
 };
 
 /** POST /api/mobile/settings/connect-link — a one-time link that opens the web

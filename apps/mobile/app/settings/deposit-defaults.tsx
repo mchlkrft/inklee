@@ -10,6 +10,7 @@ import { TextArea } from "@/components/TextArea";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DepositDefaults } from "@inklee/shared/deposit-settings";
+import type { MobilePayouts } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
@@ -47,6 +48,10 @@ export default function DepositDefaultsScreen() {
 function DepositForm({ initial }: { initial: DepositDefaults }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  // Read-only Stripe-mode flag (rides on the payouts payload, cached) — shows
+  // the same test-mode warning the web deposits settings page renders. Never
+  // blocks the form; the banner simply stays hidden while loading.
+  const payoutsQ = useApiQuery<MobilePayouts>("/settings/payouts");
 
   const [amount, setAmount] = useState(
     initial.amount != null ? String(initial.amount) : "",
@@ -108,6 +113,15 @@ function DepositForm({ initial }: { initial: DepositDefaults }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
       >
+        {payoutsQ.data?.stripeMode === "test" ? (
+          <View className="mb-4 rounded-2xl border border-mustard/40 bg-mustard/10 px-3 py-2.5">
+            <Text className="text-sm text-foreground">
+              Deposits are in test mode in this environment. No real charges
+              will be made.
+            </Text>
+          </View>
+        ) : null}
+
         <Text className="mb-4 text-sm text-shell-dim">
           These pre-fill the deposit request you send per booking. You can still
           change them for each request.

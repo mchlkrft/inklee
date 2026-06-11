@@ -143,6 +143,10 @@ export default function PayoutsScreen() {
                 ok={payouts.chargesEnabled}
               />
               <StatusLine label="Payouts" ok={payouts.payoutsEnabled} />
+              <StatusLine
+                label="In-app card deposits"
+                ok={payouts.routeCharges}
+              />
               {payouts.country ? (
                 <View className="flex-row justify-between">
                   <Text className="text-sm text-shell-dim">Country</Text>
@@ -152,6 +156,15 @@ export default function PayoutsScreen() {
             </View>
           ) : null}
         </Card>
+
+        {payouts.stripeMode === "test" ? (
+          <View className="mt-4 rounded-2xl border border-mustard/40 bg-mustard/10 px-3 py-2.5">
+            <Text className="text-sm text-foreground">
+              Deposits are in test mode in this environment. No real charges
+              will be made.
+            </Text>
+          </View>
+        ) : null}
 
         {error ? (
           <Text className="mt-4 text-sm text-danger">{error}</Text>

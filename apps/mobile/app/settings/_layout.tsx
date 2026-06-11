@@ -24,6 +24,10 @@ export default function SettingsLayout() {
         name="deposit-defaults"
         options={{ title: "Deposit defaults" }}
       />
+      <Stack.Screen
+        name="deposit-policy"
+        options={{ title: "Cancellation & refunds" }}
+      />
       <Stack.Screen name="payouts" options={{ title: "Payouts" }} />
       <Stack.Screen name="emails" options={{ title: "Emails" }} />
       <Stack.Screen

@@ -3,13 +3,14 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
-import { syncConnectAccount } from "@/lib/stripe-connect";
+import { deriveConnectRouting, syncConnectAccount } from "@/lib/stripe-connect";
+import { detectStripeMode } from "@/lib/deposit-settings";
 import type { MobilePayouts } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
 const PAYOUT_COLUMNS =
-  "stripe_account_status, stripe_charges_enabled, stripe_payouts_enabled, stripe_account_country";
+  "stripe_account_id, stripe_account_status, stripe_charges_enabled, stripe_payouts_enabled, stripe_account_country";
 
 function toPayouts(data: Record<string, unknown> | null): MobilePayouts {
   return {
@@ -17,6 +18,21 @@ function toPayouts(data: Record<string, unknown> | null): MobilePayouts {
     chargesEnabled: !!data?.stripe_charges_enabled,
     payoutsEnabled: !!data?.stripe_payouts_enabled,
     country: (data?.stripe_account_country as string | null) ?? null,
+    // Server-computed card-routing gate — the same rule web uses via
+    // getConnectRoutingForArtist, so the client never re-derives it from
+    // the looser chargesEnabled flag.
+    routeCharges: deriveConnectRouting({
+      stripe_account_id: (data?.stripe_account_id as string | null) ?? null,
+      stripe_account_status:
+        (data?.stripe_account_status as string | null) ?? null,
+      stripe_charges_enabled:
+        (data?.stripe_charges_enabled as boolean | null) ?? null,
+    }).routeCharges,
+    // Publishable-key CLASSIFICATION only (test/live/missing) — the key itself
+    // never ships to the device. Drives the read-only test-mode banner.
+    stripeMode: detectStripeMode(
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    ),
   };
 }
 

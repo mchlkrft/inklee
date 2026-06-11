@@ -3,14 +3,21 @@
 // handlers stay thin (validate → trivial Supabase write), and the decision logic
 // lives here so it's unit-testable without a route-handler mocking harness.
 // Mirrors the web Server Actions (updateProfileAction / saveBooksSettingsAction /
-// saveDepositDefaultsAction) for the fields the app edits; image upload + the
-// structured deposit policy stay web-only (handed off via the Connect link).
+// saveDepositDefaultsAction / saveDepositPolicyAction) for the fields the app
+// edits.
 
 import type { BooksSettings } from "./books-settings";
 import {
   DEPOSIT_DEFAULTS_FALLBACK,
   type DepositDefaults,
 } from "./deposit-settings";
+import {
+  FORFEIT_PCT_OPTIONS,
+  type DepositPolicy,
+  type ForfeitPct,
+  type PolicyWindow,
+  type TimeUnit,
+} from "./deposit-policy";
 import type { BookingMode } from "@inklee/shared/booking-domain";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -241,6 +248,64 @@ export function normalizeDepositDefaults(
   const note = asString(b.note).trim().slice(0, DEPOSIT_MAX_NOTE);
 
   return { ok: true, value: { amount, due_days: dueDays, note } };
+}
+
+/** One bounded policy window ({ value, unit }) from the client body. Mirrors
+ * the web action's parseWindowField (0..365 days / 0..720 hours, integers). */
+function normalizePolicyWindow(raw: unknown): Result<PolicyWindow> {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const unit: TimeUnit = o.unit === "hours" ? "hours" : "days";
+  const max = unit === "hours" ? 720 : 365;
+  if (
+    typeof o.value !== "number" ||
+    !Number.isInteger(o.value) ||
+    o.value < 0 ||
+    o.value > max
+  ) {
+    return {
+      ok: false,
+      error: `Each window must be between 0 and ${max} ${unit}.`,
+    };
+  }
+  return { ok: true, value: { value: o.value, unit } };
+}
+
+/**
+ * Validate the structured deposit policy (mirrors saveDepositPolicyAction).
+ * Only the three constrained parameters are accepted — never free text.
+ * Reciprocity (artist cancels => full client refund) is hard-coded in the
+ * refund logic, not stored here, and not artist-overridable.
+ */
+export function normalizeDepositPolicy(body: unknown): Result<DepositPolicy> {
+  const b = (body ?? {}) as Record<string, unknown>;
+
+  const refundWindow = normalizePolicyWindow(b.refundWindow);
+  if (!refundWindow.ok) return refundWindow;
+
+  if (
+    !(FORFEIT_PCT_OPTIONS as readonly number[]).includes(
+      b.lateCancelForfeitPct as number,
+    )
+  ) {
+    return { ok: false, error: "Pick a forfeit percentage from the list." };
+  }
+
+  // Last-minute window is optional — null/absent means the toggle is off.
+  let lastMinute: PolicyWindow | null = null;
+  if (b.lastMinute !== undefined && b.lastMinute !== null) {
+    const lm = normalizePolicyWindow(b.lastMinute);
+    if (!lm.ok) return lm;
+    lastMinute = lm.value;
+  }
+
+  return {
+    ok: true,
+    value: {
+      refundWindow: refundWindow.value,
+      lateCancelForfeitPct: b.lateCancelForfeitPct as ForfeitPct,
+      lastMinute,
+    },
+  };
 }
 
 // Artist web pages the app may hand off to via a one-time Connect login link.
