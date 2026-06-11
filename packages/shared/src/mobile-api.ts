@@ -5,6 +5,8 @@
 // two sides cannot drift. These describe ONLY the `data` payload — the route
 // helpers wrap it in the `{ data }` / `{ error }` envelope.
 
+import type { DashboardWidgets } from "./dashboard-settings";
+
 /** GET /api/mobile/me — the signed-in artist's identity + plan/entitlement state. */
 export type MobileMe = {
   userId: string;
@@ -77,16 +79,33 @@ export type MobileHomeBooking = {
   createdAt: string | null;
 };
 
-/** GET /api/mobile/home — the "what needs action right now" Home-tab aggregate. */
+/** One upcoming guest-spot trip leg in the Home aggregate. */
+export type MobileGuestSpot = {
+  id: string;
+  tripId: string;
+  tripTitle: string;
+  studioName: string | null;
+  startsOn: string;
+  endsOn: string;
+};
+
+/** GET /api/mobile/home — the dashboard aggregate backing the Home widget grid. */
 export type MobileHome = {
   displayName: string | null;
   slug: string | null;
+  bio: string | null;
   booksOpen: boolean;
   onboardingCompleted: boolean;
+  /** Per-widget visibility (mirrors the web dashboard widget toggles). */
+  dashboardWidgets: DashboardWidgets;
   pendingCount: number;
   pending: MobileHomeBooking[];
   upcoming: MobileHomeBooking[];
+  guestSpots: MobileGuestSpot[];
   waitlistCount: number;
+  /** Total requests ever received — drives the zero-request "share your link"
+   *  convenience (force-show the links widget for brand-new artists). */
+  totalReceivedCount: number;
 };
 
 /** One row in the booking inbox (GET /api/mobile/bookings list). */

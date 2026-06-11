@@ -5,8 +5,13 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { parseDashboardWidgets } from "@/lib/dashboard-settings";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
-import type { MobileHome, MobileHomeBooking } from "@inklee/shared/mobile-api";
+import type {
+  MobileHome,
+  MobileHomeBooking,
+  MobileGuestSpot,
+} from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
@@ -17,6 +22,13 @@ type HomeBookingRow = {
   preferred_date: string | null;
   created_at: string | null;
   form_data: Record<string, string> | null;
+};
+
+type RawTripLeg = {
+  id: string;
+  starts_on: string;
+  ends_on: string;
+  studios: { name: string } | null;
 };
 
 function mapRow(b: HomeBookingRow): MobileHomeBooking {
@@ -30,9 +42,11 @@ function mapRow(b: HomeBookingRow): MobileHomeBooking {
   };
 }
 
-// GET /api/mobile/home — the "what needs action right now" aggregate that backs
-// the Home tab: pending requests, upcoming approved bookings, waitlist count,
-// books open/closed. Mirrors the web dashboard reads; RLS scopes to the artist.
+// GET /api/mobile/home — the dashboard aggregate backing the Home widget grid.
+// Mirrors the web dashboard reads (apps/web/src/app/(artist)/dashboard/page.tsx):
+// each query is gated by the artist's per-widget visibility toggle, plus the
+// total-received count (for the zero-request links convenience) and bio (for the
+// add-a-bio nudge). RLS scopes everything to the artist.
 export async function GET(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
@@ -40,11 +54,13 @@ export async function GET(req: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("slug, display_name, timezone, settings")
+    .select("slug, display_name, timezone, bio, settings")
     .eq("id", userId)
     .single();
   const settings = (profile?.settings ?? {}) as Record<string, unknown>;
   const booksSettings = parseBooksSettings(settings.books_settings);
+  const widgets = parseDashboardWidgets(settings.dashboard_widgets);
+  const onboardingCompleted = settings.onboarding_completed === true;
   const today = todayInTimeZone(profile?.timezone ?? "Europe/Berlin");
   // Match the web: an expired booking window closes the books even if the
   // books_open flag is still true (else mobile shows Open while the public
@@ -53,41 +69,85 @@ export async function GET(req: Request) {
     booksSettings.booking_window_ends_at !== null &&
     isDateKeyBefore(booksSettings.booking_window_ends_at, today);
 
-  const [pending, upcoming, waitlist] = await Promise.all([
-    supabase
-      .from("booking_requests")
-      .select("id, customer_handle, customer_email, created_at, form_data", {
-        count: "exact",
-      })
-      .eq("artist_id", userId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("booking_requests")
-      .select("id, customer_handle, customer_email, preferred_date, form_data")
-      .eq("artist_id", userId)
-      .eq("status", "approved")
-      .not("preferred_date", "is", null)
-      .gte("preferred_date", today)
-      .order("preferred_date", { ascending: true })
-      .limit(5),
-    supabase
-      .from("waitlist_entries")
-      .select("*", { count: "exact", head: true })
-      .eq("artist_id", userId)
-      .eq("status", "waiting"),
-  ]);
+  const [pending, upcoming, waitlist, totalReceived, guestSpotsRes] =
+    await Promise.all([
+      widgets.pending_requests
+        ? supabase
+            .from("booking_requests")
+            .select(
+              "id, customer_handle, customer_email, created_at, form_data",
+              { count: "exact" },
+            )
+            .eq("artist_id", userId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false })
+            .limit(3)
+        : Promise.resolve({ data: null, count: null }),
+      widgets.upcoming_appointments
+        ? supabase
+            .from("booking_requests")
+            .select(
+              "id, customer_handle, customer_email, preferred_date, form_data",
+            )
+            .eq("artist_id", userId)
+            .eq("status", "approved")
+            .not("preferred_date", "is", null)
+            .gte("preferred_date", today)
+            .order("preferred_date", { ascending: true })
+            .limit(3)
+        : Promise.resolve({ data: null }),
+      widgets.waitlist
+        ? supabase
+            .from("waitlist_entries")
+            .select("*", { count: "exact", head: true })
+            .eq("artist_id", userId)
+            .eq("status", "waiting")
+        : Promise.resolve({ count: null }),
+      onboardingCompleted
+        ? supabase
+            .from("booking_requests")
+            .select("*", { count: "exact", head: true })
+            .eq("artist_id", userId)
+        : Promise.resolve({ count: null }),
+      widgets.guest_spots
+        ? supabase
+            .from("trips")
+            .select(
+              "id, title, trip_legs(id, starts_on, ends_on, studios(name))",
+            )
+            .eq("artist_id", userId)
+        : Promise.resolve({ data: null }),
+    ]);
+
+  // Flatten trips × legs into upcoming guest spots, tz-aware, sorted, top 3.
+  const guestSpots: MobileGuestSpot[] = (guestSpotsRes.data ?? [])
+    .flatMap((t) =>
+      ((t.trip_legs as unknown as RawTripLeg[]) ?? []).map((l) => ({
+        id: l.id,
+        tripId: t.id,
+        tripTitle: t.title,
+        studioName: l.studios?.name ?? null,
+        startsOn: l.starts_on,
+        endsOn: l.ends_on,
+      })),
+    )
+    .filter((l) => l.endsOn >= today)
+    .sort((a, b) => a.startsOn.localeCompare(b.startsOn))
+    .slice(0, 3);
 
   const body: MobileHome = {
     displayName: profile?.display_name ?? null,
     slug: profile?.slug ?? null,
+    bio: (profile?.bio as string | null) ?? null,
     booksOpen: booksSettings.books_open && !windowExpired,
-    onboardingCompleted: settings.onboarding_completed === true,
+    onboardingCompleted,
+    dashboardWidgets: widgets,
     pendingCount: pending.count ?? 0,
     pending: ((pending.data ?? []) as HomeBookingRow[]).map(mapRow),
     upcoming: ((upcoming.data ?? []) as HomeBookingRow[]).map(mapRow),
+    guestSpots,
     waitlistCount: waitlist.count ?? 0,
+    totalReceivedCount: totalReceived.count ?? 0,
   };
   return mobileOk(body);
 }
