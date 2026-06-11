@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useQuery,
   type QueryClient,
 } from "@tanstack/react-query";
@@ -173,6 +174,48 @@ export function useApiQuery<T>(
     refreshing: q.isFetching && !q.isLoading,
     refresh: () => {
       void q.refetch();
+    },
+  };
+}
+
+type InfinitePage<T> = { items: T[]; nextCursor: string | null };
+
+/**
+ * Keyset-paginated GET hook for `{ items, nextCursor }` endpoints (the booking
+ * inbox). Same `["api", path]` key as useApiQuery — so a `?status=` swap is its
+ * own cache, and `invalidateBookingViews` (startsWith "/bookings") refreshes it
+ * after a mutation. The cursor rides as a page param, not in the key, so pages
+ * accumulate. Wire `fetchNextPage` to FlatList `onEndReached`.
+ */
+export function useInfiniteApiQuery<T>(path: string) {
+  const q = useInfiniteQuery({
+    queryKey: ["api", path],
+    queryFn: ({ pageParam, signal }) => {
+      const sep = path.includes("?") ? "&" : "?";
+      const url =
+        pageParam != null
+          ? `${path}${sep}cursor=${encodeURIComponent(pageParam)}`
+          : path;
+      return apiGet<InfinitePage<T>>(url, signal);
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  });
+  return {
+    items: q.data?.pages.flatMap((p) => p.items) ?? [],
+    error: q.isError
+      ? q.error instanceof Error
+        ? q.error.message
+        : "Something went wrong."
+      : null,
+    loading: q.isLoading,
+    refreshing: q.isRefetching,
+    fetchingNextPage: q.isFetchingNextPage,
+    refresh: () => {
+      void q.refetch();
+    },
+    fetchNextPage: () => {
+      if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
     },
   };
 }

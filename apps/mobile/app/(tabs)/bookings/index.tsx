@@ -1,16 +1,41 @@
-import { FlatList, RefreshControl, Text, View } from "react-native";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
+import { humanStatusLabel } from "@inklee/shared/status-labels";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { StatusPill } from "@/components/StatusPill";
+import { FilterChip } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
-import { useApiQuery } from "@/lib/api";
-import { colors } from "@/lib/tokens";
+import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
+import { useColors } from "@/lib/theme";
+import { config } from "@/lib/config";
+import { formatShortDate, relativeTime } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
 import type {
   MobileBookingListItem,
-  MobileBookingsPage,
+  MobileMe,
 } from "@inklee/shared/mobile-api";
+
+// Mirrors the web status filter set (ALLOWED_STATUS on the server). `null` = All.
+const FILTERS: (string | null)[] = [
+  null,
+  "pending",
+  "approved",
+  "deposit_pending",
+  "rejected",
+  "cancelled",
+];
 
 function RequestCard({
   b,
@@ -19,7 +44,11 @@ function RequestCard({
   b: MobileBookingListItem;
   onPress: () => void;
 }) {
-  const detail = [b.placement, b.size, b.preferredDate]
+  const detail = [
+    b.placement,
+    b.size,
+    b.preferredDate && formatShortDate(b.preferredDate),
+  ]
     .filter(Boolean)
     .join(" · ");
   return (
@@ -34,12 +63,64 @@ function RequestCard({
         <Text className="text-sm text-shell-dim">
           {detail || "No details provided"}
         </Text>
-        {b.depositPaid ? (
-          <Text className="mt-1 text-xs font-semibold text-success">
-            Deposit paid
+        <View className="mt-1 flex-row items-center gap-1.5">
+          <Text className="text-xs text-shell-mute">
+            {relativeTime(b.createdAt)}
           </Text>
-        ) : null}
+          {b.depositPaid ? (
+            <Text className="text-xs font-semibold text-success">
+              · Deposit paid
+            </Text>
+          ) : null}
+        </View>
       </Card>
+    </View>
+  );
+}
+
+// Empty inbox: nudge the artist to share their booking link (the way requests
+// actually start). Copy via expo-clipboard, Preview via the in-app browser.
+function ShareZeroState({ bookingUrl }: { bookingUrl: string | null }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    if (!bookingUrl) return;
+    await Clipboard.setStringAsync(bookingUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <View className="items-center px-2 py-16">
+      <Text className="text-center text-base font-semibold text-foreground">
+        No requests yet
+      </Text>
+      <Text className="mt-1 text-center text-sm text-shell-dim">
+        Share your booking link to start getting requests.
+      </Text>
+      {bookingUrl ? (
+        <>
+          <Text className="mt-4 text-center text-sm text-shell-dim">
+            {bookingUrl.replace(/^https?:\/\//, "")}
+          </Text>
+          <View className="mt-2 flex-row gap-2">
+            <Pressable
+              onPress={copy}
+              className="rounded-full border border-shell-border px-4 py-2 active:opacity-70"
+            >
+              <Text className="text-label text-foreground">
+                {copied ? "Copied" : "Copy link"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                void WebBrowser.openBrowserAsync(bookingUrl);
+              }}
+              className="rounded-full border border-shell-border px-4 py-2 active:opacity-70"
+            >
+              <Text className="text-label text-foreground">Preview</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -47,13 +128,33 @@ function RequestCard({
 export default function RequestsScreen() {
   useScreenView("requests");
   const router = useRouter();
-  const { data, loading, error, refreshing, refresh } =
-    useApiQuery<MobileBookingsPage>("/bookings");
+  const colors = useColors();
+  const [status, setStatus] = useState<string | null>(null);
+  const path = status ? `/bookings?status=${status}` : "/bookings";
+  const q = useInfiniteApiQuery<MobileBookingListItem>(path);
+  const me = useApiQuery<MobileMe>("/me");
+  const bookingUrl = me.data?.slug ? config.publicUrl(me.data.slug) : null;
 
   return (
     <Screen edges={["left", "right"]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingVertical: 8 }}
+        className="max-h-12 flex-grow-0"
+      >
+        {FILTERS.map((f) => (
+          <FilterChip
+            key={f ?? "all"}
+            label={f === null ? "All" : humanStatusLabel(f)}
+            selected={status === f}
+            onPress={() => setStatus(f)}
+          />
+        ))}
+      </ScrollView>
+
       <FlatList
-        data={data?.items ?? []}
+        data={q.items}
         keyExtractor={(b) => b.id}
         renderItem={({ item }) => (
           <RequestCard
@@ -62,21 +163,30 @@ export default function RequestsScreen() {
           />
         )}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 24 }}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refresh}
+            refreshing={q.refreshing}
+            onRefresh={q.refresh}
             tintColor={colors.mustard}
           />
         }
+        onEndReached={q.fetchNextPage}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          q.fetchingNextPage ? (
+            <View className="py-4">
+              <ActivityIndicator color={colors.mustard} />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          loading ? null : error ? (
-            <EmptyState title="Couldn't load requests" subtitle={error} />
+          q.loading ? null : q.error ? (
+            <EmptyState title="Couldn't load requests" subtitle={q.error} />
+          ) : status ? (
+            <EmptyState title="No requests here" subtitle="Try another filter." />
           ) : (
-            <EmptyState
-              title="No requests yet"
-              subtitle="New booking requests will show up here."
-            />
+            <ShareZeroState bookingUrl={bookingUrl} />
           )
         }
       />
