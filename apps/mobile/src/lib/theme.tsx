@@ -6,37 +6,42 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Appearance, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useColorScheme } from "nativewind";
+import { vars } from "nativewind";
 
-// MB-12 runtime theme. NativeWind drives the className colors (the `.dark`
-// selector re-binds the CSS variables in global.css); this module adds (a) the
-// founder-facing preference (System / Light / Dark, persisted) and (b) a JS
-// palette for inline-style consumers (the chrome: TopBar, BottomNav, sheets) that
-// set colors via `style` props rather than classes and so can't read the vars.
-// Keep `palettes` in sync with the :root / .dark blocks in global.css.
+// MB-12/13 runtime theme. IMPORTANT: NativeWind on React Native has NO cascading
+// `.dark` root class like the web, so theming via `:root { --x }` + `.dark { --x }`
+// in global.css does NOT switch at runtime (only :root ever applies). The working
+// pattern is NativeWind's `vars()`: set the CSS variables as an inline style on a
+// wrapper View whose value we swap by scheme. Descendant `bg-background` /
+// `text-foreground` / ... classes (which resolve to `var(--…)` in tailwind.config)
+// then follow the theme, and the toggle works. Inline-style consumers read the same
+// scheme from this Context via useThemeColors()/useColors().
 
 export type ThemePreference = "system" | "light" | "dark";
 export type Scheme = "light" | "dark";
 
 const STORAGE_KEY = "inklee.theme-preference";
 
-export const palettes: Record<
-  Scheme,
-  {
-    background: string;
-    foreground: string;
-    card: string;
-    cardElevated: string;
-    muted: string;
-    mutedForeground: string;
-    subtleForeground: string;
-    border: string;
-    hover: string;
-    hoverStrong: string;
-    chrome: string;
-  }
-> = {
+type Palette = {
+  background: string;
+  foreground: string;
+  card: string;
+  cardElevated: string;
+  muted: string;
+  mutedForeground: string;
+  subtleForeground: string;
+  border: string;
+  hover: string;
+  hoverStrong: string;
+  glass: string;
+  // Opaque elevated chrome (nav/top-bar pill). Opaque so Android `elevation`
+  // casts a clean shadow instead of a solid-black artifact on a translucent bg.
+  chrome: string;
+};
+
+export const palettes: Record<Scheme, Palette> = {
   light: {
     background: "#e5e1d5",
     foreground: "#1e1e1e",
@@ -48,6 +53,7 @@ export const palettes: Record<
     border: "rgba(30,30,30,0.18)",
     hover: "rgba(30,30,30,0.06)",
     hoverStrong: "rgba(30,30,30,0.1)",
+    glass: "rgba(30,30,30,0.05)",
     chrome: "#ece8dd",
   },
   dark: {
@@ -61,8 +67,32 @@ export const palettes: Record<
     border: "rgba(229,225,213,0.18)",
     hover: "rgba(229,225,213,0.12)",
     hoverStrong: "rgba(229,225,213,0.2)",
-    chrome: "rgba(229,225,213,0.06)",
+    glass: "rgba(229,225,213,0.04)",
+    chrome: "#2a2a2a",
   },
+};
+
+// CSS-variable style objects for the wrapper View — keep names in sync with the
+// semantic colors in tailwind.config.js.
+const toVars = (p: Palette) =>
+  vars({
+    "--background": p.background,
+    "--foreground": p.foreground,
+    "--card": p.card,
+    "--card-elevated": p.cardElevated,
+    "--muted": p.muted,
+    "--muted-foreground": p.mutedForeground,
+    "--subtle-foreground": p.subtleForeground,
+    "--border": p.border,
+    "--hover": p.hover,
+    "--hover-strong": p.hoverStrong,
+    "--glass": p.glass,
+    "--chrome": p.chrome,
+  });
+
+const themeVars: Record<Scheme, ReturnType<typeof vars>> = {
+  light: toVars(palettes.light),
+  dark: toVars(palettes.dark),
 };
 
 // Brand atoms — identical in both themes.
@@ -84,40 +114,51 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const { colorScheme, setColorScheme } = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>("system");
+  const [systemScheme, setSystemScheme] = useState<Scheme>(
+    Appearance.getColorScheme() === "dark" ? "dark" : "light",
+  );
 
-  // Hydrate the saved preference once on mount. Default ("system") already lets
-  // NativeWind follow the device, so an unset preference needs no action.
+  // Track the OS appearance so "system" stays live.
+  useEffect(() => {
+    const sub = Appearance.addChangeListener(({ colorScheme }) => {
+      setSystemScheme(colorScheme === "dark" ? "dark" : "light");
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Hydrate the saved preference once.
   useEffect(() => {
     let active = true;
     AsyncStorage.getItem(STORAGE_KEY).then((v) => {
-      if (!active) return;
-      if (v === "light" || v === "dark" || v === "system") {
+      if (active && (v === "light" || v === "dark" || v === "system")) {
         setPreferenceState(v);
-        setColorScheme(v);
       }
     });
     return () => {
       active = false;
     };
-  }, [setColorScheme]);
+  }, []);
 
   const setPreference = (p: ThemePreference) => {
     setPreferenceState(p);
-    setColorScheme(p);
     void AsyncStorage.setItem(STORAGE_KEY, p);
   };
 
-  const scheme: Scheme = colorScheme === "dark" ? "dark" : "light";
+  const scheme: Scheme = preference === "system" ? systemScheme : preference;
 
   const value = useMemo(
     () => ({ preference, setPreference, scheme }),
-    // setPreference is stable enough (no deps); scheme + preference drive renders.
     [preference, scheme],
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>
+      <View style={themeVars[scheme]} className="flex-1">
+        {children}
+      </View>
+    </ThemeContext.Provider>
+  );
 }
 
 /** Founder-facing preference + resolved scheme. Used by the Settings toggle. */
@@ -130,9 +171,8 @@ export function useThemePreference(): ThemeContextValue {
 }
 
 /** Resolved palette for inline-style (non-className) consumers — the chrome. */
-export function useThemeColors() {
-  const { colorScheme } = useColorScheme();
-  return palettes[colorScheme === "dark" ? "dark" : "light"];
+export function useThemeColors(): Palette {
+  return palettes[useThemePreference().scheme];
 }
 
 // Theme-aware drop-in for the old static `colors` token (src/lib/tokens.ts).

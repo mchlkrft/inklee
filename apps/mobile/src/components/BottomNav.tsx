@@ -53,10 +53,10 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
           borderWidth: border.hairline,
           borderColor: theme.border,
           shadowColor: "#000",
-          shadowOpacity: 0.3,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 8,
+          shadowOpacity: 0.16,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 4,
         }}
       >
         {state.routes.map((route, idx) => {

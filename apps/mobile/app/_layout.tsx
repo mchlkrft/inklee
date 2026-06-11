@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "nativewind";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   QueryClient,
@@ -12,7 +11,7 @@ import {
 } from "@tanstack/react-query";
 import type { MobileMe } from "@inklee/shared/mobile-api";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { ThemeProvider, useThemeColors } from "@/lib/theme";
+import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
 import { usePushResponseObserver } from "@/lib/push";
 import { captureError } from "@/lib/telemetry";
@@ -69,8 +68,8 @@ function Splash() {
 // glyphs on the bone surface. Reads the NativeWind scheme so it honors the
 // in-app override, not just the OS setting.
 function ThemedStatusBar() {
-  const { colorScheme } = useColorScheme();
-  return <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />;
+  const { scheme } = useThemePreference();
+  return <StatusBar style={scheme === "dark" ? "light" : "dark"} />;
 }
 
 // Shown when /me fails and nothing is cached — don't guess the gate, let the
