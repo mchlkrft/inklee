@@ -100,7 +100,7 @@ function ProductRow({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-3 active:opacity-80"
+      className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-glass p-3 active:opacity-80"
     >
       {product.imageUrl ? (
         <Image
@@ -115,7 +115,7 @@ function ProductRow({
         </View>
       )}
       <View className="flex-1">
-        <Text className="text-base font-semibold text-bone" numberOfLines={1}>
+        <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
           {product.title}
         </Text>
         <Text className="mt-0.5 text-sm text-shell-dim">

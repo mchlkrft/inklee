@@ -17,7 +17,7 @@ export function DayAgenda({
 
   return (
     <View className="gap-2">
-      <Text className="text-sm font-semibold text-bone">
+      <Text className="text-sm font-semibold text-foreground">
         {formatDayLabel(dateKey)}
       </Text>
 
@@ -28,7 +28,7 @@ export function DayAgenda({
       ) : (
         appointments.map((a) => (
           <Card key={a.id} onPress={() => router.push(`/bookings/${a.id}`)}>
-            <Text className="text-base font-semibold text-bone">
+            <Text className="text-base font-semibold text-foreground">
               {a.client}
             </Text>
             {a.placement ? (

@@ -32,7 +32,7 @@ export function Button({
   const tone = isPrimary
     ? "bg-mustard"
     : "border-brand border-shell-border bg-transparent";
-  const textTone = isPrimary ? "text-charcoal" : "text-bone";
+  const textTone = isPrimary ? "text-charcoal" : "text-foreground";
   const textSize = size === "xs" || size === "sm" ? "text-sm" : "text-base";
   const isDisabled = disabled || loading;
 

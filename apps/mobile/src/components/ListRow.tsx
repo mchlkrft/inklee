@@ -36,7 +36,7 @@ export function ListRow({
     >
       {leading ?? null}
       <View className="flex-1">
-        <Text className="text-body font-medium text-bone" numberOfLines={1}>
+        <Text className="text-body font-medium text-foreground" numberOfLines={1}>
           {title}
         </Text>
         {subtitle ? (

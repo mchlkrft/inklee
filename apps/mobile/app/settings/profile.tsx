@@ -110,7 +110,7 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
           autoCapitalize="words"
         />
 
-        <Text className="mb-1.5 text-sm font-medium text-bone">Bio</Text>
+        <Text className="mb-1.5 text-sm font-medium text-foreground">Bio</Text>
         <TextArea
           value={bio}
           onChangeText={setBio}
@@ -137,9 +137,9 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
           autoCapitalize="words"
         />
 
-        <Text className="mb-1.5 text-sm font-medium text-bone">Timezone</Text>
+        <Text className="mb-1.5 text-sm font-medium text-foreground">Timezone</Text>
         <View className="mb-3 rounded-xl border border-shell-border px-4 py-3">
-          <Text className="text-base text-bone">{timezone || "Not set"}</Text>
+          <Text className="text-base text-foreground">{timezone || "Not set"}</Text>
           {canUseDeviceTz ? (
             <Pressable
               accessibilityRole="button"

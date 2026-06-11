@@ -81,7 +81,7 @@ export default function WaitlistScreen() {
   const items = data?.items ?? [];
 
   return (
-    <View className="flex-1 bg-charcoal">
+    <View className="flex-1 bg-background">
       <View className="flex-row gap-2 px-5 pt-4">
         {FILTERS.map((f) => {
           const active = f.key === filter;
@@ -184,7 +184,7 @@ function WaitlistRow({
       <Card>
         <View className="mb-1 flex-row items-center justify-between gap-2">
           <Text
-            className="flex-1 text-base font-semibold text-bone"
+            className="flex-1 text-base font-semibold text-foreground"
             numberOfLines={1}
           >
             {label}
@@ -259,7 +259,7 @@ function ActionBtn({
         <ActivityIndicator color={danger ? colors.danger : colors.bone} />
       ) : (
         <Text
-          className={`text-sm font-semibold ${danger ? "text-danger" : "text-bone"}`}
+          className={`text-sm font-semibold ${danger ? "text-danger" : "text-foreground"}`}
         >
           {label}
         </Text>

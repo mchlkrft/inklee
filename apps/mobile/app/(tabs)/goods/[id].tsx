@@ -33,7 +33,7 @@ type Category = (typeof PRODUCT_CATEGORY_OPTIONS)[number]["value"];
 type Status = (typeof PRODUCT_STATUS_OPTIONS)[number]["value"];
 
 function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-bone">{children}</Text>;
+  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
 }
 
 function invalidateGoods(client: ReturnType<typeof useQueryClient>) {
@@ -283,9 +283,9 @@ function ProductForm({
           placeholder="Leave empty for unlimited"
         />
 
-        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] px-4 py-3">
+        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
           <View className="flex-1 pr-3">
-            <Text className="text-base text-bone">Show on your page</Text>
+            <Text className="text-base text-foreground">Show on your page</Text>
             <Text className="mt-0.5 text-sm text-shell-dim">
               Off keeps it as a draft.
             </Text>

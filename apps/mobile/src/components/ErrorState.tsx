@@ -24,7 +24,7 @@ export function ErrorState({
         onPress={onRetry}
         className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
       >
-        <Text className="text-sm font-semibold text-bone">
+        <Text className="text-sm font-semibold text-foreground">
           {t("common.tryAgain")}
         </Text>
       </Pressable>

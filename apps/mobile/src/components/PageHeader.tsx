@@ -16,7 +16,7 @@ export function PageHeader({
   return (
     <View className="mb-5 flex-row items-start justify-between gap-3">
       <View className="flex-1">
-        <Text className="text-display font-bold text-bone">{title}</Text>
+        <Text className="text-display font-bold text-foreground">{title}</Text>
         {subtitle ? (
           <Text className="mt-1 text-subtitle text-shell-dim">{subtitle}</Text>
         ) : null}

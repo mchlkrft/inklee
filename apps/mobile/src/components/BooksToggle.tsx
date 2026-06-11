@@ -45,7 +45,7 @@ export function BooksToggle({ open }: { open: boolean }) {
     <Card>
       <View className="flex-row items-center justify-between">
         <View className="flex-1 pr-3">
-          <Text className="text-base font-semibold text-bone">
+          <Text className="text-base font-semibold text-foreground">
             Booking status
           </Text>
           <Text className="mt-0.5 text-sm text-shell-dim">

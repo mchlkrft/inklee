@@ -44,11 +44,11 @@ function ModeCard({
       className={`mb-3 rounded-2xl border p-4 active:opacity-80 ${
         selected
           ? "border-mustard bg-[rgba(233,178,43,0.08)]"
-          : "border-shell-border bg-[rgba(229,225,213,0.04)]"
+          : "border-shell-border bg-glass"
       }`}
     >
       <View className="flex-row items-center justify-between">
-        <Text className="text-base font-semibold text-bone">{title}</Text>
+        <Text className="text-base font-semibold text-foreground">{title}</Text>
         <Ionicons
           name={selected ? "radio-button-on" : "radio-button-off"}
           size={20}
@@ -138,7 +138,7 @@ export default function BookingSetup() {
         </Pressable>
 
         <View className="pb-6 pt-2">
-          <Text className="text-2xl font-bold text-bone">
+          <Text className="text-2xl font-bold text-foreground">
             How do clients book?
           </Text>
           <Text className="mt-1 text-base text-shell-dim">
@@ -156,7 +156,7 @@ export default function BookingSetup() {
           />
         ))}
 
-        <Text className="mb-2 mt-5 text-sm font-medium text-bone">
+        <Text className="mb-2 mt-5 text-sm font-medium text-foreground">
           Booking status
         </Text>
         <View className="flex-row gap-3">

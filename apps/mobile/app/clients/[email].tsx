@@ -25,7 +25,7 @@ export default function ClientDetailScreen() {
 
   if (!data) {
     return (
-      <View className="flex-1 items-center justify-center bg-charcoal px-5">
+      <View className="flex-1 items-center justify-center bg-background px-5">
         {loading ? (
           <ActivityIndicator color={colors.mustard} />
         ) : (
@@ -39,7 +39,7 @@ export default function ClientDetailScreen() {
               onPress={refresh}
               className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
             >
-              <Text className="text-sm font-semibold text-bone">Try again</Text>
+              <Text className="text-sm font-semibold text-foreground">Try again</Text>
             </Pressable>
           </View>
         )}
@@ -53,7 +53,7 @@ export default function ClientDetailScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-charcoal"
+      className="flex-1 bg-background"
       contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
       refreshControl={
@@ -64,7 +64,7 @@ export default function ClientDetailScreen() {
         />
       }
     >
-      <Text className="text-2xl font-bold text-bone">{data.client}</Text>
+      <Text className="text-2xl font-bold text-foreground">{data.client}</Text>
       {showEmail ? (
         <Text className="mt-0.5 text-sm text-shell-dim">{data.email}</Text>
       ) : null}
@@ -79,7 +79,7 @@ export default function ClientDetailScreen() {
             Notes (private)
           </Text>
           <Card>
-            <Text className="text-sm text-bone">{data.notes}</Text>
+            <Text className="text-sm text-foreground">{data.notes}</Text>
           </Card>
         </View>
       ) : null}
@@ -107,7 +107,7 @@ function HistoryRow({ item }: { item: ClientHistoryItem }) {
   return (
     <Card onPress={() => router.push(`/bookings/${item.id}`)}>
       <View className="mb-1 flex-row items-center justify-between gap-2">
-        <Text className="flex-1 text-base font-semibold text-bone">
+        <Text className="flex-1 text-base font-semibold text-foreground">
           {item.placement ?? "Tattoo request"}
         </Text>
         <StatusPill status={item.status} />

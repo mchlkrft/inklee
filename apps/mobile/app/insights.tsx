@@ -30,7 +30,7 @@ export default function InsightsScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-charcoal"
+      className="flex-1 bg-background"
       contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
       refreshControl={

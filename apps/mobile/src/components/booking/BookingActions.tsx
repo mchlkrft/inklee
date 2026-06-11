@@ -137,8 +137,8 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
         <>
           {booking.deposit?.hasCardIntent && !booking.deposit.paid ? (
             <View className="gap-2">
-              <View className="rounded-xl border border-shell-border bg-[rgba(229,225,213,0.04)] px-4 py-3">
-                <Text className="text-sm font-medium text-bone">
+              <View className="rounded-xl border border-shell-border bg-glass px-4 py-3">
+                <Text className="text-sm font-medium text-foreground">
                   Waiting for card payment
                 </Text>
                 <Text className="mt-1 text-xs text-shell-dim">
@@ -273,7 +273,7 @@ function ConfirmAction({
 
   return (
     <View className="gap-2 rounded-xl border border-danger/50 p-3">
-      <Text className="text-sm text-bone">{title}</Text>
+      <Text className="text-sm text-foreground">{title}</Text>
       {body ? <Text className="text-xs text-shell-dim">{body}</Text> : null}
       {error ? <Text className="text-xs text-danger">{error}</Text> : null}
       <View className="flex-row gap-2">
@@ -403,7 +403,7 @@ function DepositRequestForm({
 
   return (
     <View className="gap-3 rounded-xl border border-shell-border p-4">
-      <Text className="text-sm font-medium text-bone">Request deposit</Text>
+      <Text className="text-sm font-medium text-foreground">Request deposit</Text>
 
       <Text className="text-xs text-shell-dim">
         {!payoutsReady
@@ -423,7 +423,7 @@ function DepositRequestForm({
             placeholder="200"
             placeholderTextColor="rgba(229,225,213,0.32)"
             keyboardType="decimal-pad"
-            className="flex-1 text-bone"
+            className="flex-1 text-foreground"
           />
         </View>
         {showFee ? (
@@ -443,7 +443,7 @@ function DepositRequestForm({
           placeholder="2026-06-30"
           placeholderTextColor="rgba(229,225,213,0.32)"
           autoCapitalize="none"
-          className="h-12 rounded-xl border border-shell-border px-3 text-bone"
+          className="h-12 rounded-xl border border-shell-border px-3 text-foreground"
         />
       </View>
 
@@ -455,7 +455,7 @@ function DepositRequestForm({
           placeholder="e.g. bank transfer details or payment method"
           placeholderTextColor="rgba(229,225,213,0.32)"
           maxLength={300}
-          className="h-12 rounded-xl border border-shell-border px-3 text-bone"
+          className="h-12 rounded-xl border border-shell-border px-3 text-foreground"
         />
       </View>
 

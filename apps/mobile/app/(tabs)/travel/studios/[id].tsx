@@ -35,7 +35,7 @@ function invalidateTravel(client: QueryClient) {
 }
 
 function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-bone">{children}</Text>;
+  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
 }
 
 export default function StudioScreen() {
@@ -184,8 +184,8 @@ function StudioForm({
           onChange={setVisibility}
         />
 
-        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] px-4 py-3">
-          <Text className="text-base text-bone">Primary studio</Text>
+        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
+          <Text className="text-base text-foreground">Primary studio</Text>
           <Switch
             value={isPrimary}
             onValueChange={setIsPrimary}

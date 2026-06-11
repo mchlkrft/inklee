@@ -29,7 +29,7 @@ export function SettingsRow({
       }`}
     >
       <Text
-        className={`flex-1 pr-3 text-base ${danger ? "text-danger" : "text-bone"}`}
+        className={`flex-1 pr-3 text-base ${danger ? "text-danger" : "text-foreground"}`}
       >
         {label}
       </Text>

@@ -67,7 +67,7 @@ export function SocialAuthButtons() {
         ) : (
           <>
             <Ionicons name="logo-google" size={18} color="#e5e1d5" />
-            <Text className="text-base font-semibold text-bone">
+            <Text className="text-base font-semibold text-foreground">
               Continue with Google
             </Text>
           </>

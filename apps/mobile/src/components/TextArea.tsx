@@ -28,7 +28,7 @@ export function TextArea({
   return (
     <View className="mb-3">
       {label ? (
-        <Text className="mb-1.5 text-sm font-medium text-bone">{label}</Text>
+        <Text className="mb-1.5 text-sm font-medium text-foreground">{label}</Text>
       ) : null}
       <View className={`rounded-xl border-brand px-4 py-3 ${borderColor}`}>
         <TextInput
@@ -46,7 +46,7 @@ export function TextArea({
             onBlur?.(e);
           }}
           style={[{ minHeight, textAlignVertical: "top" }, input.style]}
-          className="text-base text-bone"
+          className="text-base text-foreground"
         />
       </View>
       {showCounter && maxLength ? (

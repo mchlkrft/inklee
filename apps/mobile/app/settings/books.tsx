@@ -101,9 +101,9 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
       >
-        <View className="mb-4 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-4">
+        <View className="mb-4 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4">
           <View className="flex-1 pr-3">
-            <Text className="text-base font-semibold text-bone">
+            <Text className="text-base font-semibold text-foreground">
               {open ? "Open for requests" : "Closed"}
             </Text>
             <Text className="mt-0.5 text-sm text-shell-dim">
@@ -132,7 +132,7 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
 
         {!open ? (
           <>
-            <Text className="mb-1.5 text-sm font-medium text-bone">
+            <Text className="mb-1.5 text-sm font-medium text-foreground">
               Closed message (optional)
             </Text>
             <TextArea

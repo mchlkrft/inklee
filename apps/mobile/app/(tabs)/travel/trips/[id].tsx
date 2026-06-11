@@ -36,7 +36,7 @@ function invalidateTravel(client: QueryClient) {
 }
 
 function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-bone">{children}</Text>;
+  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
 }
 
 export default function TripScreen() {
@@ -247,9 +247,9 @@ function ShowToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] px-4 py-3">
+    <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
       <View className="flex-1 pr-3">
-        <Text className="text-base text-bone">Show on booking form</Text>
+        <Text className="text-base text-foreground">Show on booking form</Text>
         <Text className="mt-0.5 text-sm text-shell-dim">
           Let clients pick this trip when they book.
         </Text>
@@ -289,10 +289,10 @@ function LegRow({
   }
 
   return (
-    <View className="rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-3">
+    <View className="rounded-2xl border border-shell-border bg-glass p-3">
       <View className="flex-row items-center justify-between">
         <View className="flex-1 pr-2">
-          <Text className="text-base font-medium text-bone">
+          <Text className="text-base font-medium text-foreground">
             {formatDateRange(leg.startsOn, leg.endsOn)}
           </Text>
           <Text className="mt-0.5 text-sm text-shell-dim">
@@ -373,7 +373,7 @@ function AddLeg({
 
   return (
     <View className="rounded-2xl border border-shell-border p-4">
-      <Text className="mb-3 text-sm font-medium text-bone">Add a stop</Text>
+      <Text className="mb-3 text-sm font-medium text-foreground">Add a stop</Text>
       <TextField
         label="Start date"
         value={startsOn}

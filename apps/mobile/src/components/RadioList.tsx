@@ -31,7 +31,7 @@ export function RadioList<T extends string>({
           >
             <Text
               className={`flex-1 pr-3 text-base ${
-                selected ? "text-bone" : "text-shell-dim"
+                selected ? "text-foreground" : "text-shell-dim"
               }`}
             >
               {o.label}

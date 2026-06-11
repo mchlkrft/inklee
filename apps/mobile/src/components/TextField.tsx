@@ -34,7 +34,7 @@ export function TextField({
   return (
     <View className="mb-3">
       {label ? (
-        <Text className="mb-1.5 text-sm font-medium text-bone">{label}</Text>
+        <Text className="mb-1.5 text-sm font-medium text-foreground">{label}</Text>
       ) : null}
       <View
         className={`h-12 flex-row items-center rounded-xl border-brand px-4 ${borderColor}`}
@@ -50,7 +50,7 @@ export function TextField({
             onBlur?.(e);
           }}
           placeholderTextColor={colors.shell.mute}
-          className="h-full flex-1 text-base text-bone"
+          className="h-full flex-1 text-base text-foreground"
         />
         {rightSlot ? <View className="pl-2">{rightSlot}</View> : null}
       </View>

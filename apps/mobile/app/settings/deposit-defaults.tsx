@@ -129,7 +129,7 @@ function DepositForm({ initial }: { initial: DepositDefaults }) {
           keyboardType="number-pad"
         />
 
-        <Text className="mb-1.5 text-sm font-medium text-bone">
+        <Text className="mb-1.5 text-sm font-medium text-foreground">
           Note to client (optional)
         </Text>
         <TextArea

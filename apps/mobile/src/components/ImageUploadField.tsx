@@ -94,7 +94,7 @@ export function ImageUploadField({
         ) : (
           <View
             style={{ width: size, height: size, borderRadius: radius }}
-            className="items-center justify-center border border-shell-border bg-[rgba(229,225,213,0.04)]"
+            className="items-center justify-center border border-shell-border bg-glass"
           >
             <Ionicons
               name="camera-outline"

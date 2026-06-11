@@ -24,7 +24,7 @@ function BookingRow({ b }: { b: MobileHomeBooking }) {
   return (
     <View className="mb-2">
       <Card>
-        <Text className="text-base font-semibold text-bone">{b.client}</Text>
+        <Text className="text-base font-semibold text-foreground">{b.client}</Text>
         <Text className="mt-0.5 text-sm text-shell-dim">
           {[b.placement, b.preferredDate].filter(Boolean).join(" · ") ||
             "No details yet"}
@@ -51,7 +51,7 @@ export default function HomeScreen() {
           />
         }
       >
-        <Text className="pt-2 text-2xl font-bold text-bone">
+        <Text className="pt-2 text-2xl font-bold text-foreground">
           {data?.displayName ? `Hi, ${data.displayName}` : "Home"}
         </Text>
         {data ? (
@@ -77,7 +77,7 @@ export default function HomeScreen() {
               </View>
             </Card>
 
-            <Text className="mb-2 mt-6 text-base font-semibold text-bone">
+            <Text className="mb-2 mt-6 text-base font-semibold text-foreground">
               Needs a reply
             </Text>
             {data.pending.length ? (
@@ -86,7 +86,7 @@ export default function HomeScreen() {
               <EmptyState title="No pending requests" />
             )}
 
-            <Text className="mb-2 mt-6 text-base font-semibold text-bone">
+            <Text className="mb-2 mt-6 text-base font-semibold text-foreground">
               Upcoming
             </Text>
             {data.upcoming.length ? (

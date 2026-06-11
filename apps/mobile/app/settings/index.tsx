@@ -146,7 +146,7 @@ export default function SettingsHubScreen() {
               </View>
             )}
             <View className="flex-1">
-              <Text className="text-lg font-semibold text-bone">{name}</Text>
+              <Text className="text-lg font-semibold text-foreground">{name}</Text>
               {subline ? (
                 <Text className="text-sm text-shell-dim" numberOfLines={1}>
                   {subline}

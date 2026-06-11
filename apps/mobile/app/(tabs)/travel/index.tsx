@@ -51,11 +51,11 @@ export default function TripsList() {
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push("/travel/studios")}
-            className="flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-4 active:opacity-80"
+            className="flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
           >
             <View className="flex-row items-center gap-2">
               <Ionicons name="business-outline" size={18} color={colors.mustard} />
-              <Text className="text-base font-semibold text-bone">Studios</Text>
+              <Text className="text-base font-semibold text-foreground">Studios</Text>
             </View>
             <Ionicons
               name="chevron-forward"
@@ -100,11 +100,11 @@ function TripRow({ trip, onPress }: { trip: MobileTrip; onPress: () => void }) {
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-4 active:opacity-80"
+      className="rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
     >
       <View className="flex-row items-center justify-between">
         <Text
-          className="flex-1 pr-2 text-base font-semibold text-bone"
+          className="flex-1 pr-2 text-base font-semibold text-foreground"
           numberOfLines={1}
         >
           {trip.title}

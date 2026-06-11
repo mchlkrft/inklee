@@ -92,11 +92,11 @@ function StudioRowView({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-4 active:opacity-80"
+      className="rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
     >
       <View className="flex-row items-center justify-between">
         <Text
-          className="flex-1 pr-2 text-base font-semibold text-bone"
+          className="flex-1 pr-2 text-base font-semibold text-foreground"
           numberOfLines={1}
         >
           {studio.name}

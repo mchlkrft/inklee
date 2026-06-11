@@ -24,7 +24,7 @@ export default function BookingDetailScreen() {
 
   if (!data) {
     return (
-      <View className="flex-1 items-center justify-center bg-charcoal px-5">
+      <View className="flex-1 items-center justify-center bg-background px-5">
         {loading ? (
           <ActivityIndicator color={colors.mustard} />
         ) : (
@@ -38,7 +38,7 @@ export default function BookingDetailScreen() {
               onPress={refresh}
               className="mt-2 h-11 items-center justify-center rounded-xl border border-shell-border px-5 active:opacity-80"
             >
-              <Text className="text-sm font-semibold text-bone">Try again</Text>
+              <Text className="text-sm font-semibold text-foreground">Try again</Text>
             </Pressable>
           </View>
         )}
@@ -51,7 +51,7 @@ export default function BookingDetailScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-charcoal"
+      className="flex-1 bg-background"
       contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
       // Deposit-form inputs sit low in this scroll view; let taps on the
@@ -68,7 +68,7 @@ export default function BookingDetailScreen() {
       }
     >
       <View className="mb-1 flex-row items-start justify-between gap-3">
-        <Text className="flex-1 text-2xl font-bold text-bone">{b.client}</Text>
+        <Text className="flex-1 text-2xl font-bold text-foreground">{b.client}</Text>
         <StatusPill status={b.status} />
       </View>
       <Text className="mb-6 text-xs text-shell-dim">
@@ -176,7 +176,7 @@ function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <View>
       <Text className="text-xs text-shell-mute">{label}</Text>
-      <Text className="mt-0.5 text-sm text-bone">
+      <Text className="mt-0.5 text-sm text-foreground">
         {value && value.trim() ? value : "—"}
       </Text>
     </View>

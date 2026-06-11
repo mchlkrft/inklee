@@ -27,7 +27,7 @@ function ClientRow({
       <Card onPress={onPress}>
         <View className="mb-1.5 flex-row items-center justify-between">
           <View className="flex-1 pr-2">
-            <Text className="text-base font-semibold text-bone">{label}</Text>
+            <Text className="text-base font-semibold text-foreground">{label}</Text>
             {showEmail ? (
               <Text className="text-sm text-shell-dim">{item.email}</Text>
             ) : null}
@@ -73,7 +73,7 @@ export default function ClientsScreen() {
         autoCorrect={false}
         returnKeyType="search"
         accessibilityLabel="Search clients"
-        className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-bone"
+        className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
       />
       <FlatList
         data={filtered}

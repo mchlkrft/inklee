@@ -146,7 +146,7 @@ export default function PayoutsScreen() {
               {payouts.country ? (
                 <View className="flex-row justify-between">
                   <Text className="text-sm text-shell-dim">Country</Text>
-                  <Text className="text-sm text-bone">{payouts.country}</Text>
+                  <Text className="text-sm text-foreground">{payouts.country}</Text>
                 </View>
               ) : null}
             </View>

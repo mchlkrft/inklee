@@ -72,7 +72,7 @@ export default function NotificationsScreen() {
   const hasUnread = (data?.unread ?? 0) > 0;
 
   return (
-    <View className="flex-1 bg-charcoal">
+    <View className="flex-1 bg-background">
       {/* "Mark all read" lives in the native header — standard placement, big
           target, and no list reflow when it disappears. */}
       <Stack.Screen
@@ -152,7 +152,7 @@ function NotificationRow({
               className={`text-base ${
                 n.is_read
                   ? "font-medium text-shell-dim"
-                  : "font-semibold text-bone"
+                  : "font-semibold text-foreground"
               }`}
             >
               {n.title}

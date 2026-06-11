@@ -49,11 +49,11 @@ export default function FlashItemsList() {
       <Pressable
         accessibilityRole="button"
         onPress={() => router.push("/flash/days")}
-        className="mb-1 mt-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-4 active:opacity-80"
+        className="mb-1 mt-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
       >
         <View className="flex-row items-center gap-2">
           <Ionicons name="calendar-outline" size={18} color={colors.mustard} />
-          <Text className="text-base font-semibold text-bone">Flash days</Text>
+          <Text className="text-base font-semibold text-foreground">Flash days</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />
       </Pressable>
@@ -98,7 +98,7 @@ function FlashItemRow({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-3 active:opacity-80"
+      className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-glass p-3 active:opacity-80"
     >
       {item.previewImageUrl ? (
         <Image
@@ -113,7 +113,7 @@ function FlashItemRow({
         </View>
       )}
       <View className="flex-1">
-        <Text className="text-base font-semibold text-bone" numberOfLines={1}>
+        <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
           {item.title}
         </Text>
         <Text className="mt-0.5 text-sm text-shell-dim">

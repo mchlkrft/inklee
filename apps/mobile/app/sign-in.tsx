@@ -29,7 +29,7 @@ export default function SignIn() {
   return (
     <Screen>
       <View className="flex-1 justify-center">
-        <Text className="text-3xl font-bold text-bone">Inklee</Text>
+        <Text className="text-3xl font-bold text-foreground">Inklee</Text>
         <Text className="mt-1 mb-8 text-base text-shell-dim">
           Sign in to your artist account.
         </Text>
@@ -42,7 +42,7 @@ export default function SignIn() {
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
-          className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-bone"
+          className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
         />
         <TextInput
           value={password}
@@ -51,7 +51,7 @@ export default function SignIn() {
           placeholderTextColor="rgba(229,225,213,0.32)"
           secureTextEntry
           autoComplete="current-password"
-          className="mb-4 h-12 rounded-xl border border-shell-border px-4 text-bone"
+          className="mb-4 h-12 rounded-xl border border-shell-border px-4 text-foreground"
         />
 
         {error ? (

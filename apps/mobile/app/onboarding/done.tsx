@@ -71,7 +71,7 @@ export default function YoureLive() {
                 onPress={me.refresh}
                 className="mt-5 h-11 items-center justify-center rounded-xl border border-shell-border px-6 active:opacity-80"
               >
-                <Text className="text-sm font-semibold text-bone">
+                <Text className="text-sm font-semibold text-foreground">
                   Try again
                 </Text>
               </Pressable>
@@ -111,7 +111,7 @@ export default function YoureLive() {
           </View>
         </View>
 
-        <Text className="text-center text-2xl font-bold text-bone">
+        <Text className="text-center text-2xl font-bold text-foreground">
           {isFixedSlots ? "Your link is claimed" : "You're live"}
         </Text>
         <Text className="mt-2 text-center text-base text-shell-dim">
@@ -123,14 +123,14 @@ export default function YoureLive() {
         </Text>
 
         {/* The link */}
-        <View className="mt-7 rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] p-4">
+        <View className="mt-7 rounded-2xl border border-shell-border bg-glass p-4">
           <View className="flex-row items-center gap-2">
             <Ionicons name="link" size={15} color={colors.shell.mute} />
             <Text className="text-xs uppercase tracking-widest text-shell-mute">
               Your booking link
             </Text>
           </View>
-          <Text className="mt-2 font-semibold text-bone">{host}</Text>
+          <Text className="mt-2 font-semibold text-foreground">{host}</Text>
 
           <View className="mt-4 flex-row items-center gap-2">
             <View

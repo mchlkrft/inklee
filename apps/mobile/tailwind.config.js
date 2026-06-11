@@ -3,9 +3,14 @@
 module.exports = {
   content: ["./app/**/*.{js,ts,tsx}", "./src/**/*.{js,ts,tsx}"],
   presets: [require("nativewind/preset")],
+  // MB-12: class-based dark mode. The ThemeProvider (src/lib/theme.tsx) flips the
+  // active color scheme via NativeWind, which toggles the `.dark` selector that
+  // re-binds the CSS variables defined in global.css.
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
+        // Brand atoms — theme-INDEPENDENT (identical in light + dark).
         mustard: "#e9b22b",
         rosa: "#db88b9",
         charcoal: "#1e1e1e",
@@ -13,14 +18,30 @@ module.exports = {
         cobalt: "#0b3d9f",
         danger: "#cf2e2c",
         success: "#105f2d",
+        // Semantic tokens — resolve to the CSS variables in global.css, so every
+        // `bg-background`/`text-foreground`/`border-border`/… follows the theme.
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+        card: "var(--card)",
+        "card-elevated": "var(--card-elevated)",
+        muted: "var(--muted)",
+        "muted-foreground": "var(--muted-foreground)",
+        "subtle-foreground": "var(--subtle-foreground)",
+        border: "var(--border)",
+        hover: "var(--hover)",
+        glass: "var(--glass)",
+        chrome: "var(--chrome)",
+        // Back-compat: the original dark-only `shell.*` scale now points at the
+        // theme variables, so every existing `text-shell-dim`/`border-shell-border`
+        // class themes automatically without a code change.
         shell: {
-          bg: "#1e1e1e",
-          fg: "#e5e1d5",
-          dim: "rgba(229,225,213,0.55)",
-          mute: "rgba(229,225,213,0.32)",
-          border: "rgba(229,225,213,0.18)",
-          hover: "rgba(229,225,213,0.12)",
-          hoverStrong: "rgba(229,225,213,0.20)",
+          bg: "var(--background)",
+          fg: "var(--foreground)",
+          dim: "var(--muted-foreground)",
+          mute: "var(--subtle-foreground)",
+          border: "var(--border)",
+          hover: "var(--hover)",
+          hoverStrong: "var(--hover-strong)",
         },
       },
       // The signature 1.5px border motif (plan §3.3). Use `border-brand` on every

@@ -103,11 +103,11 @@ export default function DeleteAccountScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-charcoal"
+      className="flex-1 bg-background"
       contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
       keyboardShouldPersistTaps="handled"
     >
-      <Text className="text-xl font-bold text-bone">Delete your account</Text>
+      <Text className="text-xl font-bold text-foreground">Delete your account</Text>
       <Text className="mt-3 text-sm text-shell-dim">
         This permanently deletes your Inklee account — your booking history,
         client data, uploaded photos, and your public page. This cannot be
@@ -134,7 +134,7 @@ export default function DeleteAccountScreen() {
             autoCapitalize="none"
             placeholder="Your password"
             placeholderTextColor="rgba(229,225,213,0.32)"
-            className="h-12 rounded-xl border border-shell-border px-4 text-bone"
+            className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
           />
           <Button
             label="Confirm"
@@ -175,7 +175,7 @@ export default function DeleteAccountScreen() {
         placeholder="DELETE"
         placeholderTextColor="rgba(229,225,213,0.32)"
         accessibilityLabel="Type DELETE to confirm account deletion"
-        className="h-12 rounded-xl border border-shell-border px-4 text-bone"
+        className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
       />
 
       {error ? <Text className="mt-3 text-sm text-danger">{error}</Text> : null}

@@ -3,12 +3,12 @@ import { Pressable, View } from "react-native";
 
 type CardProps = { children: ReactNode; onPress?: () => void };
 
-// Bone-tinted surface on the charcoal shell. Tappable when onPress is given.
+// Themed surface card. Tappable when onPress is given.
 // MB-2: web Card parity — 20px radius (rounded-card), 20px padding (p-5), and
-// the signature 1.5px border (border-brand). API unchanged.
+// the signature 1.5px border (border-brand). MB-12: themed `bg-card` surface.
 export function Card({ children, onPress }: CardProps) {
   const className =
-    "rounded-card border-brand border-shell-border bg-[rgba(229,225,213,0.04)] p-5";
+    "rounded-card border-brand border-shell-border bg-card p-5";
   if (onPress) {
     return (
       <Pressable

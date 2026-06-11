@@ -141,7 +141,7 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
           <Text className="text-xs font-semibold uppercase tracking-widest text-shell-dim">
             {slide.eyebrow}
           </Text>
-          <Text className="text-2xl font-bold text-bone">{slide.title}</Text>
+          <Text className="text-2xl font-bold text-foreground">{slide.title}</Text>
           <Text className="text-base leading-relaxed text-shell-dim">
             {slide.body}
           </Text>

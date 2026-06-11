@@ -20,7 +20,7 @@ export function EmptyState({
           <Icon size={22} color={colors.shell.dim} strokeWidth={1.8} />
         </View>
       ) : null}
-      <Text className="text-center text-base font-semibold text-bone">
+      <Text className="text-center text-base font-semibold text-foreground">
         {title}
       </Text>
       {subtitle ? (

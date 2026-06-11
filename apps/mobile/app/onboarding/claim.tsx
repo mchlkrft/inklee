@@ -193,7 +193,7 @@ export default function ClaimLink() {
         </Pressable>
 
         <View className="pb-6 pt-2">
-          <Text className="text-2xl font-bold text-bone">
+          <Text className="text-2xl font-bold text-foreground">
             Claim your booking link
           </Text>
           <Text className="mt-1 text-base text-shell-dim">

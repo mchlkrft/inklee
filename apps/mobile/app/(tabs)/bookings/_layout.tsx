@@ -23,7 +23,7 @@ export default function BookingsLayout() {
   const router = useRouter();
 
   return (
-    <View className="flex-1 bg-charcoal">
+    <View className="flex-1 bg-background">
       <TopBar />
       <View className="px-5">
         <PageHeader title="Bookings" />

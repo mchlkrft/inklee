@@ -26,7 +26,7 @@ function RequestCard({
     <View className="mb-2">
       <Card onPress={onPress}>
         <View className="mb-1.5 flex-row items-center justify-between">
-          <Text className="flex-1 pr-2 text-base font-semibold text-bone">
+          <Text className="flex-1 pr-2 text-base font-semibold text-foreground">
             {b.client}
           </Text>
           <StatusPill status={b.status} />

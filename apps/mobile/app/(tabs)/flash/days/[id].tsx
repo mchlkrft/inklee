@@ -24,7 +24,7 @@ import { colors } from "@/lib/tokens";
 type DayStatus = (typeof DAY_STATUS_OPTIONS)[number]["value"];
 
 function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-bone">{children}</Text>;
+  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
 }
 
 export default function FlashDayForm() {
@@ -154,9 +154,9 @@ function DayForm({
         <Label>Status</Label>
         <Segmented options={DAY_STATUS_OPTIONS} value={status} onChange={setStatus} />
 
-        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-[rgba(229,225,213,0.04)] px-4 py-3">
+        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
           <View className="flex-1 pr-3">
-            <Text className="text-base text-bone">Public page</Text>
+            <Text className="text-base text-foreground">Public page</Text>
             <Text className="mt-0.5 text-sm text-shell-dim">
               Show this day at your public flash page.
             </Text>

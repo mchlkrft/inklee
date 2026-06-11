@@ -1,3 +1,40 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* MB-12 theme system — semantic tokens mirroring apps/web globals.css, themed for
+   light (:root, the web "bone workspace") and dark (.dark, the current shell).
+   NativeWind toggles the `.dark` class off the active color scheme (darkMode:
+   'class' in tailwind.config.js), driven by the ThemeProvider (src/lib/theme.tsx).
+   Brand atoms (mustard/rosa/cobalt/danger/success/charcoal/bone) stay literal in
+   the config — only neutral surfaces/text flip between themes. Keep in sync with
+   the `palettes` map in src/lib/theme.tsx (inline-style consumers read from there). */
+:root {
+  --background: #e5e1d5;
+  --foreground: #1e1e1e;
+  --card: #d9d4c7;
+  --card-elevated: #cdc7b6;
+  --muted: #d9d4c7;
+  --muted-foreground: rgba(30, 30, 30, 0.6);
+  --subtle-foreground: rgba(30, 30, 30, 0.4);
+  --border: rgba(30, 30, 30, 0.18);
+  --hover: rgba(30, 30, 30, 0.06);
+  --hover-strong: rgba(30, 30, 30, 0.1);
+  --glass: rgba(30, 30, 30, 0.05);
+  --chrome: #ece8dd;
+}
+
+.dark {
+  --background: #1e1e1e;
+  --foreground: #e5e1d5;
+  --card: #252525;
+  --card-elevated: #2d2d2d;
+  --muted: #252525;
+  --muted-foreground: rgba(229, 225, 213, 0.55);
+  --subtle-foreground: rgba(229, 225, 213, 0.32);
+  --border: rgba(229, 225, 213, 0.18);
+  --hover: rgba(229, 225, 213, 0.12);
+  --hover-strong: rgba(229, 225, 213, 0.2);
+  --glass: rgba(229, 225, 213, 0.04);
+  --chrome: rgba(229, 225, 213, 0.06);
+}
