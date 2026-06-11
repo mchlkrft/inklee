@@ -52,6 +52,27 @@ const markdownComponents: Components = {
   ),
   code: ({ children }) => <code className="text-foreground">{children}</code>,
   hr: () => <hr className="my-6 border-border" />,
+  // GFM tables (cookies, subprocessors). The wrapper scrolls horizontally on
+  // narrow viewports instead of clipping; min-w keeps columns readable there.
+  table: ({ children }) => (
+    <div className="overflow-x-auto rounded-md border border-border">
+      <table className="w-full min-w-[36rem] text-left text-xs">
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children }) => (
+    <thead className="border-b border-border">{children}</thead>
+  ),
+  tr: ({ children }) => (
+    <tr className="border-b border-border last:border-b-0">{children}</tr>
+  ),
+  th: ({ children }) => (
+    <th className="px-3 py-2 align-top font-medium text-foreground">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => <td className="px-3 py-2 align-top">{children}</td>,
 };
 
 export function LegalPageLayout({ doc }: { doc: LegalDoc }) {
