@@ -101,3 +101,68 @@ export async function GET(
   };
   return mobileOk(body);
 }
+
+// PATCH /api/mobile/bookings/:id — edit appointment fields (artist-authored or
+// any booking). Ports editAppointmentAction: updates handle/email/date +
+// placement/size/description in form_data, writes the audit row. RLS-scoped.
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireMobileUser(req);
+  if (!auth.ok) return mobileError(auth.status, auth.error);
+  const { userId, supabase } = auth;
+  const { id } = await params;
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return mobileError(400, "Invalid JSON body.");
+  }
+
+  const { data: booking } = await supabase
+    .from("booking_requests")
+    .select("artist_id, form_data")
+    .eq("id", id)
+    .single();
+  if (!booking || booking.artist_id !== userId) {
+    return mobileError(404, "Booking not found.", "not_found");
+  }
+  const fd = (booking.form_data ?? {}) as Record<string, string>;
+
+  const handle = String(raw.handle ?? "")
+    .replace(/^@/, "")
+    .trim();
+  const date = String(raw.date ?? "").trim();
+  const placement = String(raw.placement ?? "").trim();
+  const size = String(raw.size ?? "").trim();
+  const description = String(raw.description ?? "").trim();
+  const email = (raw.email ? String(raw.email).trim() : "") || null;
+
+  if (!handle) return mobileError(400, "Instagram handle is required.");
+  if (!date) return mobileError(400, "Date is required.");
+  if (!placement) return mobileError(400, "Placement is required.");
+  if (!size) return mobileError(400, "Size is required.");
+
+  const { error } = await supabase
+    .from("booking_requests")
+    .update({
+      customer_handle: handle,
+      customer_email: email,
+      preferred_date: date,
+      form_data: { ...fd, placement, size, description },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) return mobileError(500, error.message);
+
+  await supabase.from("audit_log").insert({
+    booking_id: id,
+    action: "booking_edited",
+    actor: userId,
+    details: { by: "artist" },
+  });
+
+  return mobileOk({ id });
+}

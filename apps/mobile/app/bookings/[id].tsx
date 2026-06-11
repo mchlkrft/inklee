@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { BookingActions } from "@/components/booking/BookingActions";
@@ -19,6 +19,7 @@ import { formatShortDate, relativeTime } from "@/lib/date";
 
 export default function BookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<BookingDetail>(`/bookings/${id}`);
 
@@ -71,9 +72,22 @@ export default function BookingDetailScreen() {
         <Text className="flex-1 text-2xl font-bold text-foreground">{b.client}</Text>
         <StatusPill status={b.status} />
       </View>
-      <Text className="mb-6 text-xs text-shell-dim">
-        Requested {relativeTime(b.createdAt)}
-      </Text>
+      <View className="mb-6 flex-row items-center justify-between">
+        <Text className="text-xs text-shell-dim">
+          Requested {relativeTime(b.createdAt)}
+        </Text>
+        {b.status === "approved" ? (
+          <Pressable
+            onPress={() => router.push(`/bookings/new?id=${b.id}`)}
+            hitSlop={8}
+            className="active:opacity-70"
+          >
+            <Text className="text-sm font-medium text-mustard">
+              Edit details
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {b.handle || b.email ? (
         <Section title="Client">

@@ -78,6 +78,23 @@ export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
   return json.data as T;
 }
 
+export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}/api/mobile${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(
+      json?.error?.message ?? `Request failed (${res.status})`,
+      res.status,
+      json?.error?.code ?? "error",
+    );
+  }
+  return json.data as T;
+}
+
 // Multipart upload (image picker → /api/mobile/.../image). No explicit
 // Content-Type so fetch sets the multipart boundary; the RN file descriptor
 // ({uri,name,type}) is what FormData expects on native.
