@@ -126,7 +126,7 @@ export default function WaitlistEntryScreen() {
       {/* Header: avatar initial + label + status, the client-detail language. */}
       <View className="flex-row items-center gap-4">
         <View className="h-16 w-16 items-center justify-center rounded-full bg-mustard/20">
-          <Text className="text-2xl font-bold text-mustard">
+          <Text className="text-2xl font-bold text-accent">
             {label.replace(/^@/, "").charAt(0).toUpperCase() || "·"}
           </Text>
         </View>

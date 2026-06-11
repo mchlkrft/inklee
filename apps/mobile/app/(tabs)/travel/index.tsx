@@ -1,5 +1,4 @@
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -61,7 +60,7 @@ export default function TripsList() {
           className="flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
         >
           <View className="flex-row items-center gap-2">
-            <Ionicons name="business-outline" size={18} color={colors.mustard} />
+            <Ionicons name="business-outline" size={18} color={colors.accent} />
             <Text className="text-base font-semibold text-foreground">Studios</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />

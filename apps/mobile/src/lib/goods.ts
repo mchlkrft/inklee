@@ -35,7 +35,7 @@ export function productStatusLabel(s: string): string {
 
 export function productStatusTone(s: string): string {
   if (s === "active") return "text-success";
-  if (s === "sold_out") return "text-mustard";
+  if (s === "sold_out") return "text-accent";
   return "text-shell-dim"; // hidden
 }
 

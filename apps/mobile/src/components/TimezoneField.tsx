@@ -56,7 +56,7 @@ export function TimezoneField({
           onPress={() => onChange(deviceTz!)}
           className="mt-2 active:opacity-70"
         >
-          <Text className="text-sm text-mustard">
+          <Text className="text-sm text-accent">
             Use this device&apos;s timezone ({deviceTz})
           </Text>
         </Pressable>
@@ -109,7 +109,7 @@ export function TimezoneField({
                     <Text
                       className={`text-base ${
                         selected
-                          ? "font-semibold text-mustard"
+                          ? "font-semibold text-accent"
                           : "text-foreground"
                       }`}
                     >
@@ -119,7 +119,7 @@ export function TimezoneField({
                       <Ionicons
                         name="checkmark"
                         size={18}
-                        color={c.mustard}
+                        color={c.accent}
                       />
                     ) : null}
                   </Pressable>

@@ -10,11 +10,12 @@ import {
 import { TextArea } from "@/components/TextArea";
 import { getCalendars } from "expo-localization";
 import * as WebBrowser from "expo-web-browser";
-import { ArrowUpRight } from "lucide-react-native";
+import { ArrowUpRight, Check, Slash } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MobileProfile } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
 import { TextField } from "@/components/TextField";
 import { ImageUploadField } from "@/components/ImageUploadField";
 import { CoverImageField } from "@/components/CoverImageField";
@@ -23,7 +24,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { config } from "@/lib/config";
-import { colors } from "@/lib/tokens";
+import { border, colors, tint } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 const BIO_MAX = 280;
@@ -31,7 +32,8 @@ const BIO_MAX = 280;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 // Brand swatches for the public-page cover (mirrors the web profile form's
-// COVER_COLORS; the ids are what sanitizeCoverColor accepts server-side).
+// COVER_COLORS; the ids are what sanitizeCoverColor accepts server-side and
+// they line up with the tint map, whose fg is the readable check color).
 const COVER_COLORS = [
   { id: "mustard", hex: "#e9b22b", label: "Mustard" },
   { id: "rosa", hex: "#db88b9", label: "Rosa" },
@@ -64,8 +66,19 @@ export default function EditProfile() {
   return <ProfileForm initial={q.data} />;
 }
 
+// Section header, matching the settings-hub idiom (account.tsx) at the
+// round-5 readable size.
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <Text className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-shell-mute">
+      {children}
+    </Text>
+  );
+}
+
 function ProfileForm({ initial }: { initial: MobileProfile }) {
   const queryClient = useQueryClient();
+  const themed = useColors();
 
   const [displayName, setDisplayName] = useState(initial.displayName ?? "");
   const [bio, setBio] = useState(initial.bio ?? "");
@@ -122,140 +135,151 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
       >
-        {previewUrl ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              void WebBrowser.openBrowserAsync(previewUrl);
-            }}
-            className="mb-3 flex-row items-center justify-center gap-1 active:opacity-70"
-          >
-            <Text className="text-sm font-medium text-mustard">
-              Preview public page
-            </Text>
-            <ArrowUpRight size={14} color={colors.mustard} />
-          </Pressable>
-        ) : null}
-
+        {/* Identity block: logo + the public address, centered — the standard
+            account-settings anchor (founder round 5 declutter). */}
         <ImageUploadField
           label="Logo"
           imageUrl={initial.logoUrl}
           endpoint="/settings/profile/logo"
           shape="circle"
           maxBytes={MAX_LOGO_BYTES}
-          hint="PNG, JPG, or WebP - max 2 MB - resized to 512x512"
           onUploaded={() => invalidateIdentity(queryClient)}
         />
+        {previewUrl ? (
+          <Pressable
+            accessibilityRole="button"
+            // Label-in-name: the spoken name starts with the visible URL text.
+            accessibilityLabel={`${previewUrl.replace(/^https?:\/\//, "")}, preview public page`}
+            onPress={() => {
+              void WebBrowser.openBrowserAsync(previewUrl);
+            }}
+            className="-mt-1 mb-1 flex-row items-center justify-center gap-1 px-6 active:opacity-70"
+          >
+            <Text
+              className="shrink text-sm font-medium text-accent"
+              numberOfLines={1}
+            >
+              {previewUrl.replace(/^https?:\/\//, "")}
+            </Text>
+            <ArrowUpRight size={14} color={themed.accent} />
+          </Pressable>
+        ) : null}
 
-        <Text className="mb-1.5 text-sm font-medium text-foreground">
-          Cover image
-        </Text>
-        <Text className="mb-1.5 text-xs text-shell-dim">
-          Shown behind your name on your public booking page. Falls back to
-          your cover color or charcoal.
-        </Text>
-        <CoverImageField
-          imageUrl={initial.coverImageUrl}
-          fallbackColor={coverHex}
-          onChanged={() => invalidateIdentity(queryClient)}
-        />
-
-        <Text className="mb-1.5 text-sm font-medium text-foreground">
-          Cover color
-        </Text>
-        <Text className="mb-1.5 text-xs text-shell-dim">
-          Used when no cover image is set.
-        </Text>
-        <View className="mb-4 flex-row flex-wrap items-center gap-2">
-          <CoverSwatch
-            label="None"
-            hex={colors.charcoal}
-            selected={coverColor === ""}
-            onPress={() => setCoverColor("")}
+        <SectionLabel>Profile</SectionLabel>
+        <Card>
+          <TextField
+            label="Artist / studio name"
+            value={displayName}
+            onChangeText={setDisplayName}
+            autoCapitalize="words"
           />
-          {COVER_COLORS.map((swatch) => (
+
+          <Text className="mb-1.5 text-sm font-medium text-foreground">
+            Bio
+          </Text>
+          <TextArea
+            value={bio}
+            onChangeText={setBio}
+            maxLength={BIO_MAX}
+            placeholder="A short line clients see on your page"
+            minHeight={72}
+            showCounter
+          />
+
+          <TextField
+            label="Instagram"
+            value={instagram}
+            onChangeText={setInstagram}
+            placeholder="yourhandle"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            leftSlot={<Text className="text-base text-shell-dim">@</Text>}
+          />
+          <TextField
+            label="Location"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Berlin, DE"
+            autoCapitalize="words"
+          />
+
+          <TimezoneField
+            value={timezone}
+            onChange={setTimezone}
+            deviceTz={deviceTz}
+          />
+        </Card>
+
+        <SectionLabel>Public page cover</SectionLabel>
+        <Card>
+          <CoverImageField
+            imageUrl={initial.coverImageUrl}
+            fallbackColor={coverHex}
+            onChanged={() => invalidateIdentity(queryClient)}
+          />
+          <View className="mt-1 flex-row flex-wrap items-center gap-3">
             <CoverSwatch
-              key={swatch.id}
-              label={swatch.label}
-              hex={swatch.hex}
-              selected={coverColor === swatch.id}
-              onPress={() => setCoverColor(swatch.id)}
+              label="No color"
+              hex={null}
+              fg={themed.bone}
+              selected={coverColor === ""}
+              onPress={() => setCoverColor("")}
             />
-          ))}
+            {COVER_COLORS.map((swatch) => (
+              <CoverSwatch
+                key={swatch.id}
+                label={swatch.label}
+                hex={swatch.hex}
+                fg={tint[swatch.id].fg}
+                selected={coverColor === swatch.id}
+                onPress={() => setCoverColor(swatch.id)}
+              />
+            ))}
+          </View>
+          <Text className="mt-3 text-sm text-shell-dim">
+            Shown behind your name on your public page. The color is used when
+            no image is set.
+          </Text>
+        </Card>
+
+        <View className="mt-6">
+          {error ? (
+            <Text className="mb-3 text-sm text-danger">{error}</Text>
+          ) : null}
+          {saved && !error ? (
+            <Text className="mb-3 text-sm text-success">Profile updated.</Text>
+          ) : null}
+
+          <Button
+            label="Save"
+            onPress={save}
+            loading={saving}
+            disabled={!displayName.trim()}
+          />
         </View>
-
-        <TextField
-          label="Artist / studio name"
-          value={displayName}
-          onChangeText={setDisplayName}
-          autoCapitalize="words"
-        />
-
-        <Text className="mb-1.5 text-sm font-medium text-foreground">Bio</Text>
-        <TextArea
-          value={bio}
-          onChangeText={setBio}
-          maxLength={BIO_MAX}
-          placeholder="A short line clients see on your page"
-          minHeight={72}
-          showCounter
-        />
-
-        <TextField
-          label="Instagram"
-          value={instagram}
-          onChangeText={setInstagram}
-          placeholder="yourhandle"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="off"
-          leftSlot={<Text className="text-base text-shell-dim">@</Text>}
-        />
-        <TextField
-          label="Location"
-          value={location}
-          onChangeText={setLocation}
-          placeholder="Berlin, DE"
-          autoCapitalize="words"
-        />
-
-        <TimezoneField
-          value={timezone}
-          onChange={setTimezone}
-          deviceTz={deviceTz}
-        />
-
-        {error ? (
-          <Text className="mb-3 text-sm text-danger">{error}</Text>
-        ) : null}
-        {saved && !error ? (
-          <Text className="mb-3 text-sm text-success">Profile updated.</Text>
-        ) : null}
-
-        <Button
-          label="Save"
-          onPress={save}
-          loading={saving}
-          disabled={!displayName.trim()}
-        />
       </ScrollView>
     </Screen>
   );
 }
 
-// One cover-color chip: a small color dot + label, filled when selected
-// (mirrors the web swatch buttons' active state: foreground fill + background
-// text).
+// One cover-color choice: a square color swatch (founder round 5; the old
+// named pills read as clutter). Selected = themed ring + check; the "no
+// color" square is hollow with a slash. Labels live on as accessibility names.
 function CoverSwatch({
   label,
   hex,
+  fg,
   selected,
   onPress,
 }: {
   label: string;
-  hex: string;
+  /** null = the "no color" swatch (transparent with a slash). */
+  hex: string | null;
+  /** Icon color that reads on the swatch fill. */
+  fg: string;
   selected: boolean;
   onPress: () => void;
 }) {
@@ -263,22 +287,31 @@ function CoverSwatch({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={`Cover color: ${label}`}
       accessibilityState={{ selected }}
       onPress={onPress}
-      className="h-9 flex-row items-center gap-2 rounded-full px-3 active:opacity-80"
-      style={
-        selected
-          ? { backgroundColor: themed.bone }
-          : { borderWidth: 1.5, borderColor: themed.shell.border }
-      }
+      className="h-12 w-12 items-center justify-center rounded-xl active:opacity-80"
+      style={{
+        padding: 2,
+        borderWidth: 2,
+        borderColor: selected ? themed.shell.fg : "transparent",
+      }}
     >
-      <View className="h-3 w-3 rounded-full" style={{ backgroundColor: hex }} />
-      <Text
-        className="text-xs font-medium"
-        style={{ color: selected ? themed.shell.bg : themed.shell.dim }}
+      <View
+        className="flex-1 items-center justify-center self-stretch rounded-lg"
+        style={{
+          backgroundColor: hex ?? "transparent",
+          // Hairline keeps the bone-adjacent swatches visible in light theme.
+          borderWidth: border.hairline,
+          borderColor: themed.shell.border,
+        }}
       >
-        {label}
-      </Text>
+        {selected ? (
+          <Check size={18} strokeWidth={3} color={hex ? fg : themed.shell.fg} />
+        ) : hex === null ? (
+          <Slash size={16} color={themed.shell.dim} />
+        ) : null}
+      </View>
     </Pressable>
   );
 }

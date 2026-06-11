@@ -175,7 +175,7 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
               hitSlop={8}
               className="active:opacity-70"
             >
-              <Text className="text-xs font-medium text-mustard">Clear</Text>
+              <Text className="text-xs font-medium text-accent">Clear</Text>
             </Pressable>
           ) : null}
         </View>

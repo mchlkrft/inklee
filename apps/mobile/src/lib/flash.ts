@@ -42,13 +42,13 @@ export function flashLabel(value: string): string {
   return LABELS[value] ?? value;
 }
 
-/** mustard = needs attention/in-progress, success = live, dim = inactive. */
+/** accent = needs attention/in-progress, success = live, dim = inactive. */
 export function flashStatusTone(status: string): string {
   if (status === "published" || status === "active") return "text-success";
   if (status === "archived" || status === "past" || status === "cancelled") {
     return "text-shell-dim";
   }
-  return "text-mustard"; // draft / upcoming
+  return "text-accent"; // draft / upcoming
 }
 
 export function formatFlashPrice(

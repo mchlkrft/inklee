@@ -129,13 +129,13 @@ export default function WaitlistScreen() {
               onPress={() => setFilter(f.key)}
               className={`h-11 flex-1 items-center justify-center rounded-xl border px-3 ${
                 active
-                  ? "border-mustard bg-mustard/15 active:opacity-80"
+                  ? "border-accent bg-mustard/15 active:opacity-80"
                   : "border-shell-border active:opacity-80"
               }`}
             >
               <Text
                 className={`text-sm font-semibold ${
-                  active ? "text-mustard" : "text-shell-dim"
+                  active ? "text-accent" : "text-shell-dim"
                 }`}
               >
                 {f.label}
@@ -158,7 +158,9 @@ export default function WaitlistScreen() {
             paddingHorizontal: 20,
             paddingTop: 12,
           }}
-          style={{ flexGrow: 0 }}
+          // flexShrink 0: see the bookings chip strip — without it the
+          // FlatList's flex basis squeezes this strip and clips the chips.
+          style={{ flexGrow: 0, flexShrink: 0 }}
         >
           <FilterChip
             label="All cities"

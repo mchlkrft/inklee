@@ -419,7 +419,7 @@ function DepositRequestForm({
           You&apos;ll collect this deposit directly (e.g. bank transfer, add
           details in the note) and mark it received.{" "}
           <Text
-            className="font-medium text-mustard"
+            className="font-medium text-accent"
             onPress={() => router.push("/settings/payouts")}
           >
             Connect Stripe in Settings

@@ -28,7 +28,7 @@ const STATUS: Record<string, { label: string; tone: string; help: string }> = {
   },
   pending: {
     label: "Pending review",
-    tone: "text-mustard",
+    tone: "text-accent",
     help: "Stripe is verifying your details. This can take a little while.",
   },
   active: {

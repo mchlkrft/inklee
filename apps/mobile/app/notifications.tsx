@@ -95,7 +95,7 @@ export default function NotificationsScreen() {
                 hitSlop={8}
                 className="active:opacity-70"
               >
-                <Text className="text-sm font-semibold text-mustard">
+                <Text className="text-sm font-semibold text-accent">
                   Mark all read
                 </Text>
               </Pressable>
@@ -152,7 +152,7 @@ const CATEGORY_ICON: Record<NotificationCategory, string> = {
 // Web PRIORITY_DOT (red/orange/blue/muted) mapped onto the brand palette.
 const PRIORITY_DOT: Record<NotificationPriority, string> = {
   critical: "bg-danger",
-  high: "bg-mustard",
+  high: "bg-accent",
   medium: "bg-cobalt",
   low: "bg-shell-mute",
 };
@@ -219,7 +219,7 @@ function NotificationRow({
               {formatShortDateTime(n.created_at)}
             </Text>
             {showCta ? (
-              <Text className="mt-2 text-sm font-semibold text-mustard">
+              <Text className="mt-2 text-sm font-semibold text-accent">
                 {n.cta_label}
               </Text>
             ) : null}

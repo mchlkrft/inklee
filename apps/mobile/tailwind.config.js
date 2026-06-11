@@ -31,6 +31,11 @@ module.exports = {
         hover: "var(--hover)",
         glass: "var(--glass)",
         chrome: "var(--chrome)",
+        // Readable accent for text/icons/borders on themed surfaces: mustard
+        // in dark, dark ochre in light (mustard text on bone fails contrast).
+        // No opacity modifiers (var-based); tint washes stay bg-mustard/N.
+        // Solid CTA fills stay bg-mustard + text-charcoal.
+        accent: "var(--accent)",
         // Back-compat: the original dark-only `shell.*` scale now points at the
         // theme variables, so every existing `text-shell-dim`/`border-shell-border`
         // class themes automatically without a code change.

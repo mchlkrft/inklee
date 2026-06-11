@@ -143,9 +143,10 @@ export function ImageUploadField({
         )}
         <View className="mt-2 h-5 items-center justify-center">
           {busy ? (
-            <ActivityIndicator color={colors.mustard} />
+            // Themed accent: a mustard spinner is near-invisible on bone.
+            <ActivityIndicator color={colors.accent} />
           ) : (
-            <Text className="text-sm font-medium text-mustard">
+            <Text className="text-sm font-medium text-accent">
               {localUrl ? "Change photo" : "Add photo"}
             </Text>
           )}

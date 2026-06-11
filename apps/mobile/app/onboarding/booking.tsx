@@ -12,7 +12,6 @@ import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
 import { apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 const MODES: { value: BookingMode; title: string; body: string }[] = [
@@ -67,7 +66,7 @@ function ThemedRadioIcon({ selected }: { selected: boolean }) {
     <Ionicons
       name={selected ? "radio-button-on" : "radio-button-off"}
       size={20}
-      color={selected ? colors.mustard : themed.shell.mute}
+      color={selected ? themed.accent : themed.shell.mute}
     />
   );
 }

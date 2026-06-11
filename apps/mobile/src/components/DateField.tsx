@@ -76,7 +76,7 @@ export function DateField({
             onPress={() => setShowIos(false)}
             className="items-end px-4 py-2 active:opacity-70"
           >
-            <Text className="font-medium text-mustard">Done</Text>
+            <Text className="font-medium text-accent">Done</Text>
           </Pressable>
         </View>
       ) : null}

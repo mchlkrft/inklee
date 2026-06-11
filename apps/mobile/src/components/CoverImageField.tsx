@@ -159,13 +159,11 @@ export function CoverImageField({
           </View>
         </View>
       </View>
+      {/* No standing format hint (founder round 5: less tiny explanation) —
+          the size/format caps surface through the error path when hit. */}
       {error ? (
-        <Text className="mt-1 text-xs text-danger">{error}</Text>
-      ) : (
-        <Text className="mt-1 text-xs text-shell-dim">
-          PNG, JPG, or WebP - max 4 MB - resized to 1600x600
-        </Text>
-      )}
+        <Text className="mt-1 text-sm text-danger">{error}</Text>
+      ) : null}
     </View>
   );
 }

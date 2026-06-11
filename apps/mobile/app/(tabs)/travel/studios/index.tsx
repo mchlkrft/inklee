@@ -102,7 +102,7 @@ function StudioRowView({
           {studio.name}
         </Text>
         {studio.isPrimary ? (
-          <Text className="text-xs font-medium text-mustard">Primary</Text>
+          <Text className="text-xs font-medium text-accent">Primary</Text>
         ) : null}
       </View>
       {place ? (

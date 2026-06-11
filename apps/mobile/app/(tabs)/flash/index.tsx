@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -75,12 +74,8 @@ export default function FlashItemsList() {
     <>
       <PageHeader title="Flash" />
       <View className="pt-2">
-        <Button
-          label="New design"
-          size="sm"
-          onPress={newDesign}
-          loading={creating}
-        />
+        {/* Full md-height CTA, matching the calendar's New appointment. */}
+        <Button label="New design" onPress={newDesign} loading={creating} />
       </View>
       <Pressable
         accessibilityRole="button"
@@ -88,7 +83,7 @@ export default function FlashItemsList() {
         className="mb-1 mt-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
       >
         <View className="flex-row items-center gap-2">
-          <Ionicons name="calendar-outline" size={18} color={colors.mustard} />
+          <Ionicons name="calendar-outline" size={18} color={colors.accent} />
           <Text className="text-base font-semibold text-foreground">Flash days</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />

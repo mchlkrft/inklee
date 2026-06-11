@@ -39,6 +39,11 @@ type Palette = {
   // Opaque elevated chrome (nav/top-bar pill). Opaque so Android `elevation`
   // casts a clean shadow instead of a solid-black artifact on a translucent bg.
   chrome: string;
+  // Readable accent for TEXT / ICONS / BORDERS on themed surfaces (founder
+  // round 5: mustard text on bone is unreadable). Mustard in dark; a darkened
+  // ochre in light that passes 4.5:1 on bone, card AND card-elevated. Solid
+  // fills keep bg-mustard + text-charcoal (charcoal on dark ochre would fail).
+  accent: string;
 };
 
 export const palettes: Record<Scheme, Palette> = {
@@ -55,6 +60,7 @@ export const palettes: Record<Scheme, Palette> = {
     hoverStrong: "rgba(30,30,30,0.1)",
     glass: "rgba(30,30,30,0.05)",
     chrome: "#ece8dd",
+    accent: "#6b4e00",
   },
   dark: {
     background: "#1e1e1e",
@@ -69,6 +75,7 @@ export const palettes: Record<Scheme, Palette> = {
     hoverStrong: "rgba(229,225,213,0.2)",
     glass: "rgba(229,225,213,0.04)",
     chrome: "#2a2a2a",
+    accent: "#e9b22b",
   },
 };
 
@@ -88,6 +95,7 @@ const toVars = (p: Palette) =>
     "--hover-strong": p.hoverStrong,
     "--glass": p.glass,
     "--chrome": p.chrome,
+    "--accent": p.accent,
   });
 
 const themeVars: Record<Scheme, ReturnType<typeof vars>> = {
@@ -198,6 +206,9 @@ export function useColors() {
   const c = useThemeColors();
   return {
     ...BRAND,
+    // Readable accent for inline icon/text colors on themed surfaces
+    // (text-accent's runtime twin). Mustard in dark, dark ochre in light.
+    accent: c.accent,
     bone: c.foreground,
     shell: {
       bg: c.background,

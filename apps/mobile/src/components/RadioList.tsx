@@ -40,7 +40,7 @@ export function RadioList<T extends string>({
             <Ionicons
               name={selected ? "radio-button-on" : "radio-button-off"}
               size={20}
-              color={selected ? colors.mustard : colors.shell.mute}
+              color={selected ? colors.accent : colors.shell.mute}
             />
           </Pressable>
         );

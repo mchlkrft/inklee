@@ -168,11 +168,16 @@ export default function RequestsScreen() {
         />
       </View>
       {filtersOpen ? (
+        // flexShrink 0 is load-bearing: RN ScrollViews default to flexShrink 1,
+        // and the FlatList's content-sized flex basis would otherwise squeeze
+        // this strip to a few px and clip the chips (founder round 5). The
+        // negative margin cancels Screen's px-5 (20px) so scrolling chips clip
+        // at the physical screen edge, not mid-screen.
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingBottom: 10 }}
-          style={{ flexGrow: 0 }}
+          contentContainerStyle={{ gap: 8, paddingBottom: 10, paddingHorizontal: 20 }}
+          style={{ flexGrow: 0, flexShrink: 0, marginHorizontal: -20 }}
         >
           {FILTERS.map((f) => (
             <FilterChip

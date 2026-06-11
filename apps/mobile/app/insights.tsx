@@ -52,13 +52,13 @@ export default function InsightsScreen() {
               onPress={() => setRange(r.key)}
               className={`h-11 flex-1 items-center justify-center rounded-xl border px-3 ${
                 active
-                  ? "border-mustard bg-mustard/15"
+                  ? "border-accent bg-mustard/15"
                   : "border-shell-border active:opacity-80"
               }`}
             >
               <Text
                 className={`text-sm font-semibold ${
-                  active ? "text-mustard" : "text-shell-dim"
+                  active ? "text-accent" : "text-shell-dim"
                 }`}
               >
                 {r.label}
@@ -140,7 +140,7 @@ function Metric({
   return (
     <View className="flex-1">
       <Card>
-        <Text className="text-2xl font-bold text-mustard">{value}</Text>
+        <Text className="text-2xl font-bold text-accent">{value}</Text>
         <Text className="mt-0.5 text-xs text-shell-dim">{label}</Text>
         {/* Always reserve the sub line so paired cards stay the same height. */}
         <Text

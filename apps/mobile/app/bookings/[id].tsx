@@ -85,7 +85,7 @@ export default function BookingDetailScreen() {
             hitSlop={8}
             className="active:opacity-70"
           >
-            <Text className="text-sm font-medium text-mustard">
+            <Text className="text-sm font-medium text-accent">
               Edit details
             </Text>
           </Pressable>
@@ -120,7 +120,7 @@ export default function BookingDetailScreen() {
                 <Text className="text-xs uppercase tracking-wide text-shell-mute">
                   Link
                 </Text>
-                <Text className="mt-0.5 text-sm text-mustard" numberOfLines={1}>
+                <Text className="mt-0.5 text-sm text-accent" numberOfLines={1}>
                   {b.referenceLink}
                 </Text>
               </Pressable>

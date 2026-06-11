@@ -38,7 +38,7 @@ const BASE = config.apiUrl;
 
 const PAYOUT_STATUS: Record<string, { label: string; tone: string }> = {
   unset: { label: "Not set up", tone: "text-shell-dim" },
-  pending: { label: "Pending review", tone: "text-mustard" },
+  pending: { label: "Pending review", tone: "text-accent" },
   active: { label: "Active", tone: "text-success" },
   restricted: { label: "Action needed", tone: "text-danger" },
   disabled: { label: "Disabled", tone: "text-danger" },
@@ -149,7 +149,7 @@ export default function SettingsHubScreen() {
               />
             ) : (
               <View className="h-12 w-12 items-center justify-center rounded-full bg-mustard/20">
-                <Text className="text-lg font-bold text-mustard">
+                <Text className="text-lg font-bold text-accent">
                   {name.charAt(0).toUpperCase() || "·"}
                 </Text>
               </View>
@@ -166,7 +166,7 @@ export default function SettingsHubScreen() {
 
           <View className="mt-3 flex-row gap-2">
             <View className="rounded-full bg-mustard/20 px-2.5 py-1">
-              <Text className="text-xs font-semibold text-mustard">
+              <Text className="text-xs font-semibold text-accent">
                 {me.plan} plan
               </Text>
             </View>

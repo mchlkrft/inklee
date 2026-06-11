@@ -60,7 +60,7 @@ export function MonthGrid(props: {
             const numberTone = isSelected
               ? "text-charcoal"
               : cell.isToday
-                ? "text-mustard"
+                ? "text-accent"
                 : cell.inMonth
                   ? "text-foreground"
                   : "text-shell-mute";
@@ -85,7 +85,7 @@ export function MonthGrid(props: {
                     isSelected
                       ? "bg-mustard"
                       : cell.isToday
-                        ? "border border-mustard active:bg-shell-mute/20"
+                        ? "border border-accent active:bg-shell-mute/20"
                         : "active:bg-shell-mute/20"
                   }`}
                   // Inline so the radius always renders on the active/today

@@ -27,19 +27,21 @@ function ClientRow({
   return (
     <View className="mb-2">
       <Card onPress={onPress}>
+        {/* Founder round 5: list rows read at a glance — 18/16/14 hierarchy
+            (the round-2 readability standard the client list never got). */}
         <View className="mb-1.5 flex-row items-center justify-between">
           <View className="flex-1 pr-2">
-            <Text className="text-base font-semibold text-foreground">{label}</Text>
+            <Text className="text-lg font-semibold text-foreground">{label}</Text>
             {showEmail ? (
-              <Text className="text-sm text-shell-dim">{item.email}</Text>
+              <Text className="text-base text-shell-dim">{item.email}</Text>
             ) : null}
           </View>
           <StatusPill status={item.latestStatus} />
         </View>
-        <Text className="text-sm text-shell-dim">
+        <Text className="text-base text-shell-dim">
           {item.bookingCount} booking{item.bookingCount === 1 ? "" : "s"}
         </Text>
-        <Text className="mt-1 text-xs text-shell-mute">
+        <Text className="mt-1 text-sm text-shell-dim">
           {relativeTime(item.lastBookingAt)}
         </Text>
       </Card>
@@ -76,10 +78,10 @@ export default function ClientsScreen() {
         autoCorrect={false}
         returnKeyType="search"
         accessibilityLabel="Search clients"
-        className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
+        className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-base text-foreground"
       />
       {items.length > 0 ? (
-        <Text className="mb-2 text-xs text-shell-mute">
+        <Text className="mb-2 text-sm text-shell-mute">
           {items.length} unique customer{items.length === 1 ? "" : "s"}
         </Text>
       ) : null}

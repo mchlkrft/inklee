@@ -170,10 +170,10 @@ export default function BookingFormScreen() {
 
         {form.isFixedSlotsWithoutSlots ? (
           <View className="mt-4 rounded-card border-brand border-mustard/40 bg-mustard/10 p-4">
-            <Text className="text-sm font-semibold text-mustard">
+            <Text className="text-sm font-semibold text-foreground">
               Your booking link will appear closed until you post slots
             </Text>
-            <Text className="mt-1 text-xs text-mustard">
+            <Text className="mt-1 text-xs text-foreground">
               You&apos;re in fixed-slots mode with no open slots. Add slots on
               the web before sharing.
             </Text>
@@ -209,7 +209,7 @@ export default function BookingFormScreen() {
               hitSlop={8}
               className="active:opacity-70"
             >
-              <Text className="text-label font-medium text-mustard">Edit</Text>
+              <Text className="text-label font-medium text-accent">Edit</Text>
             </Pressable>
           </View>
         </Card>

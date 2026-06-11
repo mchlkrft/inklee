@@ -108,7 +108,7 @@ export default function ClientDetailScreen() {
           + stat chips (founder: main information must be readable at a glance). */}
       <View className="flex-row items-center gap-4">
         <View className="h-16 w-16 items-center justify-center rounded-full bg-mustard/20">
-          <Text className="text-2xl font-bold text-mustard">
+          <Text className="text-2xl font-bold text-accent">
             {data.client.replace(/^@/, "").charAt(0).toUpperCase() || "·"}
           </Text>
         </View>
@@ -125,19 +125,19 @@ export default function ClientDetailScreen() {
       </View>
       <View className="mt-4 flex-row gap-2">
         <View className="rounded-full bg-glass px-3 py-1.5">
-          <Text className="text-sm font-semibold text-foreground">
+          <Text className="text-base font-semibold text-foreground">
             {data.bookingCount} booking{data.bookingCount === 1 ? "" : "s"}
           </Text>
         </View>
         <View className="rounded-full bg-success/15 px-3 py-1.5">
-          <Text className="text-sm font-semibold text-success">
+          <Text className="text-base font-semibold text-success">
             {approved} approved
           </Text>
         </View>
       </View>
 
       <View className="mt-6">
-        <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-shell-mute">
+        <Text className="mb-2 text-sm font-semibold uppercase tracking-wide text-shell-mute">
           Notes (private)
         </Text>
         <TextArea
@@ -150,7 +150,7 @@ export default function ClientDetailScreen() {
           minHeight={88}
         />
         {notesError ? (
-          <Text className="mb-2 text-xs text-danger">{notesError}</Text>
+          <Text className="mb-2 text-sm text-danger">{notesError}</Text>
         ) : null}
         <View className="flex-row items-center gap-3">
           <View className="w-32">
@@ -163,13 +163,13 @@ export default function ClientDetailScreen() {
             />
           </View>
           {notesSaved ? (
-            <Text className="text-xs text-success">Saved.</Text>
+            <Text className="text-sm text-success">Saved.</Text>
           ) : null}
         </View>
       </View>
 
       <View className="mt-6">
-        <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-shell-mute">
+        <Text className="mb-2 text-sm font-semibold uppercase tracking-wide text-shell-mute">
           Booking history
         </Text>
         <View className="gap-2">
@@ -190,16 +190,17 @@ function HistoryRow({ item }: { item: ClientHistoryItem }) {
 
   return (
     <Card onPress={() => router.push(`/bookings/${item.id}`)}>
+      {/* Founder round 5: history "table" one notch up — 20/16/16. */}
       <View className="mb-1 flex-row items-center justify-between gap-2">
-        <Text className="flex-1 text-lg font-semibold text-foreground">
+        <Text className="flex-1 text-title font-semibold text-foreground">
           {item.placement ?? "Tattoo request"}
         </Text>
         <StatusPill status={item.status} />
       </View>
       {item.size ? (
-        <Text className="text-base text-shell-dim">{item.size}</Text>
+        <Text className="text-body text-shell-dim">{item.size}</Text>
       ) : null}
-      <Text className="mt-1 text-sm text-shell-dim">
+      <Text className="mt-1 text-base text-shell-dim">
         {dateLabel} · submitted {relativeTime(item.createdAt)}
       </Text>
     </Card>
