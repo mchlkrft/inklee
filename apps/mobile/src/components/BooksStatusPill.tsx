@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 import { useApiQuery } from "@/lib/api";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import type { MobileMe } from "@inklee/shared/mobile-api";
 
 // Glanceable books-open/closed status in the top bar, mirroring the web top
@@ -10,6 +10,7 @@ import type { MobileMe } from "@inklee/shared/mobile-api";
 // fetch. The dot carries the state; the label keeps it unambiguous.
 export function BooksStatusPill() {
   const { data } = useApiQuery<MobileMe>("/me");
+  const colors = useColors();
   if (!data) return null;
   const open = data.booksOpen;
 
@@ -28,7 +29,7 @@ export function BooksStatusPill() {
           backgroundColor: open ? colors.mustard : colors.shell.mute,
         }}
       />
-      <Text className={`text-label ${open ? "text-bone" : "text-shell-dim"}`}>
+      <Text className={`text-label ${open ? "text-foreground" : "text-shell-dim"}`}>
         {open ? "Open" : "Closed"}
       </Text>
     </View>

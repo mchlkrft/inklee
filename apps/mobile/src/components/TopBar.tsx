@@ -5,26 +5,30 @@ import { Menu } from "lucide-react-native";
 import { NotificationBell } from "./NotificationBell";
 import { BooksStatusPill } from "./BooksStatusPill";
 import { AccountMenuSheet } from "./AccountMenuSheet";
-import { border, colors } from "@/lib/tokens";
+import { border } from "@/lib/tokens";
+import { useThemeColors } from "@/lib/theme";
 
-// The floating dark pill mounted as the tab navigator's custom header, mirroring
+// The floating themed pill mounted as the tab navigator's custom header, mirroring
 // the web mobile-top-bar.tsx: wordmark (left) + books-status pill, notification
-// bell, and the account-menu trigger (right). Rendered on a charcoal band so the
+// bell, and the account-menu trigger (right). Rendered on a themed band so the
 // faintly-elevated pill reads against the app canvas; the bar owns the top safe
-// area, so tab screens drop their own top edge (see Screen.tsx). The account
-// menu opens a bottom sheet — the native take on the web dropdown.
+// area, so tab screens drop their own top edge (see Screen.tsx). MB-13: themed +
+// slightly larger overall. The account menu opens from the top, near the trigger.
 export function TopBar() {
   const insets = useSafeAreaInsets();
+  const theme = useThemeColors();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <View style={{ backgroundColor: colors.charcoal, paddingTop: insets.top + 12 }}>
+    <View
+      style={{ backgroundColor: theme.background, paddingTop: insets.top + 12 }}
+    >
       <View
-        className="mx-3 mb-2 h-14 flex-row items-center justify-between rounded-full px-3"
+        className="mx-3 mb-2 h-16 flex-row items-center justify-between rounded-full px-4"
         style={{
-          backgroundColor: "rgba(229,225,213,0.06)",
+          backgroundColor: theme.chrome,
           borderWidth: border.hairline,
-          borderColor: colors.shell.border,
+          borderColor: theme.border,
           shadowColor: "#000",
           shadowOpacity: 0.3,
           shadowRadius: 12,
@@ -32,11 +36,11 @@ export function TopBar() {
           elevation: 8,
         }}
       >
-        <Text className="pl-1 text-title font-bold lowercase text-bone">
+        <Text className="pl-1 text-2xl font-bold lowercase text-foreground">
           inklee
         </Text>
 
-        <View className="flex-row items-center gap-2">
+        <View className="flex-row items-center gap-2.5">
           <BooksStatusPill />
           <NotificationBell />
           <Pressable
@@ -44,13 +48,13 @@ export function TopBar() {
             accessibilityLabel="Account menu"
             onPress={() => setMenuOpen(true)}
             hitSlop={8}
-            className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+            className="h-10 w-10 items-center justify-center rounded-full active:opacity-70"
             style={{
               borderWidth: border.hairline,
-              borderColor: colors.shell.border,
+              borderColor: theme.border,
             }}
           >
-            <Menu size={18} color={colors.bone} />
+            <Menu size={20} color={theme.foreground} />
           </Pressable>
         </View>
       </View>
