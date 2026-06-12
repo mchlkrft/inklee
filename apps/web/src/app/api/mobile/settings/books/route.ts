@@ -5,6 +5,7 @@ import {
 } from "@/lib/server/mobile-auth";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { normalizeBooksConfig } from "@/lib/mobile-settings";
+import { queryOpenSlotCount } from "@/lib/server/slots";
 import { writeAudit } from "@/lib/audit";
 import type { MobileBooksSettings } from "@inklee/shared/mobile-api";
 
@@ -20,28 +21,24 @@ export async function GET(req: Request) {
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
 
-  const [profileRes, slotsRes] = await Promise.all([
+  const [profileRes, slotCount] = await Promise.all([
     supabase
       .from("profiles")
       .select("settings, booking_mode")
       .eq("id", userId)
       .single(),
-    supabase
-      .from("slots")
-      .select("*", { count: "exact", head: true })
-      .eq("artist_id", userId)
-      .eq("status", "open"),
+    queryOpenSlotCount(supabase, userId),
   ]);
   if (profileRes.error || !profileRes.data) {
     return mobileError(500, profileRes.error?.message ?? "Profile not found.");
   }
-  if (slotsRes.error) return mobileError(500, slotsRes.error.message);
+  if ("error" in slotCount) return mobileError(500, slotCount.error);
   const settings = (profileRes.data.settings ?? {}) as Record<string, unknown>;
   const body: MobileBooksSettings = {
     ...parseBooksSettings(settings.books_settings),
     bookingMode:
       (profileRes.data.booking_mode as string | null) ?? "preferred_date",
-    openSlotCount: slotsRes.count ?? 0,
+    openSlotCount: slotCount.count,
   };
   return mobileOk(body);
 }

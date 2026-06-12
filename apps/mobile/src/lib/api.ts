@@ -276,6 +276,15 @@ export function invalidateBooksViews(client: QueryClient): Promise<void> {
   return invalidateByPathPrefix(client, BOOKS_VIEW_PREFIXES);
 }
 
+// Every view that reflects the slot inventory: the slots list itself plus the
+// two openSlotCount / isFixedSlotsWithoutSlots consumers (the booking-form
+// warning banner and the books screen's mode section).
+const SLOTS_VIEW_PREFIXES = ["/slots", "/booking-form", "/settings/books"];
+
+export function invalidateSlots(client: QueryClient): Promise<void> {
+  return invalidateByPathPrefix(client, SLOTS_VIEW_PREFIXES);
+}
+
 // Identity / onboarding-scoped views. `invalidateBookingViews` covers /home but
 // not /me — completing onboarding invalidates these so the root navigator's /me
 // gate re-reads `onboardingCompleted` and swaps the onboarding stack for the

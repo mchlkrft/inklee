@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   MobileMe,
@@ -22,6 +23,7 @@ import { useColors } from "@/lib/theme";
 
 export default function YoureLive() {
   const themed = useColors();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const me = useApiQuery<MobileMe>("/me");
   const [finishing, setFinishing] = useState(false);
@@ -29,8 +31,10 @@ export default function YoureLive() {
 
   // Completing flips settings.onboarding_completed so the root navigator's /me
   // gate swaps this stack for the tabs — no manual navigation, the same elegant
-  // pattern as the session gate.
-  async function finish() {
+  // pattern as the session gate. `next` routes onward AFTER the swap (the slots
+  // builder for fixed-slots artists): the gate flip is a synchronous cache
+  // write, so by the time the timer fires the onboarded tree is mounted.
+  async function finish(next?: string) {
     setFinishing(true);
     setError(null);
     try {
@@ -45,6 +49,9 @@ export default function YoureLive() {
         m ? { ...m, onboardingCompleted: true } : m,
       );
       void invalidateIdentity(queryClient);
+      if (next) {
+        setTimeout(() => router.push(next as never), 0);
+      }
       // This screen unmounts as the gate swaps to the tabs — keep the button in
       // its loading state until then rather than resetting `finishing`.
     } catch (e) {
@@ -115,7 +122,7 @@ export default function YoureLive() {
         </Text>
         <Text className="mt-2 text-center text-base text-shell-dim">
           {isFixedSlots
-            ? "Publish your slots on the web to start taking bookings."
+            ? "Publish your slots to start taking bookings."
             : booksOpen
               ? "Your page is open and ready for requests."
               : "Your page is set up. Tap the status pill up top to open your books whenever you're ready."}
@@ -145,9 +152,12 @@ export default function YoureLive() {
           <Button label="Share your link" onPress={shareLink} />
           {isFixedSlots ? (
             <Button
-              label="Publish slots on the web"
+              label="Publish slots"
               variant="secondary"
-              onPress={() => Linking.openURL(`${config.apiUrl}/bookings/settings`)}
+              loading={finishing}
+              onPress={() => {
+                void finish("/settings/slots/new");
+              }}
             />
           ) : (
             <Button
@@ -178,7 +188,9 @@ export default function YoureLive() {
         <View className="mt-auto pb-2">
           <Button
             label="Start using Inklee"
-            onPress={finish}
+            onPress={() => {
+              void finish();
+            }}
             loading={finishing}
           />
         </View>

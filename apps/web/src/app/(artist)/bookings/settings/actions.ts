@@ -1,11 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { serviceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { writeAudit } from "@/lib/audit";
 import { parseBooksSettings } from "@/lib/books-settings";
-import { createNotification } from "@/lib/notifications";
+import { fileNoSlotsWarning } from "@/lib/server/slots";
 
 type State = { error: string } | { success: true } | null;
 
@@ -92,33 +91,10 @@ export async function skipSlotSetupAction(): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Deduplicate — only create if no unresolved warning of this type exists
-  const { count } = await serviceClient
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("artist_id", user.id)
-    .eq("type", "system_warning")
-    .is("is_resolved", false)
-    .contains("metadata", { warning_type: "no_slots_warning" });
-
-  if ((count ?? 0) === 0) {
-    const notificationResult = await createNotification({
-      artistId: user.id,
-      type: "system_warning",
-      category: "system_warning",
-      priority: "high",
-      title: "No time slots set up yet",
-      message:
-        "Fixed slots mode is active but no time slots have been added. Clients cannot book until you create some slots.",
-      ctaLabel: "Set up slots",
-      ctaHref: "/bookings/settings",
-      isResolved: false,
-      metadata: { warning_type: "no_slots_warning" },
-    });
-    if (!notificationResult.ok) {
-      return { error: notificationResult.error };
-    }
-  }
+  // Deduped filing lives in the shared slot core (the mobile booking-mode
+  // route files through the same helper).
+  const result = await fileNoSlotsWarning(user.id);
+  if (!result.ok) return { error: result.error };
 
   return { success: true };
 }

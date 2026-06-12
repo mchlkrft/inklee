@@ -21,16 +21,27 @@ const STYLES: Record<string, string> = {
   contacted: "bg-brand-rosa text-brand-charcoal",
   converted: "bg-brand-green text-brand-bone",
   dismissed: "bg-brand-charcoal/10 text-brand-charcoal",
+  // Slot statuses (label via slotStatusLabel — pass the `label` prop)
+  open: "bg-brand-green text-brand-bone",
+  locked: "bg-brand-rosa text-brand-charcoal",
+  booked: "bg-brand-charcoal text-brand-bone",
 };
 
 const FALLBACK = "bg-brand-charcoal/10 text-brand-charcoal";
 
-export default function StatusBadge({ status }: { status: string }) {
+export default function StatusBadge({
+  status,
+  label,
+}: {
+  status: string;
+  /** Override for status families humanStatusLabel doesn't cover (slots). */
+  label?: string;
+}) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STYLES[status] ?? FALLBACK}`}
     >
-      {humanStatusLabel(status)}
+      {label ?? humanStatusLabel(status)}
     </span>
   );
 }

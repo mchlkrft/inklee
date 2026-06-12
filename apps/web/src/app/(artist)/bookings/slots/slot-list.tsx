@@ -2,6 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { deleteSlotAction } from "./actions";
+import { slotStatusLabel } from "@inklee/shared/status-labels";
 import StatusBadge from "@/components/status-badge";
 
 type Slot = {
@@ -48,7 +49,10 @@ export default function SlotList({ slots }: { slots: Slot[] }) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <StatusBadge status={slot.status} />
+            <StatusBadge
+              status={slot.status}
+              label={slotStatusLabel(slot.status)}
+            />
             {slot.status === "open" && (
               <button
                 onClick={() => handleDelete(slot.id)}

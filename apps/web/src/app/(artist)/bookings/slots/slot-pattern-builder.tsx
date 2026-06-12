@@ -3,33 +3,18 @@
 import TimeInput from "@/components/time-input";
 import DateInput from "@/components/date-input";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
+import { countDatesInRange, WEEKDAY_LABELS } from "@inklee/shared/slot-pattern";
 import { useState, startTransition } from "react";
 import { createSlotsFromPatternAction } from "./actions";
 
 type Window = { id: string; start: string; end: string };
 
-const DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+// The preview math (countDatesInRange) is the SAME shared function the server
+// expansion uses, so "Creates N slots" can never disagree with the insert.
+const DAYS = WEEKDAY_LABELS;
 
 function tomorrow() {
   return addDaysToDateKey(localDateKey(), 1);
-}
-
-function countDatesInRange(
-  from: string,
-  to: string,
-  weekdays: number[],
-): number {
-  if (!from || !to || to < from || weekdays.length === 0) return 0;
-  let count = 0;
-  const end = new Date(to + "T12:00:00Z");
-  for (
-    let d = new Date(from + "T12:00:00Z");
-    d <= end;
-    d.setDate(d.getDate() + 1)
-  ) {
-    if (weekdays.includes((d.getDay() + 6) % 7)) count++;
-  }
-  return count;
 }
 
 export default function SlotPatternBuilder({

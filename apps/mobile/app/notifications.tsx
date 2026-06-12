@@ -68,14 +68,20 @@ export default function NotificationsScreen() {
     }
     // Route via the booking id when present, else fall back to the web
     // cta_href mapped onto an in-app route — so warnings / client updates that
-    // carry only a cta no longer dead-end after marking read.
+    // carry only a cta no longer dead-end after marking read. The no-slots
+    // warning resolves to the native slots manager directly (its web cta_href
+    // points at the whole settings page).
     const bookingId =
       n.metadata && typeof n.metadata.booking_id === "string"
         ? n.metadata.booking_id
         : null;
+    const isNoSlotsWarning =
+      n.metadata && n.metadata.warning_type === "no_slots_warning";
     const target = bookingId
       ? `/bookings/${bookingId}`
-      : webHrefToRoute(n.cta_href);
+      : isNoSlotsWarning
+        ? "/settings/slots"
+        : webHrefToRoute(n.cta_href);
     if (target) router.push(target as never);
   }
 

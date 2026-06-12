@@ -19,7 +19,7 @@ import { useScreenView } from "@/lib/analytics";
 // selected day's agenda (web-calendar marker parity, ME-6). Tapping an
 // appointment opens the booking detail; guest-spot/flash rows open their
 // editors; the CTA below creates an artist-authored appointment
-// (/bookings/new). Slot publishing remains web-only.
+// (/bookings/new). Slot publishing lives in Settings > Time slots.
 export default function CalendarScreen() {
   useScreenView("calendar");
   const cal = useCalendarMonth();

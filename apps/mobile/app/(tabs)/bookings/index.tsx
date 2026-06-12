@@ -135,11 +135,14 @@ export default function RequestsScreen() {
   return (
     <Screen edges={["left", "right"]}>
       {/* Founder round 4: prominent big numbers for the booking pipeline.
-          Sourced from /bookings/stats (NOT the widget-gated /home counts). */}
+          Sourced from /bookings/stats (NOT the widget-gated /home counts).
+          While the filter strip is open the tiles compact into one-liners
+          ("26 pending") to win the header height back (founder round 8). */}
       <View className="flex-row gap-2 pt-1">
         <StatTile
           value={stats.data?.pendingCount ?? null}
           label="Pending"
+          compact={filtersOpen}
           onPress={() => {
             setStatus("pending");
             setFiltersOpen(true);
@@ -148,11 +151,13 @@ export default function RequestsScreen() {
         <StatTile
           value={stats.data?.upcomingCount ?? null}
           label="Upcoming"
+          compact={filtersOpen}
           onPress={() => router.replace("/bookings/calendar")}
         />
         <StatTile
           value={stats.data?.thisMonthCount ?? null}
           label="This month"
+          compact={filtersOpen}
         />
       </View>
 

@@ -19,6 +19,7 @@ import type {
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ModeCard } from "@/components/ModeCard";
+import { PillButton } from "@/components/PillButton";
 import { SectionLabel } from "@/components/SectionLabel";
 import { TextField } from "@/components/TextField";
 import { DateField } from "@/components/DateField";
@@ -262,18 +263,45 @@ function BooksForm({ initial }: { initial: MobileBooksSettings }) {
             onPress={() => setMode(m.value)}
           />
         ))}
-        {/* The app has no slot builder, so the web's post-save slot modal
-            becomes a pre-save inline warning (same copy as the booking-form
-            screen's banner). */}
+        {mode === "fixed_slots" ? (
+          <View className="mb-1 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4">
+            <View className="flex-1 pr-3">
+              <Text className="text-base font-semibold text-foreground">
+                Time slots
+              </Text>
+              <Text className="mt-0.5 text-sm text-shell-dim">
+                {initial.openSlotCount === 1
+                  ? "1 open slot"
+                  : `${initial.openSlotCount} open slots`}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => router.push("/settings/slots")}
+              hitSlop={8}
+              className="active:opacity-70"
+            >
+              <Text className="text-label font-medium text-accent">
+                Manage
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {/* Pre-save inline warning (instead of the web's post-save modal) with
+            a direct path into the native slot builder. */}
         {mode === "fixed_slots" && initial.openSlotCount === 0 ? (
-          <View className="mb-1 rounded-card border-brand border-mustard/40 bg-mustard/10 p-4">
+          <View className="mb-1 mt-2 rounded-card border-brand border-mustard/40 bg-mustard/10 p-4">
             <Text className="text-sm font-semibold text-foreground">
               Your booking link will appear closed until you post slots
             </Text>
             <Text className="mt-1 text-xs text-foreground">
-              Fixed-slots mode needs open slots. Add slots on the web before
-              sharing.
+              Fixed-slots mode needs open slots. Add slots before sharing.
             </Text>
+            <View className="mt-3 flex-row">
+              <PillButton
+                label="Add slots"
+                onPress={() => router.push("/settings/slots/new")}
+              />
+            </View>
           </View>
         ) : null}
 

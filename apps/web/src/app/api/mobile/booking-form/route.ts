@@ -9,6 +9,7 @@ import {
   type FormSettings,
 } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { queryOpenSlotCount } from "@/lib/server/slots";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import type {
@@ -153,7 +154,7 @@ export async function GET(req: Request) {
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
 
-  const [fieldsRes, profileRes, slotsRes] = await Promise.all([
+  const [fieldsRes, profileRes, slotCount] = await Promise.all([
     supabase
       .from("custom_fields")
       .select("*")
@@ -165,11 +166,7 @@ export async function GET(req: Request) {
       .select("slug, settings, timezone, booking_mode")
       .eq("id", userId)
       .single(),
-    supabase
-      .from("slots")
-      .select("*", { count: "exact", head: true })
-      .eq("artist_id", userId)
-      .eq("status", "open"),
+    queryOpenSlotCount(supabase, userId),
   ]);
   if (profileRes.error || !profileRes.data) {
     return mobileError(500, profileRes.error?.message ?? "Profile not found.");
@@ -178,7 +175,7 @@ export async function GET(req: Request) {
 
   const profile = profileRes.data;
   const customFields = (fieldsRes.data ?? []) as CustomFieldDef[];
-  const openSlotCount = slotsRes.count ?? 0;
+  const openSlotCount = "count" in slotCount ? slotCount.count : 0;
 
   const profileSettings = (profile.settings ?? {}) as Record<string, unknown>;
   const formSettings = parseFormSettings(profileSettings.form_settings);

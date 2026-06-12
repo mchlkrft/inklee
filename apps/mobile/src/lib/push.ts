@@ -73,7 +73,9 @@ export function webHrefToRoute(href: unknown): string | null {
   // Web booking detail -> mobile booking detail.
   const request = /^\/bookings\/requests\/([^/?#]+)$/.exec(href);
   if (request) return `/bookings/${request[1]}`;
-  // Web booking settings (slots / books warnings) -> mobile booking settings.
+  // Web booking settings (books warnings) -> mobile booking settings (which
+  // links on to the native slots manager). The no-slots warning routes to
+  // /settings/slots directly via its metadata in notifications.tsx.
   if (href === "/bookings/settings") return "/settings/books";
   if (PUSH_ROUTABLE_PREFIXES.some((p) => href === p || href.startsWith(p))) {
     return href;

@@ -23,7 +23,7 @@ const MODES: { value: BookingMode; title: string; body: string }[] = [
   {
     value: "fixed_slots",
     title: "Fixed slots",
-    body: "You publish specific time slots. Slots are set up on the web for now.",
+    body: "You publish specific time slots. Clients pick one.",
   },
 ];
 

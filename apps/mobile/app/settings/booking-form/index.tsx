@@ -279,9 +279,15 @@ export default function BookingFormScreen() {
               Your booking link will appear closed until you post slots
             </Text>
             <Text className="mt-1 text-xs text-foreground">
-              You&apos;re in fixed-slots mode with no open slots. Add slots on
-              the web before sharing.
+              You&apos;re in fixed-slots mode with no open slots. Add slots
+              before sharing.
             </Text>
+            <View className="mt-3 flex-row">
+              <PillButton
+                label="Add slots"
+                onPress={() => router.push("/settings/slots/new")}
+              />
+            </View>
           </View>
         ) : null}
 

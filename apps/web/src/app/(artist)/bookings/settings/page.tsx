@@ -3,6 +3,7 @@ import { CalendarDays, SlidersHorizontal, Clock, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
+import { listSlotsForArtist } from "@/lib/server/slots";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { IconChip } from "@/components/ui/card";
 import BookingModeForm from "./booking-mode-form";
@@ -27,14 +28,12 @@ export default async function BookingSettingsPage() {
   const profileSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
 
-  const { data: slots } = await supabase
-    .from("slots")
-    .select("id, starts_at, duration_minutes, status")
-    .eq("artist_id", user!.id)
-    .neq("status", "cancelled")
-    .order("starts_at", { ascending: true });
+  // Shared read (lib/server/slots.ts) — the mobile slots list uses the same
+  // query, so both platforms show the same rows.
+  const slotsResult = await listSlotsForArtist(supabase, user!.id);
+  const slots = "slots" in slotsResult ? slotsResult.slots : [];
 
-  const formattedSlots = (slots ?? []).map((s) => {
+  const formattedSlots = slots.map((s) => {
     const display = formatSlotDisplay(
       s.starts_at,
       s.duration_minutes,

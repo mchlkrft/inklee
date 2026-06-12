@@ -47,6 +47,15 @@ export function TopBar() {
   // The visible half spans the status inset plus a small tail.
   const lensVisible = insets.top + 8;
 
+  // Width breathes with the scroll: at rest the lens matches the nav pill's
+  // 12px side insets; as the bar slides out it widens until it touches the
+  // screen edges (the status readouts sat too tight against the rounded ends),
+  // and shrinks back to the pill width as the bar returns.
+  const lensWiden = useAnimatedStyle(() => {
+    const inset = 12 * (1 - topBarProgress.value);
+    return { left: inset, right: inset };
+  });
+
   // In light mode the status readouts render dark (on the bone band); over the
   // charcoal lens they must flip to light while the bar is hidden. Mounting a
   // StatusBar conditionally overrides the root ThemedStatusBar, and unmounting
@@ -64,24 +73,25 @@ export function TopBar() {
 
   return (
     <>
-      <View
+      <Animated.View
         pointerEvents="none"
-        style={{
-          position: "absolute",
-          top: -lensVisible,
-          left: 12,
-          right: 12,
-          height: lensVisible * 2,
-          zIndex: 39,
-          borderRadius: 999,
-          backgroundColor: chrome.bg,
-          borderWidth: border.hairline,
-          borderColor: chrome.border,
-          shadowColor: "#000",
-          shadowOpacity: 0.16,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 4 },
-        }}
+        style={[
+          {
+            position: "absolute",
+            top: -lensVisible,
+            height: lensVisible * 2,
+            zIndex: 39,
+            borderRadius: 999,
+            backgroundColor: chrome.bg,
+            borderWidth: border.hairline,
+            borderColor: chrome.border,
+            shadowColor: "#000",
+            shadowOpacity: 0.16,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+          },
+          lensWiden,
+        ]}
       />
       {focused && collapsed ? <StatusBar style="light" /> : null}
       <Animated.View

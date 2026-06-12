@@ -612,6 +612,39 @@ export type MobileBookingModeUpdate = {
   isFixedSlotsWithoutSlots: boolean;
 };
 
+/** One bookable time slot, display-ready: the server formats date/time labels
+ *  in the ARTIST'S profile timezone via the shared formatSlotDisplay (Hermes
+ *  iOS has no Intl, so the client never does timezone math). */
+export type MobileSlot = {
+  id: string;
+  /** ISO UTC instant, for reference/sorting. */
+  startsAt: string;
+  /** YYYY-MM-DD in the artist's timezone — the list's grouping key. */
+  dateKey: string;
+  /** e.g. "Thu 16 Jul 2026" (same formatting as the web slot list). */
+  dateLabel: string;
+  /** e.g. "14:00 (60 min)" (same formatting as the web slot list). */
+  timeLabel: string;
+  durationMinutes: number;
+  /** "open" | "locked" | "booked" — label via slotStatusLabel. Only open
+   *  slots can be deleted. */
+  status: string;
+};
+
+/** GET /api/mobile/slots — the artist's slot list + the timezone the labels
+ *  are rendered in. */
+export type MobileSlotsResponse = {
+  timezone: string;
+  items: MobileSlot[];
+};
+
+/** POST /api/mobile/slots/pattern — how many slots the pattern created.
+ *  The request body is the shared SlotPatternInput (@inklee/shared/slot-pattern),
+ *  validated server-side with the same validateSlotPattern the web action uses. */
+export type MobileSlotPatternResult = {
+  count: number;
+};
+
 /** GET /api/mobile/account — account + security overview (mirrors web settings/account). */
 export type MobileAccount = {
   email: string | null;
