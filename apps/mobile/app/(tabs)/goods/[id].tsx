@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Keyboard,
+  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -11,25 +12,37 @@ import {
 import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import type { MobileProductDetail } from "@inklee/shared/mobile-api";
+import { ChevronDown, ChevronUp, X } from "lucide-react-native";
+import type {
+  MobileProductDetail,
+  MobileProductVariantInput,
+  MobileProductVariantsUpdate,
+} from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FieldLabel } from "@/components/FieldLabel";
+import { IconButton } from "@/components/IconButton";
+import { PillButton } from "@/components/PillButton";
+import { RadioList } from "@/components/RadioList";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
 import { DangerButton } from "@/components/DangerButton";
-import {
-  ImageUploadField,
-  type PickedImage,
-} from "@/components/ImageUploadField";
+import { MultiImageField } from "@/components/MultiImageField";
+import type { PickedImage } from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiUpload, apiDelete } from "@/lib/api";
 import {
+  CURRENCIES,
+  DEFAULT_CURRENCY,
+  MAX_PRODUCT_TITLE,
+  MAX_VARIANT_NAME,
+  MAX_VARIANTS,
+  maxProductImages,
   PRODUCT_CATEGORY_OPTIONS,
   PRODUCT_STATUS_OPTIONS,
+  dropProductDetail,
   formatProductPrice,
   invalidateGoods,
-  isSupportedCurrency,
   parseEuAmount,
 } from "@/lib/goods";
 import { captureError } from "@/lib/telemetry";
@@ -39,13 +52,40 @@ import { colors } from "@/lib/tokens";
 type Category = (typeof PRODUCT_CATEGORY_OPTIONS)[number]["value"];
 type Status = (typeof PRODUCT_STATUS_OPTIONS)[number]["value"];
 
+const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({
+  value: c,
+  label: c.toUpperCase(),
+}));
+
+// One editable option row. `id` round-trips for the server's non-destructive
+// reconcile (existing variants update in place; historical orders keep their
+// pointers). `key` is the local React key for unsaved rows.
+type VariantRow = {
+  key: number;
+  id: string | null;
+  name: string;
+  price: string;
+  stock: string;
+};
+
 export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const themed = useColors();
+  const queryClient = useQueryClient();
   const isNew = id === "new";
   const q = useApiQuery<MobileProductDetail>(`/goods/${id}`, {
     enabled: !isNew,
   });
+
+  // Drop the cached detail when the editor leaves so the NEXT open seeds from
+  // the network — the whole-list variants save makes a stale seed destructive
+  // (a variant added on the web meanwhile would be reconciled away). Never
+  // drop while mounted: removing an actively observed query unmounts the form
+  // on the next re-render and wipes unsaved edits.
+  useEffect(() => {
+    if (isNew) return;
+    return () => dropProductDetail(queryClient, id);
+  }, [isNew, id, queryClient]);
 
   if (!isNew && !q.data) {
     return (
@@ -79,12 +119,16 @@ function ProductForm({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const themed = useColors();
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [price, setPrice] = useState(
     initial?.price != null ? String(initial.price) : "",
   );
-  const [currency, setCurrency] = useState(initial?.currency ?? "eur");
+  const [currency, setCurrency] = useState(
+    initial?.currency ?? DEFAULT_CURRENCY,
+  );
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   // Coerce to a known option so an enum the mobile list hasn't mirrored yet shows
   // a real selection (and a save can't silently downgrade it on an unrelated edit).
   const [category, setCategory] = useState<Category>(() =>
@@ -105,16 +149,102 @@ function ProductForm({
   const [isPublicVisible, setIsPublicVisible] = useState(
     initial?.isPublicVisible ?? true,
   );
-  // Create mode: the photo is picked up-front (deferred) and uploaded right
-  // after the product row exists — one save, no second step (founder hard
-  // requirement: no save-then-reopen-to-add-photo).
-  const [pendingPhoto, setPendingPhoto] = useState<PickedImage | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // Variants: seeded from the server's active set (`?? []` guards an older
+  // server that doesn't send them yet). Ids round-trip for the reconcile.
+  const initialVariants = initial?.variants ?? [];
+  const [hasOptions, setHasOptions] = useState(initialVariants.length > 0);
+  const [variantRows, setVariantRows] = useState<VariantRow[]>(() =>
+    initialVariants.map((v, i) => ({
+      key: i,
+      id: v.id,
+      name: v.name,
+      price: v.priceOverride != null ? String(v.priceOverride) : "",
+      stock: v.stock != null ? String(v.stock) : "",
+    })),
+  );
+  const [nextRowKey, setNextRowKey] = useState(initialVariants.length);
+
+  // Images. Create mode queues picks (deferred) and uploads them right after
+  // the product row exists — one save, no second step (the round-4 hard
+  // requirement). Edit mode uploads/removes eagerly per tile.
+  const initialImageUrls =
+    initial?.imageUrls ??
+    (initial?.imageUrl ? [initial.imageUrl] : []);
+  const [pendingPhotos, setPendingPhotos] = useState<PickedImage[]>([]);
+  const [imageCount, setImageCount] = useState(initialImageUrls.length);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The live image cap follows the option rows exactly like the web editor:
+  // adding an option opens an image slot (one per option plus a shared one).
+  const liveVariantCount = hasOptions
+    ? variantRows.filter((r) => r.name.trim().length > 0).length
+    : 0;
+  const liveMaxImages = maxProductImages(liveVariantCount);
+  const currentImageCount = isNew ? pendingPhotos.length : imageCount;
+  const capHint =
+    liveVariantCount > 0
+      ? `With ${liveVariantCount} ${
+          liveVariantCount === 1 ? "option" : "options"
+        } you can add up to ${liveMaxImages} images (one per option plus a shared one).`
+      : "Up to 3 images. The first is the main photo.";
 
   // Echo the parsed price back so a mis-typed amount (e.g. EU grouping) is
   // visible before the artist saves.
   const pricePreview = parseEuAmount(price);
+
+  function updateRow(key: number, patch: Partial<VariantRow>) {
+    setVariantRows((rows) =>
+      rows.map((r) => (r.key === key ? { ...r, ...patch } : r)),
+    );
+  }
+
+  function addRow() {
+    if (variantRows.length >= MAX_VARIANTS) return;
+    setVariantRows((rows) => [
+      ...rows,
+      { key: nextRowKey, id: null, name: "", price: "", stock: "" },
+    ]);
+    setNextRowKey((k) => k + 1);
+  }
+
+  function toggleOptions(on: boolean) {
+    setHasOptions(on);
+    // Seed one blank row so the editor isn't an empty card (web parity).
+    if (on && variantRows.length === 0) addRow();
+  }
+
+  function buildVariantsPayload():
+    | { value: MobileProductVariantInput[] }
+    | { error: string } {
+    if (!hasOptions) return { value: [] };
+    const out: MobileProductVariantInput[] = [];
+    for (const row of variantRows) {
+      const name = row.name.trim().slice(0, MAX_VARIANT_NAME);
+      if (!name) continue; // nameless rows are dropped, like the web
+      let priceOverride: number | null = null;
+      if (row.price.trim() !== "") {
+        const n = parseEuAmount(row.price);
+        if (n === null) {
+          return { error: `Option "${name}": enter a valid price.` };
+        }
+        priceOverride = n;
+      }
+      let stock: number | null = null;
+      if (row.stock.trim() !== "") {
+        const n = Number(row.stock.trim());
+        if (!Number.isInteger(n) || n < 0) {
+          return { error: `Option "${name}": stock must be 0 or more.` };
+        }
+        stock = n;
+      }
+      out.push({ id: row.id, name, priceOverride, stock });
+    }
+    return { value: out.slice(0, MAX_VARIANTS) };
+  }
 
   async function save() {
     if (!title.trim()) {
@@ -126,14 +256,26 @@ function ProductForm({
       setError("Enter a valid price.");
       return;
     }
-    const cur = currency.trim().toLowerCase() || "eur";
-    if (!isSupportedCurrency(cur)) {
-      setError("Use a supported currency code (e.g. eur, usd, gbp).");
-      return;
-    }
     const qty = quantity.trim() === "" ? null : Number(quantity.trim());
     if (qty !== null && (!Number.isInteger(qty) || qty < 0)) {
       setError("Quantity must be a whole number, or leave it empty.");
+      return;
+    }
+    const variantsRes = buildVariantsPayload();
+    if ("error" in variantsRes) {
+      setError(variantsRes.error);
+      return;
+    }
+    const variantsPayload = variantsRes.value;
+    const newMax = maxProductImages(variantsPayload.length);
+    if (currentImageCount > newMax) {
+      setError(
+        `Remove ${currentImageCount - newMax} ${
+          currentImageCount - newMax === 1 ? "image" : "images"
+        } first: with ${variantsPayload.length} ${
+          variantsPayload.length === 1 ? "option" : "options"
+        } you can have at most ${newMax}.`,
+      );
       return;
     }
 
@@ -143,46 +285,90 @@ function ProductForm({
     const payload = {
       title: title.trim(),
       price: amount,
-      currency: cur,
+      currency,
       category,
       status,
       description: description.trim() || null,
       pickupNote: pickupNote.trim() || null,
-      quantity: qty,
+      // Web parity: the quantity input unmounts while options are on, so the
+      // web stores NULL — per-variant stock takes over.
+      quantity: hasOptions ? null : qty,
       isPublicVisible,
+    };
+    const variantsBody: MobileProductVariantsUpdate = {
+      variants: variantsPayload,
     };
     try {
       if (isNew) {
-        // One user-visible save: create the row, then upload the photo picked
-        // during the form session against the fresh id (the web's
-        // create-then-upload semantics). The image endpoint needs a product
-        // id, so the upload can't happen before this point.
+        // One user-visible save: create the row, then the options (BEFORE the
+        // photos — the server's image cap counts saved variants), then upload
+        // the queued photos sequentially in pick order.
         const created = await apiPost<{ id: string }>("/goods", payload);
-        if (pendingPhoto) {
+        let failedStep: "options" | "photo" | null = null;
+        if (variantsPayload.length > 0) {
           try {
-            await apiUpload(`/goods/${created.id}/image`, pendingPhoto);
+            await apiPut(`/goods/${created.id}/variants`, variantsBody);
           } catch (e) {
-            // The product exists — never re-arm Create (a retry would mint a
-            // duplicate). Land on the edit screen where Add photo retries.
-            captureError(e, { op: "createProductPhoto" });
-            await invalidateGoods(queryClient);
-            router.replace(`/goods/${created.id}`);
-            Alert.alert(
-              "Product saved",
-              "The photo didn't upload. Tap Add photo to try again.",
-            );
-            return;
+            captureError(e, { op: "createProductVariants" });
+            failedStep = "options";
           }
         }
+        let uploadedPhotos = 0;
+        if (failedStep === null) {
+          for (const photo of pendingPhotos) {
+            try {
+              await apiUpload(`/goods/${created.id}/image?append=1`, photo);
+              uploadedPhotos += 1;
+            } catch (e) {
+              captureError(e, { op: "createProductPhoto" });
+              failedStep = "photo";
+              break;
+            }
+          }
+        }
+        dropProductDetail(queryClient, created.id);
         await invalidateGoods(queryClient);
+        if (failedStep) {
+          // The product exists — never re-arm Create (a retry would mint a
+          // duplicate). Land on the edit screen, which retries naturally.
+          // Queued photos don't survive the hop, so say what needs re-adding.
+          const droppedPhotos = pendingPhotos.length - uploadedPhotos;
+          router.replace(`/goods/${created.id}`);
+          Alert.alert(
+            "Product saved",
+            failedStep === "options"
+              ? droppedPhotos > 0
+                ? "The options didn't save, so your photos weren't added. Check the options, save, then add the photos again."
+                : "The options didn't save. Check them and save again."
+              : droppedPhotos === 1
+                ? "A photo didn't upload. Tap Add to try again."
+                : `${droppedPhotos} photos didn't upload. Tap Add to add them again.`,
+          );
+          return;
+        }
         router.back();
       } else {
         await apiPut(`/goods/${id}`, payload);
+        // Skip the reconcile when there is nothing to save AND nothing to
+        // clear — also keeps variant-less edits working against a server
+        // that predates the /variants route.
+        if (variantsPayload.length > 0 || initialVariants.length > 0) {
+          await apiPut(`/goods/${id}/variants`, variantsBody);
+        }
+        // The unmount effect in ProductScreen drops the cached detail as the
+        // screen leaves, so the next open seeds fresh.
         await invalidateGoods(queryClient);
         router.back();
       }
     } catch (e) {
       captureError(e, { op: "saveProduct" });
+      // A partial edit failure (metadata saved, variants errored) must not
+      // leave the cache stale: invalidate IN PLACE (a removeQueries here
+      // would unmount the mounted form and wipe the typed values the artist
+      // needs for the retry); the unmount effect drops the entry on exit.
+      if (!isNew) {
+        void invalidateGoods(queryClient);
+      }
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
       setSaving(false);
     }
@@ -226,22 +412,42 @@ function ProductForm({
         // on [bracket] routes), so plain scroll clearance is enough.
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 48 }}
       >
-        {!isNew ? (
-          <ImageUploadField
-            label="Photo"
-            hero
-            imageUrl={initial?.imageUrl ?? null}
-            endpoint={`/goods/${id}/image`}
-            onUploaded={() => void invalidateGoods(queryClient)}
+        {isNew ? (
+          // Deferred picks: local previews now, sequential uploads right after
+          // the first save creates the product id (no separate photo step).
+          <MultiImageField
+            max={liveMaxImages}
+            capHint={capHint}
+            pending={pendingPhotos}
+            onPendingChange={setPendingPhotos}
           />
         ) : (
-          // Deferred pick: local preview now, upload right after the first
-          // save creates the product id (no separate photo step).
-          <ImageUploadField
-            label="Photo"
-            hero
-            imageUrl={null}
-            onPick={setPendingPhoto}
+          // Cap clamped to the SAVED variant count: uploads are eager, and the
+          // server's cap counts saved variants, so unsaved option rows must
+          // not promise slots the next upload would reject.
+          <MultiImageField
+            max={Math.min(
+              liveMaxImages,
+              maxProductImages(initialVariants.length),
+            )}
+            capHint={capHint}
+            imageUrls={initialImageUrls}
+            endpoint={`/goods/${id}/image`}
+            removeEndpoint={`/goods/${id}/image`}
+            onChanged={(urls) => {
+              setImageCount(urls.length);
+              // Patch the cached detail IN PLACE (a removeQueries here would
+              // unmount the form on the next re-render and wipe unsaved
+              // edits); the unmount effect drops the entry for the next open.
+              queryClient.setQueryData<MobileProductDetail>(
+                ["api", `/goods/${id}`],
+                (cur) =>
+                  cur
+                    ? { ...cur, imageUrls: urls, imageUrl: urls[0] ?? null }
+                    : cur,
+              );
+              void invalidateGoods(queryClient);
+            }}
           />
         )}
 
@@ -250,6 +456,7 @@ function ProductForm({
           value={title}
           onChangeText={setTitle}
           autoCapitalize="sentences"
+          maxLength={MAX_PRODUCT_TITLE}
         />
 
         <View className="flex-row gap-3">
@@ -263,40 +470,50 @@ function ProductForm({
             />
           </View>
           <View className="w-28">
-            <TextField
-              label="Currency"
-              value={currency}
-              onChangeText={(v) => setCurrency(v.toLowerCase())}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="eur"
-              maxLength={3}
-            />
+            <FieldLabel>Currency</FieldLabel>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Currency: ${currency.toUpperCase()}`}
+              accessibilityState={{ expanded: currencyOpen }}
+              onPress={() => setCurrencyOpen((v) => !v)}
+              className="h-12 flex-row items-center justify-between rounded-xl border-brand border-shell-border px-4 active:opacity-80"
+            >
+              <Text className="text-base text-foreground">
+                {currency.toUpperCase()}
+              </Text>
+              {currencyOpen ? (
+                <ChevronUp size={16} color={themed.shell.dim} />
+              ) : (
+                <ChevronDown size={16} color={themed.shell.dim} />
+              )}
+            </Pressable>
           </View>
         </View>
+        {currencyOpen ? (
+          <View className="mt-2">
+            <RadioList
+              options={CURRENCY_OPTIONS}
+              value={currency}
+              onChange={(v) => {
+                setCurrency(v);
+                setCurrencyOpen(false);
+              }}
+            />
+          </View>
+        ) : null}
         {pricePreview !== null ? (
-          <Text className="-mt-1 mb-3 text-xs text-shell-mute">
-            ={" "}
-            {formatProductPrice(
-              pricePreview,
-              currency.trim().toLowerCase() || "eur",
-            )}
+          <Text className="-mt-1 mb-1 text-xs text-shell-mute">
+            = {formatProductPrice(pricePreview, currency)}
           </Text>
         ) : null}
-
-        <FieldLabel>Category</FieldLabel>
-        <Segmented
-          options={PRODUCT_CATEGORY_OPTIONS}
-          value={category}
-          onChange={setCategory}
-        />
-
-        <FieldLabel>Status</FieldLabel>
-        <Segmented
-          options={PRODUCT_STATUS_OPTIONS}
-          value={status}
-          onChange={setStatus}
-        />
+        {currency !== "eur" ? (
+          <Text className="mb-3 mt-1 text-xs text-shell-dim">
+            Non-EUR products show on your page but can&apos;t be added to
+            deposit checkouts.
+          </Text>
+        ) : (
+          <View className="mb-2" />
+        )}
 
         <FieldLabel>Description (optional)</FieldLabel>
         <TextArea
@@ -306,22 +523,102 @@ function ProductForm({
           placeholder="What is it?"
         />
 
-        <FieldLabel>Pickup note (optional)</FieldLabel>
-        <TextArea
-          value={pickupNote}
-          onChangeText={setPickupNote}
-          maxLength={200}
-          placeholder="e.g. collect at your appointment"
-          minHeight={48}
-        />
+        {/* Options (variants) — the web "This product has options" editor:
+            whole-list save, ids round-trip, nameless rows dropped. */}
+        <View className="mb-3 rounded-2xl border border-shell-border bg-glass p-4">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 pr-3">
+              <Text className="text-base font-semibold text-foreground">
+                This product has options
+              </Text>
+              <Text className="mt-0.5 text-sm text-shell-dim">
+                Sizes, colors, editions.
+              </Text>
+            </View>
+            <Switch
+              value={hasOptions}
+              onValueChange={toggleOptions}
+              trackColor={{ false: "rgba(0,0,0,0.35)", true: colors.mustard }}
+              thumbColor={colors.bone}
+              ios_backgroundColor="rgba(0,0,0,0.35)"
+            />
+          </View>
 
-        <TextField
-          label="Quantity (optional)"
-          value={quantity}
-          onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ""))}
-          keyboardType="number-pad"
-          placeholder="Leave empty for unlimited"
-        />
+          {hasOptions ? (
+            <View className="mt-3 border-t border-shell-border pt-3">
+              <View className="mb-1 flex-row gap-2 pr-12">
+                <Text className="flex-1 text-xs text-shell-dim">Name</Text>
+                <Text className="w-20 text-xs text-shell-dim">Price</Text>
+                <Text className="w-16 text-xs text-shell-dim">Stock</Text>
+              </View>
+              {variantRows.map((row) => (
+                <View key={row.key} className="flex-row items-center gap-2">
+                  <View className="flex-1">
+                    <TextField
+                      value={row.name}
+                      onChangeText={(v) => updateRow(row.key, { name: v })}
+                      placeholder="M"
+                      maxLength={MAX_VARIANT_NAME}
+                    />
+                  </View>
+                  <View className="w-20">
+                    <TextField
+                      value={row.price}
+                      onChangeText={(v) => updateRow(row.key, { price: v })}
+                      keyboardType="decimal-pad"
+                      placeholder="Price"
+                    />
+                  </View>
+                  <View className="w-16">
+                    <TextField
+                      value={row.stock}
+                      onChangeText={(v) =>
+                        updateRow(row.key, {
+                          stock: v.replace(/[^0-9]/g, ""),
+                        })
+                      }
+                      keyboardType="number-pad"
+                      placeholder="∞"
+                    />
+                  </View>
+                  <View className="mb-3">
+                    <IconButton
+                      icon={X}
+                      label={`Remove option ${row.name || ""}`.trim()}
+                      outlined
+                      iconSize={14}
+                      color={themed.bone}
+                      onPress={() =>
+                        setVariantRows((rows) =>
+                          rows.filter((r) => r.key !== row.key),
+                        )
+                      }
+                    />
+                  </View>
+                </View>
+              ))}
+              {variantRows.length < MAX_VARIANTS ? (
+                <View className="flex-row">
+                  <PillButton label="Add option" onPress={addRow} />
+                </View>
+              ) : null}
+              <Text className="mt-2 text-xs text-shell-dim">
+                Leave price empty to use the product price. Leave stock empty
+                for unlimited.
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {!hasOptions ? (
+          <TextField
+            label="Quantity (optional)"
+            value={quantity}
+            onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ""))}
+            keyboardType="number-pad"
+            placeholder="Leave empty for unlimited"
+          />
+        ) : null}
 
         <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
           <View className="flex-1 pr-3">
@@ -338,6 +635,51 @@ function ProductForm({
             ios_backgroundColor="rgba(0,0,0,0.35)"
           />
         </View>
+
+        {/* Category / status / pickup note sit behind a collapsed group so the
+            primary path stays images, title, price (web "More settings"
+            parity). The tile long-press already covers quick status flips. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: moreOpen }}
+          onPress={() => setMoreOpen((v) => !v)}
+          className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3 active:opacity-80"
+        >
+          <Text className="text-base font-semibold text-foreground">
+            More settings
+          </Text>
+          {moreOpen ? (
+            <ChevronUp size={18} color={themed.shell.dim} />
+          ) : (
+            <ChevronDown size={18} color={themed.shell.dim} />
+          )}
+        </Pressable>
+        {moreOpen ? (
+          <View>
+            <FieldLabel>Category</FieldLabel>
+            <Segmented
+              options={PRODUCT_CATEGORY_OPTIONS}
+              value={category}
+              onChange={setCategory}
+            />
+
+            <FieldLabel>Status</FieldLabel>
+            <Segmented
+              options={PRODUCT_STATUS_OPTIONS}
+              value={status}
+              onChange={setStatus}
+            />
+
+            <FieldLabel>Pickup note (optional)</FieldLabel>
+            <TextArea
+              value={pickupNote}
+              onChangeText={setPickupNote}
+              maxLength={200}
+              placeholder="e.g. collect at your appointment"
+              minHeight={48}
+            />
+          </View>
+        ) : null}
 
         {error ? (
           <Text className="mb-3 text-sm text-danger-fg">{error}</Text>

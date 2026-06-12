@@ -1,7 +1,18 @@
-// Presentation + cache helpers for the goods screens (mirrors web @/lib/goods
-// labels; response types are shared via @inklee/shared/mobile-api).
+// Presentation + cache helpers for the goods screens (domain constants come
+// from @inklee/shared/goods — one source of truth with the web editor and the
+// /api/mobile routes; response types are shared via @inklee/shared/mobile-api).
 import type { QueryClient } from "@tanstack/react-query";
 import { apiPatch, invalidateByPathPrefix } from "./api";
+
+export {
+  CURRENCIES,
+  DEFAULT_CURRENCY,
+  MAX_PRODUCT_TITLE,
+  MAX_VARIANT_NAME,
+  MAX_VARIANTS,
+  maxProductImages,
+  formatPrice as formatProductPrice,
+} from "@inklee/shared/goods";
 
 // Every /goods view (list + details). Lives here so screens share one
 // definition instead of re-inlining the predicate.
@@ -10,18 +21,24 @@ export function invalidateGoods(client: QueryClient): Promise<void> {
 }
 
 /**
- * Flip a product's sold-out/active status. Owns the cache footgun: the cached
- * `/goods/<id>` detail must be DROPPED (not just invalidated) because the edit
- * form seeds its status from the cached detail once on mount — a stale entry
- * would let a follow-up Save silently revert this toggle.
+ * Drop the cached `/goods/<id>` detail. The edit form seeds its state from the
+ * cached detail ONCE on mount, so any mutation that changes seeded fields
+ * (status toggle, image add/remove, variant save) must REMOVE the entry — a
+ * merely-invalidated stale entry can still seed a remount and let a follow-up
+ * Save silently revert the change (the round-4 footgun).
  */
+export function dropProductDetail(client: QueryClient, id: string): void {
+  client.removeQueries({ queryKey: ["api", `/goods/${id}`] });
+}
+
+/** Flip a product's sold-out/active status (the list tile's quick toggle). */
 export async function setProductStatus(
   client: QueryClient,
   id: string,
   status: string,
 ): Promise<void> {
   await apiPatch(`/goods/${id}/status`, { status });
-  client.removeQueries({ queryKey: ["api", `/goods/${id}`] });
+  dropProductDetail(client, id);
 }
 
 export const PRODUCT_CATEGORY_OPTIONS = [
@@ -47,35 +64,6 @@ const STATUS_LABELS: Record<string, string> = Object.fromEntries(
 
 export function productStatusLabel(s: string): string {
   return STATUS_LABELS[s] ?? s;
-}
-
-export function formatProductPrice(amount: number, currency: string): string {
-  return `${currency.toUpperCase()} ${amount.toFixed(2)}`;
-}
-
-// Supported pricing currencies (mirrors web @/lib/goods CURRENCIES).
-export const CURRENCIES = [
-  "eur",
-  "usd",
-  "gbp",
-  "thb",
-  "aud",
-  "cad",
-  "chf",
-  "jpy",
-  "sek",
-  "nok",
-  "dkk",
-  "pln",
-  "czk",
-  "sgd",
-  "nzd",
-  "mxn",
-  "brl",
-] as const;
-
-export function isSupportedCurrency(code: string): boolean {
-  return (CURRENCIES as readonly string[]).includes(code.trim().toLowerCase());
 }
 
 /** Parse a price typed with EU formatting (comma decimal, dot/space grouping)

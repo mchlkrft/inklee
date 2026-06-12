@@ -1,8 +1,8 @@
 // Pure input validation for the mobile goods endpoints (/api/mobile/goods/*).
 // Reuses the shared goods enums/bounds from @/lib/goods so the rules can't drift.
-// The app edits product METADATA only — images + variants + the checkout-addon
-// flag stay web (image upload is its own slice; commerce is parked). Same thin-
-// route pattern as the other mobile-* validators.
+// The app edits metadata, images and variants; only the checkout-addon flag
+// stays web (commerce is parked). Same thin-route pattern as the other
+// mobile-* validators.
 
 import {
   isCurrency,
@@ -13,9 +13,12 @@ import {
   MAX_PRODUCT_DESCRIPTION,
   MAX_PICKUP_NOTE,
   MAX_PRICE,
+  MAX_VARIANTS,
+  MAX_VARIANT_NAME,
   type ProductCategory,
   type ProductStatus,
 } from "@/lib/goods";
+import type { VariantInput } from "@/lib/server/goods-variants";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -111,4 +114,69 @@ export function normalizeProductInput(body: unknown): Result<ProductInput> {
       isPublicVisible,
     },
   };
+}
+
+/** Validate a whole-list variants payload (PUT /goods/:id/variants) — the JSON
+ *  twin of the web action's parseVariants: capped at MAX_VARIANTS, nameless
+ *  rows silently dropped, null price/stock = inherit/unlimited. The id rides
+ *  along for reconcileVariants to update existing rows in place (it validates
+ *  ownership by scoping to the product, so a foreign id no-ops). */
+export function normalizeVariantsInput(body: unknown): Result<VariantInput[]> {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (!Array.isArray(b.variants)) {
+    return { ok: false, error: "variants must be an array." };
+  }
+
+  const out: VariantInput[] = [];
+  for (const item of b.variants.slice(0, MAX_VARIANTS)) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const name =
+      typeof o.name === "string"
+        ? o.name.trim().slice(0, MAX_VARIANT_NAME)
+        : "";
+    if (!name) continue; // skip nameless rows, like the web action
+
+    const id =
+      typeof o.id === "string" && o.id.trim().length > 0 ? o.id.trim() : null;
+
+    let priceOverride: number | null = null;
+    if (o.priceOverride !== null && o.priceOverride !== undefined) {
+      if (
+        typeof o.priceOverride !== "number" ||
+        !Number.isFinite(o.priceOverride) ||
+        o.priceOverride < 0
+      ) {
+        return {
+          ok: false,
+          error: `Variant "${name}": price must be a positive number.`,
+        };
+      }
+      if (o.priceOverride > MAX_PRICE) {
+        return {
+          ok: false,
+          error: `Variant "${name}": price cannot exceed ${MAX_PRICE.toLocaleString()}.`,
+        };
+      }
+      priceOverride = Math.round(o.priceOverride * 100) / 100;
+    }
+
+    let stock: number | null = null;
+    if (o.stock !== null && o.stock !== undefined) {
+      if (
+        typeof o.stock !== "number" ||
+        !Number.isInteger(o.stock) ||
+        o.stock < 0
+      ) {
+        return {
+          ok: false,
+          error: `Variant "${name}": stock must be 0 or more.`,
+        };
+      }
+      stock = o.stock;
+    }
+
+    out.push({ id, name, priceOverride, stock });
+  }
+  return { ok: true, value: out };
 }

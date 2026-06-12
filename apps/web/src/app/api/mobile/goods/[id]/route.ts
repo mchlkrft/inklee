@@ -8,12 +8,17 @@ import {
   revalidatePublicPage,
   sweepGoodsStorage,
 } from "@/lib/server/mobile-goods-server";
-import { toPriceNumber } from "@/lib/goods";
-import type { MobileProductDetail } from "@inklee/shared/mobile-api";
+import { maxProductImages, toPriceNumber } from "@/lib/goods";
+import type {
+  MobileProductDetail,
+  MobileProductVariant,
+} from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
-// GET /api/mobile/goods/:id — the full editable product (metadata only).
+// GET /api/mobile/goods/:id — the full editable product: metadata, the
+// canonical image list and the active variants (the loadProductForEditAction
+// projection, so the native editor sees exactly what the web modal sees).
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -26,13 +31,39 @@ export async function GET(
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, price_amount, currency, status, pickup_note, quantity, is_public_visible",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible",
     )
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
   if (error) return mobileError(500, error.message);
   if (!data) return mobileError(404, "Product not found.", "not_found");
+
+  // Hidden variants are soft-archived rows historical orders still reference;
+  // the artist edits the active set (web parity: loadProductForEditAction).
+  const { data: rawVariants, error: variantsError } = await supabase
+    .from("product_variants")
+    .select("id, name, price_amount_override, stock_quantity")
+    .eq("product_id", id)
+    .eq("status", "active")
+    .order("sort_order", { ascending: true });
+  if (variantsError) return mobileError(500, variantsError.message);
+
+  const variants: MobileProductVariant[] = (rawVariants ?? []).map((v) => ({
+    id: v.id as string,
+    name: v.name as string,
+    priceOverride:
+      v.price_amount_override !== null && v.price_amount_override !== undefined
+        ? toPriceNumber(v.price_amount_override)
+        : null,
+    stock: (v.stock_quantity as number | null) ?? null,
+  }));
+
+  const imageUrls: string[] = Array.isArray(data.image_urls)
+    ? (data.image_urls as string[])
+    : data.image_url
+      ? [data.image_url as string]
+      : [];
 
   const body: MobileProductDetail = {
     id: data.id,
@@ -46,6 +77,9 @@ export async function GET(
     quantity: data.quantity,
     isPublicVisible: data.is_public_visible,
     imageUrl: data.image_url,
+    imageUrls,
+    variants,
+    maxImages: maxProductImages(variants.length),
   };
   return mobileOk(body);
 }

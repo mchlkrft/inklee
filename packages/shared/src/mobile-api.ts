@@ -456,7 +456,39 @@ export type MobileProduct = {
 
 export type MobileProductsResponse = { items: MobileProduct[] };
 
-/** GET /api/mobile/goods/:id — the full editable product (metadata only). */
+/** One product variant ("option": size, colour, …). priceOverride null =
+ *  product price; stock null = unlimited. */
+export type MobileProductVariant = {
+  id: string;
+  name: string;
+  priceOverride: number | null;
+  stock: number | null;
+};
+
+/** One row of a PUT /api/mobile/goods/:id/variants payload. id null = new
+ *  row; an existing id MUST round-trip so the server reconciles in place
+ *  (delete-and-recreate would orphan historical order/interest pointers). */
+export type MobileProductVariantInput = {
+  id: string | null;
+  name: string;
+  priceOverride: number | null;
+  stock: number | null;
+};
+
+/** PUT /api/mobile/goods/:id/variants — the whole displayed list, like the
+ *  web form posts it. Rows the server no longer sees get archived or deleted
+ *  (non-destructive reconcile). */
+export type MobileProductVariantsUpdate = {
+  variants: MobileProductVariantInput[];
+};
+
+/** PUT /api/mobile/goods/:id/variants response — the canonical saved list
+ *  (ids included so the client reseeds and future saves round-trip them). */
+export type MobileProductVariantsResult = {
+  variants: MobileProductVariant[];
+};
+
+/** GET /api/mobile/goods/:id — the full editable product. */
 export type MobileProductDetail = {
   id: string;
   title: string;
@@ -468,7 +500,16 @@ export type MobileProductDetail = {
   pickupNote: string | null;
   quantity: number | null;
   isPublicVisible: boolean;
+  /** Legacy hero (imageUrls[0]); prefer imageUrls. */
   imageUrl: string | null;
+  /** Canonical ordered image list — first entry is the hero everywhere. */
+  imageUrls: string[];
+  /** Active variants in display order (hidden archived rows excluded). */
+  variants: MobileProductVariant[];
+  /** Server-computed image cap: variantCount + 1 when variants exist, else 3
+   *  (the shared maxProductImages rule). The client recomputes live while
+   *  editing variant rows; the server stays authoritative on upload. */
+  maxImages: number;
 };
 
 /** GET /api/mobile/travel/trips/:id — a trip with its legs + the artist's studios. */
