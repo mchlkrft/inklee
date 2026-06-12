@@ -21,6 +21,8 @@ import { PillButton } from "@/components/PillButton";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { useBookingsHeaderInset } from "@/lib/bookings-header";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { config, displayUrl } from "@/lib/config";
 import { useTimedFlag } from "@/lib/use-timed-flag";
@@ -124,6 +126,8 @@ export default function RequestsScreen() {
   useScreenView("requests");
   const router = useRouter();
   const colors = useColors();
+  const onScroll = useScrollHide();
+  const headerInset = useBookingsHeaderInset();
   const [status, setStatus] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const path = status ? `/bookings?status=${status}` : "/bookings";
@@ -132,8 +136,11 @@ export default function RequestsScreen() {
   const me = useApiQuery<MobileMe>("/me");
   const bookingUrl = me.data?.slug ? config.publicUrl(me.data.slug) : null;
 
-  return (
-    <Screen edges={["left", "right"]}>
+  // Stats + filter scroll WITH the list (ListHeaderComponent, the flash-tab
+  // idiom) so the scroll-hiding TopBar and the rising bookings band actually
+  // reclaim space (founder round 8).
+  const listHeader = (
+    <>
       {/* Founder round 4: prominent big numbers for the booking pipeline.
           Sourced from /bookings/stats (NOT the widget-gated /home counts).
           While the filter strip is open the tiles compact into one-liners
@@ -173,17 +180,18 @@ export default function RequestsScreen() {
         />
       </View>
       {filtersOpen ? (
-        // flexShrink 0 is load-bearing: RN ScrollViews default to flexShrink 1,
-        // and the FlatList's content-sized flex basis would otherwise squeeze
-        // this strip to a few px and clip the chips (founder round 5). Screen's
-        // px-5 is 17.5px (NativeWind inlines rem=14, not 16), so the -20/+20
-        // margin/padding pair over-cancels by 2.5px offscreen and restores the
-        // same 17.5px content inset; scrolling chips clip at the physical
-        // screen edge, not mid-screen.
+        // Screen's px-5 is 17.5px (NativeWind inlines rem=14, not 16), so the
+        // -20/+20 margin/padding pair over-cancels by 2.5px offscreen and
+        // restores the same 17.5px content inset; scrolling chips clip at the
+        // physical screen edge, not mid-screen.
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingBottom: 10, paddingHorizontal: 20 }}
+          contentContainerStyle={{
+            gap: 8,
+            paddingBottom: 10,
+            paddingHorizontal: 20,
+          }}
           style={{ flexGrow: 0, flexShrink: 0, marginHorizontal: -20 }}
         >
           {FILTERS.map((f) => (
@@ -196,7 +204,11 @@ export default function RequestsScreen() {
           ))}
         </ScrollView>
       ) : null}
+    </>
+  );
 
+  return (
+    <Screen edges={["left", "right"]}>
       <FlatList
         data={q.items}
         keyExtractor={(b) => b.id}
@@ -206,8 +218,19 @@ export default function RequestsScreen() {
             onPress={() => router.push(`/bookings/${item.id}`)}
           />
         )}
+        ListHeaderComponent={listHeader}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        // Full-bleed list (the same -20/+20 over-cancel as the chips strip) so
+        // the strip's negative margin isn't clipped at the list bounds and the
+        // chips still clip at the physical screen edge.
+        style={{ marginHorizontal: -20 }}
+        contentContainerStyle={{
+          paddingTop: headerInset,
+          paddingBottom: TAB_BAR_CLEARANCE,
+          paddingHorizontal: 20,
+        }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={q.refreshing}
@@ -216,6 +239,7 @@ export default function RequestsScreen() {
               stats.refresh();
             }}
             tintColor={colors.accent}
+            progressViewOffset={headerInset}
           />
         }
         onEndReached={q.fetchNextPage}

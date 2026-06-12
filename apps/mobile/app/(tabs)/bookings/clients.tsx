@@ -10,6 +10,8 @@ import { useApiQuery } from "@/lib/api";
 import type { ClientListItem } from "@/lib/clients";
 import { relativeTime } from "@/lib/date";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { useBookingsHeaderInset } from "@/lib/bookings-header";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
 
@@ -52,6 +54,8 @@ export default function ClientsScreen() {
   useScreenView("clients");
   const router = useRouter();
   const themed = useColors();
+  const onScroll = useScrollHide();
+  const headerInset = useBookingsHeaderInset();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<{ items: ClientListItem[] }>("/clients");
   const [query, setQuery] = useState("");
@@ -68,8 +72,11 @@ export default function ClientsScreen() {
     );
   }, [items, query]);
 
-  return (
-    <Screen edges={["left", "right"]}>
+  // Search + count scroll WITH the list (ListHeaderComponent) so the
+  // scroll-hiding TopBar and the rising bookings band reclaim space
+  // (founder round 8).
+  const listHeader = (
+    <>
       <TextInput
         value={query}
         onChangeText={setQuery}
@@ -86,6 +93,11 @@ export default function ClientsScreen() {
           {items.length} unique customer{items.length === 1 ? "" : "s"}
         </Text>
       ) : null}
+    </>
+  );
+
+  return (
+    <Screen edges={["left", "right"]}>
       <FlatList
         data={filtered}
         keyExtractor={(c) => c.email}
@@ -97,15 +109,22 @@ export default function ClientsScreen() {
             }
           />
         )}
+        ListHeaderComponent={listHeader}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        contentContainerStyle={{
+          paddingTop: headerInset,
+          paddingBottom: TAB_BAR_CLEARANCE,
+        }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
             tintColor={themed.accent}
+            progressViewOffset={headerInset}
           />
         }
         ListEmptyComponent={

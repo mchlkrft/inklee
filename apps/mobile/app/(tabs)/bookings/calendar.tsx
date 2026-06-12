@@ -12,6 +12,8 @@ import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { DayAgenda } from "@/components/calendar/DayAgenda";
 import { useCalendarMonth } from "@/lib/calendar";
 import { useColors } from "@/lib/theme";
+import { useScrollHide } from "@/lib/scroll-hide";
+import { useBookingsHeaderInset } from "@/lib/bookings-header";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
 
@@ -25,17 +27,25 @@ export default function CalendarScreen() {
   const cal = useCalendarMonth();
   const router = useRouter();
   const themed = useColors();
+  const onScroll = useScrollHide();
+  const headerInset = useBookingsHeaderInset();
 
   return (
     <Screen edges={["left", "right"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+        contentContainerStyle={{
+          paddingTop: headerInset,
+          paddingBottom: TAB_BAR_CLEARANCE,
+        }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={cal.refreshing}
             onRefresh={cal.refresh}
             tintColor={themed.accent}
+            progressViewOffset={headerInset}
           />
         }
       >
