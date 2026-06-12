@@ -281,6 +281,11 @@ export default function SettingsHubScreen() {
             divider
             onPress={() => router.push("/settings/dashboard")}
           />
+          <SettingsRow
+            label="Calendar export"
+            divider
+            onPress={() => router.push("/settings/calendar-export")}
+          />
         </Card>
 
         <SectionLabel>About</SectionLabel>

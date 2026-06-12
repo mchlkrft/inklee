@@ -15,10 +15,11 @@ import { useColors } from "@/lib/theme";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
 
-// Month grid of confirmed appointments + the selected day's agenda. Tapping an
-// appointment opens the shared booking detail screen; the CTA below creates an
-// artist-authored appointment (/bookings/new). Trips, flash and slots remain
-// web-only (the mobile calendar endpoint is approved-bookings-only).
+// Month grid of confirmed appointments, guest spots and flash days + the
+// selected day's agenda (web-calendar marker parity, ME-6). Tapping an
+// appointment opens the booking detail; guest-spot/flash rows open their
+// editors; the CTA below creates an artist-authored appointment
+// (/bookings/new). Slot publishing remains web-only.
 export default function CalendarScreen() {
   useScreenView("calendar");
   const cal = useCalendarMonth();
@@ -67,6 +68,8 @@ export default function CalendarScreen() {
             <DayAgenda
               dateKey={cal.selectedDate}
               appointments={cal.selectedAppointments}
+              guestSpots={cal.selectedGuestSpots}
+              flashDays={cal.selectedFlashDays}
             />
           )}
         </View>

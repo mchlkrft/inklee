@@ -191,6 +191,17 @@ export type MobileBookingImage = {
   annotations: MobileImageAnnotation[] | null;
 };
 
+/** One artist-visible activity event on a booking (audit_log row, labeled
+ *  server-side via @inklee/shared/booking-activity — raw details never ship
+ *  to the device: they can carry IPs, token hashes and Stripe internals). */
+export type MobileBookingTimelineEvent = {
+  action: string;
+  kind: import("./booking-activity").BookingActivityKind;
+  label: string;
+  /** audit_log.timestamp, ISO. Newest first; clients must not re-sort. */
+  at: string;
+};
+
 /** GET /api/mobile/bookings/:id — full request detail (the core screen). */
 export type MobileBookingDetail = {
   id: string;
@@ -207,6 +218,8 @@ export type MobileBookingDetail = {
    *  New code reads referenceImages (signed URLs). */
   referenceImagePaths: string[];
   referenceImages: MobileBookingImage[];
+  /** Optional for version skew: older deployed APIs omit it. */
+  timeline?: MobileBookingTimelineEvent[];
   preferredDate: string | null;
   createdAt: string;
   deposit: MobileBookingDeposit | null;
@@ -220,9 +233,22 @@ export type MobileCalendarAppointment = {
   date: string;
 };
 
-/** GET /api/mobile/calendar?from=&to= — confirmed appointments in the range. */
+/** One flash day with a date, for calendar markers (scheduledOn non-null by
+ *  query; do not reuse the nullable flash-day option type). */
+export type MobileCalendarFlashDay = {
+  id: string;
+  title: string;
+  scheduledOn: string;
+};
+
+/** GET /api/mobile/calendar?from=&to= — confirmed appointments in the range,
+ *  plus guest-spot legs and flash days for the marker enrichment. The two
+ *  extra fields are OPTIONAL on purpose: that is the version-skew contract
+ *  (a new app against an older API degrades to appointments-only). */
 export type MobileCalendarResponse = {
   items: MobileCalendarAppointment[];
+  guestSpots?: MobileGuestSpot[];
+  flashDays?: MobileCalendarFlashDay[];
 };
 
 /** One waitlist entry (GET /api/mobile/waitlist, GET /api/mobile/waitlist/:id). */
@@ -538,4 +564,11 @@ export type MobileReminderSettings = {
   reconfirmation_enabled: boolean;
   /** Days before the appointment (clamped 3-30). */
   reconfirmation_days: number;
+};
+
+/** GET/POST/DELETE /api/mobile/settings/calendar-export — the private iCal
+ *  feed link (null when no token exists). The server builds the full URL so
+ *  the client never learns about token storage. */
+export type MobileCalendarExport = {
+  feedUrl: string | null;
 };

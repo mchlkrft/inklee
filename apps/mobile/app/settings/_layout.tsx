@@ -22,6 +22,10 @@ export default function SettingsLayout() {
         options={{ title: "Cancellation & refunds" }}
       />
       <Stack.Screen name="payouts" options={{ title: "Payouts" }} />
+      <Stack.Screen
+        name="calendar-export"
+        options={{ title: "Calendar export" }}
+      />
       <Stack.Screen name="emails" options={{ title: "Emails" }} />
       <Stack.Screen
         name="email-templates/[type]"

@@ -5,10 +5,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { invalidateByPathPrefix } from "./api";
 
-// Every /flash view (items, days, details). Lives here so screens share one
-// definition instead of re-inlining the predicate.
+// Every /flash view (items, days, details) PLUS /calendar: flash days mark
+// the calendar grid, so creating/editing one must refresh the markers.
 export function invalidateFlash(client: QueryClient): Promise<void> {
-  return invalidateByPathPrefix(client, ["/flash"]);
+  return invalidateByPathPrefix(client, ["/flash", "/calendar"]);
 }
 
 export const ITEM_STATUS_OPTIONS = [

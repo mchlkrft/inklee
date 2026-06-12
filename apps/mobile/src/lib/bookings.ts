@@ -8,6 +8,7 @@ import { apiPost } from "./api";
 export type {
   MobileBookingDetail as BookingDetail,
   MobileBookingDeposit as BookingDeposit,
+  MobileBookingTimelineEvent,
 } from "@inklee/shared/mobile-api";
 
 // A paid, not-yet-refunded in-app card deposit — the only kind that can be

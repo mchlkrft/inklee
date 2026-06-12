@@ -17,6 +17,10 @@ import {
   sendManualDepositReminderAction,
   sendManualReconfirmationAction,
 } from "@/app/(artist)/settings/reminders/actions";
+import {
+  describeBookingActivity,
+  type BookingActivityKind,
+} from "@inklee/shared/booking-activity";
 
 type LogEntry = {
   action: string;
@@ -37,50 +41,32 @@ const PILL = {
   muted: "bg-brand-charcoal/10 text-brand-charcoal",
 } as const;
 
+// Icon + pill per activity kind; the kinds and artist-facing labels live in
+// @inklee/shared/booking-activity, shared with the mobile API so the two
+// surfaces can't drift on copy.
+const KIND_VISUALS: Record<
+  BookingActivityKind,
+  { Icon: LucideIcon; pill: string }
+> = {
+  submitted: { Icon: Inbox, pill: PILL.charcoal },
+  client_edited: { Icon: Pencil, pill: PILL.charcoal },
+  client_cancelled: { Icon: Ban, pill: PILL.red },
+  deposit_paid: { Icon: CheckCircle2, pill: PILL.green },
+  reminder: { Icon: Bell, pill: PILL.mustard },
+  accepted: { Icon: Check, pill: PILL.green },
+  passed: { Icon: X, pill: PILL.red },
+  deposit_requested: { Icon: Mail, pill: PILL.rosa },
+  cancelled: { Icon: Ban, pill: PILL.muted },
+  status_other: { Icon: Circle, pill: PILL.muted },
+};
+
 // Translate a raw audit-log row into artist-facing language + an icon + colour.
 // Returns null for internal plumbing the artist shouldn't see (e.g. magic-link
 // token rotation).
 function describe(entry: LogEntry): Described | null {
-  switch (entry.action) {
-    case "token_rotated":
-      return null; // internal magic-link housekeeping — not communication
-    case "booking_created":
-      return { label: "Booking submitted", Icon: Inbox, pill: PILL.charcoal };
-    case "customer_edited":
-      return {
-        label: "Client updated their request",
-        Icon: Pencil,
-        pill: PILL.charcoal,
-      };
-    case "customer_cancelled":
-      return { label: "Cancelled by client", Icon: Ban, pill: PILL.red };
-    case "deposit_paid":
-      return { label: "Deposit paid", Icon: CheckCircle2, pill: PILL.green };
-    case "reminder_sent": {
-      const manual = entry.details?.manual === true;
-      return {
-        label: manual ? "Reminder sent (manual)" : "Reminder sent",
-        Icon: Bell,
-        pill: PILL.mustard,
-      };
-    }
-    case "status_changed": {
-      const to = String(entry.details?.to ?? "");
-      if (to === "approved")
-        return { label: "Accepted", Icon: Check, pill: PILL.green };
-      if (to === "rejected")
-        return { label: "Passed", Icon: X, pill: PILL.red };
-      if (to === "deposit_pending")
-        // The deposit request triggers the customer email, so this row's date
-        // is the deposit-request mail date.
-        return { label: "Deposit requested", Icon: Mail, pill: PILL.rosa };
-      if (to === "cancelled")
-        return { label: "Cancelled", Icon: Ban, pill: PILL.muted };
-      return { label: "Status updated", Icon: Circle, pill: PILL.muted };
-    }
-    default:
-      return null; // unknown internal actions stay hidden
-  }
+  const d = describeBookingActivity(entry.action, entry.details ?? {});
+  if (!d) return null;
+  return { label: d.label, ...KIND_VISUALS[d.kind] };
 }
 
 function formatWhen(iso: string): string {

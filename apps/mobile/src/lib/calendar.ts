@@ -2,12 +2,18 @@ import { useMemo, useState } from "react";
 import { useApiQuery } from "./api";
 import { MONTH_LONG } from "./date";
 import { localDateKey } from "@inklee/shared/date-utils";
-import type { MobileCalendarAppointment as CalendarAppointment } from "@inklee/shared/mobile-api";
+import type {
+  MobileCalendarAppointment as CalendarAppointment,
+  MobileCalendarFlashDay,
+  MobileCalendarResponse,
+  MobileGuestSpot,
+} from "@inklee/shared/mobile-api";
 
 // One confirmed appointment from GET /api/mobile/calendar (approved, dated
 // bookings). `date` is a bare YYYY-MM-DD date-key — bookings have no time.
 // Re-exported under its original name; the canonical shape lives in @inklee/shared.
 export type { MobileCalendarAppointment as CalendarAppointment } from "@inklee/shared/mobile-api";
+export type { MobileCalendarFlashDay, MobileGuestSpot } from "@inklee/shared/mobile-api";
 
 // One cell of the month grid. All date math is done here so the MonthGrid
 // component stays purely presentational.
@@ -17,6 +23,8 @@ export type DayCell = {
   inMonth: boolean; // false for leading/trailing days from adjacent months
   isToday: boolean;
   count: number; // appointments on this day
+  hasGuestSpot: boolean; // a trip leg covers this day
+  hasFlash: boolean; // a flash day is scheduled this day
 };
 
 type Cursor = { year: number; month: number }; // month is 0-indexed
@@ -44,6 +52,8 @@ function buildWeeks(year: number, month: number): DayCell[][] {
         inMonth: cellDate.getMonth() === month,
         isToday: dateKey === todayKey,
         count: 0,
+        hasGuestSpot: false,
+        hasFlash: false,
       });
     }
     weeks.push(row);
@@ -100,7 +110,7 @@ export function useCalendarMonth() {
   const fromKey = grid[0][0].dateKey;
   const toKey = grid[5][6].dateKey;
 
-  const query = useApiQuery<{ items: CalendarAppointment[] }>(
+  const query = useApiQuery<MobileCalendarResponse>(
     `/calendar?from=${fromKey}&to=${toKey}`,
   );
 
@@ -109,15 +119,48 @@ export function useCalendarMonth() {
     [query.data],
   );
 
+  // Flash days keyed by date; guest-spot legs expanded across their covered
+  // days CLAMPED to the visible grid (string compares are safe on date keys),
+  // so a multi-month leg costs at most 42 iterations. The `?? []` defaults are
+  // the version-skew guard: an older API without the fields degrades to the
+  // appointments-only calendar.
+  const flashByDate = useMemo(() => {
+    const map: Record<string, MobileCalendarFlashDay[]> = {};
+    for (const day of query.data?.flashDays ?? []) {
+      (map[day.scheduledOn] ??= []).push(day);
+    }
+    return map;
+  }, [query.data]);
+
+  const guestSpotsByDate = useMemo(() => {
+    const map: Record<string, MobileGuestSpot[]> = {};
+    for (const leg of query.data?.guestSpots ?? []) {
+      const start = leg.startsOn < fromKey ? fromKey : leg.startsOn;
+      const end = leg.endsOn > toKey ? toKey : leg.endsOn;
+      // Walk the clamped range via local Date arithmetic (bounded by the
+      // 42-cell grid; guard anyway against malformed ranges).
+      const cursor = new Date(`${start}T12:00:00`);
+      for (let i = 0; i < 42; i++) {
+        const key = localDateKey(cursor);
+        if (key > end) break;
+        (map[key] ??= []).push(leg);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+    return map;
+  }, [query.data, fromKey, toKey]);
+
   const weeks = useMemo(
     () =>
       grid.map((row) =>
         row.map((cell) => ({
           ...cell,
           count: appointmentsByDate[cell.dateKey]?.length ?? 0,
+          hasGuestSpot: !!guestSpotsByDate[cell.dateKey]?.length,
+          hasFlash: !!flashByDate[cell.dateKey]?.length,
         })),
       ),
-    [grid, appointmentsByDate],
+    [grid, appointmentsByDate, guestSpotsByDate, flashByDate],
   );
 
   return {
@@ -126,6 +169,8 @@ export function useCalendarMonth() {
     selectedDate,
     selectDay: setSelectedDate,
     selectedAppointments: appointmentsByDate[selectedDate] ?? [],
+    selectedGuestSpots: guestSpotsByDate[selectedDate] ?? [],
+    selectedFlashDays: flashByDate[selectedDate] ?? [],
     loading: query.loading,
     error: query.error,
     refreshing: query.refreshing,

@@ -5,9 +5,11 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import { describeBookingActivity } from "@inklee/shared/booking-activity";
 import type {
   MobileBookingDetail,
   MobileBookingImage,
+  MobileBookingTimelineEvent,
   MobileImageAnnotation,
 } from "@inklee/shared/mobile-api";
 
@@ -94,26 +96,45 @@ export async function GET(
   const b = data as unknown as BookingDetail;
   const fd = b.form_data ?? {};
 
+  // One audit-log read feeds BOTH the activity timeline and the refund state,
+  // mirroring the web detail page's query exactly (newest-first, capped 30).
+  // audit_log's time column is `timestamp` (db/schema.ts auditLog), NOT
+  // created_at — selecting the wrong column errors the query and silently
+  // reads every refund as "not refunded" (re-arming the refund button).
+  const { data: log } = await supabase
+    .from("audit_log")
+    .select("action, timestamp, details")
+    .eq("booking_id", id)
+    .order("timestamp", { ascending: false })
+    .limit(30);
+  const auditRows = (log ?? []) as {
+    action: string;
+    timestamp: string;
+    details: Record<string, unknown> | null;
+  }[];
+
+  // Labels resolve server-side via the shared describe helper; raw `details`
+  // never ship to the device (they can carry IPs, token hashes and Stripe
+  // internals). Stays newest-first; clients must not re-sort.
+  const timeline: MobileBookingTimelineEvent[] = auditRows.flatMap((r) => {
+    const d = describeBookingActivity(r.action, r.details ?? {});
+    return d
+      ? [{ action: r.action, kind: d.kind, label: d.label, at: r.timestamp }]
+      : [];
+  });
+
   // RS-6: refund state is derived from the audit log (no dedicated column),
   // exactly as the web detail page does. Only meaningful for a paid card
-  // deposit, so we only look it up then. Gates the in-app refund button and the
-  // cancel-copy so the artist isn't told a deposit will be refunded twice.
+  // deposit — the gate must stay, or refund semantics change for manual
+  // deposits. Gates the in-app refund button and the cancel-copy so the
+  // artist isn't told a deposit will be refunded twice.
   let depositRefunded = false;
   let depositRefundedAt: string | null = null;
   if (b.deposit_payment_intent_id && b.deposit_paid_at) {
-    // audit_log's time column is `timestamp` (db/schema.ts auditLog), NOT
-    // created_at — selecting the wrong column errors the query and silently
-    // reads every refund as "not refunded" (re-arming the refund button).
-    const { data: log } = await supabase
-      .from("audit_log")
-      .select("timestamp")
-      .eq("booking_id", id)
-      .eq("action", "deposit_refunded")
-      .order("timestamp", { ascending: false })
-      .limit(1);
-    if (log && log.length > 0) {
+    const refund = auditRows.find((r) => r.action === "deposit_refunded");
+    if (refund) {
       depositRefunded = true;
-      depositRefundedAt = (log[0] as { timestamp: string }).timestamp;
+      depositRefundedAt = refund.timestamp;
     }
   }
 
@@ -164,6 +185,7 @@ export async function GET(
     referenceLink: fd.reference_link ?? null,
     referenceImagePaths: images.map((i) => i.storage_path),
     referenceImages,
+    timeline,
     preferredDate: b.preferred_date,
     createdAt: b.created_at,
     deposit:

@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/Button";
+import { ActivityTimeline } from "@/components/booking/ActivityTimeline";
 import { BookingActions } from "@/components/booking/BookingActions";
 import { ReferenceImageGallery } from "@/components/booking/ReferenceImageGallery";
 import { useApiQuery } from "@/lib/api";
@@ -186,6 +187,14 @@ export default function BookingDetailScreen() {
             <Field label="Due by" value={formatShortDate(d.dueAt)} />
           ) : null}
           {d.note ? <Field label="Note" value={d.note} /> : null}
+        </Section>
+      ) : null}
+
+      {/* booking_created guarantees at least one visible event for any real
+          booking; an empty array only means an older API — hide the section. */}
+      {(b.timeline ?? []).length > 0 ? (
+        <Section title="Activity">
+          <ActivityTimeline events={b.timeline ?? []} />
         </Section>
       ) : null}
 

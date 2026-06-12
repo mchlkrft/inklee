@@ -76,6 +76,8 @@ export function MonthGrid(props: {
                   cell.count > 0
                     ? `, ${cell.count} appointment${cell.count === 1 ? "" : "s"}`
                     : ""
+                }${cell.hasGuestSpot ? ", guest spot" : ""}${
+                  cell.hasFlash ? ", flash day" : ""
                 }`}
                 accessibilityState={{ selected: isSelected }}
                 className="flex-1"
@@ -102,13 +104,37 @@ export function MonthGrid(props: {
                   >
                     {cell.day}
                   </Text>
-                  {cell.count > 0 ? (
+                  {/* Type dots, web-legend vocabulary: rosa = appointments,
+                      cobalt = guest spot, green = flash day. All flip to
+                      charcoal on the selected mustard fill (brand tones fail
+                      contrast there; the agenda below carries the detail). */}
+                  {cell.count > 0 || cell.hasGuestSpot || cell.hasFlash ? (
                     <View
-                      className={`absolute h-2 w-2 rounded-full ${
-                        isSelected ? "bg-charcoal" : "bg-rosa"
-                      }`}
-                      style={{ bottom: 6 }}
-                    />
+                      className="absolute flex-row"
+                      style={{ bottom: 6, gap: 3 }}
+                    >
+                      {cell.count > 0 ? (
+                        <View
+                          className={`h-2 w-2 rounded-full ${
+                            isSelected ? "bg-charcoal" : "bg-rosa"
+                          }`}
+                        />
+                      ) : null}
+                      {cell.hasGuestSpot ? (
+                        <View
+                          className={`h-2 w-2 rounded-full ${
+                            isSelected ? "bg-charcoal" : "bg-cobalt"
+                          }`}
+                        />
+                      ) : null}
+                      {cell.hasFlash ? (
+                        <View
+                          className={`h-2 w-2 rounded-full ${
+                            isSelected ? "bg-charcoal" : "bg-success-fg"
+                          }`}
+                        />
+                      ) : null}
+                    </View>
                   ) : null}
                 </View>
               </Pressable>

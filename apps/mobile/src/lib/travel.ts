@@ -8,12 +8,12 @@ import { localDateKey } from "@inklee/shared/date-utils";
 import { invalidateByPathPrefix } from "./api";
 import { formatShortDate } from "./date";
 
-// Every /travel view PLUS /home: the dashboard guest-spots widget renders trip
-// titles and studio names, so a trip/leg/studio change must refresh it too.
+// Every /travel view PLUS /home (the dashboard guest-spots widget renders trip
+// titles and studio names) PLUS /calendar (trip legs mark the calendar grid).
 // (The screens used to carry two same-named copies of this helper, and the
 // studios one had silently dropped /home — studio renames left Home stale.)
 export function invalidateTravel(client: QueryClient): Promise<void> {
-  return invalidateByPathPrefix(client, ["/travel", "/home"]);
+  return invalidateByPathPrefix(client, ["/travel", "/home", "/calendar"]);
 }
 
 export const VISIBILITY_OPTIONS = VISIBILITY_MODES.map((value) => ({
