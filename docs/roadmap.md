@@ -188,7 +188,7 @@ Pending the user-provided mockup. When it arrives: audit `src/app/[slug]/page.ts
 
 ### 4.6 Public template repo cadence
 
-Independent track, low touch. Week 5 next on 2026-06-12; then Week 7 (2026-06-26); monthly after. Memory: `project_inklee_template_repo.md`.
+Independent track, low touch. ✅ Week 5 shipped 2026-06-12 (v1.2.0: waitlist signup template + waitlist guide); next Week 7 (2026-06-26); monthly after. Repo: github.com/mchlkrft/tattoo-booking-form-template (local clone `A:\WORK\tattoo-booking-form-template`).
 
 ---
 
