@@ -1,6 +1,6 @@
 # Inklee Roadmap (Unified View)
 
-**Last updated:** 2026-06-03 (**money-scope reset** — see §3 banner + `docs/restructure-money-scope-2026-06-03.md`)
+**Last updated:** 2026-06-12 (mobile E-track refresh: E1–E11 shipped on `feat/mobile-e1`, open punch list added — see §6.4; previous: 2026-06-03 money-scope reset, §3 banner + `docs/restructure-money-scope-2026-06-03.md`)
 **Current prod commit:** `2f98b53` (branch `feat/bio-page-goods`) — deployed to production via `vercel --prod` as `inklee-ffnck6791`, aliased to inkl.ee (2026-05-29). NOTE: prod predates the restructure.
 **Migrations applied:** 0000–0042 (0037–0042 applied 2026-06-02/03; `inventory_movements` optional, not created)
 **Status:** MVP feature-complete as a solo-artist tool. All original pre-launch hard blockers + every UX-polish slice (60a–60e + 61) closed. Phase D agent sweep done; all Highs closed; ~half the Mediums closed. Marketing redesign (Slice 70) shipped 2026-05-26. Artist subdomain bio layer (Slice 71) fully live 2026-05-27 (`*.inkl.ee`). **Pre-launch gate expanded 2026-05-28:** the founder added a major pre-launch feature cluster — the **tattoo-native Bio Page + Goods module + Appointment Add-ons** (Slices 72–76, see §3.8 + `docs/bio-page-goods-plan.md`), shipping **before public launch**. This makes **Stripe Connect a new pre-launch blocker** (OT-12) for production goods money, and pushes the first-artist soak (§3.4) and Phase E mobile (§6.4) behind the cluster. No subscription/monetization layer in code yet; the cluster adds paywall _readiness_ only (flags + a `canUseGoods()` helper), no billing. **⚠️ Reframed 2026-06-03 (§3 banner): goods are now showcase-only; the money model is optional deposit collection with an Inklee platform fee (transaction-fee revenue) — `docs/restructure-money-scope-2026-06-03.md`.**
@@ -265,24 +265,31 @@ Research only. Output `docs/payments-strategy.md` v1. NOT implementation. Open q
 
 **Hard constraints:** no in-app subscription billing (Apple/Google IAP — deposits are real-world services, exempt); Sign in with Apple required (Google offered); in-app account deletion required (also a web GDPR gap to build); Stripe KYC via in-app browser; minimal-PII push payloads.
 
-**Mobile slice plan (E-track):**
+**Mobile slice plan (E-track) — refreshed 2026-06-12.** The full app shipped on branch `feat/mobile-e1` through MB-1..MB-13 (web-IA realign, `docs/mobile-web-alignment-plan.md`) plus six founder-feedback/quality rounds (`5d05194`, `fe8d65d`, `8c34f88` latest). Slice-level detail lives in git history + memory; this table is the status view only.
 
 | Slice | Title                                                                                        | Status             |
 | ----- | -------------------------------------------------------------------------------------------- | ------------------ |
 | E0    | Audit + architecture + Expo-vs-Capacitor spike                                               | ✅ done (the plan) |
-| E-M0  | Monorepo migration (`apps/web` + workspace) — own PR, web-build-green + Vercel root-dir gate | ✅ done + merged to `payment-stripe`; Vercel root=`apps/web` |
-| E1    | Expo foundation + auth + first `/api/mobile` (me/home/bookings/notifications)                | ◑ backend done (13 GET reads + notification mutations + `devices` push-prep, migration 0046 NOT applied) **+ Expo client SCAFFOLDED 2026-06-06** on branch `feat/mobile-e1`: `packages/shared` (@inklee/shared, 20 pure modules), Expo **SDK 54** + Expo Router + NativeWind + Supabase Bearer-JWT auth + 5-tab shell, Home/Requests/More live from `/api/mobile`, EAS project `@inklee/inklee` bound. Build-verified (bundle 1559 modules, web still green). ⚠️ SDK54 migration + dup-React fix are UNCOMMITTED working tree (HEAD still SDK56 scaffold `704cf5b`); pending founder on-device sign-in confirmation → then commit. Sign in with Apple/Google still TODO. See [[inklee-mobile-app-plan-phase-e]] |
-| E2    | Booking core (inbox, detail, accept/pass/cancel, deposit)                                    | ◑ backend money-path done — shared core `lib/server/bookings.ts` (web actions = thin wrappers, no divergence) + `POST /api/mobile/bookings/[id]/{approve,reject,cancel,deposit,deposit-received,deposit-refund}`; 295 tests green. Expo screens pending |
-| E3    | Notifications + push (device tokens, deep link)                                              |                    |
-| E4    | Onboarding + public booking link (first-10-minutes)                                          |                    |
-| E5    | Calendar, slots, availability                                                                |                    |
-| E6    | Clients + waitlist                                                                           |                    |
-| E7    | Flash · E8 Guest spots · E9 Goods (showcase)                                                 |                    |
-| E10   | Analytics + polish                                                                           |                    |
-| E11   | Settings, payouts, deposits, templates, KYC web-view                                         |                    |
-| E12   | Beta release readiness (TestFlight + Play internal)                                          |                    |
+| E-M0  | Monorepo migration (`apps/web` + workspace) — own PR, web-build-green + Vercel root-dir gate | ✅ done; Vercel root=`apps/web` |
+| E1    | Expo foundation + auth (incl. Apple/Google) + `/api/mobile` reads + 5-tab web-IA shell       | ✅ shipped |
+| E2    | Booking core (inbox, detail, accept/pass/cancel, deposits incl. refunds, attachments)        | ✅ shipped (signed reference images + annotation lightbox, round 4) |
+| E3    | Notifications + push (device tokens, deep link)                                              | ◑ feed + bell + `devices` endpoints + deep-link allowlist wired; on-device push E2E + migration 0046 verification pending |
+| E4    | Onboarding + public booking link (first-10-minutes)                                          | ✅ shipped |
+| E5    | Calendar + artist-authored appointments (slots stay web-only)                                | ✅ shipped |
+| E6    | Clients + waitlist (detail pages, city demand, convert)                                      | ✅ shipped |
+| E7    | Flash · E8 Guest spots · E9 Goods (showcase, create-with-photo)                              | ✅ shipped |
+| E10   | Analytics + polish (insights, theme system, accent contrast, button system)                  | ✅ shipped (founder rounds 1–6) |
+| E11   | Settings parity (profile, books, payouts, deposits, emails, templates, KYC handoff, deletion)| ✅ shipped |
+| E12   | Beta release readiness (TestFlight + Play internal)                                          | ☐ open — gated on the punch list below |
 
-**Founder prerequisites (start now — lead time):** Apple Developer Program under Inklee OÜ (needs a D-U-N-S number) + Google Play Console ($25) + Expo account (OT-05). EAS cloud build produces the iOS binary without a Mac.
+**E-track open punch list (pre-store/EAS build, added 2026-06-12):**
+
+- **ME-1 (blocks E12):** app icon, Android adaptive icon, splash image, notification icon — none exist (no `assets/` dir ever committed); first EAS build ships the Expo placeholder and fails store submission. Needs founder brand assets.
+- **ME-2 (blocks E12, founder lead time):** Apple Developer Program under Inklee OÜ (D-U-N-S) + Google Play Console + EAS production profile dry run.
+- **ME-3:** lucide-react-native bundles all 1,713 icons (~1.3MB JS) — fix via babel-plugin-transform-imports mapping members to `dist/esm/icons/<kebab>.mjs`; needs an alias map (BarChart3→chart-column) + digit-aware kebab (Trash2→trash-2); verify with `npx expo export`. Audit-verified 2026-06-12, deliberately deferred for risk control.
+- **ME-4:** `success`/`danger` brand colors are theme-independent and contrast-weak as text (success ~2:1 on the dark shell) — candidates for the `--accent`-style light/dark split.
+- **ME-5 (founder round):** booking detail field rows still 12/14px type (the one screen the round-5 readability pass deliberately skipped); onboarding done-screen copy still says "from the More tab" (tab removed in MB-5); onboarding ModeCard mustard selection border faint in light mode.
+- **ME-6:** deferred XL items from the 531-function web→mobile parity audit (memory `mobile-theme-and-parity-audit.md`).
 
 ### 6.5 Business Model Phase 7 — Retention and expansion (continuous from Horizon 3)
 
