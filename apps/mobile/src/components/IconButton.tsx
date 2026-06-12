@@ -1,5 +1,5 @@
 import { Pressable } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { useColors } from "@/lib/theme";
 
 // Circular icon-only button (top-bar menu, sheet close X, month arrows,

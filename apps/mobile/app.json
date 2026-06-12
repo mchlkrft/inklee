@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "backgroundColor": "#1e1e1e",
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ee.inkl.app",
@@ -16,6 +17,11 @@
     },
     "android": {
       "package": "ee.inkl.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#1e1e1e"
+      },
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ]
@@ -34,12 +40,15 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/notification-icon.png",
           "color": "#e9b22b"
         }
       ],
       [
         "expo-splash-screen",
         {
+          "image": "./assets/splash-logo.png",
+          "imageWidth": 200,
           "backgroundColor": "#1e1e1e",
           "resizeMode": "contain"
         }

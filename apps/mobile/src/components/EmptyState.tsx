@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { useColors } from "@/lib/theme";
 
 // MB-2: optional bone-tinted Lucide icon above the title (the web empty states

@@ -6,8 +6,8 @@ import {
   LayoutDashboard,
   MapPin,
   ShoppingBag,
-  type LucideIcon,
 } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { Spiderweb } from "./icons/Spiderweb";
 import { border, colors as brand } from "@/lib/tokens";
 import { chrome } from "@/lib/theme";

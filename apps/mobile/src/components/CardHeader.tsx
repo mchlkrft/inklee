@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { IconChip } from "./IconChip";
 import type { TintRole } from "@/lib/tokens";
 

@@ -6,7 +6,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { Minus, Plus, type LucideIcon } from "lucide-react-native";
+import { Minus, Plus } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";

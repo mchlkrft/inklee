@@ -9,8 +9,8 @@ import {
   LogOut,
   Settings as SettingsIcon,
   X,
-  type LucideIcon,
 } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { Spiderweb } from "./icons/Spiderweb";
 import { IconButton } from "./IconButton";
 import { TopSheet } from "./TopSheet";

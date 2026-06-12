@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { tint, type TintRole } from "@/lib/tokens";
 
 // Circular solid-tint badge that leads section/widget headers — the web's

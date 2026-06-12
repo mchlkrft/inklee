@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, Text } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
