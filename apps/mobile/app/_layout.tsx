@@ -1,8 +1,9 @@
 import "../global.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   QueryClient,
@@ -12,12 +13,17 @@ import {
 import type { MobileMe } from "@inklee/shared/mobile-api";
 import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
+import { SplashOverlay } from "@/components/SplashOverlay";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
 import { usePushResponseObserver } from "@/lib/push";
 import { captureError } from "@/lib/telemetry";
 import { t } from "@/lib/i18n";
+
+// Hold the native splash (the solid layer color) until the branded JS overlay
+// mounts and takes over — SplashOverlay calls hideAsync on mount.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // One client for the app. 30s staleTime keeps tab switches from refetching
 // constantly; one retry smooths transient mobile-network blips.
@@ -55,8 +61,8 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
-// Centered charcoal splash — used while the session and then /me resolve, so a
-// fresh sign-in never flashes the wrong stack before the gate is known.
+// In-app loading screen for MID-SESSION gates (account switch re-resolving
+// /me) — the cold start shows the branded SplashOverlay instead.
 function Splash() {
   return (
     <View className="flex-1 items-center justify-center bg-background">
@@ -128,15 +134,12 @@ function RootNavigator() {
   // that lands during cold start is routed once the gate resolves.
   usePushResponseObserver(onboarded);
 
-  // Session bootstrapping.
-  if (loading) return <Splash />;
-  // Signed in, /me not yet resolved for this user — hold the splash.
-  if (session && !meReady && !me.error) return <Splash />;
-  // Signed in, /me errored with nothing cached — offer a retry instead of
-  // guessing onboarding vs tabs.
-  if (session && !meReady && me.error) {
-    return <RetrySplash message={me.error} onRetry={me.refresh} />;
-  }
+  // Cold-start boot: the branded SplashOverlay covers the whole screen until
+  // the session + /me gate resolves, then fades out over the mounted UI. It
+  // unmounts for good after the first boot; mid-session gates (account switch)
+  // fall back to the plain in-app Splash.
+  const [splashDone, setSplashDone] = useState(false);
+  const booting = loading || (!!session && !meReady && !me.error);
 
   // Themed native-header options for the top-level Stack screens (themes with
   // the active scheme rather than the old hardcoded charcoal/bone).
@@ -147,10 +150,40 @@ function RootNavigator() {
     headerShadowVisible: false,
   };
 
+  let content: ReactNode;
+  if (booting) {
+    // Behind the overlay during cold start; the BrandLoader screen for the
+    // mid-session re-resolve after the overlay is gone.
+    content = splashDone ? (
+      <Splash />
+    ) : (
+      <View className="flex-1 bg-background" />
+    );
+  } else if (session && !meReady && me.error) {
+    // Signed in, /me errored with nothing cached — offer a retry instead of
+    // guessing onboarding vs tabs (the overlay fades out to reveal it).
+    content = <RetrySplash message={me.error} onRetry={me.refresh} />;
+  } else {
+    content = renderStack();
+  }
+
+  return (
+    <View className="flex-1">
+      {content}
+      {!splashDone ? (
+        <SplashOverlay
+          ready={!booting}
+          onDone={() => setSplashDone(true)}
+        />
+      ) : null}
+    </View>
+  );
+
   // Stack.Protected flips the available routes off the session + /me, so signing
   // in/out and completing onboarding automatically move the artist between the
   // sign-in screen, the onboarding stack, and the tabs — no manual navigation.
-  return (
+  function renderStack() {
+    return (
     <Stack
       screenOptions={{
         headerShown: false,
@@ -202,7 +235,8 @@ function RootNavigator() {
         />
       </Stack.Protected>
     </Stack>
-  );
+    );
+  }
 }
 
 export default function RootLayout() {
