@@ -102,6 +102,8 @@ export type MobileHomeBooking = {
 
 /** One upcoming guest-spot trip leg in the Home aggregate. */
 export type MobileGuestSpot = {
+  /** Library icon key of the parent trip (artist-side display only). */
+  icon?: string | null;
   id: string;
   tripId: string;
   tripTitle: string;
@@ -122,6 +124,9 @@ export type MobileHome = {
   pendingCount: number;
   pending: MobileHomeBooking[];
   upcoming: MobileHomeBooking[];
+  /** Total upcoming appointments (the list above is capped at 3). Optional for
+   *  version skew — older servers don't send it; fall back to upcoming.length. */
+  upcomingCount?: number;
   guestSpots: MobileGuestSpot[];
   waitlistCount: number;
   /** Total requests ever received — drives the zero-request "share your link"
@@ -404,6 +409,8 @@ export type MobileStudio = {
   publicNote: string | null;
   visibilityMode: string;
   isPrimary: boolean;
+  /** Library icon key (artist-side display only); null/absent = default glyph. */
+  icon?: string | null;
 };
 
 export type MobileStudiosResponse = { items: MobileStudio[] };
@@ -432,6 +439,8 @@ export type MobileTrip = {
   description: string | null;
   showOnBookingForm: boolean;
   legCount: number;
+  /** Library icon key (artist-side display only); null/absent = default glyph. */
+  icon?: string | null;
 };
 
 export type MobileTripsResponse = { items: MobileTrip[] };
@@ -520,6 +529,8 @@ export type MobileTripDetail = {
   showOnBookingForm: boolean;
   legs: MobileTripLeg[];
   studios: MobileStudioOption[];
+  /** Library icon key (artist-side display only); null/absent = default glyph. */
+  icon?: string | null;
 };
 
 /** One of the five per-status booking email templates

@@ -28,7 +28,7 @@ export function BooksStatusPill() {
         }
         onPress={() => setSheetOpen(true)}
         hitSlop={8}
-        className="flex-row items-center gap-1.5 rounded-full px-2.5 py-1.5 active:opacity-70"
+        className="flex-row items-center gap-1.5 rounded-full px-3 py-2 active:opacity-70"
         style={{ backgroundColor: chrome.hover }}
       >
         <View

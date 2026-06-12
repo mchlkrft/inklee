@@ -88,6 +88,7 @@ export async function GET(req: Request) {
             .from("booking_requests")
             .select(
               "id, customer_handle, customer_email, preferred_date, form_data",
+              { count: "exact" },
             )
             .eq("artist_id", userId)
             .eq("status", "approved")
@@ -95,7 +96,7 @@ export async function GET(req: Request) {
             .gte("preferred_date", today)
             .order("preferred_date", { ascending: true })
             .limit(3)
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, count: null }),
       widgets.waitlist
         ? supabase
             .from("waitlist_entries")
@@ -113,7 +114,7 @@ export async function GET(req: Request) {
         ? supabase
             .from("trips")
             .select(
-              "id, title, trip_legs(id, starts_on, ends_on, studios(name))",
+              "id, title, icon, trip_legs(id, starts_on, ends_on, studios(name))",
             )
             .eq("artist_id", userId)
         : Promise.resolve({ data: null }),
@@ -129,6 +130,7 @@ export async function GET(req: Request) {
         studioName: l.studios?.name ?? null,
         startsOn: l.starts_on,
         endsOn: l.ends_on,
+        icon: ((t as { icon?: string | null }).icon ?? null) as string | null,
       })),
     )
     .filter((l) => l.endsOn >= today)
@@ -145,6 +147,7 @@ export async function GET(req: Request) {
     pendingCount: pending.count ?? 0,
     pending: ((pending.data ?? []) as HomeBookingRow[]).map(mapRow),
     upcoming: ((upcoming.data ?? []) as HomeBookingRow[]).map(mapRow),
+    upcomingCount: upcoming.count ?? 0,
     guestSpots,
     waitlistCount: waitlist.count ?? 0,
     totalReceivedCount: totalReceived.count ?? 0,

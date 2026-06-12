@@ -8,6 +8,7 @@ import BookingLinkWidget from "./booking-link-widget";
 import { publicArtistUrl } from "@/lib/public-url";
 import { customerLabel } from "@/lib/booking-domain";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
+import { TravelIcon } from "@/components/travel-icon";
 import {
   Inbox,
   CalendarDays,
@@ -91,7 +92,9 @@ export default async function DashboardPage() {
     widgets.guest_spots
       ? supabase
           .from("trips")
-          .select("id, title, trip_legs(id, starts_on, ends_on, studios(name))")
+          .select(
+            "id, title, icon, trip_legs(id, starts_on, ends_on, studios(name))",
+          )
           .eq("artist_id", user!.id)
       : Promise.resolve({ data: null }),
   ]);
@@ -117,6 +120,7 @@ export default async function DashboardPage() {
     startsOn: string;
     endsOn: string;
     studioName: string | null;
+    icon: string | null;
   };
   const upcomingGuestSpots: UpcomingLeg[] = (guestSpotsResult.data ?? [])
     .flatMap((t) =>
@@ -127,6 +131,7 @@ export default async function DashboardPage() {
         startsOn: l.starts_on,
         endsOn: l.ends_on,
         studioName: l.studios?.name ?? null,
+        icon: ((t as { icon?: string | null }).icon ?? null) as string | null,
       })),
     )
     .filter((l) => l.endsOn >= today)
@@ -287,15 +292,24 @@ export default async function DashboardPage() {
                     href={`/bookings/overview?view=requests&trip=${leg.tripId}`}
                     className="group flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-[color:var(--color-workspace-hover)]"
                   >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {leg.studioName ?? leg.tripTitle}
-                      </p>
-                      {leg.studioName && (
-                        <p className="truncate text-xs text-muted-foreground">
-                          {leg.tripTitle}
+                    <div className="flex min-w-0 items-center gap-2">
+                      {leg.icon ? (
+                        <TravelIcon
+                          icon={leg.icon}
+                          fallback={MapPin}
+                          className="h-4 w-4 shrink-0 text-muted-foreground"
+                        />
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {leg.studioName ?? leg.tripTitle}
                         </p>
-                      )}
+                        {leg.studioName && (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {leg.tripTitle}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <p className="shrink-0 text-xs text-muted-foreground">
                       {leg.startsOn === leg.endsOn

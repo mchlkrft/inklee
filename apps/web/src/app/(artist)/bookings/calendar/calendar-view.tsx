@@ -4,6 +4,7 @@ import { localDateKey } from "@/lib/date-utils";
 import { useState } from "react";
 import { MapPin, Plus } from "lucide-react";
 import Link from "next/link";
+import { TravelIcon } from "@/components/travel-icon";
 import AppointmentDrawer, { type CalendarEvent } from "./appointment-drawer";
 import { customerLabel } from "@/lib/booking-domain";
 import NewAppointmentModal from "./new-appointment-modal";
@@ -55,6 +56,8 @@ export type CalendarTripLeg = {
   startsOn: string;
   endsOn: string;
   label: string;
+  /** Parent trip's library icon key; null = default MapPin. */
+  icon?: string | null;
 };
 export type CalendarFlashDay = { id: string; date: string; title: string };
 
@@ -122,6 +125,9 @@ export default function CalendarView({
   // legs (an artist working several studios at once) stack their cities.
   const tripDays = new Set<string>();
   const tripLabelsByDay = new Map<string, string[]>();
+  // First leg's chosen icon wins on days where multiple trips overlap (the
+  // labels merge; one glyph leads them).
+  const tripIconByDay = new Map<string, string>();
   for (const leg of tripLegs) {
     if (!leg.startsOn || !leg.endsOn) continue;
     for (const k of eachDayKey(leg.startsOn, leg.endsOn)) {
@@ -129,6 +135,7 @@ export default function CalendarView({
       const labels = tripLabelsByDay.get(k) ?? [];
       if (leg.label && !labels.includes(leg.label)) labels.push(leg.label);
       tripLabelsByDay.set(k, labels);
+      if (leg.icon && !tripIconByDay.has(k)) tripIconByDay.set(k, leg.icon);
     }
   }
 
@@ -316,7 +323,11 @@ export default function CalendarView({
                   {/* Travel location(s) — small, bottom-left, not a chip. */}
                   {dayTripLabels.length > 0 && (
                     <div className="pointer-events-none absolute bottom-1 left-1.5 right-1.5 z-10 flex items-center gap-1 text-[10px] font-medium text-brand-cobalt">
-                      <MapPin className="h-3 w-3 shrink-0" strokeWidth={2} />
+                      <TravelIcon
+                        icon={tripIconByDay.get(key) ?? null}
+                        fallback={MapPin}
+                        className="h-3 w-3 shrink-0"
+                      />
                       <span className="truncate">
                         {dayTripLabels.join(" · ")}
                       </span>
@@ -406,9 +417,10 @@ export default function CalendarView({
                 <div className="max-h-[60vh] space-y-1 overflow-y-auto p-2">
                   {dayLabels.length > 0 && (
                     <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-brand-cobalt">
-                      <MapPin
+                      <TravelIcon
+                        icon={tripIconByDay.get(dayDetail) ?? null}
+                        fallback={MapPin}
                         className="h-3.5 w-3.5 shrink-0"
-                        strokeWidth={2}
                       />
                       <span>{dayLabels.join(" · ")}</span>
                     </div>

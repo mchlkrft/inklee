@@ -36,7 +36,9 @@ export default async function CalendarPage() {
   // Guest spots (trip legs) + flash days overlaid on the same calendar.
   const { data: rawTrips } = await supabase
     .from("trips")
-    .select("id, title, trip_legs(id, starts_on, ends_on, studios(name, city))")
+    .select(
+      "id, title, icon, trip_legs(id, starts_on, ends_on, studios(name, city))",
+    )
     .eq("artist_id", user!.id);
   type RawStudio = { name: string; city: string };
   type RawLeg = {
@@ -45,7 +47,12 @@ export default async function CalendarPage() {
     ends_on: string;
     studios: RawStudio | RawStudio[] | null;
   };
-  type RawTrip = { id: string; title: string; trip_legs: RawLeg[] | null };
+  type RawTrip = {
+    id: string;
+    title: string;
+    icon: string | null;
+    trip_legs: RawLeg[] | null;
+  };
   const tripLegs = ((rawTrips ?? []) as unknown as RawTrip[]).flatMap((t) =>
     (t.trip_legs ?? []).map((leg) => {
       const studio = Array.isArray(leg.studios) ? leg.studios[0] : leg.studios;
@@ -54,6 +61,7 @@ export default async function CalendarPage() {
         startsOn: leg.starts_on,
         endsOn: leg.ends_on,
         label: studio?.city || studio?.name || t.title,
+        icon: t.icon ?? null,
       };
     }),
   );

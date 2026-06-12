@@ -10,6 +10,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { ShoppingBag } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   MobileProduct,
@@ -65,6 +66,8 @@ export default function GoodsList() {
     <>
       <PageHeader
         title="Goods"
+        icon={ShoppingBag}
+        iconRole="green"
         subtitle="Products your clients can pick up at their appointment. Shown on your public page and offered as add-ons when a client pays a deposit."
       />
       {/* Web hides the header create button when empty (the empty state has its

@@ -1,6 +1,14 @@
 import { View } from "react-native";
-import type { LucideIcon } from "@/lib/icon-types";
+import type { ComponentType } from "react";
 import { tint, type TintRole } from "@/lib/tokens";
+
+/** Any icon honouring the lucide size/color contract — lucide icons plus the
+ *  brand Spiderweb. */
+export type ChipIcon = ComponentType<{
+  size?: number;
+  color?: string;
+  strokeWidth?: number;
+}>;
 
 // Circular solid-tint badge that leads section/widget headers — the web's
 // IconChip (apps/web/src/components/ui/card.tsx), and the single biggest "Inklee
@@ -12,7 +20,7 @@ export function IconChip({
   role = "bone",
   size = "md",
 }: {
-  icon: LucideIcon;
+  icon: ChipIcon;
   role?: TintRole;
   size?: "sm" | "md";
 }) {

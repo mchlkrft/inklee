@@ -9,6 +9,10 @@ import {
   type StudioInput,
 } from "@inklee/shared/studio-validation";
 import {
+  sanitizeTravelIcon,
+  type TravelIconKey,
+} from "@inklee/shared/travel-icons";
+import {
   validateTripLeg,
   type TripLegInput,
 } from "@inklee/shared/trip-validation";
@@ -23,7 +27,7 @@ function asString(value: unknown): string {
 // Shared studio row → MobileStudio mapping, used by the studios list + detail
 // routes. Google Places columns are intentionally not surfaced to the app.
 export const STUDIO_COLS =
-  "id, name, city, country, address, public_note, visibility_mode, is_primary";
+  "id, name, city, country, address, public_note, visibility_mode, is_primary, icon";
 
 export type StudioRow = {
   id: string;
@@ -34,6 +38,7 @@ export type StudioRow = {
   public_note: string | null;
   visibility_mode: string;
   is_primary: boolean;
+  icon: string | null;
 };
 
 export function toStudio(r: StudioRow): MobileStudio {
@@ -46,6 +51,7 @@ export function toStudio(r: StudioRow): MobileStudio {
     publicNote: r.public_note,
     visibilityMode: r.visibility_mode,
     isPrimary: r.is_primary,
+    icon: r.icon ?? null,
   };
 }
 
@@ -56,6 +62,9 @@ export type TripInput = {
   title: string;
   description: string | null;
   showOnBookingForm: boolean;
+  /** undefined = the client didn't send the field (old app) — leave the
+   *  column untouched; null = clear; a key = set. */
+  icon?: TravelIconKey | null;
 };
 
 /** Validate a trip create/update payload (legs are handled separately). */
@@ -80,15 +89,19 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
     return { ok: false, error: "showOnBookingForm must be a boolean." };
   }
 
-  return {
-    ok: true,
-    value: {
-      title,
-      description: descRaw || null,
-      // Default visible (matches the web create action).
-      showOnBookingForm: b.showOnBookingForm !== false,
-    },
+  const value: TripInput = {
+    title,
+    description: descRaw || null,
+    // Default visible (matches the web create action).
+    showOnBookingForm: b.showOnBookingForm !== false,
   };
+  // Tri-state: only set when the client sent the field, so an old app's save
+  // can never wipe an icon chosen elsewhere.
+  if ("icon" in b) {
+    value.icon = sanitizeTravelIcon(b.icon);
+  }
+
+  return { ok: true, value };
 }
 
 /** Validate a studio create/update payload via the shared zod schema. */

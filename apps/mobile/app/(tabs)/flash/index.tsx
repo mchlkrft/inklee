@@ -16,6 +16,7 @@ import type {
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
+import { Spiderweb } from "@/components/icons/Spiderweb";
 import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -75,7 +76,7 @@ export default function FlashItemsList() {
   // can reclaim its space when it hides on scroll.
   const listHeader = (
     <>
-      <PageHeader title="Flash" />
+      <PageHeader title="Flash" icon={Spiderweb} iconRole="rosa" />
       <View className="pt-2">
         {/* Full md-height CTA, matching the calendar's New appointment. */}
         <Button label="New design" onPress={newDesign} loading={creating} />

@@ -76,18 +76,22 @@ export async function PUT(
     if (demoteErr) return mobileError(500, demoteErr.message);
   }
 
+  // icon is tri-state: undefined (old app omitted it) leaves the column alone.
+  const update: Record<string, unknown> = {
+    name: v.name,
+    city: v.city,
+    country: v.country,
+    address: v.address,
+    public_note: v.public_note,
+    visibility_mode: v.visibility_mode,
+    is_primary: v.is_primary,
+    updated_at: new Date().toISOString(),
+  };
+  if (v.icon !== undefined) update.icon = v.icon;
+
   const { error } = await supabase
     .from("studios")
-    .update({
-      name: v.name,
-      city: v.city,
-      country: v.country,
-      address: v.address,
-      public_note: v.public_note,
-      visibility_mode: v.visibility_mode,
-      is_primary: v.is_primary,
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", id)
     .eq("artist_id", userId);
   if (error) return mobileError(500, error.message);

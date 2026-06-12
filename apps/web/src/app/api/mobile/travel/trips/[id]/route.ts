@@ -40,7 +40,7 @@ export async function GET(
 
   const { data: trip, error } = await supabase
     .from("trips")
-    .select("id, title, description, show_on_booking_form")
+    .select("id, title, description, show_on_booking_form, icon")
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
@@ -83,6 +83,7 @@ export async function GET(
       name: s.name,
       city: s.city,
     })),
+    icon: (trip.icon as string | null) ?? null,
   };
   return mobileOk(body);
 }
@@ -117,13 +118,17 @@ export async function PUT(
   if (readErr) return mobileError(500, readErr.message);
   if (!existing) return mobileError(404, "Trip not found.", "not_found");
 
+  // icon is tri-state: absent (old app) = leave the column untouched.
+  const update: Record<string, unknown> = {
+    title: v.title,
+    description: v.description,
+    show_on_booking_form: v.showOnBookingForm,
+  };
+  if (v.icon !== undefined) update.icon = v.icon;
+
   const { error } = await supabase
     .from("trips")
-    .update({
-      title: v.title,
-      description: v.description,
-      show_on_booking_form: v.showOnBookingForm,
-    })
+    .update(update)
     .eq("id", id)
     .eq("artist_id", userId);
   if (error) return mobileError(500, error.message);

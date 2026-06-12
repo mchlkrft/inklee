@@ -16,6 +16,9 @@ import {
   deleteStudioAction,
 } from "./actions";
 import type { PlaceResult } from "@/components/google-places-picker";
+import { IconPickerGrid } from "./icon-picker";
+import { TravelIcon } from "@/components/travel-icon";
+import { Building2 } from "lucide-react";
 
 const GooglePlacesPicker = dynamic(
   () => import("@/components/google-places-picker"),
@@ -38,6 +41,7 @@ type Studio = {
   visibility_mode: string;
   public_note: string | null;
   is_primary: boolean;
+  icon?: string | null;
 };
 
 type State = { error: string } | { success: true } | null;
@@ -283,6 +287,14 @@ function StudioForm({
         </div>
       </div>
 
+      {/* Section: icon (artist-side display only) */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Icon
+        </p>
+        <IconPickerGrid initial={studio?.icon ?? null} />
+      </div>
+
       {/* Section 3: Public visibility — styled radio cards */}
       <div className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -523,6 +535,13 @@ export default function StudioList({ studios }: { studios: Studio[] }) {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {s.icon ? (
+                      <TravelIcon
+                        icon={s.icon}
+                        fallback={Building2}
+                        className="h-4 w-4 text-muted-foreground"
+                      />
+                    ) : null}
                     <p className="text-sm text-foreground">{s.name}</p>
                     {s.is_primary && (
                       <span className="text-xs font-medium text-brand-mustard">

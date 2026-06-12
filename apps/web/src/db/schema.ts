@@ -249,6 +249,8 @@ export const studios = pgTable("studios", {
   publicNote: text("public_note"),
   visibilityMode: text("visibility_mode").notNull().default("hidden"),
   isPrimary: boolean("is_primary").notNull().default(false),
+  // Artist-chosen library icon key (mig 0049); NULL = default glyph.
+  icon: text("icon"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -266,6 +268,8 @@ export const trips = pgTable("trips", {
   title: text("title").notNull(),
   description: text("description"),
   showOnBookingForm: boolean("show_on_booking_form").notNull().default(true),
+  // Artist-chosen library icon key (mig 0049); NULL = default glyph.
+  icon: text("icon"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

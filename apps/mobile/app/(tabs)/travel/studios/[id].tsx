@@ -15,12 +15,17 @@ import {
   VISIBILITY_MODES,
   type VisibilityMode,
 } from "@inklee/shared/studio-validation";
+import {
+  sanitizeTravelIcon,
+  type TravelIconKey,
+} from "@inklee/shared/travel-icons";
 import type { MobileStudio } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { RadioList } from "@/components/RadioList";
+import { TravelIconPicker } from "@/components/TravelIconPicker";
 import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
@@ -82,6 +87,9 @@ function StudioForm({
       : "hidden";
   });
   const [isPrimary, setIsPrimary] = useState(initial?.isPrimary ?? false);
+  const [icon, setIcon] = useState<TravelIconKey | null>(
+    sanitizeTravelIcon(initial?.icon ?? null),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,6 +109,7 @@ function StudioForm({
       public_note: publicNote.trim() || null,
       visibility_mode: visibility,
       is_primary: isPrimary,
+      icon,
     };
     try {
       if (isNew) await apiPost("/travel/studios", payload);
@@ -171,6 +180,9 @@ function StudioForm({
           value={address}
           onChangeText={setAddress}
         />
+
+        <FieldLabel>Icon</FieldLabel>
+        <TravelIconPicker value={icon} onChange={setIcon} />
 
         <FieldLabel>Public note (optional)</FieldLabel>
         <TextArea

@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Building2 } from "lucide-react-native";
 import type {
   MobileStudio,
   MobileStudiosResponse,
@@ -15,6 +16,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
+import { TravelIcon } from "@/components/TravelIcon";
 import { useApiQuery } from "@/lib/api";
 import { visibilityLabel } from "@/lib/travel";
 import { useColors } from "@/lib/theme";
@@ -90,6 +92,7 @@ function StudioRowView({
   studio: MobileStudio;
   onPress: () => void;
 }) {
+  const themed = useColors();
   const place = [studio.city, studio.country].filter(Boolean).join(", ");
   return (
     <Pressable
@@ -98,6 +101,16 @@ function StudioRowView({
       className="rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
     >
       <View className="flex-row items-center justify-between">
+        {studio.icon ? (
+          <View className="mr-2">
+            <TravelIcon
+              icon={studio.icon}
+              fallback={Building2}
+              size={16}
+              color={themed.cobalt}
+            />
+          </View>
+        ) : null}
         <Text
           className="flex-1 pr-2 text-base font-semibold text-foreground"
           numberOfLines={1}

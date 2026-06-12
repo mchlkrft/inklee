@@ -2,6 +2,7 @@ import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { MapPin, Zap } from "lucide-react-native";
 import { Card } from "@/components/Card";
+import { TravelIcon } from "@/components/TravelIcon";
 import type {
   CalendarAppointment,
   MobileCalendarFlashDay,
@@ -50,7 +51,13 @@ export function DayAgenda({
               onPress={() => router.push(`/travel/trips/${g.tripId}`)}
               className="flex-row items-center gap-2 rounded-2xl border border-shell-border bg-glass px-4 py-3 active:opacity-80"
             >
-              <MapPin size={16} color={themed.cobalt} />
+              {/* The trip's library icon when chosen; MapPin otherwise. */}
+              <TravelIcon
+                icon={g.icon ?? null}
+                fallback={MapPin}
+                size={16}
+                color={themed.cobalt}
+              />
               <Text
                 className="flex-1 text-base font-medium text-foreground"
                 numberOfLines={1}

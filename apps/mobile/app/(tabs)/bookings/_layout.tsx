@@ -87,7 +87,7 @@ export default function BookingsLayout() {
             setBandHeight(Math.round(e.nativeEvent.layout.height))
           }
         >
-          <PageHeader title="Bookings" />
+          <PageHeader title="Bookings" icon={Inbox} iconRole="mustard" />
           <View className="mb-3">
             <SubNav
               items={SUBNAV}

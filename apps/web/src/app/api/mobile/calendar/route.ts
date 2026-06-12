@@ -66,7 +66,9 @@ export async function GET(req: Request) {
     // overlap is filtered in JS, mirroring the home route's proven pattern.
     supabase
       .from("trips")
-      .select("id, title, trip_legs(id, starts_on, ends_on, studios(name))")
+      .select(
+        "id, title, icon, trip_legs(id, starts_on, ends_on, studios(name))",
+      )
       .eq("artist_id", userId),
     flashQuery,
   ]);
@@ -96,6 +98,7 @@ export async function GET(req: Request) {
         studioName: l.studios?.name ?? null,
         startsOn: l.starts_on,
         endsOn: l.ends_on,
+        icon: ((t as { icon?: string | null }).icon ?? null) as string | null,
       })),
     )
     .filter((l) => (!to || l.startsOn <= to) && (!from || l.endsOn >= from))

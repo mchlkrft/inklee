@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRAVEL_ICON_KEYS, sanitizeTravelIcon } from "./travel-icons";
 
 export const VISIBILITY_MODES = [
   "public_exact_address",
@@ -29,6 +30,10 @@ export const studioSchema = z.object({
   visibility_mode: z.enum(VISIBILITY_MODES).default("hidden"),
   public_note: z.string().max(500).optional().nullable(),
   is_primary: z.boolean().default(false),
+  // Library icon key (artist-side display only). Absent on old clients —
+  // .optional() keeps their saves from clearing it (callers must omit the
+  // column from the update when undefined); null clears explicitly.
+  icon: z.enum(TRAVEL_ICON_KEYS).optional().nullable(),
 });
 
 export type StudioInput = z.infer<typeof studioSchema>;
@@ -53,5 +58,8 @@ export function parseStudioFormData(formData: FormData): StudioInput {
     visibility_mode: (formData.get("visibility_mode") as string) || "hidden",
     public_note: (formData.get("public_note") as string)?.trim() || null,
     is_primary: formData.get("is_primary") === "true",
+    // Sanitized before the enum so an off-library value degrades to "no icon"
+    // instead of failing the whole save.
+    icon: sanitizeTravelIcon((formData.get("icon") as string)?.trim() || null),
   });
 }

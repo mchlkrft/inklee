@@ -7,6 +7,7 @@ import {
   validateTripLegsPayload,
 } from "@/lib/trip-validation";
 import { parseStudioFormData } from "@/lib/studio-validation";
+import { sanitizeTravelIcon } from "@inklee/shared/travel-icons";
 import { z } from "zod";
 
 type State = { error: string } | { success: true } | null;
@@ -76,6 +77,7 @@ export async function createStudioAction(
     visibility_mode: input.visibility_mode,
     public_note: input.public_note,
     is_primary: input.is_primary,
+    icon: input.icon ?? null,
   });
 
   if (error) return { error: error.message };
@@ -129,6 +131,9 @@ export async function updateStudioAction(
       visibility_mode: input.visibility_mode,
       public_note: input.public_note,
       is_primary: input.is_primary,
+      // The web form always posts the icon input ("" = none), so null here is
+      // an explicit clear, never an accidental wipe.
+      icon: input.icon ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -218,6 +223,7 @@ export async function createStudioAndReturnAction(formData: FormData): Promise<
       visibility_mode: input.visibility_mode,
       public_note: input.public_note,
       is_primary: input.is_primary,
+      icon: input.icon ?? null,
     })
     .select("id, name, city, country")
     .single();
@@ -242,6 +248,9 @@ export async function createTripAction(
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
   const showOnBookingForm = formData.get("show_on_booking_form") !== "false";
+  const icon = sanitizeTravelIcon(
+    (formData.get("icon") as string)?.trim() || null,
+  );
 
   if (!title) return { error: "Title is required." };
 
@@ -270,6 +279,7 @@ export async function createTripAction(
       title,
       description,
       show_on_booking_form: showOnBookingForm,
+      icon,
     })
     .select("id")
     .single();
@@ -311,12 +321,21 @@ export async function updateTripAction(
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
   const showOnBookingForm = formData.get("show_on_booking_form") === "true";
+  // The edit form always posts the icon input ("" = none) — explicit clear.
+  const icon = sanitizeTravelIcon(
+    (formData.get("icon") as string)?.trim() || null,
+  );
 
   if (!title) return { error: "Title is required." };
 
   const { error } = await supabase
     .from("trips")
-    .update({ title, description, show_on_booking_form: showOnBookingForm })
+    .update({
+      title,
+      description,
+      show_on_booking_form: showOnBookingForm,
+      icon,
+    })
     .eq("id", id)
     .eq("artist_id", user.id);
 

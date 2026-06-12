@@ -21,6 +21,7 @@ import {
 } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
+import { TravelIcon } from "@/components/TravelIcon";
 import { Card } from "@/components/Card";
 import { CardHeader } from "@/components/CardHeader";
 import { StatusPill } from "@/components/StatusPill";
@@ -80,6 +81,7 @@ function RequestRow({
 
 function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
   const router = useRouter();
+  const themed = useColors();
   const range =
     !g.endsOn || g.endsOn === g.startsOn
       ? formatShortDate(g.startsOn)
@@ -89,6 +91,14 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
       onPress={() => router.push(`/travel/trips/${g.tripId}`)}
       className="mt-3 flex-row items-center gap-3 active:opacity-70"
     >
+      {g.icon ? (
+        <TravelIcon
+          icon={g.icon}
+          fallback={MapPin}
+          size={16}
+          color={themed.cobalt}
+        />
+      ) : null}
       <View className="flex-1">
         <Text className="text-body font-medium text-foreground" numberOfLines={1}>
           {g.studioName ?? g.tripTitle}
@@ -312,8 +322,24 @@ export default function HomeScreen() {
                       />
                     }
                   />
+                  {/* Big count like the pending widget (founder round 10);
+                      older servers omit upcomingCount — fall back to the
+                      visible list length. */}
+                  <Text className="mt-3 text-display font-bold text-foreground">
+                    {data.upcomingCount ?? data.upcoming.length}
+                  </Text>
                   {data.upcoming.length ? (
-                    data.upcoming.map((b) => <RequestRow key={b.id} b={b} />)
+                    <>
+                      {data.upcoming.map((b) => (
+                        <RequestRow key={b.id} b={b} />
+                      ))}
+                      {(data.upcomingCount ?? 0) > data.upcoming.length ? (
+                        <Text className="mt-3 text-caption text-shell-dim">
+                          +{(data.upcomingCount ?? 0) - data.upcoming.length}{" "}
+                          more
+                        </Text>
+                      ) : null}
+                    </>
                   ) : (
                     <Text className="mt-2 text-sm text-shell-dim">
                       No upcoming appointments.

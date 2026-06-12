@@ -6,10 +6,12 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { MapPin } from "lucide-react-native";
 import type { MobileTrip, MobileTripsResponse } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
+import { TravelIcon } from "@/components/TravelIcon";
 import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -50,7 +52,7 @@ export default function TripsList() {
   // Header scrolls WITH the list so the overlay TopBar reclaims its space.
   const listHeader = (
     <>
-      <PageHeader title="Guest Spots" />
+      <PageHeader title="Guest Spots" icon={MapPin} iconRole="cobalt" />
       <View className="gap-2 py-3">
         <Button
           label="New trip"
@@ -106,6 +108,7 @@ export default function TripsList() {
 }
 
 function TripRow({ trip, onPress }: { trip: MobileTrip; onPress: () => void }) {
+  const themed = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -113,6 +116,16 @@ function TripRow({ trip, onPress }: { trip: MobileTrip; onPress: () => void }) {
       className="rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
     >
       <View className="flex-row items-center justify-between">
+        {trip.icon ? (
+          <View className="mr-2">
+            <TravelIcon
+              icon={trip.icon}
+              fallback={MapPin}
+              size={16}
+              color={themed.cobalt}
+            />
+          </View>
+        ) : null}
         <Text
           className="flex-1 pr-2 text-base font-semibold text-foreground"
           numberOfLines={1}

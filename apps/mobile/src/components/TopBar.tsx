@@ -17,11 +17,11 @@ import { border } from "@/lib/tokens";
 import { useThemeColors, chrome } from "@/lib/theme";
 import { topBarProgress } from "@/lib/scroll-hide";
 
-// Total height the bar occupies (band padding + 64px pill + 8px tail). Screens
-// hosting the overlay TopBar pad their content by this.
+// Total height the bar occupies (12px band padding + 60px pill + 12px tail).
+// Screens hosting the overlay TopBar pad their content by this.
 export function useTopBarHeight() {
   const insets = useSafeAreaInsets();
-  return insets.top + 12 + 64 + 8;
+  return insets.top + 12 + 60 + 12;
 }
 
 // The floating top bar, mounted INSIDE each tab screen as an ABSOLUTE overlay
@@ -109,8 +109,10 @@ export function TopBar() {
           collapse,
         ]}
       >
+        {/* h-[60px] matches the bottom nav pill (h-12 items + py-2.5 padding
+            ≈ 60px) — founder round 10: the two pills read as one system. */}
         <View
-          className="mx-3 mb-2 h-16 flex-row items-center justify-between rounded-full px-4"
+          className="mx-3 mb-2 h-[60px] flex-row items-center justify-between rounded-full px-4"
           style={{
             backgroundColor: chrome.bg,
             borderWidth: border.hairline,
@@ -122,7 +124,7 @@ export function TopBar() {
             elevation: 4,
           }}
         >
-          <Text className="pl-1 text-2xl font-bold lowercase text-bone">
+          <Text className="pl-1 text-[24px] font-bold lowercase text-bone">
             inklee
           </Text>
 
@@ -133,6 +135,8 @@ export function TopBar() {
               icon={Menu}
               label="Account menu"
               onPress={() => setMenuOpen(true)}
+              size="md"
+              iconSize={22}
               outlined
               borderColor={chrome.border}
               color={chrome.fg}

@@ -22,6 +22,9 @@ import {
   createStudioAndReturnAction,
 } from "./actions";
 import type { PlaceResult } from "@/components/google-places-picker";
+import { IconPickerGrid } from "./icon-picker";
+import { TravelIcon } from "@/components/travel-icon";
+import { MapPin } from "lucide-react";
 
 const GooglePlacesPicker = dynamic(
   () => import("@/components/google-places-picker"),
@@ -44,6 +47,7 @@ type Trip = {
   description: string | null;
   showOnBookingForm: boolean;
   legs: TripLeg[];
+  icon?: string | null;
 };
 type State = { error: string } | { success: true } | null;
 
@@ -451,6 +455,11 @@ function CreateTripModal({
           />
         </div>
 
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Icon</label>
+          <IconPickerGrid />
+        </div>
+
         {/* Stops on your trip */}
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-foreground border-b border-border pb-1.5">
@@ -841,6 +850,11 @@ function EditTripModal({
           />
         </div>
 
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Icon</label>
+          <IconPickerGrid initial={trip.icon ?? null} />
+        </div>
+
         <div className="flex items-center justify-between rounded-md border-2 border-border px-4 py-3">
           <p className="text-sm font-medium text-foreground">
             Show on booking form
@@ -985,6 +999,13 @@ function TripSummaryCard({
       <div className="flex items-center justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {trip.icon ? (
+              <TravelIcon
+                icon={trip.icon}
+                fallback={MapPin}
+                className="h-4 w-4 text-muted-foreground"
+              />
+            ) : null}
             <span className="text-sm font-semibold text-foreground">
               {trip.title}
             </span>

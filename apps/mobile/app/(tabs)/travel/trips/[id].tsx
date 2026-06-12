@@ -16,6 +16,10 @@ import type {
   MobileTripDetail,
   MobileTripLeg,
 } from "@inklee/shared/mobile-api";
+import {
+  sanitizeTravelIcon,
+  type TravelIconKey,
+} from "@inklee/shared/travel-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FieldLabel } from "@/components/FieldLabel";
@@ -23,6 +27,7 @@ import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
 import { DateField } from "@/components/DateField";
 import { RadioList } from "@/components/RadioList";
+import { TravelIconPicker } from "@/components/TravelIconPicker";
 import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
@@ -71,6 +76,7 @@ function CreateTrip() {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [icon, setIcon] = useState<TravelIconKey | null>(null);
   const [show, setShow] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +94,7 @@ function CreateTrip() {
         title: title.trim(),
         description: description.trim() || null,
         showOnBookingForm: show,
+        icon,
       });
       await invalidateTravel(queryClient);
       // Land on the detail so the artist can add date stops.
@@ -120,6 +127,8 @@ function CreateTrip() {
           onChangeText={setDescription}
           placeholder="Details clients see"
         />
+        <FieldLabel>Icon</FieldLabel>
+        <TravelIconPicker value={icon} onChange={setIcon} />
         <ShowToggle value={show} onChange={setShow} />
         {error ? (
           <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
@@ -136,6 +145,9 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
 
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? "");
+  const [icon, setIcon] = useState<TravelIconKey | null>(
+    sanitizeTravelIcon(initial.icon ?? null),
+  );
   const [show, setShow] = useState(initial.showOnBookingForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +165,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
         title: title.trim(),
         description: description.trim() || null,
         showOnBookingForm: show,
+        icon,
       });
       await invalidateTravel(queryClient);
       router.back();
@@ -211,6 +224,8 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           onChangeText={setDescription}
           placeholder="Details clients see"
         />
+        <FieldLabel>Icon</FieldLabel>
+        <TravelIconPicker value={icon} onChange={setIcon} />
         <ShowToggle value={show} onChange={setShow} />
         <Button label="Save trip" onPress={saveTrip} loading={saving} />
 
