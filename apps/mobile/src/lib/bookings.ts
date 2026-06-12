@@ -1,3 +1,4 @@
+import type { MobileBookingDetail as BookingDetail } from "@inklee/shared/mobile-api";
 import { apiPost } from "./api";
 
 // Shapes of GET /api/mobile/bookings/:id (see the route handler) — now the
@@ -8,7 +9,6 @@ export type {
   MobileBookingDetail as BookingDetail,
   MobileBookingDeposit as BookingDeposit,
 } from "@inklee/shared/mobile-api";
-import type { MobileBookingDetail as BookingDetail } from "@inklee/shared/mobile-api";
 
 // A paid, not-yet-refunded in-app card deposit — the only kind that can be
 // refunded in-app, and the thing that makes an artist-cancel auto-refund the

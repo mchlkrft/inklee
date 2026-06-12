@@ -17,15 +17,12 @@ function resolveLocale(): Locale {
 
 export const LOCALE: Locale = resolveLocale();
 
+// The old tab.* keys died with the MB-5 re-slot (BottomNav is icons-only);
+// pruned in the round-6 structure audit.
 const en = {
   "common.tryAgain": "Try again",
   "error.title": "Something went wrong",
   "error.body": "An unexpected error occurred.",
-  "tab.home": "Home",
-  "tab.requests": "Requests",
-  "tab.calendar": "Calendar",
-  "tab.clients": "Clients",
-  "tab.more": "More",
 } as const;
 
 type Key = keyof typeof en;
@@ -34,11 +31,6 @@ const de: Partial<Record<Key, string>> = {
   "common.tryAgain": "Erneut versuchen",
   "error.title": "Etwas ist schiefgelaufen",
   "error.body": "Ein unerwarteter Fehler ist aufgetreten.",
-  "tab.home": "Start",
-  "tab.requests": "Anfragen",
-  "tab.calendar": "Kalender",
-  "tab.clients": "Kund:innen",
-  "tab.more": "Mehr",
 };
 
 export function t(key: Key): string {

@@ -14,7 +14,6 @@ import { ErrorState } from "@/components/ErrorState";
 import { IconButton } from "@/components/IconButton";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 import type { MobileReminderSettings } from "@inklee/shared/mobile-api";
 
@@ -27,13 +26,14 @@ import type { MobileReminderSettings } from "@inklee/shared/mobile-api";
 
 export default function RemindersSettings() {
   const q = useApiQuery<MobileReminderSettings>("/settings/reminders");
+  const themed = useColors();
 
   if (!q.data) {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load reminder settings"

@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { MobileProductDetail } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
 import { DangerButton } from "@/components/DangerButton";
@@ -27,29 +28,20 @@ import {
   PRODUCT_CATEGORY_OPTIONS,
   PRODUCT_STATUS_OPTIONS,
   formatProductPrice,
+  invalidateGoods,
   isSupportedCurrency,
   parseEuAmount,
 } from "@/lib/goods";
 import { captureError } from "@/lib/telemetry";
+import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
 
 type Category = (typeof PRODUCT_CATEGORY_OPTIONS)[number]["value"];
 type Status = (typeof PRODUCT_STATUS_OPTIONS)[number]["value"];
 
-function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
-}
-
-function invalidateGoods(client: ReturnType<typeof useQueryClient>) {
-  return client.invalidateQueries({
-    predicate: (query) =>
-      typeof query.queryKey[1] === "string" &&
-      (query.queryKey[1] as string).startsWith("/goods"),
-  });
-}
-
 export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const themed = useColors();
   const isNew = id === "new";
   const q = useApiQuery<MobileProductDetail>(`/goods/${id}`, {
     enabled: !isNew,
@@ -60,7 +52,7 @@ export default function ProductScreen() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load product"
@@ -292,21 +284,21 @@ function ProductForm({
           </Text>
         ) : null}
 
-        <Label>Category</Label>
+        <FieldLabel>Category</FieldLabel>
         <Segmented
           options={PRODUCT_CATEGORY_OPTIONS}
           value={category}
           onChange={setCategory}
         />
 
-        <Label>Status</Label>
+        <FieldLabel>Status</FieldLabel>
         <Segmented
           options={PRODUCT_STATUS_OPTIONS}
           value={status}
           onChange={setStatus}
         />
 
-        <Label>Description (optional)</Label>
+        <FieldLabel>Description (optional)</FieldLabel>
         <TextArea
           value={description}
           onChangeText={setDescription}
@@ -314,7 +306,7 @@ function ProductForm({
           placeholder="What is it?"
         />
 
-        <Label>Pickup note (optional)</Label>
+        <FieldLabel>Pickup note (optional)</FieldLabel>
         <TextArea
           value={pickupNote}
           onChangeText={setPickupNote}

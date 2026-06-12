@@ -20,18 +20,20 @@ import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, invalidateBooksViews } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 const CLOSED_MESSAGE_MAX = 280;
 
 export default function BookingSettings() {
   const q = useApiQuery<BooksSettings>("/settings/books");
+  const themed = useColors();
 
   if (!q.data) {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load booking settings"

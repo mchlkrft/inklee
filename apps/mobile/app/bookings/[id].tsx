@@ -16,12 +16,13 @@ import { BookingActions } from "@/components/booking/BookingActions";
 import { ReferenceImageGallery } from "@/components/booking/ReferenceImageGallery";
 import { useApiQuery } from "@/lib/api";
 import { formatMoney, type BookingDetail } from "@/lib/bookings";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import { formatShortDate, relativeTime } from "@/lib/date";
 
 export default function BookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const themed = useColors();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<BookingDetail>(`/bookings/${id}`);
 
@@ -29,7 +30,7 @@ export default function BookingDetailScreen() {
     return (
       <View className="flex-1 items-center justify-center bg-background px-5">
         {loading ? (
-          <ActivityIndicator color={colors.mustard} />
+          <ActivityIndicator color={themed.accent} />
         ) : (
           <View className="items-center">
             <EmptyState
@@ -67,7 +68,7 @@ export default function BookingDetailScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={refresh}
-          tintColor={colors.mustard}
+          tintColor={themed.accent}
         />
       }
     >

@@ -6,7 +6,6 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import type { MobileTrip, MobileTripsResponse } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
@@ -15,10 +14,13 @@ import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
+import { NavCardRow } from "@/components/NavCardRow";
 import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+
+const ListGap = () => <View className="h-3" />;
 
 export default function TripsList() {
   const router = useRouter();
@@ -54,17 +56,11 @@ export default function TripsList() {
           label="New trip"
           onPress={() => router.push("/travel/trips/new")}
         />
-        <Pressable
-          accessibilityRole="button"
+        <NavCardRow
+          icon="business-outline"
+          label="Studios"
           onPress={() => router.push("/travel/studios")}
-          className="flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
-        >
-          <View className="flex-row items-center gap-2">
-            <Ionicons name="business-outline" size={18} color={colors.accent} />
-            <Text className="text-base font-semibold text-foreground">Studios</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />
-        </Pressable>
+        />
       </View>
     </>
   );
@@ -86,7 +82,7 @@ export default function TripsList() {
             <RefreshControl
               refreshing={q.refreshing}
               onRefresh={q.refresh}
-              tintColor={colors.mustard}
+              tintColor={colors.accent}
               progressViewOffset={topBarHeight}
             />
           }
@@ -96,7 +92,7 @@ export default function TripsList() {
               subtitle="Add a trip with date stops to show your guest spots on your booking page."
             />
           }
-          ItemSeparatorComponent={() => <View className="h-3" />}
+          ItemSeparatorComponent={ListGap}
           renderItem={({ item }) => (
             <TripRow
               trip={item}

@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   MobileMe,
@@ -77,7 +77,7 @@ export default function YoureLive() {
               </View>
             </>
           ) : (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           )}
         </View>
       </Screen>

@@ -4,6 +4,7 @@ import { CalendarDays, Inbox, Users } from "lucide-react-native";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
 import { SubNav } from "@/components/SubNav";
+import { useTopBarReset } from "@/lib/scroll-hide";
 import { useThemeColors } from "@/lib/theme";
 
 // The three Bookings sub-views, each a sibling route under (tabs)/bookings.
@@ -26,6 +27,10 @@ export default function BookingsLayout() {
   const router = useRouter();
   const theme = useThemeColors();
   const topBarHeight = useTopBarHeight();
+  // This layout mounts the TopBar but never scroll-hides it, so it must reset
+  // the shared progress on focus — otherwise a bar hidden on another tab
+  // arrives here stranded off-screen with no scroll handler to reveal it.
+  useTopBarReset();
 
   return (
     <View className="flex-1 bg-background">

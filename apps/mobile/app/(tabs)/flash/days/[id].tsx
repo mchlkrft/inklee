@@ -13,22 +13,21 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { MobileFlashDay } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut } from "@/lib/api";
-import { DAY_STATUS_OPTIONS } from "@/lib/flash";
+import { DAY_STATUS_OPTIONS, invalidateFlash } from "@/lib/flash";
 import { captureError } from "@/lib/telemetry";
+import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
 
 type DayStatus = (typeof DAY_STATUS_OPTIONS)[number]["value"];
 
-function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
-}
-
 export default function FlashDayForm() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const themed = useColors();
   const isNew = id === "new";
   const q = useApiQuery<MobileFlashDay>(`/flash/days/${id}`, {
     enabled: !isNew,
@@ -39,7 +38,7 @@ export default function FlashDayForm() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load flash day"
@@ -98,11 +97,7 @@ function DayForm({
       if (isNew) await apiPost("/flash/days", payload);
       else await apiPut(`/flash/days/${id}`, payload);
       // Item counts + the edited day's detail live under /flash too.
-      await queryClient.invalidateQueries({
-        predicate: (query) =>
-          typeof query.queryKey[1] === "string" &&
-          (query.queryKey[1] as string).startsWith("/flash"),
-      });
+      await invalidateFlash(queryClient);
       router.back();
     } catch (e) {
       captureError(e, { op: "saveFlashDay" });
@@ -144,14 +139,14 @@ function DayForm({
           autoCapitalize="words"
         />
 
-        <Label>Description (optional)</Label>
+        <FieldLabel>Description (optional)</FieldLabel>
         <TextArea
           value={description}
           onChangeText={setDescription}
           placeholder="Details clients see on the public day page"
         />
 
-        <Label>Status</Label>
+        <FieldLabel>Status</FieldLabel>
         <Segmented options={DAY_STATUS_OPTIONS} value={status} onChange={setStatus} />
 
         <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">

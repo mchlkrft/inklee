@@ -26,11 +26,6 @@ export function track(event: AnalyticsEvent, props?: AnalyticsProps) {
   // TODO: POST to a mobile analytics-events endpoint once it exists.
 }
 
-/** Hook form for screens/components, matching the rest of the app's lib hooks. */
-export function useAnalytics() {
-  return { track };
-}
-
 /** Fire a `screen_view` each time a screen gains focus (expo-router). `screen`
  *  is a coarse, non-identifying name — never a slug/email/id. */
 export function useScreenView(screen: string) {

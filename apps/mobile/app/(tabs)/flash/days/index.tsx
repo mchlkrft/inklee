@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -8,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import type {
@@ -26,6 +25,9 @@ import { config } from "@/lib/config";
 import { flashLabel, flashStatusTone } from "@/lib/flash";
 import { formatShortDate } from "@/lib/date";
 import { useColors } from "@/lib/theme";
+import { useTimedFlag } from "@/lib/use-timed-flag";
+
+const ListGap = () => <View className="h-3" />;
 
 export default function FlashDaysList() {
   const router = useRouter();
@@ -39,7 +41,7 @@ export default function FlashDaysList() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={colors.accent} />
           ) : (
             <ErrorState
               title="Couldn't load flash days"
@@ -69,7 +71,7 @@ export default function FlashDaysList() {
             <RefreshControl
               refreshing={q.refreshing}
               onRefresh={q.refresh}
-              tintColor={colors.mustard}
+              tintColor={colors.accent}
             />
           }
           ListEmptyComponent={
@@ -78,7 +80,7 @@ export default function FlashDaysList() {
               subtitle="Create a flash day for walk-ins or a guest spot, then attach designs to it."
             />
           }
-          ItemSeparatorComponent={() => <View className="h-3" />}
+          ItemSeparatorComponent={ListGap}
           renderItem={({ item }) => (
             <DayRow
               day={item}
@@ -106,7 +108,7 @@ function DayRow({
   onPress: () => void;
 }) {
   const colors = useColors();
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useTimedFlag();
   const dateLabel = day.scheduledOn
     ? formatShortDate(day.scheduledOn)
     : "No date set";
@@ -148,8 +150,7 @@ function DayRow({
             label={copied ? "Copied" : "Copy link"}
             onPress={async () => {
               await Clipboard.setStringAsync(publicUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
+              markCopied();
             }}
           />
           <PillButton

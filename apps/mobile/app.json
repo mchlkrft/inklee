@@ -16,7 +16,6 @@
     },
     "android": {
       "package": "ee.inkl.app",
-      "edgeToEdgeEnabled": true,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ]
@@ -53,8 +52,7 @@
     "extra": {
       "eas": {
         "projectId": "daf44d5c-0134-4815-bc4b-c0524dfcb93f"
-      },
-      "router": {}
+      }
     }
   }
 }

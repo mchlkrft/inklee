@@ -7,22 +7,20 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useQueryClient } from "@tanstack/react-query";
-import type {
-  MobileAccount,
-  MobileConnectLink,
-} from "@inklee/shared/mobile-api";
+import type { MobileAccount } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { ErrorState } from "@/components/ErrorState";
+import { SectionLabel } from "@/components/SectionLabel";
 import { SettingsRow } from "@/components/SettingsRow";
-import { useApiQuery, apiPatch, apiPost } from "@/lib/api";
+import { useApiQuery, apiPatch } from "@/lib/api";
 import { useScreenView } from "@/lib/analytics";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { openConnectHandoff } from "@/lib/web-handoff";
+import { useColors } from "@/lib/theme";
 
 // Account & security — mirrors the web settings/account page (same section
 // order). The name fields save through the mobile API; email, password, and
@@ -33,13 +31,14 @@ import { colors } from "@/lib/tokens";
 export default function AccountSecurityScreen() {
   useScreenView("settings_account");
   const q = useApiQuery<MobileAccount>("/account");
+  const themed = useColors();
 
   if (!q.data) {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load your account"
@@ -101,11 +100,7 @@ function AccountSections({ account }: { account: MobileAccount }) {
     setOpening(op);
     setLinkError(null);
     try {
-      const { url } = await apiPost<MobileConnectLink>(
-        "/settings/connect-link",
-        { next },
-      );
-      await WebBrowser.openBrowserAsync(url);
+      await openConnectHandoff(next);
       await queryClient.invalidateQueries({ queryKey: ["api", "/account"] });
     } catch (e) {
       captureError(e, {
@@ -240,13 +235,5 @@ function AccountSections({ account }: { account: MobileAccount }) {
         </Card>
       </ScrollView>
     </Screen>
-  );
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-shell-mute">
-      {children}
-    </Text>
   );
 }

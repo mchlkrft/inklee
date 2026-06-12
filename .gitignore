@@ -47,3 +47,6 @@ next-env.d.ts
 .env*.local
 
 .vercel
+
+# session audit digests (working artifacts, referenced from agent memory)
+.claude-audit-digest-*.md

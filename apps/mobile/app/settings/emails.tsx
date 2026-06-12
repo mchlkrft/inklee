@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { MobileEmailTemplatesResponse } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
@@ -16,7 +16,6 @@ import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
 import { useScreenView } from "@/lib/analytics";
 import { useColors } from "@/lib/theme";
-import { colors } from "@/lib/tokens";
 
 const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
 
@@ -37,7 +36,7 @@ export default function EmailsScreen() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load email templates"
@@ -59,7 +58,7 @@ export default function EmailsScreen() {
           <RefreshControl
             refreshing={q.refreshing}
             onRefresh={q.refresh}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
       >

@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   VISIBILITY_MODES,
   type VisibilityMode,
@@ -18,29 +18,20 @@ import {
 import type { MobileStudio } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { RadioList } from "@/components/RadioList";
 import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
-import { VISIBILITY_OPTIONS } from "@/lib/travel";
+import { VISIBILITY_OPTIONS, invalidateTravel } from "@/lib/travel";
 import { captureError } from "@/lib/telemetry";
+import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
-
-function invalidateTravel(client: QueryClient) {
-  return client.invalidateQueries({
-    predicate: (query) =>
-      typeof query.queryKey[1] === "string" &&
-      (query.queryKey[1] as string).startsWith("/travel"),
-  });
-}
-
-function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
-}
 
 export default function StudioScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const themed = useColors();
   const isNew = id === "new";
   const q = useApiQuery<MobileStudio>(`/travel/studios/${id}`, {
     enabled: !isNew,
@@ -51,7 +42,7 @@ export default function StudioScreen() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load studio"
@@ -181,7 +172,7 @@ function StudioForm({
           onChangeText={setAddress}
         />
 
-        <Label>Public note (optional)</Label>
+        <FieldLabel>Public note (optional)</FieldLabel>
         <TextArea
           value={publicNote}
           onChangeText={setPublicNote}
@@ -189,7 +180,7 @@ function StudioForm({
           minHeight={56}
         />
 
-        <Label>Visibility</Label>
+        <FieldLabel>Visibility</FieldLabel>
         <RadioList
           options={VISIBILITY_OPTIONS}
           value={visibility}

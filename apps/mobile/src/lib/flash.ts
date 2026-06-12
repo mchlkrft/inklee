@@ -1,7 +1,15 @@
-// Presentation helpers for the flash screens. Mirrors the web @/lib/flash
-// formatters (kept local for now — the response *types* are shared via
-// @inklee/shared/mobile-api; consolidating the formatters to shared is a
+// Presentation + cache helpers for the flash screens. Mirrors the web
+// @/lib/flash formatters (kept local for now — the response *types* are shared
+// via @inklee/shared/mobile-api; consolidating the formatters to shared is a
 // follow-up).
+import type { QueryClient } from "@tanstack/react-query";
+import { invalidateByPathPrefix } from "./api";
+
+// Every /flash view (items, days, details). Lives here so screens share one
+// definition instead of re-inlining the predicate.
+export function invalidateFlash(client: QueryClient): Promise<void> {
+  return invalidateByPathPrefix(client, ["/flash"]);
+}
 
 export const ITEM_STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },

@@ -28,11 +28,11 @@ import {
   convertWaitlistEntry,
   setWaitlistStatus,
 } from "@/lib/waitlist";
-import { config } from "@/lib/config";
+import { config, displayUrl } from "@/lib/config";
 import { relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
+import { useTimedFlag } from "@/lib/use-timed-flag";
 import { customerLabel } from "@inklee/shared/booking-domain";
 import type {
   MobileMe,
@@ -48,6 +48,7 @@ const FILTERS = [
 export default function WaitlistScreen() {
   const [filter, setFilter] = useState("waiting");
   const [city, setCity] = useState<string | null>(null);
+  const themed = useColors();
   const queryClient = useQueryClient();
   const router = useRouter();
   const { data, loading, error, refreshing, refresh } =
@@ -207,13 +208,13 @@ export default function WaitlistScreen() {
               refresh();
               all.refresh();
             }}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
         ListEmptyComponent={
           loading ? (
             <View className="items-center py-16">
-              <ActivityIndicator color={colors.mustard} />
+              <ActivityIndicator color={themed.accent} />
             </View>
           ) : error ? (
             <ErrorState
@@ -415,7 +416,7 @@ function CityDemandCard({
 // Shareable public waitlist link (always shown, like web). Copy via clipboard,
 // Preview via the in-app browser.
 function ShareWaitlistCard({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useTimedFlag();
   return (
     <View className="mb-3">
       <Card>
@@ -423,15 +424,14 @@ function ShareWaitlistCard({ url }: { url: string }) {
           Waitlist link
         </Text>
         <Text className="mt-1 text-sm text-shell-dim" numberOfLines={1}>
-          {url.replace(/^https?:\/\//, "")}
+          {displayUrl(url)}
         </Text>
         <View className="mt-2 flex-row gap-2">
           <PillButton
             label={copied ? "Copied" : "Copy link"}
             onPress={async () => {
               await Clipboard.setStringAsync(url);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
+              markCopied();
             }}
           />
           <PillButton

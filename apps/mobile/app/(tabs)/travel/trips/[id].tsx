@@ -11,13 +11,14 @@ import {
 import { TextArea } from "@/components/TextArea";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Trash2 } from "lucide-react-native";
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   MobileTripDetail,
   MobileTripLeg,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { FieldLabel } from "@/components/FieldLabel";
 import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
 import { DateField } from "@/components/DateField";
@@ -25,28 +26,20 @@ import { RadioList } from "@/components/RadioList";
 import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
-import { formatDateRange, legIsActive, rangesOverlap } from "@/lib/travel";
+import {
+  formatDateRange,
+  invalidateTravel,
+  legIsActive,
+  rangesOverlap,
+} from "@/lib/travel";
 import { toLocalDate } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
+import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
-
-function invalidateTravel(client: QueryClient) {
-  // /home renders the guest-spots widget from the same trips data, so a leg or
-  // trip change must refresh it too — not just the /travel views.
-  return client.invalidateQueries({
-    predicate: (query) =>
-      typeof query.queryKey[1] === "string" &&
-      ((query.queryKey[1] as string).startsWith("/travel") ||
-        (query.queryKey[1] as string).startsWith("/home")),
-  });
-}
-
-function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
-}
 
 export default function TripScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const themed = useColors();
   const isNew = id === "new";
   const q = useApiQuery<MobileTripDetail>(`/travel/trips/${id}`, {
     enabled: !isNew,
@@ -57,7 +50,7 @@ export default function TripScreen() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load trip"
@@ -121,7 +114,7 @@ function CreateTrip() {
           placeholder="e.g. Berlin guest spot"
           autoCapitalize="sentences"
         />
-        <Label>Description (optional)</Label>
+        <FieldLabel>Description (optional)</FieldLabel>
         <TextArea
           value={description}
           onChangeText={setDescription}
@@ -212,7 +205,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           onChangeText={setTitle}
           autoCapitalize="sentences"
         />
-        <Label>Description (optional)</Label>
+        <FieldLabel>Description (optional)</FieldLabel>
         <TextArea
           value={description}
           onChangeText={setDescription}
@@ -432,7 +425,7 @@ function AddLeg({
       />
       {studios.length > 0 ? (
         <>
-          <Label>Studio</Label>
+          <FieldLabel>Studio</FieldLabel>
           <RadioList
             options={studioOptions}
             value={studioId}

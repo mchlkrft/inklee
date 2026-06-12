@@ -13,6 +13,12 @@ if (!API_URL) {
   );
 }
 
+/** A URL as the artist reads it: protocol stripped (e.g. "mike.inkl.ee").
+ *  The one definition behind every link-display Text in the app. */
+export function displayUrl(url: string): string {
+  return url.replace(/^https?:\/\//, "");
+}
+
 export const config = {
   /** Apex origin serving the API + legal pages, e.g. https://inkl.ee. */
   apiUrl: API_URL,

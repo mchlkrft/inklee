@@ -19,7 +19,7 @@ import {
 import { formatShortDateTime } from "@/lib/date";
 import { webHrefToRoute } from "@/lib/push";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import type { MobileNotificationsResponse } from "@inklee/shared/mobile-api";
 import type {
   Notification,
@@ -31,6 +31,7 @@ const KEY = ["api", "/notifications"];
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const themed = useColors();
   const queryClient = useQueryClient();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileNotificationsResponse>("/notifications");
@@ -115,13 +116,13 @@ export default function NotificationsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
         ListEmptyComponent={
           loading ? (
             <View className="items-center py-16">
-              <ActivityIndicator color={colors.mustard} />
+              <ActivityIndicator color={themed.accent} />
             </View>
           ) : error ? (
             <ErrorState

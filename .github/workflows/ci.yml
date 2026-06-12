@@ -43,3 +43,6 @@ jobs:
 
       - name: Typecheck (mobile)
         run: pnpm --filter @inklee/mobile typecheck
+
+      - name: Lint (mobile)
+        run: pnpm --filter @inklee/mobile lint

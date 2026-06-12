@@ -130,7 +130,7 @@ export default function AppointmentFormScreen() {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={colors.mustard} />
+          <ActivityIndicator color={colors.accent} />
         </View>
       </Screen>
     );

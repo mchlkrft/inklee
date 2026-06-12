@@ -17,15 +17,27 @@ const HIDE_AFTER = 28; // px of accumulated downward scroll before hiding
 const SHOW_AFTER = 20; // px of accumulated upward scroll before revealing
 const TOP_ZONE = 12; // always visible this close to the top
 
+// A tab/screen regaining focus always starts with the bar visible, so a bar
+// hidden on one tab never strands another tab without its header. Every screen
+// that MOUNTS the TopBar must run this — scroll-driving screens get it via
+// useScrollHide; static-header screens (the bookings layout, whose bar never
+// scroll-hides) call it directly, or a stale progress=1 from another tab parks
+// their bar off-screen with no scroll handler to ever bring it back.
+export function useTopBarReset() {
+  useFocusEffect(
+    useCallback(() => {
+      topBarProgress.value = withTiming(0, { duration: 180 });
+    }, []),
+  );
+}
+
 export function useScrollHide() {
   const lastY = useRef(0);
   const accum = useRef(0);
 
-  // A tab/screen regaining focus always starts with the bar visible, so a bar
-  // hidden on one tab never strands another tab without its header.
+  useTopBarReset();
   useFocusEffect(
     useCallback(() => {
-      topBarProgress.value = withTiming(0, { duration: 180 });
       accum.current = 0;
     }, []),
   );

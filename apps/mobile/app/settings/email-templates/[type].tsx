@@ -25,7 +25,6 @@ import { useApiQuery, apiPost } from "@/lib/api";
 import { useScreenView } from "@/lib/analytics";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
-import { colors } from "@/lib/tokens";
 
 const BODY_MAX = 2000;
 const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
@@ -42,6 +41,7 @@ export default function TemplateEditorScreen() {
   useScreenView("settings_email_template");
   const { type } = useLocalSearchParams<{ type: string }>();
   const navigation = useNavigation();
+  const themed = useColors();
   const q = useApiQuery<MobileEmailTemplatesResponse>(
     "/settings/email-templates",
   );
@@ -57,7 +57,7 @@ export default function TemplateEditorScreen() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load template"

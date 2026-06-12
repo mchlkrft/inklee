@@ -17,13 +17,15 @@ import { apiPut, invalidateBookingViews, useApiQuery } from "@/lib/api";
 import type { ClientDetail, ClientHistoryItem } from "@/lib/clients";
 import { formatShortDate, relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
+import { useTimedFlag } from "@/lib/use-timed-flag";
 
 export default function ClientDetailScreen() {
   // Expo Router decodes the path segment, so `email` is the raw address; we
   // re-encode it for the API path (the server decodes once).
   const { email: param } = useLocalSearchParams<{ email: string }>();
   const email = param ?? "";
+  const themed = useColors();
   const queryClient = useQueryClient();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<ClientDetail>(`/clients/${encodeURIComponent(email)}`);
@@ -31,7 +33,7 @@ export default function ClientDetailScreen() {
   const [notes, setNotes] = useState("");
   const [notesReady, setNotesReady] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
-  const [notesSaved, setNotesSaved] = useState(false);
+  const [notesSaved, markNotesSaved] = useTimedFlag();
   const [notesError, setNotesError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,8 +49,7 @@ export default function ClientDetailScreen() {
     try {
       await apiPut(`/clients/${encodeURIComponent(email)}`, { notes });
       await invalidateBookingViews(queryClient);
-      setNotesSaved(true);
-      setTimeout(() => setNotesSaved(false), 2000);
+      markNotesSaved();
     } catch (e) {
       captureError(e, { op: "saveClientNotes" });
       setNotesError(e instanceof Error ? e.message : "Couldn't save.");
@@ -61,7 +62,7 @@ export default function ClientDetailScreen() {
     return (
       <View className="flex-1 items-center justify-center bg-background px-5">
         {loading ? (
-          <ActivityIndicator color={colors.mustard} />
+          <ActivityIndicator color={themed.accent} />
         ) : (
           <View className="items-center">
             <EmptyState
@@ -100,7 +101,7 @@ export default function ClientDetailScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={refresh}
-          tintColor={colors.mustard}
+          tintColor={themed.accent}
         />
       }
     >
@@ -142,10 +143,7 @@ export default function ClientDetailScreen() {
         </Text>
         <TextArea
           value={notes}
-          onChangeText={(t) => {
-            setNotes(t);
-            setNotesSaved(false);
-          }}
+          onChangeText={setNotes}
           placeholder="Private notes about this client (only you can see these)."
           minHeight={88}
         />

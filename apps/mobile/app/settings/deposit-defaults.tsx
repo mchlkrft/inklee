@@ -17,19 +17,20 @@ import { TextField } from "@/components/TextField";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 const NOTE_MAX = 300;
 
 export default function DepositDefaultsScreen() {
   const q = useApiQuery<DepositDefaults>("/settings/deposit-defaults");
+  const themed = useColors();
 
   if (!q.data) {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load deposit defaults"

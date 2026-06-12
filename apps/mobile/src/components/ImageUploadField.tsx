@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { apiUpload } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
@@ -25,7 +25,6 @@ export function ImageUploadField({
   aspect = [1, 1],
   shape = "square",
   maxBytes = 4 * 1024 * 1024,
-  hint,
   hero = false,
   onUploaded,
 }: {
@@ -40,8 +39,6 @@ export function ImageUploadField({
   /** Client-side size cap — mirror the matching server route's limit so an
    *  oversized photo fails with a clear message before it leaves the device. */
   maxBytes?: number;
-  /** Muted helper line under the field (format / size / resize note). */
-  hint?: string;
   /** Full-width tall preview (the image IS the content, e.g. a flash design)
    *  instead of the small avatar-style square. */
   hero?: boolean;
@@ -154,8 +151,6 @@ export function ImageUploadField({
       </Pressable>
       {error ? (
         <Text className="mt-1 text-xs text-danger">{error}</Text>
-      ) : hint ? (
-        <Text className="mt-1 text-xs text-shell-dim">{hint}</Text>
       ) : null}
     </View>
   );

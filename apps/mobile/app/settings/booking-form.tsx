@@ -14,17 +14,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import type {
   MobileBookingForm,
   MobileBookingFormField,
-  MobileConnectLink,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { PillButton } from "@/components/PillButton";
 import { ErrorState } from "@/components/ErrorState";
-import { useApiQuery, apiPost } from "@/lib/api";
-import { config } from "@/lib/config";
+import { SectionLabel } from "@/components/SectionLabel";
+import { useApiQuery } from "@/lib/api";
+import { config, displayUrl } from "@/lib/config";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
+import { useTimedFlag } from "@/lib/use-timed-flag";
+import { openConnectHandoff } from "@/lib/web-handoff";
 import { useScreenView } from "@/lib/analytics";
 
 // Read-only mirror of the web "My Booking Form" page (/bookings/booking-form):
@@ -76,7 +78,8 @@ export default function BookingFormScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const q = useApiQuery<MobileBookingForm>("/booking-form");
-  const [copied, setCopied] = useState(false);
+  const themed = useColors();
+  const [copied, markCopied] = useTimedFlag();
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +90,7 @@ export default function BookingFormScreen() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load your booking form"
@@ -105,8 +108,7 @@ export default function BookingFormScreen() {
   const copy = async () => {
     if (!publicUrl) return;
     await Clipboard.setStringAsync(publicUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    markCopied();
   };
 
   // Field editing stays on the web: mint a one-time login link and open the
@@ -116,11 +118,7 @@ export default function BookingFormScreen() {
     setOpening(true);
     setError(null);
     try {
-      const { url } = await apiPost<MobileConnectLink>(
-        "/settings/connect-link",
-        { next: "/bookings/booking-form" },
-      );
-      await WebBrowser.openBrowserAsync(url);
+      await openConnectHandoff("/bookings/booking-form");
       await queryClient.invalidateQueries({
         queryKey: ["api", "/booking-form"],
       });
@@ -141,7 +139,7 @@ export default function BookingFormScreen() {
           <RefreshControl
             refreshing={q.refreshing}
             onRefresh={q.refresh}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
       >
@@ -150,7 +148,7 @@ export default function BookingFormScreen() {
             <SectionLabel>Share public page</SectionLabel>
             <Card>
               <Text className="text-sm text-shell-dim" numberOfLines={1}>
-                {publicUrl.replace(/^https?:\/\//, "")}
+                {displayUrl(publicUrl)}
               </Text>
               <View className="mt-2.5 flex-row gap-2">
                 <PillButton
@@ -248,13 +246,5 @@ export default function BookingFormScreen() {
         </View>
       </ScrollView>
     </Screen>
-  );
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-shell-mute">
-      {children}
-    </Text>
   );
 }

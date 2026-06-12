@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useColors } from "@/lib/theme";
 
 // A single settings row: a label on the left, an optional value/affordance on

@@ -16,7 +16,6 @@ import { useApiQuery } from "@/lib/api";
 import { convertWaitlistEntry, setWaitlistStatus } from "@/lib/waitlist";
 import { formatShortDate, relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 import { customerLabel } from "@inklee/shared/booking-domain";
 import type { MobileWaitlistEntry } from "@inklee/shared/mobile-api";
@@ -85,7 +84,7 @@ export default function WaitlistEntryScreen() {
     return (
       <View className="flex-1 items-center justify-center bg-background px-5">
         {loading ? (
-          <ActivityIndicator color={colors.mustard} />
+          <ActivityIndicator color={themed.accent} />
         ) : (
           <View className="items-center">
             <EmptyState
@@ -119,7 +118,7 @@ export default function WaitlistEntryScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={refresh}
-          tintColor={colors.mustard}
+          tintColor={themed.accent}
         />
       }
     >

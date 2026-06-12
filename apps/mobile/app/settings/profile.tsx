@@ -16,6 +16,7 @@ import type { MobileProfile } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { SectionLabel } from "@/components/SectionLabel";
 import { TextField } from "@/components/TextField";
 import { ImageUploadField } from "@/components/ImageUploadField";
 import { CoverImageField } from "@/components/CoverImageField";
@@ -23,8 +24,8 @@ import { TimezoneField } from "@/components/TimezoneField";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
-import { config } from "@/lib/config";
-import { border, colors, tint } from "@/lib/tokens";
+import { config, displayUrl } from "@/lib/config";
+import { border, tint } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 const BIO_MAX = 280;
@@ -44,13 +45,14 @@ const COVER_COLORS = [
 
 export default function EditProfile() {
   const q = useApiQuery<MobileProfile>("/settings/profile");
+  const themed = useColors();
 
   if (!q.data) {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load your profile"
@@ -64,16 +66,6 @@ export default function EditProfile() {
   }
 
   return <ProfileForm initial={q.data} />;
-}
-
-// Section header, matching the settings-hub idiom (account.tsx) at the
-// round-5 readable size.
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-shell-mute">
-      {children}
-    </Text>
-  );
 }
 
 function ProfileForm({ initial }: { initial: MobileProfile }) {
@@ -92,6 +84,7 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
 
   const deviceTz = getCalendars()[0]?.timeZone ?? null;
   const previewUrl = initial.slug ? config.publicUrl(initial.slug) : null;
+  const previewHost = previewUrl ? displayUrl(previewUrl) : null;
 
   // Resolved hex behind the cover preview when no image is set: a swatch id
   // maps to its brand hex; a raw #hex saved on web passes through.
@@ -151,7 +144,7 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
           <Pressable
             accessibilityRole="button"
             // Label-in-name: the spoken name starts with the visible URL text.
-            accessibilityLabel={`${previewUrl.replace(/^https?:\/\//, "")}, preview public page`}
+            accessibilityLabel={`${previewHost}, preview public page`}
             onPress={() => {
               void WebBrowser.openBrowserAsync(previewUrl);
             }}
@@ -161,13 +154,13 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
               className="shrink text-sm font-medium text-accent"
               numberOfLines={1}
             >
-              {previewUrl.replace(/^https?:\/\//, "")}
+              {previewHost}
             </Text>
             <ArrowUpRight size={14} color={themed.accent} />
           </Pressable>
         ) : null}
 
-        <SectionLabel>Profile</SectionLabel>
+        <SectionLabel size="sm">Profile</SectionLabel>
         <Card>
           <TextField
             label="Artist / studio name"
@@ -213,7 +206,7 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
           />
         </Card>
 
-        <SectionLabel>Public page cover</SectionLabel>
+        <SectionLabel size="sm">Public page cover</SectionLabel>
         <Card>
           <CoverImageField
             imageUrl={initial.coverImageUrl}
@@ -224,7 +217,6 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
             <CoverSwatch
               label="No color"
               hex={null}
-              fg={themed.bone}
               selected={coverColor === ""}
               onPress={() => setCoverColor("")}
             />
@@ -278,8 +270,9 @@ function CoverSwatch({
   label: string;
   /** null = the "no color" swatch (transparent with a slash). */
   hex: string | null;
-  /** Icon color that reads on the swatch fill. */
-  fg: string;
+  /** Icon color that reads on the swatch fill (unused for the null swatch,
+   *  whose check uses the themed foreground). */
+  fg?: string;
   selected: boolean;
   onPress: () => void;
 }) {

@@ -1,5 +1,28 @@
-// Presentation helpers for the goods screens (mirrors web @/lib/goods labels;
-// response types are shared via @inklee/shared/mobile-api).
+// Presentation + cache helpers for the goods screens (mirrors web @/lib/goods
+// labels; response types are shared via @inklee/shared/mobile-api).
+import type { QueryClient } from "@tanstack/react-query";
+import { apiPatch, invalidateByPathPrefix } from "./api";
+
+// Every /goods view (list + details). Lives here so screens share one
+// definition instead of re-inlining the predicate.
+export function invalidateGoods(client: QueryClient): Promise<void> {
+  return invalidateByPathPrefix(client, ["/goods"]);
+}
+
+/**
+ * Flip a product's sold-out/active status. Owns the cache footgun: the cached
+ * `/goods/<id>` detail must be DROPPED (not just invalidated) because the edit
+ * form seeds its status from the cached detail once on mount — a stale entry
+ * would let a follow-up Save silently revert this toggle.
+ */
+export async function setProductStatus(
+  client: QueryClient,
+  id: string,
+  status: string,
+): Promise<void> {
+  await apiPatch(`/goods/${id}/status`, { status });
+  client.removeQueries({ queryKey: ["api", `/goods/${id}`] });
+}
 
 export const PRODUCT_CATEGORY_OPTIONS = [
   { value: "print", label: "Print" },
@@ -18,25 +41,12 @@ export const PRODUCT_STATUS_OPTIONS = [
   { value: "sold_out", label: "Sold out" },
 ] as const;
 
-const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
-  PRODUCT_CATEGORY_OPTIONS.map((o) => [o.value, o.label]),
-);
 const STATUS_LABELS: Record<string, string> = Object.fromEntries(
   PRODUCT_STATUS_OPTIONS.map((o) => [o.value, o.label]),
 );
 
-export function productCategoryLabel(c: string): string {
-  return CATEGORY_LABELS[c] ?? c;
-}
-
 export function productStatusLabel(s: string): string {
   return STATUS_LABELS[s] ?? s;
-}
-
-export function productStatusTone(s: string): string {
-  if (s === "active") return "text-success";
-  if (s === "sold_out") return "text-accent";
-  return "text-shell-dim"; // hidden
 }
 
 export function formatProductPrice(amount: number, currency: string): string {

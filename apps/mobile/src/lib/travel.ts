@@ -1,10 +1,20 @@
-// Presentation helpers for the travel/guest-spot screens.
+// Presentation + cache helpers for the travel/guest-spot screens.
+import type { QueryClient } from "@tanstack/react-query";
 import {
   VISIBILITY_LABELS,
   VISIBILITY_MODES,
 } from "@inklee/shared/studio-validation";
 import { localDateKey } from "@inklee/shared/date-utils";
+import { invalidateByPathPrefix } from "./api";
 import { formatShortDate } from "./date";
+
+// Every /travel view PLUS /home: the dashboard guest-spots widget renders trip
+// titles and studio names, so a trip/leg/studio change must refresh it too.
+// (The screens used to carry two same-named copies of this helper, and the
+// studios one had silently dropped /home — studio renames left Home stale.)
+export function invalidateTravel(client: QueryClient): Promise<void> {
+  return invalidateByPathPrefix(client, ["/travel", "/home"]);
+}
 
 export const VISIBILITY_OPTIONS = VISIBILITY_MODES.map((value) => ({
   value,

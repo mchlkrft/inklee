@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { apiPost, invalidateBookingViews } from "./api";
+import { apiPost, invalidateBookingViews, invalidateByPathPrefix } from "./api";
 
 // Shared waitlist mutations + helpers for the list and detail screens (the
 // optimistic cache patches stay screen-local because each screen owns its own
@@ -8,14 +8,7 @@ import { apiPost, invalidateBookingViews } from "./api";
 // A status change can drop an entry from the "waiting" list AND change the
 // Home waitlist count — refresh every /waitlist* view plus /home together.
 export function invalidateWaitlistViews(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({
-    predicate: (q) => {
-      const p = q.queryKey[1];
-      return (
-        typeof p === "string" && (p.startsWith("/waitlist") || p === "/home")
-      );
-    },
-  });
+  return invalidateByPathPrefix(client, ["/waitlist", "/home"]);
 }
 
 export async function setWaitlistStatus(

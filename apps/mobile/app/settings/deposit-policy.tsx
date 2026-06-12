@@ -26,6 +26,7 @@ import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { config } from "@/lib/config";
 import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 
 // Cancellation & refunds — the structured deposit policy editor (web parity:
 // bookings/deposits DepositPolicyForm). The shape is platform-constrained:
@@ -66,13 +67,14 @@ function validateWindow(
 
 export default function DepositPolicyScreen() {
   const q = useApiQuery<DepositPolicy>("/settings/deposit-policy");
+  const themed = useColors();
 
   if (!q.data) {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load your deposit policy"

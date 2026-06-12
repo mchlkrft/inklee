@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { getCalendars } from "expo-localization";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ChevronLeft } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { validateSlug } from "@inklee/shared/slug";

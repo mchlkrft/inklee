@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type {
   MobileFlashItem,
   MobileFlashItemsResponse,
@@ -20,12 +20,15 @@ import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
+import { NavCardRow } from "@/components/NavCardRow";
 import { apiPost, useApiQuery } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { flashLabel, flashStatusTone, formatFlashPrice } from "@/lib/flash";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+
+const ListGap = () => <View className="h-3" />;
 
 export default function FlashItemsList() {
   const router = useRouter();
@@ -77,17 +80,12 @@ export default function FlashItemsList() {
         {/* Full md-height CTA, matching the calendar's New appointment. */}
         <Button label="New design" onPress={newDesign} loading={creating} />
       </View>
-      <Pressable
-        accessibilityRole="button"
+      <NavCardRow
+        icon="calendar-outline"
+        label="Flash days"
+        className="mb-1 mt-3"
         onPress={() => router.push("/flash/days")}
-        className="mb-1 mt-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
-      >
-        <View className="flex-row items-center gap-2">
-          <Ionicons name="calendar-outline" size={18} color={colors.accent} />
-          <Text className="text-base font-semibold text-foreground">Flash days</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />
-      </Pressable>
+      />
       <View className="h-2" />
     </>
   );
@@ -108,7 +106,7 @@ export default function FlashItemsList() {
           <RefreshControl
             refreshing={q.refreshing}
             onRefresh={q.refresh}
-            tintColor={colors.mustard}
+            tintColor={colors.accent}
             progressViewOffset={topBarHeight}
           />
         }
@@ -118,7 +116,7 @@ export default function FlashItemsList() {
             subtitle="Add designs on the web or import from Instagram, then manage them here."
           />
         }
-        ItemSeparatorComponent={() => <View className="h-3" />}
+        ItemSeparatorComponent={ListGap}
         renderItem={({ item }) => (
           <FlashItemRow
             item={item}

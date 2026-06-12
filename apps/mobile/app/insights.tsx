@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
 import { MONTH_LONG } from "@/lib/date";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import type { MobileAnalytics } from "@inklee/shared/mobile-api";
 
 const RANGES = [
@@ -23,6 +23,7 @@ const RANGES = [
 
 export default function InsightsScreen() {
   const [range, setRange] = useState("90");
+  const themed = useColors();
   const { data, loading, error, refreshing, refresh } = useApiQuery<MobileAnalytics>(
     `/analytics?range=${range}`,
     { keepPrevious: true },
@@ -37,7 +38,7 @@ export default function InsightsScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={refresh}
-          tintColor={colors.mustard}
+          tintColor={themed.accent}
         />
       }
     >
@@ -71,7 +72,7 @@ export default function InsightsScreen() {
       {!data ? (
         loading ? (
           <View className="items-center py-16">
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           </View>
         ) : (
           <ErrorState

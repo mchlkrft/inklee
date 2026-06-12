@@ -22,7 +22,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
-import { config } from "@/lib/config";
+import { config, displayUrl } from "@/lib/config";
+import { useTimedFlag } from "@/lib/use-timed-flag";
 import { formatShortDate, relativeTime } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
 import type {
@@ -85,12 +86,11 @@ function RequestCard({
 // Empty inbox: nudge the artist to share their booking link (the way requests
 // actually start). Copy via expo-clipboard, Preview via the in-app browser.
 function ShareZeroState({ bookingUrl }: { bookingUrl: string | null }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useTimedFlag();
   const copy = async () => {
     if (!bookingUrl) return;
     await Clipboard.setStringAsync(bookingUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    markCopied();
   };
   return (
     <View className="items-center px-2 py-16">
@@ -103,7 +103,7 @@ function ShareZeroState({ bookingUrl }: { bookingUrl: string | null }) {
       {bookingUrl ? (
         <>
           <Text className="mt-4 text-center text-sm text-shell-dim">
-            {bookingUrl.replace(/^https?:\/\//, "")}
+            {displayUrl(bookingUrl)}
           </Text>
           <View className="mt-2 flex-row gap-2">
             <PillButton label={copied ? "Copied" : "Copy link"} onPress={copy} />
@@ -170,9 +170,11 @@ export default function RequestsScreen() {
       {filtersOpen ? (
         // flexShrink 0 is load-bearing: RN ScrollViews default to flexShrink 1,
         // and the FlatList's content-sized flex basis would otherwise squeeze
-        // this strip to a few px and clip the chips (founder round 5). The
-        // negative margin cancels Screen's px-5 (20px) so scrolling chips clip
-        // at the physical screen edge, not mid-screen.
+        // this strip to a few px and clip the chips (founder round 5). Screen's
+        // px-5 is 17.5px (NativeWind inlines rem=14, not 16), so the -20/+20
+        // margin/padding pair over-cancels by 2.5px offscreen and restores the
+        // same 17.5px content inset; scrolling chips clip at the physical
+        // screen edge, not mid-screen.
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -208,7 +210,7 @@ export default function RequestsScreen() {
               q.refresh();
               stats.refresh();
             }}
-            tintColor={colors.mustard}
+            tintColor={colors.accent}
           />
         }
         onEndReached={q.fetchNextPage}
@@ -216,7 +218,7 @@ export default function RequestsScreen() {
         ListFooterComponent={
           q.fetchingNextPage ? (
             <View className="py-4">
-              <ActivityIndicator color={colors.mustard} />
+              <ActivityIndicator color={colors.accent} />
             </View>
           ) : null
         }

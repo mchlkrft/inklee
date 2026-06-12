@@ -9,7 +9,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import type { ClientListItem } from "@/lib/clients";
 import { relativeTime } from "@/lib/date";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
@@ -57,7 +56,9 @@ export default function ClientsScreen() {
     useApiQuery<{ items: ClientListItem[] }>("/clients");
   const [query, setQuery] = useState("");
 
-  const items = data?.items ?? [];
+  // Memoized so the `?? []` fallback doesn't mint a new array every render
+  // and invalidate the filter memo below (react-hooks/exhaustive-deps).
+  const items = useMemo(() => data?.items ?? [], [data]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
@@ -104,7 +105,7 @@ export default function ClientsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
         ListEmptyComponent={

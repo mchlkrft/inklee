@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { colors } from "@/lib/tokens";
 
 // Onboarding wizard stack — mounted (gated by the root navigator) only while the
 // artist is signed in but not yet onboarded. Headerless + charcoal; the screens
@@ -9,7 +10,7 @@ export default function OnboardingLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: "#1e1e1e" },
+        contentStyle: { backgroundColor: colors.charcoal },
         animation: "slide_from_right",
       }}
     >

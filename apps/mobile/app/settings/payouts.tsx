@@ -6,19 +6,16 @@ import {
   Text,
   View,
 } from "react-native";
-import * as WebBrowser from "expo-web-browser";
 import { useQueryClient } from "@tanstack/react-query";
-import type {
-  MobileConnectLink,
-  MobilePayouts,
-} from "@inklee/shared/mobile-api";
+import type { MobilePayouts } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
+import { openConnectHandoff } from "@/lib/web-handoff";
 
 const STATUS: Record<string, { label: string; tone: string; help: string }> = {
   unset: {
@@ -51,6 +48,7 @@ const STATUS: Record<string, { label: string; tone: string; help: string }> = {
 export default function PayoutsScreen() {
   const q = useApiQuery<MobilePayouts>("/settings/payouts");
   const queryClient = useQueryClient();
+  const themed = useColors();
   const [working, setWorking] = useState<null | "link" | "sync">(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,11 +63,7 @@ export default function PayoutsScreen() {
     setWorking("link");
     setError(null);
     try {
-      const { url } = await apiPost<MobileConnectLink>(
-        "/settings/connect-link",
-        { next: "/settings/payouts" },
-      );
-      await WebBrowser.openBrowserAsync(url);
+      await openConnectHandoff("/settings/payouts");
       await queryClient.invalidateQueries({
         queryKey: ["api", "/settings/payouts"],
       });
@@ -101,7 +95,7 @@ export default function PayoutsScreen() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load payouts"
@@ -123,7 +117,7 @@ export default function PayoutsScreen() {
           <RefreshControl
             refreshing={q.refreshing}
             onRefresh={q.refresh}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
       >

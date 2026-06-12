@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "@/lib/auth";
 import { control } from "@/lib/tokens";

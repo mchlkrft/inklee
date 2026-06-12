@@ -50,12 +50,3 @@ export function BrandLoader({
     </View>
   );
 }
-
-/** Full-screen centered loader — drop-in for the ActivityIndicator splash. */
-export function CenterLoader({ label }: { label?: string }) {
-  return (
-    <View className="flex-1 items-center justify-center">
-      <BrandLoader label={label} />
-    </View>
-  );
-}

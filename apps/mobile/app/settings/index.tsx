@@ -13,14 +13,18 @@ import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { SectionLabel } from "@/components/SectionLabel";
 import { SettingsRow } from "@/components/SettingsRow";
 import { Segmented } from "@/components/Segmented";
 import { useApiQuery } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { formatMoney } from "@/lib/bookings";
-import { colors } from "@/lib/tokens";
-import { useThemePreference, type ThemePreference } from "@/lib/theme";
+import {
+  useColors,
+  useThemePreference,
+  type ThemePreference,
+} from "@/lib/theme";
 import { useScreenView } from "@/lib/analytics";
 import type { DepositDefaults } from "@inklee/shared/deposit-settings";
 import type {
@@ -60,6 +64,7 @@ export default function SettingsHubScreen() {
   useScreenView("settings");
   const { signOut } = useAuth();
   const { preference, setPreference } = useThemePreference();
+  const themed = useColors();
   const router = useRouter();
   const meQ = useApiQuery<MobileMe>("/me");
   const profileQ = useApiQuery<MobileProfile>("/settings/profile");
@@ -79,7 +84,7 @@ export default function SettingsHubScreen() {
       <Screen edges={["left", "right"]}>
         {meQ.loading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           </View>
         ) : (
           <ErrorState
@@ -133,7 +138,7 @@ export default function SettingsHubScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refreshAll}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
       >
@@ -304,13 +309,5 @@ export default function SettingsHubScreen() {
         </View>
       </ScrollView>
     </Screen>
-  );
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-shell-mute">
-      {children}
-    </Text>
   );
 }

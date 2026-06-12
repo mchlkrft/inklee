@@ -237,6 +237,26 @@ export function useInfiniteApiQuery<T>(path: string) {
   };
 }
 
+/**
+ * Invalidate every cached `["api", path]` query whose path starts with one of
+ * the given prefixes — the one predicate body behind all the cross-screen
+ * invalidation helpers (here and in the domain libs), so new helpers can't
+ * drift in shape.
+ */
+export function invalidateByPathPrefix(
+  client: QueryClient,
+  prefixes: readonly string[],
+): Promise<void> {
+  return client.invalidateQueries({
+    predicate: (query) => {
+      const path = query.queryKey[1];
+      return (
+        typeof path === "string" && prefixes.some((p) => path.startsWith(p))
+      );
+    },
+  });
+}
+
 // Every cached view a booking mutation can affect. One action (accept / deposit
 // / refund / cancel) invalidates the detail AND the inbox, Home counts, calendar
 // and client history together — the cross-screen freshness the old per-screen
@@ -244,15 +264,7 @@ export function useInfiniteApiQuery<T>(path: string) {
 const BOOKING_VIEW_PREFIXES = ["/bookings", "/home", "/calendar", "/clients"];
 
 export function invalidateBookingViews(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({
-    predicate: (query) => {
-      const path = query.queryKey[1];
-      return (
-        typeof path === "string" &&
-        BOOKING_VIEW_PREFIXES.some((p) => path.startsWith(p))
-      );
-    },
-  });
+  return invalidateByPathPrefix(client, BOOKING_VIEW_PREFIXES);
 }
 
 // Every view that reflects the books open/closed state. A toggle (quick sheet
@@ -261,15 +273,7 @@ export function invalidateBookingViews(client: QueryClient): Promise<void> {
 const BOOKS_VIEW_PREFIXES = ["/settings/books", "/home", "/me", "/booking-form"];
 
 export function invalidateBooksViews(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({
-    predicate: (query) => {
-      const path = query.queryKey[1];
-      return (
-        typeof path === "string" &&
-        BOOKS_VIEW_PREFIXES.some((p) => path.startsWith(p))
-      );
-    },
-  });
+  return invalidateByPathPrefix(client, BOOKS_VIEW_PREFIXES);
 }
 
 // Identity / onboarding-scoped views. `invalidateBookingViews` covers /home but
@@ -279,13 +283,5 @@ export function invalidateBooksViews(client: QueryClient): Promise<void> {
 const IDENTITY_VIEW_PREFIXES = ["/me", "/home", "/settings/profile"];
 
 export function invalidateIdentity(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({
-    predicate: (query) => {
-      const path = query.queryKey[1];
-      return (
-        typeof path === "string" &&
-        IDENTITY_VIEW_PREFIXES.some((p) => path.startsWith(p))
-      );
-    },
-  });
+  return invalidateByPathPrefix(client, IDENTITY_VIEW_PREFIXES);
 }

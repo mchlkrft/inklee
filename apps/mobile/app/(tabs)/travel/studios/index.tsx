@@ -17,18 +17,21 @@ import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
 import { visibilityLabel } from "@/lib/travel";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
+
+const ListGap = () => <View className="h-3" />;
 
 export default function StudiosList() {
   const router = useRouter();
   const q = useApiQuery<MobileStudiosResponse>("/travel/studios");
+  const themed = useColors();
 
   if (!q.data) {
     return (
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load studios"
@@ -58,7 +61,7 @@ export default function StudiosList() {
             <RefreshControl
               refreshing={q.refreshing}
               onRefresh={q.refresh}
-              tintColor={colors.mustard}
+              tintColor={themed.accent}
             />
           }
           ListEmptyComponent={
@@ -67,7 +70,7 @@ export default function StudiosList() {
               subtitle="Add the studios you work from so you can attach them to trip stops."
             />
           }
-          ItemSeparatorComponent={() => <View className="h-3" />}
+          ItemSeparatorComponent={ListGap}
           renderItem={({ item }) => (
             <StudioRowView
               studio={item}

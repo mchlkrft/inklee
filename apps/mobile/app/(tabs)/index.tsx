@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -31,7 +30,8 @@ import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
-import { config } from "@/lib/config";
+import { config, displayUrl } from "@/lib/config";
+import { useTimedFlag } from "@/lib/use-timed-flag";
 import { formatShortDate } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
 import type {
@@ -102,17 +102,16 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
 }
 
 function LinkRow({ label, url }: { label: string; url: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useTimedFlag();
   const copy = async () => {
     await Clipboard.setStringAsync(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    markCopied();
   };
   return (
     <View className="mt-3 gap-1.5">
       <Text className="text-caption text-shell-dim">{label}</Text>
       <Text className="text-sm text-shell-dim" numberOfLines={1}>
-        {url.replace(/^https?:\/\//, "")}
+        {displayUrl(url)}
       </Text>
       <View className="flex-row gap-2">
         <PillButton label={copied ? "Copied" : "Copy link"} onPress={copy} />
@@ -175,7 +174,7 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={colors.mustard}
+            tintColor={colors.accent}
             progressViewOffset={topBarHeight}
           />
         }
@@ -183,7 +182,7 @@ export default function HomeScreen() {
         {!data ? (
           loading ? (
             <View className="items-center justify-center py-24">
-              <ActivityIndicator color={colors.mustard} />
+              <ActivityIndicator color={colors.accent} />
             </View>
           ) : (
             <EmptyState

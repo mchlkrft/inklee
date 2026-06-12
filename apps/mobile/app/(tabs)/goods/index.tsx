@@ -9,7 +9,7 @@ import {
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   MobileProduct,
@@ -22,8 +22,12 @@ import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
-import { useApiQuery, apiPatch } from "@/lib/api";
-import { formatProductPrice, productStatusLabel } from "@/lib/goods";
+import { useApiQuery } from "@/lib/api";
+import {
+  formatProductPrice,
+  productStatusLabel,
+  setProductStatus,
+} from "@/lib/goods";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
@@ -93,7 +97,7 @@ export default function GoodsList() {
             <RefreshControl
               refreshing={q.refreshing}
               onRefresh={q.refresh}
-              tintColor={colors.mustard}
+              tintColor={colors.accent}
               progressViewOffset={topBarHeight}
             />
           }
@@ -153,11 +157,7 @@ function ProductTile({
     setStatus(next);
     setPending(true);
     try {
-      await apiPatch(`/goods/${product.id}/status`, { status: next });
-      // Drop the cached detail outright (not just invalidate): the edit form
-      // seeds its status from the cached detail once on mount, so a stale
-      // entry would let a follow-up Save silently revert this toggle.
-      queryClient.removeQueries({ queryKey: ["api", `/goods/${product.id}`] });
+      await setProductStatus(queryClient, product.id, next);
       onRefresh();
     } catch (e) {
       captureError(e, { op: "toggleProductStatus" });

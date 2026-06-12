@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { DayAgenda } from "@/components/calendar/DayAgenda";
 import { useCalendarMonth } from "@/lib/calendar";
-import { colors } from "@/lib/tokens";
+import { useColors } from "@/lib/theme";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { useScreenView } from "@/lib/analytics";
 
@@ -23,6 +23,7 @@ export default function CalendarScreen() {
   useScreenView("calendar");
   const cal = useCalendarMonth();
   const router = useRouter();
+  const themed = useColors();
 
   return (
     <Screen edges={["left", "right"]}>
@@ -33,7 +34,7 @@ export default function CalendarScreen() {
           <RefreshControl
             refreshing={cal.refreshing}
             onRefresh={cal.refresh}
-            tintColor={colors.mustard}
+            tintColor={themed.accent}
           />
         }
       >
@@ -60,7 +61,7 @@ export default function CalendarScreen() {
             <EmptyState title="Couldn't load calendar" subtitle={cal.error} />
           ) : cal.loading ? (
             <View className="items-center py-8">
-              <ActivityIndicator color={colors.mustard} />
+              <ActivityIndicator color={themed.accent} />
             </View>
           ) : (
             <DayAgenda

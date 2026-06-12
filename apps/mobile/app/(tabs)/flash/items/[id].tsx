@@ -20,6 +20,7 @@ import type {
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { DangerButton } from "@/components/DangerButton";
+import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
 import { ImageUploadField } from "@/components/ImageUploadField";
@@ -30,20 +31,19 @@ import {
   BOOKING_MODE_OPTIONS,
   ITEM_STATUS_OPTIONS,
   PRICE_TYPE_OPTIONS,
+  invalidateFlash,
 } from "@/lib/flash";
 import { captureError } from "@/lib/telemetry";
+import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
 
 type ItemStatus = (typeof ITEM_STATUS_OPTIONS)[number]["value"];
 type PriceType = (typeof PRICE_TYPE_OPTIONS)[number]["value"];
 type BookingMode = (typeof BOOKING_MODE_OPTIONS)[number]["value"];
 
-function Label({ children }: { children: string }) {
-  return <Text className="mb-1.5 text-sm font-medium text-foreground">{children}</Text>;
-}
-
 export default function EditFlashItem() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const themed = useColors();
   const q = useApiQuery<MobileFlashItemDetail>(`/flash/items/${id}`);
 
   if (!q.data) {
@@ -51,7 +51,7 @@ export default function EditFlashItem() {
       <Screen edges={["left", "right"]}>
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
-            <ActivityIndicator color={colors.mustard} />
+            <ActivityIndicator color={themed.accent} />
           ) : (
             <ErrorState
               title="Couldn't load design"
@@ -65,14 +65,6 @@ export default function EditFlashItem() {
   }
 
   return <ItemForm id={id} initial={q.data} />;
-}
-
-function invalidateFlash(queryClient: ReturnType<typeof useQueryClient>) {
-  return queryClient.invalidateQueries({
-    predicate: (query) =>
-      typeof query.queryKey[1] === "string" &&
-      (query.queryKey[1] as string).startsWith("/flash"),
-  });
 }
 
 function ItemForm({
@@ -229,13 +221,7 @@ function ItemForm({
           hero
           imageUrl={initial.previewImageUrl}
           endpoint={`/flash/items/${id}/image`}
-          onUploaded={() =>
-            queryClient.invalidateQueries({
-              predicate: (q) =>
-                typeof q.queryKey[1] === "string" &&
-                (q.queryKey[1] as string).startsWith("/flash"),
-            })
-          }
+          onUploaded={() => invalidateFlash(queryClient)}
         />
 
         <View className="mb-4 rounded-2xl border border-shell-border bg-glass">
@@ -288,7 +274,7 @@ function ItemForm({
           autoCapitalize="sentences"
         />
 
-        <Label>Status</Label>
+        <FieldLabel>Status</FieldLabel>
         <Segmented
           options={ITEM_STATUS_OPTIONS}
           value={status}
@@ -306,7 +292,7 @@ function ItemForm({
           />
         </View>
 
-        <Label>Price</Label>
+        <FieldLabel>Price</FieldLabel>
         <Segmented
           options={PRICE_TYPE_OPTIONS}
           value={priceType}
@@ -322,7 +308,7 @@ function ItemForm({
           />
         ) : null}
 
-        <Label>Booking mode</Label>
+        <FieldLabel>Booking mode</FieldLabel>
         <Segmented
           options={BOOKING_MODE_OPTIONS}
           value={bookingMode}
@@ -338,7 +324,7 @@ function ItemForm({
           />
         ) : null}
 
-        <Label>Short description</Label>
+        <FieldLabel>Short description</FieldLabel>
         <TextArea
           value={shortDescription}
           onChangeText={setShortDescription}
@@ -377,7 +363,7 @@ function ItemForm({
 
         {initial.flashDays.length > 0 ? (
           <>
-            <Label>Flash day</Label>
+            <FieldLabel>Flash day</FieldLabel>
             <Segmented
               options={dayOptions}
               value={flashDayId}

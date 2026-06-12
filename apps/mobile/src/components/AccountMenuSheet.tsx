@@ -1,15 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
 import {
   ArrowUpRight,
   BarChart3,
@@ -18,22 +11,20 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react-native";
-import { IconButton } from "./IconButton";
 import { Spiderweb } from "./icons/Spiderweb";
+import { IconButton } from "./IconButton";
+import { TopSheet } from "./TopSheet";
 import { useApiQuery } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { config } from "@/lib/config";
-import { border, colors, radius } from "@/lib/tokens";
+import { border, colors } from "@/lib/tokens";
 import type { MobileMe, MobileProfile } from "@inklee/shared/mobile-api";
 
-const DURATION = 220;
-
-// Top sheet behind the top-bar account-menu button — the native equivalent of
-// the web top bar's dropdown (mobile-top-bar.tsx). Opens FROM the top and sits
-// at the top (near the finger that opened it); only the PANEL slides, the
-// backdrop just fades 0 -> 30%. An X in the panel's top-right (where the burger
-// lives) closes it. Contents mirror the web menu + the one orphaned primary:
-// Settings, Insights, View booking form, View flash page, Sign out.
+// Account menu behind the top-bar burger — the native equivalent of the web
+// top bar's dropdown (mobile-top-bar.tsx). TopSheet owns the slide/fade
+// mechanics; an X in the panel's top-right (where the burger lives) closes it.
+// Contents mirror the web menu + the one orphaned primary: Settings, Insights,
+// View booking form, View flash page, Sign out.
 export function AccountMenuSheet({
   open,
   onClose,
@@ -41,7 +32,6 @@ export function AccountMenuSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signOut } = useAuth();
   const meQ = useApiQuery<MobileMe>("/me");
@@ -49,37 +39,6 @@ export function AccountMenuSheet({
     enabled: open,
   });
   const [avatarFailed, setAvatarFailed] = useState(false);
-
-  // Keep the Modal mounted while the close animation plays out.
-  const [mounted, setMounted] = useState(open);
-  const progress = useSharedValue(0);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (open) {
-      if (closeTimer.current) clearTimeout(closeTimer.current);
-      setMounted(true);
-      progress.value = withTiming(1, {
-        duration: DURATION,
-        easing: Easing.out(Easing.cubic),
-      });
-    } else {
-      progress.value = withTiming(0, {
-        duration: DURATION,
-        easing: Easing.in(Easing.cubic),
-      });
-      closeTimer.current = setTimeout(() => setMounted(false), DURATION);
-    }
-    return () => {
-      if (closeTimer.current) clearTimeout(closeTimer.current);
-    };
-  }, [open, progress]);
-
-  const backdrop = useAnimatedStyle(() => ({
-    opacity: 0.3 * progress.value,
-  }));
-  const panel = useAnimatedStyle(() => ({
-    transform: [{ translateY: (progress.value - 1) * 460 }],
-  }));
 
   const me = meQ.data;
   const profile = profileQ.data;
@@ -99,131 +58,88 @@ export function AccountMenuSheet({
     void WebBrowser.openBrowserAsync(url).catch(() => {});
   };
 
-  if (!mounted) return null;
-
   return (
-    <Modal
-      visible
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      {/* Backdrop: opacity-only fade (it must NOT slide). Tap closes. */}
-      <Animated.View
-        style={[
-          { position: "absolute", inset: 0, backgroundColor: "#000" },
-          backdrop,
-        ]}
-      />
-      <Pressable
-        accessibilityLabel="Close account menu"
-        onPress={onClose}
-        className="flex-1"
+    <TopSheet open={open} onClose={onClose} closeLabel="Close account menu">
+      {/* Identity row + the X exactly where the burger sits (top-right),
+          so closing is one small thumb move from opening. */}
+      <View
+        className="flex-row items-center gap-3 pb-4"
+        style={{
+          borderBottomWidth: border.hairline,
+          borderColor: colors.shell.border,
+        }}
       >
-        {/* The panel: slides in from the top and sits at the top. Inner
-            Pressable stops taps from falling through to the backdrop. */}
-        <Animated.View style={panel}>
-          <Pressable
-            onPress={() => {}}
-            className="px-5"
-            style={{
-              backgroundColor: colors.charcoal,
-              borderBottomWidth: border.brand,
-              borderColor: colors.shell.border,
-              borderBottomLeftRadius: radius.card,
-              borderBottomRightRadius: radius.card,
-              paddingTop: insets.top + 12,
-              paddingBottom: 20,
-            }}
+        {showLogo ? (
+          <Image
+            source={{ uri: profile!.logoUrl! }}
+            onError={() => setAvatarFailed(true)}
+            transition={150}
+            style={{ width: 44, height: 44, borderRadius: 22 }}
+            contentFit="cover"
+          />
+        ) : (
+          <View className="h-11 w-11 items-center justify-center rounded-full bg-mustard/20">
+            <Text className="text-lg font-bold text-mustard">
+              {name.charAt(0).toUpperCase() || "·"}
+            </Text>
+          </View>
+        )}
+        <View className="flex-1 justify-center">
+          <Text
+            className="text-subtitle font-semibold text-bone"
+            numberOfLines={1}
           >
-            {/* Identity row + the X exactly where the burger sits (top-right),
-                so closing is one small thumb move from opening. */}
-            <View
-              className="flex-row items-center gap-3 pb-4"
-              style={{
-                borderBottomWidth: border.hairline,
-                borderColor: colors.shell.border,
-              }}
+            {name}
+          </Text>
+          {subline ? (
+            // Static shell color: the panel is fixed-dark chrome, so the
+            // themed text-shell-dim would vanish in the light theme.
+            <Text
+              className="text-caption"
+              style={{ color: colors.shell.dim }}
+              numberOfLines={1}
             >
-              {showLogo ? (
-                <Image
-                  source={{ uri: profile!.logoUrl! }}
-                  onError={() => setAvatarFailed(true)}
-                  transition={150}
-                  style={{ width: 44, height: 44, borderRadius: 22 }}
-                  contentFit="cover"
-                />
-              ) : (
-                <View className="h-11 w-11 items-center justify-center rounded-full bg-mustard/20">
-                  <Text className="text-lg font-bold text-mustard">
-                    {name.charAt(0).toUpperCase() || "·"}
-                  </Text>
-                </View>
-              )}
-              <View className="flex-1 justify-center">
-                <Text
-                  className="text-subtitle font-semibold text-bone"
-                  numberOfLines={1}
-                >
-                  {name}
-                </Text>
-                {subline ? (
-                  // Static shell color: the panel is fixed-dark chrome, so the
-                  // themed text-shell-dim would vanish in the light theme.
-                  <Text
-                    className="text-caption"
-                    style={{ color: colors.shell.dim }}
-                    numberOfLines={1}
-                  >
-                    {subline}
-                  </Text>
-                ) : null}
-              </View>
-              <IconButton
-                icon={X}
-                label="Close menu"
-                onPress={onClose}
-                outlined
-                borderColor={colors.shell.border}
-                color={colors.bone}
-              />
-            </View>
+              {subline}
+            </Text>
+          ) : null}
+        </View>
+        <IconButton
+          icon={X}
+          label="Close menu"
+          onPress={onClose}
+          outlined
+          borderColor={colors.shell.border}
+          color={colors.bone}
+        />
+      </View>
 
-            <View className="pt-2">
-              <MenuRow
-                icon={SettingsIcon}
-                label="Settings"
-                onPress={() => go(() => router.push("/settings"))}
-              />
-              <MenuRow
-                icon={BarChart3}
-                label="Insights"
-                onPress={() => go(() => router.push("/insights"))}
-              />
-              {publicUrl ? (
-                <>
-                  <MenuRow
-                    icon={ArrowUpRight}
-                    label="View booking form"
-                    external
-                    onPress={() => go(() => openExternal(publicUrl))}
-                  />
-                  <FlashMenuRow
-                    onPress={() => go(() => openExternal(`${publicUrl}/flash`))}
-                  />
-                </>
-              ) : null}
-              <MenuRow
-                icon={LogOut}
-                label="Sign out"
-                onPress={() => go(signOut)}
-              />
-            </View>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+      <View className="pt-2">
+        <MenuRow
+          icon={SettingsIcon}
+          label="Settings"
+          onPress={() => go(() => router.push("/settings"))}
+        />
+        <MenuRow
+          icon={BarChart3}
+          label="Insights"
+          onPress={() => go(() => router.push("/insights"))}
+        />
+        {publicUrl ? (
+          <>
+            <MenuRow
+              icon={ArrowUpRight}
+              label="View booking form"
+              external
+              onPress={() => go(() => openExternal(publicUrl))}
+            />
+            <FlashMenuRow
+              onPress={() => go(() => openExternal(`${publicUrl}/flash`))}
+            />
+          </>
+        ) : null}
+        <MenuRow icon={LogOut} label="Sign out" onPress={() => go(signOut)} />
+      </View>
+    </TopSheet>
   );
 }
 
