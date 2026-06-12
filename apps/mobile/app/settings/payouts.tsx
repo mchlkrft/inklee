@@ -30,17 +30,17 @@ const STATUS: Record<string, { label: string; tone: string; help: string }> = {
   },
   active: {
     label: "Active",
-    tone: "text-success",
+    tone: "text-success-fg",
     help: "You're all set to collect deposits.",
   },
   restricted: {
     label: "Action needed",
-    tone: "text-danger",
+    tone: "text-danger-fg",
     help: "Stripe needs more information before you can be paid out.",
   },
   disabled: {
     label: "Disabled",
-    tone: "text-danger",
+    tone: "text-danger-fg",
     help: "This payout account is disabled. Update your details to re-enable it.",
   },
 };
@@ -161,7 +161,7 @@ export default function PayoutsScreen() {
         ) : null}
 
         {error ? (
-          <Text className="mt-4 text-sm text-danger">{error}</Text>
+          <Text className="mt-4 text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <View className="mt-5 gap-3">
@@ -195,7 +195,7 @@ function StatusLine({ label, ok }: { label: string; ok: boolean }) {
   return (
     <View className="flex-row items-center justify-between">
       <Text className="text-sm text-shell-dim">{label}</Text>
-      <Text className={`text-sm font-medium ${ok ? "text-success" : "text-shell-dim"}`}>
+      <Text className={`text-sm font-medium ${ok ? "text-success-fg" : "text-shell-dim"}`}>
         {ok ? "Enabled" : "Not yet"}
       </Text>
     </View>

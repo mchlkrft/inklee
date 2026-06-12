@@ -60,7 +60,7 @@ export function TextField({
         {rightSlot ? <View className="pl-2">{rightSlot}</View> : null}
       </View>
       {error ? (
-        <Text className="mt-1 text-xs text-danger">{error}</Text>
+        <Text className="mt-1 text-xs text-danger-fg">{error}</Text>
       ) : hint ? (
         <Text className="mt-1 text-xs text-shell-dim">{hint}</Text>
       ) : null}

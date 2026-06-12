@@ -7,6 +7,7 @@ import { IconButton } from "./IconButton";
 import { TopSheet } from "./TopSheet";
 import { apiPost, invalidateBooksViews, useApiQuery } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
+import { palettes } from "@/lib/theme";
 import { border, colors } from "@/lib/tokens";
 import type { MobileMe } from "@inklee/shared/mobile-api";
 
@@ -141,7 +142,11 @@ export function BooksQuickSheet({
         </Text>
       ) : null}
       {error ? (
-        <Text className="mt-2 text-xs text-danger">{error}</Text>
+        // Fixed-dark panel: pin the dark-readable danger in both themes
+        // (the themed var would flip to the light value here).
+        <Text className="mt-2 text-xs" style={{ color: palettes.dark.dangerFg }}>
+          {error}
+        </Text>
       ) : null}
 
       <Pressable

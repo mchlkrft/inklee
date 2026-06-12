@@ -239,10 +239,10 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
 
         <View className="mt-6">
           {error ? (
-            <Text className="mb-3 text-sm text-danger">{error}</Text>
+            <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
           ) : null}
           {saved && !error ? (
-            <Text className="mb-3 text-sm text-success">Profile updated.</Text>
+            <Text className="mb-3 text-sm text-success-fg">Profile updated.</Text>
           ) : null}
 
           <Button

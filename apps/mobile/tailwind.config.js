@@ -36,6 +36,13 @@ module.exports = {
         // No opacity modifiers (var-based); tint washes stay bg-mustard/N.
         // Solid CTA fills stay bg-mustard + text-charcoal.
         accent: "var(--accent)",
+        // ME-4: readable success/danger for TEXT/ICONS on themed surfaces
+        // (the literal `success`/`danger` atoms fail contrast as text: green
+        // ~2:1 on the dark shell, red ~3.3:1). Same constraints as accent: no
+        // opacity modifiers; washes stay bg-success/15, bg-danger/N; solid
+        // fills (Button danger, Switch tracks) keep the literal atoms.
+        "success-fg": "var(--success-fg)",
+        "danger-fg": "var(--danger-fg)",
         // Back-compat: the original dark-only `shell.*` scale now points at the
         // theme variables, so every existing `text-shell-dim`/`border-shell-border`
         // class themes automatically without a code change.

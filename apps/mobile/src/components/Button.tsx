@@ -42,9 +42,11 @@ const TONES = {
     spinner: () => colors.bone,
   },
   "danger-outline": {
+    // Border keeps the brand red (alpha modifiers don't work on the var);
+    // the label uses the readable themed danger (ME-4).
     box: "border-brand border-danger/50 bg-transparent",
-    text: "text-danger",
-    spinner: () => colors.danger,
+    text: "text-danger-fg",
+    spinner: (themed: ReturnType<typeof useColors>) => themed.dangerFg,
   },
 } as const;
 
@@ -68,7 +70,7 @@ export function Button({
       : variant === "danger"
         ? colors.bone
         : variant === "danger-outline"
-          ? colors.danger
+          ? themed.dangerFg
           : themed.bone;
 
   return (

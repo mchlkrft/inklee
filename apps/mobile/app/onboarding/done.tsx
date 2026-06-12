@@ -18,7 +18,6 @@ import { useApiQuery, apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { track } from "@/lib/analytics";
 import { config } from "@/lib/config";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 export default function YoureLive() {
@@ -106,7 +105,7 @@ export default function YoureLive() {
             <Ionicons
               name="checkmark-circle"
               size={40}
-              color={colors.success}
+              color={themed.successFg}
             />
           </View>
         </View>
@@ -173,7 +172,7 @@ export default function YoureLive() {
         </View>
 
         {error ? (
-          <Text className="mt-4 text-center text-sm text-danger">{error}</Text>
+          <Text className="mt-4 text-center text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <View className="mt-auto pb-2">

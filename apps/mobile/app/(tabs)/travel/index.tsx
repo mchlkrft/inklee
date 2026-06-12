@@ -121,7 +121,7 @@ function TripRow({ trip, onPress }: { trip: MobileTrip; onPress: () => void }) {
         </Text>
         <Text
           className={`text-xs font-medium ${
-            trip.showOnBookingForm ? "text-success" : "text-shell-dim"
+            trip.showOnBookingForm ? "text-success-fg" : "text-shell-dim"
           }`}
         >
           {trip.showOnBookingForm ? "On booking form" : "Hidden"}

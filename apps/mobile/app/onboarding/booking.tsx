@@ -206,7 +206,7 @@ export default function BookingSetup() {
         ) : null}
 
         {error ? (
-          <Text className="mt-3 text-sm text-danger">{error}</Text>
+          <Text className="mt-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <View className="mt-6">

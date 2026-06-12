@@ -122,7 +122,7 @@ function CreateTrip() {
         />
         <ShowToggle value={show} onChange={setShow} />
         {error ? (
-          <Text className="mb-3 text-sm text-danger">{error}</Text>
+          <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
         <Button label="Create trip" onPress={create} loading={saving} />
       </ScrollView>
@@ -242,7 +242,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
         />
 
         {error ? (
-          <Text className="mt-3 text-sm text-danger">{error}</Text>
+          <Text className="mt-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <DangerButton
@@ -301,6 +301,7 @@ function LegRow({
   leg: MobileTripLeg;
   onDeleted: () => void;
 }) {
+  const themed = useColors();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const active = legIsActive(leg.startsOn, leg.endsOn);
@@ -334,7 +335,7 @@ function LegRow({
               {formatDateRange(leg.startsOn, leg.endsOn)}
             </Text>
             {active ? (
-              <Text className="text-xs font-medium text-success">Now</Text>
+              <Text className="text-xs font-medium text-success-fg">Now</Text>
             ) : null}
           </View>
           <Text className="mt-0.5 text-sm text-shell-dim">
@@ -353,12 +354,12 @@ function LegRow({
             label="Remove stop"
             onPress={confirmRemove}
             iconSize={18}
-            color={colors.danger}
+            color={themed.dangerFg}
           />
         )}
       </View>
       {error ? (
-        <Text className="mt-1 text-xs text-danger">{error}</Text>
+        <Text className="mt-1 text-xs text-danger-fg">{error}</Text>
       ) : null}
     </View>
   );
@@ -440,7 +441,7 @@ function AddLeg({
         placeholder="e.g. walk-ins welcome"
       />
       {error ? (
-        <Text className="mb-2 text-sm text-danger">{error}</Text>
+        <Text className="mb-2 text-sm text-danger-fg">{error}</Text>
       ) : null}
       <Button label="Add stop" variant="secondary" onPress={add} loading={busy} />
     </View>

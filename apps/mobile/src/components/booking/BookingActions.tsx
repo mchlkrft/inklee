@@ -89,7 +89,7 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
 
   return (
     <View className="gap-3">
-      {error ? <Text className="text-sm text-danger">{error}</Text> : null}
+      {error ? <Text className="text-sm text-danger-fg">{error}</Text> : null}
 
       {isPending ? (
         <>
@@ -267,7 +267,7 @@ function ConfirmAction({
           size="sm"
           onPress={() => setOpen(true)}
         />
-        {error ? <Text className="text-xs text-danger">{error}</Text> : null}
+        {error ? <Text className="text-xs text-danger-fg">{error}</Text> : null}
       </View>
     );
   }
@@ -276,7 +276,7 @@ function ConfirmAction({
     <View className="gap-2 rounded-xl border border-danger/50 p-3">
       <Text className="text-sm text-foreground">{title}</Text>
       {body ? <Text className="text-xs text-shell-dim">{body}</Text> : null}
-      {error ? <Text className="text-xs text-danger">{error}</Text> : null}
+      {error ? <Text className="text-xs text-danger-fg">{error}</Text> : null}
       <View className="flex-row gap-2">
         <View className="flex-1">
           <Button
@@ -474,7 +474,7 @@ function DepositRequestForm({
         />
       </View>
 
-      {error ? <Text className="text-xs text-danger">{error}</Text> : null}
+      {error ? <Text className="text-xs text-danger-fg">{error}</Text> : null}
 
       <View className="flex-row gap-2">
         <View className="flex-1">

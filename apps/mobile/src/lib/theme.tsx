@@ -44,6 +44,13 @@ type Palette = {
   // ochre in light that passes 4.5:1 on bone, card AND card-elevated. Solid
   // fills keep bg-mustard + text-charcoal (charcoal on dark ochre would fail).
   accent: string;
+  // Readable success/danger for TEXT / ICONS on themed surfaces (ME-4: the
+  // theme-independent brand greens/reds fail contrast as text — success
+  // #105f2d is ~2:1 on the dark shell, danger #cf2e2c ~3.3:1). Fills and
+  // washes (bg-success/15, Button's bg-danger, Switch tracks) keep the
+  // literal brand atoms.
+  successFg: string;
+  dangerFg: string;
 };
 
 export const palettes: Record<Scheme, Palette> = {
@@ -61,6 +68,8 @@ export const palettes: Record<Scheme, Palette> = {
     glass: "rgba(30,30,30,0.05)",
     chrome: "#ece8dd",
     accent: "#6b4e00",
+    successFg: "#105f2d",
+    dangerFg: "#a61f1d",
   },
   dark: {
     background: "#1e1e1e",
@@ -76,6 +85,8 @@ export const palettes: Record<Scheme, Palette> = {
     glass: "rgba(229,225,213,0.04)",
     chrome: "#2a2a2a",
     accent: "#e9b22b",
+    successFg: "#3fae71",
+    dangerFg: "#e8706e",
   },
 };
 
@@ -96,6 +107,8 @@ const toVars = (p: Palette) =>
     "--glass": p.glass,
     "--chrome": p.chrome,
     "--accent": p.accent,
+    "--success-fg": p.successFg,
+    "--danger-fg": p.dangerFg,
   });
 
 const themeVars: Record<Scheme, ReturnType<typeof vars>> = {
@@ -209,6 +222,9 @@ export function useColors() {
     // Readable accent for inline icon/text colors on themed surfaces
     // (text-accent's runtime twin). Mustard in dark, dark ochre in light.
     accent: c.accent,
+    // text-success-fg / text-danger-fg's runtime twins (ME-4).
+    successFg: c.successFg,
+    dangerFg: c.dangerFg,
     bone: c.foreground,
     shell: {
       bg: c.background,

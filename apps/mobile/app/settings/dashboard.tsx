@@ -104,9 +104,9 @@ export default function DashboardSettingsScreen() {
             </View>
           ))}
         </Card>
-        {error ? <Text className="mt-3 text-xs text-danger">{error}</Text> : null}
+        {error ? <Text className="mt-3 text-xs text-danger-fg">{error}</Text> : null}
         {saved ? (
-          <Text className="mt-3 text-xs text-success">Saved.</Text>
+          <Text className="mt-3 text-xs text-success-fg">Saved.</Text>
         ) : null}
         <View className="mt-5">
           <Button label="Save" onPress={save} loading={saving} />

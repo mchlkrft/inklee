@@ -222,7 +222,7 @@ export default function AppointmentFormScreen() {
         )}
 
         {error ? (
-          <Text className="mb-2 text-xs text-danger">{error}</Text>
+          <Text className="mb-2 text-xs text-danger-fg">{error}</Text>
         ) : null}
 
         <View className="mt-2">

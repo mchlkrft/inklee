@@ -57,7 +57,7 @@ export default function SignIn() {
         />
 
         {error ? (
-          <Text className="mb-3 text-sm text-danger">{error}</Text>
+          <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <Button label="Sign in" onPress={submit} loading={loading} />

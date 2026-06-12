@@ -190,7 +190,7 @@ export default function BookingFormScreen() {
                 />
                 <Text
                   className={`text-base font-semibold ${
-                    form.isOpen ? "text-success" : "text-foreground"
+                    form.isOpen ? "text-success-fg" : "text-foreground"
                   }`}
                 >
                   {form.isOpen ? "Open" : "Closed"}
@@ -234,7 +234,7 @@ export default function BookingFormScreen() {
           on the web.
         </Text>
         {error ? (
-          <Text className="mt-2 text-sm text-danger">{error}</Text>
+          <Text className="mt-2 text-sm text-danger-fg">{error}</Text>
         ) : null}
         <View className="mt-3">
           <Button

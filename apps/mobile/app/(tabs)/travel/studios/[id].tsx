@@ -199,7 +199,7 @@ function StudioForm({
         </View>
 
         {error ? (
-          <Text className="mb-3 text-sm text-danger">{error}</Text>
+          <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <Button

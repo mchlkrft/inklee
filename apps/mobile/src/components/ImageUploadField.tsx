@@ -150,7 +150,7 @@ export function ImageUploadField({
         </View>
       </Pressable>
       {error ? (
-        <Text className="mt-1 text-xs text-danger">{error}</Text>
+        <Text className="mt-1 text-xs text-danger-fg">{error}</Text>
       ) : null}
     </View>
   );

@@ -162,9 +162,9 @@ function AccountSections({ account }: { account: MobileAccount }) {
             placeholder="e.g. Grimm"
           />
           {saveError ? (
-            <Text className="mb-3 text-sm text-danger">{saveError}</Text>
+            <Text className="mb-3 text-sm text-danger-fg">{saveError}</Text>
           ) : saved ? (
-            <Text className="mb-3 text-sm text-success">Saved.</Text>
+            <Text className="mb-3 text-sm text-success-fg">Saved.</Text>
           ) : null}
           <Button label="Save" onPress={saveName} loading={saving} />
         </Card>
@@ -174,7 +174,7 @@ function AccountSections({ account }: { account: MobileAccount }) {
           <SettingsRow
             label="Two-factor authentication"
             value={account.mfaEnabled ? "On" : "Off"}
-            valueTone={account.mfaEnabled ? "text-success" : "text-shell-dim"}
+            valueTone={account.mfaEnabled ? "text-success-fg" : "text-shell-dim"}
             external
             onPress={() => openWeb("/settings/account", "account")}
           />
@@ -222,7 +222,7 @@ function AccountSections({ account }: { account: MobileAccount }) {
         </Card>
 
         {linkError ? (
-          <Text className="mt-3 text-sm text-danger">{linkError}</Text>
+          <Text className="mt-3 text-sm text-danger-fg">{linkError}</Text>
         ) : null}
 
         <SectionLabel>Delete account</SectionLabel>

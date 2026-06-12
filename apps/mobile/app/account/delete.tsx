@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { captureError } from "@/lib/telemetry";
 import { Button } from "@/components/Button";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 // Apple 5.1.1(v) + counsel §9 in-app account deletion. A deliberate full-screen
@@ -115,8 +114,8 @@ export default function DeleteAccountScreen() {
       </Text>
       {reauthed ? (
         <View className="flex-row items-center gap-2">
-          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-          <Text className="text-sm font-semibold text-success">
+          <Ionicons name="checkmark-circle" size={20} color={themed.successFg} />
+          <Text className="text-sm font-semibold text-success-fg">
             Identity confirmed
           </Text>
         </View>
@@ -155,7 +154,7 @@ export default function DeleteAccountScreen() {
         />
       )}
       {reauthError ? (
-        <Text className="mt-2 text-sm text-danger">{reauthError}</Text>
+        <Text className="mt-2 text-sm text-danger-fg">{reauthError}</Text>
       ) : null}
 
       {/* Step 2 — type to confirm */}
@@ -173,7 +172,7 @@ export default function DeleteAccountScreen() {
         className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
       />
 
-      {error ? <Text className="mt-3 text-sm text-danger">{error}</Text> : null}
+      {error ? <Text className="mt-3 text-sm text-danger-fg">{error}</Text> : null}
 
       <View className="mt-6">
         <Button

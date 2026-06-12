@@ -43,9 +43,9 @@ const BASE = config.apiUrl;
 const PAYOUT_STATUS: Record<string, { label: string; tone: string }> = {
   unset: { label: "Not set up", tone: "text-shell-dim" },
   pending: { label: "Pending review", tone: "text-accent" },
-  active: { label: "Active", tone: "text-success" },
-  restricted: { label: "Action needed", tone: "text-danger" },
-  disabled: { label: "Disabled", tone: "text-danger" },
+  active: { label: "Active", tone: "text-success-fg" },
+  restricted: { label: "Action needed", tone: "text-danger-fg" },
+  disabled: { label: "Disabled", tone: "text-danger-fg" },
 };
 
 const THEME_OPTIONS: readonly { value: ThemePreference; label: string }[] = [
@@ -177,7 +177,7 @@ export default function SettingsHubScreen() {
             </View>
             {me.canCollectDeposits ? (
               <View className="rounded-full bg-success/20 px-2.5 py-1">
-                <Text className="text-xs font-semibold text-success">
+                <Text className="text-xs font-semibold text-success-fg">
                   Deposits on
                 </Text>
               </View>

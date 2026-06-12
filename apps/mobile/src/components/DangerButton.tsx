@@ -21,7 +21,7 @@ export function DangerButton({
         disabled ? "opacity-50" : ""
       }`}
     >
-      <Text className="text-sm font-semibold text-danger">{label}</Text>
+      <Text className="text-sm font-semibold text-danger-fg">{label}</Text>
     </Pressable>
   );
 }

@@ -73,7 +73,7 @@ function RequestCard({
             {relativeTime(b.createdAt)}
           </Text>
           {b.depositPaid ? (
-            <Text className="text-xs font-semibold text-success">
+            <Text className="text-xs font-semibold text-success-fg">
               · Deposit paid
             </Text>
           ) : null}

@@ -162,7 +162,7 @@ export function CoverImageField({
       {/* No standing format hint (founder round 5: less tiny explanation) —
           the size/format caps surface through the error path when hit. */}
       {error ? (
-        <Text className="mt-1 text-sm text-danger">{error}</Text>
+        <Text className="mt-1 text-sm text-danger-fg">{error}</Text>
       ) : null}
     </View>
   );

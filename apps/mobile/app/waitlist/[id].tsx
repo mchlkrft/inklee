@@ -208,7 +208,7 @@ export default function WaitlistEntryScreen() {
         </View>
       ) : null}
       {actionError ? (
-        <Text className="mt-2 text-sm text-danger">{actionError}</Text>
+        <Text className="mt-2 text-sm text-danger-fg">{actionError}</Text>
       ) : null}
     </ScrollView>
   );

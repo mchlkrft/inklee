@@ -52,7 +52,7 @@ export function flashLabel(value: string): string {
 
 /** accent = needs attention/in-progress, success = live, dim = inactive. */
 export function flashStatusTone(status: string): string {
-  if (status === "published" || status === "active") return "text-success";
+  if (status === "published" || status === "active") return "text-success-fg";
   if (status === "archived" || status === "past" || status === "cancelled") {
     return "text-shell-dim";
   }

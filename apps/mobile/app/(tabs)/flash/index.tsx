@@ -170,7 +170,7 @@ function FlashItemRow({
           {item.availabilityLabel ? (
             <Text
               className={`text-xs font-medium ${
-                item.bookable ? "text-success" : "text-shell-mute"
+                item.bookable ? "text-success-fg" : "text-shell-mute"
               }`}
             >
               · {item.availabilityLabel}

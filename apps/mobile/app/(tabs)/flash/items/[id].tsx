@@ -228,7 +228,7 @@ function ItemForm({
           <StatRow
             label="Availability"
             value={initial.availabilityLabel}
-            tone={initial.bookable ? "text-success" : "text-shell-dim"}
+            tone={initial.bookable ? "text-success-fg" : "text-shell-dim"}
           />
           <StatRow label="Pending" value={String(initial.pendingCount)} />
           <StatRow label="Confirmed" value={String(initial.confirmedCount)} />
@@ -373,7 +373,7 @@ function ItemForm({
         ) : null}
 
         {error ? (
-          <Text className="mb-3 text-sm text-danger">{error}</Text>
+          <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <Button

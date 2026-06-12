@@ -140,7 +140,7 @@ function DayRow({
           {day.isPublic ? "" : " · Hidden"}
         </Text>
         {day.isPublic ? (
-          <Text className="text-xs text-success"> · Public</Text>
+          <Text className="text-xs text-success-fg"> · Public</Text>
         ) : null}
       </View>
 

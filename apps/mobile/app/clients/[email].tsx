@@ -131,7 +131,7 @@ export default function ClientDetailScreen() {
           </Text>
         </View>
         <View className="rounded-full bg-success/15 px-3 py-1.5">
-          <Text className="text-base font-semibold text-success">
+          <Text className="text-base font-semibold text-success-fg">
             {approved} approved
           </Text>
         </View>
@@ -148,7 +148,7 @@ export default function ClientDetailScreen() {
           minHeight={88}
         />
         {notesError ? (
-          <Text className="mb-2 text-sm text-danger">{notesError}</Text>
+          <Text className="mb-2 text-sm text-danger-fg">{notesError}</Text>
         ) : null}
         <View className="flex-row items-center gap-3">
           <View className="w-32">
@@ -161,7 +161,7 @@ export default function ClientDetailScreen() {
             />
           </View>
           {notesSaved ? (
-            <Text className="text-sm text-success">Saved.</Text>
+            <Text className="text-sm text-success-fg">Saved.</Text>
           ) : null}
         </View>
       </View>

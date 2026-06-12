@@ -23,7 +23,6 @@ import { TextField } from "@/components/TextField";
 import { apiGet, apiPost, ApiError, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { config } from "@/lib/config";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 type SlugStatus =
@@ -146,9 +145,9 @@ export default function ClaimLink() {
     status === "checking" ? (
       <ActivityIndicator color={themed.shell.mute} />
     ) : status === "available" || status === "owned" ? (
-      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+      <Ionicons name="checkmark-circle" size={20} color={themed.successFg} />
     ) : status === "taken" ? (
-      <Ionicons name="close-circle" size={20} color={colors.danger} />
+      <Ionicons name="close-circle" size={20} color={themed.dangerFg} />
     ) : null;
 
   // Persistent {slug}.inkl.ee preview while typing (the design's hero moment),
@@ -252,7 +251,7 @@ export default function ClaimLink() {
         />
 
         {submitError ? (
-          <Text className="mb-3 text-sm text-danger">{submitError}</Text>
+          <Text className="mb-3 text-sm text-danger-fg">{submitError}</Text>
         ) : null}
 
         <View className="mt-3">

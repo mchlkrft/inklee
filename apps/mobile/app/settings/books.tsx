@@ -198,7 +198,7 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
         ) : null}
 
         {error ? (
-          <Text className="mb-3 mt-2 text-sm text-danger">{error}</Text>
+          <Text className="mb-3 mt-2 text-sm text-danger-fg">{error}</Text>
         ) : null}
 
         <View className="mt-2">

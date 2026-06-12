@@ -287,7 +287,7 @@ function TemplateForm({
 
         <View className="mb-4 flex-row flex-wrap items-center justify-between gap-2">
           <Text
-            className={`text-xs ${overLimit ? "text-danger" : "text-shell-mute"}`}
+            className={`text-xs ${overLimit ? "text-danger-fg" : "text-shell-mute"}`}
           >
             {body.length}/{BODY_MAX}
           </Text>
@@ -302,7 +302,7 @@ function TemplateForm({
                 onPress={reset}
                 className="active:opacity-70"
               >
-                <Text className="text-xs font-semibold text-danger">
+                <Text className="text-xs font-semibold text-danger-fg">
                   Yes, reset
                 </Text>
               </Pressable>
@@ -331,10 +331,10 @@ function TemplateForm({
         </View>
 
         {error ? (
-          <Text className="mb-3 text-sm text-danger">{error}</Text>
+          <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
         {saved ? (
-          <Text className="mb-3 text-sm text-success">Saved.</Text>
+          <Text className="mb-3 text-sm text-success-fg">Saved.</Text>
         ) : null}
 
         <Button
