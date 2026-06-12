@@ -68,6 +68,7 @@ async function compose({ canvas, background, markBuffer, out }) {
 
 const d = await loadMarkPath();
 await mkdir(OUT_DIR, { recursive: true });
+await mkdir(path.join(OUT_DIR, "store"), { recursive: true });
 
 // A1 — iOS/base app icon: full-bleed charcoal, bone mark at ~66% width.
 await compose({
@@ -107,5 +108,43 @@ await compose({
   markBuffer: await markLayer(d, WHITE, 84),
   out: path.join(OUT_DIR, "notification-icon.png"),
 });
+
+// C1 — Play Store hi-res icon: 512x512, same composition as the app icon.
+{
+  const mark = await markLayer(d, BONE, 338);
+  const img = sharp({
+    create: { width: 512, height: 512, channels: 4, background: CHARCOAL },
+  }).composite([{ input: mark, gravity: "center" }]);
+  await writeFile(
+    path.join(OUT_DIR, "store", "play-icon.png"),
+    await img.png().toBuffer(),
+  );
+  console.log("wrote", path.relative(ROOT, path.join(OUT_DIR, "store", "play-icon.png")));
+}
+
+// C2 — Play Store feature graphic: 1024x500, charcoal, mark left + wordmark.
+// Text renders via SVG (system fonts through fontconfig); if the wordmark
+// ever renders blank on a new machine, install/verify fonts or replace the
+// text block with designed art.
+{
+  const mark = await markLayer(d, BONE, 380);
+  const text = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="500">
+      <text x="0" y="265" font-family="Segoe UI, Arial, sans-serif" font-size="96" font-weight="700" fill="${BONE}">inklee</text>
+      <text x="4" y="330" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="400" fill="rgba(229,225,213,0.62)">Bookings for tattoo artists</text>
+    </svg>`,
+  );
+  const img = sharp({
+    create: { width: 1024, height: 500, channels: 4, background: CHARCOAL },
+  }).composite([
+    { input: mark, left: 64, top: 60 },
+    { input: await sharp(text).png().toBuffer(), left: 470, top: 0 },
+  ]);
+  await writeFile(
+    path.join(OUT_DIR, "store", "feature-graphic.png"),
+    await img.png().toBuffer(),
+  );
+  console.log("wrote", path.relative(ROOT, path.join(OUT_DIR, "store", "feature-graphic.png")));
+}
 
 console.log("done");
