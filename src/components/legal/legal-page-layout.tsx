@@ -53,26 +53,29 @@ const markdownComponents: Components = {
   code: ({ children }) => <code className="text-foreground">{children}</code>,
   hr: () => <hr className="my-6 border-border" />,
   // GFM tables (cookies, subprocessors). The wrapper scrolls horizontally on
-  // narrow viewports instead of clipping; min-w keeps columns readable there.
+  // narrow viewports instead of clipping; the min-width lets the dense
+  // subprocessor columns (paragraph-length cells) breathe rather than mashing
+  // together. Header row gets a subtle fill; cells align top with relaxed
+  // line-height for readable wrapped text.
   table: ({ children }) => (
-    <div className="overflow-x-auto rounded-md border border-border">
-      <table className="w-full min-w-[36rem] text-left text-xs">
+    <div className="my-2 overflow-x-auto rounded-md border border-border">
+      <table className="w-full min-w-[44rem] border-collapse text-left text-xs">
         {children}
       </table>
     </div>
   ),
-  thead: ({ children }) => (
-    <thead className="border-b border-border">{children}</thead>
-  ),
-  tr: ({ children }) => (
-    <tr className="border-b border-border last:border-b-0">{children}</tr>
-  ),
+  thead: ({ children }) => <thead className="bg-muted/40">{children}</thead>,
+  tr: ({ children }) => <tr>{children}</tr>,
   th: ({ children }) => (
-    <th className="px-3 py-2 align-top font-medium text-foreground">
+    <th className="border-b border-border px-3 py-2 align-top font-medium text-foreground">
       {children}
     </th>
   ),
-  td: ({ children }) => <td className="px-3 py-2 align-top">{children}</td>,
+  td: ({ children }) => (
+    <td className="border-b border-border px-3 py-2 align-top leading-relaxed">
+      {children}
+    </td>
+  ),
 };
 
 export function LegalPageLayout({ doc }: { doc: LegalDoc }) {
