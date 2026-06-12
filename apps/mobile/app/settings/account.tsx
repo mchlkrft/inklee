@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
+  Pressable,
   ScrollView,
   Text,
   View,
@@ -127,16 +128,29 @@ function AccountSections({ account }: { account: MobileAccount }) {
       >
         <SectionLabel>Booking mode</SectionLabel>
         <Card>
-          <Text className="text-base text-foreground">
-            {account.bookingMode === "fixed_slots"
-              ? "Fixed slots"
-              : "Preferred date"}
-          </Text>
-          <Text className="mt-1 text-xs text-shell-dim">
-            {account.bookingMode === "fixed_slots"
-              ? "You publish specific time slots for clients to pick."
-              : "Clients suggest a date. You confirm or negotiate."}
-          </Text>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 pr-3">
+              <Text className="text-base text-foreground">
+                {account.bookingMode === "fixed_slots"
+                  ? "Fixed slots"
+                  : "Preferred date"}
+              </Text>
+              <Text className="mt-1 text-xs text-shell-dim">
+                {account.bookingMode === "fixed_slots"
+                  ? "You publish specific time slots for clients to pick."
+                  : "Clients suggest a date. You confirm or negotiate."}
+              </Text>
+            </View>
+            {/* Founder round 7: the mode is editable — it lives on the booking
+                settings screen with the rest of availability. */}
+            <Pressable
+              onPress={() => router.push("/settings/books")}
+              hitSlop={8}
+              className="active:opacity-70"
+            >
+              <Text className="text-label font-medium text-accent">Edit</Text>
+            </Pressable>
+          </View>
         </Card>
 
         <SectionLabel>General</SectionLabel>

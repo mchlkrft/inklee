@@ -25,7 +25,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { config, displayUrl } from "@/lib/config";
-import { border, tint } from "@/lib/tokens";
+import { border, colors, tint } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 const BIO_MAX = 280;
@@ -78,6 +78,7 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
   const [location, setLocation] = useState(initial.location ?? "");
   const [timezone, setTimezone] = useState(initial.timezone ?? "");
   const [coverColor, setCoverColor] = useState(initial.coverColor ?? "");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,15 +131,52 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
       >
-        {/* Identity block: logo + the public address, centered — the standard
-            account-settings anchor (founder round 5 declutter). */}
-        <ImageUploadField
-          label="Logo"
-          imageUrl={initial.logoUrl}
-          endpoint="/settings/profile/logo"
-          shape="circle"
-          maxBytes={MAX_LOGO_BYTES}
-          onUploaded={() => invalidateIdentity(queryClient)}
+        {/* Header imitates the public page (founder round 7): the cover sits
+            behind the profile photo, whose midline rides the cover's bottom
+            edge. The pen toggles the color swatches into the cover; Upload /
+            Replace works as before. */}
+        <CoverImageField
+          imageUrl={initial.coverImageUrl}
+          fallbackColor={coverHex}
+          onChanged={() => invalidateIdentity(queryClient)}
+          paletteOpen={paletteOpen}
+          onTogglePalette={() => setPaletteOpen((v) => !v)}
+          colorPicker={
+            <>
+              <CoverSwatch
+                label="No color"
+                hex={null}
+                selected={coverColor === ""}
+                onPress={() => {
+                  setCoverColor("");
+                  setPaletteOpen(false);
+                }}
+              />
+              {COVER_COLORS.map((swatch) => (
+                <CoverSwatch
+                  key={swatch.id}
+                  label={swatch.label}
+                  hex={swatch.hex}
+                  fg={tint[swatch.id].fg}
+                  selected={coverColor === swatch.id}
+                  onPress={() => {
+                    setCoverColor(swatch.id);
+                    setPaletteOpen(false);
+                  }}
+                />
+              ))}
+            </>
+          }
+          overlap={
+            <ImageUploadField
+              label="Profile photo"
+              imageUrl={initial.logoUrl}
+              endpoint="/settings/profile/logo"
+              shape="circle"
+              maxBytes={MAX_LOGO_BYTES}
+              onUploaded={() => invalidateIdentity(queryClient)}
+            />
+          }
         />
         {previewUrl ? (
           <Pressable
@@ -206,37 +244,6 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
           />
         </Card>
 
-        <SectionLabel size="sm">Public page cover</SectionLabel>
-        <Card>
-          <CoverImageField
-            imageUrl={initial.coverImageUrl}
-            fallbackColor={coverHex}
-            onChanged={() => invalidateIdentity(queryClient)}
-          />
-          <View className="mt-1 flex-row flex-wrap items-center gap-3">
-            <CoverSwatch
-              label="No color"
-              hex={null}
-              selected={coverColor === ""}
-              onPress={() => setCoverColor("")}
-            />
-            {COVER_COLORS.map((swatch) => (
-              <CoverSwatch
-                key={swatch.id}
-                label={swatch.label}
-                hex={swatch.hex}
-                fg={tint[swatch.id].fg}
-                selected={coverColor === swatch.id}
-                onPress={() => setCoverColor(swatch.id)}
-              />
-            ))}
-          </View>
-          <Text className="mt-3 text-sm text-shell-dim">
-            Shown behind your name on your public page. The color is used when
-            no image is set.
-          </Text>
-        </Card>
-
         <View className="mt-6">
           {error ? (
             <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
@@ -258,8 +265,11 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
 }
 
 // One cover-color choice: a square color swatch (founder round 5; the old
-// named pills read as clutter). Selected = themed ring + check; the "no
-// color" square is hollow with a slash. Labels live on as accessibility names.
+// named pills read as clutter). Lives inside the cover's scrim row since
+// round 7, so the ring/idle colors pin to the fixed-dark context (bone ring,
+// not the themed foreground — invisible on a dark cover in light mode).
+// Selected = ring + check; the "no color" square is hollow with a slash.
+// Labels live on as accessibility names.
 function CoverSwatch({
   label,
   hex,
@@ -271,38 +281,42 @@ function CoverSwatch({
   /** null = the "no color" swatch (transparent with a slash). */
   hex: string | null;
   /** Icon color that reads on the swatch fill (unused for the null swatch,
-   *  whose check uses the themed foreground). */
+   *  whose check uses bone on the charcoal scrim). */
   fg?: string;
   selected: boolean;
   onPress: () => void;
 }) {
-  const themed = useColors();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Cover color: ${label}`}
       accessibilityState={{ selected }}
       onPress={onPress}
-      className="h-12 w-12 items-center justify-center rounded-xl active:opacity-80"
+      hitSlop={4}
+      className="h-8 w-8 items-center justify-center rounded-lg active:opacity-80"
       style={{
         padding: 2,
         borderWidth: 2,
-        borderColor: selected ? themed.shell.fg : "transparent",
+        borderColor: selected ? colors.bone : "transparent",
       }}
     >
       <View
-        className="flex-1 items-center justify-center self-stretch rounded-lg"
+        className="flex-1 items-center justify-center self-stretch rounded-md"
         style={{
           backgroundColor: hex ?? "transparent",
-          // Hairline keeps the bone-adjacent swatches visible in light theme.
+          // Hairline keeps the no-color swatch visible on the scrim.
           borderWidth: border.hairline,
-          borderColor: themed.shell.border,
+          borderColor: "rgba(229,225,213,0.4)",
         }}
       >
         {selected ? (
-          <Check size={18} strokeWidth={3} color={hex ? fg : themed.shell.fg} />
+          <Check
+            size={14}
+            strokeWidth={3}
+            color={hex ? fg : colors.bone}
+          />
         ) : hex === null ? (
-          <Slash size={16} color={themed.shell.dim} />
+          <Slash size={12} color="rgba(229,225,213,0.7)" />
         ) : null}
       </View>
     </Pressable>

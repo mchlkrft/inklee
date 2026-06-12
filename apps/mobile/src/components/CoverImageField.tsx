@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { Pencil } from "lucide-react-native";
 import { apiDelete, apiUpload } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { colors } from "@/lib/tokens";
@@ -23,15 +24,32 @@ const MAX_BYTES = 4 * 1024 * 1024;
 // set. Upload and remove hit /settings/profile/cover immediately (the same
 // eager pattern as the logo field); the parent refreshes the cached profile
 // via onChanged.
+//
+// Founder round 7: the cover imitates the public page header. The action row
+// lives at the TOP of the cover (pen toggles the parent's color palette into
+// that row), and the `overlap` slot hangs centered over the cover's bottom
+// edge — the profile photo sits half on, half off, like the client-side view.
 export function CoverImageField({
   imageUrl,
   fallbackColor,
   onChanged,
+  colorPicker,
+  paletteOpen = false,
+  onTogglePalette,
+  overlap,
 }: {
   imageUrl: string | null;
   /** Resolved hex of the selected cover color (null = plain charcoal). */
   fallbackColor: string | null;
   onChanged?: (url: string | null) => void;
+  /** Swatch row shown inside the cover while paletteOpen (pen icon toggles). */
+  colorPicker?: ReactNode;
+  paletteOpen?: boolean;
+  /** Renders the pen toggle when provided. */
+  onTogglePalette?: () => void;
+  /** Content centered over the cover's bottom edge (the profile photo) —
+   *  pulled up by half its 96px height so the edge bisects it. */
+  overlap?: ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,15 +134,28 @@ export function CoverImageField({
             ]}
           />
         ) : null}
-        <View className="flex-1 flex-row items-end justify-between p-3">
-          <View
-            className="rounded-full px-2.5 py-1"
-            style={{ backgroundColor: "rgba(30,30,30,0.6)" }}
-          >
-            <Text className="text-xs font-medium text-bone">Preview</Text>
+        {/* Actions sit at the TOP so the bottom edge stays clear for the
+            overlapping profile photo. */}
+        <View className="flex-row items-start justify-between p-3">
+          <View className="flex-1 flex-row items-center pr-2">
+            {paletteOpen && colorPicker ? (
+              <View
+                className="flex-row items-center gap-1.5 rounded-full px-2 py-1"
+                style={{ backgroundColor: "rgba(30,30,30,0.6)" }}
+              >
+                {colorPicker}
+              </View>
+            ) : (
+              <View
+                className="rounded-full px-2.5 py-1"
+                style={{ backgroundColor: "rgba(30,30,30,0.6)" }}
+              >
+                <Text className="text-xs font-medium text-bone">Preview</Text>
+              </View>
+            )}
           </View>
           <View className="flex-row items-center gap-2">
-            {busy ? (
+            {paletteOpen ? null : busy ? (
               <ActivityIndicator color={colors.bone} />
             ) : (
               <>
@@ -156,9 +187,35 @@ export function CoverImageField({
                 ) : null}
               </>
             )}
+            {onTogglePalette ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  paletteOpen ? "Close the color picker" : "Edit cover color"
+                }
+                onPress={onTogglePalette}
+                hitSlop={6}
+                className="h-8 w-8 items-center justify-center rounded-full active:opacity-80"
+                style={{
+                  backgroundColor: paletteOpen
+                    ? colors.bone
+                    : "rgba(30,30,30,0.6)",
+                }}
+              >
+                <Pencil
+                  size={14}
+                  color={paletteOpen ? colors.charcoal : colors.bone}
+                />
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
+      {overlap ? (
+        <View className="items-center" style={{ marginTop: -48, zIndex: 10 }}>
+          {overlap}
+        </View>
+      ) : null}
       {/* No standing format hint (founder round 5: less tiny explanation) —
           the size/format caps surface through the error path when hit. */}
       {error ? (

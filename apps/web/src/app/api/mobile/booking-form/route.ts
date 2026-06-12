@@ -97,6 +97,22 @@ function stdRow(cfg: StdConfig, fs: FormSettings): MobileBookingFormField {
         ? fs[cfg.requireKey]
         : false,
     alwaysOn: !cfg.showKey,
+    // Editor projection — the setting keys each row's toggles write, so the
+    // client never hardcodes the STD table.
+    showSettingKey: cfg.showKey ?? null,
+    requireSettingKey: cfg.requireKey ?? null,
+    lockedRequired: !!cfg.alwaysRequired,
+    extraToggles:
+      cfg.id === "image_upload"
+        ? [
+            {
+              key: "allow_photo_annotations",
+              label: "Photo annotations",
+              value: fs.allow_photo_annotations,
+            },
+          ]
+        : [],
+    custom: null,
   };
 }
 
@@ -109,11 +125,24 @@ function customRow(f: CustomFieldDef): MobileBookingFormField {
     enabled: f.active,
     required: f.required,
     alwaysOn: false,
+    showSettingKey: null,
+    requireSettingKey: null,
+    lockedRequired: false,
+    extraToggles: [],
+    // Full editor payload for the native field editor screen.
+    custom: {
+      key: f.key,
+      type: f.type,
+      placeholder: f.placeholder,
+      helpText: f.help_text,
+      options: f.options ?? [],
+    },
   };
 }
 
-// GET /api/mobile/booking-form — read-only aggregate for the mobile
-// booking-form summary screen. Mirrors the web page's reads + derivations
+// GET /api/mobile/booking-form — the read side of the native booking-form
+// editor (mutations live in ./fields, ./settings and ./order). Mirrors the web
+// page's reads + derivations
 // (apps/web/src/app/(artist)/bookings/booking-form/page.tsx): custom fields
 // (deleted_at null, position order), parsed form_settings, the field_order
 // interleave, the open-slot count, and the isOpen / windowExpired /

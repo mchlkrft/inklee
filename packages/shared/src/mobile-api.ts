@@ -5,6 +5,8 @@
 // two sides cannot drift. These describe ONLY the `data` payload — the route
 // helpers wrap it in the `{ data }` / `{ error }` envelope.
 
+import type { BooksSettings } from "./books-settings";
+import type { CustomFieldType } from "./custom-fields";
 import type { DashboardWidgets } from "./dashboard-settings";
 import type { StripeMode } from "./deposit-settings";
 
@@ -507,8 +509,19 @@ export type MobileEmailTemplateReset = {
   body: string;
 };
 
-/** One row in the mobile booking-form summary: standard + custom fields
- *  interleaved in the artist's saved field order. */
+/** An extra per-row toggle beyond show/require (today only the image_upload
+ *  row's "Photo annotations" — allow_photo_annotations). */
+export type MobileBookingFormExtraToggle = {
+  /** FormSettings key the toggle writes via POST /booking-form/settings. */
+  key: string;
+  label: string;
+  value: boolean;
+};
+
+/** One row in the mobile booking-form editor: standard + custom fields
+ *  interleaved in the artist's saved field order. The editor-projection fields
+ *  (showSettingKey…custom) were added for the native editor; older read-only
+ *  clients ignore them. */
 export type MobileBookingFormField = {
   /** Standard-field id (e.g. "email") or the custom field's uuid. */
   id: string;
@@ -521,10 +534,27 @@ export type MobileBookingFormField = {
   required: boolean;
   /** Email + preferred date can never be hidden on the public form. */
   alwaysOn: boolean;
+  /** FormSettings visibility key (e.g. "show_placement"); null when alwaysOn
+   *  or custom (custom rows toggle via /booking-form/fields/:id/active). */
+  showSettingKey: string | null;
+  /** FormSettings required key (e.g. "require_placement"); null for email,
+   *  preferred_date and custom rows. */
+  requireSettingKey: string | null;
+  /** Email only: required can never be turned off. */
+  lockedRequired: boolean;
+  extraToggles: MobileBookingFormExtraToggle[];
+  /** Full editor payload for custom rows; null for standard rows. */
+  custom: {
+    key: string;
+    type: CustomFieldType;
+    placeholder: string | null;
+    helpText: string | null;
+    options: string[];
+  } | null;
 };
 
-/** GET /api/mobile/booking-form — read-only aggregate for the booking-form
- *  summary screen (share link + availability + the configured field list). */
+/** GET /api/mobile/booking-form — aggregate for the booking-form editor screen
+ *  (share link + availability + the editable field list). */
 export type MobileBookingForm = {
   slug: string | null;
   bookingMode: string;
@@ -536,6 +566,50 @@ export type MobileBookingForm = {
   isFixedSlotsWithoutSlots: boolean;
   allowPhotoAnnotations: boolean;
   fields: MobileBookingFormField[];
+};
+
+/** POST /api/mobile/booking-form/fields (create) and
+ *  PATCH /api/mobile/booking-form/fields/:id (update) — validated server-side
+ *  with the same fieldConfigSchema the web actions use. `key`: omit on create
+ *  (the server derives it from the label via labelToKey, like the web's hidden
+ *  input); send the stored key on update (validated, never written). */
+export type MobileBookingFormFieldInput = {
+  key?: string;
+  label: string;
+  type: CustomFieldType;
+  required: boolean;
+  placeholder?: string;
+  help_text?: string;
+  options?: string[];
+};
+
+/** POST /api/mobile/booking-form/settings — one FormSettings boolean
+ *  (show_* / require_* / allow_photo_annotations). */
+export type MobileBookingFormSettingsUpdate = {
+  key: string;
+  value: boolean;
+};
+
+/** POST /api/mobile/booking-form/order — the full displayed key array
+ *  (standard ids + custom uuids), persisted verbatim like the web drag-drop. */
+export type MobileBookingFormOrderUpdate = {
+  order: string[];
+};
+
+/** GET /api/mobile/settings/books — the books settings form plus the
+ *  booking-mode section's read side (mode + open-slot count for the
+ *  fixed-slots-without-slots warning). */
+export type MobileBooksSettings = BooksSettings & {
+  bookingMode: string;
+  openSlotCount: number;
+};
+
+/** POST /api/mobile/settings/booking-mode — the saved mode plus the warning
+ *  state so the client can render it without refetching /booking-form. */
+export type MobileBookingModeUpdate = {
+  bookingMode: string;
+  openSlotCount: number;
+  isFixedSlotsWithoutSlots: boolean;
 };
 
 /** GET /api/mobile/account — account + security overview (mirrors web settings/account). */

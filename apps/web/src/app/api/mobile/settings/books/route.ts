@@ -6,27 +6,43 @@ import {
 import { parseBooksSettings } from "@/lib/books-settings";
 import { normalizeBooksConfig } from "@/lib/mobile-settings";
 import { writeAudit } from "@/lib/audit";
-import type { BooksSettings } from "@inklee/shared/books-settings";
+import type { MobileBooksSettings } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
 
 // GET /api/mobile/settings/books — the full books settings for the edit screen
-// (the Home toggle reads booksOpen off /home; this is the settings form's source).
+// (the Home toggle reads booksOpen off /home; this is the settings form's
+// source), plus the booking-mode section's read side: the current mode and the
+// open-slot count (same filter as GET /booking-form) for the
+// fixed-slots-without-slots warning.
 export async function GET(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", userId)
-    .single();
-  if (error || !data) {
-    return mobileError(500, error?.message ?? "Profile not found.");
+  const [profileRes, slotsRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("settings, booking_mode")
+      .eq("id", userId)
+      .single(),
+    supabase
+      .from("slots")
+      .select("*", { count: "exact", head: true })
+      .eq("artist_id", userId)
+      .eq("status", "open"),
+  ]);
+  if (profileRes.error || !profileRes.data) {
+    return mobileError(500, profileRes.error?.message ?? "Profile not found.");
   }
-  const settings = (data.settings ?? {}) as Record<string, unknown>;
-  const body: BooksSettings = parseBooksSettings(settings.books_settings);
+  if (slotsRes.error) return mobileError(500, slotsRes.error.message);
+  const settings = (profileRes.data.settings ?? {}) as Record<string, unknown>;
+  const body: MobileBooksSettings = {
+    ...parseBooksSettings(settings.books_settings),
+    bookingMode:
+      (profileRes.data.booking_mode as string | null) ?? "preferred_date",
+    openSlotCount: slotsRes.count ?? 0,
+  };
   return mobileOk(body);
 }
 

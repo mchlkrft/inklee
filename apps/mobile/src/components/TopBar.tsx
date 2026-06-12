@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import Animated, {
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import { Menu } from "lucide-react-native";
 import { IconButton } from "./IconButton";
 import { NotificationBell } from "./NotificationBell";
@@ -33,25 +39,41 @@ export function TopBar() {
     transform: [{ translateY: -topBarProgress.value * barHeight }],
   }));
 
+  // Founder: when the bar scroll-hides, the OS status readouts (time/battery)
+  // floated over content. The fix is a static charcoal lens — the same pill as
+  // the nav bar, centered on the screen's top edge so only its bottom half
+  // shows — that stays behind them. It sits UNDER the animated band (lower
+  // zIndex): covered while the bar is down, revealed as the bar slides out.
+  // The visible half spans the status inset plus a small tail.
+  const lensVisible = insets.top + 8;
+
+  // In light mode the status readouts render dark (on the bone band); over the
+  // charcoal lens they must flip to light while the bar is hidden. Mounting a
+  // StatusBar conditionally overrides the root ThemedStatusBar, and unmounting
+  // falls back to it. Gated on focus: the tab screen (and this bar) stays
+  // mounted when a detail screen is pushed over it, and the override must not
+  // leak onto that screen's themed header.
+  const focused = useIsFocused();
+  const [collapsed, setCollapsed] = useState(false);
+  useAnimatedReaction(
+    () => topBarProgress.value > 0.5,
+    (cur, prev) => {
+      if (cur !== prev) runOnJS(setCollapsed)(cur);
+    },
+  );
+
   return (
-    <Animated.View
-      pointerEvents="box-none"
-      style={[
-        {
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 40,
-          backgroundColor: theme.background,
-          paddingTop: insets.top + 12,
-        },
-        collapse,
-      ]}
-    >
+    <>
       <View
-        className="mx-3 mb-2 h-16 flex-row items-center justify-between rounded-full px-4"
+        pointerEvents="none"
         style={{
+          position: "absolute",
+          top: -lensVisible,
+          left: 12,
+          right: 12,
+          height: lensVisible * 2,
+          zIndex: 39,
+          borderRadius: 999,
           backgroundColor: chrome.bg,
           borderWidth: border.hairline,
           borderColor: chrome.border,
@@ -59,28 +81,57 @@ export function TopBar() {
           shadowOpacity: 0.16,
           shadowRadius: 10,
           shadowOffset: { width: 0, height: 4 },
-          elevation: 4,
         }}
+      />
+      {focused && collapsed ? <StatusBar style="light" /> : null}
+      <Animated.View
+        pointerEvents="box-none"
+        style={[
+          {
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 40,
+            backgroundColor: theme.background,
+            paddingTop: insets.top + 12,
+          },
+          collapse,
+        ]}
       >
-        <Text className="pl-1 text-2xl font-bold lowercase text-bone">
-          inklee
-        </Text>
+        <View
+          className="mx-3 mb-2 h-16 flex-row items-center justify-between rounded-full px-4"
+          style={{
+            backgroundColor: chrome.bg,
+            borderWidth: border.hairline,
+            borderColor: chrome.border,
+            shadowColor: "#000",
+            shadowOpacity: 0.16,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 4,
+          }}
+        >
+          <Text className="pl-1 text-2xl font-bold lowercase text-bone">
+            inklee
+          </Text>
 
-        <View className="flex-row items-center gap-2.5">
-          <BooksStatusPill />
-          <NotificationBell />
-          <IconButton
-            icon={Menu}
-            label="Account menu"
-            onPress={() => setMenuOpen(true)}
-            outlined
-            borderColor={chrome.border}
-            color={chrome.fg}
-          />
+          <View className="flex-row items-center gap-2.5">
+            <BooksStatusPill />
+            <NotificationBell />
+            <IconButton
+              icon={Menu}
+              label="Account menu"
+              onPress={() => setMenuOpen(true)}
+              outlined
+              borderColor={chrome.border}
+              color={chrome.fg}
+            />
+          </View>
         </View>
-      </View>
 
-      <AccountMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
-    </Animated.View>
+        <AccountMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </Animated.View>
+    </>
   );
 }

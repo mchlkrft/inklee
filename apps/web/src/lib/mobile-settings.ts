@@ -138,6 +138,15 @@ export function normalizeProfileUpdate(body: unknown): Result<ProfileUpdate> {
   return { ok: true, value };
 }
 
+/** Validate a standalone booking-mode change (POST /settings/booking-mode).
+ * Mirrors saveBookingModeAction's enum check, including its error copy. */
+export function normalizeBookingMode(value: unknown): Result<BookingMode> {
+  if (value !== "preferred_date" && value !== "fixed_slots") {
+    return { ok: false, error: "Invalid booking mode." };
+  }
+  return { ok: true, value };
+}
+
 /**
  * Validate the books-settings form (the PUT on settings/books). Merge semantics:
  * starts from the current settings and overrides ONLY the keys the client sent,
@@ -318,9 +327,6 @@ export const CONNECT_LINK_ALLOWED_NEXT = new Set([
   // handed off from the app's Account & security screen.
   "/settings/account",
   "/settings/export",
-  // The web booking-form/field editor, handed off from the app's read-only
-  // booking-form summary screen.
-  "/bookings/booking-form",
 ]);
 
 export function resolveConnectNext(next: unknown): string {

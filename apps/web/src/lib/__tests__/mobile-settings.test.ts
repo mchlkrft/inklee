@@ -3,11 +3,34 @@ import { DEFAULT_BOOKS_SETTINGS } from "../books-settings";
 import {
   CONNECT_LINK_ALLOWED_NEXT,
   DISPLAY_NAME_MAX,
+  normalizeBookingMode,
   normalizeBooksConfig,
   normalizeDepositDefaults,
   normalizeProfileUpdate,
   resolveConnectNext,
 } from "../mobile-settings";
+
+describe("normalizeBookingMode", () => {
+  it("accepts the two valid modes", () => {
+    expect(normalizeBookingMode("preferred_date")).toEqual({
+      ok: true,
+      value: "preferred_date",
+    });
+    expect(normalizeBookingMode("fixed_slots")).toEqual({
+      ok: true,
+      value: "fixed_slots",
+    });
+  });
+
+  it("rejects anything else with the web action's error copy", () => {
+    for (const bad of ["slots", "", null, undefined, 1, {}]) {
+      expect(normalizeBookingMode(bad)).toEqual({
+        ok: false,
+        error: "Invalid booking mode.",
+      });
+    }
+  });
+});
 
 describe("normalizeProfileUpdate", () => {
   it("normalizes the text fields and omits absent optional columns", () => {

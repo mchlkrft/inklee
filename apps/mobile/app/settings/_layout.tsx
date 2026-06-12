@@ -11,8 +11,14 @@ export default function SettingsLayout() {
       <Stack.Screen name="dashboard" options={{ title: "Home widgets" }} />
       <Stack.Screen name="profile" options={{ title: "Edit profile" }} />
       <Stack.Screen name="books" options={{ title: "Booking settings" }} />
-      <Stack.Screen name="booking-form" options={{ title: "Booking form" }} />
-      <Stack.Screen name="reminders" options={{ title: "Reminder emails" }} />
+      <Stack.Screen
+        name="booking-form/index"
+        options={{ title: "Booking form" }}
+      />
+      <Stack.Screen
+        name="booking-form/[fieldId]"
+        options={{ title: "Custom field" }}
+      />
       <Stack.Screen
         name="deposit-defaults"
         options={{ title: "Deposit defaults" }}

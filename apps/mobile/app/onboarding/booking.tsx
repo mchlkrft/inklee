@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { ChevronLeft } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type { BookingMode } from "@inklee/shared/booking-domain";
@@ -9,6 +8,7 @@ import type { MobileOnboardingBooking } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
+import { ModeCard } from "@/components/ModeCard";
 import { TextField } from "@/components/TextField";
 import { apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
@@ -18,7 +18,7 @@ const MODES: { value: BookingMode; title: string; body: string }[] = [
   {
     value: "preferred_date",
     title: "Request a date",
-    body: "Clients suggest a date and details — you approve each one. Best for most artists.",
+    body: "Clients suggest a date and details. You approve each one. Best for most artists.",
   },
   {
     value: "fixed_slots",
@@ -26,53 +26,6 @@ const MODES: { value: BookingMode; title: string; body: string }[] = [
     body: "You publish specific time slots. Slots are set up on the web for now.",
   },
 ];
-
-function ModeCard({
-  title,
-  body,
-  selected,
-  onPress,
-}: {
-  title: string;
-  body: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      // border-accent: a mustard selection ring is near-invisible on the light
-      // bone background (dark mode unchanged); the mustard wash stays per the
-      // tint convention.
-      className={`mb-3 rounded-2xl border p-4 active:opacity-80 ${
-        selected
-          ? "border-accent bg-[rgba(233,178,43,0.08)]"
-          : "border-shell-border bg-glass"
-      }`}
-    >
-      <View className="flex-row items-center justify-between">
-        <Text className="text-base font-semibold text-foreground">{title}</Text>
-        <ThemedRadioIcon selected={selected} />
-      </View>
-      <Text className="mt-1 text-sm text-shell-dim">{body}</Text>
-    </Pressable>
-  );
-}
-
-// Themed radio glyph: the idle state must follow the scheme (the static dark
-// token is invisible on the light background).
-function ThemedRadioIcon({ selected }: { selected: boolean }) {
-  const themed = useColors();
-  return (
-    <Ionicons
-      name={selected ? "radio-button-on" : "radio-button-off"}
-      size={20}
-      color={selected ? themed.accent : themed.shell.mute}
-    />
-  );
-}
 
 function StatusPill({
   label,
@@ -158,7 +111,7 @@ export default function BookingSetup() {
             How do clients book?
           </Text>
           <Text className="mt-1 text-base text-shell-dim">
-            You can change this any time in More.
+            You can change this any time in Booking settings.
           </Text>
         </View>
 
@@ -190,7 +143,7 @@ export default function BookingSetup() {
         <Text className="mt-2 text-xs text-shell-dim">
           {booksOpen
             ? "Your page accepts new requests right away."
-            : "Your page shows a closed notice — open it whenever you're ready."}
+            : "Your page shows a closed notice. Open it whenever you're ready."}
         </Text>
 
         {!booksOpen ? (

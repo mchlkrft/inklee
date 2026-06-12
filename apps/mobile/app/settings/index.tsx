@@ -9,10 +9,12 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { Pencil } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
+import { IconButton } from "@/components/IconButton";
 import { SectionLabel } from "@/components/SectionLabel";
 import { SettingsRow } from "@/components/SettingsRow";
 import { Segmented } from "@/components/Segmented";
@@ -167,6 +169,14 @@ export default function SettingsHubScreen() {
                 </Text>
               ) : null}
             </View>
+            {/* Founder round 7: profile editing lives ON the identity card. */}
+            <IconButton
+              icon={Pencil}
+              label="Edit profile"
+              outlined
+              iconSize={16}
+              onPress={() => router.push("/settings/profile")}
+            />
           </View>
 
           <View className="mt-3 flex-row gap-2">
@@ -185,38 +195,11 @@ export default function SettingsHubScreen() {
           </View>
         </Card>
 
-        <SectionLabel>Appearance</SectionLabel>
+        <SectionLabel>Booking</SectionLabel>
         <Card>
-          <Segmented
-            options={THEME_OPTIONS}
-            value={preference}
-            onChange={setPreference}
-          />
-          <Text className="text-xs text-shell-dim">
-            System follows your phone&apos;s light or dark setting.
-          </Text>
-        </Card>
-
-        <SectionLabel>Account</SectionLabel>
-        <Card>
-          <SettingsRow
-            label="Account & security"
-            onPress={() => router.push("/settings/account")}
-          />
-          <SettingsRow
-            label="Edit profile"
-            divider
-            onPress={() => router.push("/settings/profile")}
-          />
           <SettingsRow
             label="Booking settings"
-            divider
             onPress={() => router.push("/settings/books")}
-          />
-          <SettingsRow
-            label="Emails"
-            divider
-            onPress={() => router.push("/settings/emails")}
           />
           <SettingsRow
             label="Booking form"
@@ -224,9 +207,9 @@ export default function SettingsHubScreen() {
             onPress={() => router.push("/settings/booking-form")}
           />
           <SettingsRow
-            label="Reminder emails"
+            label="Emails"
             divider
-            onPress={() => router.push("/settings/reminders")}
+            onPress={() => router.push("/settings/emails")}
           />
           {publicUrl ? (
             <SettingsRow
@@ -236,12 +219,6 @@ export default function SettingsHubScreen() {
               onPress={() => safeOpen(publicUrl)}
             />
           ) : null}
-          <SettingsRow
-            label="Delete account"
-            danger
-            divider
-            onPress={() => router.push("/account/delete")}
-          />
         </Card>
 
         <SectionLabel>Payments</SectionLabel>
@@ -288,6 +265,18 @@ export default function SettingsHubScreen() {
           />
         </Card>
 
+        <SectionLabel>Appearance</SectionLabel>
+        <Card>
+          <Segmented
+            options={THEME_OPTIONS}
+            value={preference}
+            onChange={setPreference}
+          />
+          <Text className="text-xs text-shell-dim">
+            System follows your phone&apos;s light or dark setting.
+          </Text>
+        </Card>
+
         <SectionLabel>About</SectionLabel>
         <Card>
           <SettingsRow
@@ -306,6 +295,16 @@ export default function SettingsHubScreen() {
             external
             divider
             onPress={() => safeOpen(`${BASE}/imprint`)}
+          />
+        </Card>
+
+        {/* Account & security sits at the bottom (founder round 7); account
+            deletion lives inside it, not on the hub. */}
+        <SectionLabel>Account</SectionLabel>
+        <Card>
+          <SettingsRow
+            label="Account & security"
+            onPress={() => router.push("/settings/account")}
           />
         </Card>
 

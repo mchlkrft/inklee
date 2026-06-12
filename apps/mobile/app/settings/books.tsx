@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -11,21 +11,48 @@ import {
 import { TextArea } from "@/components/TextArea";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import type { BooksSettings } from "@inklee/shared/books-settings";
+import type { BookingMode } from "@inklee/shared/booking-domain";
+import type {
+  MobileBookingModeUpdate,
+  MobileBooksSettings,
+} from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { ModeCard } from "@/components/ModeCard";
+import { SectionLabel } from "@/components/SectionLabel";
 import { TextField } from "@/components/TextField";
 import { DateField } from "@/components/DateField";
 import { ErrorState } from "@/components/ErrorState";
-import { useApiQuery, apiPost, apiPut, invalidateBooksViews } from "@/lib/api";
+import {
+  useApiQuery,
+  apiPost,
+  apiPut,
+  invalidateBooksViews,
+  invalidateByPathPrefix,
+} from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
+import { invalidateNotifications } from "@/lib/notifications";
 import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
 const CLOSED_MESSAGE_MAX = 280;
 
+// Booking-mode choices — the web BookingModeForm's descriptions, verbatim.
+const MODES: { value: BookingMode; title: string; body: string }[] = [
+  {
+    value: "preferred_date",
+    title: "Preferred date",
+    body: "Clients suggest a date. You confirm or negotiate.",
+  },
+  {
+    value: "fixed_slots",
+    title: "Fixed slots",
+    body: "You publish specific time slots. Clients pick one.",
+  },
+];
+
 export default function BookingSettings() {
-  const q = useApiQuery<BooksSettings>("/settings/books");
+  const q = useApiQuery<MobileBooksSettings>("/settings/books");
   const themed = useColors();
 
   if (!q.data) {
@@ -49,7 +76,7 @@ export default function BookingSettings() {
   return <BooksForm initial={q.data} />;
 }
 
-function BooksForm({ initial }: { initial: BooksSettings }) {
+function BooksForm({ initial }: { initial: MobileBooksSettings }) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -63,6 +90,13 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
   const [windowEndsAt, setWindowEndsAt] = useState<string | null>(
     initial.booking_window_ends_at,
   );
+  const initialMode: BookingMode =
+    initial.bookingMode === "fixed_slots" ? "fixed_slots" : "preferred_date";
+  const [mode, setMode] = useState<BookingMode>(initialMode);
+  // The mode the SERVER has — updated after a successful mode POST, so a Save
+  // retry after a failed books PUT doesn't re-post the mode (and duplicate the
+  // booking_mode_changed audit event). The web BookingModeForm tracks the same.
+  const savedMode = useRef<BookingMode>(initialMode);
   const [toggling, setToggling] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +138,17 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
     setSaving(true);
     setError(null);
     try {
+      // The mode write is its own endpoint (its own audit event + the no-slots
+      // warning side effect); only hit it when the server doesn't have this
+      // mode yet.
+      let modeResult: MobileBookingModeUpdate | null = null;
+      if (mode !== savedMode.current) {
+        modeResult = await apiPost<MobileBookingModeUpdate>(
+          "/settings/booking-mode",
+          { bookingMode: mode },
+        );
+        savedMode.current = mode;
+      }
       // null clears the window server-side; a date-key sets the auto-close
       // (normalizeBooksConfig already accepts bookingWindowEndsAt).
       await apiPut("/settings/books", {
@@ -113,6 +158,16 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
         booksClosedMessage: closedMessage.trim() || null,
       });
       await invalidateBooksViews(queryClient);
+      // /account shows the mode on its read-only card and isn't covered by the
+      // books-view prefixes.
+      if (savedMode.current !== initialMode) {
+        await invalidateByPathPrefix(queryClient, ["/account"]);
+      }
+      // Switching to fixed slots with no open slots files a no-slots warning
+      // server-side; refresh the bell so it shows up this session.
+      if (modeResult?.isFixedSlotsWithoutSlots) {
+        await invalidateNotifications(queryClient);
+      }
       router.back();
     } catch (e) {
       captureError(e, { op: "saveBooks" });
@@ -195,6 +250,31 @@ function BooksForm({ initial }: { initial: BooksSettings }) {
               showCounter
             />
           </>
+        ) : null}
+
+        <SectionLabel>Booking mode</SectionLabel>
+        {MODES.map((m) => (
+          <ModeCard
+            key={m.value}
+            title={m.title}
+            body={m.body}
+            selected={mode === m.value}
+            onPress={() => setMode(m.value)}
+          />
+        ))}
+        {/* The app has no slot builder, so the web's post-save slot modal
+            becomes a pre-save inline warning (same copy as the booking-form
+            screen's banner). */}
+        {mode === "fixed_slots" && initial.openSlotCount === 0 ? (
+          <View className="mb-1 rounded-card border-brand border-mustard/40 bg-mustard/10 p-4">
+            <Text className="text-sm font-semibold text-foreground">
+              Your booking link will appear closed until you post slots
+            </Text>
+            <Text className="mt-1 text-xs text-foreground">
+              Fixed-slots mode needs open slots. Add slots on the web before
+              sharing.
+            </Text>
+          </View>
         ) : null}
 
         {error ? (
