@@ -146,10 +146,10 @@ export default function WaitlistEntryScreen() {
         {showEmail ? <Field label="Email" value={data.customer_email} /> : null}
         {data.city_text ? (
           <View>
-            <Text className="text-xs text-shell-mute">City</Text>
+            <Text className="text-sm text-shell-mute">City</Text>
             <View className="mt-0.5 flex-row items-center gap-1.5">
               <MapPin size={14} color={themed.shell.dim} />
-              <Text className="text-sm text-foreground">{data.city_text}</Text>
+              <Text className="text-base text-foreground">{data.city_text}</Text>
             </View>
           </View>
         ) : null}
@@ -214,11 +214,12 @@ export default function WaitlistEntryScreen() {
   );
 }
 
+// Founder ME-5: same 14/16 field standard as the booking detail.
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <View>
-      <Text className="text-xs text-shell-mute">{label}</Text>
-      <Text className="mt-0.5 text-sm text-foreground">{value}</Text>
+      <Text className="text-sm text-shell-mute">{label}</Text>
+      <Text className="mt-0.5 text-base text-foreground">{value}</Text>
     </View>
   );
 }

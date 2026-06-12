@@ -77,7 +77,7 @@ export default function BookingDetailScreen() {
         <StatusPill status={b.status} />
       </View>
       <View className="mb-6 flex-row items-center justify-between">
-        <Text className="text-xs text-shell-dim">
+        <Text className="text-sm text-shell-dim">
           Requested {relativeTime(b.createdAt)}
         </Text>
         {b.status === "approved" ? (
@@ -118,20 +118,20 @@ export default function BookingDetailScreen() {
                 accessibilityRole="link"
                 onPress={() => Linking.openURL(b.referenceLink!)}
               >
-                <Text className="text-xs uppercase tracking-wide text-shell-mute">
+                <Text className="text-sm uppercase tracking-wide text-shell-mute">
                   Link
                 </Text>
-                <Text className="mt-0.5 text-sm text-accent" numberOfLines={1}>
+                <Text className="mt-0.5 text-base text-accent" numberOfLines={1}>
                   {b.referenceLink}
                 </Text>
               </Pressable>
             ) : (
               <>
-                <Text className="text-xs uppercase tracking-wide text-shell-mute">
+                <Text className="text-sm uppercase tracking-wide text-shell-mute">
                   Link
                 </Text>
                 <Text
-                  className="mt-0.5 text-sm text-shell-dim"
+                  className="mt-0.5 text-base text-shell-dim"
                   numberOfLines={1}
                   selectable
                 >
@@ -196,10 +196,12 @@ export default function BookingDetailScreen() {
   );
 }
 
+// Founder ME-5: field rows on the round-5 readability standard (14px labels /
+// 16px values), matching the client detail one tap away.
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View className="mb-5">
-      <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-shell-mute">
+      <Text className="mb-2 text-sm font-semibold uppercase tracking-wide text-shell-mute">
         {title}
       </Text>
       <View className="gap-2.5">{children}</View>
@@ -210,8 +212,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <View>
-      <Text className="text-xs text-shell-mute">{label}</Text>
-      <Text className="mt-0.5 text-sm text-foreground">
+      <Text className="text-sm text-shell-mute">{label}</Text>
+      <Text className="mt-0.5 text-base text-foreground">
         {value && value.trim() ? value : "-"}
       </Text>
     </View>

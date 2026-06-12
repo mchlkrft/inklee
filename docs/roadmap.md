@@ -284,11 +284,11 @@ Research only. Output `docs/payments-strategy.md` v1. NOT implementation. Open q
 
 **E-track open punch list (pre-store/EAS build, added 2026-06-12):**
 
-- **ME-1 (blocks E12):** app icon, Android adaptive icon, splash image, notification icon — none exist (no `assets/` dir ever committed); first EAS build ships the Expo placeholder and fails store submission. Needs founder brand assets.
-- **ME-2 (blocks E12, founder lead time):** Apple Developer Program under Inklee OÜ (D-U-N-S) + Google Play Console + EAS production profile dry run.
+- **ME-1 (blocks E12):** app icon, Android adaptive icon, splash image, notification icon + store listing assets — none exist; full spec'd checklist for design at `docs/mobile-store-assets.md`. First EAS build ships the Expo placeholder and fails store submission without these.
+- **ME-2 (blocks E12, founder lead time):** ◑ D-U-N-S received 2026-06-12 (**988010563**); Google Play Console **ready**; Apple Developer Program enrollment **in progress**; EAS production profile dry run still pending.
 - **ME-3:** lucide-react-native bundles all 1,713 icons (~1.3MB JS) — fix via babel-plugin-transform-imports mapping members to `dist/esm/icons/<kebab>.mjs`; needs an alias map (BarChart3→chart-column) + digit-aware kebab (Trash2→trash-2); verify with `npx expo export`. Audit-verified 2026-06-12, deliberately deferred for risk control.
 - **ME-4:** `success`/`danger` brand colors are theme-independent and contrast-weak as text (success ~2:1 on the dark shell) — candidates for the `--accent`-style light/dark split.
-- **ME-5 (founder round):** booking detail field rows still 12/14px type (the one screen the round-5 readability pass deliberately skipped); onboarding done-screen copy still says "from the More tab" (tab removed in MB-5); onboarding ModeCard mustard selection border faint in light mode.
+- **ME-5:** ✅ closed 2026-06-12 — booking + waitlist detail field rows bumped to the 14/16 readability standard, done-screen "More tab" copy fixed, ModeCard selection border now theme-aware accent.
 - **ME-6:** deferred XL items from the 531-function web→mobile parity audit (memory `mobile-theme-and-parity-audit.md`).
 
 ### 6.5 Business Model Phase 7 — Retention and expansion (continuous from Horizon 3)

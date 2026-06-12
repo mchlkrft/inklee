@@ -167,7 +167,8 @@ export default function YoureLive() {
             style={{ marginTop: 2 }}
           />
           <Text className="flex-1 text-xs leading-relaxed text-shell-dim">
-            Add a logo and set up deposit collection any time from the More tab.
+            Add a logo and set up deposit collection any time from Settings in
+            the top-bar menu.
           </Text>
         </View>
 

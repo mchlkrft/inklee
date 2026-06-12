@@ -43,9 +43,12 @@ function ModeCard({
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       onPress={onPress}
+      // border-accent: a mustard selection ring is near-invisible on the light
+      // bone background (dark mode unchanged); the mustard wash stays per the
+      // tint convention.
       className={`mb-3 rounded-2xl border p-4 active:opacity-80 ${
         selected
-          ? "border-mustard bg-[rgba(233,178,43,0.08)]"
+          ? "border-accent bg-[rgba(233,178,43,0.08)]"
           : "border-shell-border bg-glass"
       }`}
     >
