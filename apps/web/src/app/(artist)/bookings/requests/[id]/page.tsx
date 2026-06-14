@@ -19,6 +19,7 @@ import { formatPrice } from "@/lib/goods";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
 import { artistDepositCurrency } from "@/lib/connect-countries";
+import { isDepositRefunded } from "@/lib/deposit-state";
 import GoodsPickupButton from "./goods-pickup-button";
 import DepositRefundButton from "./deposit-refund-button";
 import CancelBookingButton from "./cancel-booking-button";
@@ -131,12 +132,21 @@ export default async function RequestDetailPage({
 
   // RS-6: a paid in-app card deposit (has an intent + a paid timestamp) can be
   // refunded from here; refund state is derived from the audit log so no extra
-  // column is needed.
-  const depositRefunded = (reminderLog ?? []).find(
+  // column is needed. The paid-card gate lives in the shared `isDepositRefunded`
+  // so this page, the mobile detail route, and the deposits overview agree.
+  const refundRow = (reminderLog ?? []).find(
     (e) => e.action === "deposit_refunded",
   ) as { details?: Record<string, unknown> } | undefined;
   const hasPaidInAppDeposit =
     !!booking.deposit_payment_intent_id && !!booking.deposit_paid_at;
+  const depositRefunded = isDepositRefunded(
+    {
+      deposit_payment_intent_id:
+        (booking.deposit_payment_intent_id as string | null) ?? null,
+      deposit_paid_at: (booking.deposit_paid_at as string | null) ?? null,
+    },
+    !!refundRow,
+  );
 
   // Goods the client marked they'd like to buy when submitting (commerce-layer
   // extension). Rendered as an "Interested in buying" section + drives the
@@ -476,8 +486,8 @@ export default async function RequestDetailPage({
               {depositRefunded ? (
                 <p className="text-xs text-muted-foreground">
                   Refunded
-                  {typeof depositRefunded.details?.amount_eur === "number"
-                    ? ` ${formatPrice(depositRefunded.details.amount_eur as number, (booking.deposit_currency as string) ?? "eur")}`
+                  {typeof refundRow?.details?.amount_eur === "number"
+                    ? ` ${formatPrice(refundRow.details.amount_eur as number, (booking.deposit_currency as string) ?? "eur")}`
                     : ""}{" "}
                   to the client.
                 </p>

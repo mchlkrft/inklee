@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
+import { depositState } from "@/lib/deposit-state";
 import type {
   MobileDepositListItem,
   MobileDepositsResponse,
@@ -64,25 +65,18 @@ export async function GET(req: Request) {
   }
 
   const now = Date.now();
-  const items: MobileDepositListItem[] = rows.map((b) => {
-    const amount = b.deposit_amount != null ? Number(b.deposit_amount) : 0;
-    let state: MobileDepositListItem["state"];
-    if (refunded.has(b.id)) state = "refunded";
-    else if (b.deposit_paid_at) state = "paid";
-    else if (b.deposit_due_at && new Date(b.deposit_due_at).getTime() < now)
-      state = "overdue";
-    else state = "awaiting";
-    return {
-      bookingId: b.id,
-      client: customerLabel(b.customer_handle, b.customer_email),
-      amount,
-      currency: b.deposit_currency ?? "eur",
-      dueAt: b.deposit_due_at,
-      paidAt: b.deposit_paid_at,
-      state,
-      card: !!b.deposit_payment_intent_id,
-    };
-  });
+  const items: MobileDepositListItem[] = rows.map((b) => ({
+    bookingId: b.id,
+    client: customerLabel(b.customer_handle, b.customer_email),
+    amount: b.deposit_amount != null ? Number(b.deposit_amount) : 0,
+    currency: b.deposit_currency ?? "eur",
+    dueAt: b.deposit_due_at,
+    paidAt: b.deposit_paid_at,
+    // Single source of truth: the same classifier the booking detail uses, so
+    // the overview and the detail can never disagree on a deposit's state.
+    state: depositState(b, refunded.has(b.id), now),
+    card: !!b.deposit_payment_intent_id,
+  }));
 
   // Order for the UI: overdue, then awaiting, then paid, then refunded last.
   // Within a state the query's created-desc order is preserved (stable sort).

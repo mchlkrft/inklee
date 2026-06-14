@@ -5,6 +5,7 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import { isDepositRefunded } from "@/lib/deposit-state";
 import { describeBookingActivity } from "@inklee/shared/booking-activity";
 import type {
   MobileBookingDetail,
@@ -123,20 +124,15 @@ export async function GET(
       : [];
   });
 
-  // RS-6: refund state is derived from the audit log (no dedicated column),
-  // exactly as the web detail page does. Only meaningful for a paid card
-  // deposit — the gate must stay, or refund semantics change for manual
-  // deposits. Gates the in-app refund button and the cancel-copy so the
-  // artist isn't told a deposit will be refunded twice.
-  let depositRefunded = false;
-  let depositRefundedAt: string | null = null;
-  if (b.deposit_payment_intent_id && b.deposit_paid_at) {
-    const refund = auditRows.find((r) => r.action === "deposit_refunded");
-    if (refund) {
-      depositRefunded = true;
-      depositRefundedAt = refund.timestamp;
-    }
-  }
+  // RS-6: refund state is derived from the audit log (no dedicated column). The
+  // paid-card gate (intent + paid) lives in the shared `isDepositRefunded` so
+  // the web detail page, this route, and the deposits overview all classify
+  // refunds identically.
+  const refundRow = auditRows.find((r) => r.action === "deposit_refunded");
+  const depositRefunded = isDepositRefunded(b, !!refundRow);
+  const depositRefundedAt = depositRefunded
+    ? (refundRow?.timestamp ?? null)
+    : null;
 
   // Batch-sign the private-bucket reference images (one storage round-trip;
   // createSignedUrls preserves input order). Entries whose file is gone (the
