@@ -6,7 +6,6 @@ import BookingForm from "./booking-form";
 import BooksClosedBlock from "./books-closed-block";
 import WaitlistForm from "./waitlist-form";
 import BookingPolicyBlock from "./booking-policy-block";
-import CustomLinksBlock from "./custom-links-block";
 import ShopTeaser from "./shop-teaser";
 import TravelCard from "./travel-card";
 import { InterestSelectionsProvider } from "./interest-selections-context";
@@ -23,11 +22,8 @@ import {
 } from "@/lib/date-utils";
 import { clampDescription } from "@/lib/seo";
 import { publicArtistUrl } from "@/lib/public-url";
-import {
-  parseBioPageSettings,
-  visibleModules,
-  isModuleVisible,
-} from "@/lib/bio-page-settings";
+import { parseBioPageSettings, isModuleVisible } from "@/lib/bio-page-settings";
+import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import {
   isProductCategory,
   toPriceNumber,
@@ -51,42 +47,6 @@ const FALLBACK_METADATA: Metadata = {
   description:
     "Send a tattoo booking request through Inklee with your idea, references, placement, size, and preferred date.",
 };
-
-// Brand-color name → hex map for cover_color in profile.settings.
-// Artists can also pass a raw hex like "#0b3d9f".
-const BRAND_COLOR_HEX: Record<string, string> = {
-  mustard: "#e9b22b",
-  rosa: "#db88b9",
-  cobalt: "#0b3d9f",
-  red: "#cf2e2c",
-  green: "#105f2d",
-  charcoal: "#1e1e1e",
-  bone: "#e5e1d5",
-};
-
-function resolveCoverColor(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const v = value.trim().toLowerCase();
-  if (v in BRAND_COLOR_HEX) return BRAND_COLOR_HEX[v];
-  if (/^#[0-9a-f]{3,8}$/.test(v)) return v;
-  return null;
-}
-
-function resolveCoverImage(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const v = value.trim();
-  if (!v) return null;
-  // Permit only https://, http:// (local dev), and protocol-relative URLs.
-  // No data: or javascript: URIs.
-  if (
-    !v.startsWith("https://") &&
-    !v.startsWith("http://") &&
-    !v.startsWith("//")
-  ) {
-    return null;
-  }
-  return v;
-}
 
 export async function generateMetadata({
   params,
@@ -164,10 +124,10 @@ export default async function ArtistPublicPage({
   const coverImage = resolveCoverImage(profileSettings.cover_image_url);
   const coverColor = resolveCoverColor(profileSettings.cover_color);
 
-  // Bio Page modules (Slice 72) — optional sections rendered below the booking
-  // section. Defaults to nothing configured, so existing pages are unchanged.
+  // Bio Page settings — the custom LINKS moved to the standalone Link Hub
+  // (/<slug>/hub, ME-11); the booking page keeps only the booking-policy text
+  // (shown to clients before they book) and the shop slot.
   const bioPage = parseBioPageSettings(profileSettings.bio_page);
-  const activeLinks = bioPage.customLinks.filter((l) => l.isActive);
 
   // Public shop products (Slice 73). Only queried when the shop module is
   // visible. Sold-out products still show (greyed). Cards are informational
@@ -624,23 +584,11 @@ export default async function ArtistPublicPage({
               )}
             </div>
 
-            {/* Bio Page modules — render below the booking section, in order,
-              skipping any the artist hid. Booking stays the primary action. */}
-            {visibleModules(bioPage).map((key) => {
-              if (key === "links") {
-                return <CustomLinksBlock key="links" links={activeLinks} />;
-              }
-              if (key === "policy") {
-                return bioPage.bookingPolicy ? (
-                  <BookingPolicyBlock
-                    key="policy"
-                    policy={bioPage.bookingPolicy}
-                  />
-                ) : null;
-              }
-              // Shop renders as a teaser above the booking form, not here.
-              return null;
-            })}
+            {/* Booking policy (shown to clients before they book). Custom links
+              moved to the Link Hub; shop renders as a teaser in the header. */}
+            {isModuleVisible(bioPage, "policy") && bioPage.bookingPolicy ? (
+              <BookingPolicyBlock policy={bioPage.bookingPolicy} />
+            ) : null}
           </div>
         </main>
 
