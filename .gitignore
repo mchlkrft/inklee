@@ -50,3 +50,6 @@ next-env.d.ts
 
 # session audit digests (working artifacts, referenced from agent memory)
 .claude-audit-digest-*.md
+
+# local one-off scratch tooling (asset generators, etc.)
+.scratch/
