@@ -40,11 +40,23 @@ export async function saveBioPageAction(
   }
   const inputLinkCount = Array.isArray(linksInput) ? linksInput.length : 0;
 
+  let socialsInput: unknown = [];
+  const socialsRaw = formData.get("socials");
+  if (typeof socialsRaw === "string" && socialsRaw.trim()) {
+    try {
+      socialsInput = JSON.parse(socialsRaw);
+    } catch {
+      return { error: "Could not read the socials. Try again." };
+    }
+  }
+
   // Round-trip through the parser so every field is validated + sanitized in one
-  // place: URL safety (no javascript:/data:), length caps, module-key filtering.
+  // place: URL safety (no javascript:/data:), length caps, module-key filtering,
+  // per-platform social dedupe.
   const settings: BioPageSettings = parseBioPageSettings({
     bookingPolicy,
     customLinks: linksInput,
+    socials: socialsInput,
     hidden,
   });
 
@@ -68,8 +80,8 @@ export async function saveBioPageAction(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/settings/bio-page");
-  if (profile?.slug) revalidatePath(`/${profile.slug}`);
+  revalidatePath("/link-hub");
+  if (profile?.slug) revalidatePath(`/${profile.slug}/hub`);
 
   if (dropped > 0) {
     return {

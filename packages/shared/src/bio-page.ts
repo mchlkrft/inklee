@@ -55,6 +55,21 @@ export type BioSocial = {
   url: string;
 };
 
+/** Display labels for each platform — shared by the web + app editors and used
+ *  as the accessible name on the Hub's icon row. Icon GLYPHS are app-specific
+ *  (web: simple-icons; app: Ionicons logos), so they live in each app, not here. */
+export const BIO_SOCIAL_META: Record<BioSocialPlatform, { label: string }> = {
+  instagram: { label: "Instagram" },
+  tiktok: { label: "TikTok" },
+  x: { label: "X" },
+  facebook: { label: "Facebook" },
+  youtube: { label: "YouTube" },
+  threads: { label: "Threads" },
+  pinterest: { label: "Pinterest" },
+  website: { label: "Website" },
+  email: { label: "Email" },
+};
+
 export type BioPageSettings = {
   bookingPolicy: string | null;
   customLinks: BioCustomLink[];

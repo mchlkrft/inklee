@@ -8,6 +8,7 @@ const ARTIST_PATHS = [
   "/flash",
   "/travel",
   "/settings",
+  "/link-hub",
   "/onboarding",
   "/analytics",
   "/goods",

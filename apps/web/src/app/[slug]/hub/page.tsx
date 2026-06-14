@@ -4,10 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { CalendarCheck, ExternalLink } from "lucide-react";
 import { serviceClient } from "@/lib/supabase/service";
-import { parseBioPageSettings } from "@/lib/bio-page-settings";
+import { parseBioPageSettings, BIO_SOCIAL_META } from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import { publicArtistUrl, publicHubUrl } from "@/lib/public-url";
 import { clampDescription } from "@/lib/seo";
+import { SocialIcon } from "./social-icon";
 
 // The Inklee Hub (a.k.a. "Linklee"): an OPTIONAL, standalone link-in-bio page
 // for an artist, at /<slug>/hub (pretty URL l.inkl.ee/<slug> is a rewrite, added
@@ -60,6 +61,7 @@ export default async function ArtistHubPage({
   const settings = (profile.settings ?? {}) as Record<string, unknown>;
   const bioPage = parseBioPageSettings(settings.bio_page);
   const links = bioPage.customLinks.filter((l) => l.isActive);
+  const socials = bioPage.socials;
   const coverImage = resolveCoverImage(settings.cover_image_url);
   const coverColor = resolveCoverColor(settings.cover_color);
   const bookingUrl = publicArtistUrl(slug);
@@ -112,6 +114,23 @@ export default async function ArtistHubPage({
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-brand-bone/75">
             {profile.bio}
           </p>
+        )}
+
+        {socials.length > 0 && (
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
+            {socials.map((s) => (
+              <a
+                key={s.platform}
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                aria-label={BIO_SOCIAL_META[s.platform].label}
+                className="text-brand-bone/80 transition-colors hover:text-brand-bone"
+              >
+                <SocialIcon platform={s.platform} className="h-6 w-6" />
+              </a>
+            ))}
+          </div>
         )}
 
         <div className="mt-8 w-full space-y-3">

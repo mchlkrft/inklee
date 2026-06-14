@@ -7,7 +7,12 @@ import {
   MAX_LINKS,
   MAX_BOOKING_POLICY,
   MAX_LINK_LABEL,
+  MAX_SOCIALS,
+  BIO_SOCIAL_PLATFORMS,
+  BIO_SOCIAL_META,
   type BioCustomLink,
+  type BioSocial,
+  type BioSocialPlatform,
   type BioPageSettings,
 } from "@/lib/bio-page-settings";
 
@@ -36,6 +41,7 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
     bioPage.bookingPolicy ?? "",
   );
   const [links, setLinks] = useState<BioCustomLink[]>(bioPage.customLinks);
+  const [socials, setSocials] = useState<BioSocial[]>(bioPage.socials);
   const [showLinks, setShowLinks] = useState(!bioPage.hidden.includes("links"));
   const [showPolicy, setShowPolicy] = useState(
     !bioPage.hidden.includes("policy"),
@@ -59,9 +65,26 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
       prev.length >= MAX_LINKS ? prev : [...prev, makeLink()],
     );
 
+  const updateSocial = (index: number, patch: Partial<BioSocial>) =>
+    setSocials((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, ...patch } : s)),
+    );
+  const removeSocial = (index: number) =>
+    setSocials((prev) => prev.filter((_, i) => i !== index));
+  const addSocial = () =>
+    setSocials((prev) => {
+      if (prev.length >= MAX_SOCIALS) return prev;
+      const used = new Set(prev.map((s) => s.platform));
+      const next =
+        BIO_SOCIAL_PLATFORMS.find((p) => !used.has(p)) ??
+        BIO_SOCIAL_PLATFORMS[0];
+      return [...prev, { platform: next, url: "" }];
+    });
+
   return (
     <form action={action} className="space-y-8">
       <input type="hidden" name="custom_links" value={JSON.stringify(links)} />
+      <input type="hidden" name="socials" value={JSON.stringify(socials)} />
 
       {/* Links */}
       <section className="space-y-3">
@@ -69,8 +92,8 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
           <div>
             <h2 className="text-base font-semibold text-foreground">Links</h2>
             <p className="text-sm text-muted-foreground">
-              Instagram, website, aftercare, portfolio, anything. Shown on your
-              public page below the booking form.
+              Aftercare, portfolio, shop, anything. Shown as buttons on your
+              Link Hub.
             </p>
           </div>
           <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
@@ -166,6 +189,71 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
         )}
       </section>
 
+      {/* Socials */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Socials</h2>
+          <p className="text-sm text-muted-foreground">
+            Your social profiles, shown as an icon row at the top of your Link
+            Hub.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          {socials.length === 0 && (
+            <p className="text-sm text-muted-foreground">No socials yet.</p>
+          )}
+          {socials.map((s, i) => (
+            <div key={i} className="flex gap-2">
+              <select
+                value={s.platform}
+                onChange={(e) =>
+                  updateSocial(i, {
+                    platform: e.target.value as BioSocialPlatform,
+                  })
+                }
+                aria-label="Platform"
+                className={`${INPUT} max-w-[9.5rem] shrink-0`}
+              >
+                {BIO_SOCIAL_PLATFORMS.map((p) => (
+                  <option key={p} value={p}>
+                    {BIO_SOCIAL_META[p].label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={s.url}
+                onChange={(e) => updateSocial(i, { url: e.target.value })}
+                placeholder={
+                  s.platform === "email" ? "you@email.com" : "https://…"
+                }
+                inputMode="url"
+                className={INPUT}
+              />
+              <button
+                type="button"
+                onClick={() => removeSocial(i)}
+                aria-label="Remove social"
+                className={ICON_BTN}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {socials.length < MAX_SOCIALS && (
+          <button
+            type="button"
+            onClick={addSocial}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted/30"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Add social
+          </button>
+        )}
+      </section>
+
       {/* Booking policy */}
       <section className="space-y-3">
         <div className="flex items-start justify-between gap-4">
@@ -239,7 +327,7 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
         disabled={pending}
         className="rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
-        {pending ? "Saving…" : "Save bio page"}
+        {pending ? "Saving…" : "Save Link Hub"}
       </button>
     </form>
   );

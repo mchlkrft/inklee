@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Users,
   ShoppingBag,
+  Link2,
   type LucideIcon,
 } from "lucide-react";
 import Spiderweb from "@/components/icons/spiderweb";
@@ -82,6 +83,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
   {
     label: "Tools",
     items: [
+      { label: "Link Hub", href: "/link-hub", icon: Link2 },
       { label: "Analytics", href: "/analytics", icon: BarChart3 },
       { label: "Notifications", href: "/notifications", icon: Bell },
       {
@@ -91,7 +93,6 @@ export const SIDEBAR_NAV: NavGroup[] = [
         match: ["/settings"],
         children: [
           { label: "Profile", href: "/settings/profile" },
-          { label: "Bio page", href: "/settings/bio-page" },
           { label: "Emails", href: "/settings/emails" },
           { label: "Calendar", href: "/settings/calendar" },
           { label: "Payouts", href: "/settings/payouts" },
