@@ -6,7 +6,7 @@ import { CalendarCheck, ExternalLink } from "lucide-react";
 import { serviceClient } from "@/lib/supabase/service";
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
-import { publicArtistUrl } from "@/lib/public-url";
+import { publicArtistUrl, publicHubUrl } from "@/lib/public-url";
 import { clampDescription } from "@/lib/seo";
 
 // The Inklee Hub (a.k.a. "Linklee"): an OPTIONAL, standalone link-in-bio page
@@ -35,6 +35,7 @@ export async function generateMetadata({
   return {
     title: `${name} · Links`,
     description: clampDescription(bio || `Links from ${name} on Inklee.`),
+    alternates: { canonical: publicHubUrl(slug) },
     robots: { index: false },
   };
 }

@@ -12,6 +12,11 @@ const SHORTLINK_APEX_HOSTS = new Set(["inkl.ee", "www.inkl.ee"]);
  *  subdomain on the public-bio domain. */
 const SHORTLINK_DOMAIN_SUFFIX = ".inkl.ee";
 
+/** Suffix marking the Link Hub sub-subdomain (`l` = "Linklee"):
+ *  `<slug>.l.inkl.ee`. Must be checked BEFORE SHORTLINK_DOMAIN_SUFFIX since it
+ *  also ends in `.inkl.ee`. Requires a separate `*.l.inkl.ee` wildcard cert. */
+const HUB_DOMAIN_SUFFIX = ".l.inkl.ee";
+
 /** Local-dev hosts that resolve to the dev server with no subdomain. */
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
@@ -19,6 +24,11 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
  *  127.0.0.1 in every modern browser without /etc/hosts edits, so we
  *  treat *.localhost the same way as *.inkl.ee in production. */
 const LOCAL_SUFFIX = ".localhost";
+
+/** Dev counterpart of HUB_DOMAIN_SUFFIX: `<slug>.l.localhost` resolves to
+ *  127.0.0.1 in modern browsers, so the Link Hub subdomain is testable locally
+ *  exactly like the booking subdomain. Checked before LOCAL_SUFFIX. */
+const HUB_LOCAL_SUFFIX = ".l.localhost";
 
 /** Vercel preview deployments. We do NOT do subdomain artist routing
  *  on previews — the preview host itself looks like *.vercel.app, and
@@ -40,6 +50,9 @@ export type HostRouting =
    *  Slug existence is not verified here — caller must DB-check before
    *  rendering. */
   | { kind: "artist-subdomain"; host: string; slug: string }
+  /** name.l.inkl.ee — the artist's Link Hub. Same slug rules + downstream
+   *  DB-check as artist-subdomain; rewrites to /<slug>/hub. */
+  | { kind: "hub-subdomain"; host: string; slug: string }
   /** name.inkl.ee where `name` is a reserved infrastructure label
    *  (app, admin, api, ...). Caller decides whether to redirect to
    *  inklee.app, return 404, or serve a service-specific endpoint. */
@@ -77,6 +90,24 @@ export function parseHost(rawHost: string | null | undefined): HostRouting {
   if (APP_HOSTS.has(host)) return { kind: "marketing", host };
   if (SHORTLINK_APEX_HOSTS.has(host)) return { kind: "shortlink-apex", host };
 
+  // Link Hub sub-subdomain (<slug>.l.inkl.ee) — must be tested before the
+  // single-label .inkl.ee branch, which would otherwise read it as a nested
+  // (invalid) subdomain.
+  if (host.endsWith(HUB_DOMAIN_SUFFIX)) {
+    const sub = host.slice(0, -HUB_DOMAIN_SUFFIX.length);
+    if (
+      sub &&
+      !sub.includes(".") &&
+      !isReservedSlug(sub) &&
+      isValidSlugFormat(sub)
+    ) {
+      return { kind: "hub-subdomain", host, slug: sub };
+    }
+    // Empty / nested / reserved / bad-format → bounce to marketing like any
+    // other unusable inkl.ee host.
+    return { kind: "shortlink-invalid-subdomain", host, attempted: sub };
+  }
+
   if (host.endsWith(SHORTLINK_DOMAIN_SUFFIX)) {
     const sub = host.slice(0, -SHORTLINK_DOMAIN_SUFFIX.length);
     if (!sub || sub.includes(".")) {
@@ -93,6 +124,20 @@ export function parseHost(rawHost: string | null | undefined): HostRouting {
   }
 
   if (LOCAL_HOSTS.has(host)) return { kind: "local", host, slug: null };
+
+  // Link Hub dev subdomain (<slug>.l.localhost) — before the .localhost branch.
+  if (host.endsWith(HUB_LOCAL_SUFFIX)) {
+    const sub = host.slice(0, -HUB_LOCAL_SUFFIX.length);
+    if (
+      sub &&
+      !sub.includes(".") &&
+      isValidSlugFormat(sub) &&
+      !isReservedSlug(sub)
+    ) {
+      return { kind: "hub-subdomain", host, slug: sub };
+    }
+    return { kind: "local", host, slug: null };
+  }
 
   if (host.endsWith(LOCAL_SUFFIX)) {
     const sub = host.slice(0, -LOCAL_SUFFIX.length);
@@ -167,6 +212,14 @@ export function decideHostRouting(
         search: url.search,
       };
 
+    case "hub-subdomain":
+      return {
+        action: "rewrite-artist",
+        slug: routing.slug,
+        pathname: prependHubPath(routing.slug, url.pathname),
+        search: url.search,
+      };
+
     case "shortlink-apex":
     case "shortlink-reserved-subdomain":
     case "shortlink-invalid-subdomain":
@@ -189,6 +242,14 @@ export function decideHostRouting(
 export function prependSlugToPath(slug: string, pathname: string): string {
   if (pathname === "" || pathname === "/") return `/${slug}`;
   return `/${slug}${pathname}`;
+}
+
+/** Prepend "/<slug>/hub" to a request pathname — the Link Hub lives under the
+ *  artist's hub route, so `<slug>.l.inkl.ee/` resolves to `/<slug>/hub`.
+ *  Exported for tests. */
+export function prependHubPath(slug: string, pathname: string): string {
+  if (pathname === "" || pathname === "/") return `/${slug}/hub`;
+  return `/${slug}/hub${pathname}`;
 }
 
 /** Whether an Origin header is an acceptable source for a public

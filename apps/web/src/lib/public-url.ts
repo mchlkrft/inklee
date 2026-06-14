@@ -74,3 +74,15 @@ export function publicArtistUrl(
   if (bio) return `https://${slug}.${bio}${subpath}`;
   return `${getAppOrigin()}/${slug}${subpath}`;
 }
+
+/** The artist's Link Hub URL ("Linklee"). Subdomain mode emits
+ *  `https://<slug>.l.<bio domain>` (e.g. ouch370.l.inkl.ee) — reusing the same
+ *  NEXT_PUBLIC_PUBLIC_BIO_DOMAIN as the booking subdomain, so it needs only the
+ *  extra `*.l.inkl.ee` wildcard cert, no new env. Path mode (env unset) falls
+ *  back to `${appUrl}/<slug>/hub`, which always works pre-DNS. */
+export function publicHubUrl(slug: string | null | undefined): string {
+  if (!slug) return getAppOrigin();
+  const bio = getBioDomain();
+  if (bio) return `https://${slug}.l.${bio}`;
+  return `${getAppOrigin()}/${slug}/hub`;
+}

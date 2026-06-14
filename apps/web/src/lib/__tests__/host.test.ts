@@ -4,6 +4,7 @@ import {
   isAllowedBookingOrigin,
   parseHost,
   prependSlugToPath,
+  prependHubPath,
   type HostRouting,
 } from "../host";
 
@@ -151,6 +152,42 @@ describe("parseHost — invalid subdomain on inkl.ee", () => {
   });
 });
 
+describe("parseHost — Link Hub subdomain (l.inkl.ee)", () => {
+  it("parses <slug>.l.inkl.ee as a hub subdomain", () => {
+    expect(parseHost("ouch370.l.inkl.ee")).toEqual({
+      kind: "hub-subdomain",
+      host: "ouch370.l.inkl.ee",
+      slug: "ouch370",
+    });
+  });
+
+  it("does not misread <slug>.l.inkl.ee as a nested invalid subdomain", () => {
+    expect(parseHost("ouch370.l.inkl.ee").kind).toBe("hub-subdomain");
+  });
+
+  it("rejects a too-short hub slug", () => {
+    expect(parseHost("ab.l.inkl.ee").kind).toBe("shortlink-invalid-subdomain");
+  });
+
+  it("rejects a reserved hub slug", () => {
+    expect(parseHost("admin.l.inkl.ee").kind).toBe(
+      "shortlink-invalid-subdomain",
+    );
+  });
+
+  it("still treats a non-l nested subdomain as invalid", () => {
+    expect(parseHost("a.b.inkl.ee").kind).toBe("shortlink-invalid-subdomain");
+  });
+
+  it("parses <slug>.l.localhost in dev", () => {
+    expect(parseHost("ouch370.l.localhost")).toEqual({
+      kind: "hub-subdomain",
+      host: "ouch370.l.localhost",
+      slug: "ouch370",
+    });
+  });
+});
+
 describe("parseHost — local dev", () => {
   it("matches plain localhost", () => {
     expect(parseHost("localhost")).toEqual({
@@ -259,6 +296,17 @@ describe("prependSlugToPath", () => {
   });
 });
 
+describe("prependHubPath", () => {
+  it("returns /<slug>/hub for empty or root pathname", () => {
+    expect(prependHubPath("ouch370", "")).toBe("/ouch370/hub");
+    expect(prependHubPath("ouch370", "/")).toBe("/ouch370/hub");
+  });
+
+  it("preserves subpaths under the hub", () => {
+    expect(prependHubPath("ouch370", "/x")).toBe("/ouch370/hub/x");
+  });
+});
+
 describe("decideHostRouting", () => {
   const url = (pathname: string, search = "") => ({ pathname, search });
 
@@ -320,6 +368,20 @@ describe("decideHostRouting", () => {
       action: "rewrite-artist",
       slug: "ouch370",
       pathname: "/ouch370/flash/days/abc-123",
+      search: "",
+    });
+  });
+
+  it("rewrites hub subdomain root to /<slug>/hub", () => {
+    const r: HostRouting = {
+      kind: "hub-subdomain",
+      host: "ouch370.l.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/"))).toEqual({
+      action: "rewrite-artist",
+      slug: "ouch370",
+      pathname: "/ouch370/hub",
       search: "",
     });
   });
