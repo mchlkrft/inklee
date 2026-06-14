@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import { CalendarDays, Inbox, Users } from "lucide-react-native";
+import { CalendarDays, Inbox, Users, Wallet } from "lucide-react-native";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
 import { SubNav } from "@/components/SubNav";
@@ -17,6 +17,7 @@ const SUBNAV = [
   { label: "Requests", path: "/bookings", icon: Inbox },
   { label: "Calendar", path: "/bookings/calendar", icon: CalendarDays },
   { label: "Clients", path: "/bookings/clients", icon: Users },
+  { label: "Deposits", path: "/bookings/deposits", icon: Wallet },
 ] as const;
 
 // How far the pinned band rises when the TopBar scroll-hides: the pill row it

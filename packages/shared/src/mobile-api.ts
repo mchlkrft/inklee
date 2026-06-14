@@ -166,6 +166,34 @@ export type MobileBookingStats = {
   thisMonthCount: number;
 };
 
+/** One deposit across the artist's bookings (GET /api/mobile/bookings/deposits).
+ *  `state` is derived server-side from the deposit columns plus the refund
+ *  audit log; `card` distinguishes an in-app card deposit from a manual one. */
+export type MobileDepositListItem = {
+  bookingId: string;
+  client: string;
+  amount: number;
+  currency: string;
+  dueAt: string | null;
+  paidAt: string | null;
+  state: "awaiting" | "overdue" | "paid" | "refunded";
+  card: boolean;
+};
+
+/** GET /api/mobile/bookings/deposits — the deposits overview: every booking
+ *  that carries a deposit, plus outstanding / collected rollups for the header.
+ *  Amounts assume the artist's single payout currency. */
+export type MobileDepositsResponse = {
+  items: MobileDepositListItem[];
+  summary: {
+    currency: string;
+    outstandingCount: number;
+    outstandingAmount: number;
+    collectedCount: number;
+    collectedAmount: number;
+  };
+};
+
 // The deposit block on a booking detail. `hasCardIntent` is true when this is a
 // live in-app card PaymentIntent (vs a manual deposit paid to the artist
 // directly); `refunded` is true once a refund has been issued (derived
