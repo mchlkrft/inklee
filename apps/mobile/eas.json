@@ -11,7 +11,12 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://inkl.ee",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://llmzzsmppaqwecbrowlp.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbXp6c21wcGFxd2VjYnJvd2xwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NTUyNjYsImV4cCI6MjA5MjEzMTI2Nn0.B-K2VFG12wI89aHUKxwqstivYnPaRtx9-8In3hfmo4s"
+      }
     },
     "production": {
       "autoIncrement": true,
