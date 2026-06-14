@@ -125,10 +125,10 @@ export function isReservedSlug(s: string): boolean {
 }
 
 export function validateSlug(s: string): string | null {
-  if (s.length < SLUG_MIN_LENGTH) return "too short — minimum 3 characters";
-  if (s.length > SLUG_MAX_LENGTH) return "too long — maximum 30 characters";
+  if (s.length < SLUG_MIN_LENGTH) return "Use at least 3 characters.";
+  if (s.length > SLUG_MAX_LENGTH) return "Use at most 30 characters.";
   if (!SLUG_FORMAT_REGEX.test(s))
-    return "lowercase letters, numbers, and single dashes only — must start with a letter";
-  if (RESERVED_SLUGS.has(s)) return "that one is reserved — try something else";
+    return "Use lowercase letters, numbers, and single dashes. Start with a letter.";
+  if (RESERVED_SLUGS.has(s)) return "That one is reserved. Try another.";
   return null;
 }

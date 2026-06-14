@@ -27,7 +27,7 @@ const SLIDES: Slide[] = [
     icon: "link-outline",
     eyebrow: "Your booking link",
     title: "One link. Every booking.",
-    body: "Drop a single Inklee link in your Instagram bio. Clients tap it to start a request — no more booking chaos buried in your DMs.",
+    body: "Drop a single Inklee link in your Instagram bio. Clients tap it to start a request. No more booking chaos buried in your DMs.",
   },
   {
     bg: "bg-rosa",
@@ -40,7 +40,7 @@ const SLIDES: Slide[] = [
     bg: "bg-success",
     icon: "checkmark-circle-outline",
     eyebrow: "Your calendar",
-    title: "Review, approve, done.",
+    title: "Review, accept, done.",
     body: "Accept or pass with a tap. Accepted bookings move straight to your calendar, so you stay in control.",
   },
 ];

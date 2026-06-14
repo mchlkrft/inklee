@@ -66,7 +66,7 @@ describe("normalizeProfileInput", () => {
   it("rejects a too-short slug with the validateSlug message", () => {
     const result = normalizeProfileInput({ slug: "ab", displayName: "Jane" });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toMatch(/too short/);
+    if (!result.ok) expect(result.error).toMatch(/at least 3/);
   });
 
   it("rejects a reserved slug", () => {

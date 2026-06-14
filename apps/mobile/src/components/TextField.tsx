@@ -56,6 +56,10 @@ export function TextField({
             onBlur?.(e);
           }}
           placeholderTextColor={colors.shell.mute}
+          // The visible <Text> label isn't programmatically linked to the input,
+          // so default the accessible name to it (callers can still override),
+          // otherwise screen readers announce these as unlabeled fields.
+          accessibilityLabel={input.accessibilityLabel ?? label}
           className="h-full flex-1 text-foreground"
           // Vertical centering: a `lineHeight` (which `text-base` sets) offsets
           // single-line text on iOS, so set the size directly with no line

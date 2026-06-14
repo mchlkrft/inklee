@@ -161,11 +161,11 @@ describe("validateSlug", () => {
   });
 
   it("returns an error for too-short", () => {
-    expect(validateSlug("ab")).toMatch(/too short/);
+    expect(validateSlug("ab")).toMatch(/at least 3/);
   });
 
   it("returns an error for too-long", () => {
-    expect(validateSlug("a".repeat(31))).toMatch(/too long/);
+    expect(validateSlug("a".repeat(31))).toMatch(/at most 30/);
   });
 
   it("returns an error for bad format", () => {

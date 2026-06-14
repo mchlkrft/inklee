@@ -18,7 +18,7 @@ const MODES: { value: BookingMode; title: string; body: string }[] = [
   {
     value: "preferred_date",
     title: "Request a date",
-    body: "Clients suggest a date and details. You approve each one. Best for most artists.",
+    body: "Clients suggest a date and details. You confirm or negotiate. Best for most artists.",
   },
   {
     value: "fixed_slots",

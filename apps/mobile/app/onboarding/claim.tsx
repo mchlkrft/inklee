@@ -31,7 +31,10 @@ type SlugStatus =
   | "available"
   | "owned"
   | "taken"
-  | "invalid";
+  | "invalid"
+  // The availability check failed (network blip). Treated as provisionally
+  // submittable so a transient failure can't dead-end the step.
+  | "unknown";
 
 // Live availability for the typed slug: client-side format check first (no
 // network), then a 400ms-debounced server check. Stale results are dropped via
@@ -73,11 +76,13 @@ function useSlugCheck(slug: string) {
           setStatus("taken");
         }
       } catch (e) {
-        // Network blip — don't block the artist; leave it neutral and let the
-        // submit-time check be the source of truth.
+        // Network blip: mark the slug "unknown" (the submit gate treats it as
+        // provisionally OK) and let the submit-time server check be the source
+        // of truth. Reverting to "idle" here would silently disable Continue
+        // with no way forward but retyping — a dead-end on the first step.
         if (!cancelled) {
           captureError(e, { op: "slugCheck" });
-          setStatus("idle");
+          setStatus("unknown");
         }
       }
     }, 400);
@@ -103,7 +108,11 @@ export default function ClaimLink() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const { status, error: slugError } = useSlugCheck(slug);
-  const slugOk = status === "available" || status === "owned";
+  // "unknown" (availability check failed) counts as OK so a network blip can't
+  // strand the artist; the /onboarding/profile POST re-validates and 409s on a
+  // real conflict, which submit() surfaces below.
+  const slugOk =
+    status === "available" || status === "owned" || status === "unknown";
   const canSubmit = displayName.trim().length > 0 && slugOk && !submitting;
 
   const previewHost = config
@@ -128,7 +137,7 @@ export default function ClaimLink() {
       router.push("/onboarding/booking");
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
-        setSubmitError("That link was just taken — pick another.");
+        setSubmitError("That link was just taken. Pick another.");
       } else {
         captureError(e, { op: "claimSlug" });
         setSubmitError(
