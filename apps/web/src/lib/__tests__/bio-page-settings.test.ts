@@ -117,6 +117,35 @@ describe("parseBioPageSettings", () => {
         .hidden,
     ).toEqual(["links", "shop"]);
   });
+
+  it("defaults socials to an empty array", () => {
+    expect(parseBioPageSettings({}).socials).toEqual([]);
+  });
+
+  it("parses valid socials, sanitizes URLs, and drops unknown platforms", () => {
+    const result = parseBioPageSettings({
+      socials: [
+        { platform: "instagram", url: "instagram.com/jane" },
+        { platform: "email", url: "mailto:hi@jane.com" },
+        { platform: "myspace", url: "https://myspace.com/jane" }, // unknown → drop
+        { platform: "tiktok", url: "javascript:alert(1)" }, // unsafe → drop
+      ],
+    });
+    expect(result.socials).toEqual([
+      { platform: "instagram", url: "https://instagram.com/jane" },
+      { platform: "email", url: "mailto:hi@jane.com" },
+    ]);
+  });
+
+  it("keeps only the first entry per platform", () => {
+    const result = parseBioPageSettings({
+      socials: [
+        { platform: "x", url: "https://x.com/a" },
+        { platform: "x", url: "https://x.com/b" },
+      ],
+    });
+    expect(result.socials).toEqual([{ platform: "x", url: "https://x.com/a" }]);
+  });
 });
 
 describe("visibleModules / isModuleVisible", () => {
