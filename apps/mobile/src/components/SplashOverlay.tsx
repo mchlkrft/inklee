@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Text, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
   runOnJS,
@@ -25,9 +27,16 @@ import { LOADER_SPIDERWEB_PATH } from "./icons/loader-spiderweb-path";
 // layer; light mode = bone card on a charcoal layer. Colors are pinned (not
 // themed classNames) because the inversion is unique to this surface.
 
-const INSET = 20; // equal distance to top/bottom and sides on every device
+// Distance from the SAFE AREA to the card on every edge. Measuring from the
+// safe area (not the raw screen edge) keeps the founder's "equal distance to
+// every edge" look while guaranteeing the card top clears the status bar /
+// notch and the bottom clears the home indicator -- otherwise the OS battery /
+// wifi / clock glyphs render on top of the card's top border.
+const INSET = 20;
 const RADIUS = 44;
 const WEB_SIZE = 150;
+// One wordmark-height of extra lift so the logo lockup sits higher in the card.
+const WORDMARK_LIFT = 40;
 
 export function SplashOverlay({
   ready,
@@ -43,6 +52,7 @@ export function SplashOverlay({
   const layer = dark ? colors.bone : colors.charcoal;
   const card = dark ? colors.charcoal : colors.bone;
   const ink = dark ? colors.bone : colors.charcoal;
+  const insets = useSafeAreaInsets();
 
   const pulse = useSharedValue(0);
   const opacity = useSharedValue(1);
@@ -93,13 +103,17 @@ export function SplashOverlay({
         fade,
       ]}
     >
+      {/* The card sits below the status bar now, so the OS glyphs land on the
+          solid layer -- which is INVERTED from the theme bg (dark scheme = bone
+          layer), so the status bar style is the inverse of ThemedStatusBar. */}
+      <StatusBar style={dark ? "dark" : "light"} />
       <View
         style={{
           position: "absolute",
-          top: INSET,
-          bottom: INSET,
-          left: INSET,
-          right: INSET,
+          top: INSET + insets.top,
+          bottom: INSET + insets.bottom,
+          left: INSET + insets.left,
+          right: INSET + insets.right,
           borderRadius: RADIUS,
           backgroundColor: card,
           alignItems: "center",
@@ -123,7 +137,7 @@ export function SplashOverlay({
             color: ink,
             fontSize: 36,
             fontWeight: "700",
-            marginBottom: 72,
+            marginBottom: 72 + WORDMARK_LIFT,
           }}
         >
           inklee

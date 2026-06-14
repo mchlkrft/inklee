@@ -19,13 +19,16 @@ export function IconChip({
   icon: Icon,
   role = "bone",
   size = "md",
+  iconSize,
 }: {
   icon: ChipIcon;
   role?: TintRole;
   size?: "sm" | "md";
+  /** Override the glyph size inside the (unchanged) circle. */
+  iconSize?: number;
 }) {
   const dim = size === "md" ? 40 : 32;
-  const iconSize = size === "md" ? 18 : 16;
+  const glyph = iconSize ?? (size === "md" ? 18 : 16);
   const { bg, fg } = tint[role];
   return (
     <View
@@ -38,7 +41,7 @@ export function IconChip({
         justifyContent: "center",
       }}
     >
-      <Icon size={iconSize} color={fg} strokeWidth={1.8} />
+      <Icon size={glyph} color={fg} strokeWidth={1.8} />
     </View>
   );
 }

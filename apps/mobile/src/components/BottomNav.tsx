@@ -158,7 +158,9 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
               style={focused ? { backgroundColor: brand.rosa } : undefined}
             >
               {isFlash ? (
-                <Spiderweb size={26} color={iconColor} />
+                // Sized up vs the 26px lucide glyphs: the web silhouette reads
+                // lighter, so it needs a touch more to sit at parity.
+                <Spiderweb size={30} color={iconColor} />
               ) : (
                 <Icon
                   size={26}
