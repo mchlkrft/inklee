@@ -30,6 +30,14 @@ type AuthState = {
   session: Session | null;
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  /** Create an email/password account. Resolves with needsConfirmation=true
+   *  when Supabase sent a confirmation email (no session yet), or false when
+   *  the project auto-confirms (a session is live and the root navigator routes
+   *  straight into onboarding). Throws on a real error. */
+  signUpWithPassword: (
+    email: string,
+    password: string,
+  ) => Promise<{ needsConfirmation: boolean }>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -85,6 +93,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         if (error) throw new Error(error.message);
         track("sign_in", { method: "password" });
+      },
+      // Email/password sign-up. emailRedirectTo deep-links to the in-app
+      // auth-confirm screen so the confirmation code is exchanged ON THIS
+      // DEVICE (PKCE: the code verifier from signUp lives in this device's
+      // SecureStore; a web callback wouldn't have it). If the project
+      // auto-confirms, signUp returns a session here and onAuthStateChange
+      // routes onward; otherwise Supabase emails the confirmation link.
+      signUpWithPassword: async (email, password) => {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: Linking.createURL("auth-confirm") },
+        });
+        if (error) {
+          if (error.message.toLowerCase().includes("already registered")) {
+            throw new Error("An account with that email already exists.");
+          }
+          throw new Error(error.message);
+        }
+        if (data.session) {
+          track("sign_up", { method: "password" });
+          return { needsConfirmation: false };
+        }
+        return { needsConfirmation: true };
       },
       // Google: open Supabase's OAuth URL in an in-app browser, then exchange
       // the returned PKCE code for a session. Mirrors the web GoogleAuthButton

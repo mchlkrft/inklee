@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
@@ -10,6 +11,7 @@ import { useColors } from "@/lib/theme";
 // Apple is required by App Store review because Google sign-in is offered.
 export default function SignIn() {
   const { signInWithPassword } = useAuth();
+  const router = useRouter();
   const colors = useColors();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,6 +65,16 @@ export default function SignIn() {
         <Button label="Sign in" onPress={submit} loading={loading} />
 
         <SocialAuthButtons />
+
+        <Pressable
+          onPress={() => router.push("/sign-up")}
+          className="mt-6 active:opacity-70"
+        >
+          <Text className="text-center text-sm text-shell-dim">
+            New to Inklee?{" "}
+            <Text className="font-medium text-accent">Create an account</Text>
+          </Text>
+        </Pressable>
       </View>
     </Screen>
   );

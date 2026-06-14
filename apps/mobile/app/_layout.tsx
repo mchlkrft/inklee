@@ -192,6 +192,7 @@ function RootNavigator() {
     >
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" />
+        <Stack.Screen name="sign-up" />
       </Stack.Protected>
 
       <Stack.Protected guard={needsOnboarding}>
@@ -234,6 +235,11 @@ function RootNavigator() {
           options={{ ...stackHeader, title: "Waitlist entry" }}
         />
       </Stack.Protected>
+
+      {/* Email-confirmation deep link (inklee://auth-confirm) from a native
+          sign-up. Ungated so it resolves before a session exists; it exchanges
+          the code and the guards above take over once the session lands. */}
+      <Stack.Screen name="auth-confirm" />
     </Stack>
     );
   }

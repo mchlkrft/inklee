@@ -9,6 +9,7 @@ import { useFocusEffect } from "expo-router";
 export type AnalyticsEvent =
   | "screen_view"
   | "sign_in"
+  | "sign_up"
   | "onboarding_completed"
   | "booking_accepted"
   | "booking_rejected"
