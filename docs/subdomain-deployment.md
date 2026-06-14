@@ -271,7 +271,9 @@ The app code is already shipped and dormant: `parseHost` rewrites `<slug>.l.inkl
    | `https://ab.l.inkl.ee/` (too short) | 308 → `https://inklee.app/` |
    | `https://admin.l.inkl.ee/` (reserved) | 308 → `https://inklee.app/` |
 
-No env flip and no redeploy are required: `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` is already `inkl.ee`, so `publicHubUrl()` is already emitting `<slug>.l.inkl.ee` — those links just 404 at the TLS layer until step 2 completes. **Production is currently frozen** (see roadmap deploy-freeze callout); do steps 2–4 only once prod deploys are unfrozen, or against a preview as applicable.
+No env flip and no redeploy are required: `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` is already `inkl.ee`, so `publicHubUrl()` is already emitting `<slug>.l.inkl.ee` (those links just 404 at the TLS layer until step 2 completes). **Production is currently frozen** (see roadmap deploy-freeze callout).
+
+> **Verified 2026-06-14: step 2 CANNOT run while prod is frozen.** `vercel domains add "*.l.inkl.ee"` is rejected by Vercel with `domain_add_failed` / "Your project's latest production deployment has errored. Therefore, the domain cannot be assigned. (400)". Vercel gates **new domain assignment** on a GREEN latest production deployment, so a wildcard cannot be attached until the freeze is resolved (a successful prod deploy exists). The earlier note about doing this "against a preview as applicable" does NOT apply: project-domain assignment checks the production deployment regardless. Do step 2 only after prod has a successful deployment that contains the hub code (`feat/mobile-e1`).
 
 ### Rollback
 
