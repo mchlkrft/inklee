@@ -252,7 +252,12 @@ export default function SettingsHubScreen() {
         <SectionLabel>Tools</SectionLabel>
         <Card>
           <SettingsRow
+            label="Link Hub"
+            onPress={() => router.push("/settings/link-hub")}
+          />
+          <SettingsRow
             label="Insights"
+            divider
             onPress={() => router.push("/insights")}
           />
           <SettingsRow

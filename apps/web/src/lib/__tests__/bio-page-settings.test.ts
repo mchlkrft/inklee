@@ -35,6 +35,17 @@ describe("sanitizeBioLinkUrl", () => {
     expect(sanitizeBioLinkUrl("mailto:not-an-email")).toBeNull();
   });
 
+  it("treats a bare email address as mailto, not https", () => {
+    expect(sanitizeBioLinkUrl("hi@artist.com")).toBe("mailto:hi@artist.com");
+    expect(sanitizeBioLinkUrl("  hi@artist.com  ")).toBe(
+      "mailto:hi@artist.com",
+    );
+  });
+
+  it("does not mistake a bare domain for an email", () => {
+    expect(sanitizeBioLinkUrl("artist.com")).toBe("https://artist.com/");
+  });
+
   it("rejects unsafe schemes", () => {
     expect(sanitizeBioLinkUrl("javascript:alert(1)")).toBeNull();
     expect(sanitizeBioLinkUrl("  javascript:alert(1)")).toBeNull();
@@ -133,6 +144,15 @@ describe("parseBioPageSettings", () => {
     });
     expect(result.socials).toEqual([
       { platform: "instagram", url: "https://instagram.com/jane" },
+      { platform: "email", url: "mailto:hi@jane.com" },
+    ]);
+  });
+
+  it("turns a bare email social into a mailto link", () => {
+    const result = parseBioPageSettings({
+      socials: [{ platform: "email", url: "hi@jane.com" }],
+    });
+    expect(result.socials).toEqual([
       { platform: "email", url: "mailto:hi@jane.com" },
     ]);
   });

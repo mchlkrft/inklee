@@ -27,6 +27,12 @@ export const config = {
    * (https://<slug>.inkl.ee). Mirrors the web `publicArtistUrl` subdomain mode.
    */
   publicUrl: (slug: string) => API_URL.replace(/^https:\/\//, `https://${slug}.`),
+  /**
+   * Public Inklee Hub ("Linklee") for a slug = a second-level subdomain
+   * (https://<slug>.l.inkl.ee). Mirrors the web `publicHubUrl(slug)`.
+   */
+  hubUrl: (slug: string) =>
+    API_URL.replace(/^https:\/\//, `https://${slug}.l.`),
   /** Public waitlist join page (the bio subdomain + /waitlist). Mirrors the web
    *  `publicArtistUrl(slug, { subpath: "/waitlist" })`. */
   waitlistUrl: (slug: string) =>

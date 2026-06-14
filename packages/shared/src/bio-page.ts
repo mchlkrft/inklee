@@ -94,6 +94,10 @@ export const MAX_SOCIALS = BIO_SOCIAL_PLATFORMS.length;
 const MODULE_KEYS = new Set<BioModuleKey>(BIO_MODULE_ORDER);
 const SOCIAL_KEYS = new Set<BioSocialPlatform>(BIO_SOCIAL_PLATFORMS);
 
+/** A simple "looks like an email" check (one @, a dotted domain). Used for both
+ *  mailto: addresses and bare email input that should become a mailto link. */
+const SIMPLE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function isBioModuleKey(v: unknown): v is BioModuleKey {
   return typeof v === "string" && MODULE_KEYS.has(v as BioModuleKey);
 }
@@ -115,13 +119,18 @@ export function sanitizeBioLinkUrl(raw: unknown): string | null {
   // mailto: accept a simple address form only.
   if (v.toLowerCase().startsWith("mailto:")) {
     const addr = v.slice("mailto:".length).trim();
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr) ? `mailto:${addr}` : null;
+    return SIMPLE_EMAIL_RE.test(addr) ? `mailto:${addr}` : null;
   }
+
+  // A bare email address (no scheme) is a mailto, not a website: without this it
+  // gets https:// prepended and becomes https://user@host (a broken link). Backs
+  // the Hub editor's "you@email.com" affordance on email links + the email social.
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(v);
+  if (!hasScheme && SIMPLE_EMAIL_RE.test(v)) return `mailto:${v}`;
 
   // Prepend https:// only when there is no scheme at all. A value that already
   // carries a scheme (including javascript:/data:) is left for URL() to judge,
   // so we never accidentally turn `javascript:alert(1)` into a valid URL.
-  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(v);
   const candidate = hasScheme ? v : `https://${v}`;
 
   let parsed: URL;
