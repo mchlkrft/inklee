@@ -26,6 +26,7 @@ export function TextField({
   rightSlot,
   onFocus,
   onBlur,
+  style,
   ...input
 }: TextFieldProps) {
   const colors = useColors();
@@ -55,7 +56,19 @@ export function TextField({
             onBlur?.(e);
           }}
           placeholderTextColor={colors.shell.mute}
-          className="h-full flex-1 text-base text-foreground"
+          className="h-full flex-1 text-foreground"
+          // Vertical centering: a `lineHeight` (which `text-base` sets) offsets
+          // single-line text on iOS, so set the size directly with no line
+          // height; zero the default padding and center on Android.
+          style={[
+            {
+              fontSize: 16,
+              paddingVertical: 0,
+              textAlignVertical: "center",
+              includeFontPadding: false,
+            },
+            style,
+          ]}
         />
         {rightSlot ? <View className="pl-2">{rightSlot}</View> : null}
       </View>

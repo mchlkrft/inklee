@@ -23,14 +23,19 @@ export function Segmented<T extends string>({
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={() => onChange(o.value)}
+            // Unselected segments get a contrasting fill + full-contrast text so
+            // the control stays legible in light mode (a bare hairline border on
+            // the bone card was nearly invisible).
             className={`h-11 min-w-[88px] flex-1 items-center justify-center rounded-xl border active:opacity-80 ${
-              selected ? "border-mustard bg-mustard" : "border-shell-border"
+              selected
+                ? "border-mustard bg-mustard"
+                : "border-shell-border bg-background"
             }`}
           >
             <Text
               numberOfLines={1}
               className={`text-sm font-medium ${
-                selected ? "text-charcoal" : "text-shell-dim"
+                selected ? "text-charcoal" : "text-foreground"
               }`}
             >
               {o.label}
