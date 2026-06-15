@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import StatusBadge from "@/components/status-badge";
 import BookingLinkWidget from "./booking-link-widget";
-import { publicArtistUrl } from "@/lib/public-url";
+import { publicArtistUrl, publicHubUrl } from "@/lib/public-url";
 import { customerLabel } from "@/lib/booking-domain";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import { TravelIcon } from "@/components/travel-icon";
@@ -140,6 +140,7 @@ export default async function DashboardPage() {
 
   const publicUrl = publicArtistUrl(profile?.slug);
   const waitlistUrl = publicArtistUrl(profile?.slug, { subpath: "/waitlist" });
+  const hubUrl = publicHubUrl(profile?.slug);
 
   // Zero-request post-onboarding artists get a prominent share-your-link card
   // (D13) and an always-visible BookingLinkWidget regardless of the toggle (D12).
@@ -392,7 +393,11 @@ export default async function DashboardPage() {
         )}
 
         {(widgets.booking_link || isZeroRequest) && profile?.slug && (
-          <BookingLinkWidget publicUrl={publicUrl} waitlistUrl={waitlistUrl} />
+          <BookingLinkWidget
+            publicUrl={publicUrl}
+            waitlistUrl={waitlistUrl}
+            hubUrl={hubUrl}
+          />
         )}
       </div>
 

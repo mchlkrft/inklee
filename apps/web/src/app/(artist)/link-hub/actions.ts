@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   parseBioPageSettings,
-  type BioModuleKey,
   type BioPageSettings,
 } from "@/lib/bio-page-settings";
 
@@ -20,14 +19,10 @@ export async function saveBioPageAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const bookingPolicy =
-    ((formData.get("booking_policy") as string | null) ?? "").trim() || null;
-
-  // Unchecked "Show" boxes are absent from FormData; absence => hidden.
-  const hidden: BioModuleKey[] = [];
-  if (formData.get("show_links") !== "on") hidden.push("links");
-  if (formData.get("show_policy") !== "on") hidden.push("policy");
-  if (formData.get("show_shop") !== "on") hidden.push("shop");
+  const headline =
+    ((formData.get("hub_headline") as string | null) ?? "").trim() || null;
+  const text =
+    ((formData.get("hub_text") as string | null) ?? "").trim() || null;
 
   let linksInput: unknown = [];
   const linksRaw = formData.get("custom_links");
@@ -50,18 +45,6 @@ export async function saveBioPageAction(
     }
   }
 
-  // Round-trip through the parser so every field is validated + sanitized in one
-  // place: URL safety (no javascript:/data:), length caps, module-key filtering,
-  // per-platform social dedupe.
-  const settings: BioPageSettings = parseBioPageSettings({
-    bookingPolicy,
-    customLinks: linksInput,
-    socials: socialsInput,
-    hidden,
-  });
-
-  const dropped = inputLinkCount - settings.customLinks.length;
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("slug, settings")
@@ -69,6 +52,21 @@ export async function saveBioPageAction(
     .single();
 
   const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
+  const currentBio = parseBioPageSettings(currentSettings.bio_page);
+
+  // The Link Hub editor owns only headline / text / links / socials. Spread the
+  // current bio_page first so bookingPolicy + module visibility (`hidden`) —
+  // edited on /bookings/settings — are preserved untouched. Round-trip through
+  // the shared parser so every field is validated + sanitized in one place.
+  const settings: BioPageSettings = parseBioPageSettings({
+    ...currentBio,
+    headline,
+    text,
+    customLinks: linksInput,
+    socials: socialsInput,
+  });
+
+  const dropped = inputLinkCount - settings.customLinks.length;
 
   const { error } = await supabase
     .from("profiles")

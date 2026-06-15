@@ -1,13 +1,21 @@
 import Link from "next/link";
-import { CalendarDays, SlidersHorizontal, Clock, MapPin } from "lucide-react";
+import {
+  CalendarDays,
+  SlidersHorizontal,
+  Clock,
+  MapPin,
+  FileText,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { listSlotsForArtist } from "@/lib/server/slots";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { parseBioPageSettings, isModuleVisible } from "@/lib/bio-page-settings";
 import { IconChip } from "@/components/ui/card";
 import BookingModeForm from "./booking-mode-form";
 import AvailabilityForm from "./availability-form";
+import BookingPolicyForm from "./booking-policy-form";
 import AddSlotButton from "../slots/add-slot-button";
 import SlotList from "../slots/slot-list";
 
@@ -27,6 +35,7 @@ export default async function BookingSettingsPage() {
   const bookingMode = profile?.booking_mode ?? "preferred_date";
   const profileSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
+  const bioPage = parseBioPageSettings(profileSettings.bio_page);
 
   // Shared read (lib/server/slots.ts) — the mobile slots list uses the same
   // query, so both platforms show the same rows.
@@ -120,6 +129,27 @@ export default async function BookingSettingsPage() {
           <SlotList slots={formattedSlots} />
         </section>
       )}
+
+      {/* Booking policy — shown on the public booking page (moved here from the
+          Link Hub editor; it is a booking-page concern, not a link-in-bio one) */}
+      <section className="space-y-4">
+        <div className="border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <IconChip icon={FileText} tint="bone" size="sm" />
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Booking policy
+            </h2>
+          </div>
+          <p className="mt-1.5 text-sm text-foreground">
+            Deposit, cancellation, minimum size, the work you take on. Shown on
+            your booking page.
+          </p>
+        </div>
+        <BookingPolicyForm
+          policy={bioPage.bookingPolicy ?? ""}
+          show={isModuleVisible(bioPage, "policy")}
+        />
+      </section>
 
       {/* Studios — secondary entry point to the studio library */}
       <section className="space-y-4">

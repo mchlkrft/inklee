@@ -5,7 +5,8 @@ import { Trash2, Plus, ArrowUp, ArrowDown } from "lucide-react";
 import { saveBioPageAction } from "./actions";
 import {
   MAX_LINKS,
-  MAX_BOOKING_POLICY,
+  MAX_HEADLINE,
+  MAX_TEXT,
   MAX_LINK_LABEL,
   MAX_SOCIALS,
   BIO_SOCIAL_PLATFORMS,
@@ -31,22 +32,20 @@ function makeLink(): BioCustomLink {
   return { id, label: "", url: "", isActive: true };
 }
 
+// The Link Hub editor owns the standalone link-in-bio page: a headline, a short
+// description, the social icon row, and the link buttons. Booking policy + shop
+// are booking-page concerns and live in /bookings/settings, not here. The save
+// action preserves those fields so editing the Hub never touches them.
 export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
   const [state, action, pending] = useActionState<State, FormData>(
     saveBioPageAction,
     null,
   );
 
-  const [bookingPolicy, setBookingPolicy] = useState(
-    bioPage.bookingPolicy ?? "",
-  );
+  const [headline, setHeadline] = useState(bioPage.headline ?? "");
+  const [text, setText] = useState(bioPage.text ?? "");
   const [links, setLinks] = useState<BioCustomLink[]>(bioPage.customLinks);
   const [socials, setSocials] = useState<BioSocial[]>(bioPage.socials);
-  const [showLinks, setShowLinks] = useState(!bioPage.hidden.includes("links"));
-  const [showPolicy, setShowPolicy] = useState(
-    !bioPage.hidden.includes("policy"),
-  );
-  const [showShop, setShowShop] = useState(!bioPage.hidden.includes("shop"));
 
   const updateLink = (id: string, patch: Partial<BioCustomLink>) =>
     setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
@@ -86,25 +85,57 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
       <input type="hidden" name="custom_links" value={JSON.stringify(links)} />
       <input type="hidden" name="socials" value={JSON.stringify(socials)} />
 
+      {/* Headline */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Headline</h2>
+          <p className="text-sm text-muted-foreground">
+            A short tagline shown under your name on your Link Hub.
+          </p>
+        </div>
+        <input
+          name="hub_headline"
+          value={headline}
+          onChange={(e) => setHeadline(e.target.value.slice(0, MAX_HEADLINE))}
+          placeholder="e.g. Fine-line tattoos in Berlin"
+          className={INPUT}
+        />
+        <p className="text-right text-xs text-muted-foreground">
+          {headline.length}/{MAX_HEADLINE}
+        </p>
+      </section>
+
+      {/* Text */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Text</h2>
+          <p className="text-sm text-muted-foreground">
+            A short description for your Link Hub. Falls back to your profile
+            bio when left empty.
+          </p>
+        </div>
+        <textarea
+          name="hub_text"
+          rows={4}
+          maxLength={MAX_TEXT}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. Booking a few custom pieces this season. Tap a link below or book a tattoo."
+          className={`${INPUT} resize-none`}
+        />
+        <p className="text-right text-xs text-muted-foreground">
+          {text.length}/{MAX_TEXT}
+        </p>
+      </section>
+
       {/* Links */}
       <section className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Links</h2>
-            <p className="text-sm text-muted-foreground">
-              Aftercare, portfolio, shop, anything. Shown as buttons on your
-              Link Hub.
-            </p>
-          </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              name="show_links"
-              checked={showLinks}
-              onChange={(e) => setShowLinks(e.target.checked)}
-            />
-            Show
-          </label>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Links</h2>
+          <p className="text-sm text-muted-foreground">
+            Aftercare, portfolio, shop, anything. Shown as buttons on your Link
+            Hub.
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -252,65 +283,6 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
             Add social
           </button>
         )}
-      </section>
-
-      {/* Booking policy */}
-      <section className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">
-              Booking policy
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Deposit, cancellation, minimum size, the work you take on. Shown
-              on your public page.
-            </p>
-          </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              name="show_policy"
-              checked={showPolicy}
-              onChange={(e) => setShowPolicy(e.target.checked)}
-            />
-            Show
-          </label>
-        </div>
-        <textarea
-          name="booking_policy"
-          rows={5}
-          maxLength={MAX_BOOKING_POLICY}
-          value={bookingPolicy}
-          onChange={(e) => setBookingPolicy(e.target.value)}
-          placeholder="e.g. A deposit holds your date. Deposits are non-refundable but carry to one reschedule with 48 hours notice."
-          className={`${INPUT} resize-none`}
-        />
-        <p className="text-right text-xs text-muted-foreground">
-          {bookingPolicy.length}/{MAX_BOOKING_POLICY}
-        </p>
-      </section>
-
-      {/* Shop */}
-      <section className="space-y-1">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Shop</h2>
-            <p className="text-sm text-muted-foreground">
-              Your goods for appointment pickup. The Goods module ships next;
-              this controls whether the shop section can show on your public
-              page.
-            </p>
-          </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              name="show_shop"
-              checked={showShop}
-              onChange={(e) => setShowShop(e.target.checked)}
-            />
-            Show
-          </label>
-        </div>
       </section>
 
       {state && "error" in state && (

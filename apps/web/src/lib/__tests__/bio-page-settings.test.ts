@@ -6,6 +6,8 @@ import {
   isModuleVisible,
   DEFAULT_BIO_PAGE,
   MAX_BOOKING_POLICY,
+  MAX_HEADLINE,
+  MAX_TEXT,
   MAX_LINKS,
 } from "../bio-page-settings";
 
@@ -82,6 +84,36 @@ describe("parseBioPageSettings", () => {
     expect(
       parseBioPageSettings({ bookingPolicy: "   " }).bookingPolicy,
     ).toBeNull();
+  });
+
+  it("trims and caps the headline and text, empty becomes null", () => {
+    expect(parseBioPageSettings({ headline: "  Hi  " }).headline).toBe("Hi");
+    expect(parseBioPageSettings({ text: "  Body  " }).text).toBe("Body");
+    expect(
+      parseBioPageSettings({ headline: "x".repeat(MAX_HEADLINE + 20) }).headline
+        ?.length,
+    ).toBe(MAX_HEADLINE);
+    expect(
+      parseBioPageSettings({ text: "x".repeat(MAX_TEXT + 20) }).text?.length,
+    ).toBe(MAX_TEXT);
+    expect(parseBioPageSettings({ headline: "   " }).headline).toBeNull();
+    expect(parseBioPageSettings({ text: "" }).text).toBeNull();
+  });
+
+  it("preserves booking policy + hidden when only hub fields change", () => {
+    const current = parseBioPageSettings({
+      bookingPolicy: "Deposits are non-refundable.",
+      hidden: ["policy", "shop"],
+    });
+    // Mirrors the Link Hub save: spread current, override only hub fields.
+    const next = parseBioPageSettings({
+      ...current,
+      headline: "New headline",
+      customLinks: [{ url: "https://x.com" }],
+    });
+    expect(next.bookingPolicy).toBe("Deposits are non-refundable.");
+    expect(next.hidden).toEqual(["policy", "shop"]);
+    expect(next.headline).toBe("New headline");
   });
 
   it("drops links with unsafe URLs but keeps safe ones", () => {

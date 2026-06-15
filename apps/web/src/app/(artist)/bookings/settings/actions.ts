@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { writeAudit } from "@/lib/audit";
 import { parseBooksSettings } from "@/lib/books-settings";
+import {
+  parseBioPageSettings,
+  type BioModuleKey,
+} from "@/lib/bio-page-settings";
 import { fileNoSlotsWarning } from "@/lib/server/slots";
 
 type State = { error: string } | { success: true } | null;
@@ -201,5 +205,60 @@ export async function saveFormAppearanceAction(
   revalidatePath("/bookings/settings");
   revalidatePath("/bookings/booking-form");
   revalidatePath("/[slug]");
+  return { success: true };
+}
+
+// Booking policy is stored in the shared bio_page model but edited here (it is a
+// booking-page concern, not a Link Hub one). Preserve the rest of bio_page
+// (headline/text/links/socials, owned by the Link Hub editor) and only touch the
+// policy text + its `policy` visibility flag, round-tripping through the shared
+// parser so validation lives in one place.
+export async function saveBookingPolicyAction(
+  _prev: State,
+  formData: FormData,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const policy =
+    ((formData.get("booking_policy") as string | null) ?? "").trim() || null;
+  const showOnPage = formData.get("show_policy") === "on";
+
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("slug, settings")
+    .eq("id", user.id)
+    .single();
+
+  const current = (existing?.settings ?? {}) as Record<string, unknown>;
+  const currentBio = parseBioPageSettings(current.bio_page);
+
+  // `policy` in `hidden` means the section is hidden on the booking page.
+  const hidden: BioModuleKey[] = currentBio.hidden.filter(
+    (k) => k !== "policy",
+  );
+  if (!showOnPage) hidden.push("policy");
+
+  const settings = parseBioPageSettings({
+    ...currentBio,
+    bookingPolicy: policy,
+    hidden,
+  });
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      settings: { ...current, bio_page: settings },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/bookings/settings");
+  if (existing?.slug) revalidatePath(`/${existing.slug}`);
   return { success: true };
 }

@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 
-// One shareable link: label, the bare URL, a copy button, and a preview that
-// opens the real public URL. Preview uses the absolute `url` (not `/${slug}`)
-// so it resolves correctly under subdomain routing too.
+// One shareable page link: label, the bare URL, a copy button, and a preview
+// that opens the real public URL. Preview uses the absolute `url` (not
+// `/${slug}`) so it resolves correctly under subdomain routing too.
 function LinkRow({ label, url }: { label: string; url: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -44,27 +43,26 @@ function LinkRow({ label, url }: { label: string; url: string }) {
   );
 }
 
+// The artist's three public pages: the booking page, the waitlist, and the
+// optional Link Hub. Share + preview each from one place.
 export default function BookingLinkWidget({
   publicUrl,
   waitlistUrl,
+  hubUrl,
 }: {
   publicUrl: string;
   waitlistUrl: string;
+  hubUrl: string;
 }) {
   return (
     <Card className="space-y-4">
       <CardHeader>
         <IconChip icon={Link2} tint="bone" />
-        <p className="text-sm font-medium text-foreground">Your links</p>
-        <Link
-          href="/bookings/booking-form"
-          className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Edit
-        </Link>
+        <p className="text-sm font-medium text-foreground">Your pages</p>
       </CardHeader>
-      <LinkRow label="Booking link" url={publicUrl} />
-      <LinkRow label="Waitlist link" url={waitlistUrl} />
+      <LinkRow label="Booking" url={publicUrl} />
+      <LinkRow label="Waitlist" url={waitlistUrl} />
+      <LinkRow label="Link Hub" url={hubUrl} />
     </Card>
   );
 }

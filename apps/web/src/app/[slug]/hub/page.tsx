@@ -110,9 +110,14 @@ export default async function ArtistHubPage({
             )}
           </div>
         )}
-        {profile.bio && (
+        {bioPage.headline && (
+          <p className="mt-2 max-w-sm text-sm font-medium text-brand-bone/90">
+            {bioPage.headline}
+          </p>
+        )}
+        {(bioPage.text ?? profile.bio) && (
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-brand-bone/75">
-            {profile.bio}
+            {bioPage.text ?? profile.bio}
           </p>
         )}
 

@@ -54,8 +54,6 @@ export async function POST(req: Request) {
     return mobileError(400, "Invalid request body.");
   }
 
-  const settings = parseBioPageSettings(raw);
-
   const { data: profile, error: readError } = await supabase
     .from("profiles")
     .select("slug, settings")
@@ -65,6 +63,17 @@ export async function POST(req: Request) {
     return mobileError(500, readError?.message ?? "Profile not found.");
   }
   const current = (profile.settings ?? {}) as Record<string, unknown>;
+  const currentBio = parseBioPageSettings(current.bio_page);
+
+  // Merge the incoming hub fields onto the current bio_page. The Link Hub editor
+  // owns headline/text/links/socials; bookingPolicy + module visibility
+  // (`hidden`) are edited on /bookings/settings. Spreading currentBio first
+  // preserves those, and spreading the body last keeps older clients that still
+  // send them working (backward compatible). One shared parser validates all.
+  const settings = parseBioPageSettings({
+    ...currentBio,
+    ...(raw as Record<string, unknown>),
+  });
 
   const { error } = await supabase
     .from("profiles")

@@ -71,6 +71,10 @@ export const BIO_SOCIAL_META: Record<BioSocialPlatform, { label: string }> = {
 };
 
 export type BioPageSettings = {
+  /** Optional Link Hub heading shown under the artist's name. */
+  headline: string | null;
+  /** Optional Link Hub description; the Hub falls back to the profile bio when null. */
+  text: string | null;
   bookingPolicy: string | null;
   customLinks: BioCustomLink[];
   /** Social icon row for the Hub. At most one entry per platform. */
@@ -80,12 +84,16 @@ export type BioPageSettings = {
 };
 
 export const DEFAULT_BIO_PAGE: BioPageSettings = {
+  headline: null,
+  text: null,
   bookingPolicy: null,
   customLinks: [],
   socials: [],
   hidden: [],
 };
 
+export const MAX_HEADLINE = 80;
+export const MAX_TEXT = 500;
 export const MAX_BOOKING_POLICY = 1000;
 export const MAX_LINK_LABEL = 60;
 export const MAX_LINKS = 12;
@@ -181,6 +189,16 @@ export function parseBioPageSettings(raw: unknown): BioPageSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_BIO_PAGE };
   const obj = raw as Record<string, unknown>;
 
+  const headline =
+    typeof obj.headline === "string" && obj.headline.trim()
+      ? obj.headline.trim().slice(0, MAX_HEADLINE)
+      : null;
+
+  const text =
+    typeof obj.text === "string" && obj.text.trim()
+      ? obj.text.trim().slice(0, MAX_TEXT)
+      : null;
+
   const bookingPolicy =
     typeof obj.bookingPolicy === "string" && obj.bookingPolicy.trim()
       ? obj.bookingPolicy.trim().slice(0, MAX_BOOKING_POLICY)
@@ -199,7 +217,7 @@ export function parseBioPageSettings(raw: unknown): BioPageSettings {
 
   const socials = parseSocials(obj.socials);
 
-  return { bookingPolicy, customLinks, socials, hidden };
+  return { headline, text, bookingPolicy, customLinks, socials, hidden };
 }
 
 export function isModuleVisible(
