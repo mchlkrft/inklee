@@ -53,11 +53,6 @@ export async function POST(req: Request) {
   } catch {
     return mobileError(400, "Invalid JSON body.");
   }
-  const body = (raw ?? {}) as Record<string, unknown>;
-  const bookingPolicy =
-    typeof body.bookingPolicy === "string" ? body.bookingPolicy : null;
-  const show = body.show !== false; // default to shown
-
   const { data: profile, error: readError } = await supabase
     .from("profiles")
     .select("slug, settings")
@@ -68,6 +63,18 @@ export async function POST(req: Request) {
   }
   const current = (profile.settings ?? {}) as Record<string, unknown>;
   const currentBio = parseBioPageSettings(current.bio_page);
+
+  // Partial update: a field absent from the body keeps its stored value, so a
+  // caller toggling only `show` can't wipe the text (and vice versa).
+  const body = (raw ?? {}) as Record<string, unknown>;
+  const bookingPolicy =
+    typeof body.bookingPolicy === "string"
+      ? body.bookingPolicy
+      : currentBio.bookingPolicy;
+  const show =
+    typeof body.show === "boolean"
+      ? body.show
+      : !currentBio.hidden.includes("policy");
 
   const hidden: BioModuleKey[] = currentBio.hidden.filter(
     (k) => k !== "policy",

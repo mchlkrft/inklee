@@ -65,14 +65,18 @@ export async function POST(req: Request) {
   const current = (profile.settings ?? {}) as Record<string, unknown>;
   const currentBio = parseBioPageSettings(current.bio_page);
 
-  // Merge the incoming hub fields onto the current bio_page. The Link Hub editor
-  // owns headline/text/links/socials; bookingPolicy + module visibility
-  // (`hidden`) are edited on /bookings/settings. Spreading currentBio first
-  // preserves those, and spreading the body last keeps older clients that still
-  // send them working (backward compatible). One shared parser validates all.
+  // The Link Hub editor owns ONLY headline/text/links/socials; bookingPolicy +
+  // module visibility (`hidden`) are edited on /bookings/settings. Pick just the
+  // hub fields from the body and keep bookingPolicy/hidden from currentBio, so no
+  // client (old or new) can clobber booking-page state through the hub endpoint.
+  // One shared parser validates everything.
+  const body = raw as Record<string, unknown>;
   const settings = parseBioPageSettings({
     ...currentBio,
-    ...(raw as Record<string, unknown>),
+    headline: body.headline,
+    text: body.text,
+    customLinks: body.customLinks,
+    socials: body.socials,
   });
 
   const { error } = await supabase

@@ -66,7 +66,11 @@ export async function saveBioPageAction(
     socials: socialsInput,
   });
 
-  const dropped = inputLinkCount - settings.customLinks.length;
+  const inputSocialCount = Array.isArray(socialsInput)
+    ? socialsInput.length
+    : 0;
+  const droppedLinks = inputLinkCount - settings.customLinks.length;
+  const droppedSocials = inputSocialCount - settings.socials.length;
 
   const { error } = await supabase
     .from("profiles")
@@ -81,10 +85,19 @@ export async function saveBioPageAction(
   revalidatePath("/link-hub");
   if (profile?.slug) revalidatePath(`/${profile.slug}/hub`);
 
-  if (dropped > 0) {
+  // Mirror the mobile editor's buildSavedNote: report dropped links AND socials
+  // so an entry the parser sanitized away isn't silently lost.
+  const parts: string[] = [];
+  if (droppedLinks > 0) {
+    parts.push(`${droppedLinks} link${droppedLinks === 1 ? "" : "s"}`);
+  }
+  if (droppedSocials > 0) {
+    parts.push(`${droppedSocials} social${droppedSocials === 1 ? "" : "s"}`);
+  }
+  if (parts.length > 0) {
     return {
       success: true,
-      note: `Saved. ${dropped} link${dropped === 1 ? "" : "s"} skipped (unsafe or invalid URL).`,
+      note: `Saved. ${parts.join(" and ")} skipped (unsafe or invalid URL).`,
     };
   }
   return { success: true };
