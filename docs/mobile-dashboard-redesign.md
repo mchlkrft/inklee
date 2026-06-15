@@ -85,7 +85,7 @@ Reference hierarchy (greeting → glance boxes → action feed) + Inklee's inlin
 
 1. **Greeting + date** (always; thin chrome). Rotating greeting (see §6) replacing the static "Overview" subline; date below. No tap target. The counts below are the real content (a11y).
 2. **Glance grid** (always):
-   - **Hero — Requests waiting**: `pendingCount`, accent-tinted box, Inbox chip, label "Requests waiting". Whole box → `/bookings`. Optional context pill **"N new today"** (requires a small payload addition — count of pending created today; nice-to-have, ship without it if not trivial). Do **not** show a "% vs last week" trend — Inklee does not compute it; do not fake it.
+   - **Hero — Requests waiting**: `pendingCount`, accent-tinted box, Inbox chip, label "Requests waiting". Whole box → `/bookings`. **v1 ships the count alone** (founder decision); the "N new today" pill is deferred (would need a small payload addition). Do **not** show a "% vs last week" trend — Inklee does not compute it; do not fake it.
    - **Satellite — Upcoming**: `upcomingCount`, CalendarDays/rosa → `/bookings/calendar`.
    - **Satellite — Deposits due** (conditional, only when `outstandingCount > 0`): overdue+awaiting count, tinted danger if any overdue → the deposits view (`(tabs)/bookings/deposits`). New money-shaped signal on Home.
    - **Satellite — This month**: `thisMonthCount` (requests received this month) → `/insights`. The single volume glance so no chart is needed on Home.
@@ -128,15 +128,15 @@ A proper slice; plan → build → adversarial review → verify, like the recen
 2. **Shared:** any ranking/derivation that both surfaces need goes in `packages/shared` or `apps/web/src/lib/server/*` (not duplicated). Reuse `deposit-state.ts` for deposit classification.
 3. **Mobile (`(tabs)/index.tsx`):** new greeting helper (rotating, per-login, state-aware) → glance grid (hero + satellites) → action-required feed (ranked, inline verbs reusing `BookingActions`) → ambient (guest spots, pages, insights). Optimistic count updates on Accept/Pass/Mark-received + query invalidation.
 4. **Web parity:** mirror the structure on the web dashboard (greeting, glance grid, action feed with inline server-action buttons). One-source-of-truth for the feed/ranking logic.
-5. **Toggles:** reconcile `dashboard-settings.ts` with the new surface (the grid is always-on; the feed is always-on when it has items; ambient cards keep toggles). Decide whether the grid satellites are individually toggleable or a single "overview" toggle.
+5. **Toggles:** the glance grid + action feed are **always-on** (not toggleable); **only the ambient cards keep per-widget toggles** (founder decision). Reconcile `dashboard-settings.ts`: the `pending_requests` + `upcoming_appointments` toggles fold away (those now live in the always-on grid/feed), keep toggles for `guest_spots` and `booking_link` ("Pages"); Insights stays always-on as today. Migrate/parse legacy values so existing artist settings don't break.
 6. **Review + verify:** typecheck + lint + build (both apps) + the shared tests; adversarial review (data integrity of the inline mutations on Home, optimistic-update correctness, ranking, parity); then merge (web auto-deploys) + next Expo build for mobile.
 
-## 9. Open questions for the founder
+## 9. Resolved decisions (2026-06-15)
 
-- **"N new today" pill** on the hero — worth the small payload addition, or ship hero as just the count first?
-- **Deposits-due satellite** — show it always (dimmed at 0) or only when > 0 (current spec: only when > 0)?
-- **Toggle granularity** — keep the existing per-widget toggles for the ambient cards only, or also let the artist toggle the glance satellites?
-- **Web scope** — land web + mobile together (parity) in one slice, or mobile-first then web follow-up?
+- **Hero pill:** none for v1 — the hero ships the **count alone**; the "N new today" pill is deferred.
+- **Deposits-due satellite:** shown **only when there are deposits outstanding** (`outstandingCount > 0`); hidden otherwise (no dimmed-at-zero box).
+- **Toggle granularity:** **ambient cards only** keep per-widget toggles; the glance grid + action feed are always-on.
+- **Scope:** **web + mobile together** in one slice (parity), not mobile-first.
 
 ## 10. Out of scope / risks
 
