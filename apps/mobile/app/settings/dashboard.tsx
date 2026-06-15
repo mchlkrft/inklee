@@ -18,7 +18,7 @@ const ROWS: { key: keyof DashboardWidgets; label: string }[] = [
   { key: "upcoming_appointments", label: "Upcoming appointments" },
   { key: "guest_spots", label: "Upcoming guest spots" },
   { key: "waitlist", label: "Waitlist" },
-  { key: "booking_link", label: "Booking link" },
+  { key: "booking_link", label: "Pages" },
 ];
 
 export default function DashboardSettingsScreen() {

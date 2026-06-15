@@ -201,6 +201,11 @@ export default function SettingsHubScreen() {
             label="Booking settings"
             onPress={() => router.push("/settings/books")}
           />
+          <SettingsRow
+            label="Booking policy"
+            divider
+            onPress={() => router.push("/settings/booking-policy")}
+          />
           {me.bookingMode === "fixed_slots" ? (
             <SettingsRow
               label="Time slots"

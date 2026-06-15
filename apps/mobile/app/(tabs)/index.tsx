@@ -169,6 +169,7 @@ export default function HomeScreen() {
 
   const publicUrl = data?.slug ? config.publicUrl(data.slug) : null;
   const waitlistUrl = data?.slug ? config.waitlistUrl(data.slug) : null;
+  const hubUrl = data?.slug ? config.hubUrl(data.slug) : null;
 
   return (
     <Screen edges={["left", "right"]} topBar={<TopBar />}>
@@ -374,23 +375,14 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {/* Your links */}
-            {showLinks && publicUrl && waitlistUrl ? (
+            {/* Your pages */}
+            {showLinks && publicUrl && waitlistUrl && hubUrl ? (
               <View className="mt-3">
                 <Card>
-                  <CardHeader
-                    icon={Link2}
-                    tint="bone"
-                    title="Your links"
-                    trailing={
-                      <HeaderLink
-                        label="Edit"
-                        onPress={() => router.push("/settings/books")}
-                      />
-                    }
-                  />
-                  <LinkRow label="Booking link" url={publicUrl} />
-                  <LinkRow label="Waitlist link" url={waitlistUrl} />
+                  <CardHeader icon={Link2} tint="bone" title="Your pages" />
+                  <LinkRow label="Booking" url={publicUrl} />
+                  <LinkRow label="Waitlist" url={waitlistUrl} />
+                  <LinkRow label="Link Hub" url={hubUrl} />
                 </Card>
               </View>
             ) : null}

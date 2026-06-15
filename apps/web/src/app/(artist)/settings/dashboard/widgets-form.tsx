@@ -11,7 +11,7 @@ const WIDGET_LABELS: Record<keyof DashboardWidgets, string> = {
   upcoming_appointments: "Upcoming appointments",
   guest_spots: "Upcoming guest spots",
   waitlist: "Waitlist",
-  booking_link: "Booking link",
+  booking_link: "Pages",
 };
 
 export default function DashboardWidgetsForm({

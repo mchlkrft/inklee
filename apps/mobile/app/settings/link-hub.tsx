@@ -28,7 +28,8 @@ import { useScreenView } from "@/lib/analytics";
 import {
   BIO_SOCIAL_META,
   BIO_SOCIAL_PLATFORMS,
-  MAX_BOOKING_POLICY,
+  MAX_HEADLINE,
+  MAX_TEXT,
   MAX_LINKS,
   MAX_LINK_LABEL,
   MAX_SOCIALS,
@@ -39,11 +40,11 @@ import {
 } from "@inklee/shared/bio-page";
 import type { MobileMe } from "@inklee/shared/mobile-api";
 
-// Native Link Hub editor — mirrors the web /link-hub form (links, socials,
-// booking policy, shop visibility), saved via POST /api/mobile/settings/hub. The
-// model + validation + labels all come from @inklee/shared/bio-page (one source
-// of truth); this screen only owns the React Native presentation. The booking
-// page is untouched — the Hub is the standalone /<slug>/hub surface.
+// Native Link Hub editor — mirrors the web /link-hub form (headline, text,
+// socials, links), saved via POST /api/mobile/settings/hub. The model +
+// validation + labels come from @inklee/shared/bio-page (one source of truth);
+// this screen owns only the React Native presentation. Booking policy + shop are
+// booking-page concerns and live in booking settings, not here.
 
 // lucide-react-native has NO brand logos, so social glyphs use Ionicons `logo-*`
 // (verified present in the Ionicons glyphmap); website/email fall back to a
@@ -72,8 +73,7 @@ function makeLink(): BioCustomLink {
 
 // The parser silently drops links/socials with an unsafe or invalid URL, and we
 // re-sync state from the saved result, so an entry can vanish. Surface what was
-// skipped (the web form only reports links; reporting socials too avoids silent
-// data loss when an email/social URL is invalid).
+// skipped so an invalid URL doesn't disappear with only "Saved." shown.
 function buildSavedNote(droppedLinks: number, droppedSocials: number): string {
   const parts: string[] = [];
   if (droppedLinks > 0) {
@@ -114,28 +114,6 @@ export default function LinkHubScreen() {
   return <HubForm initial={q.data} slug={meQ.data?.slug ?? null} />;
 }
 
-function ShowSwitch({
-  value,
-  onValueChange,
-}: {
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-}) {
-  const colors = useColors();
-  return (
-    <View className="flex-row items-center justify-between">
-      <Text className="text-sm text-shell-dim">Show on Link Hub</Text>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: "rgba(0,0,0,0.35)", true: colors.mustard }}
-        thumbColor={colors.bone}
-        ios_backgroundColor="rgba(0,0,0,0.35)"
-      />
-    </View>
-  );
-}
-
 function HubForm({
   initial,
   slug,
@@ -146,16 +124,10 @@ function HubForm({
   const queryClient = useQueryClient();
   const colors = useColors();
 
-  const [bookingPolicy, setBookingPolicy] = useState(
-    initial.bookingPolicy ?? "",
-  );
+  const [headline, setHeadline] = useState(initial.headline ?? "");
+  const [text, setText] = useState(initial.text ?? "");
   const [links, setLinks] = useState<BioCustomLink[]>(initial.customLinks);
   const [socials, setSocials] = useState<BioSocial[]>(initial.socials);
-  const [showLinks, setShowLinks] = useState(!initial.hidden.includes("links"));
-  const [showPolicy, setShowPolicy] = useState(
-    !initial.hidden.includes("policy"),
-  );
-  const [showShop, setShowShop] = useState(!initial.hidden.includes("shop"));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -190,9 +162,7 @@ function HubForm({
 
   const updateSocialUrl = (index: number, url: string) => {
     dirty();
-    setSocials((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, url } : s)),
-    );
+    setSocials((prev) => prev.map((s, i) => (i === index ? { ...s, url } : s)));
   };
   const removeSocial = (index: number) => {
     dirty();
@@ -217,34 +187,27 @@ function HubForm({
     setError(null);
     setNote(null);
 
-    const hidden: BioPageSettings["hidden"] = [];
-    if (!showLinks) hidden.push("links");
-    if (!showPolicy) hidden.push("policy");
-    if (!showShop) hidden.push("shop");
-
     const sentLinkCount = links.length;
     const sentSocialCount = socials.length;
 
     try {
-      // The server round-trips this through parseBioPageSettings and returns the
-      // sanitized result; reset local state to it so dropped/normalized values
-      // are reflected (same round-trip the web form does).
+      // The Link Hub editor owns only headline / text / links / socials. The
+      // server merges these onto the current bio_page (preserving bookingPolicy
+      // + module visibility) and returns the sanitized result; reset local state
+      // to it so dropped/normalized values reflect.
       const saved = await apiPost<BioPageSettings>("/settings/hub", {
-        bookingPolicy: bookingPolicy.trim() || null,
+        headline: headline.trim() || null,
+        text: text.trim() || null,
         customLinks: links,
         socials,
-        hidden,
       });
-      setBookingPolicy(saved.bookingPolicy ?? "");
+      setHeadline(saved.headline ?? "");
+      setText(saved.text ?? "");
       setLinks(saved.customLinks);
       setSocials(saved.socials);
-      setShowLinks(!saved.hidden.includes("links"));
-      setShowPolicy(!saved.hidden.includes("policy"));
-      setShowShop(!saved.hidden.includes("shop"));
       await queryClient.invalidateQueries({
         queryKey: ["api", "/settings/hub"],
       });
-
       setNote(
         buildSavedNote(
           sentLinkCount - saved.customLinks.length,
@@ -268,8 +231,8 @@ function HubForm({
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
       >
         <Text className="text-sm text-shell-dim">
-          A standalone link-in-bio page for your socials, links, and booking
-          policy. It never replaces your booking page.
+          A standalone link-in-bio page for your headline, links, and socials. It
+          never replaces your booking page.
         </Text>
         {hubUrl ? (
           <Pressable
@@ -287,11 +250,48 @@ function HubForm({
           </Pressable>
         ) : null}
 
+        {/* Headline */}
+        <SectionLabel>Headline</SectionLabel>
+        <Card>
+          <Text className="mb-2 text-sm text-shell-dim">
+            A short tagline shown under your name on your Link Hub.
+          </Text>
+          <TextField
+            value={headline}
+            onChangeText={(v) => {
+              dirty();
+              setHeadline(v.slice(0, MAX_HEADLINE));
+            }}
+            placeholder="e.g. Fine-line tattoos in Berlin"
+            accessibilityLabel="Headline"
+          />
+        </Card>
+
+        {/* Text */}
+        <SectionLabel>Text</SectionLabel>
+        <Card>
+          <Text className="mb-3 text-sm text-shell-dim">
+            A short description for your Link Hub. Falls back to your profile bio
+            when left empty.
+          </Text>
+          <TextArea
+            value={text}
+            onChangeText={(v) => {
+              dirty();
+              setText(v);
+            }}
+            maxLength={MAX_TEXT}
+            showCounter
+            minHeight={100}
+            placeholder="e.g. Booking a few custom pieces this season."
+            accessibilityLabel="Link Hub text"
+          />
+        </Card>
+
         {/* Links */}
         <SectionLabel>Links</SectionLabel>
         <Card>
-          <ShowSwitch value={showLinks} onValueChange={setShowLinks} />
-          <Text className="mt-1 text-sm text-shell-dim">
+          <Text className="text-sm text-shell-dim">
             Aftercare, portfolio, shop, anything. Shown as buttons on your Link
             Hub.
           </Text>
@@ -417,9 +417,7 @@ function HubForm({
                 placeholder={
                   s.platform === "email" ? "you@email.com" : "https://…"
                 }
-                keyboardType={
-                  s.platform === "email" ? "email-address" : "url"
-                }
+                keyboardType={s.platform === "email" ? "email-address" : "url"}
                 autoCapitalize="none"
                 autoCorrect={false}
                 accessibilityLabel={`${BIO_SOCIAL_META[s.platform].label} URL`}
@@ -452,38 +450,6 @@ function HubForm({
               </View>
             </View>
           ) : null}
-        </Card>
-
-        {/* Booking policy */}
-        <SectionLabel>Booking policy</SectionLabel>
-        <Card>
-          <ShowSwitch value={showPolicy} onValueChange={setShowPolicy} />
-          <Text className="mb-3 mt-1 text-sm text-shell-dim">
-            Deposit, cancellation, minimum size, the work you take on. Shown on
-            your public page.
-          </Text>
-          <TextArea
-            value={bookingPolicy}
-            onChangeText={(v) => {
-              dirty();
-              setBookingPolicy(v);
-            }}
-            maxLength={MAX_BOOKING_POLICY}
-            showCounter
-            minHeight={120}
-            placeholder="e.g. A deposit holds your date. Deposits are non-refundable but carry to one reschedule with 48 hours notice."
-            accessibilityLabel="Booking policy"
-          />
-        </Card>
-
-        {/* Shop */}
-        <SectionLabel>Shop</SectionLabel>
-        <Card>
-          <ShowSwitch value={showShop} onValueChange={setShowShop} />
-          <Text className="mt-1 text-sm text-shell-dim">
-            Your goods for appointment pickup. The Goods module ships next; this
-            controls whether the shop section can show on your public page.
-          </Text>
         </Card>
 
         {error ? (
