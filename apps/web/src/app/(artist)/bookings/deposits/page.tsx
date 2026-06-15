@@ -1,174 +1,176 @@
 import Link from "next/link";
-import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import {
-  parseDepositDefaults,
-  detectStripeMode,
-  type StripeMode,
-} from "@/lib/deposit-settings";
-import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
-import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
-import { parseDepositPolicy } from "@/lib/deposit-policy";
-import DepositsForm from "./deposits-form";
-import DepositPolicyForm from "./deposit-policy-form";
+import { getDepositsOverview } from "@/lib/server/deposits";
+import { formatDate } from "@/lib/format";
+import { formatMoneyShort } from "@inklee/shared/money";
+import type { MobileDepositListItem } from "@inklee/shared/mobile-api";
 
-// F3 (RS-5): the status shown here keys off the ARTIST'S Stripe Connect state
-// (can they collect a card deposit in-app?), not the global publishable-key
-// mode. The old copy ("payments process through Inklee's account; funds settle
-// to the operator") described the pre-Connect platform-charge model and is now
-// false — deposits land in the artist's OWN connected account; Inklee only
-// keeps the platform fee. The test-mode note stays as a dev/preview safeguard.
-function DepositCollectionStatus({
-  canCollectInApp,
-  stripeMode,
-}: {
-  canCollectInApp: boolean;
-  stripeMode: StripeMode;
-}) {
+// The cross-booking deposits chase view. Read-only: every row taps through to
+// the booking detail (/bookings/requests/{id}) where the request / mark-received
+// / refund actions live. Data comes from the shared getDepositsOverview builder
+// (one source of truth with the mobile overview); money is formatted via the
+// shared formatMoneyShort so the two surfaces render identical strings.
+// Configuration (default amount, due window, cancellation + refund policy) lives
+// at /settings/deposits.
+
+function whenLabel(d: MobileDepositListItem): string {
+  if (d.state === "paid")
+    return d.paidAt ? `Paid ${formatDate(d.paidAt)}` : "Paid";
+  if (d.state === "refunded") return "Returned to client";
+  return d.dueLabel ?? "No due date";
+}
+
+function DepositRow({ d }: { d: MobileDepositListItem }) {
+  const overdue = d.state === "overdue";
   return (
-    <div className="space-y-3">
-      {canCollectInApp ? (
-        <div className="flex items-start gap-2.5 rounded-md border border-brand-green/30 bg-brand-green/[0.06] px-4 py-3">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-green" />
-          <div className="space-y-0.5">
-            <p className="text-sm font-medium text-foreground">
-              In-app card deposits are on
-            </p>
-            <p className="text-xs text-muted-foreground">
-              When a client pays a deposit by card, it lands in your own
-              connected Stripe account. A {PLATFORM_FEE_PERCENT}% processing fee
-              is deducted (card processing included); Inklee never holds your
-              money.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-start gap-2.5 rounded-md border border-border px-4 py-3">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="space-y-0.5">
-            <p className="text-sm font-medium text-foreground">
-              In-app card deposits are off
-            </p>
-            <p className="text-xs text-muted-foreground">
-              You can still request deposits. The client pays you directly (add
-              your details in the note) and you mark them received.{" "}
-              <Link
-                href="/settings/payouts"
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                Connect Stripe
-              </Link>{" "}
-              to let clients pay by card here instead.
-            </p>
-          </div>
-        </div>
-      )}
-      {stripeMode === "test" && (
-        <div className="flex items-start gap-2.5 rounded-md border border-brand-mustard/50 bg-brand-mustard/15 px-4 py-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-brand-mustard" />
-          <p className="text-xs text-foreground">
-            Deposits are in test mode in this environment. No real charges will
-            be made.
-          </p>
-        </div>
-      )}
-    </div>
+    <Link
+      href={`/bookings/requests/${d.bookingId}`}
+      className={`flex items-center justify-between gap-3 rounded-[14px] border px-4 py-3 transition-colors hover:bg-[color:var(--color-workspace-hover)] ${
+        overdue
+          ? "border-destructive/30 bg-destructive/[0.04]"
+          : "border-border"
+      }`}
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-foreground">
+          {d.client}
+        </p>
+        <p
+          className={`mt-0.5 text-xs ${
+            overdue ? "text-destructive" : "text-muted-foreground"
+          }`}
+        >
+          {whenLabel(d)}
+        </p>
+      </div>
+      <p className="shrink-0 text-sm font-semibold text-foreground">
+        {formatMoneyShort(d.amount, d.currency)}
+      </p>
+    </Link>
   );
 }
 
-export default async function DepositsSettingsPage() {
+function Section({
+  title,
+  items,
+  danger = false,
+}: {
+  title: string;
+  items: MobileDepositListItem[];
+  danger?: boolean;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <h2
+        className={`text-xs font-semibold uppercase tracking-[0.14em] ${
+          danger ? "text-destructive" : "text-muted-foreground"
+        }`}
+      >
+        {title} {items.length}
+      </h2>
+      <div className="space-y-2">
+        {items.map((d) => (
+          <DepositRow key={d.bookingId} d={d} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export default async function DepositsOverviewPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user!.id)
-    .single();
+  const { items, summary } = await getDepositsOverview(supabase, user!.id);
 
-  const settings = (profile?.settings ?? {}) as Record<string, unknown>;
-  const defaults = parseDepositDefaults(settings.deposit_defaults);
-  const depositPolicy = parseDepositPolicy(settings.deposit_policy);
-  const stripeMode = detectStripeMode(
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
-  );
-  const canCollectInApp = (await getConnectRoutingForArtist(user!.id))
-    .routeCharges;
+  const overdue = items.filter((i) => i.state === "overdue");
+  const awaiting = items.filter((i) => i.state === "awaiting");
+  const collected = items.filter((i) => i.state === "paid");
+  const refunded = items.filter((i) => i.state === "refunded");
+  const hasOutstanding = summary.outstandingCount > 0;
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
+      <div className="flex items-baseline justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Deposits
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Defaults for the deposit you request once you’ve accepted a booking.
-        </p>
+        <Link
+          href="/settings/deposits"
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Settings
+        </Link>
       </div>
 
-      <DepositCollectionStatus
-        canCollectInApp={canCollectInApp}
-        stripeMode={stripeMode}
-      />
+      {items.length === 0 ? (
+        <div className="rounded-[20px] border border-dashed border-border px-5 py-10 text-center">
+          <p className="text-sm font-medium text-foreground">No deposits yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Accept a request, then choose Request deposit on the booking to
+            collect one.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Hero: Outstanding is the one number; overdue broken out louder,
+              Collected demoted to a quiet secondary line. */}
+          <div className="rounded-[20px] border border-border p-5">
+            {hasOutstanding ? (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Outstanding
+                </p>
+                <p className="mt-1 text-4xl font-semibold tracking-tight text-foreground">
+                  {formatMoneyShort(
+                    summary.outstandingAmount,
+                    summary.currency,
+                  )}
+                </p>
+                {summary.overdueCount > 0 && (
+                  <p className="mt-1 text-sm font-medium text-destructive">
+                    {summary.overdueCount} overdue ·{" "}
+                    {formatMoneyShort(summary.overdueAmount, summary.currency)}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-foreground">
+                  Nothing to chase
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  You&apos;re all caught up.
+                </p>
+              </>
+            )}
+            <p className="mt-3 border-t border-border pt-3 text-sm text-muted-foreground">
+              Collected{" "}
+              {formatMoneyShort(summary.collectedAmount, summary.currency)}
+            </p>
+          </div>
 
-      <div className="space-y-2">
-        <h2 className="text-base font-semibold text-foreground">
-          Your defaults
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          These pre-fill the deposit form on every accepted request. You can
-          override any field per booking.
-        </p>
-      </div>
+          <Section title="Overdue" items={overdue} danger />
+          <Section title="Awaiting" items={awaiting} />
+          <Section title="Collected" items={collected} />
+          <Section title="Refunded" items={refunded} />
+        </>
+      )}
 
-      <DepositsForm defaults={defaults} />
-
-      <div className="space-y-2 border-t border-border pt-6">
-        <h2 className="text-base font-semibold text-foreground">
-          Cancellation &amp; refunds
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Your deposit policy is shown to clients before they pay, and it&apos;s
-          locked to each booking at payment time. The structure is set by
-          Inklee&apos;s platform policy and can&apos;t be replaced with free
-          text. See{" "}
-          <Link
-            href="/terms"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Terms section 12
-          </Link>{" "}
-          and the{" "}
-          <Link
-            href="/dpa"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            DPA
-          </Link>
-          .
-        </p>
-      </div>
-
-      <DepositPolicyForm policy={depositPolicy} />
-
-      <div className="rounded-md border border-border px-4 py-3 space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">
-          Where deposits live in the flow
-        </p>
-        <p className="text-xs text-muted-foreground">
-          When you accept a request from{" "}
-          <Link
-            href="/bookings/overview"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Bookings
-          </Link>
-          , a “Request deposit” option appears on the booking detail. The client
-          receives an email with a secure payment link.
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Set your default amount, due window, and cancellation and refund policy
+        in{" "}
+        <Link
+          href="/settings/deposits"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          deposit settings
+        </Link>
+        .
+      </p>
     </div>
   );
 }

@@ -210,6 +210,9 @@ export type MobileDepositListItem = {
   paidAt: string | null;
   state: "awaiting" | "overdue" | "paid" | "refunded";
   card: boolean;
+  /** Relative due label ("due in 3 days" / "5 days overdue"), server-computed
+   *  for awaiting + overdue rows; null for settled (paid/refunded) rows. */
+  dueLabel: string | null;
 };
 
 /** GET /api/mobile/bookings/deposits — the deposits overview: every booking
@@ -221,6 +224,10 @@ export type MobileDepositsResponse = {
     currency: string;
     outstandingCount: number;
     outstandingAmount: number;
+    /** Overdue is a subset of outstanding, broken out so the chase view can
+     *  surface the urgent figure louder than the not-yet-due remainder. */
+    overdueCount: number;
+    overdueAmount: number;
     collectedCount: number;
     collectedAmount: number;
   };

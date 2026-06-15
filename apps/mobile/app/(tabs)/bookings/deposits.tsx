@@ -1,11 +1,13 @@
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { ChevronRight } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
@@ -14,7 +16,7 @@ import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
-import { formatMoney } from "@/lib/bookings";
+import { formatMoneyShort } from "@/lib/bookings";
 import { formatShortDate } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
 import type {
@@ -22,114 +24,125 @@ import type {
   MobileDepositsResponse,
 } from "@inklee/shared/mobile-api";
 
-// Color-coded state chip — the at-a-glance "where's this deposit" cue.
-const STATE_PILL: Record<
-  MobileDepositListItem["state"],
-  { bg: string; text: string; label: string }
-> = {
-  overdue: { bg: "bg-danger/15", text: "text-danger-fg", label: "Overdue" },
-  awaiting: { bg: "bg-mustard/15", text: "text-accent", label: "Awaiting" },
-  paid: { bg: "bg-success/15", text: "text-success-fg", label: "Paid" },
-  refunded: { bg: "bg-shell-hover", text: "text-shell-dim", label: "Refunded" },
-};
+// The when-line under the client name: relative for outstanding rows (server-
+// computed dueLabel), absolute for settled rows.
+function whenLabel(d: MobileDepositListItem): string {
+  if (d.state === "paid")
+    return d.paidAt ? `Paid ${formatShortDate(d.paidAt)}` : "Paid";
+  if (d.state === "refunded") return "Returned to client";
+  return d.dueLabel ?? "No due date";
+}
 
-function DepositCard({
+function DepositRow({
   d,
   onPress,
 }: {
   d: MobileDepositListItem;
   onPress: () => void;
 }) {
-  const pill = STATE_PILL[d.state];
-  const sub =
-    d.state === "paid" && d.paidAt
-      ? `Paid ${formatShortDate(d.paidAt)}`
-      : d.state === "refunded"
-        ? "Returned to client"
-        : d.dueAt
-          ? `Due ${formatShortDate(d.dueAt)}`
-          : "No due date";
+  const overdue = d.state === "overdue";
   return (
-    <View className="mb-2">
-      <Card onPress={onPress}>
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="flex-1">
-            <Text
-              className="text-base font-semibold text-foreground"
-              numberOfLines={1}
-            >
-              {d.client}
-            </Text>
-            <View className="mt-1.5 flex-row items-center gap-2">
-              <View className={`rounded-full px-2 py-0.5 ${pill.bg}`}>
-                <Text className={`text-xs font-semibold ${pill.text}`}>
-                  {pill.label}
-                </Text>
-              </View>
-              <Text className="text-xs text-shell-dim" numberOfLines={1}>
-                {sub}
-                {d.card ? " · Card" : " · Manual"}
-              </Text>
-            </View>
-          </View>
-          <Text className="text-base font-bold text-foreground">
-            {formatMoney(d.amount, d.currency)}
-          </Text>
-        </View>
-      </Card>
-    </View>
+    <Pressable
+      onPress={onPress}
+      className={`mb-2 flex-row items-center justify-between gap-3 rounded-card border-brand px-4 py-3.5 active:opacity-70 ${
+        overdue
+          ? "border-danger/40 bg-danger/10"
+          : "border-shell-border bg-card"
+      }`}
+    >
+      <View className="flex-1">
+        <Text
+          className="text-base font-semibold text-foreground"
+          numberOfLines={1}
+        >
+          {d.client}
+        </Text>
+        <Text
+          className={`mt-0.5 text-xs ${overdue ? "text-danger-fg" : "text-shell-dim"}`}
+          numberOfLines={1}
+        >
+          {whenLabel(d)}
+        </Text>
+      </View>
+      <Text className="text-base font-bold text-foreground">
+        {formatMoneyShort(d.amount, d.currency)}
+      </Text>
+    </Pressable>
   );
 }
 
-// Header rollup tile: a money figure over a count, so the artist sees what
-// they're owed vs what's landed before scanning the rows.
-function SummaryTile({
-  label,
-  amount,
-  currency,
-  sub,
+function SectionLabel({
+  children,
+  danger = false,
 }: {
-  label: string;
-  amount: number;
-  currency: string;
-  sub: string;
+  children: string;
+  danger?: boolean;
 }) {
   return (
-    <View className="flex-1 rounded-card border-brand border-shell-border bg-card p-4">
-      <Text
-        className="text-overline uppercase text-shell-mute"
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-      <Text
-        className="mt-1 text-xl font-bold text-foreground"
-        numberOfLines={1}
-      >
-        {formatMoney(amount, currency)}
-      </Text>
-      <Text className="mt-0.5 text-caption text-shell-dim" numberOfLines={1}>
-        {sub}
-      </Text>
-    </View>
-  );
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-widest text-shell-mute">
+    <Text
+      className={`mb-2 mt-6 text-xs font-semibold uppercase tracking-widest ${
+        danger ? "text-danger-fg" : "text-shell-mute"
+      }`}
+    >
       {children}
     </Text>
   );
 }
 
-const plural = (n: number, one: string, many: string) =>
-  `${n} ${n === 1 ? one : many}`;
+function Section({
+  title,
+  items,
+  danger = false,
+  onRow,
+}: {
+  title: string;
+  items: MobileDepositListItem[];
+  danger?: boolean;
+  onRow: (id: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <>
+      <SectionLabel danger={danger}>{`${title} ${items.length}`}</SectionLabel>
+      {items.map((d) => (
+        <DepositRow key={d.bookingId} d={d} onPress={() => onRow(d.bookingId)} />
+      ))}
+    </>
+  );
+}
 
-// Deposits overview (the Bookings sub-view the web has no standalone page for).
-// Cross-booking list of every deposit, grouped Outstanding / Collected with
-// money rollups up top. Each row taps through to the booking detail, where the
-// actual request / mark-received / refund actions live.
+// A tappable pointer into the Settings stack. Deposit config is split across two
+// screens there (defaults + policy), so each gets its own pointer rather than
+// one card promising more than its destination holds.
+function SettingsPointer({
+  title,
+  subtitle,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  const colors = useColors();
+  return (
+    <Card onPress={onPress}>
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 pr-3">
+          <Text className="text-base font-medium text-foreground">{title}</Text>
+          <Text className="mt-0.5 text-xs text-shell-dim">{subtitle}</Text>
+        </View>
+        <ChevronRight size={18} color={colors.shell.mute} />
+      </View>
+    </Card>
+  );
+}
+
+// Deposits chase overview (the Bookings sub-view, mirrored on web at
+// /bookings/deposits). One hero Outstanding figure with Overdue broken out
+// louder, then state-grouped rows (Overdue / Awaiting / Collected / Refunded),
+// each with a count. Read-only: rows tap through to the booking detail where
+// the request / mark-received / refund actions live. Data + classification come
+// from the shared getDepositsOverview builder (one source of truth with web).
 export default function DepositsScreen() {
   useScreenView("deposits");
   const router = useRouter();
@@ -139,12 +152,14 @@ export default function DepositsScreen() {
   const q = useApiQuery<MobileDepositsResponse>("/bookings/deposits");
 
   const data = q.data;
-  const outstanding = (data?.items ?? []).filter(
-    (i) => i.state === "awaiting" || i.state === "overdue",
-  );
-  const settled = (data?.items ?? []).filter(
-    (i) => i.state === "paid" || i.state === "refunded",
-  );
+  const items = data?.items ?? [];
+  const summary = data?.summary;
+  const overdue = items.filter((i) => i.state === "overdue");
+  const awaiting = items.filter((i) => i.state === "awaiting");
+  const collected = items.filter((i) => i.state === "paid");
+  const refunded = items.filter((i) => i.state === "refunded");
+  const hasOutstanding = (summary?.outstandingCount ?? 0) > 0;
+  const openBooking = (id: string) => router.push(`/bookings/${id}`);
 
   return (
     <Screen edges={["left", "right"]}>
@@ -178,55 +193,79 @@ export default function DepositsScreen() {
               />
             </View>
           )
-        ) : data.items.length === 0 ? (
+        ) : items.length === 0 ? (
           <View className="py-16">
             <EmptyState
               title="No deposits yet"
-              subtitle="Accept a request, then tap Request deposit on the booking to collect one."
+              subtitle="Accept a request, then choose Request deposit on the booking to collect one."
             />
           </View>
         ) : (
           <>
-            <View className="flex-row gap-2 pt-1">
-              <SummaryTile
-                label="Outstanding"
-                amount={data.summary.outstandingAmount}
-                currency={data.summary.currency}
-                sub={plural(data.summary.outstandingCount, "deposit", "deposits")}
-              />
-              <SummaryTile
-                label="Collected"
-                amount={data.summary.collectedAmount}
-                currency={data.summary.currency}
-                sub={plural(data.summary.collectedCount, "paid", "paid")}
-              />
+            {/* Hero: Outstanding is the one number; overdue louder, Collected
+                demoted to a quiet line. */}
+            <View className="mt-1 rounded-card border-brand border-shell-border bg-card p-5">
+              {hasOutstanding ? (
+                <>
+                  <Text className="text-overline uppercase text-shell-mute">
+                    Outstanding
+                  </Text>
+                  <Text className="mt-1 text-display font-bold text-foreground">
+                    {formatMoneyShort(
+                      summary!.outstandingAmount,
+                      summary!.currency,
+                    )}
+                  </Text>
+                  {summary!.overdueCount > 0 ? (
+                    <Text className="mt-1 text-sm font-semibold text-danger-fg">
+                      {summary!.overdueCount} overdue ·{" "}
+                      {formatMoneyShort(
+                        summary!.overdueAmount,
+                        summary!.currency,
+                      )}
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Text className="text-base font-semibold text-foreground">
+                    Nothing to chase
+                  </Text>
+                  <Text className="mt-1 text-sm text-shell-dim">
+                    You&apos;re all caught up.
+                  </Text>
+                </>
+              )}
+              <Text className="mt-3 border-t border-shell-border pt-3 text-sm text-shell-dim">
+                Collected{" "}
+                {formatMoneyShort(summary!.collectedAmount, summary!.currency)}
+              </Text>
             </View>
 
-            {outstanding.length > 0 ? (
-              <>
-                <SectionLabel>Outstanding</SectionLabel>
-                {outstanding.map((d) => (
-                  <DepositCard
-                    key={d.bookingId}
-                    d={d}
-                    onPress={() => router.push(`/bookings/${d.bookingId}`)}
-                  />
-                ))}
-              </>
-            ) : null}
+            <Section
+              title="Overdue"
+              items={overdue}
+              danger
+              onRow={openBooking}
+            />
+            <Section title="Awaiting" items={awaiting} onRow={openBooking} />
+            <Section title="Collected" items={collected} onRow={openBooking} />
+            <Section title="Refunded" items={refunded} onRow={openBooking} />
 
-            {settled.length > 0 ? (
-              <>
-                <SectionLabel>Collected</SectionLabel>
-                {settled.map((d) => (
-                  <DepositCard
-                    key={d.bookingId}
-                    d={d}
-                    onPress={() => router.push(`/bookings/${d.bookingId}`)}
-                  />
-                ))}
-              </>
-            ) : null}
+            {/* Pointers to the deposit configuration, split across the two
+                Settings screens it actually lives on. */}
+            <View className="mt-6 gap-2">
+              <SettingsPointer
+                title="Deposit defaults"
+                subtitle="Default amount, due window, and note to the client."
+                onPress={() => router.push("/settings/deposit-defaults")}
+              />
+              <SettingsPointer
+                title="Cancellation & refunds"
+                subtitle="Your refund window and late-cancel terms."
+                onPress={() => router.push("/settings/deposit-policy")}
+              />
+            </View>
           </>
         )}
       </ScrollView>

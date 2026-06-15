@@ -1,4 +1,5 @@
 import type { MobileBookingDetail as BookingDetail } from "@inklee/shared/mobile-api";
+import { CURRENCY_SYMBOLS } from "@inklee/shared/money";
 import { apiPost } from "./api";
 
 // Shapes of GET /api/mobile/bookings/:id (see the route handler) — now the
@@ -54,21 +55,13 @@ export function refundDeposit(id: string) {
   return apiPost<{ ok: true }>(`/bookings/${id}/deposit-refund`);
 }
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  eur: "€",
-  usd: "$",
-  gbp: "£",
-  chf: "CHF ",
-  sek: "kr ",
-  nok: "kr ",
-  dkk: "kr ",
-  pln: "zł ",
-  czk: "Kč ",
-  cad: "$",
-  aud: "$",
-};
+// formatMoneyShort (the drop-.00, grouped chase-view formatter) is single-sourced
+// in @inklee/shared/money so the web overview and this app render identical
+// strings; re-exported here so existing "@/lib/bookings" import sites are
+// unchanged.
+export { formatMoneyShort } from "@inklee/shared/money";
 
-/** Compact money formatting for deposit amounts (RN-safe, no Intl dependency). */
+/** Always-2dp money for the booking detail (RN-safe, no Intl dependency). */
 export function formatMoney(amount: number, currency: string): string {
   const symbol = CURRENCY_SYMBOLS[currency.toLowerCase()];
   const value = amount.toFixed(2);
