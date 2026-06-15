@@ -83,10 +83,10 @@ export async function getDashboardData(
     timezone: string;
     widgets: DashboardWidgets;
     onboardingCompleted: boolean;
-    now: number;
   },
 ): Promise<DashboardData> {
-  const { timezone, widgets, onboardingCompleted, now } = opts;
+  const { timezone, widgets, onboardingCompleted } = opts;
+  const now = Date.now();
   const today = todayInTimeZone(timezone);
   // Month boundary as the UTC instant of local midnight on the 1st (created_at is
   // timestamptz; a bare date key would miscount the first hours of the month).

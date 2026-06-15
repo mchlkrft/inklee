@@ -11,22 +11,23 @@ import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import {
   BarChart3,
+  Banknote,
   CalendarDays,
   ChevronRight,
   Inbox,
   Link2,
   MapPin,
   Sparkles,
-  Users,
 } from "lucide-react-native";
+import type { LucideIcon } from "@/lib/icon-types";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { TravelIcon } from "@/components/TravelIcon";
 import { Card } from "@/components/Card";
 import { CardHeader } from "@/components/CardHeader";
-import { StatusPill } from "@/components/StatusPill";
 import { PillButton } from "@/components/PillButton";
 import { EmptyState } from "@/components/EmptyState";
+import { ActionFeed } from "@/components/home/ActionFeed";
 import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
@@ -35,14 +36,20 @@ import { config, displayUrl } from "@/lib/config";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { formatShortDate } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
-import type {
-  MobileHome,
-  MobileHomeBooking,
-  MobileGuestSpot,
-} from "@inklee/shared/mobile-api";
+import { pickGreeting } from "@inklee/shared/greeting";
+import type { MobileHome, MobileGuestSpot } from "@inklee/shared/mobile-api";
 import { DEFAULT_DASHBOARD_WIDGETS } from "@inklee/shared/dashboard-settings";
 
-// A small right-aligned header link (View all / Calendar / Plan / View / Edit).
+// Greeting seed is fixed once per JS launch (≈ per login), so the rotating line
+// is stable within a session and fresh next launch.
+const GREETING_SEED = Math.floor(Math.random() * 100_000);
+
+const DATE_FMT = new Intl.DateTimeFormat(undefined, {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
+
 function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} hitSlop={8} className="active:opacity-60">
@@ -51,30 +58,35 @@ function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) 
   );
 }
 
-function RequestRow({
-  b,
-  pill = false,
+// One tappable glance satellite (Upcoming / Deposits due / This month).
+function StatBox({
+  icon: Icon,
+  value,
+  label,
+  onPress,
+  danger = false,
 }: {
-  b: MobileHomeBooking;
-  pill?: boolean;
+  icon: LucideIcon;
+  value: number;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
 }) {
-  const router = useRouter();
+  const colors = useColors();
   return (
     <Pressable
-      onPress={() => router.push(`/bookings/${b.id}`)}
-      className="mt-3 flex-row items-center gap-3 active:opacity-70"
+      onPress={onPress}
+      className="flex-1 rounded-card border-brand border-shell-border bg-card p-4 active:opacity-80"
     >
-      <View className="flex-1">
-        <Text className="text-body font-medium text-foreground" numberOfLines={1}>
-          {b.client}
-        </Text>
-        <Text className="mt-0.5 text-caption text-shell-dim" numberOfLines={1}>
-          {[b.placement, b.preferredDate && formatShortDate(b.preferredDate)]
-            .filter(Boolean)
-            .join(" · ") || "No details yet"}
-        </Text>
-      </View>
-      {pill ? <StatusPill status="pending" /> : null}
+      <Icon size={18} color={danger ? colors.dangerFg : colors.accent} />
+      <Text
+        className={`mt-2 text-xl font-bold ${danger ? "text-danger-fg" : "text-foreground"}`}
+      >
+        {value}
+      </Text>
+      <Text className="text-caption text-shell-dim" numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -92,12 +104,7 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
       className="mt-3 flex-row items-center gap-3 active:opacity-70"
     >
       {g.icon ? (
-        <TravelIcon
-          icon={g.icon}
-          fallback={MapPin}
-          size={16}
-          color={themed.cobalt}
-        />
+        <TravelIcon icon={g.icon} fallback={MapPin} size={16} color={themed.cobalt} />
       ) : null}
       <View className="flex-1">
         <Text className="text-body font-medium text-foreground" numberOfLines={1}>
@@ -136,6 +143,25 @@ function LinkRow({ label, url }: { label: string; url: string }) {
   );
 }
 
+function PagesCard({
+  publicUrl,
+  waitlistUrl,
+  hubUrl,
+}: {
+  publicUrl: string;
+  waitlistUrl: string;
+  hubUrl: string;
+}) {
+  return (
+    <Card>
+      <CardHeader icon={Link2} tint="bone" title="Your pages" />
+      <LinkRow label="Booking" url={publicUrl} />
+      <LinkRow label="Waitlist" url={waitlistUrl} />
+      <LinkRow label="Link Hub" url={hubUrl} />
+    </Card>
+  );
+}
+
 export default function HomeScreen() {
   useScreenView("home");
   const router = useRouter();
@@ -145,31 +171,22 @@ export default function HomeScreen() {
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileHome>("/home");
 
-  // Default to ALL widgets visible when the flags are missing (e.g. a cached
-  // payload from an older API) — never an unexplained empty dashboard.
   const widgets = data?.dashboardWidgets ?? DEFAULT_DASHBOARD_WIDGETS;
   const isZeroRequest =
     !!data &&
     data.onboardingCompleted &&
     !!data.slug &&
     data.totalReceivedCount === 0;
-  const showPending = !!widgets?.pending_requests;
-  const showGuestSpots = !!widgets?.guest_spots;
-  const showUpcoming = !!widgets?.upcoming_appointments;
-  const showWaitlist = !!widgets?.waitlist && (data?.waitlistCount ?? 0) > 0;
-  const showLinks = (!!widgets?.booking_link || isZeroRequest) && !!data?.slug;
-  const allHidden =
-    !!data &&
-    !showPending &&
-    !showGuestSpots &&
-    !showUpcoming &&
-    !widgets?.waitlist &&
-    !widgets?.booking_link &&
-    !isZeroRequest;
+  const actionItems = data?.actionItems ?? [];
+  const overdueDeposits = data?.depositsOverdueCount ?? 0;
+  const showDeposits = (data?.depositsOutstandingCount ?? 0) > 0;
+  const showGuestSpots = !!widgets?.guest_spots && (data?.guestSpots.length ?? 0) > 0;
+  const showPages = (!!widgets?.booking_link || isZeroRequest) && !!data?.slug;
 
   const publicUrl = data?.slug ? config.publicUrl(data.slug) : null;
   const waitlistUrl = data?.slug ? config.waitlistUrl(data.slug) : null;
   const hubUrl = data?.slug ? config.hubUrl(data.slug) : null;
+  const hasPages = !!publicUrl && !!waitlistUrl && !!hubUrl;
 
   return (
     <Screen edges={["left", "right"]} topBar={<TopBar />}>
@@ -203,15 +220,15 @@ export default function HomeScreen() {
           )
         ) : (
           <>
+            {/* Greeting */}
             <View className="pb-1 pt-2">
               <Text className="text-display font-bold text-foreground">
-                {data.displayName ?? "Home"}
+                {pickGreeting(data.displayName, GREETING_SEED)}
               </Text>
-              <Text className="text-sm text-shell-dim">Overview</Text>
+              <Text className="text-sm text-shell-dim">
+                {DATE_FMT.format(new Date())}
+              </Text>
             </View>
-
-            {/* Booking status moved to the top-bar pill (tap to toggle) in
-                founder round 4 — no dashboard card anymore, like the web. */}
 
             {/* Setup nudges */}
             {!data.onboardingCompleted ? (
@@ -222,9 +239,7 @@ export default function HomeScreen() {
                     tint="rosa"
                     title="Finish setting up"
                     subtitle="A couple more steps before your page is ready."
-                    trailing={
-                      <ChevronRight size={18} color={colors.shell.mute} />
-                    }
+                    trailing={<ChevronRight size={18} color={colors.shell.mute} />}
                   />
                 </Card>
               </View>
@@ -236,53 +251,73 @@ export default function HomeScreen() {
                     tint="bone"
                     title="Add a short bio"
                     subtitle="Help clients understand your style before they book."
-                    trailing={
-                      <ChevronRight size={18} color={colors.shell.mute} />
-                    }
+                    trailing={<ChevronRight size={18} color={colors.shell.mute} />}
                   />
                 </Card>
               </View>
             ) : null}
 
-            {/* Pending requests */}
-            {showPending ? (
-              <View className="mt-3">
+            {/* Glance grid: hero Requests waiting + tappable satellites */}
+            <View className="mt-3">
+              <Pressable
+                onPress={() => router.navigate("/bookings")}
+                className="rounded-card border-brand border-mustard/40 bg-mustard/10 p-5 active:opacity-90"
+              >
+                <Inbox size={22} color={colors.accent} />
+                <Text className="mt-6 text-display font-bold text-foreground">
+                  {data.pendingCount}
+                </Text>
+                <Text className="text-sm text-shell-dim">Requests waiting</Text>
+              </Pressable>
+              <View className="mt-3 flex-row gap-3">
+                <StatBox
+                  icon={CalendarDays}
+                  value={data.upcomingCount ?? 0}
+                  label="Upcoming"
+                  onPress={() => router.navigate("/bookings/calendar")}
+                />
+                {showDeposits ? (
+                  <StatBox
+                    icon={Banknote}
+                    value={data.depositsOutstandingCount ?? 0}
+                    label={
+                      overdueDeposits > 0
+                        ? `Deposits (${overdueDeposits} overdue)`
+                        : "Deposits due"
+                    }
+                    danger={overdueDeposits > 0}
+                    onPress={() => router.push("/bookings/deposits")}
+                  />
+                ) : null}
+                <StatBox
+                  icon={BarChart3}
+                  value={data.thisMonthCount ?? 0}
+                  label="This month"
+                  onPress={() => router.push("/insights")}
+                />
+              </View>
+            </View>
+
+            {/* Action required feed (or caught-up / zero-request pivot) */}
+            <View className="mt-3">
+              {actionItems.length > 0 ? (
+                <ActionFeed items={actionItems} />
+              ) : isZeroRequest && hasPages ? (
+                <PagesCard
+                  publicUrl={publicUrl!}
+                  waitlistUrl={waitlistUrl!}
+                  hubUrl={hubUrl!}
+                />
+              ) : (
                 <Card>
-                  <CardHeader
-                    icon={Inbox}
-                    tint="mustard"
-                    title="Pending requests"
-                    trailing={
-                      <HeaderLink
-                        label="View all"
-                        onPress={() => router.navigate("/bookings")}
-                      />
-                    }
-                  />
-                  <Text className="mt-3 text-display font-bold text-foreground">
-                    {data.pendingCount}
+                  <Text className="py-2 text-center text-sm text-shell-dim">
+                    You&apos;re all caught up. Nice.
                   </Text>
-                  {data.pending.length ? (
-                    <>
-                      {data.pending.map((b) => (
-                        <RequestRow key={b.id} b={b} pill />
-                      ))}
-                      {data.pendingCount > data.pending.length ? (
-                        <Text className="mt-3 text-caption text-shell-dim">
-                          +{data.pendingCount - data.pending.length} more
-                        </Text>
-                      ) : null}
-                    </>
-                  ) : (
-                    <Text className="mt-2 text-sm text-shell-dim">
-                      No pending requests.
-                    </Text>
-                  )}
                 </Card>
-              </View>
-            ) : null}
+              )}
+            </View>
 
-            {/* Upcoming guest spots */}
+            {/* Ambient: guest spots */}
             {showGuestSpots ? (
               <View className="mt-3">
                 <Card>
@@ -297,97 +332,25 @@ export default function HomeScreen() {
                       />
                     }
                   />
-                  {data.guestSpots.length ? (
-                    data.guestSpots.map((g) => <GuestSpotRow key={g.id} g={g} />)
-                  ) : (
-                    <Text className="mt-2 text-sm text-shell-dim">
-                      No upcoming guest spots.
-                    </Text>
-                  )}
+                  {data.guestSpots.map((g) => (
+                    <GuestSpotRow key={g.id} g={g} />
+                  ))}
                 </Card>
               </View>
             ) : null}
 
-            {/* Upcoming appointments */}
-            {showUpcoming ? (
+            {/* Ambient: your pages (the zero-request branch already shows it above) */}
+            {showPages && !isZeroRequest && hasPages ? (
               <View className="mt-3">
-                <Card>
-                  <CardHeader
-                    icon={CalendarDays}
-                    tint="rosa"
-                    title="Upcoming"
-                    trailing={
-                      <HeaderLink
-                        label="Calendar"
-                        onPress={() => router.navigate("/bookings/calendar")}
-                      />
-                    }
-                  />
-                  {/* Big count like the pending widget (founder round 10);
-                      older servers omit upcomingCount — fall back to the
-                      visible list length. */}
-                  <Text className="mt-3 text-display font-bold text-foreground">
-                    {data.upcomingCount ?? data.upcoming.length}
-                  </Text>
-                  {data.upcoming.length ? (
-                    <>
-                      {data.upcoming.map((b) => (
-                        <RequestRow key={b.id} b={b} />
-                      ))}
-                      {(data.upcomingCount ?? 0) > data.upcoming.length ? (
-                        <Text className="mt-3 text-caption text-shell-dim">
-                          +{(data.upcomingCount ?? 0) - data.upcoming.length}{" "}
-                          more
-                        </Text>
-                      ) : null}
-                    </>
-                  ) : (
-                    <Text className="mt-2 text-sm text-shell-dim">
-                      No upcoming appointments.
-                    </Text>
-                  )}
-                </Card>
+                <PagesCard
+                  publicUrl={publicUrl!}
+                  waitlistUrl={waitlistUrl!}
+                  hubUrl={hubUrl!}
+                />
               </View>
             ) : null}
 
-            {/* Waitlist (hidden at zero, like web) */}
-            {showWaitlist ? (
-              <View className="mt-3">
-                <Card onPress={() => router.push("/waitlist")}>
-                  <CardHeader
-                    icon={Users}
-                    tint="cobalt"
-                    title="Waitlist"
-                    trailing={
-                      <HeaderLink
-                        label="View"
-                        onPress={() => router.push("/waitlist")}
-                      />
-                    }
-                  />
-                  <Text className="mt-3 text-display font-bold text-foreground">
-                    {data.waitlistCount}
-                  </Text>
-                  <Text className="text-caption text-shell-dim">
-                    {data.waitlistCount === 1 ? "Person" : "People"} waiting
-                  </Text>
-                </Card>
-              </View>
-            ) : null}
-
-            {/* Your pages */}
-            {showLinks && publicUrl && waitlistUrl && hubUrl ? (
-              <View className="mt-3">
-                <Card>
-                  <CardHeader icon={Link2} tint="bone" title="Your pages" />
-                  <LinkRow label="Booking" url={publicUrl} />
-                  <LinkRow label="Waitlist" url={waitlistUrl} />
-                  <LinkRow label="Link Hub" url={hubUrl} />
-                </Card>
-              </View>
-            ) : null}
-
-            {/* Analytics entry (always, like web) */}
+            {/* Insights entry (always) */}
             <View className="mt-3">
               <Card onPress={() => router.push("/insights")}>
                 <CardHeader
@@ -399,16 +362,6 @@ export default function HomeScreen() {
                 />
               </Card>
             </View>
-
-            {allHidden ? (
-              <View className="mt-3">
-                <Card onPress={() => router.push("/settings/dashboard")}>
-                  <Text className="text-center text-sm text-shell-dim">
-                    All widgets are hidden. Tap to choose what shows here.
-                  </Text>
-                </Card>
-              </View>
-            ) : null}
           </>
         )}
       </ScrollView>

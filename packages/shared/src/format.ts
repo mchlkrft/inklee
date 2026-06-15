@@ -18,3 +18,12 @@ export function formatDate(dateStr: string): string {
     year: "numeric",
   });
 }
+
+/** Long, friendly date for the dashboard greeting, e.g. "Wednesday, June 15". */
+export function formatLongDate(dateStr: string): string {
+  return formatDateValue(dateStr, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}

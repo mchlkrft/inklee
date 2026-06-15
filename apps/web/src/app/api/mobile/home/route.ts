@@ -43,7 +43,6 @@ export async function GET(req: Request) {
     timezone,
     widgets,
     onboardingCompleted,
-    now: Date.now(),
   });
 
   const body: MobileHome = {
