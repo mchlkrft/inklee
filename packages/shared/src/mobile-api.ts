@@ -112,6 +112,27 @@ export type MobileGuestSpot = {
   endsOn: string;
 };
 
+/** One item in the Home "Action required" feed. A discriminated union so each
+ *  row carries exactly the data its inline quick action + display need, letting
+ *  the feed render and act without a detail round-trip. Built + ranked server-side. */
+export type MobileActionItem =
+  | {
+      kind: "request";
+      bookingId: string;
+      client: string;
+      placement: string | null;
+      preferredDate: string | null;
+    }
+  | {
+      kind: "deposit";
+      bookingId: string;
+      client: string;
+      amount: number;
+      currency: string;
+      dueAt: string | null;
+      overdue: boolean;
+    };
+
 /** GET /api/mobile/home — the dashboard aggregate backing the Home widget grid. */
 export type MobileHome = {
   displayName: string | null;
@@ -132,6 +153,17 @@ export type MobileHome = {
   /** Total requests ever received — drives the zero-request "share your link"
    *  convenience (force-show the links widget for brand-new artists). */
   totalReceivedCount: number;
+  /** Requests received since the 1st of the current month (artist timezone).
+   *  Optional for version skew (older servers omit it). */
+  thisMonthCount?: number;
+  /** Unpaid deposits awaiting payment (card + manual). The "Deposits due" glance
+   *  satellite; shown only when > 0. */
+  depositsOutstandingCount?: number;
+  /** Subset of the above past their due date (drives the danger tint). */
+  depositsOverdueCount?: number;
+  /** Ranked "Action required" feed: overdue manual deposits, then oldest pending
+   *  requests, then awaiting manual deposits. Capped server-side. */
+  actionItems?: MobileActionItem[];
 };
 
 /** One row in the booking inbox (GET /api/mobile/bookings list). */
