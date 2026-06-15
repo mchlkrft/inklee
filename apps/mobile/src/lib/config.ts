@@ -3,7 +3,17 @@
 // duplicate fallbacks (the API base previously had two different defaults — ""
 // in api.ts and "https://inkl.ee" in more.tsx).
 
+// The API MUST point at the canonical origin (inklee.app). The apex inkl.ee
+// 308-redirects to inklee.app, and fetch DROPS the Authorization header across
+// that cross-origin redirect, so an API base of inkl.ee makes every authed call
+// fail with "missing bearer token". Use inklee.app for the API.
 const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
+
+// The artist's PUBLIC pages live on inkl.ee subdomains (<slug>.inkl.ee,
+// <slug>.l.inkl.ee), which serve directly (no redirect). So the public-link base
+// is decoupled from the API base; it falls back to the API base when unset.
+const PUBLIC_BASE =
+  (process.env.EXPO_PUBLIC_PUBLIC_BASE_URL ?? "").replace(/\/+$/, "") || API_URL;
 
 if (!API_URL) {
   // Fail loud in dev rather than silently issuing relative-URL fetches that
@@ -20,21 +30,22 @@ export function displayUrl(url: string): string {
 }
 
 export const config = {
-  /** Apex origin serving the API + legal pages, e.g. https://inkl.ee. */
+  /** Canonical origin serving the API (e.g. https://inklee.app). */
   apiUrl: API_URL,
   /**
-   * Public bio page for a slug = a subdomain of the apex
+   * Public bio page for a slug = a subdomain of the public base
    * (https://<slug>.inkl.ee). Mirrors the web `publicArtistUrl` subdomain mode.
    */
-  publicUrl: (slug: string) => API_URL.replace(/^https:\/\//, `https://${slug}.`),
+  publicUrl: (slug: string) =>
+    PUBLIC_BASE.replace(/^https:\/\//, `https://${slug}.`),
   /**
    * Public Inklee Hub ("Linklee") for a slug = a second-level subdomain
    * (https://<slug>.l.inkl.ee). Mirrors the web `publicHubUrl(slug)`.
    */
   hubUrl: (slug: string) =>
-    API_URL.replace(/^https:\/\//, `https://${slug}.l.`),
+    PUBLIC_BASE.replace(/^https:\/\//, `https://${slug}.l.`),
   /** Public waitlist join page (the bio subdomain + /waitlist). Mirrors the web
    *  `publicArtistUrl(slug, { subpath: "/waitlist" })`. */
   waitlistUrl: (slug: string) =>
-    `${API_URL.replace(/^https:\/\//, `https://${slug}.`)}/waitlist`,
+    `${PUBLIC_BASE.replace(/^https:\/\//, `https://${slug}.`)}/waitlist`,
 } as const;
