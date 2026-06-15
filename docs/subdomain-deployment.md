@@ -230,3 +230,51 @@ Should never happen. Customer portal links are intentionally `${NEXT_PUBLIC_APP_
 ### 9.5 Need to back out the entire migration
 
 You can return inkl.ee NS to Cloudflare at Zone.ee, which immediately reverts authoritative DNS. The Vercel wildcard cert will silently fail to renew (no DNS-01 path back), and after the current cert expires (~60-90 days) `*.inkl.ee` traffic loses TLS. Long before that point, manually unset `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` and redeploy to switch all UI surfaces back to path-mode `inklee.app/<slug>` URLs.
+
+---
+
+## 10. Link Hub sub-subdomain `*.l.inkl.ee` ("Linklee") — ME-11
+
+The Inklee Hub's pretty URL is `<slug>.l.inkl.ee` (e.g. `ouch370.l.inkl.ee`). This is a **second-level wildcard** on the `inkl.ee` zone, NOT covered by the existing `*.inkl.ee` cert (wildcards match one label only). It needs its own `*.l.inkl.ee` wildcard.
+
+**Why this is easy now (vs §1–8):** the `inkl.ee` zone's nameservers already live on Vercel (done 2026-05-27), so Vercel can issue the `*.l.inkl.ee` wildcard cert automatically via DNS-01 — **no NS change, no registrar step, no new env var** (the code reuses `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN=inkl.ee` and builds `<slug>.l.inkl.ee` itself).
+
+The app code is already shipped and dormant: `parseHost` rewrites `<slug>.l.inkl.ee` → `/<slug>/hub`; `publicHubUrl()` emits the pretty URL. Until the wildcard is attached, the Hub is fully reachable at the path form `inklee.app/<slug>/hub`.
+
+### Founder steps
+
+1. **(Optional) confirm the plan allows another wildcard.** Vercel dashboard → Project → Settings → Domains. You already have `*.inkl.ee`; a second wildcard `*.l.inkl.ee` is the same domain class.
+2. **Attach the wildcard** (from inside the repo so the linked-project shorthand applies):
+   ```bash
+   vercel domains add "*.l.inkl.ee"
+   ```
+   Because Vercel owns the `inkl.ee` zone, this creates the `*.l.inkl.ee` DNS record and kicks off DNS-01 cert issuance automatically. No A record, no manual TXT.
+3. **Wait for SSL "Issued"** (usually a few minutes since NS is already on Vercel). Probe a throwaway label that maps to no real slug:
+   ```bash
+   while true; do
+     if curl -sI --max-time 8 "https://probe.l.inkl.ee/" 2>&1 | grep -qE "^HTTP/"; then
+       echo "SSL READY"; break
+     fi
+     date +%H:%M:%S; sleep 30
+   done
+   ```
+   Then verify the cert subject:
+   ```bash
+   echo Q | openssl s_client -servername probe.l.inkl.ee -connect probe.l.inkl.ee:443 2>&1 | grep -E "subject=|issuer="
+   ```
+   Expect `subject=CN=*.l.inkl.ee` issued by Let's Encrypt.
+4. **Smoke test** (no redeploy needed — routing is already live in middleware):
+   | Test | Expected |
+   | --- | --- |
+   | `https://<real-slug>.l.inkl.ee/` | 200, the artist's Link Hub renders |
+   | `https://<real-slug>.l.inkl.ee/` link buttons | open the artist's links + "Book a tattoo" → their booking page |
+   | `https://ab.l.inkl.ee/` (too short) | 308 → `https://inklee.app/` |
+   | `https://admin.l.inkl.ee/` (reserved) | 308 → `https://inklee.app/` |
+
+No env flip and no redeploy are required: `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` is already `inkl.ee`, so `publicHubUrl()` is already emitting `<slug>.l.inkl.ee` (those links just 404 at the TLS layer until step 2 completes). **Production is currently frozen** (see roadmap deploy-freeze callout).
+
+> **Verified 2026-06-14: step 2 CANNOT run while prod is frozen.** `vercel domains add "*.l.inkl.ee"` is rejected by Vercel with `domain_add_failed` / "Your project's latest production deployment has errored. Therefore, the domain cannot be assigned. (400)". Vercel gates **new domain assignment** on a GREEN latest production deployment, so a wildcard cannot be attached until the freeze is resolved (a successful prod deploy exists). The earlier note about doing this "against a preview as applicable" does NOT apply: project-domain assignment checks the production deployment regardless. Do step 2 only after prod has a successful deployment that contains the hub code (`feat/mobile-e1`).
+
+### Rollback
+
+`vercel domains rm "*.l.inkl.ee"`. The Hub stays reachable at the path form `inklee.app/<slug>/hub`; only the pretty subdomain stops resolving.

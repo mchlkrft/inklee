@@ -1,0 +1,499 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  /* Brand palette */
+  --color-brand-mustard: #e9b22b;
+  --color-brand-rosa: #db88b9;
+  --color-brand-cobalt: #0b3d9f;
+  --color-brand-red: #cf2e2c;
+  --color-brand-green: #105f2d;
+  --color-brand-charcoal: #1e1e1e;
+  --color-brand-bone: #e5e1d5;
+
+  /* App-shell tokens — sidebar/dark chrome around the workspace */
+  --color-shell-bg: #1e1e1e;
+  --color-shell-fg: #e5e1d5;
+  --color-shell-fg-dim: rgba(229, 225, 213, 0.55);
+  --color-shell-fg-mute: rgba(229, 225, 213, 0.32);
+  --color-shell-border: rgba(229, 225, 213, 0.18);
+  --color-shell-hover: rgba(229, 225, 213, 0.12);
+  --color-shell-hover-strong: rgba(229, 225, 213, 0.2);
+
+  /* Workspace tokens — light bone content area. Mirrors brand-bone surfaces;
+     the workspace `<main>` carries `data-appearance="light"` so semantic
+     tokens (--background, --card, ...) resolve to these values too. */
+  --color-workspace-bg: var(--color-brand-bone);
+  --color-workspace-card: #d9d4c7;
+  --color-workspace-card-2: #cdc7b6;
+  --color-workspace-border: rgba(30, 30, 30, 0.18);
+  --color-workspace-fg: var(--color-brand-charcoal);
+  --color-workspace-fg-dim: rgba(30, 30, 30, 0.6);
+  --color-workspace-hover: rgba(30, 30, 30, 0.05);
+  --color-workspace-hover-strong: rgba(30, 30, 30, 0.09);
+
+  /* Soft brand tints — derived from palette, used for icon backdrops + status pills */
+  --color-tint-mustard: color-mix(
+    in oklab,
+    var(--color-brand-mustard) 22%,
+    var(--color-workspace-card)
+  );
+  --color-tint-rosa: color-mix(
+    in oklab,
+    var(--color-brand-rosa) 28%,
+    var(--color-workspace-card)
+  );
+  --color-tint-cobalt: color-mix(
+    in oklab,
+    var(--color-brand-cobalt) 18%,
+    var(--color-workspace-card)
+  );
+  --color-tint-red: color-mix(
+    in oklab,
+    var(--color-brand-red) 18%,
+    var(--color-workspace-card)
+  );
+  --color-tint-green: color-mix(
+    in oklab,
+    var(--color-brand-green) 22%,
+    var(--color-workspace-card)
+  );
+
+  /* Elevation */
+  --shadow-card:
+    0 1px 2px rgba(30, 30, 30, 0.04), 0 6px 18px rgba(30, 30, 30, 0.05);
+  --shadow-shell: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+/* Light mode values */
+:root {
+  --background: #e5e1d5;
+  --foreground: #1e1e1e;
+  --card: #d9d4c7;
+  --card-foreground: #1e1e1e;
+  --popover: #d9d4c7;
+  --popover-foreground: #1e1e1e;
+  --primary: #1e1e1e;
+  --primary-foreground: #e5e1d5;
+  --secondary: #d9d4c7;
+  --secondary-foreground: #1e1e1e;
+  --muted: #d9d4c7;
+  --muted-foreground: rgba(30, 30, 30, 0.6);
+  --accent: #d9d4c7;
+  --accent-foreground: #1e1e1e;
+  --destructive: #cf2e2c;
+  --border: rgba(30, 30, 30, 0.18);
+  --input: rgba(30, 30, 30, 0.22);
+  --ring: rgba(30, 30, 30, 0.3);
+  --radius: 0.5rem;
+}
+
+/* Dark mode — default, applied via html.dark */
+.dark {
+  --background: #1e1e1e;
+  --foreground: #e5e1d5;
+  --card: #252525;
+  --card-foreground: #e5e1d5;
+  --popover: #252525;
+  --popover-foreground: #e5e1d5;
+  --primary: #e5e1d5;
+  --primary-foreground: #1e1e1e;
+  --secondary: #252525;
+  --secondary-foreground: #e5e1d5;
+  --muted: #252525;
+  --muted-foreground: rgba(229, 225, 213, 0.55);
+  --accent: #252525;
+  --accent-foreground: #e5e1d5;
+  --destructive: #cf2e2c;
+  --border: rgba(229, 225, 213, 0.18);
+  --input: rgba(229, 225, 213, 0.22);
+  --ring: rgba(229, 225, 213, 0.3);
+  --radius: 0.5rem;
+}
+
+/* Public booking form appearance overrides — scoped to wrapper */
+[data-appearance="light"] {
+  --background: #e5e1d5;
+  --foreground: #1e1e1e;
+  --card: #d9d4c7;
+  --card-foreground: #1e1e1e;
+  --popover: #d9d4c7;
+  --popover-foreground: #1e1e1e;
+  --primary: #1e1e1e;
+  --primary-foreground: #e5e1d5;
+  --secondary: #d9d4c7;
+  --secondary-foreground: #1e1e1e;
+  --muted: #d9d4c7;
+  --muted-foreground: rgba(30, 30, 30, 0.6);
+  --accent: #d9d4c7;
+  --accent-foreground: #1e1e1e;
+  --destructive: #cf2e2c;
+  --border: rgba(30, 30, 30, 0.18);
+  --input: rgba(30, 30, 30, 0.22);
+  --ring: rgba(30, 30, 30, 0.3);
+}
+
+[data-appearance="auto"] {
+  @media (prefers-color-scheme: light) {
+    --background: #e5e1d5;
+    --foreground: #1e1e1e;
+    --card: #d9d4c7;
+    --card-foreground: #1e1e1e;
+    --popover: #d9d4c7;
+    --popover-foreground: #1e1e1e;
+    --primary: #1e1e1e;
+    --primary-foreground: #e5e1d5;
+    --secondary: #d9d4c7;
+    --secondary-foreground: #1e1e1e;
+    --muted: #d9d4c7;
+    --muted-foreground: rgba(30, 30, 30, 0.6);
+    --accent: #d9d4c7;
+    --accent-foreground: #1e1e1e;
+    --destructive: #cf2e2c;
+    --border: rgba(30, 30, 30, 0.18);
+    --input: rgba(30, 30, 30, 0.22);
+    --ring: rgba(30, 30, 30, 0.3);
+  }
+}
+
+/* Email templates modal backdrop */
+dialog[open]::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+/* Text selection — rosa block, charcoal text. Brand accent on highlight. */
+::selection {
+  background: var(--color-brand-rosa);
+  color: var(--color-brand-charcoal);
+}
+
+::-moz-selection {
+  background: var(--color-brand-rosa);
+  color: var(--color-brand-charcoal);
+}
+
+/* Brand loader animation */
+@keyframes inklee-float {
+  0%,
+  100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-7px) scale(1.04);
+  }
+}
+
+/* Hero illustration — subtle drift */
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-18px);
+  }
+}
+
+.animate-hero-float {
+  animation: hero-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-hero-float {
+    animation: none;
+  }
+}
+
+/* ── Line thickness — system-wide standard ─────────────────────────────────
+   Every visible border / divider in the app renders at 1.5px so the system
+   stays consistent without per-component tweaks. Overrides Tailwind's
+   default 1px (`.border`) and explicit 2px (`.border-2`) utilities.
+   `.border-transparent` is intentionally skipped — transparent borders are
+   used for layout spacing (toggle pills, button-press absorbers) rather
+   than visible lines, and bumping them shifts internal geometry. */
+.border:not(.border-transparent),
+.border-2:not(.border-transparent),
+.border-4:not(.border-transparent) {
+  border-width: 1.5px;
+}
+.border-x:not(.border-transparent),
+.border-x-2:not(.border-transparent) {
+  border-left-width: 1.5px;
+  border-right-width: 1.5px;
+}
+.border-y:not(.border-transparent),
+.border-y-2:not(.border-transparent) {
+  border-top-width: 1.5px;
+  border-bottom-width: 1.5px;
+}
+.border-t:not(.border-transparent),
+.border-t-2:not(.border-transparent) {
+  border-top-width: 1.5px;
+}
+.border-b:not(.border-transparent),
+.border-b-2:not(.border-transparent) {
+  border-bottom-width: 1.5px;
+}
+.border-l:not(.border-transparent),
+.border-l-2:not(.border-transparent) {
+  border-left-width: 1.5px;
+}
+.border-r:not(.border-transparent),
+.border-r-2:not(.border-transparent) {
+  border-right-width: 1.5px;
+}
+.divide-y > :not([hidden]) ~ :not([hidden]),
+.divide-y-2 > :not([hidden]) ~ :not([hidden]) {
+  border-top-width: 1.5px;
+}
+.divide-x > :not([hidden]) ~ :not([hidden]),
+.divide-x-2 > :not([hidden]) ~ :not([hidden]) {
+  border-left-width: 1.5px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    line-height: 1.2;
+    font-weight: 600;
+  }
+
+  /* Tailwind v4 dropped the default `cursor: pointer` for buttons.
+     Restore it for interactive elements so hover affordances feel right. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* Global press-feel for the canonical mustard CTA (any interactive element
+     with bg-brand-mustard). Catches the ~50 ad-hoc copy-pasted buttons that
+     haven't been migrated to a Button primitive yet. Non-interactive uses
+     (filter chips don't darken because they're already styled; calendar
+     today-cell is a <span> and excluded by the selectors below). */
+  button.bg-brand-mustard,
+  a.bg-brand-mustard,
+  [role="button"].bg-brand-mustard {
+    transition:
+      background-color 150ms ease,
+      transform 60ms ease,
+      box-shadow 150ms ease;
+  }
+  button.bg-brand-mustard:hover:not(:disabled),
+  a.bg-brand-mustard:hover,
+  [role="button"].bg-brand-mustard:not([aria-disabled="true"]):hover {
+    background-color: color-mix(
+      in oklab,
+      var(--color-brand-mustard) 88%,
+      var(--color-brand-charcoal)
+    );
+  }
+  button.bg-brand-mustard:active:not(:disabled),
+  a.bg-brand-mustard:active,
+  [role="button"].bg-brand-mustard:not([aria-disabled="true"]):active {
+    transform: translateY(1px);
+  }
+
+  /* Outline-button affordance — any interactive element with .border-border
+     and no filled brand/primary/destructive background gets a hover bg +
+     border darken + press-feel. Catches the ad-hoc outline buttons
+     (Cancel, Copy, Preview, "Add a short bio", etc.) that don't have
+     explicit hover states. */
+  button.border-border:not([class*="bg-brand-"]):not([class*="bg-primary"]):not(
+      [class*="bg-destructive"]
+    ),
+  a.border-border:not([class*="bg-brand-"]):not([class*="bg-primary"]):not(
+      [class*="bg-destructive"]
+    ),
+  [role="button"].border-border:not([class*="bg-brand-"]):not(
+      [class*="bg-primary"]
+    ):not([class*="bg-destructive"]) {
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      transform 60ms ease;
+  }
+  button.border-border:not([class*="bg-brand-"]):not([class*="bg-primary"]):not(
+      [class*="bg-destructive"]
+    ):not(:disabled):hover,
+  a.border-border:not([class*="bg-brand-"]):not([class*="bg-primary"]):not(
+      [class*="bg-destructive"]
+    ):hover,
+  [role="button"].border-border:not([class*="bg-brand-"]):not(
+      [class*="bg-primary"]
+    ):not([class*="bg-destructive"]):not([aria-disabled="true"]):hover {
+    background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+    border-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+    color: var(--foreground);
+  }
+  button.border-border:not([class*="bg-brand-"]):not([class*="bg-primary"]):not(
+      [class*="bg-destructive"]
+    ):not(:disabled):active,
+  a.border-border:not([class*="bg-brand-"]):not([class*="bg-primary"]):not(
+      [class*="bg-destructive"]
+    ):active,
+  [role="button"].border-border:not([class*="bg-brand-"]):not(
+      [class*="bg-primary"]
+    ):not([class*="bg-destructive"]):not([aria-disabled="true"]):active {
+    transform: translateY(1px);
+  }
+}
+
+/* Mobile pill scroll-grow — pairs with the scroll-state script in layout.tsx.
+   On mobile (max-width: 639px) both the logo pill and the "Get started" FAB
+   start at scale(0.82) so they sit visibly smaller while keeping perfectly
+   balanced (same default sizing → same scaled size). Once the script sets
+   html[data-scrolled="1"] (after the visitor scrolls past 60px) both grow to
+   scale(1) in unison. Each pill anchors to its own screen edge so neither
+   drifts inward while scaling. The transition-transform Tailwind class on
+   each element animates the change. Desktop is unaffected. */
+@media (max-width: 639px) {
+  [data-fab-cta],
+  [data-nav-logo] {
+    transform: scale(0.82);
+  }
+  [data-fab-cta] {
+    transform-origin: right center;
+  }
+  [data-nav-logo] {
+    transform-origin: left center;
+  }
+  html[data-scrolled="1"] [data-fab-cta],
+  html[data-scrolled="1"] [data-nav-logo] {
+    transform: scale(1);
+  }
+}
+
+/* Marketing layout containers — fluid gutters (20→48px) with sensible caps.
+   Replaces ad-hoc `mx-auto max-w-7xl px-6` so Apple desktop sizes (1440–1728)
+   stop hitting Tailwind's 1280px ceiling and stranding content in narrow
+   columns. `-wide` is used by hero + header so they bleed slightly wider
+   than content sections. */
+/* Branded scrollbars — system-wide. Slightly chunkier than browser default
+   (14px) to match the bolder UI vibe.
+   Default (charcoal body / dark shell): bone-tinted thumb.
+   Inside the workspace + any modal rendered within it: charcoal-tinted thumb. */
+html {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(229, 225, 213, 0.28) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(229, 225, 213, 0.28);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(229, 225, 213, 0.5);
+  background-clip: padding-box;
+}
+
+/* Workspace + nested modals — charcoal thumb on bone background. */
+[data-appearance="light"] {
+  scrollbar-color: rgba(30, 30, 30, 0.28) transparent;
+}
+[data-appearance="light"] *::-webkit-scrollbar-thumb {
+  background: rgba(30, 30, 30, 0.28);
+  background-clip: padding-box;
+}
+[data-appearance="light"] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(30, 30, 30, 0.5);
+  background-clip: padding-box;
+}
+
+/* Legacy opt-in class (kept for fixed/portal elements outside the workspace
+   scope that still want the bone-on-charcoal flavor) */
+.scrollbar-bone {
+  scrollbar-color: rgba(30, 30, 30, 0.18) transparent;
+}
+
+@utility container-marketing {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 102.5rem; /* 1640px */
+  padding-inline: clamp(1.25rem, 4vw, 3rem);
+}
+
+@utility container-marketing-wide {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 112.5rem; /* 1800px */
+  padding-inline: clamp(1.25rem, 4vw, 3rem);
+}
+
+/* Reveal-on-hover — hides an element by default on hover-capable devices and
+   shows it when the nearest .group ancestor is hovered or focused. Touch
+   devices (hover: none) keep the element visible unconditionally so the UI
+   doesn't become unreachable. Used by the shop overlay's per-item qty
+   stepper + re-pick variant chips so the selected card stays minimal. */
+.reveal-on-hover {
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+@media (hover: hover) {
+  .reveal-on-hover {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(2px);
+  }
+  .group:hover .reveal-on-hover,
+  .group:focus-within .reveal-on-hover {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+}

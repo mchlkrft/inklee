@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* MB-12/13 theme system. NativeWind on RN has no cascading `.dark` root class, so
+   the live theme is set via vars() on a wrapper View in src/lib/theme.tsx (which
+   swaps the values by scheme). This :root block is only a DEFAULT/fallback for any
+   content rendered outside that wrapper (e.g. native modals/portals); the wrapper
+   overrides it for the whole app tree. Keep names in sync with tailwind.config.js
+   semantic colors and the `palettes` map in src/lib/theme.tsx. */
+:root {
+  --background: #1e1e1e;
+  --foreground: #e5e1d5;
+  --card: #252525;
+  --card-elevated: #2d2d2d;
+  --muted: #252525;
+  --muted-foreground: rgba(229, 225, 213, 0.55);
+  --subtle-foreground: rgba(229, 225, 213, 0.32);
+  --border: rgba(229, 225, 213, 0.18);
+  --hover: rgba(229, 225, 213, 0.12);
+  --hover-strong: rgba(229, 225, 213, 0.2);
+  --glass: rgba(229, 225, 213, 0.04);
+  --chrome: #2a2a2a;
+  --accent: #e9b22b;
+  --success-fg: #3fae71;
+  --danger-fg: #e8706e;
+}

@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Inklee",
+    "slug": "inklee",
+    "owner": "inklee",
+    "scheme": "inklee",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "backgroundColor": "#1e1e1e",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ee.inkl.app",
+      "usesAppleSignIn": true
+    },
+    "android": {
+      "package": "ee.inkl.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#1e1e1e"
+      },
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Inklee uses your photos so you can upload flash, portfolio images, and your studio cover."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#e9b22b"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-logo.png",
+          "imageWidth": 200,
+          "backgroundColor": "#1e1e1e",
+          "dark": {
+            "image": "./assets/splash-logo.png",
+            "backgroundColor": "#e5e1d5"
+          }
+        }
+      ],
+      "expo-localization"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "daf44d5c-0134-4815-bc4b-c0524dfcb93f"
+      }
+    }
+  }
+}

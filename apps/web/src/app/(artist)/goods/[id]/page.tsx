@@ -1,0 +1,131 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import {
+  isProductCategory,
+  isProductStatus,
+  toPriceNumber,
+  type ProductCategory,
+  type ProductStatus,
+} from "@/lib/goods";
+import ProductForm, { type ProductFormValues } from "../product-form";
+import DeleteProductButton from "../delete-product-button";
+
+type RawProduct = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  image_url: string | null;
+  image_urls: string[] | null;
+  price_amount: string | number;
+  currency: string | null;
+  status: string;
+  pickup_note: string | null;
+  quantity: number | null;
+  is_public_visible: boolean;
+  is_checkout_addon: boolean;
+};
+
+type RawVariant = {
+  id: string;
+  name: string;
+  price_amount_override: string | number | null;
+  stock_quantity: number | null;
+};
+
+export default async function EditProductPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: rawProduct } = await supabase
+    .from("products")
+    .select(
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
+    )
+    .eq("id", id)
+    .eq("artist_id", user!.id)
+    .single();
+  if (!rawProduct) notFound();
+  const row = rawProduct as unknown as RawProduct;
+
+  // Only active variants surface in the edit list — hidden ones are
+  // soft-archived rows the reconcile flow keeps alive so their FK
+  // references survive; the artist doesn't see them.
+  const { data: rawVariants } = await supabase
+    .from("product_variants")
+    .select("id, name, price_amount_override, stock_quantity")
+    .eq("product_id", id)
+    .eq("status", "active")
+    .order("sort_order", { ascending: true });
+
+  const product: ProductFormValues = {
+    id: row.id,
+    title: row.title,
+    description: row.description ?? "",
+    category: (isProductCategory(row.category)
+      ? row.category
+      : "other") as ProductCategory,
+    price: String(toPriceNumber(row.price_amount)),
+    currency: typeof row.currency === "string" ? row.currency : "eur",
+    status: (isProductStatus(row.status)
+      ? row.status
+      : "active") as ProductStatus,
+    pickupNote: row.pickup_note ?? "",
+    quantity:
+      row.quantity !== null && row.quantity !== undefined
+        ? String(row.quantity)
+        : "",
+    isPublicVisible: row.is_public_visible,
+    isCheckoutAddon: row.is_checkout_addon,
+    imageUrl: row.image_url,
+    imageUrls: Array.isArray(row.image_urls)
+      ? row.image_urls
+      : row.image_url
+        ? [row.image_url]
+        : [],
+  };
+
+  const variants = ((rawVariants ?? []) as unknown as RawVariant[]).map(
+    (v) => ({
+      id: v.id,
+      name: v.name,
+      priceOverride:
+        v.price_amount_override !== null &&
+        v.price_amount_override !== undefined
+          ? String(toPriceNumber(v.price_amount_override))
+          : "",
+      stock:
+        v.stock_quantity !== null && v.stock_quantity !== undefined
+          ? String(v.stock_quantity)
+          : "",
+    }),
+  );
+
+  return (
+    <div className="space-y-6">
+      <Link
+        href="/goods"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        Goods
+      </Link>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Edit product
+      </h1>
+      <ProductForm product={product} variants={variants} />
+      <div className="max-w-2xl border-t border-border pt-6">
+        <DeleteProductButton id={row.id} />
+      </div>
+    </div>
+  );
+}

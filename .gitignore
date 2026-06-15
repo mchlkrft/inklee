@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -14,8 +14,8 @@
 /coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
 /build
@@ -47,3 +47,9 @@ next-env.d.ts
 .env*.local
 
 .vercel
+
+# session audit digests (working artifacts, referenced from agent memory)
+.claude-audit-digest-*.md
+
+# local one-off scratch tooling (asset generators, etc.)
+.scratch/

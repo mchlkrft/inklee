@@ -1,7 +1,27 @@
-pnpm typecheck
-pnpm lint-staged
-# `next build` catches Next.js-specific runtime constraints that tsc + eslint
-# don't — e.g. exporting both `metadata` and `generateMetadata` from the same
-# route. Adds ~30s but prevents deploy-time errors that we'd otherwise only
-# see on Vercel.
-pnpm build
+# Block real Stripe secret/restricted keys (sk_/rk_) from being committed.
+# The {20,} key-body requirement means bare "sk_test_"/"pk_..." prefixes in code
+# or docs (e.g. the stripe-mode checks) don't false-positive — only actual keys.
+if git diff --cached -U0 | grep -E '^\+' | grep -E '(sk|rk)_(live|test)_[0-9a-zA-Z]{20,}' >/dev/null; then
+  echo "x Commit blocked: a Stripe secret/restricted key (sk_/rk_) is in staged changes."
+  echo "  Remove it and use an env var or a restricted key (rk_) instead."
+  git diff --cached -U0 | grep -nE '(sk|rk)_(live|test)_[0-9a-zA-Z]{20,}'
+  exit 1
+fi
+
+# Mobile (apps/mobile): typecheck the Expo app. tsc catches type errors incl.
+# the shared @inklee/shared API-response contract without slow Metro bundling.
+( cd apps/mobile && pnpm typecheck )
+
+# Run the slow web typecheck + Next build only when web or shared code actually
+# changed. Mobile-only commits are already validated by the mobile typecheck
+# above (which consumes the shared contract), so they skip the ~60s web pipeline.
+if git diff --cached --name-only | grep -qE '^(apps/web/|packages/)'; then
+  cd apps/web
+  pnpm typecheck
+  pnpm lint-staged
+  # `next build` catches Next.js-specific runtime constraints tsc + eslint don't
+  # (e.g. exporting both `metadata` and `generateMetadata` from one route).
+  pnpm build
+else
+  echo "pre-commit: no apps/web or packages changes staged -- skipping web typecheck/build."
+fi

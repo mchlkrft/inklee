@@ -1863,3 +1863,335 @@ Slices 60–61 must complete before public launch. They block the MVP gate (Phas
 **Roll-back rule:** every step in this phase is reversible without touching the canonical `/dm-chaos` URL. Disabling the variant system is a middleware-revert + a CSS-var-default flip; the page stays live with the current dark theme throughout. Meta Pixel can be disabled instantly by clearing the env var.
 
 **Cross-phase guardrail:** if the short-domain phase (Slices 54–59) is also live by the time this test runs, the UTM convention here must remain compatible with the inkl.ee shortlink convention documented there (`utm_medium=shortlink` for shortlinks, `utm_medium=social|paid_social|community` for direct posts). Cross-check before launching the test.
+
+---
+
+## Pre-Launch Phase: Bio Page + Goods + Appointment Add-ons (Slices 72–76)
+
+**Status:** ⏳ Planning locked 2026-05-28. Build Slice 72 only after the plan is approved. Full design, audit, DB/Stripe/UI plan, legal caution, and QA checklist live in `docs/bio-page-goods-plan.md` — this section is the slice-level summary; do not duplicate the detail.
+
+**Why pre-launch:** founder decision (2026-05-28) to ship the whole cluster before public launch. It reshapes booking/payment/webhook logic, is the headline differentiator, and is cheaper to land before any real artist has data. Sits after the Phase D gate, before Phase E mobile. See `docs/roadmap.md` §3.8.
+
+**Locked decisions (do not re-litigate without updating the plan doc + `DECISIONS.md`):**
+
+- **D1** — whole cluster ships before public launch.
+- **D2** — keep the existing embedded **PaymentIntent** flow. One combined intent (deposit + goods), itemized in Inklee's own `order_items`. No Stripe Checkout Session in v1 (`stripe_checkout_session_id` kept nullable for forward-compat only).
+- **D3** — **Stripe Connect gates production goods money** (roadmap OT-12). Build + test in Stripe test mode without Connect; `checkout_addons` stays OFF in production until Connect is live and artists are onboarded as connected accounts.
+- **D4** — add-ons attach to the deposit-payment moment in `/request/[token]`, when `status === deposit_pending` and the artist has `is_checkout_addon` goods.
+- **D5** — appointment pickup only; one artist + one booking per checkout; no shipping, cart, buyer accounts, discounts, multi-artist cart, global discovery, or reviews.
+- **D6** — paywall **readiness** only: `profiles.settings.features` flags + `canUseGoods()` helper returning true for everyone. No subscription billing, no public pricing copy.
+
+**Hard invariants:** deposit safe wording (7 files) verbatim; existing `/[slug]` route + deposit-only payment path unchanged for artists with no goods; honeypot + RLS service-role pattern + webhook idempotency intact; no em-dashes in public copy.
+
+### Slice 72 — Bio Page modular structure
+
+**Status:** ⏳ next to build (lowest risk; pre-launch-safe).
+
+Refactor `src/app/[slug]/page.tsx` from a monolithic page into an ordered list of modules driven by `profiles.settings.bio_page` (module order + per-module visibility). Modules: `BookingCta` (wraps existing booking form / books-closed — primary conversion, unchanged behavior), `GuestSpots`, `Flash`, `Waitlist` (each wraps existing data — do not fake), `BookingPolicy` (NEW — editable text), `CustomLinks` (NEW), `Shop` (NEW — placeholder card only this slice, real products land in 73). Settings surface (`/settings/bio-page` or extend `/bookings/booking-form`) for show/hide + order + custom-link CRUD + booking-policy text.
+
+Custom links in `profiles.settings.bio_page.custom_links[]` (`label`, `url`, `icon?`, `sort_order`, `is_active`). URL safety: allow `http`/`https` (+ optional `mailto`); reject `javascript:`/`data:`/other schemes — reuse the `resolveCoverImage` validation shape already in `[slug]/page.tsx`.
+
+**Acceptance:** existing public page renders identically when no new modules are configured; custom links + booking policy render and are editable; shop placeholder shows; opinionated structure, no drag-drop page builder; existing booking flow untouched.
+
+**No DB change** (JSONB only).
+
+### Slice 73 — Goods data model + dashboard CRUD
+
+**Status:** ⏳ pending — depends on 72.
+
+Migration **0035** (`products`, `product_variants` + enums `product_category`, `product_status`, `product_fulfillment`). New "Goods" nav item in the General group; routes `/goods` (grid), `/goods/new`, `/goods/[id]` (edit + variants). Create / edit / hide / mark sold-out, image upload (reuse the `sharp` + logo/booking upload pipeline), shirt variants (S/M/L/XL with optional price override + optional stock), pickup note, `is_public_visible` + `is_checkout_addon` toggles, sort order. Public Shop cards replace the Slice 72 placeholder. Delete only if safe, otherwise archive/hide. Reuse the Flash designs-grid layout language.
+
+**Acceptance:** artist can create a product + variants, hide, mark sold-out; hidden products never render publicly; public Shop shows active visible products; no variant matrix / SKU / shipping / tax-category complexity. Column spec in `docs/bio-page-goods-plan.md` §4.
+
+### Slice 74 — Pre-checkout add-ons page
+
+**Status:** ⏳ pending — depends on 73.
+
+Enhance `src/app/request/[token]/customer-portal.tsx`: when `deposit_pending` and the artist has `is_checkout_addon` goods, show a goods selector + booking summary + required deposit + live total above the existing payment form. Server-side total recompute (never trust client amounts). On "Pay deposit and selected items," a server action upserts an `orders` row (`pending`) + `order_items` (deposit + product lines, snapshotted), updates the existing PaymentIntent amount to the combined subtotal and sets `metadata.order_id`, returns the client secret. Existing `DepositPaymentForm` / `PaymentElement` confirm unchanged.
+
+**Acceptance:** client can pay deposit only (no goods) exactly as today; client can pay deposit + goods; total is correct and server-computed; combined amount is reflected in the PaymentIntent before confirmation. Copy examples in the plan doc, em-dash-free.
+
+**No new DB this slice** (orders/order_items land in 75's migration, but the action in 74 writes to them — sequence the migration with 75 or fold 0036 into 74's start; the plan doc treats 0036 as the orders migration. Build order: apply 0036 before wiring 74's action).
+
+### Slice 75 — Order + webhook + inventory + fulfillment
+
+**Status:** ⏳ pending — depends on 74. **Highest risk — touches live money + the webhook.**
+
+Migration **0036** (`orders`, `order_items`, optional `inventory_movements` + enums). Extend `/api/stripe/webhook`: on `payment_intent.succeeded`, if `metadata.order_id` present → verify `intent.amount === order.subtotal*100`, mark order `paid`, decrement inventory per product line items, run the existing booking-approval path, send itemized emails. If no `order_id` → existing deposit-only path untouched. Idempotency via order-status guard + existing audit_log guard. Booking detail (`/bookings/requests/[id]`) shows attached goods (variants, qty, fulfillment) + "Mark goods as picked up" + cancelled/refunded state mirroring Stripe. Itemized confirmation emails (customer + artist) extend the existing Resend templates minimally.
+
+**Inventory rule:** decrement ONLY in the webhook after success. Never on page view or intent creation. Null quantity = unlimited. Overselling under concurrent checkout is accepted + documented for v1 (no reservation system).
+
+**Acceptance:** webhook creates/updates the order correctly; inventory decreases only after successful payment and never before; order-item snapshots captured; booking confirms with and without goods; sold-out/hidden/unknown product cannot be purchased; webhook idempotent; existing booking + public routes still work.
+
+### Slice 76 — Paywall readiness + analytics + QA hardening
+
+**Status:** ⏳ pending — depends on 75.
+
+`profiles.settings.features` flags (`bio_page_modules`, `goods_module`, `checkout_addons`) defaulting on; a single `canUseGoods(profile)` helper as the future gate point; a note in `business-model.md` mapping the future Free/Plus split. Optional Plausible events (`public_bio_page_view`, `shop_section_view`, `product_view`, `addon_selected`, `addon_removed`, `checkout_started`, `checkout_paid`, `goods_picked_up`). Full unit/utility test pass + the manual QA checklist in the plan doc §10.
+
+**Acceptance:** no subscription billing, no public pricing copy, no plan ladder; flags are non-breaking and reversible; tests + manual QA pass; `checkout_addons` confirmed OFF in production pending OT-12 (Stripe Connect).
+
+## Bio Page + Goods phase boundary
+
+**Sequencing rule:** 72 → 73 → 74 → 75 → 76. Slice 72 is independently shippable and lowest-risk. Production goods checkout (real money) is gated on OT-12 (Stripe Connect) regardless of slice completion. Re-confirm scope at each slice boundary; do not implement more than one slice without checking back.
+
+---
+
+### Slice 77 — Pre-walkthrough UX + branding bug sweep
+
+**Status:** ✅ DONE 2026-06-04 (code green: typecheck + lint clean, 287 vitest tests pass). On `feat/bio-page-goods`. A batch of founder-collected UX/UI bugs cleared before the Phase D live walkthrough (§3.3). Capture-then-fix, same as the Phase D method.
+
+**Goal:** close five founder-reported issues that were rough edges on real surfaces, so the live walkthrough starts from a clean slate.
+
+**Scope (all shipped):**
+
+- **B1 — mobile nav: Goods had no entry point.** `MOBILE_BOTTOM_NAV` (`src/components/app-shell/nav-config.ts`) swapped the last slot Settings → Goods (`/goods`, `ShoppingBag`). Settings now lives only in the top-right account menu (`mobile-top-bar.tsx`: "Edit profile" relabelled "Settings" → `/settings/profile`). Bookings stays the center FAB (slot count unchanged).
+- **B2 — booking-form Size radios broke on mobile.** `src/app/[slug]/booking-form.tsx` size options now stack label over hint (`flex-col`, dropped the `·`) so they fit the narrow `grid-cols-2` column.
+- **B3 — size value lost its measurement in the artist backend.** Stored value is still the bare key (`forearm`); added `SIZE_LABELS` + `formatSize()` to `src/lib/booking-schema.ts` (label + hint, raw fallback). Applied at the artist display surfaces (`bookings/requests/[id]`, `bookings/overview` list + table, calendar `appointment-drawer` Row + edit-select option labels) and in every booking/deposit email var (submit, artist notification, approval × 4, webhook), so the artist sees exactly what the client picked (`Forearm · ~ 15-20 cm`). `SIZE_LABELS` relocated out of the client `booking-form.tsx`; `customer-portal.tsx` re-imports from the schema.
+- **B4 — profile banner upload threw a full-screen 500.** `settings/profile/profile-form.tsx` now validates type + size client-side (inline message, clears the input) before any request; `MAX_COVER_SIZE` dropped 5 MB → **4 MB** (under Vercel's ~4.5 MB request-body cap, the silent platform reject); `sharp` calls in `actions.ts` wrapped in try/catch returning a friendly `{ error }` so an undecodable file (HEIC/corrupt) never surfaces the global error overlay.
+- **B5 (mini-project) — email branding + deposit trust.** The described "plain, button-less, no-logo" deposit mail was already styled, but the audit surfaced real system-wide gaps. Unified the two divergent wrappers (`buildEmailHtml` + auth `base()`) into one shared shell `src/lib/email/layout.ts` carrying a **real hosted logo** (`public/branding/logos/inklee-email-logo.png`, 280×80, rasterized from the charcoal SVG because clients won't render SVG). Deposit-request mail gained trust context (why-received, "processed securely by Stripe, deposit goes directly to the artist's account," "no added fees") and a `Sent by Inklee on behalf of <artist>.` footer (also on the client deposit receipt) as an anti-phishing signal.
+
+**Out of scope / deferred:** capitalization "drift" (not a bug — `Inklee` is a brand term per AGENTS.md sentence-case); footer-link parity + GDPR-badge softening (deliberately dropped, see `project_inklee_legal_package` L4); deliverability (SPF/DKIM/DMARC on `inklee.app` in Resend) — operational, verify in the Resend dashboard, not code.
+
+**Smoke test:** mobile bottom nav shows Goods, Settings reachable top-right; Size radios stack cleanly at 375px; an approved/submitted booking shows `Forearm · ~ 15-20 cm` in the dashboard + emails; uploading a 6 MB or HEIC banner shows an inline message, not a 500; a sent deposit email renders the logo + Stripe/no-fee lines + on-behalf-of footer. `pnpm typecheck`, `pnpm lint`, `pnpm test` all green.
+
+---
+
+## Slice 78 — Phase D punch-list fix cluster
+
+Formalizes the remaining Phase D walkthrough findings (`docs/phase-d-walkthrough-2026-05-27.md`) into shippable sub-slices. Desktop quick-wins, IP-ROOT (iPad), and UP-1 (uploads) already shipped; this cluster is the rest. **Sequencing: 78a → 78b → 78c → 78d → 78e → 78f**, each independently shippable + deployable, capture-then-fix, `typecheck`/`lint`/`test` green before each ship. Re-confirm scope at each boundary.
+
+### Slice 78a — Goods "mark interest" decouple (DT-11) — H, regression
+
+**Goal:** restore the ability for clients to mark interest in goods from the booking flow, independent of paid checkout (which stays parked).
+
+**Root cause:** RS-3's `isGoodsCommerceEnabled()` (env `GOODS_COMMERCE_ENABLED`, default OFF) parked the _entire_ interest→checkout flow behind one flag, including the no-money interest-marking path.
+
+**Scope:** split the flag's responsibilities. Gate **interest-marking** on the goods module (`canUseGoods(settings)`), keep **paid checkout** on `isGoodsCommerceEnabled()`.
+
+- Un-park (gate on goods module): `src/app/[slug]/page.tsx:239` (`interestEligible`), `src/app/[slug]/actions.ts:282` (read `interests_json` on submit), `src/lib/addon-products.ts:56` (`getInterestEligibleProducts`).
+- Stays parked (money): `src/app/request/[token]/page.tsx:105` (portal add-on checkout), `src/lib/addon-products.ts:110` (`getAddonProducts`).
+- Verify the artist sees marked interests in the booking overview/detail and the Accept-time availability popup ("About your goods" decisions → approval email "ready for pickup") still fires off `booking_interests` presence (not gated on the money flag).
+
+**Done when:** with `GOODS_COMMERCE_ENABLED` unset (parked), a client can still add goods to interest on the public Shop overlay; the artist sees them on the request and confirms availability on Accept; NO payable add-on appears in the customer portal; no money path is reachable. Tests cover the new gate split.
+
+**Out of scope:** re-enabling paid goods checkout; the standalone Bio Page (FEAT-Bio).
+
+### Slice 78b — Payment-system pass: deposit page + payouts (DT-12, DT-13) — H
+
+**Goal:** a clean, on-brand, correctly-tested deposit + payout surface (the money path was not properly re-tested after the RS money-scope restructure).
+
+**Scope:** redesign `/bookings/deposits` UI (cleaner layout, fix the orange-warning-on-bone off-brand treatment, align to bone/charcoal/mustard/rosa); review `/settings/payouts` alongside it as one Connect-onboarding → deposit → fee → refund → payout operation; walk the full workflow in test mode (Connect onboarding country, deposit intent with `application_fee`, payment split, refund, manual path). Founder-driven verification expected.
+
+**Done when:** deposit page reads clean + on-brand; payouts reviewed; the end-to-end deposit money flow is verified in test mode; no off-brand warnings.
+
+**Out of scope:** changing the fee model (3% is provisional, founder-owned); legal copy (counsel).
+
+### Slice 78c — Waitlist artist-backend restructure (DT-5)
+
+**Goal:** declutter the artist waitlist; clarify converted/dismissed states.
+
+**Scope:** main waitlist view shows only active entries; move dismissed + converted into a collapsed "history" section (pick a clear name), expandable, greyed out. Relabel converted entries "added to requests" in the waitlist. In Requests, a converted-from-waitlist entry shows a "waitlist request" chip in the same color as the "request" chip.
+
+**Done when:** main view lists only active; history collapses/expands; converted/dismissed visually de-emphasized; requests chip reflects waitlist origin.
+
+### Slice 78d — Onboarding/viewport + booking-settings polish (DT-1, DT-15)
+
+**Scope:** DT-1 — onboarding intro slides (`onboarding/welcome/welcome-slides.tsx`) + `/onboarding/done` must fit the first viewport (no top cutoff) on all devices. DT-15 — add icons + reduce clutter on `/bookings/settings` for scannability.
+
+**Done when:** intro + done render fully in the first viewport at phone/tablet/desktop; booking settings is easier to scan with section icons.
+
+### Slice 78e — Analytics calendar (DT-4)
+
+**Scope:** render a calendar in the "Requests per Month" section, each day showing its request count (heatmap-style). (Detailed per-day drilldown = DT-4b, FUTURE — founder will prompt.)
+
+**Done when:** the requests-per-month section shows a per-day calendar with counts; no regressions to existing analytics.
+
+### Slice 78f — Flash edit-in-modal (DT-16)
+
+**Scope:** flash item edit + new use a modal (matching the goods/guest-spots modal style), not a subpage. (DT-16b — modal-everywhere backend principle — FUTURE.)
+
+**Done when:** editing/creating a flash item happens in a modal overlay; no full-page navigation for item edit; parity with the existing quick-create modal styling.
+
+### Deferred to future prompts (not in Slice 78)
+
+- **FEAT-Bio** — standalone Linktree-style per-artist link page (full prompt pending).
+- **DT-4b** — detailed/per-day analytics drilldown.
+- **DT-16b** — modal-everywhere artist-backend editing principle.
+
+---
+
+## Slice 79 — Deposit payouts via Custom Connect (no artist Stripe signup) [MVP pivot 2026-06-04]
+
+**Founder pivot (2026-06-04):** artists must NOT be forced through a Stripe-branded signup (the friction Express creates). Founder's first framing was "money goes to Inklee, held, then forwarded to the artist on the appointment date" — that's escrow / money-holding, which is regulated (PSD2 / payment-institution licensing / safeguarding) and makes Inklee merchant of record (VAT + chargeback liability). **Rejected for MVP.** Chosen instead: **Stripe Connect Custom accounts** — the artist provides identity + bank data inside Inklee's own UI and never visits Stripe, but money still routes straight to the artist (artist stays merchant of record, no Inklee escrow). Keeps the LO-2 posture; achieves the no-signup goal.
+
+**Honest KYC reality:** "provide account data" is NOT just an IBAN. To pay anyone out, Stripe must verify identity, so Inklee will collect (in-app): legal name, DOB, address, IBAN, ToS acceptance, and sometimes an ID document. Custom also shifts more dispute/negative-balance/compliance burden onto Inklee than Express. There is no lighter legal path to "artist gets paid."
+
+**Scope:**
+
+1. Stripe dashboard (founder): enable Custom accounts + platform loss-liability settings.
+2. `createConnectAccount` (`src/lib/stripe-connect.ts`): `type: "express"` → `"custom"`, add `tos_acceptance` (date + ip) + `business_type`; drop the hosted `accountLinks` onboarding redirect.
+3. In-app onboarding form on `/settings/payouts`: collect individual KYC + `external_account` (IBAN) → `accounts.update`; render Stripe `requirements.currently_due` so missing fields surface; handle verification pending/failed states.
+4. ID-document upload path (Stripe file upload) when requirements demand it.
+5. Charge flow UNCHANGED: destination charge + `on_behalf_of` + 3% `application_fee` (`platform-fee.ts` untouched). Payouts enable once verified.
+6. Payout timing: default standard schedule (compliant). "Hold until appointment date" DEFERRED — reintroduces the money-holding/safeguarding concern; open decision.
+
+**Done when:** an artist can become payout-ready entirely inside Inklee (no Stripe redirect); a test-mode deposit routes to the connected account with the 3% split; verification states surface cleanly.
+
+**Owner:** Founder + Claude — JOINT session (needs Stripe test mode + dashboard config + product calls on individual-vs-company default + countries). Not solo-shippable: a money path must be built + verified in test mode, not blind.
+
+**Counsel:** re-confirm that Custom + Inklee-as-platform keeps the artist as merchant of record and does NOT make Inklee a payment intermediary (lighter than the rejected escrow model, but confirm). Folds into the open questions in `docs/payment-flow-for-counsel.md`.
+
+**STRICT MONEY WALL + LAZY KYC (founder principle, 2026-06-04).** Flipping the Stripe platform profile to platform-controlled (Custom) only grants _permission_; it must NOT pull any artist into KYC/liability by default. Hard rule: **no Connect account, no KYC, no Inklee liability exposure for an artist until they explicitly enable deposit collection.** Crossing that wall (opting into deposits) is what triggers `createConnectAccount` + the in-app KYC onboarding, which gates deposit activation (no KYC ⇒ no in-app deposits, manual fallback only). Every free feature (booking, bio page, flash, guest spots, goods showcase, waitlist) stays entirely clear of Stripe/KYC/liability. Implementation: a single "is this artist payout-ready?" gate (extend `deriveConnectRouting`/`getConnectRoutingForArtist`) that all money-touching surfaces sit behind; account creation stays on-demand (never at signup/onboarding). Audit that nothing creates a Connect account or requests KYC outside the deposit opt-in path.
+
+**⚠️ MARGIN RISK — FEATURE-LEVEL (checked against Stripe EU pricing 2026-06-04).** Stripe Connect costs for the Custom/destination model: card processing 1.5%+€0.25 (already modelled) **PLUS €2/month per _active_ connected account PLUS payout fee 0.25%+€0.10 (SEPA).** Inklee's keep per deposit = `1.5%·deposit − €0.25` (€0.50 on €50, €1.25 on €100, €2.75 on €200). Subtracting the €2/month + payout fee, **single-deposit-per-month artists are net-NEGATIVE below ~€157 deposit** (e.g. €100 deposit ⇒ ~−€1.10/mo). It only profits on multi-deposit or large-deposit artists. **Critical link: the €2/month + payout fee exist BECAUSE we chose Custom (no artist signup); Standard accounts have neither (Stripe bills the artist) but require the signup the founder rejected.** So "no signup" costs ~€2/active-artist/month, and the 3%-transaction-fee-alone model does NOT cover it for low-volume artists. **Resolution options (founder decision, launch-gating):** (1) subscription/plan fee covering the €2 + margin — most likely (this is why 3% was always "provisional pending stricter subscription model", D-d); (2) Standard accounts (kills the fee, reintroduces signup); (3) minimum-deposit floor (~€150, unrealistic); (4) higher % (~5–8%, too high). **Plumbing is model-agnostic — safe to build — but launch economics are gated on this decision. Founder flagged the whole feature "at risk" on the math.** Also confirm exact EE/EU numbers + any Inklee↔Stripe negotiated rate on the live Stripe pricing page before launch. Sources: stripe.com/connect/pricing.
+
+**DECISION LOCKED 2026-06-04: Custom, all-in (founder).** Accept the €2/mo + payout fees + Inklee loss-liability for the no-signup UX; the **subscription layer is the assumed margin cover** (3% transaction fee stays provisional/secondary). Custom-vs-Standard settled in favour of Custom.
+
+**Build approach — sandbox-first (NOT blind).** The `controller` config interacts with the fee model: `controller.fees.payer` decides who bears Stripe's processing fee, `controller.losses.payments` who eats negative balances — get these wrong and the 3% math silently breaks. So this is validated against the founder's Stripe sandbox, not written blind. Planned controller (to verify in sandbox): `controller.requirement_collection: "application"` (Inklee collects KYC, no Stripe UI), `controller.stripe_dashboard.type: "none"` (artist never sees Stripe), `controller.losses.payments: "application"` (Inklee liable), `controller.fees.payer` — **VERIFY**: must keep the artist bearing Stripe's processing fee to preserve the platform-fee.ts 3%-all-in math (likely paired with `on_behalf_of` retained on the charge). Planned KYC fields for an EE/DE **individual** account (confirm against live `requirements.currently_due`): legal first/last name, DOB, residential address, email, phone, IBAN (`external_account`), `tos_acceptance` (date+ip), and an ID document when Stripe escalates. Build steps unchanged from the Scope list above; ship gated on sandbox validation.
+
+**✅ SANDBOX-VALIDATED 2026-06-04 (probe against test keys, account created + deleted):**
+
+- **Working controller config** (artist never sees Stripe): `controller: { requirement_collection: "application", stripe_dashboard: { type: "none" }, losses: { payments: "application" }, fees: { payer: "application" } }` + `business_type: "individual"` + `capabilities: { card_payments, transfers }`. Stripe **rejects** `fees.payer: "account"` here ("when controlling requirement collection the application must also control losses, fees, and dashboard none").
+- **CONSEQUENCE — fee model change:** because Custom forces `fees.payer: application`, **Inklee (platform) pays Stripe's processing fee**, not the artist. End economics identical (artist −3%, Inklee nets ~€2.75/€200) but `platform-fee.ts applicationFeeCents` must become the **FULL 3%** (`platformFeeCents`), since Stripe now deducts its fee from Inklee's platform balance separately rather than from the artist via `on_behalf_of`. **Verify the exact split with a real test deposit before trusting it.** Also re-check whether `on_behalf_of` is still wanted on the deposit PaymentIntent for MoR under this model.
+- **Exact KYC fields (DE individual `requirements.currently_due`):** `individual.first_name`, `individual.last_name`, `individual.dob.{day,month,year}`, `individual.address.{line1,city,postal_code}`, `individual.email`, `individual.phone`, `external_account` (IBAN), `business_profile.mcc` (auto-fill, e.g. 7299), `business_profile.url` (auto-fill = artist's inkl.ee page), `tos_acceptance.{date,ip}` (captured on accept via `next/headers`). **No ID document up-front** (Stripe may escalate later → handle via `requirements`).
+
+**Build sequence (foundation validated; build next):** (1) `createConnectAccount` → the validated Custom controller; (2) `updateConnectKyc` lib fn → `accounts.update` with individual + external_account + business_profile + tos_acceptance; (3) in-app KYC form on `/settings/payouts` (artist-facing fields above) + `submitConnectKycAction`; (4) replace the Stripe-hosted `accountLinks` redirect with the in-app form; (5) render `requirements.currently_due` so missing fields surface. THEN the deposit-flow half: (6) change `platform-fee.ts` to full-3% application fee + (7) test-deposit in sandbox to verify the split + payout. Onboarding half (1–5) is independent of the fee math and testable on its own ("can an artist go payout-ready entirely in-app?").
+
+**AGENT-REVIEW FINDINGS (2026-06-04, orchestrated read-only Discovery + Security passes) — fold into the build:**
+
+- **C-1 [critical, Phase C]** `applicationFeeCents` formula wrong under `fees.payer:application` → change to full 3% (`platformFeeCents`) at `platform-fee.ts:71` + call sites `bookings/actions.ts:585,666`; update `platform-fee.test.ts` (will fail = correct signal); **verify with a real test deposit.**
+- **C-2 [critical, tracked follow-up]** public `profiles` SELECT RLS (`0027`) exposes all `stripe_*` columns to anon. Mitigation now: KYC never stored in our DB; never `select("*")` profiles client-side. Proper fix = column-scoped policy (migration, founder-applied).
+- **H-1 [Phase B]** `updateConnectKyc` sends KYC (name/DOB/address/IBAN) straight to Stripe; **never persist to our DB**, only the status sync.
+- **H-2 [Phase B]** zero `console.*` of KYC form fields; Sentry on Stripe errors only.
+- **H-3 [Phase A ✅]** shared `getClientIp()` created (`src/lib/get-client-ip.ts`) for `tos_acceptance.ip`.
+- **H-4 [Phase B]** `syncConnectAccountAction`: short-circuit when status `unset`/`disabled`.
+- **M-2 [Phase B]** pass `hasAccount: boolean` to the client, not the raw `acct_…` id.
+- **M-4 [Phase A ✅]** server-only runtime guard added to `stripe-connect.ts` (skipped `stripe.ts` — it exports the client-safe publishable key + secret is env-null in browser).
+- **M-5 [Phase A ✅]** Stripe vars added to `.env.example`.
+- **M-3 [tracked]** retrofit `getClientIp()` onto login/forgot-password rate-limit keys (auth files — separate small pass).
+- **L-1 [Phase B/C]** webhook: assert `event.account === account.id` before persist.
+- **Discovery notes:** `/settings/payouts/{return,refresh}` routes + `createConnectOnboardingLink` go dead (delete/neutralize); `first_name`/`last_name` in DB (not Drizzle schema) usable as KYC pre-fill; remove the Express docs link at `payouts/page.tsx:117`; update `STATUS_DESCRIPTION` copy (pending now means "in-app KYC not submitted"); `prepareCheckoutAction` doesn't set `application_fee` (existing behavior, note for sandbox).
+
+**Supersedes** the OT-12 Express onboarding (Slice 78b's deposit/payout UI work rolls into this).
+
+### Slice 79 phases — shipped log
+
+- **Phase A** (`3380a2a`) — orchestrator agent + pre-build hardening: `getClientIp()` (`src/lib/get-client-ip.ts`, H-3), server-only runtime guard on `stripe-connect.ts` (M-4), Stripe vars in `.env.example` (M-5).
+- **Phase B** (`7a83854` + sandbox fixes `6707209`) — in-app Custom KYC onboarding: `createConnectAccount` → validated Custom controller (`requirement_collection: application`, `stripe_dashboard.type: none`, `losses.payments: application`, `fees.payer: application`), `updateConnectKyc` (`accounts.update`, KYC sent straight to Stripe, **never persisted** — H-1/H-2), in-app KYC form on `/settings/payouts` + `submitConnectKycAction`, hosted `accountLinks` redirect removed, `requirements.currently_due` surfaced. `hasAccount` boolean to client not the `acct_…` id (M-2), webhook asserts `event.account === account.id` (L-1).
+- **Phase C** (`feb7fb8`) — fee model under Custom: because Custom forces `fees.payer: application`, **Inklee pays Stripe's processing fee**, so `applicationFeeCents` became the **full 3%** (`platformFeeCents`) at `platform-fee.ts` + call sites `bookings/actions.ts` (C-1). `platform-fee.test.ts` updated. End economics unchanged (artist −3%, Inklee nets ~€2.75/€200) but the split now happens on Inklee's platform balance, not via `on_behalf_of` deduction.
+
+### Slice 79d — multi-currency deposits ✅ build done (verification + deploy pending)
+
+Non-eurozone artists are charged/settled in their own currency (no FX at payout). EUR artists fully unchanged — everything defaults to `eur`.
+
+- **79d.1** (`6316102`) — foundation: migration **0044** `booking_requests.deposit_currency` (text, default `'eur'`); `artistDepositCurrency()` = the artist's Connect-country currency when connected, else `eur` (manual deposits carry no FX); `requestDeposit` derives the currency, charges the PaymentIntent in it, stores it on the booking (create + reuse paths). 3% fee is currency-agnostic.
+- **79d.2-3** (`06bf436`) — customer portal + artist deposit display thread `deposit_currency`: portal page loads it; `DepositPaymentForm`/`AddonsCheckout`/fallback format with it (Stripe Elements derives currency from the PaymentIntent — no widget change); request-detail deposit amount + refund line + `DepositRefundButton` format with it.
+- **79d.3-4** (`670c6e2`) — preview line + all emails: status-actions deposit-request amount prefix + "you receive" fee preview use the artist's currency (threaded from request-detail page); all deposit emails (requested, client receipt, artist paid, overdue customer + artist) take + format a currency; callers pass it (`requestDeposit`/`notifyDepositRequested`, webhook from `intent.currency`, cron + manual reminders from `booking.deposit_currency`); deposit-settings max-amount message made currency-neutral.
+
+**State:** `typecheck` + `lint` (0 errors) clean, **284 tests green**. 2 commits unpushed to `origin/payment-stripe`.
+
+**Remaining (founder-gated, money path — not solo-shippable):**
+
+1. **Founder must apply migration 0044** in Supabase (`booking_requests.deposit_currency`).
+2. **Verification in Stripe sandbox** — an EUR test deposit (must be behaviourally identical to before) + a non-EUR test deposit (e.g. a non-eurozone Connect country) routing to the connected account with the full-3% split, confirming currency renders correctly across portal / artist display / emails. This is the C-1 "verify with a real test deposit" check rolled together with 79d.
+3. **Deploy** to prod once verified.
+4. **Legal copy wording fix (cosmetic, ride along with the deploy):** the live `/subprocessors` Stripe row — and any line in `/terms` §12 — still say Connect **"Express"**; Slice 79 moved to **Custom** (in-app KYC, artist never visits Stripe). Substance is unchanged (artist still merchant of record via retained `on_behalf_of`, 3% all-in, Inklee never holds funds), so this is a one-line "Express → Custom" wording update, not a re-review. The legal planning docs under `legal/` were dropped 2026-06-05 (their L1–L9 + Q9 work shipped + founder-confirmed 2026-06-04); this wording tweak is the only residual carried forward. **(Now tracked as P1-4 in Slice 80.)**
+
+---
+
+## Slice 80 — Payment audit remediation [multi-agent audit 2026-06-05]
+
+A four-lens read-only audit (security & money-correctness · UI/UX & copy · functionality & process · docs/vision/lost-tasks) of the whole deposit feature. Full findings + evidence + the confirmed-solid list = **`docs/payment-audit-2026-06-05.md`**. Verdict: architecturally on-vision, ~90% code-complete, **not launch-ready**. The work below is the remediation backlog, tiered by when it must land. Sequencing within a tier is flexible; each item is independently shippable with `typecheck`/`lint`/`test` green.
+
+### Tier 0 — deploy-blocking — ✅ ALL SHIPPED 2026-06-05 (288 tests green, typecheck + lint clean)
+
+What shipped per item: **P0-1** deleted `dashboard/actions.ts` (re-verified zero importers). **P0-2** client-cancel now cancels a live unpaid intent + records a `deposit_forfeited` audit row when a deposit was paid (artist keeps it) + the portal cancel-confirm shows the client a forfeit warning; new artist `cancelBooking` action auto-refunds a paid deposit via `refundDeposit` (aborts the cancel if the refund fails, so money is never stranded), else cancels the unpaid intent, releases the slot, and sends the now-wired `customer_booking_cancelled_by_artist` email; new `CancelBookingButton` on the detail page for approved bookings. **P0-3** new pure `src/lib/connect-requirements.ts` (`describeRequirements` + tests) + read-only `getConnectRequirements()`; payouts page fetches it for pending/restricted and the KYC form renders a "Stripe still needs:" checklist on load + after submit. **P0-4** customer-portal deposit section shows a test-mode banner via `detectStripeMode`. **P0-5** em-dashes + "pending counsel review" copy removed from the deposit surfaces. **P0-6** webhook uses `intent.currency` for the deposit-paid notification + goods confirmation. The original task descriptions are kept below for reference.
+
+- **P0-1 [Critical, trivial] Delete the orphaned `dashboard/actions.ts`** — a full duplicate of the booking actions with NO Connect routing, NO `application_fee`, NO `on_behalf_of`, hardcoded `eur`. Verified zero importers; one stray import would charge real money to Inklee's platform account with zero fee. Just delete the file.
+- **P0-2 [High] Wire refund-on-cancellation (D-f).** Client-cancel → cancel the live unpaid intent + record forfeiture + show the client a forfeit warning before confirm. Artist-cancel → new action that auto-invokes the existing `refundDeposit`. Today both directions strand the deposit/intent and the only refund is a manual button no flow calls. Live behaviour must match `/terms` §12 + `deposit-policy.ts`.
+- **P0-3 [High] Surface KYC `requirements.currently_due`** in the in-app KYC form (the action already returns it) — map codes to labels + render a "still needed" checklist on the form and the restricted/pending page, so a stuck account is self-serviceable (the core promise of Custom onboarding).
+- **P0-4 [High] Customer-portal test-mode banner** — the customer Stripe Elements pay form shows no test-mode signal (only artist surfaces do). Add one keyed off publishable-key mode.
+- **P0-5 [High] Copy ship-rule sweep on money surfaces** — remove em-dashes (AGENTS.md ship gate) and the internal "pending counsel review" language leaking to artists.
+- **P0-6 [Medium] Multi-currency last-mile** — webhook hardcodes `eur` in the artist "deposit paid" notification + goods confirmation; use `intent.currency`.
+
+### Tier 1 — fast-follow — ✅ SHIPPED 2026-06-05 (288 tests green, typecheck + lint clean) — except P1-4 legal half (founder/counsel)
+
+- ✅ **P1-1** Webhook `charge.refunded` handler reconciles dashboard/out-of-band refunds into a `deposit_refunded` audit row (idempotent — at most one per booking), so the detail page shows "Refunded" and the in-app button stops offering; `payment_intent.payment_failed` handler logs a best-effort `deposit_payment_failed` audit row (no notification, to avoid retry spam).
+- ✅ **P1-2** Email trust: deposit-overdue customer reminder now carries the "Sent by Inklee on behalf of <artist>" anti-phishing footer + `@handle || "there"` greeting fallback (also applied to the appointment-reminder + reconfirmation customer emails). **UX-18 was a false positive** — `inklee.app` is the app/asset domain (the artist dashboard + logo host); `inkl.ee` is only the public-bio short domain, so the email links/asset are correct; left unchanged.
+- ✅ **P1-3** Audit-log currency: `deposit_paid` (webhook) + `deposit_refunded` (refund action) now store `currency` alongside the kept-for-compat `*_eur` keys, so non-EUR amounts are interpretable for reconciliation.
+- ✅ **P1-4 DONE 2026-06-05** Code comments fixed (`stripe-connect.ts`); after counsel sign-off (G-4) the live `content/legal/subprocessors.md` Stripe row was corrected "Express"→"Custom" + the resolved "re-confirmation requested from counsel" caveat removed, version bumped to 2026-06-05 with a matching frozen snapshot (old 2026-06-03 snapshot kept as history). `/terms` §12 needed no change (account-type-agnostic).
+- ✅ **P1-5** Off-brand `orange-400` warnings on the deposits page, status-actions test-mode banner, and policy-form draft notice → brand-mustard caution treatment (mustard border + icon, legible `foreground` body); customer-portal test banner aligned to the same; dropped the vague platform disclaimer; customer-portal view renders `formatSize()` not the raw size key; swept the remaining user-visible em-dashes in status-actions the earlier PowerShell pass missed.
+- ✅ **P1-6** Reuse-path staleness: `requestDeposit` reuse branch now re-checks routing + retrieves the existing intent's currency; if the artist disconnected (routeCharges false) or the settlement currency changed (PI currency is immutable), it cancels the dead intent and converts the booking to a manual deposit instead of reusing a card intent that would fail at confirm (can't mint a replacement — the create idempotency key is per-booking).
+
+### Tier 2 — hardening & polish — ✅ SHIPPED 2026-06-05 (288 tests green, typecheck + lint clean) — two polish items deferred
+
+- ✅ **P2-1** `payment_intent.succeeded` webhook asserts `intent.metadata.artist_id === booking.artist_id` before flipping status (defense-in-depth alongside the amount re-check).
+- ✅ **P2-2** new per-artist rate limiters: `checkConnectKycRateLimit` (10/h) on `submitConnectKycAction`, `checkDepositRequestRateLimit` (20/h) on `requestDeposit`.
+- ✅ **P2-3 (M-3)** login, forgot-password, and download actions now key their rate limiters via the shared `getClientIp()` (leftmost XFF) instead of the raw comma-joined header.
+- ✅ **P2-4 (C-2)** VERIFIED CLOSED — no migration needed. Confirmed migration 0030 drops the public `profiles` SELECT, 0039 adds no policy, and nothing after re-adds a public SELECT on profiles; `stripe_*` columns are not anon-readable, so a column-scoped policy would be a no-op.
+- ✅ **P2-5** `requestDeposit` rejects amounts `< 1` server-side (currency-neutral) — the UI min wasn't enforced server-side and sub-unit amounts yield a 0 fee.
+- ✅ **P2-6 (partial)** `loadStripe` memoised at module scope in `deposit-payment-form.tsx` (was re-init per render); raw `acct_…` id removed from the payouts status UI; deleted the dead `payouts/{return,refresh}` redirect shims (zero references, pre-launch).
+- ⏳ **Deferred polish (tracked, not shipped):** UX-5 (KYC inline field validation / IBAN format check — P0-3 already added the requirements checklist, so this is now lower-value) and UX-3 (currency symbol vs ISO code — `formatPrice` is used app-wide, so switching to `Intl.NumberFormat` currency style is a broad visual change better done deliberately, not under a hardening pass). Both noted in `docs/payment-audit-2026-06-05.md` P2-6.
+
+### Tier 3 — founder-gated / external (the real launch gates) → see roadmap §3.3
+
+- ✅ **G-1 DONE** (migration 0044 applied 2026-06-05 via Supabase SQL Editor — drizzle journal only tracks 0000, so migrations go through Supabase, not `db:migrate`).
+- **G-2 CORE VERIFIED 2026-06-05** in Stripe sandbox (full log: `docs/g2-sandbox-verification.md`): ✅ in-app Custom KYC onboarding (no Stripe redirect, charges+payouts enabled); ✅ EUR €200 deposit split verified via Stripe API (application_fee €6 = full 3%, on_behalf_of+destination=artist, artist net €194, platform fee €6); ✅ webhook booking-flip (Accepted + Deposit-paid timeline + notification); ✅ artist-cancel auto-refund (refund €200, app fee €6 returned, artist balance reversed). **Remaining for next session:** 4.2 client-cancel forfeit, 4.3 client-cancel-unpaid intent cancel, 4.4 dashboard-refund reconciliation, Phase 3 multi-currency (non-EUR), Phase 5 manual/declined/reuse edges.
+- **G-3** D-d economics decision (Custom €2/mo + payout fees make low-volume artists net-negative; subscription cover unbuilt — launch-gating). **G-4** D-e counsel sign-off on the Custom model (8 Qs) + the deferred P1-4 `/subprocessors` Express→Custom wording bump. **G-5** Phase D live walkthrough incl. the money path.
+
+### Follow-up findings (post-Tier-2)
+
+- **G2-F1 [UI, small]** Deposit card on `bookings/requests/[id]/page.tsx` shows the amount + "Due <date>" even after the deposit is **paid** — should render a clear "Paid" state and drop/replace the due-date line once `deposit_paid_at` is set. Found during G-2 live testing 2026-06-05.
+- **Operational (not code):** the local `stripe listen` CLI tunnel drops its websocket in the background, so deposits don't always auto-flip locally — resolved by replaying the event (see g2 doc). Webhook code is correct; confirm the PROD webhook endpoint at deploy (G-5).
+
+---
+
+## Slice 81 — Internal admin entitlements + fee-sponsorship system [2026-06-05]
+
+Resolves D-d operationally + builds the private-beta enabler. Lets the founder, from `/admin/accounts/[id]`, grant per-artist access and sponsor fees without any public campaign. **All code shipped; needs migration 0045 applied + dogfood.**
+
+**What it does (7 capabilities):**
+
+- **Feature entitlement overrides** — per-artist `plan_tier` (free/plus) + per-feature grant/revoke on top of the plan (`canAccess`). Card deposits are now **gated behind the `deposits` entitlement** (Plus or a comp).
+- **Sponsored fee settings** — toggle "Inklee covers this artist's 3% deposit fee" (sets `application_fee` to 0; artist keeps 100%).
+- **Expiry dates** — optional expiry on both the plan/comp grant and the fee sponsorship (auto-reverts).
+- **Spend limits** — optional sponsorship cap (`fee_sponsor_cap_cents`); sponsorship auto-stops when used ≥ cap.
+- **Usage tracking** — `fee_sponsored_used_cents` incremented in the webhook (the foregone fee is stamped on the intent at request time); panel shows used/remaining + paid-deposit count + volume.
+- **Admin notes** — internal free-text per artist.
+- **Audit log** — every change via the existing `admin_action_log` + `writeAudit` (actions `set_plan`, `set_entitlement`, `set_fee_sponsorship`, `update_admin_notes`).
+
+**Architecture:** new **service-role-only** table `account_overrides` (migration 0045 — RLS on, no policies, so an artist can never read internal notes/budget about themselves). Pure engine `src/lib/entitlements.ts` (client-safe: types, `ENTITLEMENT_FEATURES`, `canAccess`, `effectivePlanTier`, `isFeeSponsorshipActive`, `sponsorshipRemainingCents`) + server read `src/lib/entitlements-server.ts` (`getAccountOverrides`). Gating + sponsorship wired into `requestDeposit` (create + reuse paths) and webhook usage tracking. Admin UI `account-entitlements.tsx` + 4 server actions in `accounts/[id]/actions.ts`. 295 tests (7 added), typecheck + lint clean.
+
+**⚠️ Behavioural change:** card-deposit collection now requires the `deposits` entitlement. Default (no override row) = **free = gated to manual deposits**. So the `ouchy` G-2 tester must be **comped** (admin → grant Plus, or grant the `deposits` feature) to keep collecting card deposits — good first dogfood of this tool.
+
+**Founder TODO:** apply **migration 0045** in Supabase (SQL Editor, same as 0044), then grant comp to the beta testers from `/admin/accounts/[id]`.
+
+**Remaining (Slice 82 — before opening to PAYING artists):** real Stripe **subscription** product + Customer Portal + upgrade UI + subscription webhooks. The private beta does NOT need it (all testers are comped).
+
+---
+
+# Mobile app — Phase E (E-track) [started 2026-06-05]
+
+Separate track from the numeric web slices above (web is the Next.js app; E-track is the Expo iOS+Android **artist** app). **Authoritative plan: `docs/mobile-implementation-plan.md`** (orchestrator + 5 specialist agents). Locked: Expo/React Native + Expo Router, in-place pnpm monorepo (`apps/web` + `apps/mobile` + `packages/shared`), new `/app/api/mobile/*` Bearer-JWT layer over shared `/lib/server/*`. Artists-only; public bio/client-portal/marketing/legal/admin stay web. Hard constraints: no in-app subscription billing (IAP), Sign in with Apple required, in-app account deletion required (+web GDPR gap), Stripe KYC via in-app browser, minimal-PII push payloads. DECISIONS.md has the locked row; roadmap §6.4 is the home.
+
+| Slice    | Title                                                                                                                                                                                                                         | Status             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| **E0**   | Audit + architecture + Expo-vs-Capacitor spike (the plan)                                                                                                                                                                     | ✅ done 2026-06-05 |
+| **E-M0** | Monorepo migration → `apps/web`, pnpm workspace, `.npmrc node-linker=hoisted`, husky→`cd apps/web`. | ✅ done + merged to `payment-stripe`; Vercel Root Dir=`apps/web`, preview green |
+| **E1**   | Expo foundation + auth + first `/api/mobile` + shell + 5-tab nav + UI primitives + `packages/shared`. | ◑ **backend foundation shipped**: `lib/server/mobile-auth.ts` (Bearer-JWT → RLS client) + **full read layer (13 endpoints)** `/api/mobile/{me,home,bookings,bookings/[id],notifications,waitlist,clients,clients/[email],calendar,analytics,settings/profile,settings/deposit-defaults,settings/payouts}` + **safe mutations + push-prep**: `notifications/read`, `notifications/read-all`, `devices` (POST register / DELETE deregister, upsert on unique token). Migration **0046 (`device_tokens`, RLS) NOT yet applied** — founder applies to prod + inklee-dev. Push send (E3) still needs APNs/FCM via EAS. Expo app + auth + `packages/shared` extraction pending founder store/Expo accounts. |
+| **E2**   | Booking core — inbox, request detail, references, accept/pass/cancel, deposit (entitled)                                                                                                                                      | ◑ **backend money-path shipped via shared core**: extracted `src/lib/server/bookings.ts` (`approveBookingCore`/`approveBookingWithInterestDecisionsCore`/`applyInterestDecisionsCore`/`rejectBookingCore`/`requestDepositCore`/`markDepositReceivedCore`/`refundDepositCore`/`cancelBookingCore`) — web Server Actions are now thin wrappers over it (no logic divergence). Mobile endpoints: `POST /api/mobile/bookings/[id]/{approve,reject,cancel,deposit,deposit-received,deposit-refund}` (`mobileMutation` result mapper). Stripe/entitlement/MoR/refund logic UNCHANGED — 295 tests green. Expo screens pending. |
+| **E3**   | Notifications + push — `device_tokens` (migration 0046), `notifyArtist()` fan-out, deep links                                                                                                                                 |                    |
+| **E4**   | Onboarding + public booking link (first-10-minutes excellence)                                                                                                                                                                |                    |
+| **E5**   | Calendar, slots, availability, books open/cap                                                                                                                                                                                 |                    |
+| **E6**   | Clients + waitlist                                                                                                                                                                                                            |                    |
+| **E7**   | Flash                                                                                                                                                                                                                         |                    |
+| **E8**   | Guest spots / travel                                                                                                                                                                                                          |                    |
+| **E9**   | Goods (showcase)                                                                                                                                                                                                              |                    |
+| **E10**  | Analytics + polish (states, copy, a11y, perf)                                                                                                                                                                                 |                    |
+| **E11**  | Settings, payouts, deposits, templates, KYC web-view                                                                                                                                                                          |                    |
+| **E12**  | Beta release readiness — TestFlight + Play internal, review pack, web-regression, quality gate                                                                                                                                |                    |
+
+**Cross-cutting NEW work (web + mobile):** self-service account deletion (Apple req + GDPR; only an admin delete exists today); `notifyArtist()` wrapping `createNotification` + push; de-dup legacy `dashboard/*` ↔ `bookings/*` action trees during `lib/server` extraction.
+
+**Founder prerequisites (lead time — start now):** Apple Developer Program under Inklee OÜ (D-U-N-S) + Google Play Console ($25) + Expo account (OT-05).
