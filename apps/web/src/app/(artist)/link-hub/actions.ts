@@ -7,7 +7,10 @@ import {
   type BioPageSettings,
 } from "@/lib/bio-page-settings";
 
-type State = { error: string } | { success: true; note?: string } | null;
+type State =
+  | { error: string }
+  | { success: true; note?: string; settings: BioPageSettings }
+  | null;
 
 export async function saveBioPageAction(
   _prev: State,
@@ -97,8 +100,9 @@ export async function saveBioPageAction(
   if (parts.length > 0) {
     return {
       success: true,
+      settings,
       note: `Saved. ${parts.join(" and ")} skipped (unsafe or invalid URL).`,
     };
   }
-  return { success: true };
+  return { success: true, settings };
 }

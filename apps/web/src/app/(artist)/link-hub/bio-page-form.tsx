@@ -17,7 +17,10 @@ import {
   type BioPageSettings,
 } from "@/lib/bio-page-settings";
 
-type State = { error: string } | { success: true; note?: string } | null;
+type State =
+  | { error: string }
+  | { success: true; note?: string; settings: BioPageSettings }
+  | null;
 
 const INPUT =
   "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring";
@@ -46,6 +49,21 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
   const [text, setText] = useState(bioPage.text ?? "");
   const [links, setLinks] = useState<BioCustomLink[]>(bioPage.customLinks);
   const [socials, setSocials] = useState<BioSocial[]>(bioPage.socials);
+
+  // After a successful save, re-sync local state to the server-sanitized result
+  // (normalized URLs, dropped links/socials) so the editor matches what was
+  // stored — matches the native editor. React's "adjust state during render"
+  // pattern (no effect): apply once per new action result.
+  const [appliedState, setAppliedState] = useState<State>(null);
+  if (state !== appliedState) {
+    setAppliedState(state);
+    if (state && "success" in state) {
+      setHeadline(state.settings.headline ?? "");
+      setText(state.settings.text ?? "");
+      setLinks(state.settings.customLinks);
+      setSocials(state.settings.socials);
+    }
+  }
 
   const updateLink = (id: string, patch: Partial<BioCustomLink>) =>
     setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
@@ -234,43 +252,52 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
           {socials.length === 0 && (
             <p className="text-sm text-muted-foreground">No socials yet.</p>
           )}
-          {socials.map((s, i) => (
-            <div key={i} className="flex gap-2">
-              <select
-                value={s.platform}
-                onChange={(e) =>
-                  updateSocial(i, {
-                    platform: e.target.value as BioSocialPlatform,
-                  })
-                }
-                aria-label="Platform"
-                className={`${INPUT} max-w-[9.5rem] shrink-0`}
-              >
-                {BIO_SOCIAL_PLATFORMS.map((p) => (
-                  <option key={p} value={p}>
-                    {BIO_SOCIAL_META[p].label}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={s.url}
-                onChange={(e) => updateSocial(i, { url: e.target.value })}
-                placeholder={
-                  s.platform === "email" ? "you@email.com" : "https://…"
-                }
-                inputMode="url"
-                className={INPUT}
-              />
-              <button
-                type="button"
-                onClick={() => removeSocial(i)}
-                aria-label="Remove social"
-                className={ICON_BTN}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-          ))}
+          {socials.map((s, i) => {
+            // Offer this row's own platform + platforms not taken by other rows,
+            // so the user can't pick a duplicate the parser would silently drop.
+            const takenByOthers = new Set(
+              socials.filter((_, j) => j !== i).map((x) => x.platform),
+            );
+            return (
+              <div key={i} className="flex gap-2">
+                <select
+                  value={s.platform}
+                  onChange={(e) =>
+                    updateSocial(i, {
+                      platform: e.target.value as BioSocialPlatform,
+                    })
+                  }
+                  aria-label="Platform"
+                  className={`${INPUT} max-w-[9.5rem] shrink-0`}
+                >
+                  {BIO_SOCIAL_PLATFORMS.filter(
+                    (p) => p === s.platform || !takenByOthers.has(p),
+                  ).map((p) => (
+                    <option key={p} value={p}>
+                      {BIO_SOCIAL_META[p].label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={s.url}
+                  onChange={(e) => updateSocial(i, { url: e.target.value })}
+                  placeholder={
+                    s.platform === "email" ? "you@email.com" : "https://…"
+                  }
+                  inputMode="url"
+                  className={INPUT}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeSocial(i)}
+                  aria-label="Remove social"
+                  className={ICON_BTN}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {socials.length < MAX_SOCIALS && (
