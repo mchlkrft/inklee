@@ -60,8 +60,11 @@ export default async function ArtistHubPage({
 
   const settings = (profile.settings ?? {}) as Record<string, unknown>;
   const bioPage = parseBioPageSettings(settings.bio_page);
-  const links = bioPage.customLinks.filter((l) => l.isActive);
+  const blocks = bioPage.blocks;
   const socials = bioPage.socials;
+  // Fall back to the profile bio under the name only when the artist hasn't
+  // added their own text block, so an unconfigured Hub still says something.
+  const hasTextBlock = blocks.some((b) => b.type === "text");
   const coverImage = resolveCoverImage(settings.cover_image_url);
   const coverColor = resolveCoverColor(settings.cover_color);
   const bookingUrl = publicArtistUrl(slug);
@@ -110,14 +113,9 @@ export default async function ArtistHubPage({
             )}
           </div>
         )}
-        {bioPage.headline && (
-          <p className="mt-2 max-w-sm text-sm font-medium text-brand-bone/90">
-            {bioPage.headline}
-          </p>
-        )}
-        {(bioPage.text ?? profile.bio) && (
+        {!hasTextBlock && profile.bio && (
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-brand-bone/75">
-            {bioPage.text ?? profile.bio}
+            {profile.bio}
           </p>
         )}
 
@@ -139,8 +137,9 @@ export default async function ArtistHubPage({
         )}
 
         <div className="mt-8 w-full space-y-3">
-          {/* The artist's booking page as the built-in primary action. Booking
-              stays separate; this is just a link to it. */}
+          {/* The artist's booking page as the built-in primary action, pinned
+              above the arrangeable blocks. Booking stays separate; this is just
+              a link to it. */}
           <a
             href={bookingUrl}
             target="_blank"
@@ -151,21 +150,46 @@ export default async function ArtistHubPage({
             Book a tattoo
           </a>
 
-          {links.map((link) => (
-            <a
-              key={link.id}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="flex items-center justify-between gap-3 rounded-2xl bg-brand-bone px-5 py-4 text-sm font-medium text-brand-charcoal shadow-sm transition-transform hover:-translate-y-0.5"
-            >
-              <span className="truncate">{link.label}</span>
-              <ExternalLink
-                className="h-4 w-4 shrink-0 text-brand-charcoal/50"
-                aria-hidden
-              />
-            </a>
-          ))}
+          {/* The artist's ordered blocks: headlines + text render inline, link
+              blocks render as buttons (inactive links are hidden). */}
+          {blocks.map((block) => {
+            if (block.type === "headline") {
+              return (
+                <p
+                  key={block.id}
+                  className="pt-2 text-base font-semibold text-brand-bone"
+                >
+                  {block.text}
+                </p>
+              );
+            }
+            if (block.type === "text") {
+              return (
+                <p
+                  key={block.id}
+                  className="text-sm leading-relaxed text-brand-bone/75"
+                >
+                  {block.text}
+                </p>
+              );
+            }
+            if (!block.isActive) return null;
+            return (
+              <a
+                key={block.id}
+                href={block.url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-brand-bone px-5 py-4 text-sm font-medium text-brand-charcoal shadow-sm transition-transform hover:-translate-y-0.5"
+              >
+                <span className="truncate">{block.label}</span>
+                <ExternalLink
+                  className="h-4 w-4 shrink-0 text-brand-charcoal/50"
+                  aria-hidden
+                />
+              </a>
+            );
+          })}
         </div>
       </main>
 

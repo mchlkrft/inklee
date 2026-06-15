@@ -43,11 +43,11 @@ export const SIDEBAR_NAV: NavGroup[] = [
         icon: Inbox,
         match: ["/bookings"],
         // Waitlist used to be a separate sub-nav item — it's now a tab on
-        // /bookings/overview (Requests · Clients · Waitlist). Deposits
-        // moved here from /settings/deposits because deposits are part
-        // of the booking workflow, not account configuration. Booking
-        // Settings (formerly "Books & Availability") sits last as the
-        // configuration surface for this group.
+        // /bookings/overview (Requests · Clients · Waitlist). Deposits here is
+        // the cross-booking chase overview (who owes a deposit); the deposit
+        // DEFAULTS + cancellation/refund policy are account configuration and
+        // live under Settings > Deposits. Booking Settings (formerly "Books &
+        // Availability") sits last as the configuration surface for this group.
         children: [
           { label: "Overview", href: "/bookings/overview" },
           { label: "Calendar", href: "/bookings/calendar" },
@@ -96,6 +96,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
           { label: "Emails", href: "/settings/emails" },
           { label: "Calendar", href: "/settings/calendar" },
           { label: "Payouts", href: "/settings/payouts" },
+          { label: "Deposits", href: "/settings/deposits" },
           { label: "Home widgets", href: "/settings/dashboard" },
           { label: "Account", href: "/settings/account" },
         ],

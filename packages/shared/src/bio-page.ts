@@ -6,6 +6,13 @@
 // alignment rule): the web public render + web editor, and — from the Hub work
 // (ME-11) — the native app editor via a mobile API route. The booking page is
 // untouched; the Inklee Hub is an additive standalone surface at /<slug>/hub.
+//
+// The Hub body is an ORDERED, MIXED list of `blocks` (headline / text / link)
+// the artist arranges freely (like the booking-form field editor), up to 10 of
+// each type. Socials are a fixed icon row that always renders above the blocks.
+// Legacy rows that stored a single `headline` + `text` + `customLinks[]` are
+// read transparently by synthesizing blocks from them, so live data needs no
+// migration; the new shape is written back on the next save.
 
 export type BioModuleKey = "links" | "policy" | "shop";
 
@@ -16,12 +23,36 @@ export const BIO_MODULE_ORDER: readonly BioModuleKey[] = [
   "shop",
 ];
 
-export type BioCustomLink = {
+export type BioBlockType = "headline" | "text" | "link";
+
+export const BIO_BLOCK_TYPES: readonly BioBlockType[] = [
+  "headline",
+  "text",
+  "link",
+];
+
+/** Editor labels for each block type (shared by the web + app editors). */
+export const BIO_BLOCK_META: Record<
+  BioBlockType,
+  { label: string; addLabel: string }
+> = {
+  headline: { label: "Headline", addLabel: "Add headline" },
+  text: { label: "Text", addLabel: "Add text" },
+  link: { label: "Link", addLabel: "Add link" },
+};
+
+export type BioHeadlineBlock = { id: string; type: "headline"; text: string };
+export type BioTextBlock = { id: string; type: "text"; text: string };
+export type BioLinkBlock = {
   id: string;
+  type: "link";
   label: string;
   url: string;
   isActive: boolean;
 };
+
+/** One arrangeable item on the Hub body. */
+export type BioBlock = BioHeadlineBlock | BioTextBlock | BioLinkBlock;
 
 /** Social platforms shown as the Hub's icon row. Keys map to a lucide icon on
  *  web (lucide-react) and app (lucide-react-native) so the rendering stays in
@@ -71,23 +102,18 @@ export const BIO_SOCIAL_META: Record<BioSocialPlatform, { label: string }> = {
 };
 
 export type BioPageSettings = {
-  /** Optional Link Hub heading shown under the artist's name. */
-  headline: string | null;
-  /** Optional Link Hub description; the Hub falls back to the profile bio when null. */
-  text: string | null;
+  /** Ordered, mixed blocks (headline / text / link) the artist arranges. */
+  blocks: BioBlock[];
   bookingPolicy: string | null;
-  customLinks: BioCustomLink[];
-  /** Social icon row for the Hub. At most one entry per platform. */
+  /** Social icon row for the Hub, FIXED above the blocks. One entry per platform. */
   socials: BioSocial[];
   /** Modules the artist has explicitly hidden from the public page. */
   hidden: BioModuleKey[];
 };
 
 export const DEFAULT_BIO_PAGE: BioPageSettings = {
-  headline: null,
-  text: null,
+  blocks: [],
   bookingPolicy: null,
-  customLinks: [],
   socials: [],
   hidden: [],
 };
@@ -96,11 +122,13 @@ export const MAX_HEADLINE = 80;
 export const MAX_TEXT = 500;
 export const MAX_BOOKING_POLICY = 1000;
 export const MAX_LINK_LABEL = 60;
-export const MAX_LINKS = 12;
+/** Up to 10 of each block type (headlines / texts / links). */
+export const MAX_BLOCKS_PER_TYPE = 10;
 export const MAX_SOCIALS = BIO_SOCIAL_PLATFORMS.length;
 
 const MODULE_KEYS = new Set<BioModuleKey>(BIO_MODULE_ORDER);
 const SOCIAL_KEYS = new Set<BioSocialPlatform>(BIO_SOCIAL_PLATFORMS);
+const BLOCK_TYPES = new Set<BioBlockType>(BIO_BLOCK_TYPES);
 
 /** A simple "looks like an email" check (one @, a dotted domain). Used for both
  *  mailto: addresses and bare email input that should become a mailto link. */
@@ -112,6 +140,10 @@ function isBioModuleKey(v: unknown): v is BioModuleKey {
 
 function isBioSocialPlatform(v: unknown): v is BioSocialPlatform {
   return typeof v === "string" && SOCIAL_KEYS.has(v as BioSocialPlatform);
+}
+
+function isBioBlockType(v: unknown): v is BioBlockType {
+  return typeof v === "string" && BLOCK_TYPES.has(v as BioBlockType);
 }
 
 /**
@@ -151,21 +183,85 @@ export function sanitizeBioLinkUrl(raw: unknown): string | null {
   return parsed.toString();
 }
 
-function parseOneLink(raw: unknown, index: number): BioCustomLink | null {
+function blockId(raw: Record<string, unknown>, fallback: string): string {
+  return typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallback;
+}
+
+/** Parse one block; returns null to DROP it (empty headline/text, unsafe URL,
+ *  or an unknown type). The index gives a stable fallback id for legacy rows. */
+function parseOneBlock(raw: unknown, index: number): BioBlock | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
+  if (!isBioBlockType(o.type)) return null;
+
+  if (o.type === "headline" || o.type === "text") {
+    const max = o.type === "headline" ? MAX_HEADLINE : MAX_TEXT;
+    const text =
+      typeof o.text === "string" ? o.text.trim().slice(0, max) : "";
+    if (!text) return null; // an empty headline/text is nothing to render
+    return { id: blockId(o, `${o.type}-${index}`), type: o.type, text };
+  }
+
+  // link
   const url = sanitizeBioLinkUrl(o.url);
   if (!url) return null; // unsafe / invalid URL → drop the whole link
   const label =
     typeof o.label === "string" && o.label.trim()
       ? o.label.trim().slice(0, MAX_LINK_LABEL)
       : url;
-  // Deterministic fallback id so re-parsing legacy rows is stable (the form
-  // assigns real UUIDs to new links).
-  const id =
-    typeof o.id === "string" && o.id.trim() ? o.id.trim() : `link-${index}`;
   const isActive = typeof o.isActive === "boolean" ? o.isActive : true;
-  return { id, label, url, isActive };
+  return { id: blockId(o, `link-${index}`), type: "link", label, url, isActive };
+}
+
+/** Build raw block objects from the legacy { headline, text, customLinks }
+ *  shape so pre-blocks rows render without a migration. Order matches the old
+ *  public layout: headline, then text, then the links. */
+function legacyToRawBlocks(obj: Record<string, unknown>): unknown[] {
+  const out: unknown[] = [];
+  if (typeof obj.headline === "string" && obj.headline.trim()) {
+    out.push({ type: "headline", text: obj.headline });
+  }
+  if (typeof obj.text === "string" && obj.text.trim()) {
+    out.push({ type: "text", text: obj.text });
+  }
+  if (Array.isArray(obj.customLinks)) {
+    for (const l of obj.customLinks) {
+      if (l && typeof l === "object") out.push({ ...l, type: "link" });
+    }
+  }
+  return out;
+}
+
+/** Parse + cap the ordered block list. Caps are PER TYPE (10 headlines, 10
+ *  texts, 10 links); extras of a type past the cap are dropped, order preserved. */
+function parseBlocks(obj: Record<string, unknown>): BioBlock[] {
+  const source = Array.isArray(obj.blocks)
+    ? obj.blocks
+    : legacyToRawBlocks(obj);
+  const counts: Record<BioBlockType, number> = {
+    headline: 0,
+    text: 0,
+    link: 0,
+  };
+  // The id drives React keys AND identity-based edit/remove in both editors, so
+  // a duplicate id (two equal explicit ids, or an explicit id equal to another
+  // block's positional fallback) would corrupt the wrong row. The parser is the
+  // single guarantor of unique ids for all three surfaces, so enforce it here
+  // (mirrors parseSocials' per-platform dedupe).
+  const seenIds = new Set<string>();
+  const out: BioBlock[] = [];
+  source.forEach((raw, index) => {
+    const block = parseOneBlock(raw, index);
+    if (!block) return;
+    if (counts[block.type] >= MAX_BLOCKS_PER_TYPE) return;
+    counts[block.type] += 1;
+    let id = block.id;
+    if (seenIds.has(id)) id = `${block.type}-${index}`;
+    while (seenIds.has(id)) id = `${block.type}-${index}-${seenIds.size}`;
+    seenIds.add(id);
+    out.push(id === block.id ? block : ({ ...block, id } as BioBlock));
+  });
+  return out;
 }
 
 function parseSocials(raw: unknown): BioSocial[] {
@@ -189,16 +285,6 @@ export function parseBioPageSettings(raw: unknown): BioPageSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_BIO_PAGE };
   const obj = raw as Record<string, unknown>;
 
-  const headline =
-    typeof obj.headline === "string" && obj.headline.trim()
-      ? obj.headline.trim().slice(0, MAX_HEADLINE)
-      : null;
-
-  const text =
-    typeof obj.text === "string" && obj.text.trim()
-      ? obj.text.trim().slice(0, MAX_TEXT)
-      : null;
-
   const bookingPolicy =
     typeof obj.bookingPolicy === "string" && obj.bookingPolicy.trim()
       ? obj.bookingPolicy.trim().slice(0, MAX_BOOKING_POLICY)
@@ -208,16 +294,28 @@ export function parseBioPageSettings(raw: unknown): BioPageSettings {
     ? [...new Set(obj.hidden.filter(isBioModuleKey))]
     : [];
 
-  const customLinks: BioCustomLink[] = Array.isArray(obj.customLinks)
-    ? obj.customLinks
-        .map(parseOneLink)
-        .filter((l): l is BioCustomLink => l !== null)
-        .slice(0, MAX_LINKS)
-    : [];
-
+  const blocks = parseBlocks(obj);
   const socials = parseSocials(obj.socials);
 
-  return { headline, text, bookingPolicy, customLinks, socials, hidden };
+  return { blocks, bookingPolicy, socials, hidden };
+}
+
+/** Count blocks of each type — drives the editor's per-type "Add" caps. */
+export function countBlocksByType(
+  blocks: BioBlock[],
+): Record<BioBlockType, number> {
+  const counts: Record<BioBlockType, number> = {
+    headline: 0,
+    text: 0,
+    link: 0,
+  };
+  for (const b of blocks) counts[b.type] += 1;
+  return counts;
+}
+
+/** Whether another block of `type` may be added (under the per-type cap). */
+export function canAddBlock(blocks: BioBlock[], type: BioBlockType): boolean {
+  return countBlocksByType(blocks)[type] < MAX_BLOCKS_PER_TYPE;
 }
 
 export function isModuleVisible(

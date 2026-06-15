@@ -12,6 +12,20 @@ type State =
   | { success: true; note?: string; settings: BioPageSettings }
   | null;
 
+function readJsonArray(
+  formData: FormData,
+  key: string,
+): { value: unknown[]; error?: string } {
+  const raw = formData.get(key);
+  if (typeof raw !== "string" || !raw.trim()) return { value: [] };
+  try {
+    const parsed = JSON.parse(raw);
+    return { value: Array.isArray(parsed) ? parsed : [] };
+  } catch {
+    return { value: [], error: `Could not read the ${key}. Try again.` };
+  }
+}
+
 export async function saveBioPageAction(
   _prev: State,
   formData: FormData,
@@ -22,31 +36,13 @@ export async function saveBioPageAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const headline =
-    ((formData.get("hub_headline") as string | null) ?? "").trim() || null;
-  const text =
-    ((formData.get("hub_text") as string | null) ?? "").trim() || null;
+  const blocksInput = readJsonArray(formData, "blocks");
+  if (blocksInput.error) return { error: blocksInput.error };
+  const socialsInput = readJsonArray(formData, "socials");
+  if (socialsInput.error) return { error: socialsInput.error };
 
-  let linksInput: unknown = [];
-  const linksRaw = formData.get("custom_links");
-  if (typeof linksRaw === "string" && linksRaw.trim()) {
-    try {
-      linksInput = JSON.parse(linksRaw);
-    } catch {
-      return { error: "Could not read the links. Try again." };
-    }
-  }
-  const inputLinkCount = Array.isArray(linksInput) ? linksInput.length : 0;
-
-  let socialsInput: unknown = [];
-  const socialsRaw = formData.get("socials");
-  if (typeof socialsRaw === "string" && socialsRaw.trim()) {
-    try {
-      socialsInput = JSON.parse(socialsRaw);
-    } catch {
-      return { error: "Could not read the socials. Try again." };
-    }
-  }
+  const inputBlockCount = blocksInput.value.length;
+  const inputSocialCount = socialsInput.value.length;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -57,22 +53,17 @@ export async function saveBioPageAction(
   const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   const currentBio = parseBioPageSettings(currentSettings.bio_page);
 
-  // The Link Hub editor owns only headline / text / links / socials. Spread the
-  // current bio_page first so bookingPolicy + module visibility (`hidden`) —
-  // edited on /bookings/settings — are preserved untouched. Round-trip through
-  // the shared parser so every field is validated + sanitized in one place.
+  // The Link Hub editor owns only blocks + socials. Spread the current bio_page
+  // first so bookingPolicy + module visibility (`hidden`) — edited on
+  // /bookings/settings — are preserved untouched. Round-trip through the shared
+  // parser so every field is validated + sanitized in one place.
   const settings: BioPageSettings = parseBioPageSettings({
     ...currentBio,
-    headline,
-    text,
-    customLinks: linksInput,
-    socials: socialsInput,
+    blocks: blocksInput.value,
+    socials: socialsInput.value,
   });
 
-  const inputSocialCount = Array.isArray(socialsInput)
-    ? socialsInput.length
-    : 0;
-  const droppedLinks = inputLinkCount - settings.customLinks.length;
+  const droppedBlocks = inputBlockCount - settings.blocks.length;
   const droppedSocials = inputSocialCount - settings.socials.length;
 
   const { error } = await supabase
@@ -88,11 +79,11 @@ export async function saveBioPageAction(
   revalidatePath("/link-hub");
   if (profile?.slug) revalidatePath(`/${profile.slug}/hub`);
 
-  // Mirror the mobile editor's buildSavedNote: report dropped links AND socials
-  // so an entry the parser sanitized away isn't silently lost.
+  // Report anything the parser sanitized away (empty headline/text, unsafe link
+  // URL, deduped/invalid social) so an item doesn't vanish with only "Saved.".
   const parts: string[] = [];
-  if (droppedLinks > 0) {
-    parts.push(`${droppedLinks} link${droppedLinks === 1 ? "" : "s"}`);
+  if (droppedBlocks > 0) {
+    parts.push(`${droppedBlocks} item${droppedBlocks === 1 ? "" : "s"}`);
   }
   if (droppedSocials > 0) {
     parts.push(`${droppedSocials} social${droppedSocials === 1 ? "" : "s"}`);
@@ -101,7 +92,7 @@ export async function saveBioPageAction(
     return {
       success: true,
       settings,
-      note: `Saved. ${parts.join(" and ")} skipped (unsafe or invalid URL).`,
+      note: `Saved. ${parts.join(" and ")} skipped (empty, invalid, or past the limit of 10).`,
     };
   }
   return { success: true, settings };

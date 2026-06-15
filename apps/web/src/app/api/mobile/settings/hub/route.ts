@@ -65,17 +65,15 @@ export async function POST(req: Request) {
   const current = (profile.settings ?? {}) as Record<string, unknown>;
   const currentBio = parseBioPageSettings(current.bio_page);
 
-  // The Link Hub editor owns ONLY headline/text/links/socials; bookingPolicy +
-  // module visibility (`hidden`) are edited on /bookings/settings. Pick just the
-  // hub fields from the body and keep bookingPolicy/hidden from currentBio, so no
+  // The Link Hub editor owns ONLY blocks + socials; bookingPolicy + module
+  // visibility (`hidden`) are edited on /bookings/settings. Pick just the hub
+  // fields from the body and keep bookingPolicy/hidden from currentBio, so no
   // client (old or new) can clobber booking-page state through the hub endpoint.
-  // One shared parser validates everything.
+  // One shared parser validates everything (including the per-type block caps).
   const body = raw as Record<string, unknown>;
   const settings = parseBioPageSettings({
     ...currentBio,
-    headline: body.headline,
-    text: body.text,
-    customLinks: body.customLinks,
+    blocks: body.blocks,
     socials: body.socials,
   });
 
