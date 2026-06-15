@@ -4,11 +4,13 @@ import {
   parseBioPageSettings,
   visibleModules,
   isModuleVisible,
+  countBlocksByType,
+  canAddBlock,
   DEFAULT_BIO_PAGE,
   MAX_BOOKING_POLICY,
   MAX_HEADLINE,
   MAX_TEXT,
-  MAX_LINKS,
+  MAX_BLOCKS_PER_TYPE,
 } from "../bio-page-settings";
 
 describe("sanitizeBioLinkUrl", () => {
@@ -86,21 +88,141 @@ describe("parseBioPageSettings", () => {
     ).toBeNull();
   });
 
-  it("trims and caps the headline and text, empty becomes null", () => {
-    expect(parseBioPageSettings({ headline: "  Hi  " }).headline).toBe("Hi");
-    expect(parseBioPageSettings({ text: "  Body  " }).text).toBe("Body");
-    expect(
-      parseBioPageSettings({ headline: "x".repeat(MAX_HEADLINE + 20) }).headline
-        ?.length,
-    ).toBe(MAX_HEADLINE);
-    expect(
-      parseBioPageSettings({ text: "x".repeat(MAX_TEXT + 20) }).text?.length,
-    ).toBe(MAX_TEXT);
-    expect(parseBioPageSettings({ headline: "   " }).headline).toBeNull();
-    expect(parseBioPageSettings({ text: "" }).text).toBeNull();
+  it("parses headline / text / link blocks in order", () => {
+    const result = parseBioPageSettings({
+      blocks: [
+        { id: "h1", type: "headline", text: "  Fine-line tattoos  " },
+        { id: "t1", type: "text", text: "Booking this season." },
+        { id: "l1", type: "link", label: "IG", url: "instagram.com/x" },
+      ],
+    });
+    expect(result.blocks).toEqual([
+      { id: "h1", type: "headline", text: "Fine-line tattoos" },
+      { id: "t1", type: "text", text: "Booking this season." },
+      {
+        id: "l1",
+        type: "link",
+        label: "IG",
+        url: "https://instagram.com/x",
+        isActive: true,
+      },
+    ]);
   });
 
-  it("preserves booking policy + hidden when only hub fields change", () => {
+  it("caps headline / text length and drops empty ones", () => {
+    const result = parseBioPageSettings({
+      blocks: [
+        { type: "headline", text: "x".repeat(MAX_HEADLINE + 20) },
+        { type: "text", text: "y".repeat(MAX_TEXT + 20) },
+        { type: "headline", text: "   " },
+        { type: "text", text: "" },
+      ],
+    });
+    expect(result.blocks).toHaveLength(2);
+    expect((result.blocks[0] as { text: string }).text.length).toBe(
+      MAX_HEADLINE,
+    );
+    expect((result.blocks[1] as { text: string }).text.length).toBe(MAX_TEXT);
+  });
+
+  it("drops link blocks with unsafe URLs, falls back to the URL as label", () => {
+    const result = parseBioPageSettings({
+      blocks: [
+        { type: "link", label: "evil", url: "javascript:alert(1)" },
+        { type: "link", url: "https://x.com" },
+        { type: "link", label: "Site", url: "site.com", isActive: false },
+      ],
+    });
+    expect(result.blocks).toHaveLength(2);
+    expect(result.blocks[0]).toMatchObject({
+      type: "link",
+      label: "https://x.com/",
+      url: "https://x.com/",
+      isActive: true,
+    });
+    expect(result.blocks[1]).toMatchObject({
+      type: "link",
+      label: "Site",
+      url: "https://site.com/",
+      isActive: false,
+    });
+  });
+
+  it("drops unknown block types", () => {
+    const result = parseBioPageSettings({
+      blocks: [
+        { type: "shop", text: "nope" },
+        { type: "headline", text: "ok" },
+      ],
+    });
+    expect(result.blocks).toEqual([
+      { id: "headline-1", type: "headline", text: "ok" },
+    ]);
+  });
+
+  it("caps each block type at MAX_BLOCKS_PER_TYPE independently", () => {
+    const blocks = [
+      ...Array.from({ length: MAX_BLOCKS_PER_TYPE + 3 }, (_, i) => ({
+        type: "headline",
+        text: `h${i}`,
+      })),
+      ...Array.from({ length: MAX_BLOCKS_PER_TYPE + 3 }, (_, i) => ({
+        type: "link",
+        url: `https://x${i}.com`,
+      })),
+    ];
+    const counts = countBlocksByType(parseBioPageSettings({ blocks }).blocks);
+    expect(counts.headline).toBe(MAX_BLOCKS_PER_TYPE);
+    expect(counts.link).toBe(MAX_BLOCKS_PER_TYPE);
+  });
+
+  it("reassigns duplicate block ids so emitted ids are unique", () => {
+    const result = parseBioPageSettings({
+      blocks: [
+        { id: "dup", type: "headline", text: "first" },
+        { id: "dup", type: "text", text: "second" },
+        // explicit id colliding with the first block's positional fallback
+        { id: "headline-0", type: "link", url: "https://x.com" },
+      ],
+    });
+    const ids = result.blocks.map((b) => b.id);
+    expect(new Set(ids).size).toBe(ids.length); // all unique
+    expect(result.blocks).toHaveLength(3);
+  });
+
+  it("synthesizes blocks from the legacy headline / text / customLinks shape", () => {
+    const result = parseBioPageSettings({
+      headline: "Legacy headline",
+      text: "Legacy text",
+      customLinks: [
+        { id: "a", label: "IG", url: "instagram.com/x", isActive: true },
+        { id: "b", label: "evil", url: "javascript:alert(1)" }, // dropped
+      ],
+    });
+    expect(result.blocks).toEqual([
+      { id: "headline-0", type: "headline", text: "Legacy headline" },
+      { id: "text-1", type: "text", text: "Legacy text" },
+      {
+        id: "a",
+        type: "link",
+        label: "IG",
+        url: "https://instagram.com/x",
+        isActive: true,
+      },
+    ]);
+  });
+
+  it("prefers an explicit blocks array over legacy fields", () => {
+    const result = parseBioPageSettings({
+      headline: "Legacy",
+      blocks: [{ type: "headline", text: "New" }],
+    });
+    expect(result.blocks).toEqual([
+      { id: "headline-0", type: "headline", text: "New" },
+    ]);
+  });
+
+  it("preserves booking policy + hidden when only blocks change", () => {
     const current = parseBioPageSettings({
       bookingPolicy: "Deposits are non-refundable.",
       hidden: ["policy", "shop"],
@@ -108,50 +230,13 @@ describe("parseBioPageSettings", () => {
     // Mirrors the Link Hub save: spread current, override only hub fields.
     const next = parseBioPageSettings({
       ...current,
-      headline: "New headline",
-      customLinks: [{ url: "https://x.com" }],
+      blocks: [{ type: "headline", text: "New headline" }],
     });
     expect(next.bookingPolicy).toBe("Deposits are non-refundable.");
     expect(next.hidden).toEqual(["policy", "shop"]);
-    expect(next.headline).toBe("New headline");
-  });
-
-  it("drops links with unsafe URLs but keeps safe ones", () => {
-    const result = parseBioPageSettings({
-      customLinks: [
-        { id: "a", label: "IG", url: "instagram.com/x", isActive: true },
-        { id: "b", label: "evil", url: "javascript:alert(1)", isActive: true },
-        { id: "c", label: "Site", url: "https://site.com", isActive: false },
-      ],
-    });
-    expect(result.customLinks).toHaveLength(2);
-    expect(result.customLinks[0]).toMatchObject({
-      label: "IG",
-      url: "https://instagram.com/x",
-      isActive: true,
-    });
-    expect(result.customLinks[1]).toMatchObject({
-      label: "Site",
-      isActive: false,
-    });
-  });
-
-  it("falls back to the URL as label when label is missing", () => {
-    const result = parseBioPageSettings({
-      customLinks: [{ url: "https://x.com" }],
-    });
-    expect(result.customLinks[0].label).toBe("https://x.com/");
-    expect(result.customLinks[0].id).toBe("link-0");
-    expect(result.customLinks[0].isActive).toBe(true);
-  });
-
-  it("caps the number of links", () => {
-    const many = Array.from({ length: MAX_LINKS + 5 }, (_, i) => ({
-      url: `https://x${i}.com`,
-    }));
-    expect(
-      parseBioPageSettings({ customLinks: many }).customLinks,
-    ).toHaveLength(MAX_LINKS);
+    expect(next.blocks).toEqual([
+      { id: "headline-0", type: "headline", text: "New headline" },
+    ]);
   });
 
   it("keeps only known module keys in hidden and dedupes", () => {
@@ -197,6 +282,34 @@ describe("parseBioPageSettings", () => {
       ],
     });
     expect(result.socials).toEqual([{ platform: "x", url: "https://x.com/a" }]);
+  });
+});
+
+describe("countBlocksByType / canAddBlock", () => {
+  it("counts per type and gates adds at the cap", () => {
+    const blocks = parseBioPageSettings({
+      blocks: [
+        { type: "headline", text: "a" },
+        { type: "headline", text: "b" },
+        { type: "link", url: "https://x.com" },
+      ],
+    }).blocks;
+    expect(countBlocksByType(blocks)).toEqual({
+      headline: 2,
+      text: 0,
+      link: 1,
+    });
+    expect(canAddBlock(blocks, "headline")).toBe(true);
+    expect(canAddBlock(blocks, "text")).toBe(true);
+
+    const maxed = parseBioPageSettings({
+      blocks: Array.from({ length: MAX_BLOCKS_PER_TYPE }, () => ({
+        type: "link",
+        url: "https://x.com",
+      })),
+    }).blocks;
+    // Same URL dedupe? No dedupe on links — all kept up to the cap.
+    expect(canAddBlock(maxed, "link")).toBe(false);
   });
 });
 

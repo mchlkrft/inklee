@@ -28,23 +28,27 @@ import { useScreenView } from "@/lib/analytics";
 import {
   BIO_SOCIAL_META,
   BIO_SOCIAL_PLATFORMS,
+  BIO_BLOCK_TYPES,
+  BIO_BLOCK_META,
   MAX_HEADLINE,
   MAX_TEXT,
-  MAX_LINKS,
   MAX_LINK_LABEL,
   MAX_SOCIALS,
-  type BioCustomLink,
+  canAddBlock,
+  type BioBlock,
+  type BioBlockType,
   type BioPageSettings,
   type BioSocial,
   type BioSocialPlatform,
 } from "@inklee/shared/bio-page";
 import type { MobileMe } from "@inklee/shared/mobile-api";
 
-// Native Link Hub editor — mirrors the web /link-hub form (headline, text,
-// socials, links), saved via POST /api/mobile/settings/hub. The model +
-// validation + labels come from @inklee/shared/bio-page (one source of truth);
-// this screen owns only the React Native presentation. Booking policy + shop are
-// booking-page concerns and live in booking settings, not here.
+// Native Link Hub editor — mirrors the web /link-hub form: a fixed social icon
+// row plus an ORDERED, mixed list of blocks (headlines, texts, links) the artist
+// arranges, up to 10 of each. Saved via POST /api/mobile/settings/hub. The model
+// + validation + caps + labels come from @inklee/shared/bio-page (one source of
+// truth); this screen owns only the React Native presentation. Booking policy +
+// shop are booking-page concerns and live in booking settings, not here.
 
 // lucide-react-native has NO brand logos, so social glyphs use Ionicons `logo-*`
 // (verified present in the Ionicons glyphmap); website/email fall back to a
@@ -61,29 +65,36 @@ const SOCIAL_ICON: Record<BioSocialPlatform, keyof typeof Ionicons.glyphMap> = {
   email: "mail-outline",
 };
 
-function makeLink(): BioCustomLink {
+// Partial<BioBlock> over a discriminated union narrows to only the common keys
+// (id, type), so patches use an explicit field-union of every block's fields.
+type BlockPatch = Partial<{
+  text: string;
+  label: string;
+  url: string;
+  isActive: boolean;
+}>;
+
+function makeBlock(type: BioBlockType): BioBlock {
   // Any non-empty id works: the server keeps it, else derives a stable fallback.
-  return {
-    id: `link-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    label: "",
-    url: "",
-    isActive: true,
-  };
+  const id = `${type}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  if (type === "link") return { id, type: "link", label: "", url: "", isActive: true };
+  if (type === "headline") return { id, type: "headline", text: "" };
+  return { id, type: "text", text: "" };
 }
 
-// The parser silently drops links/socials with an unsafe or invalid URL, and we
-// re-sync state from the saved result, so an entry can vanish. Surface what was
-// skipped so an invalid URL doesn't disappear with only "Saved." shown.
-function buildSavedNote(droppedLinks: number, droppedSocials: number): string {
+// The parser drops empty headline/text and links with an unsafe/invalid URL, and
+// caps each type at 10; we re-sync state from the saved result, so an entry can
+// vanish. Surface what was skipped so it doesn't disappear with only "Saved.".
+function buildSavedNote(droppedBlocks: number, droppedSocials: number): string {
   const parts: string[] = [];
-  if (droppedLinks > 0) {
-    parts.push(`${droppedLinks} link${droppedLinks === 1 ? "" : "s"}`);
+  if (droppedBlocks > 0) {
+    parts.push(`${droppedBlocks} item${droppedBlocks === 1 ? "" : "s"}`);
   }
   if (droppedSocials > 0) {
     parts.push(`${droppedSocials} social${droppedSocials === 1 ? "" : "s"}`);
   }
   return parts.length
-    ? `Saved. ${parts.join(" and ")} skipped (unsafe or invalid URL).`
+    ? `Saved. ${parts.join(" and ")} skipped (empty, invalid, or past the limit of 10).`
     : "Saved.";
 }
 
@@ -124,9 +135,7 @@ function HubForm({
   const queryClient = useQueryClient();
   const colors = useColors();
 
-  const [headline, setHeadline] = useState(initial.headline ?? "");
-  const [text, setText] = useState(initial.text ?? "");
-  const [links, setLinks] = useState<BioCustomLink[]>(initial.customLinks);
+  const [blocks, setBlocks] = useState<BioBlock[]>(initial.blocks);
   const [socials, setSocials] = useState<BioSocial[]>(initial.socials);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,17 +146,19 @@ function HubForm({
     setNote(null);
   };
 
-  const updateLink = (id: string, patch: Partial<BioCustomLink>) => {
+  const patchBlock = (id: string, patch: BlockPatch) => {
     dirty();
-    setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === id ? ({ ...b, ...patch } as BioBlock) : b)),
+    );
   };
-  const removeLink = (id: string) => {
+  const removeBlock = (id: string) => {
     dirty();
-    setLinks((prev) => prev.filter((l) => l.id !== id));
+    setBlocks((prev) => prev.filter((b) => b.id !== id));
   };
-  const moveLink = (index: number, dir: -1 | 1) => {
+  const moveBlock = (index: number, dir: -1 | 1) => {
     dirty();
-    setLinks((prev) => {
+    setBlocks((prev) => {
       const target = index + dir;
       if (target < 0 || target >= prev.length) return prev;
       const next = [...prev];
@@ -155,9 +166,11 @@ function HubForm({
       return next;
     });
   };
-  const addLink = () => {
+  const addBlock = (type: BioBlockType) => {
     dirty();
-    setLinks((prev) => (prev.length >= MAX_LINKS ? prev : [...prev, makeLink()]));
+    setBlocks((prev) =>
+      canAddBlock(prev, type) ? [...prev, makeBlock(type)] : prev,
+    );
   };
 
   const updateSocialUrl = (index: number, url: string) => {
@@ -187,30 +200,26 @@ function HubForm({
     setError(null);
     setNote(null);
 
-    const sentLinkCount = links.length;
+    const sentBlockCount = blocks.length;
     const sentSocialCount = socials.length;
 
     try {
-      // The Link Hub editor owns only headline / text / links / socials. The
-      // server merges these onto the current bio_page (preserving bookingPolicy
-      // + module visibility) and returns the sanitized result; reset local state
-      // to it so dropped/normalized values reflect.
+      // The Link Hub editor owns only blocks + socials. The server merges these
+      // onto the current bio_page (preserving bookingPolicy + module visibility)
+      // and returns the sanitized result; reset local state to it so dropped /
+      // capped / normalized values reflect.
       const saved = await apiPost<BioPageSettings>("/settings/hub", {
-        headline: headline.trim() || null,
-        text: text.trim() || null,
-        customLinks: links,
+        blocks,
         socials,
       });
-      setHeadline(saved.headline ?? "");
-      setText(saved.text ?? "");
-      setLinks(saved.customLinks);
+      setBlocks(saved.blocks);
       setSocials(saved.socials);
       await queryClient.invalidateQueries({
         queryKey: ["api", "/settings/hub"],
       });
       setNote(
         buildSavedNote(
-          sentLinkCount - saved.customLinks.length,
+          sentBlockCount - saved.blocks.length,
           sentSocialCount - saved.socials.length,
         ),
       );
@@ -231,8 +240,8 @@ function HubForm({
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
       >
         <Text className="text-sm text-shell-dim">
-          A standalone link-in-bio page for your headline, links, and socials. It
-          never replaces your booking page.
+          A standalone link-in-bio page for your socials, headlines, text, and
+          links. It never replaces your booking page.
         </Text>
         {hubUrl ? (
           <Pressable
@@ -250,136 +259,7 @@ function HubForm({
           </Pressable>
         ) : null}
 
-        {/* Headline */}
-        <SectionLabel>Headline</SectionLabel>
-        <Card>
-          <Text className="mb-2 text-sm text-shell-dim">
-            A short tagline shown under your name on your Link Hub.
-          </Text>
-          <TextField
-            value={headline}
-            onChangeText={(v) => {
-              dirty();
-              setHeadline(v.slice(0, MAX_HEADLINE));
-            }}
-            placeholder="e.g. Fine-line tattoos in Berlin"
-            accessibilityLabel="Headline"
-          />
-        </Card>
-
-        {/* Text */}
-        <SectionLabel>Text</SectionLabel>
-        <Card>
-          <Text className="mb-3 text-sm text-shell-dim">
-            A short description for your Link Hub. Falls back to your profile bio
-            when left empty.
-          </Text>
-          <TextArea
-            value={text}
-            onChangeText={(v) => {
-              dirty();
-              setText(v);
-            }}
-            maxLength={MAX_TEXT}
-            showCounter
-            minHeight={100}
-            placeholder="e.g. Booking a few custom pieces this season."
-            accessibilityLabel="Link Hub text"
-          />
-        </Card>
-
-        {/* Links */}
-        <SectionLabel>Links</SectionLabel>
-        <Card>
-          <Text className="text-sm text-shell-dim">
-            Aftercare, portfolio, shop, anything. Shown as buttons on your Link
-            Hub.
-          </Text>
-
-          <View className="mt-4">
-            {links.length === 0 ? (
-              <Text className="text-sm text-shell-dim">No links yet.</Text>
-            ) : null}
-            {links.map((link, i) => (
-              <View
-                key={link.id}
-                className="mb-3 rounded-xl border-brand border-shell-border p-3"
-              >
-                <TextField
-                  value={link.label}
-                  onChangeText={(v) =>
-                    updateLink(link.id, { label: v.slice(0, MAX_LINK_LABEL) })
-                  }
-                  placeholder="Label (e.g. Instagram)"
-                  accessibilityLabel="Link label"
-                />
-                <TextField
-                  value={link.url}
-                  onChangeText={(v) => updateLink(link.id, { url: v })}
-                  placeholder="https://… or you@email.com"
-                  keyboardType="url"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  accessibilityLabel="Link URL"
-                />
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2">
-                    <Switch
-                      value={link.isActive}
-                      onValueChange={(v) =>
-                        updateLink(link.id, { isActive: v })
-                      }
-                      trackColor={{
-                        false: "rgba(0,0,0,0.35)",
-                        true: colors.mustard,
-                      }}
-                      thumbColor={colors.bone}
-                      ios_backgroundColor="rgba(0,0,0,0.35)"
-                    />
-                    <Text className="text-sm text-shell-dim">Active</Text>
-                  </View>
-                  <View className="flex-row items-center gap-1">
-                    <IconButton
-                      icon={ArrowUp}
-                      label="Move link up"
-                      outlined
-                      iconSize={16}
-                      disabled={i === 0}
-                      onPress={() => moveLink(i, -1)}
-                    />
-                    <IconButton
-                      icon={ArrowDown}
-                      label="Move link down"
-                      outlined
-                      iconSize={16}
-                      disabled={i === links.length - 1}
-                      onPress={() => moveLink(i, 1)}
-                    />
-                    <IconButton
-                      icon={Trash2}
-                      label="Remove link"
-                      outlined
-                      iconSize={16}
-                      onPress={() => removeLink(link.id)}
-                    />
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {links.length < MAX_LINKS ? (
-            <Button
-              label="Add link"
-              variant="secondary"
-              size="sm"
-              icon={Plus}
-              onPress={addLink}
-            />
-          ) : null}
-        </Card>
-
-        {/* Socials */}
+        {/* Socials — fixed icon row, shown above the blocks on the public page. */}
         <SectionLabel>Socials</SectionLabel>
         <Card>
           <Text className="mb-3 text-sm text-shell-dim">
@@ -450,6 +330,134 @@ function HubForm({
               </View>
             </View>
           ) : null}
+        </Card>
+
+        {/* Content blocks — one ordered, mixed list the artist arranges. */}
+        <SectionLabel>Content</SectionLabel>
+        <Card>
+          <Text className="text-sm text-shell-dim">
+            Add headlines, text, and links, then reorder with the arrows. Up to
+            10 of each. This is the body of your Link Hub.
+          </Text>
+
+          <View className="mt-4">
+            {blocks.length === 0 ? (
+              <Text className="text-sm text-shell-dim">No content yet.</Text>
+            ) : null}
+            {blocks.map((block, i) => (
+              <View
+                key={block.id}
+                className="mb-3 rounded-xl border-brand border-shell-border p-3"
+              >
+                <View className="mb-2 flex-row items-center justify-between">
+                  <Text className="text-xs font-semibold uppercase tracking-widest text-shell-mute">
+                    {BIO_BLOCK_META[block.type].label}
+                  </Text>
+                  <View className="flex-row items-center gap-1">
+                    <IconButton
+                      icon={ArrowUp}
+                      label="Move up"
+                      outlined
+                      iconSize={16}
+                      disabled={i === 0}
+                      onPress={() => moveBlock(i, -1)}
+                    />
+                    <IconButton
+                      icon={ArrowDown}
+                      label="Move down"
+                      outlined
+                      iconSize={16}
+                      disabled={i === blocks.length - 1}
+                      onPress={() => moveBlock(i, 1)}
+                    />
+                    <IconButton
+                      icon={Trash2}
+                      label="Remove"
+                      outlined
+                      iconSize={16}
+                      onPress={() => removeBlock(block.id)}
+                    />
+                  </View>
+                </View>
+
+                {block.type === "headline" ? (
+                  <TextField
+                    value={block.text}
+                    onChangeText={(v) =>
+                      patchBlock(block.id, { text: v.slice(0, MAX_HEADLINE) })
+                    }
+                    placeholder="e.g. Fine-line tattoos in Berlin"
+                    accessibilityLabel="Headline"
+                  />
+                ) : null}
+
+                {block.type === "text" ? (
+                  <TextArea
+                    value={block.text}
+                    onChangeText={(v) => patchBlock(block.id, { text: v })}
+                    maxLength={MAX_TEXT}
+                    showCounter
+                    minHeight={100}
+                    placeholder="e.g. Booking a few custom pieces this season."
+                    accessibilityLabel="Text"
+                  />
+                ) : null}
+
+                {block.type === "link" ? (
+                  <>
+                    <TextField
+                      value={block.label}
+                      onChangeText={(v) =>
+                        patchBlock(block.id, {
+                          label: v.slice(0, MAX_LINK_LABEL),
+                        })
+                      }
+                      placeholder="Label (e.g. Portfolio)"
+                      accessibilityLabel="Link label"
+                    />
+                    <TextField
+                      value={block.url}
+                      onChangeText={(v) => patchBlock(block.id, { url: v })}
+                      placeholder="https://… or you@email.com"
+                      keyboardType="url"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      accessibilityLabel="Link URL"
+                    />
+                    <View className="flex-row items-center gap-2">
+                      <Switch
+                        value={block.isActive}
+                        onValueChange={(v) =>
+                          patchBlock(block.id, { isActive: v })
+                        }
+                        trackColor={{
+                          false: "rgba(0,0,0,0.35)",
+                          true: colors.mustard,
+                        }}
+                        thumbColor={colors.bone}
+                        ios_backgroundColor="rgba(0,0,0,0.35)"
+                      />
+                      <Text className="text-sm text-shell-dim">Active</Text>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+            ))}
+          </View>
+
+          <View className="flex-row flex-wrap gap-2">
+            {BIO_BLOCK_TYPES.map((type) => (
+              <Button
+                key={type}
+                label={BIO_BLOCK_META[type].addLabel}
+                variant="secondary"
+                size="sm"
+                icon={Plus}
+                disabled={!canAddBlock(blocks, type)}
+                onPress={() => addBlock(type)}
+              />
+            ))}
+          </View>
         </Card>
 
         {error ? (
