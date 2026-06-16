@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import CookieBanner from "@/components/cookie-banner";
+import JsonLd from "@/components/seo/json-ld";
+import { organizationSchema, websiteSchema } from "@/lib/jsonld";
 import "./globals.css";
 
 const inter = Inter({
@@ -49,6 +51,10 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} dark`}
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
+        {/* Brand entity, emitted on every page so any deep SERP entry point
+            carries the Organization + WebSite schema (not just the home page). */}
+        <JsonLd data={organizationSchema()} id="ld-organization" />
+        <JsonLd data={websiteSchema()} id="ld-website" />
         {/* Mobile FAB scroll-state tracker. Sets html[data-scrolled] = "1" once
             the visitor has scrolled past 60px, otherwise "0". Lives in the root
             layout (not the nav component) so the listener survives client-side

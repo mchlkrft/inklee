@@ -23,6 +23,11 @@ export const FOOTER_GROUPS: FooterGroup[] = [
         active: true,
       },
       {
+        label: "Booking without DM chaos",
+        href: "/dm-chaos",
+        active: true,
+      },
+      {
         label: "Instagram booking link",
         href: "/instagram-booking-link-for-tattoo-artists",
         active: true,
