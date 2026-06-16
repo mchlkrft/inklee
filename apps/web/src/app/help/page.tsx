@@ -1,4 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "@/components/seo/json-ld";
+import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
+import { absoluteUrl } from "@/lib/seo";
+
+const PAGE_PATH = "/help";
+const PAGE_TITLE = "Inklee help and FAQ for tattoo artists";
+const PAGE_DESCRIPTION =
+  "Answers for tattoo artists using Inklee: booking page, slots, deposits, calendar export, emails, data residency, and account questions.";
+
+export const metadata: Metadata = {
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  alternates: { canonical: PAGE_PATH },
+  openGraph: {
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    url: absoluteUrl(PAGE_PATH),
+    type: "website",
+  },
+};
 
 const FAQ = [
   {
@@ -46,6 +67,18 @@ const FAQ = [
 export default function HelpPage() {
   return (
     <div className="flex min-h-screen flex-col">
+      <JsonLd
+        id="ld-webpage"
+        data={webPageSchema({
+          name: PAGE_TITLE,
+          url: absoluteUrl(PAGE_PATH),
+          description: PAGE_DESCRIPTION,
+        })}
+      />
+      <JsonLd
+        id="ld-faq"
+        data={faqPageSchema(FAQ.map((f) => ({ question: f.q, answer: f.a })))}
+      />
       <main className="mx-auto flex-1 w-full max-w-2xl space-y-8 px-6 py-12">
         <div className="space-y-2">
           <Link

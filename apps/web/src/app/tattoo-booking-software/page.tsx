@@ -8,7 +8,7 @@ import { getRenderableFooterGroups } from "@/lib/footer-links";
 import { PillNav } from "@/components/marketing-v2";
 
 const PAGE_PATH = "/tattoo-booking-software";
-const PAGE_TITLE = "Tattoo Booking Tool for Artists · Inklee";
+const PAGE_TITLE = "Tattoo booking software for artists · Inklee";
 const PAGE_DESCRIPTION =
   "Tattoo booking software without the generic business tool feel. Collect requests, references, approvals, deposits, and guest spots without DM chaos.";
 const OG_TITLE = "Tattoo booking software made for tattoo artists";
