@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Inklee — Tattoo Booking Tool for Artists",
+  title: "Inklee · Tattoo booking tool for artists",
   description:
     "Turn Instagram DMs into structured tattoo requests, approvals, deposits, and bookings without losing clients in the scroll.",
   metadataBase: new URL("https://inklee.app"),

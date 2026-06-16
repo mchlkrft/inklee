@@ -9,7 +9,7 @@ import DevicePreview from "./device-preview";
 const PAGE_PATH = "/download";
 const PAGE_TITLE = "Inklee app for tattoo artists, on iOS and Android";
 const PAGE_DESCRIPTION =
-  "The Inklee mobile app for freelance and traveling tattoo artists. Same booking link, same client requests, same trip planner, in your pocket. Available on iOS and Android.";
+  "The Inklee mobile app for freelance and traveling tattoo artists. Same booking link, client requests, and trip planner in your pocket. iOS and Android.";
 const OG_TITLE = "Inklee mobile app for tattoo artists";
 const OG_DESCRIPTION =
   "Run your books from your phone. Available on iOS and Android.";

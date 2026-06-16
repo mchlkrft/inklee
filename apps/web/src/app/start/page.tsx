@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "Inklee · Your DMs are not a booking system",
   description:
     "Put one clean booking link in your Instagram bio. Turn messy DM chats into structured tattoo booking requests.",
+  // Conversion funnel that paraphrases the homepage; keep it out of the index
+  // so it does not cannibalize the home page for the same head terms.
+  robots: { index: false, follow: true },
   openGraph: {
     title: "Stop losing tattoo requests in Instagram DMs.",
     description:
