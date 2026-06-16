@@ -11,7 +11,16 @@ import {
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react-native";
+import {
+  ArrowDown,
+  ArrowUp,
+  Globe,
+  Mail,
+  Plus,
+  Store,
+  Trash2,
+} from "lucide-react-native";
+import Svg, { Path } from "react-native-svg";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -42,6 +51,7 @@ import {
   type BioSocialPlatform,
 } from "@inklee/shared/bio-page";
 import type { MobileMe } from "@inklee/shared/mobile-api";
+import { BIO_SOCIAL_ICON_PATH } from "@inklee/shared/bio-social-icons";
 
 // Native Link Hub editor — mirrors the web /link-hub form: a fixed social icon
 // row plus an ORDERED, mixed list of blocks (headlines, texts, links) the artist
@@ -50,20 +60,32 @@ import type { MobileMe } from "@inklee/shared/mobile-api";
 // truth); this screen owns only the React Native presentation. Booking policy +
 // shop are booking-page concerns and live in booking settings, not here.
 
-// lucide-react-native has NO brand logos, so social glyphs use Ionicons `logo-*`
-// (verified present in the Ionicons glyphmap); website/email fall back to a
-// generic glyph. Display LABELS come from the shared BIO_SOCIAL_META.
-const SOCIAL_ICON: Record<BioSocialPlatform, keyof typeof Ionicons.glyphMap> = {
-  instagram: "logo-instagram",
-  tiktok: "logo-tiktok",
-  x: "logo-x",
-  facebook: "logo-facebook",
-  youtube: "logo-youtube",
-  threads: "logo-threads",
-  pinterest: "logo-pinterest",
-  website: "globe-outline",
-  email: "mail-outline",
-};
+// Brand glyphs render from the shared 24x24 path map (one source of truth with
+// the web Hub) via react-native-svg, so the app and web draw the same mark.
+// website / email and any platform without a brand path (e.g. fourthwall) fall
+// back to the SAME lucide glyphs the web uses (Globe / Mail / Store). Display
+// LABELS come from BIO_SOCIAL_META.
+function SocialGlyph({
+  platform,
+  color,
+  size = 18,
+}: {
+  platform: BioSocialPlatform;
+  color: string;
+  size?: number;
+}) {
+  const path = BIO_SOCIAL_ICON_PATH[platform];
+  if (path) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path d={path} fill={color} />
+      </Svg>
+    );
+  }
+  const Fallback =
+    platform === "email" ? Mail : platform === "website" ? Globe : Store;
+  return <Fallback size={size} color={color} />;
+}
 
 // Partial<BioBlock> over a discriminated union narrows to only the common keys
 // (id, type), so patches use an explicit field-union of every block's fields.
@@ -274,10 +296,10 @@ function HubForm({
             <View key={s.platform} className="mb-3">
               <View className="mb-1.5 flex-row items-center justify-between">
                 <View className="flex-row items-center gap-2">
-                  <Ionicons
-                    name={SOCIAL_ICON[s.platform]}
-                    size={18}
+                  <SocialGlyph
+                    platform={s.platform}
                     color={colors.accent}
+                    size={18}
                   />
                   <Text className="text-sm font-medium text-foreground">
                     {BIO_SOCIAL_META[s.platform].label}
@@ -317,11 +339,7 @@ function HubForm({
                     accessibilityLabel={`Add ${BIO_SOCIAL_META[p].label}`}
                     className="flex-row items-center gap-1.5 rounded-full border-brand border-shell-border px-3 py-2 active:opacity-70"
                   >
-                    <Ionicons
-                      name={SOCIAL_ICON[p]}
-                      size={16}
-                      color={colors.accent}
-                    />
+                    <SocialGlyph platform={p} color={colors.accent} size={16} />
                     <Text className="text-sm text-foreground">
                       {BIO_SOCIAL_META[p].label}
                     </Text>

@@ -1,33 +1,12 @@
-import { Globe, Mail } from "lucide-react";
-import {
-  siInstagram,
-  siTiktok,
-  siX,
-  siFacebook,
-  siYoutube,
-  siThreads,
-  siPinterest,
-} from "simple-icons";
+import { Globe, Mail, Store } from "lucide-react";
+import { BIO_SOCIAL_ICON_PATH } from "@inklee/shared/bio-social-icons";
 import type { BioSocialPlatform } from "@/lib/bio-page-settings";
 
-// Brand glyphs for the Link Hub's social row. simple-icons supplies the path
-// data for the brand platforms (web-only dep); website / email fall back to
-// lucide generics. The app render (slice 3) uses Ionicons logos for the same
-// platform keys -- icons are a per-surface rendering concern, the platform key
-// is the shared source of truth.
-const BRAND_PATH: Record<
-  Exclude<BioSocialPlatform, "website" | "email">,
-  string
-> = {
-  instagram: siInstagram.path,
-  tiktok: siTiktok.path,
-  x: siX.path,
-  facebook: siFacebook.path,
-  youtube: siYoutube.path,
-  threads: siThreads.path,
-  pinterest: siPinterest.path,
-};
-
+// Brand glyphs for the Link Hub's social row come from the shared 24x24 path map
+// (one source of truth with the app, which renders the same paths via
+// react-native-svg). website / email and any platform without a brand path
+// (e.g. fourthwall) fall back to a generic lucide glyph. fill=currentColor keeps
+// every mark monochrome in the Hub's bone color, so the row reads as one set.
 export function SocialIcon({
   platform,
   className,
@@ -38,6 +17,8 @@ export function SocialIcon({
   if (platform === "website")
     return <Globe className={className} aria-hidden />;
   if (platform === "email") return <Mail className={className} aria-hidden />;
+  const path = BIO_SOCIAL_ICON_PATH[platform];
+  if (!path) return <Store className={className} aria-hidden />;
   return (
     <svg
       role="img"
@@ -46,7 +27,7 @@ export function SocialIcon({
       className={className}
       aria-hidden
     >
-      <path d={BRAND_PATH[platform]} />
+      <path d={path} />
     </svg>
   );
 }

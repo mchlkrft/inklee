@@ -54,28 +54,74 @@ export type BioLinkBlock = {
 /** One arrangeable item on the Hub body. */
 export type BioBlock = BioHeadlineBlock | BioTextBlock | BioLinkBlock;
 
-/** Social platforms shown as the Hub's icon row. Keys map to a lucide icon on
- *  web (lucide-react) and app (lucide-react-native) so the rendering stays in
- *  sync; "website" / "email" are the catch-alls. */
+/** Social platforms shown as the Hub's icon row. Each key maps to a single
+ *  brand glyph path in bio-social-icons.ts, rendered identically on web + app;
+ *  "website" / "email" are the catch-alls (generic glyph, not a brand mark). */
 export type BioSocialPlatform =
+  // Social + video
   | "instagram"
   | "tiktok"
+  | "youtube"
   | "x"
   | "facebook"
-  | "youtube"
   | "threads"
+  | "snapchat"
+  | "twitch"
   | "pinterest"
+  | "weibo"
+  // Music
+  | "spotify"
+  | "soundcloud"
+  // Messaging
+  | "telegram"
+  | "signal"
+  | "line"
+  | "viber"
+  | "wechat"
+  | "kakaotalk"
+  // Creator + commerce
+  | "patreon"
+  | "kofi"
+  | "buymeacoffee"
+  | "substack"
+  | "fourthwall"
+  | "gumroad"
+  | "etsy"
+  | "bigcartel"
+  // Catch-alls
   | "website"
   | "email";
 
+// Order here drives the editor's dropdown + add-chip order: mainstream social
+// and video first, then music, messaging, creator/commerce, and the catch-alls
+// last. The public Hub renders socials in the artist's own saved order, not this.
 export const BIO_SOCIAL_PLATFORMS: readonly BioSocialPlatform[] = [
   "instagram",
   "tiktok",
+  "youtube",
   "x",
   "facebook",
-  "youtube",
   "threads",
+  "snapchat",
+  "twitch",
   "pinterest",
+  "weibo",
+  "spotify",
+  "soundcloud",
+  "telegram",
+  "signal",
+  "line",
+  "viber",
+  "wechat",
+  "kakaotalk",
+  "patreon",
+  "kofi",
+  "buymeacoffee",
+  "substack",
+  "fourthwall",
+  "gumroad",
+  "etsy",
+  "bigcartel",
   "website",
   "email",
 ];
@@ -87,8 +133,10 @@ export type BioSocial = {
 };
 
 /** Display labels for each platform — shared by the web + app editors and used
- *  as the accessible name on the Hub's icon row. Icon GLYPHS are app-specific
- *  (web: simple-icons; app: Ionicons logos), so they live in each app, not here. */
+ *  as the accessible name on the Hub's icon row. Brand GLYPHS are single-sourced
+ *  in bio-social-icons.ts (one 24x24 path per platform), rendered as an <svg> on
+ *  web and via react-native-svg on the app; website / email and any platform
+ *  without a path fall back to a generic glyph in each renderer. */
 export const BIO_SOCIAL_META: Record<BioSocialPlatform, { label: string }> = {
   instagram: { label: "Instagram" },
   tiktok: { label: "TikTok" },
@@ -97,6 +145,25 @@ export const BIO_SOCIAL_META: Record<BioSocialPlatform, { label: string }> = {
   youtube: { label: "YouTube" },
   threads: { label: "Threads" },
   pinterest: { label: "Pinterest" },
+  weibo: { label: "Weibo" },
+  spotify: { label: "Spotify" },
+  soundcloud: { label: "SoundCloud" },
+  snapchat: { label: "Snapchat" },
+  twitch: { label: "Twitch" },
+  telegram: { label: "Telegram" },
+  signal: { label: "Signal" },
+  line: { label: "LINE" },
+  viber: { label: "Viber" },
+  wechat: { label: "WeChat" },
+  kakaotalk: { label: "KakaoTalk" },
+  patreon: { label: "Patreon" },
+  kofi: { label: "Ko-fi" },
+  buymeacoffee: { label: "Buy Me a Coffee" },
+  substack: { label: "Substack" },
+  fourthwall: { label: "Fourthwall" },
+  gumroad: { label: "Gumroad" },
+  etsy: { label: "Etsy" },
+  bigcartel: { label: "Big Cartel" },
   website: { label: "Website" },
   email: { label: "Email" },
 };
