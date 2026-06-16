@@ -3,6 +3,9 @@ import Link from "next/link";
 import SiteLogo from "@/components/site-logo";
 import { getRenderableFooterGroups } from "@/lib/footer-links";
 import { PillNav } from "@/components/marketing-v2";
+import JsonLd from "@/components/seo/json-ld";
+import { webPageSchema } from "@/lib/jsonld";
+import { absoluteUrl } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Stop Tattoo DM Chaos · Inklee",
@@ -31,6 +34,15 @@ export const metadata: Metadata = {
 export default function DmChaosPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <JsonLd
+        id="ld-webpage"
+        data={webPageSchema({
+          name: "Stop tattoo DM chaos",
+          url: absoluteUrl("/dm-chaos"),
+          description:
+            "Tattoo booking from Instagram without the DM mess. Stop losing tattoo requests and turn tattoo DM booking into structured requests.",
+        })}
+      />
       <PillNav />
       <main className="flex-1">
         <HeroSection />

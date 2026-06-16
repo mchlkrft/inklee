@@ -4,12 +4,7 @@ import { redirect } from "next/navigation";
 import SiteLogo from "@/components/site-logo";
 import JsonLd from "@/components/seo/json-ld";
 import type { FaqItem } from "@/lib/marketing";
-import {
-  organizationSchema,
-  websiteSchema,
-  softwareApplicationSchema,
-  faqPageSchema,
-} from "@/lib/jsonld";
+import { softwareApplicationSchema, faqPageSchema } from "@/lib/jsonld";
 import { getRenderableFooterGroups } from "@/lib/footer-links";
 import { PillNav } from "@/components/marketing-v2";
 
@@ -79,8 +74,6 @@ export default async function Home() {
         href="/branding/illustrations/key-visual.svg"
         fetchPriority="high"
       />
-      <JsonLd data={organizationSchema()} id="ld-organization" />
-      <JsonLd data={websiteSchema()} id="ld-website" />
       <JsonLd data={softwareApplicationSchema()} id="ld-softwareapplication" />
       <JsonLd data={faqPageSchema(HOMEPAGE_FAQ)} id="ld-faq" />
       <PillNav />
@@ -259,6 +252,7 @@ const FEATURES: Array<{
   description: string;
   illustration: string;
   variant: FeatureCardVariant;
+  href?: string;
 }> = [
   {
     title: "Structured booking form",
@@ -266,6 +260,7 @@ const FEATURES: Array<{
       "Clients submit placement, size, description, and reference images. No back-and-forth to gather the basics.",
     illustration: "/branding/illustrations/feature-booking-form.svg",
     variant: "mustard",
+    href: "/tattoo-booking-form",
   },
   // Content swapped with position 4 ("Request management") per founder
   // direction: the request graphic reads better on rosa than bone, the
@@ -277,6 +272,7 @@ const FEATURES: Array<{
       "When books are closed, clients join the waitlist. Open a new round and move waitlist entries into bookings.",
     illustration: "/branding/illustrations/feature-waitlist.svg",
     variant: "bone",
+    href: "/tattoo-artist-waitlist",
   },
   {
     title: "Deposit collection",
@@ -284,6 +280,7 @@ const FEATURES: Array<{
       "Optional. Ask for a deposit on an approved request. Clients can pay by card into your own Stripe account (Inklee keeps a 3% fee), or you track a manual one. Status stays on the booking.",
     illustration: "/branding/illustrations/feature-deposit.svg",
     variant: "rosa",
+    href: "/tattoo-deposit-tool",
   },
   {
     title: "Request management",
@@ -291,6 +288,7 @@ const FEATURES: Array<{
       "Review, approve, pass, or request a deposit from a clean dashboard. Every decision is logged.",
     illustration: "/branding/illustrations/feature-requests.svg",
     variant: "rosa",
+    href: "/tattoo-booking-software",
   },
   {
     title: "Trips and guest spots",
@@ -298,6 +296,7 @@ const FEATURES: Array<{
       "Publish travel legs and clients see your city and dates on your booking page automatically.",
     illustration: "/branding/illustrations/feature-travel.svg",
     variant: "mustard",
+    href: "/guest-spot-booking",
   },
   {
     title: "Calendar and iCal",
@@ -313,11 +312,13 @@ function FeatureCard({
   description,
   illustration,
   variant,
+  href,
 }: {
   title: string;
   description: string;
   illustration: string;
   variant: FeatureCardVariant;
+  href?: string;
 }) {
   const bgClass =
     variant === "mustard"
@@ -347,6 +348,14 @@ function FeatureCard({
           {description}
         </p>
       </div>
+      {href ? (
+        <Link
+          href={href}
+          className="mt-auto inline-flex items-center text-sm font-bold text-brand-charcoal underline-offset-4 hover:underline"
+        >
+          Learn more →
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -369,6 +378,33 @@ function FeaturesSection() {
           {FEATURES.map((f) => (
             <FeatureCard key={f.title} {...f} />
           ))}
+        </div>
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-shell-fg-dim md:mt-16">
+          <span className="font-bold text-shell-fg">Compare Inklee:</span>
+          <Link
+            href="/tattoo-booking-software-vs-instagram-dms"
+            className="transition-colors hover:text-brand-mustard"
+          >
+            vs Instagram DMs
+          </Link>
+          <Link
+            href="/tattoo-booking-software-vs-google-forms"
+            className="transition-colors hover:text-brand-mustard"
+          >
+            vs Google Forms
+          </Link>
+          <Link
+            href="/tattoo-booking-software-vs-calendly"
+            className="transition-colors hover:text-brand-mustard"
+          >
+            vs Calendly
+          </Link>
+          <Link
+            href="/best-booking-app-for-tattoo-artists"
+            className="transition-colors hover:text-brand-mustard"
+          >
+            Best booking app
+          </Link>
         </div>
       </div>
     </section>

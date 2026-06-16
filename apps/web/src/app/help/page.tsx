@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
+import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
 const PAGE_PATH = "/help";
 const PAGE_TITLE = "Inklee help and FAQ for tattoo artists";
@@ -66,7 +66,7 @@ const FAQ = [
 
 export default function HelpPage() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       <JsonLd
         id="ld-webpage"
         data={webPageSchema({
@@ -79,16 +79,9 @@ export default function HelpPage() {
         id="ld-faq"
         data={faqPageSchema(FAQ.map((f) => ({ question: f.q, answer: f.a })))}
       />
+      <PillNav />
       <main className="mx-auto flex-1 w-full max-w-2xl space-y-8 px-6 py-12">
-        <div className="space-y-2">
-          <Link
-            href="/"
-            className="text-xl font-semibold tracking-tight text-foreground"
-          >
-            inklee
-          </Link>
-          <h1 className="text-2xl font-semibold text-foreground">Help</h1>
-        </div>
+        <h1 className="text-2xl font-semibold text-foreground">Help</h1>
 
         <div className="space-y-6">
           {FAQ.map(({ q, a }, i) => (
@@ -114,6 +107,7 @@ export default function HelpPage() {
           </a>
         </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }
