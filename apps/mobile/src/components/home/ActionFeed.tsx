@@ -97,22 +97,33 @@ export function ActionFeed({ items }: { items: MobileActionItem[] }) {
             .filter(Boolean)
             .join(" · ");
           return (
-            <View key={key} className={`pt-3 ${border} ${i > 0 ? "mt-3" : "mt-3"}`}>
-              <View className="flex-row items-center justify-between gap-2">
+            <View
+              key={key}
+              className={`mt-3 flex-row items-center gap-3 pt-3 ${border}`}
+            >
+              {/* Text column: Pending chip, client, then placement · date. */}
+              <View className="flex-1">
+                <View className="mb-1.5 flex-row">
+                  <Pill label="Pending" tone="pending" />
+                </View>
                 <Text
-                  className="flex-1 text-body font-medium text-foreground"
+                  className="text-body font-medium text-foreground"
                   numberOfLines={1}
                 >
                   {item.client}
                 </Text>
-                <Pill label="Pending" tone="pending" />
+                {ctx ? (
+                  <Text
+                    className="mt-0.5 text-caption text-shell-dim"
+                    numberOfLines={2}
+                  >
+                    {ctx}
+                  </Text>
+                ) : null}
               </View>
-              {ctx ? (
-                <Text className="mt-0.5 text-caption text-shell-dim" numberOfLines={1}>
-                  {ctx}
-                </Text>
-              ) : null}
-              <View className="mt-2 flex-row gap-2">
+              {/* Inline verbs, vertically centered on the right. Pass is
+                  two-step: it swaps to Confirm pass / Cancel in place. */}
+              <View className="flex-row items-center gap-2">
                 {confirmKey === key ? (
                   <>
                     <Button
@@ -134,18 +145,18 @@ export function ActionFeed({ items }: { items: MobileActionItem[] }) {
                 ) : (
                   <>
                     <Button
+                      label="Pass"
+                      variant="secondary"
+                      size="sm"
+                      onPress={() => setConfirmKey(key)}
+                    />
+                    <Button
                       label="Accept"
                       size="sm"
                       loading={busy}
                       onPress={() =>
                         act(key, () => approveBooking(item.bookingId))
                       }
-                    />
-                    <Button
-                      label="Pass"
-                      variant="secondary"
-                      size="sm"
-                      onPress={() => setConfirmKey(key)}
                     />
                   </>
                 )}
@@ -156,23 +167,29 @@ export function ActionFeed({ items }: { items: MobileActionItem[] }) {
 
         // deposit
         return (
-          <View key={key} className={`pt-3 mt-3 ${border}`}>
-            <View className="flex-row items-center justify-between gap-2">
+          <View
+            key={key}
+            className={`mt-3 flex-row items-center gap-3 pt-3 ${border}`}
+          >
+            {/* Text column: status chip, client, then the amount due. */}
+            <View className="flex-1">
+              <View className="mb-1.5 flex-row">
+                <Pill
+                  label={item.overdue ? "Overdue deposit" : "Awaiting deposit"}
+                  tone={item.overdue ? "overdue" : "awaiting"}
+                />
+              </View>
               <Text
-                className="flex-1 text-body font-medium text-foreground"
+                className="text-body font-medium text-foreground"
                 numberOfLines={1}
               >
                 {item.client}
               </Text>
-              <Pill
-                label={item.overdue ? "Overdue deposit" : "Awaiting deposit"}
-                tone={item.overdue ? "overdue" : "awaiting"}
-              />
+              <Text className="mt-0.5 text-caption text-shell-dim">
+                {money(item.amount, item.currency)}
+              </Text>
             </View>
-            <Text className="mt-0.5 text-caption text-shell-dim">
-              {money(item.amount, item.currency)}
-            </Text>
-            <View className="mt-2 flex-row">
+            <View className="flex-row items-center">
               <Button
                 label="Mark received"
                 size="sm"

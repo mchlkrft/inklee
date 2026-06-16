@@ -50,6 +50,18 @@ const DATE_FMT = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
 });
 
+// The "glance" widgets (the hero Requests card + its stat satellites) are
+// fixed-color brand chips in BOTH themes per the dashboard redesign: a solid
+// mustard hero and cream stat chips that pop off the page in light or dark.
+// Their content colors are therefore theme-INDEPENDENT (charcoal on the brand
+// fill) — text-foreground would read bone and vanish on the cream chip in dark
+// mode, so these are not the themed tokens.
+const CHIP_CREAM = "#d9d4c7"; // stat-chip fill (the light-theme card cream)
+const CHIP_BORDER = "rgba(30,30,30,0.18)"; // matches the app-standard card border so the cream chip reads on bone
+const ON_CHIP_FG = "#1e1e1e"; // charcoal text / icon on mustard or cream
+const ON_CHIP_DIM = "rgba(30,30,30,0.72)"; // muted label on the chips (clears AA at 12px on cream)
+const ON_CHIP_DANGER = "#a61f1d"; // readable dark red on cream (overdue)
+
 function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} hitSlop={8} className="active:opacity-60">
@@ -72,19 +84,20 @@ function StatBox({
   onPress: () => void;
   danger?: boolean;
 }) {
-  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
-      className="flex-1 rounded-card border-brand border-shell-border bg-card p-4 active:opacity-80"
+      style={{ backgroundColor: CHIP_CREAM, borderColor: CHIP_BORDER }}
+      className="flex-1 rounded-card border-brand p-4 active:opacity-80"
     >
-      <Icon size={18} color={danger ? colors.dangerFg : colors.accent} />
+      <Icon size={18} color={danger ? ON_CHIP_DANGER : ON_CHIP_FG} />
       <Text
-        className={`mt-2 text-xl font-bold ${danger ? "text-danger-fg" : "text-foreground"}`}
+        className="mt-2 text-xl font-bold"
+        style={{ color: danger ? ON_CHIP_DANGER : ON_CHIP_FG }}
       >
         {value}
       </Text>
-      <Text className="text-caption text-shell-dim" numberOfLines={1}>
+      <Text className="text-caption" style={{ color: ON_CHIP_DIM }} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
@@ -261,13 +274,18 @@ export default function HomeScreen() {
             <View className="mt-3">
               <Pressable
                 onPress={() => router.navigate("/bookings")}
-                className="rounded-card border-brand border-mustard/40 bg-mustard/10 p-5 active:opacity-90"
+                className="rounded-card bg-mustard p-5 active:opacity-90"
               >
-                <Inbox size={22} color={colors.accent} />
-                <Text className="mt-6 text-display font-bold text-foreground">
+                <Inbox size={22} color={ON_CHIP_FG} />
+                <Text
+                  className="mt-6 text-display font-bold"
+                  style={{ color: ON_CHIP_FG }}
+                >
                   {data.pendingCount}
                 </Text>
-                <Text className="text-sm text-shell-dim">Requests waiting</Text>
+                <Text className="text-sm" style={{ color: ON_CHIP_DIM }}>
+                  Requests waiting
+                </Text>
               </Pressable>
               <View className="mt-3 flex-row gap-3">
                 <StatBox
