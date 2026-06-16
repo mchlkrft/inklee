@@ -81,9 +81,15 @@ export async function generateMetadata({
   const canonical = publicArtistUrl(slug);
 
   return {
-    title: `${name} — Tattoo Booking · Inklee`,
+    title: `${name}, tattoo booking · Inklee`,
     description,
     alternates: { canonical },
+    // Per-artist booking pages are templated and thin at scale, and an artist may
+    // not expect to surface in Google, so keep them OUT of the index by default
+    // (founder decision 2026-06-16). They stay fully shareable; follow lets the
+    // page's links be crawled. A per-artist "list me in search" opt-in can lift
+    // this later.
+    robots: { index: false, follow: true },
     openGraph: {
       title: `Book a tattoo with ${name}`,
       description: ogDescription,
