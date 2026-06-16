@@ -36,6 +36,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=link-expired`);
   }
 
+  // Recovery: always land on the set-password form. verifyOtp has set an active
+  // recovery session, so /reset-password's updateUser works there. The link's
+  // `next` is ignored (the reset flow has a fixed destination).
+  if (type === "recovery") {
+    return NextResponse.redirect(`${origin}/reset-password`);
+  }
+
   // Post-signup: check if profile exists
   if (type === "signup") {
     const {

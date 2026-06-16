@@ -5,6 +5,7 @@ import {
   confirmationEmail,
   passwordResetEmail,
   magicLinkEmail,
+  emailChangeEmail,
 } from "@/lib/email/auth-templates";
 
 function verifyHookSignature(
@@ -57,6 +58,16 @@ function buildConfirmUrl(
   type: string,
   next: string,
 ) {
+  // Native (mobile) auth passes a custom-scheme deep link (inklee://auth-confirm)
+  // as redirect_to. Send the OTP straight to the app so it verifies on-device
+  // (the mobile client is PKCE; a web confirm page can't complete the device
+  // session). Web auth passes an https URL and routes through /auth/confirm.
+  if (/:\/\//.test(next) && !/^https?:\/\//i.test(next)) {
+    const sep = next.includes("?") ? "&" : "?";
+    return `${next}${sep}token_hash=${encodeURIComponent(
+      tokenHash,
+    )}&type=${encodeURIComponent(type)}`;
+  }
   const url = new URL("/auth/confirm", appUrl);
   url.searchParams.set("token_hash", tokenHash);
   url.searchParams.set("type", type);
@@ -110,7 +121,7 @@ export async function POST(request: NextRequest) {
         );
         await sendEmail({
           to,
-          subject: "confirm your inklee account",
+          subject: "Confirm your Inklee account",
           html: confirmationEmail(confirmUrl),
         });
         break;
@@ -125,7 +136,7 @@ export async function POST(request: NextRequest) {
         );
         await sendEmail({
           to,
-          subject: "reset your inklee password",
+          subject: "Reset your Inklee password",
           html: passwordResetEmail(resetUrl),
         });
         break;
@@ -140,7 +151,7 @@ export async function POST(request: NextRequest) {
         );
         await sendEmail({
           to,
-          subject: "your inklee sign-in link",
+          subject: "Your Inklee sign-in link",
           html: magicLinkEmail(loginUrl),
         });
         break;
@@ -155,8 +166,8 @@ export async function POST(request: NextRequest) {
         );
         await sendEmail({
           to,
-          subject: "confirm your new email address",
-          html: confirmationEmail(confirmUrl),
+          subject: "Confirm your new email address",
+          html: emailChangeEmail(confirmUrl),
         });
         break;
       }

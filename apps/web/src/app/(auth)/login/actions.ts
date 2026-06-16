@@ -28,6 +28,19 @@ export async function loginAction(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    // Credentials are correct but the email was never confirmed: say so, and
+    // point to the de-facto resend (signing up again with the same email mints a
+    // fresh link). Genuine bad credentials stay generic so we don't leak whether
+    // an account exists.
+    if (
+      error.code === "email_not_confirmed" ||
+      /not confirmed/i.test(error.message)
+    ) {
+      return {
+        error:
+          "Confirm your email first. Check your inbox for the confirmation link, or sign up again with the same email to get a new one.",
+      };
+    }
     return { error: "Invalid email or password." };
   }
 

@@ -185,8 +185,11 @@ password_requirements = ""
 # rp_origins = ["http://127.0.0.1:3000"]
 
 [auth.rate_limit]
-# Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Number of auth emails (confirmation, recovery, magic link) that can be sent per
+# hour. 2/hr is far too low once confirmation is mandatory — one typo + resend +
+# a password reset exhausts it and locks an artist out of all auth mail. Keep the
+# prod dashboard limit (Auth -> Rate Limits) in sync with this value.
+email_sent = 30
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -213,7 +216,14 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Scope: this gates Supabase Auth email/password signups = ARTIST accounts only.
+# OAuth (Google/Apple) artists arrive pre-verified and are auto-confirmed.
+# Customers who submit the public booking/contact form are NOT auth users (they
+# get custom booking-management magic links), so they are never affected.
+# Branded confirmation mail is sent via the Send Email hook (/api/auth/email-hook
+# + SUPABASE_AUTH_HOOK_SECRET), which is configured per-project in the Supabase
+# dashboard (see docs/dev-environment-setup.md). Local dev delivers to Inbucket.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
