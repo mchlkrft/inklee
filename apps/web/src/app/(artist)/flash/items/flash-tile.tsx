@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, Upload, Pencil, Image as ImageIcon } from "lucide-react";
 import { publishFlashItemAction, toggleFlashBookableAction } from "./actions";
+import { setItemFolderAction } from "./folder-actions";
 import FlashEditModal from "./flash-edit-modal";
 
 type Item = {
@@ -12,6 +13,7 @@ type Item = {
   status: string;
   preview_image_url: string | null;
   is_bookable: boolean;
+  folder_id: string | null;
 };
 
 /**
@@ -37,9 +39,11 @@ type Item = {
 export default function FlashTile({
   item,
   availabilityLabel,
+  folders,
 }: {
   item: Item;
   availabilityLabel: string | null;
+  folders: { id: string; name: string }[];
 }) {
   const [revealed, setRevealed] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -67,6 +71,15 @@ export default function FlashTile({
     if (pending) return;
     startTransition(async () => {
       await publishFlashItemAction(item.id);
+    });
+  }
+
+  function handleFolderChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    e.stopPropagation();
+    if (pending) return;
+    const val = e.target.value || null;
+    startTransition(async () => {
+      await setItemFolderAction(item.id, val);
     });
   }
 
@@ -146,6 +159,24 @@ export default function FlashTile({
             }}
             variant="ghost"
           />
+
+          {folders.length > 0 && (
+            <select
+              value={item.folder_id ?? ""}
+              onClick={(e) => e.stopPropagation()}
+              onChange={handleFolderChange}
+              disabled={pending}
+              aria-label="Move to folder"
+              className="w-32 rounded-full border border-white/60 bg-black/45 px-3 py-1.5 text-xs text-white disabled:opacity-60"
+            >
+              <option value="">Unfiled</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* ── Title strip (hidden when the action stack is revealed) ───────── */}

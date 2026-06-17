@@ -6,6 +6,7 @@ import {
   attachFlashItemsToDayAction,
   detachFlashItemFromDayAction,
 } from "../actions";
+import { attachFolderToDayAction } from "../../items/folder-actions";
 
 type Item = {
   id: string;
@@ -13,6 +14,8 @@ type Item = {
   status: string;
   preview_image_url: string | null;
 };
+
+type FolderOption = { id: string; name: string };
 
 /**
  * Two-section manager rendered below the form on /flash/days/[id].
@@ -26,10 +29,12 @@ export default function FlashDayItemsManager({
   dayId,
   linked,
   unattached,
+  folders,
 }: {
   dayId: string;
   linked: Item[];
   unattached: Item[];
+  folders: FolderOption[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
@@ -66,6 +71,16 @@ export default function FlashDayItemsManager({
     });
   }
 
+  // Attach every published/draft design in a folder (snapshot) in one click.
+  function handleAttachFolder(folderId: string) {
+    if (!folderId) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await attachFolderToDayAction(dayId, folderId);
+      if ("error" in result) setError(result.error);
+    });
+  }
+
   if (linked.length === 0 && unattached.length === 0) {
     return (
       <p className="rounded-md border border-border px-6 py-8 text-center text-sm text-muted-foreground">
@@ -83,6 +98,29 @@ export default function FlashDayItemsManager({
 
   return (
     <div className="space-y-8">
+      {folders.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-sm text-muted-foreground">Add a folder</label>
+          <select
+            defaultValue=""
+            disabled={pending}
+            onChange={(e) => {
+              const v = e.target.value;
+              e.target.value = "";
+              handleAttachFolder(v);
+            }}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+          >
+            <option value="">Choose a folder…</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* ── Attached designs ── */}
       {linked.length > 0 && (
         <section className="space-y-3">

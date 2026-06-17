@@ -4,6 +4,7 @@ import Link from "next/link";
 import FlashDayForm from "../flash-day-form";
 import FlashDayItemsManager from "./flash-day-items-manager";
 import { listDayRoster } from "@/lib/server/flash-day-membership";
+import { listFolders } from "@/lib/server/flash-folders";
 
 export default async function FlashDayDetailPage({
   params,
@@ -16,30 +17,41 @@ export default async function FlashDayDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: day }, { data: studios }, { data: allItems }, roster] =
-    await Promise.all([
-      supabase
-        .from("flash_days")
-        .select("*")
-        .eq("id", id)
-        .eq("artist_id", user!.id)
-        .single(),
-      supabase
-        .from("studios")
-        .select("id, name, city, country")
-        .eq("artist_id", user!.id)
-        .order("name", { ascending: true }),
-      supabase
-        .from("flash_items")
-        .select("id, title, status, preview_image_url")
-        .eq("artist_id", user!.id)
-        .neq("status", "archived")
-        .order("created_at", { ascending: false }),
-      // The day roster is junction-backed (source of truth), ordered by position.
-      listDayRoster(supabase, id, user!.id),
-    ]);
+  const [
+    { data: day },
+    { data: studios },
+    { data: allItems },
+    roster,
+    foldersResult,
+  ] = await Promise.all([
+    supabase
+      .from("flash_days")
+      .select("*")
+      .eq("id", id)
+      .eq("artist_id", user!.id)
+      .single(),
+    supabase
+      .from("studios")
+      .select("id, name, city, country")
+      .eq("artist_id", user!.id)
+      .order("name", { ascending: true }),
+    supabase
+      .from("flash_items")
+      .select("id, title, status, preview_image_url")
+      .eq("artist_id", user!.id)
+      .neq("status", "archived")
+      .order("created_at", { ascending: false }),
+    // The day roster is junction-backed (source of truth), ordered by position.
+    listDayRoster(supabase, id, user!.id),
+    listFolders(supabase, user!.id),
+  ]);
 
   if (!day) notFound();
+
+  const folders =
+    "folders" in foldersResult
+      ? foldersResult.folders.map((f) => ({ id: f.id, name: f.name }))
+      : [];
 
   const linked =
     "items" in roster
@@ -94,6 +106,7 @@ export default async function FlashDayDetailPage({
         dayId={day.id}
         linked={linked}
         unattached={candidates}
+        folders={folders}
       />
     </div>
   );
