@@ -1,14 +1,20 @@
 import { serviceClient } from "@/lib/supabase/service";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import type { Metadata } from "next";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
-  formatPrice,
   FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import { formatDateKey } from "@/lib/date-utils";
+import FlashDayGrid, { type FlashDayGridItem } from "./flash-day-grid";
+
+// Public flash-day pages are hidden from search, matching the 2026-06-16
+// booking-page noindex decision. follow:true keeps internal links crawlable.
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 export default async function PublicFlashDayPage({
   params,
@@ -34,7 +40,7 @@ export default async function PublicFlashDayPage({
     .eq("artist_id", profile.id)
     .single();
 
-  // Private or non-existent days are indistinguishable to clients
+  // Private or non-existent days are indistinguishable to clients.
   if (!day || !day.is_public) notFound();
 
   const studio = (
@@ -46,34 +52,73 @@ export default async function PublicFlashDayPage({
       : studio.name
     : day.location;
 
-  const { data: items } = await serviceClient
-    .from("flash_items")
+  // Roster comes from the flash_day_items junction (source of truth), ordered by
+  // position; published designs only.
+  const { data: rosterRows } = await serviceClient
+    .from("flash_day_items")
     .select(
-      "id, title, slug, preview_image_url, short_description, price_type, price, size_info, booking_mode, max_bookings, is_bookable, available_from, available_until, status",
+      "position, flash_items!item_id(id, title, slug, preview_image_url, short_description, price_type, price, size_info, placement_notes, booking_mode, max_bookings, is_bookable, available_from, available_until, status)",
     )
+    .eq("day_id", dayId)
     .eq("artist_id", profile.id)
-    .eq("flash_day_id", dayId)
-    .eq("status", "published")
-    .order("created_at", { ascending: false });
+    .order("position", { ascending: true });
+
+  type Embedded = Record<string, unknown>;
+  const designs = ((rosterRows ?? []) as Array<{ flash_items: unknown }>)
+    .map((r) =>
+      Array.isArray(r.flash_items)
+        ? (r.flash_items[0] as Embedded | undefined)
+        : (r.flash_items as Embedded | null),
+    )
+    .filter((it): it is Embedded => !!it && it.status === "published");
 
   // Active request counts for accurate availability labels.
-  const itemIds = (items ?? []).map((i) => i.id);
-  const activeRequestMap = new Map<string, number>();
+  const itemIds = designs.map((d) => d.id as string);
+  const activeMap = new Map<string, number>();
   if (itemIds.length > 0) {
     const { data: activeRequests } = await serviceClient
       .from("booking_requests")
       .select("flash_item_id")
       .in("flash_item_id", itemIds)
       .in("status", [...FLASH_ACTIVE_REQUEST_STATUSES]);
-
     for (const b of activeRequests ?? []) {
       if (b.flash_item_id)
-        activeRequestMap.set(
+        activeMap.set(
           b.flash_item_id,
-          (activeRequestMap.get(b.flash_item_id) ?? 0) + 1,
+          (activeMap.get(b.flash_item_id) ?? 0) + 1,
         );
     }
   }
+
+  const items: FlashDayGridItem[] = designs.map((d) => {
+    const av = computeFlashAvailability(
+      {
+        id: d.id as string,
+        title: d.title as string,
+        slug: d.slug as string,
+        status: d.status as string,
+        booking_mode: d.booking_mode as string,
+        max_bookings: (d.max_bookings as number | null) ?? null,
+        is_bookable: d.is_bookable as boolean,
+        available_from: (d.available_from as string | null) ?? null,
+        available_until: (d.available_until as string | null) ?? null,
+      },
+      activeMap.get(d.id as string) ?? 0,
+    );
+    return {
+      id: d.id as string,
+      title: d.title as string,
+      slug: d.slug as string,
+      previewImageUrl: (d.preview_image_url as string | null) ?? null,
+      shortDescription: (d.short_description as string | null) ?? null,
+      priceType: d.price_type as string,
+      price: (d.price as string | number | null) ?? null,
+      sizeInfo: (d.size_info as string | null) ?? null,
+      placementNotes: (d.placement_notes as string | null) ?? null,
+      bookable: av.bookable,
+      availabilityLabel: formatFlashAvailabilityLabel(av),
+    };
+  });
 
   const dateLabel = day.scheduled_on
     ? formatDateKey(day.scheduled_on, {
@@ -85,7 +130,7 @@ export default async function PublicFlashDayPage({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <main className="mx-auto w-full max-w-lg flex-1 space-y-10 px-6 py-12">
+      <main className="mx-auto w-full max-w-3xl flex-1 space-y-10 px-6 py-12">
         {/* Header */}
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -114,81 +159,20 @@ export default async function PublicFlashDayPage({
           </Link>
         </div>
 
-        {/* Items */}
-        {!items || items.length === 0 ? (
+        {/* Grid */}
+        {items.length === 0 ? (
           <div className="rounded-md border border-border px-6 py-12 text-center">
             <p className="text-base text-muted-foreground">
               No designs posted for this day yet.
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {items.map((item) => {
-              const av = computeFlashAvailability(
-                item,
-                activeRequestMap.get(item.id) ?? 0,
-              );
-              const disabled = !av.bookable;
-              const card = (
-                <div
-                  className={`flex gap-4 rounded-md border border-border p-4 transition-colors hover:border-foreground/40 ${
-                    disabled ? "opacity-60" : ""
-                  }`}
-                >
-                  {item.preview_image_url && (
-                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
-                      <Image
-                        src={item.preview_image_url}
-                        alt={item.title}
-                        width={80}
-                        height={80}
-                        sizes="80px"
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-sm font-semibold text-foreground">
-                      {item.title}
-                    </p>
-                    {item.short_description && (
-                      <p className="line-clamp-2 text-sm text-muted-foreground">
-                        {item.short_description}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                      <span>{formatPrice(item.price_type, item.price)}</span>
-                      {item.size_info && <span>{item.size_info}</span>}
-                      <span
-                        className={
-                          av.bookable
-                            ? "text-green-500"
-                            : "text-muted-foreground"
-                        }
-                      >
-                        {formatFlashAvailabilityLabel(av)}
-                      </span>
-                    </div>
-                  </div>
-                  {!disabled && (
-                    <div className="flex items-center shrink-0">
-                      <span className="text-sm text-muted-foreground">→</span>
-                    </div>
-                  )}
-                </div>
-              );
-
-              return disabled ? (
-                <div key={item.id} className="pointer-events-none">
-                  {card}
-                </div>
-              ) : (
-                <Link key={item.id} href={`/${slug}/flash/${item.slug}`}>
-                  {card}
-                </Link>
-              );
-            })}
-          </div>
+          <FlashDayGrid
+            items={items}
+            artistSlug={slug}
+            artistFirstName={profile.display_name.split(" ")[0]}
+            dayId={dayId}
+          />
         )}
       </main>
 

@@ -82,7 +82,7 @@ export async function submitFlashBookingAction(
 
   const { allowed } = await checkRateLimit(ip, artistId);
   if (!allowed) {
-    return { error: "too many requests — please wait before submitting again" };
+    return { error: "Too many requests. Please wait before submitting again." };
   }
 
   if (
@@ -137,7 +137,7 @@ export async function submitFlashBookingAction(
     if ((recentCount ?? 0) > 0) {
       return {
         error:
-          "your request was already submitted — check your email for confirmation",
+          "Your request was already submitted. Check your email for confirmation.",
       };
     }
   }
@@ -173,7 +173,7 @@ export async function submitFlashBookingAction(
     Sentry.captureException(insertError, {
       tags: { action: "flash_booking_insert" },
     });
-    return { error: "something went wrong — try again" };
+    return { error: "Something went wrong. Try again." };
   }
 
   // Audit log
@@ -217,8 +217,8 @@ export async function submitFlashBookingAction(
           customer_handle: data.instagram_handle,
           artist_name: artistProfile.display_name,
           artist_slug: artistSlug,
-          placement: `${flashItem.title} — ${data.placement}`,
-          size: flashItem.size_info ?? "—",
+          placement: `${flashItem.title}, ${data.placement}`,
+          size: flashItem.size_info ?? "-",
           date: data.preferred_date,
           magic_link: magicLink,
         },

@@ -8,7 +8,13 @@ import {
   formatPrice,
   FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
+import type { Metadata } from "next";
 import FlashBookingForm from "./flash-booking-form";
+
+// Hidden from search, matching the booking-page noindex decision (2026-06-16).
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 export default async function PublicFlashItemPage({
   params,
