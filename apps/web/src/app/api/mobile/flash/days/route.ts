@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { normalizeFlashDayInput } from "@/lib/mobile-flash";
+import { countDayItems } from "@/lib/server/flash-day-membership";
 import type {
   MobileFlashDay,
   MobileFlashDaysResponse,
@@ -17,37 +18,30 @@ export async function GET(req: Request) {
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
 
-  const [{ data: days, error }, { data: items }] = await Promise.all([
+  const [{ data: days, error }, countResult] = await Promise.all([
     supabase
       .from("flash_days")
       .select(
-        "id, title, scheduled_on, location, description, status, is_public",
+        "id, title, scheduled_on, studio_id, location, description, status, is_public",
       )
       .eq("artist_id", userId)
       .order("scheduled_on", { ascending: true, nullsFirst: false }),
-    supabase
-      .from("flash_items")
-      .select("flash_day_id")
-      .eq("artist_id", userId)
-      .not("flash_day_id", "is", null),
+    // Design counts from the junction (source of truth), matching web + public.
+    countDayItems(supabase, userId),
   ]);
   if (error) return mobileError(500, error.message);
-
-  const counts = new Map<string, number>();
-  for (const it of items ?? []) {
-    const k = it.flash_day_id as string | null;
-    if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
-  }
+  const counts = "counts" in countResult ? countResult.counts : {};
 
   const list: MobileFlashDay[] = (days ?? []).map((d) => ({
     id: d.id,
     title: d.title,
     scheduledOn: d.scheduled_on,
+    studioId: d.studio_id,
     location: d.location,
     description: d.description,
     status: d.status,
     isPublic: d.is_public,
-    itemCount: counts.get(d.id) ?? 0,
+    itemCount: counts[d.id] ?? 0,
   }));
   const body: MobileFlashDaysResponse = { items: list };
   return mobileOk(body);
@@ -71,12 +65,25 @@ export async function POST(req: Request) {
   if (!parsed.ok) return mobileError(400, parsed.error);
   const v = parsed.value;
 
+  if (v.studioId) {
+    const { data: studio, error: studioErr } = await supabase
+      .from("studios")
+      .select("id")
+      .eq("id", v.studioId)
+      .eq("artist_id", userId)
+      .maybeSingle();
+    if (studioErr) return mobileError(500, studioErr.message);
+    if (!studio)
+      return mobileError(400, "That studio doesn't exist.", "bad_studio");
+  }
+
   const { data, error } = await supabase
     .from("flash_days")
     .insert({
       artist_id: userId,
       title: v.title,
       scheduled_on: v.scheduledOn,
+      studio_id: v.studioId,
       location: v.location,
       description: v.description,
       status: v.status,

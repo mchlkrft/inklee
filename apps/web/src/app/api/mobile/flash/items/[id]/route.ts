@@ -24,20 +24,12 @@ export async function GET(
   const { userId, supabase } = auth;
   const { id } = await params;
 
-  const [{ data: item, error }, { data: days }] = await Promise.all([
-    supabase
-      .from("flash_items")
-      .select("*")
-      .eq("id", id)
-      .eq("artist_id", userId)
-      .maybeSingle(),
-    supabase
-      .from("flash_days")
-      .select("id, title, scheduled_on")
-      .eq("artist_id", userId)
-      .in("status", ["upcoming", "active"])
-      .order("scheduled_on", { ascending: true, nullsFirst: false }),
-  ]);
+  const { data: item, error } = await supabase
+    .from("flash_items")
+    .select("*")
+    .eq("id", id)
+    .eq("artist_id", userId)
+    .maybeSingle();
   if (error) return mobileError(500, error.message);
   if (!item) return mobileError(404, "Flash design not found.", "not_found");
 
@@ -79,31 +71,15 @@ export async function GET(
     activeCount ?? 0,
   );
 
-  const dayOptions = (days ?? []).map((d) => ({
-    id: d.id,
-    title: d.title,
-    scheduledOn: d.scheduled_on,
-  }));
-  // Make sure the currently-assigned day is selectable even when it has moved
-  // out of upcoming/active — otherwise the artist can't see or detach it.
-  if (
-    item.flash_day_id &&
-    !dayOptions.some((d) => d.id === item.flash_day_id)
-  ) {
-    const { data: assigned } = await supabase
-      .from("flash_days")
-      .select("id, title, scheduled_on")
-      .eq("id", item.flash_day_id)
-      .eq("artist_id", userId)
-      .maybeSingle();
-    if (assigned) {
-      dayOptions.unshift({
-        id: assigned.id,
-        title: assigned.title,
-        scheduledOn: assigned.scheduled_on,
-      });
-    }
-  }
+  // Day membership comes from the flash_day_items junction (source of truth).
+  const { data: memberships } = await supabase
+    .from("flash_day_items")
+    .select("day_id")
+    .eq("item_id", id)
+    .eq("artist_id", userId);
+  const dayMemberships = ((memberships ?? []) as Array<{ day_id: string }>).map(
+    (m) => m.day_id,
+  );
 
   const body: MobileFlashItemDetail = {
     id: item.id,
@@ -120,9 +96,9 @@ export async function GET(
     isBookable: item.is_bookable,
     availableFrom: item.available_from,
     availableUntil: item.available_until,
-    flashDayId: item.flash_day_id,
+    folderId: item.folder_id,
+    dayMemberships,
     previewImageUrl: item.preview_image_url,
-    flashDays: dayOptions,
     pendingCount,
     confirmedCount,
     bookable: av.bookable,
@@ -166,16 +142,16 @@ export async function PUT(
   if (!existing)
     return mobileError(404, "Flash design not found.", "not_found");
 
-  if (v.flashDayId) {
-    const { data: day, error: dayErr } = await supabase
-      .from("flash_days")
+  if (v.folderId) {
+    const { data: folder, error: folderErr } = await supabase
+      .from("flash_folders")
       .select("id")
-      .eq("id", v.flashDayId)
+      .eq("id", v.folderId)
       .eq("artist_id", userId)
       .maybeSingle();
-    if (dayErr) return mobileError(500, dayErr.message);
-    if (!day)
-      return mobileError(400, "That flash day doesn't exist.", "bad_day");
+    if (folderErr) return mobileError(500, folderErr.message);
+    if (!folder)
+      return mobileError(400, "That folder doesn't exist.", "bad_folder");
   }
 
   const { error } = await supabase
@@ -193,7 +169,7 @@ export async function PUT(
       is_bookable: v.isBookable,
       available_from: v.availableFrom,
       available_until: v.availableUntil,
-      flash_day_id: v.flashDayId,
+      folder_id: v.folderId,
     })
     .eq("id", id)
     .eq("artist_id", userId);

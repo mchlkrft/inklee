@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { normalizeFlashDayInput } from "@/lib/mobile-flash";
+import { countDayItems } from "@/lib/server/flash-day-membership";
 import type { MobileFlashDay } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -19,40 +20,38 @@ export async function GET(
   const { userId, supabase } = auth;
   const { id } = await params;
 
-  const [{ data: day, error }, { count }] = await Promise.all([
+  const [{ data: day, error }, countResult] = await Promise.all([
     supabase
       .from("flash_days")
       .select(
-        "id, title, scheduled_on, location, description, status, is_public",
+        "id, title, scheduled_on, studio_id, location, description, status, is_public",
       )
       .eq("id", id)
       .eq("artist_id", userId)
       .maybeSingle(),
-    supabase
-      .from("flash_items")
-      .select("id", { count: "exact", head: true })
-      .eq("artist_id", userId)
-      .eq("flash_day_id", id),
+    countDayItems(supabase, userId, [id]),
   ]);
   if (error) return mobileError(500, error.message);
   if (!day) return mobileError(404, "Flash day not found.", "not_found");
+  const itemCount = "counts" in countResult ? (countResult.counts[id] ?? 0) : 0;
 
   const body: MobileFlashDay = {
     id: day.id,
     title: day.title,
     scheduledOn: day.scheduled_on,
+    studioId: day.studio_id,
     location: day.location,
     description: day.description,
     status: day.status,
     isPublic: day.is_public,
-    itemCount: count ?? 0,
+    itemCount,
   };
   return mobileOk(body);
 }
 
-// PUT /api/mobile/flash/days/:id — edit a flash day. studio_id is intentionally
-// NOT written so a web-set studio link isn't clobbered by the text-only mobile
-// form (the public page prefers studio_id when present).
+// PUT /api/mobile/flash/days/:id — edit a flash day, including the studio_id
+// venue. The shared validator clears free-text location when a studio is set
+// (matching the web form); studio ownership is verified below.
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -82,11 +81,24 @@ export async function PUT(
   if (readErr) return mobileError(500, readErr.message);
   if (!existing) return mobileError(404, "Flash day not found.", "not_found");
 
+  if (v.studioId) {
+    const { data: studio, error: studioErr } = await supabase
+      .from("studios")
+      .select("id")
+      .eq("id", v.studioId)
+      .eq("artist_id", userId)
+      .maybeSingle();
+    if (studioErr) return mobileError(500, studioErr.message);
+    if (!studio)
+      return mobileError(400, "That studio doesn't exist.", "bad_studio");
+  }
+
   const { error } = await supabase
     .from("flash_days")
     .update({
       title: v.title,
       scheduled_on: v.scheduledOn,
+      studio_id: v.studioId,
       location: v.location,
       description: v.description,
       status: v.status,

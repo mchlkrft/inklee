@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import type {
+  MobileFlashFoldersResponse,
   MobileFlashItemDetail,
   MobileMe,
 } from "@inklee/shared/mobile-api";
@@ -138,13 +139,19 @@ function ItemForm({
   const [availableUntil, setAvailableUntil] = useState(
     initial.availableUntil ?? "",
   );
-  const [flashDayId, setFlashDayId] = useState(initial.flashDayId ?? "");
+  const [folderId, setFolderId] = useState(initial.folderId ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dayOptions = [
-    { value: "", label: "None" },
-    ...initial.flashDays.map((d) => ({ value: d.id, label: d.title })),
+  // Folders organize the library; day membership lives in the day builder, not
+  // here (a design can be in many days).
+  const foldersQuery = useApiQuery<MobileFlashFoldersResponse>("/flash/folders");
+  const folderOptions = [
+    { value: "", label: "Unfiled" },
+    ...(foldersQuery.data?.folders ?? []).map((f) => ({
+      value: f.id,
+      label: f.name,
+    })),
   ];
 
   async function save() {
@@ -193,10 +200,10 @@ function ItemForm({
         isBookable,
         availableFrom: availableFrom.trim() || null,
         availableUntil: availableUntil.trim() || null,
-        flashDayId: flashDayId || null,
+        folderId: folderId || null,
       });
-      // Reassigning a day changes the days-list counts + day detail too, so
-      // invalidate every /flash view (list, detail, days).
+      // Folder/status changes affect the library list, so invalidate every
+      // /flash view.
       await invalidateFlash(queryClient);
       router.back();
     } catch (e) {
@@ -361,13 +368,13 @@ function ItemForm({
           autoCapitalize="none"
         />
 
-        {initial.flashDays.length > 0 ? (
+        {folderOptions.length > 1 ? (
           <>
-            <FieldLabel>Flash day</FieldLabel>
+            <FieldLabel>Folder</FieldLabel>
             <Segmented
-              options={dayOptions}
-              value={flashDayId}
-              onChange={setFlashDayId}
+              options={folderOptions}
+              value={folderId}
+              onChange={setFolderId}
             />
           </>
         ) : null}

@@ -85,7 +85,7 @@ export type FlashItemUpdate = {
   isBookable: boolean;
   availableFrom: string | null;
   availableUntil: string | null;
-  flashDayId: string | null;
+  folderId: string | null;
 };
 
 /** Validate the flash-item metadata edit (no image / slug — those stay web). */
@@ -156,15 +156,16 @@ export function normalizeFlashItemUpdate(
     };
   }
 
-  // flashDayId must be a UUID (or empty) — keeps a garbage value from reaching
-  // the uuid column lookup in the route (which would otherwise 500/fail by luck).
-  const flashDayRaw = asString(b.flashDayId).trim();
-  let flashDayId: string | null = null;
-  if (flashDayRaw) {
-    if (!UUID_RE.test(flashDayRaw)) {
-      return { ok: false, error: "Invalid flash day." };
+  // folderId must be a UUID (or empty). Ownership of the target folder is
+  // verified in the route before the write. Day membership is not set here; it
+  // lives in the flash_day_items junction (the day-items endpoint).
+  const folderRaw = asString(b.folderId).trim();
+  let folderId: string | null = null;
+  if (folderRaw) {
+    if (!UUID_RE.test(folderRaw)) {
+      return { ok: false, error: "Invalid folder." };
     }
-    flashDayId = flashDayRaw;
+    folderId = folderRaw;
   }
 
   const shortRaw = asString(b.shortDescription).trim();
@@ -198,7 +199,7 @@ export function normalizeFlashItemUpdate(
       isBookable: b.isBookable,
       availableFrom: from.value,
       availableUntil: until.value,
-      flashDayId,
+      folderId,
     },
   };
 }
@@ -206,6 +207,7 @@ export function normalizeFlashItemUpdate(
 export type FlashDayInput = {
   title: string;
   scheduledOn: string | null;
+  studioId: string | null;
   location: string | null;
   description: string | null;
   status: FlashDayStatus;
@@ -238,6 +240,18 @@ export function normalizeFlashDayInput(body: unknown): Result<FlashDayInput> {
   const scheduled = optionalDate(b.scheduledOn);
   if (!scheduled.ok) return { ok: false, error: "Invalid date." };
 
+  // studio_id (a venue from the artist's studio library) takes precedence over
+  // free-text location, matching the web resolveLocationFields: when a studio is
+  // chosen, location is cleared. Ownership of the studio is verified in the route.
+  const studioRaw = asString(b.studioId).trim();
+  let studioId: string | null = null;
+  if (studioRaw) {
+    if (!UUID_RE.test(studioRaw)) {
+      return { ok: false, error: "Invalid studio." };
+    }
+    studioId = studioRaw;
+  }
+
   const locationRaw = asString(b.location).trim();
   if (locationRaw.length > FIELD_MAX) {
     return { ok: false, error: "Location is too long." };
@@ -252,7 +266,8 @@ export function normalizeFlashDayInput(body: unknown): Result<FlashDayInput> {
     value: {
       title,
       scheduledOn: scheduled.value,
-      location: locationRaw || null,
+      studioId,
+      location: studioId ? null : locationRaw || null,
       description: descriptionRaw || null,
       status,
       isPublic: b.isPublic === true,

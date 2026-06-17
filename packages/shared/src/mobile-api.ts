@@ -404,7 +404,7 @@ export type MobileFlashItem = {
   isBookable: boolean;
   previewImageUrl: string | null;
   bookingMode: string; // unique | limited | repeatable
-  flashDayId: string | null;
+  folderId: string | null;
   /** Server-computed availability (the web flash engine runs on the server so
    *  the engine is not re-ported into the RN bundle). `bookable` reflects the
    *  full engine result (status + window + capacity), not raw is_bookable.
@@ -417,14 +417,9 @@ export type MobileFlashItem = {
 
 export type MobileFlashItemsResponse = { items: MobileFlashItem[] };
 
-/** One of the artist's flash days, as an option for the item's day picker. */
-export type MobileFlashDayOption = {
-  id: string;
-  title: string;
-  scheduledOn: string | null;
-};
-
-/** GET /api/mobile/flash/items/:id — full editable item + the artist's flash days. */
+/** GET /api/mobile/flash/items/:id — full editable item. Day membership lives in
+ *  the flash_day_items junction (dayMemberships = the day ids this design is in);
+ *  folderId is the design's library folder. */
 export type MobileFlashItemDetail = {
   id: string;
   title: string;
@@ -440,9 +435,9 @@ export type MobileFlashItemDetail = {
   isBookable: boolean;
   availableFrom: string | null;
   availableUntil: string | null;
-  flashDayId: string | null;
+  folderId: string | null;
+  dayMemberships: string[];
   previewImageUrl: string | null;
-  flashDays: MobileFlashDayOption[];
   /** Stats sidebar (mirrors the web detail page): approved = confirmed,
    *  pending = pending; availability is the server-computed engine result. */
   pendingCount: number;
@@ -457,6 +452,7 @@ export type MobileFlashDay = {
   id: string;
   title: string;
   scheduledOn: string | null;
+  studioId: string | null;
   location: string | null;
   description: string | null;
   status: string; // upcoming | active | past | cancelled
@@ -465,6 +461,21 @@ export type MobileFlashDay = {
 };
 
 export type MobileFlashDaysResponse = { items: MobileFlashDay[] };
+
+/** A design-library folder (GET/POST /api/mobile/flash/folders). */
+export type MobileFlashFolder = { id: string; name: string; position: number };
+export type MobileFlashFoldersResponse = { folders: MobileFlashFolder[] };
+
+/** One design in a day's roster (GET /api/mobile/flash/days/:id/items). */
+export type MobileFlashDayItem = {
+  id: string;
+  title: string;
+  slug: string;
+  status: string;
+  previewImageUrl: string | null;
+  position: number;
+};
+export type MobileFlashDayItemsResponse = { items: MobileFlashDayItem[] };
 
 /** One studio (GET /api/mobile/travel/studios). */
 export type MobileStudio = {
