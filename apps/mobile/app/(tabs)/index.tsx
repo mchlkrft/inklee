@@ -13,7 +13,10 @@ import {
   BarChart3,
   Banknote,
   CalendarDays,
+  Check,
   ChevronRight,
+  Copy,
+  ExternalLink,
   Inbox,
   Link2,
   MapPin,
@@ -25,7 +28,7 @@ import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { TravelIcon } from "@/components/TravelIcon";
 import { Card } from "@/components/Card";
 import { CardHeader } from "@/components/CardHeader";
-import { PillButton } from "@/components/PillButton";
+import { IconButton } from "@/components/IconButton";
 import { EmptyState } from "@/components/EmptyState";
 import { ActionFeed } from "@/components/home/ActionFeed";
 import { useApiQuery } from "@/lib/api";
@@ -50,6 +53,18 @@ const DATE_FMT = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
 });
 
+// The "glance" widgets (the hero Requests card + its stat satellites) are
+// fixed-color brand chips in BOTH themes per the dashboard redesign: a solid
+// mustard hero and cream stat chips that pop off the page in light or dark.
+// Their content colors are therefore theme-INDEPENDENT (charcoal on the brand
+// fill) — text-foreground would read bone and vanish on the cream chip in dark
+// mode, so these are not the themed tokens.
+const CHIP_CREAM = "#d9d4c7"; // stat-chip fill (the light-theme card cream)
+const CHIP_BORDER = "rgba(30,30,30,0.18)"; // matches the app-standard card border so the cream chip reads on bone
+const ON_CHIP_FG = "#1e1e1e"; // charcoal text / icon on mustard or cream
+const ON_CHIP_DIM = "rgba(30,30,30,0.72)"; // muted label on the chips (clears AA at 12px on cream)
+const ON_CHIP_DANGER = "#a61f1d"; // readable dark red on cream (overdue)
+
 function HeaderLink({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} hitSlop={8} className="active:opacity-60">
@@ -72,19 +87,20 @@ function StatBox({
   onPress: () => void;
   danger?: boolean;
 }) {
-  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
-      className="flex-1 rounded-card border-brand border-shell-border bg-card p-4 active:opacity-80"
+      style={{ backgroundColor: CHIP_CREAM, borderColor: CHIP_BORDER }}
+      className="flex-1 rounded-card border-brand p-4 active:opacity-80"
     >
-      <Icon size={18} color={danger ? colors.dangerFg : colors.accent} />
+      <Icon size={18} color={danger ? ON_CHIP_DANGER : ON_CHIP_FG} />
       <Text
-        className={`mt-2 text-xl font-bold ${danger ? "text-danger-fg" : "text-foreground"}`}
+        className="mt-2 text-xl font-bold"
+        style={{ color: danger ? ON_CHIP_DANGER : ON_CHIP_FG }}
       >
         {value}
       </Text>
-      <Text className="text-caption text-shell-dim" numberOfLines={1}>
+      <Text className="text-caption" style={{ color: ON_CHIP_DIM }} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
@@ -118,22 +134,50 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
   );
 }
 
-function LinkRow({ label, url }: { label: string; url: string }) {
+// One page row: label + URL on the left, compact outlined icon actions (copy +
+// preview) pinned right. Mirrors the Action-required row structure but swaps the
+// text verbs for symbols so the two cards stay visually distinct.
+function LinkRow({
+  label,
+  url,
+  last = false,
+}: {
+  label: string;
+  url: string;
+  last?: boolean;
+}) {
+  const themed = useColors();
   const [copied, markCopied] = useTimedFlag();
   const copy = async () => {
     await Clipboard.setStringAsync(url);
     markCopied();
   };
   return (
-    <View className="mt-3 gap-1.5">
-      <Text className="text-caption text-shell-dim">{label}</Text>
-      <Text className="text-sm text-shell-dim" numberOfLines={1}>
-        {displayUrl(url)}
-      </Text>
-      <View className="flex-row gap-2">
-        <PillButton label={copied ? "Copied" : "Copy link"} onPress={copy} />
-        <PillButton
-          label="Preview"
+    <View
+      className={`flex-row items-center gap-3 py-3 ${last ? "" : "border-b border-shell-border"}`}
+    >
+      <View className="flex-1">
+        <Text className="text-body font-medium text-foreground" numberOfLines={1}>
+          {label}
+        </Text>
+        <Text className="mt-0.5 text-caption text-shell-dim" numberOfLines={1}>
+          {displayUrl(url)}
+        </Text>
+      </View>
+      <View className="flex-row items-center gap-2">
+        <IconButton
+          icon={copied ? Check : Copy}
+          label={copied ? "Copied" : `Copy ${label} link`}
+          outlined
+          iconSize={16}
+          color={copied ? themed.successFg : themed.bone}
+          onPress={copy}
+        />
+        <IconButton
+          icon={ExternalLink}
+          label={`Preview ${label}`}
+          outlined
+          iconSize={16}
           onPress={() => {
             void WebBrowser.openBrowserAsync(url);
           }}
@@ -155,9 +199,11 @@ function PagesCard({
   return (
     <Card>
       <CardHeader icon={Link2} tint="bone" title="Your pages" />
-      <LinkRow label="Booking" url={publicUrl} />
-      <LinkRow label="Waitlist" url={waitlistUrl} />
-      <LinkRow label="Link Hub" url={hubUrl} />
+      <View className="mt-1">
+        <LinkRow label="Booking" url={publicUrl} />
+        <LinkRow label="Waitlist" url={waitlistUrl} />
+        <LinkRow label="Link Hub" url={hubUrl} last />
+      </View>
     </Card>
   );
 }
@@ -261,13 +307,18 @@ export default function HomeScreen() {
             <View className="mt-3">
               <Pressable
                 onPress={() => router.navigate("/bookings")}
-                className="rounded-card border-brand border-mustard/40 bg-mustard/10 p-5 active:opacity-90"
+                className="rounded-card bg-mustard p-5 active:opacity-90"
               >
-                <Inbox size={22} color={colors.accent} />
-                <Text className="mt-6 text-display font-bold text-foreground">
+                <Inbox size={22} color={ON_CHIP_FG} />
+                <Text
+                  className="mt-6 text-display font-bold"
+                  style={{ color: ON_CHIP_FG }}
+                >
                   {data.pendingCount}
                 </Text>
-                <Text className="text-sm text-shell-dim">Requests waiting</Text>
+                <Text className="text-sm" style={{ color: ON_CHIP_DIM }}>
+                  Requests waiting
+                </Text>
               </Pressable>
               <View className="mt-3 flex-row gap-3">
                 <StatBox

@@ -93,13 +93,26 @@ await compose({
   out: path.join(OUT_DIR, "monochrome-icon.png"),
 });
 
-// A5 — splash logo: transparent, generous padding; display size is set by the
-// expo-splash-screen plugin's imageWidth, the file just needs to be crisp.
-await compose({
-  canvas: 1024,
-  markBuffer: await markLayer(d, BONE, 720),
-  out: path.join(OUT_DIR, "splash-logo.png"),
-});
+// A5 — splash wordmark: the brand "inklee" wordmark (apps/web branding),
+// recolored per theme on a transparent bg. The expo-splash-screen plugin sets
+// the display size via imageWidth (220dp); these render at ~3x for crispness.
+// Light theme = charcoal wordmark on the bone splash bg; dark = near-white
+// wordmark on the charcoal splash bg (see app.json expo-splash-screen).
+const WORDMARK_SVG = path.join(
+  ROOT,
+  "apps/web/public/branding/logos/inklee-logo-bone.svg",
+);
+const NEAR_WHITE = "#f5f5f6";
+async function renderWordmark(fill, out) {
+  const svg = (await readFile(WORDMARK_SVG, "utf8")).replace(/#f5f5f6/gi, fill);
+  await writeFile(
+    out,
+    await sharp(Buffer.from(svg)).resize({ width: 660 }).png().toBuffer(),
+  );
+  console.log("wrote", path.relative(ROOT, out));
+}
+await renderWordmark(NEAR_WHITE, path.join(OUT_DIR, "splash-wordmark-dark.png"));
+await renderWordmark(CHARCOAL, path.join(OUT_DIR, "splash-wordmark-light.png"));
 
 // A6 — Android notification small icon: white-on-transparent silhouette
 // (Android renders alpha only and tints with the configured accent).
