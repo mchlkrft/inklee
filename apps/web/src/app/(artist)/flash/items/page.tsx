@@ -9,8 +9,10 @@ import {
   FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import FlashTile from "./flash-tile";
+import FlashFolderRail from "./flash-folder-rail";
 import FlashNewItemButton from "./flash-new-item-button";
 import FlashUploadManuallyLink from "./flash-upload-manually-link";
+import { listFolders } from "@/lib/server/flash-folders";
 
 type FlashItem = {
   id: string;
@@ -23,24 +25,31 @@ type FlashItem = {
   available_from: string | null;
   available_until: string | null;
   slug: string;
+  folder_id: string | null;
 };
 
-export default async function FlashItemsPage() {
+export default async function FlashItemsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ folder?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { folder: folderParam } = await searchParams;
 
   const [
     { data: items },
     { data: profile },
     { data: igAccount },
     { count: igPostCount },
+    foldersResult,
   ] = await Promise.all([
     supabase
       .from("flash_items")
       .select(
-        "id, title, status, preview_image_url, booking_mode, max_bookings, is_bookable, available_from, available_until, slug",
+        "id, title, status, preview_image_url, booking_mode, max_bookings, is_bookable, available_from, available_until, slug, folder_id",
       )
       .eq("artist_id", user!.id)
       .order("created_at", { ascending: false }),
@@ -55,10 +64,35 @@ export default async function FlashItemsPage() {
       .from("instagram_posts")
       .select("*", { count: "exact", head: true })
       .eq("artist_id", user!.id),
+    listFolders(supabase, user!.id),
   ]);
 
-  const itemList = (items ?? []) as FlashItem[];
-  const hasItems = itemList.length > 0;
+  const allItems = (items ?? []) as FlashItem[];
+  const folders = "folders" in foldersResult ? foldersResult.folders : [];
+
+  // Folder filter (?folder=all|unfiled|<id>). Counts are over the full set so
+  // the rail shows totals regardless of the active filter.
+  const active =
+    folderParam === "unfiled"
+      ? "unfiled"
+      : folderParam && folders.some((f) => f.id === folderParam)
+        ? folderParam
+        : "all";
+  const folderChips = folders.map((f) => ({
+    id: f.id,
+    name: f.name,
+    count: allItems.filter((i) => i.folder_id === f.id).length,
+  }));
+  const unfiledCount = allItems.filter((i) => i.folder_id === null).length;
+
+  const itemList =
+    active === "all"
+      ? allItems
+      : active === "unfiled"
+        ? allItems.filter((i) => i.folder_id === null)
+        : allItems.filter((i) => i.folder_id === active);
+
+  const hasItems = allItems.length > 0;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
   const flashPreviewUrl = profile?.slug
     ? `${appUrl}/${profile.slug}/flash`
@@ -68,7 +102,7 @@ export default async function FlashItemsPage() {
 
   // Only query active request counts when there are items to score.
   const activeRequestMap = new Map<string, number>();
-  if (hasItems) {
+  if (itemList.length > 0) {
     const itemIds = itemList.map((i) => i.id);
     const { data: activeRequests } = await supabase
       .from("booking_requests")
@@ -124,29 +158,43 @@ export default async function FlashItemsPage() {
           igPostCount={igPosts}
         />
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {itemList.map((item) => {
-            const av = computeFlashAvailability(
-              item,
-              activeRequestMap.get(item.id) ?? 0,
-            );
-            return (
-              <li key={item.id}>
-                <FlashTile
-                  item={item}
-                  availabilityLabel={
-                    // Show availability only when the item isn't simply
-                    // "published + bookable + available" (which is the default
-                    // happy path — keep tiles uncluttered for the common case)
-                    av.bookable && av.remaining === undefined
-                      ? null
-                      : formatFlashAvailabilityLabel(av)
-                  }
-                />
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <FlashFolderRail
+            folders={folderChips}
+            active={active}
+            allCount={allItems.length}
+            unfiledCount={unfiledCount}
+          />
+          {itemList.length === 0 ? (
+            <p className="rounded-[20px] border border-border px-6 py-10 text-center text-sm text-muted-foreground">
+              No designs in this folder yet.
+            </p>
+          ) : (
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {itemList.map((item) => {
+                const av = computeFlashAvailability(
+                  item,
+                  activeRequestMap.get(item.id) ?? 0,
+                );
+                return (
+                  <li key={item.id}>
+                    <FlashTile
+                      item={item}
+                      folders={folders}
+                      availabilityLabel={
+                        // Show availability only when the item isn't the default
+                        // happy path (published + bookable + unlimited).
+                        av.bookable && av.remaining === undefined
+                          ? null
+                          : formatFlashAvailabilityLabel(av)
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
     </div>
   );

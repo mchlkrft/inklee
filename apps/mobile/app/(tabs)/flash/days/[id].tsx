@@ -15,6 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type {
   MobileFlashDay,
   MobileFlashDayItemsResponse,
+  MobileFlashFoldersResponse,
   MobileFlashItemsResponse,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
@@ -197,6 +198,7 @@ function DayItemsManager({ dayId }: { dayId: string }) {
     `/flash/days/${dayId}/items`,
   );
   const library = useApiQuery<MobileFlashItemsResponse>("/flash/items");
+  const foldersQ = useApiQuery<MobileFlashFoldersResponse>("/flash/folders");
   const themed = useColors();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -224,6 +226,22 @@ function DayItemsManager({ dayId }: { dayId: string }) {
     } catch (e) {
       captureError(e, { op: "attachFlashDayItems" });
       setError(e instanceof Error ? e.message : "Couldn't add. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function attachFolder(folderId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiPost(`/flash/days/${dayId}/items`, { folderId });
+      await refreshAll();
+    } catch (e) {
+      captureError(e, { op: "attachFlashDayFolder" });
+      setError(
+        e instanceof Error ? e.message : "Couldn't add folder. Try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -298,6 +316,28 @@ function DayItemsManager({ dayId }: { dayId: string }) {
           ))}
         </View>
       )}
+
+      {(foldersQ.data?.folders ?? []).length > 0 ? (
+        <View className="mb-4">
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Add a folder
+          </Text>
+          <View className="flex-row flex-wrap gap-2">
+            {(foldersQ.data?.folders ?? []).map((f) => (
+              <Pressable
+                key={f.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Add folder ${f.name}`}
+                onPress={() => attachFolder(f.id)}
+                disabled={busy}
+                className="rounded-full border border-shell-border px-3 py-1.5 active:opacity-70"
+              >
+                <Text className="text-sm text-shell-dim">{f.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {candidates.length > 0 ? (
         <>

@@ -10,6 +10,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type {
+  MobileFlashFoldersResponse,
   MobileFlashItem,
   MobileFlashItemsResponse,
 } from "@inklee/shared/mobile-api";
@@ -19,6 +20,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Spiderweb } from "@/components/icons/Spiderweb";
 import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
+import { TextField } from "@/components/TextField";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { NavCardRow } from "@/components/NavCardRow";
@@ -38,6 +40,11 @@ export default function FlashItemsList() {
   const onScroll = useScrollHide();
   const topBarHeight = useTopBarHeight();
   const [creating, setCreating] = useState(false);
+  const [folder, setFolder] = useState("all");
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [savingFolder, setSavingFolder] = useState(false);
+  const foldersQ = useApiQuery<MobileFlashFoldersResponse>("/flash/folders");
 
   // One-tap quick create (web parity): mint a draft immediately and land on
   // the photo-first editor — no save-the-form-before-the-photo friction.
@@ -51,6 +58,23 @@ export default function FlashItemsList() {
       captureError(e, { op: "createFlashItem" });
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function createFolder() {
+    const name = newName.trim();
+    if (!name) return;
+    setSavingFolder(true);
+    try {
+      const { id } = await apiPost<{ id: string }>("/flash/folders", { name });
+      setNewName("");
+      setNewOpen(false);
+      await foldersQ.refresh();
+      setFolder(id);
+    } catch (e) {
+      captureError(e, { op: "createFlashFolder" });
+    } finally {
+      setSavingFolder(false);
     }
   }
 
@@ -72,6 +96,16 @@ export default function FlashItemsList() {
     );
   }
 
+  const items = q.data.items;
+  const folders = foldersQ.data?.folders ?? [];
+  const unfiledCount = items.filter((i) => !i.folderId).length;
+  const visible =
+    folder === "all"
+      ? items
+      : folder === "unfiled"
+        ? items.filter((i) => !i.folderId)
+        : items.filter((i) => i.folderId === folder);
+
   // Header scrolls WITH the list (ListHeaderComponent) so the overlay TopBar
   // can reclaim its space when it hides on scroll.
   const listHeader = (
@@ -87,6 +121,70 @@ export default function FlashItemsList() {
         className="mb-1 mt-3"
         onPress={() => router.push("/flash/days")}
       />
+
+      {/* Folder filter + inline create */}
+      <View className="mt-3">
+        <View className="flex-row flex-wrap gap-2">
+          <FolderChip
+            label={`All ${items.length}`}
+            active={folder === "all"}
+            onPress={() => setFolder("all")}
+          />
+          <FolderChip
+            label={`Unfiled ${unfiledCount}`}
+            active={folder === "unfiled"}
+            onPress={() => setFolder("unfiled")}
+          />
+          {folders.map((f) => (
+            <FolderChip
+              key={f.id}
+              label={`${f.name} ${items.filter((i) => i.folderId === f.id).length}`}
+              active={folder === f.id}
+              onPress={() => setFolder(f.id)}
+            />
+          ))}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="New folder"
+            onPress={() => setNewOpen((v) => !v)}
+            className="rounded-full border border-dashed border-shell-border px-3 py-1.5 active:opacity-70"
+          >
+            <Text className="text-sm text-shell-dim">+ New</Text>
+          </Pressable>
+        </View>
+        {newOpen ? (
+          <View className="mt-3">
+            <TextField
+              label="New folder"
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="e.g. Neo-trad"
+              autoCapitalize="words"
+            />
+            <View className="flex-row gap-2">
+              <View className="flex-1">
+                <Button
+                  label="Create"
+                  size="sm"
+                  onPress={createFolder}
+                  loading={savingFolder}
+                  disabled={!newName.trim()}
+                />
+              </View>
+              <Button
+                label="Cancel"
+                variant="secondary"
+                size="sm"
+                onPress={() => {
+                  setNewOpen(false);
+                  setNewName("");
+                }}
+              />
+            </View>
+          </View>
+        ) : null}
+      </View>
+
       <View className="h-2" />
     </>
   );
@@ -94,7 +192,7 @@ export default function FlashItemsList() {
   return (
     <Screen edges={["left", "right"]} topBar={<TopBar />}>
       <FlatList
-        data={q.data.items}
+        data={visible}
         keyExtractor={(it) => it.id}
         ListHeaderComponent={listHeader}
         contentContainerStyle={{
@@ -112,10 +210,17 @@ export default function FlashItemsList() {
           />
         }
         ListEmptyComponent={
-          <EmptyState
-            title="No flash designs yet"
-            subtitle="Add designs on the web or import from Instagram, then manage them here."
-          />
+          items.length === 0 ? (
+            <EmptyState
+              title="No flash designs yet"
+              subtitle="Add designs on the web or import from Instagram, then manage them here."
+            />
+          ) : (
+            <EmptyState
+              title="No designs in this folder"
+              subtitle="Move designs into this folder, or pick another."
+            />
+          )
         }
         ItemSeparatorComponent={ListGap}
         renderItem={({ item }) => (
@@ -182,6 +287,33 @@ function FlashItemRow({
         </View>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.shell.mute} />
+    </Pressable>
+  );
+}
+
+function FolderChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      className={`rounded-full border px-3 py-1.5 active:opacity-70 ${
+        active ? "border-mustard bg-mustard" : "border-shell-border"
+      }`}
+    >
+      <Text
+        className={`text-sm ${active ? "font-semibold text-charcoal" : "text-shell-dim"}`}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
