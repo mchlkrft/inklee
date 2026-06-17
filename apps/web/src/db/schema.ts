@@ -323,6 +323,11 @@ export const flashDays = pgTable("flash_days", {
   location: text("location"),
   description: text("description"),
   status: text("status").notNull().default("upcoming"),
+  // Added by migration 0033 (was missing from this Drizzle model).
+  studioId: uuid("studio_id").references(() => studios.id, {
+    onDelete: "set null",
+  }),
+  isPublic: boolean("is_public").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -366,6 +371,19 @@ export const instagramPosts = pgTable("instagram_posts", {
     .defaultNow(),
 });
 
+// Optional, flat, per-artist organization for the design library (migration 0050).
+export const flashFolders = pgTable("flash_folders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const flashItems = pgTable("flash_items", {
   id: uuid("id").primaryKey().defaultRandom(),
   artistId: uuid("artist_id")
@@ -393,6 +411,31 @@ export const flashItems = pgTable("flash_items", {
     () => instagramPosts.id,
     { onDelete: "set null" },
   ),
+  // A design's folder (nullable = Unfiled), added by migration 0050.
+  folderId: uuid("folder_id").references(() => flashFolders.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Many-to-many flash day <-> design membership (migration 0051). Source of truth
+// for day rosters; flash_items.flash_day_id is a kept back-compat "primary day".
+// The (day_id, item_id) UNIQUE + indexes live in the SQL migration (this file
+// omits composite constraints, like flash_items' UNIQUE(artist_id, slug)).
+export const flashDayItems = pgTable("flash_day_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dayId: uuid("day_id")
+    .notNull()
+    .references(() => flashDays.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id")
+    .notNull()
+    .references(() => flashItems.id, { onDelete: "cascade" }),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

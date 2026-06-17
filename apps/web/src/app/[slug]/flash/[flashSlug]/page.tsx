@@ -6,6 +6,7 @@ import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
   formatPrice,
+  FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import FlashBookingForm from "./flash-booking-form";
 
@@ -38,7 +39,7 @@ export default async function PublicFlashItemPage({
     .from("booking_requests")
     .select("*", { count: "exact", head: true })
     .eq("flash_item_id", item.id)
-    .in("status", ["pending", "approved", "deposit_pending"]);
+    .in("status", [...FLASH_ACTIVE_REQUEST_STATUSES]);
 
   const availability = computeFlashAvailability(item, activeRequestCount ?? 0);
 

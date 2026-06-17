@@ -1,53 +1,22 @@
-// Presentation + cache helpers for the flash screens. Mirrors the web
-// @/lib/flash formatters (kept local for now — the response *types* are shared
-// via @inklee/shared/mobile-api; consolidating the formatters to shared is a
-// follow-up).
+// Cache helpers for the flash screens + re-exports of the shared Flash vocabulary
+// (one source for web + mobile, ME-10: @inklee/shared/flash-format). flashStatusTone
+// stays local because it returns NativeWind theme classes that are mobile-specific.
 import type { QueryClient } from "@tanstack/react-query";
 import { invalidateByPathPrefix } from "./api";
+
+export {
+  FLASH_ITEM_STATUS_OPTIONS as ITEM_STATUS_OPTIONS,
+  FLASH_PRICE_TYPE_OPTIONS as PRICE_TYPE_OPTIONS,
+  FLASH_BOOKING_MODE_OPTIONS as BOOKING_MODE_OPTIONS,
+  FLASH_DAY_STATUS_OPTIONS as DAY_STATUS_OPTIONS,
+  flashLabel,
+  formatPrice as formatFlashPrice,
+} from "@inklee/shared/flash-format";
 
 // Every /flash view (items, days, details) PLUS /calendar: flash days mark
 // the calendar grid, so creating/editing one must refresh the markers.
 export function invalidateFlash(client: QueryClient): Promise<void> {
   return invalidateByPathPrefix(client, ["/flash", "/calendar"]);
-}
-
-export const ITEM_STATUS_OPTIONS = [
-  { value: "draft", label: "Draft" },
-  { value: "published", label: "Published" },
-  { value: "archived", label: "Archived" },
-] as const;
-
-export const PRICE_TYPE_OPTIONS = [
-  { value: "request", label: "On request" },
-  { value: "from", label: "From" },
-  { value: "fixed", label: "Fixed" },
-] as const;
-
-export const BOOKING_MODE_OPTIONS = [
-  { value: "unique", label: "Unique" },
-  { value: "limited", label: "Limited" },
-  { value: "repeatable", label: "Repeatable" },
-] as const;
-
-export const DAY_STATUS_OPTIONS = [
-  { value: "upcoming", label: "Upcoming" },
-  { value: "active", label: "Active" },
-  { value: "past", label: "Past" },
-  { value: "cancelled", label: "Cancelled" },
-] as const;
-
-const LABELS: Record<string, string> = {
-  draft: "Draft",
-  published: "Published",
-  archived: "Archived",
-  upcoming: "Upcoming",
-  active: "Active",
-  past: "Past",
-  cancelled: "Cancelled",
-};
-
-export function flashLabel(value: string): string {
-  return LABELS[value] ?? value;
 }
 
 /** accent = needs attention/in-progress, success = live, dim = inactive. */
@@ -57,13 +26,4 @@ export function flashStatusTone(status: string): string {
     return "text-shell-dim";
   }
   return "text-accent"; // draft / upcoming
-}
-
-export function formatFlashPrice(
-  priceType: string,
-  price: number | null,
-): string {
-  if (priceType === "request" || price == null) return "On request";
-  const formatted = `€${Number(price).toFixed(0)}`;
-  return priceType === "from" ? `From ${formatted}` : formatted;
 }

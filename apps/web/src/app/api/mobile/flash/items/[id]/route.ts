@@ -7,6 +7,7 @@ import { normalizeFlashItemUpdate } from "@/lib/mobile-flash";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
+  FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import type { MobileFlashItemDetail } from "@inklee/shared/mobile-api";
 
@@ -40,20 +41,27 @@ export async function GET(
   if (error) return mobileError(500, error.message);
   if (!item) return mobileError(404, "Flash design not found.", "not_found");
 
-  // Stats sidebar. Mirror the web detail page: approved = confirmed (the active
-  // count fed to the availability engine), pending = pending (shown separately).
-  const [{ data: confirmed }, { data: pending }] = await Promise.all([
-    supabase
-      .from("booking_requests")
-      .select("id")
-      .eq("flash_item_id", id)
-      .eq("status", "approved"),
-    supabase
-      .from("booking_requests")
-      .select("id")
-      .eq("flash_item_id", id)
-      .eq("status", "pending"),
-  ]);
+  // Stats sidebar shows confirmed (approved) and pending separately; the
+  // availability GATE counts every intake-consuming status (pending too), so a
+  // unique design reads as booked while a request is still in review.
+  const [{ data: confirmed }, { data: pending }, { count: activeCount }] =
+    await Promise.all([
+      supabase
+        .from("booking_requests")
+        .select("id")
+        .eq("flash_item_id", id)
+        .eq("status", "approved"),
+      supabase
+        .from("booking_requests")
+        .select("id")
+        .eq("flash_item_id", id)
+        .eq("status", "pending"),
+      supabase
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("flash_item_id", id)
+        .in("status", [...FLASH_ACTIVE_REQUEST_STATUSES]),
+    ]);
   const confirmedCount = confirmed?.length ?? 0;
   const pendingCount = pending?.length ?? 0;
   const av = computeFlashAvailability(
@@ -68,7 +76,7 @@ export async function GET(
       available_from: item.available_from,
       available_until: item.available_until,
     },
-    confirmedCount,
+    activeCount ?? 0,
   );
 
   const dayOptions = (days ?? []).map((d) => ({

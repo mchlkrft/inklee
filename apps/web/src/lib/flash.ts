@@ -1,22 +1,29 @@
 import { localDateKey } from "@/lib/date-utils";
+import type { FlashAvailability } from "@inklee/shared/flash-format";
 
-export type FlashBookingMode = "unique" | "limited" | "repeatable";
-export type FlashStatus = "draft" | "published" | "archived";
-export type FlashPriceType = "fixed" | "from" | "request";
-export type FlashDayStatus = "upcoming" | "active" | "past" | "cancelled";
-
-export interface FlashAvailability {
-  bookable: boolean;
-  reason?:
-    | "draft"
-    | "archived"
-    | "disabled"
-    | "not_yet"
-    | "expired"
-    | "booked"
-    | "full";
-  remaining?: number; // only for limited mode
-}
+// Flash vocabulary + presentation helpers now live in @inklee/shared/flash-format
+// so web and mobile cannot drift (ME-10). This module keeps the availability
+// ENGINE (it depends on the web date util) and slugify, and re-exports the shared
+// surface so the many existing `@/lib/flash` importers keep working unchanged.
+export {
+  FLASH_ITEM_STATUSES,
+  FLASH_PRICE_TYPES,
+  FLASH_BOOKING_MODES,
+  FLASH_DAY_STATUSES,
+  FLASH_ACTIVE_REQUEST_STATUSES,
+  formatPrice,
+  formatFlashAvailabilityLabel,
+  flashLabel,
+} from "@inklee/shared/flash-format";
+export type {
+  FlashAvailability,
+  FlashItemStatus,
+  FlashPriceType,
+  FlashBookingMode,
+  FlashDayStatus,
+} from "@inklee/shared/flash-format";
+// Back-compat: this module historically exported the item status as `FlashStatus`.
+export type { FlashItemStatus as FlashStatus } from "@inklee/shared/flash-format";
 
 export type FlashItemRow = {
   id: string;
@@ -69,46 +76,11 @@ export function computeFlashAvailability(
   return { bookable: true };
 }
 
-export function formatFlashAvailabilityLabel(av: FlashAvailability): string {
-  if (av.bookable) {
-    if (av.remaining !== undefined) return `${av.remaining} remaining`;
-    return "Available";
-  }
-  switch (av.reason) {
-    case "booked":
-      return "Booked";
-    case "full":
-      return "Fully booked";
-    case "not_yet":
-      return "Not yet available";
-    case "expired":
-      return "Expired";
-    case "disabled":
-      return "Disabled";
-    case "draft":
-      return "Draft";
-    case "archived":
-      return "Archived";
-    default:
-      return "Unavailable";
-  }
-}
-
-export function formatPrice(
-  priceType: string,
-  price: string | number | null,
-): string {
-  if (priceType === "request") return "Price on request";
-  if (price === null || price === undefined) return "Price on request";
-  const formatted = `€${Number(price).toFixed(0)}`;
-  return priceType === "from" ? `From ${formatted}` : formatted;
-}
-
 export function slugify(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
