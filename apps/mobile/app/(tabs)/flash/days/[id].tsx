@@ -17,12 +17,14 @@ import type {
   MobileFlashDayItemsResponse,
   MobileFlashFoldersResponse,
   MobileFlashItemsResponse,
+  MobileStudiosResponse,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
+import { RadioList } from "@/components/RadioList";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { DAY_STATUS_OPTIONS, invalidateFlash } from "@/lib/flash";
@@ -76,6 +78,15 @@ function DayForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [scheduledOn, setScheduledOn] = useState(initial?.scheduledOn ?? "");
   const [location, setLocation] = useState(initial?.location ?? "");
+  const [studioId, setStudioId] = useState(initial?.studioId ?? "");
+  const studiosQ = useApiQuery<MobileStudiosResponse>("/travel/studios");
+  const venueOptions = [
+    { value: "", label: "Other / external venue" },
+    ...(studiosQ.data?.items ?? []).map((s) => ({
+      value: s.id,
+      label: s.city ? `${s.name} · ${s.city}` : s.name,
+    })),
+  ];
   const [description, setDescription] = useState(initial?.description ?? "");
   const [status, setStatus] = useState<DayStatus>(
     (initial?.status ?? "upcoming") as DayStatus,
@@ -95,6 +106,8 @@ function DayForm({
     const payload = {
       title: title.trim(),
       scheduledOn: scheduledOn.trim() || null,
+      // studioId takes precedence; the shared validator clears location when set.
+      studioId: studioId || null,
       location: location.trim() || null,
       description: description.trim() || null,
       status,
@@ -138,13 +151,25 @@ function DayForm({
           placeholder="YYYY-MM-DD"
           autoCapitalize="none"
         />
-        <TextField
-          label="Location (optional)"
-          value={location}
-          onChangeText={setLocation}
-          placeholder="Studio or city"
-          autoCapitalize="words"
-        />
+        {(studiosQ.data?.items ?? []).length > 0 ? (
+          <>
+            <FieldLabel>Venue</FieldLabel>
+            <RadioList
+              options={venueOptions}
+              value={studioId}
+              onChange={setStudioId}
+            />
+          </>
+        ) : null}
+        {studioId === "" ? (
+          <TextField
+            label="Location (optional)"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Studio or city"
+            autoCapitalize="words"
+          />
+        ) : null}
 
         <FieldLabel>Description (optional)</FieldLabel>
         <TextArea

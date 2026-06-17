@@ -167,9 +167,10 @@ export async function attachItemsToDay(
     artist_id: artistId,
     position: positions[i],
   }));
-  const { error: insErr } = await supabase
+  const { data: inserted, error: insErr } = await supabase
     .from("flash_day_items")
-    .upsert(rows, { onConflict: "day_id,item_id", ignoreDuplicates: true });
+    .upsert(rows, { onConflict: "day_id,item_id", ignoreDuplicates: true })
+    .select("item_id");
   if (insErr) return { ok: false, error: insErr.message };
 
   // Sync the primary-day hint for designs that had none.
@@ -184,7 +185,9 @@ export async function attachItemsToDay(
       .in("id", needsPrimary);
   }
 
-  return { ok: true, attached: valid.length };
+  // Report only rows actually inserted (ignoreDuplicates means re-attaching an
+  // already-linked design is a no-op).
+  return { ok: true, attached: (inserted ?? []).length };
 }
 
 /** Attach every published/draft design in a folder to a day (snapshot). */
