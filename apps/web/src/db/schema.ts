@@ -371,6 +371,19 @@ export const instagramPosts = pgTable("instagram_posts", {
     .defaultNow(),
 });
 
+// Optional, flat, per-artist organization for the design library (migration 0050).
+export const flashFolders = pgTable("flash_folders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const flashItems = pgTable("flash_items", {
   id: uuid("id").primaryKey().defaultRandom(),
   artistId: uuid("artist_id")
@@ -398,6 +411,10 @@ export const flashItems = pgTable("flash_items", {
     () => instagramPosts.id,
     { onDelete: "set null" },
   ),
+  // A design's folder (nullable = Unfiled), added by migration 0050.
+  folderId: uuid("folder_id").references(() => flashFolders.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
