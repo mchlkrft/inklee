@@ -7,6 +7,7 @@ import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
   formatPrice,
+  FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import { publicArtistUrl } from "@/lib/public-url";
 
@@ -40,22 +41,31 @@ export default async function FlashItemDetailPage({
 
   if (!item) notFound();
 
-  const [{ data: confirmed }, { data: pending }] = await Promise.all([
-    supabase
-      .from("booking_requests")
-      .select("id")
-      .eq("flash_item_id", id)
-      .eq("status", "approved"),
-    supabase
-      .from("booking_requests")
-      .select("id")
-      .eq("flash_item_id", id)
-      .eq("status", "pending"),
-  ]);
+  // Availability GATE counts every intake-consuming status (pending too, so a
+  // unique design reads as booked while a request is in review); the sidebar
+  // shows confirmed (approved) and pending separately.
+  const [{ data: confirmed }, { data: pending }, { count: activeCount }] =
+    await Promise.all([
+      supabase
+        .from("booking_requests")
+        .select("id")
+        .eq("flash_item_id", id)
+        .eq("status", "approved"),
+      supabase
+        .from("booking_requests")
+        .select("id")
+        .eq("flash_item_id", id)
+        .eq("status", "pending"),
+      supabase
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("flash_item_id", id)
+        .in("status", [...FLASH_ACTIVE_REQUEST_STATUSES]),
+    ]);
 
   const confirmedCount = confirmed?.length ?? 0;
   const pendingCount = pending?.length ?? 0;
-  const av = computeFlashAvailability(item, confirmedCount);
+  const av = computeFlashAvailability(item, activeCount ?? 0);
   const publicUrl =
     item.status === "published" && profile?.slug
       ? publicArtistUrl(profile.slug, {

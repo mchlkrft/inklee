@@ -6,6 +6,7 @@ import { isInstagramConfigured } from "@/lib/instagram";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
+  FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import FlashTile from "./flash-tile";
 import FlashNewItemButton from "./flash-new-item-button";
@@ -79,7 +80,7 @@ export default async function FlashItemsPage() {
       .from("booking_requests")
       .select("flash_item_id")
       .in("flash_item_id", itemIds)
-      .in("status", ["pending", "approved", "deposit_pending"]);
+      .in("status", [...FLASH_ACTIVE_REQUEST_STATUSES]);
 
     for (const b of activeRequests ?? []) {
       if (b.flash_item_id)

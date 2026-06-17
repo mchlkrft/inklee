@@ -8,7 +8,10 @@ import { todayInTimeZone } from "@/lib/date-utils";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { createNotification } from "@/lib/notifications";
 import { customerLabel } from "@/lib/booking-domain";
-import { computeFlashAvailability } from "@/lib/flash";
+import {
+  computeFlashAvailability,
+  FLASH_ACTIVE_REQUEST_STATUSES,
+} from "@/lib/flash";
 import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
 import { isAllowedBookingOrigin } from "@/lib/host";
 import crypto from "crypto";
@@ -108,7 +111,7 @@ export async function submitFlashBookingAction(
     .from("booking_requests")
     .select("*", { count: "exact", head: true })
     .eq("flash_item_id", flashItemId)
-    .in("status", ["pending", "approved", "deposit_pending"]);
+    .in("status", [...FLASH_ACTIVE_REQUEST_STATUSES]);
 
   const availability = computeFlashAvailability(
     flashItem,

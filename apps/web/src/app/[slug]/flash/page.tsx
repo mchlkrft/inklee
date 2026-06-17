@@ -6,6 +6,7 @@ import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
   formatPrice,
+  FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 
 export default async function PublicFlashOverviewPage({
@@ -41,7 +42,7 @@ export default async function PublicFlashOverviewPage({
       .from("booking_requests")
       .select("flash_item_id")
       .in("flash_item_id", itemIds)
-      .in("status", ["pending", "approved", "deposit_pending"]);
+      .in("status", [...FLASH_ACTIVE_REQUEST_STATUSES]);
 
     for (const b of activeRequests ?? []) {
       if (b.flash_item_id)

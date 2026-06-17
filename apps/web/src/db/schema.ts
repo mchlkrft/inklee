@@ -323,6 +323,11 @@ export const flashDays = pgTable("flash_days", {
   location: text("location"),
   description: text("description"),
   status: text("status").notNull().default("upcoming"),
+  // Added by migration 0033 (was missing from this Drizzle model).
+  studioId: uuid("studio_id").references(() => studios.id, {
+    onDelete: "set null",
+  }),
+  isPublic: boolean("is_public").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

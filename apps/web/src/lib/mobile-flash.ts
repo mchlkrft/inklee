@@ -10,20 +10,34 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-export const FLASH_ITEM_STATUSES = ["draft", "published", "archived"] as const;
-export const FLASH_PRICE_TYPES = ["fixed", "from", "request"] as const;
-export const FLASH_BOOKING_MODES = ["unique", "limited", "repeatable"] as const;
-export const FLASH_DAY_STATUSES = [
-  "upcoming",
-  "active",
-  "past",
-  "cancelled",
-] as const;
+// Status vocabulary is single-sourced in @inklee/shared/flash-format (ME-10);
+// imported for the validators below and re-exported so existing
+// "@/lib/mobile-flash" importers keep resolving these names.
+import {
+  FLASH_ITEM_STATUSES,
+  FLASH_PRICE_TYPES,
+  FLASH_BOOKING_MODES,
+  FLASH_DAY_STATUSES,
+} from "@inklee/shared/flash-format";
+import type {
+  FlashItemStatus,
+  FlashPriceType,
+  FlashBookingMode,
+  FlashDayStatus,
+} from "@inklee/shared/flash-format";
 
-export type FlashItemStatus = (typeof FLASH_ITEM_STATUSES)[number];
-export type FlashPriceType = (typeof FLASH_PRICE_TYPES)[number];
-export type FlashBookingMode = (typeof FLASH_BOOKING_MODES)[number];
-export type FlashDayStatus = (typeof FLASH_DAY_STATUSES)[number];
+export {
+  FLASH_ITEM_STATUSES,
+  FLASH_PRICE_TYPES,
+  FLASH_BOOKING_MODES,
+  FLASH_DAY_STATUSES,
+};
+export type {
+  FlashItemStatus,
+  FlashPriceType,
+  FlashBookingMode,
+  FlashDayStatus,
+};
 
 const TITLE_MAX = 120;
 const SHORT_DESC_MAX = 280;
