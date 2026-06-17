@@ -69,7 +69,9 @@ export async function listDayRoster(
     )
     .eq("day_id", dayId)
     .eq("artist_id", artistId)
-    .order("position", { ascending: true });
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   if (error) return { error: error.message };
 
   const items: FlashRosterItem[] = [];

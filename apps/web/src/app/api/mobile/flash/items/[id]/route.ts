@@ -109,9 +109,9 @@ export async function GET(
 }
 
 // PUT /api/mobile/flash/items/:id — edit metadata/status/availability. The slug,
-// preview image, and Instagram URL are preserved (set on web). Verifies ownership
-// and that an assigned flash day is the artist's own (flash_day_id has no
-// ownership FK).
+// preview image, and Instagram URL are preserved (set on web). Day membership is
+// handled by the flash_day_items junction endpoint; this PUT validates folder
+// ownership only.
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

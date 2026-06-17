@@ -197,6 +197,7 @@ function DayItemsManager({ dayId }: { dayId: string }) {
     `/flash/days/${dayId}/items`,
   );
   const library = useApiQuery<MobileFlashItemsResponse>("/flash/items");
+  const themed = useColors();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -254,7 +255,11 @@ function DayItemsManager({ dayId }: { dayId: string }) {
   return (
     <View className="mt-7">
       <FieldLabel>Designs in this day</FieldLabel>
-      {attached.length === 0 ? (
+      {roster.loading && !roster.data ? (
+        <View className="mb-3 items-center py-2">
+          <ActivityIndicator color={themed.accent} />
+        </View>
+      ) : attached.length === 0 ? (
         <Text className="mb-3 text-sm text-shell-dim">
           No designs added yet.
         </Text>

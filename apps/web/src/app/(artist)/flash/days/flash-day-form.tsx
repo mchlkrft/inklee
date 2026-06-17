@@ -118,7 +118,7 @@ export default function FlashDayForm({
               {studios.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
-                  {s.city ? ` — ${s.city}` : ""}
+                  {s.city ? ` · ${s.city}` : ""}
                   {s.country ? `, ${s.country}` : ""}
                 </option>
               ))}

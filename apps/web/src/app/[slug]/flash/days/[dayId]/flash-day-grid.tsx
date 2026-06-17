@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
 import { formatPrice } from "@/lib/flash";
@@ -39,6 +39,21 @@ export default function FlashDayGrid({
   const [openId, setOpenId] = useState<string | null>(null);
   const active = items.find((i) => i.id === openId) ?? null;
 
+  // Match the app's other modals: Escape closes + body scroll locks while open.
+  useEffect(() => {
+    if (!openId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpenId(null);
+    }
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [openId]);
+
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -76,7 +91,7 @@ export default function FlashDayGrid({
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
                     item.bookable
-                      ? "bg-brand-mustard text-brand-charcoal opacity-0 transition-opacity group-hover:opacity-100"
+                      ? "bg-brand-mustard text-brand-charcoal"
                       : "bg-black/60 text-white"
                   }`}
                 >

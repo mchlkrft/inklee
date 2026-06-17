@@ -47,8 +47,8 @@ export async function GET(req: Request) {
   return mobileOk(body);
 }
 
-// POST /api/mobile/flash/days — create a flash day. Mobile uses free-text
-// location only (the studio-library picker stays web; studio_id defaults null).
+// POST /api/mobile/flash/days — create a flash day, including an optional
+// studio_id venue (the shared validator clears location when a studio is set).
 export async function POST(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);

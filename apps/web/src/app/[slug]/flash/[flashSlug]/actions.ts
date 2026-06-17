@@ -105,6 +105,20 @@ export async function submitFlashBookingAction(
 
   if (!flashItem) return { error: "flash item not found" };
 
+  // Attribution guard: flash_day_id arrives from a client field, so only record
+  // it if this design is actually a member of that day; otherwise drop it.
+  let attributedDayId: string | null = null;
+  if (flashDayId) {
+    const { data: membership } = await serviceClient
+      .from("flash_day_items")
+      .select("day_id")
+      .eq("day_id", flashDayId)
+      .eq("item_id", flashItemId)
+      .eq("artist_id", artistId)
+      .maybeSingle();
+    attributedDayId = membership ? flashDayId : null;
+  }
+
   // Count active requests for this item so unique/limited flash cannot collect
   // more pending requests than its intake capacity.
   const { count: activeRequestCount } = await serviceClient
@@ -166,7 +180,7 @@ export async function submitFlashBookingAction(
       customer_token_hash: data.email ? tokenHash : null,
       origin: "public_form",
       flash_item_id: flashItemId,
-      flash_day_id: flashDayId || null,
+      flash_day_id: attributedDayId,
     });
 
   if (insertError) {

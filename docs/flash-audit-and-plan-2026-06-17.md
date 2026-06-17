@@ -202,18 +202,19 @@ Branch `feat/flash-redesign`, 8 commits (FX-0 → FX-7b), all gated green
 **Deferred (API ready, flagged):**
 - **Mobile polish:** studio picker on the day form (G9), folder filter + grid on the designs list (G11/G3-mobile), a folder-management screen. All backed by FX-6 endpoints; pure RN UI.
 - **Native Instagram import (D4):** externally gated — needs Meta OAuth redirect-URI config (app scheme) + a device test, so it can't be built+verified in code alone (same class as ME-7). Web Instagram import is unchanged and works.
-- **Web library folder UI (FX-4b):** folder rail + status filter + move-to-folder + add-folder-to-day picker on `/flash/items` and the day builder. The folders data model + shared module + mobile UI exist; the web library UI is the gap.
+- **Folder management UI — both platforms (vision #4, API-ready, UI-pending):** the folders table + shared module + mobile assign-picker + day-items endpoints all exist, but there is **no folder create/rename/delete entry point** on web or mobile yet, so folders are not usable end-to-end. The mobile folder picker is hidden until folders exist (so no dead control ships). Remaining UI: web library folder rail + status filter + move-to-folder + add-folder-to-day (FX-4b), plus a mobile "new folder" affordance + an add-folder-to-day control.
 - **Drop `flash_items.flash_day_id`:** keep one release as the synced primary-day hint; drop in a later migration once safe.
 
 **Deploy steps (founder + Claude):**
 1. Open a PR `feat/flash-redesign` → `master` and merge (deploys FX-3…FX-7b; FX-0…FX-2 already on prod via PR #4).
-2. **Reconcile the junction** right after the prod code is live: because prod ran the old single-FK day builder between `0051` and this deploy, the junction can be stale. Run a one-time reconcile (junction is not read by prod until this deploy):
+2. **Reconcile the junction (non-destructive — NEVER `TRUNCATE`).** Prod ran the old single-FK builder between `0051` and this deploy, so a design assigned on prod in that window has `flash_day_id` set but no junction row. Fill only the gaps. Do **not** truncate-and-rebuild: the new code writes the junction the instant it deploys, and `flash_day_id` only holds the *primary* day, so a rebuild from it would wipe every secondary-day membership + custom order created by the new builder.
    ```sql
-   TRUNCATE flash_day_items;
    INSERT INTO flash_day_items (day_id, item_id, artist_id, position)
    SELECT fi.flash_day_id, fi.id, fi.artist_id,
           (row_number() OVER (PARTITION BY fi.flash_day_id ORDER BY fi.created_at) - 1)::int
-   FROM flash_items fi WHERE fi.flash_day_id IS NOT NULL;
+   FROM flash_items fi
+   WHERE fi.flash_day_id IS NOT NULL
+   ON CONFLICT (day_id, item_id) DO NOTHING;
    ```
-   (Skip if no flash-day edits happened on prod since `0051` was applied.)
+   (Skip entirely if no flash-day memberships were edited on prod since `0051`. `position` here applies only to brand-new rows; existing rows keep their order.)
 3. Smoke-test: artist Flash → Days loads; a public day page renders the grid + modal; booking from the modal lands on `/request/submitted`.

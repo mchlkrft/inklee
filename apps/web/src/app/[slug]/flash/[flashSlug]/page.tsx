@@ -57,11 +57,15 @@ export default async function PublicFlashItemPage({
     location: string | null;
   } | null = null;
   if (item.flash_day_id) {
+    // Gate on artist ownership + is_public: the primary-day hint can point at a
+    // PRIVATE day, and this block renders the day's title/date/venue publicly.
     const { data: day } = await serviceClient
       .from("flash_days")
       .select("id, title, scheduled_on, location")
       .eq("id", item.flash_day_id)
-      .single();
+      .eq("artist_id", profile.id)
+      .eq("is_public", true)
+      .maybeSingle();
     flashDay = day;
   }
 

@@ -40,8 +40,9 @@ export default async function PublicFlashDayPage({
     .eq("artist_id", profile.id)
     .single();
 
-  // Private or non-existent days are indistinguishable to clients.
-  if (!day || !day.is_public) notFound();
+  // Private, cancelled, or non-existent days are indistinguishable to clients;
+  // a cancelled day must stop soliciting bookings.
+  if (!day || !day.is_public || day.status === "cancelled") notFound();
 
   const studio = (
     Array.isArray(day.studios) ? day.studios[0] : day.studios
@@ -61,7 +62,9 @@ export default async function PublicFlashDayPage({
     )
     .eq("day_id", dayId)
     .eq("artist_id", profile.id)
-    .order("position", { ascending: true });
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   type Embedded = Record<string, unknown>;
   const designs = ((rosterRows ?? []) as Array<{ flash_items: unknown }>)
