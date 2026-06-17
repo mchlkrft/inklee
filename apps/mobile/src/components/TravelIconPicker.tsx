@@ -4,13 +4,14 @@ import {
   TRAVEL_ICON_KEYS,
   type TravelIconKey,
 } from "@inklee/shared/travel-icons";
-import { travelIconGlyph } from "./TravelIcon";
+import { TravelIcon } from "./TravelIcon";
 import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
-// Icon grid for trips + studios (founder round 10) — the DayChip motif as a
-// wrap-row of tappable glyph chips, led by a slashed "no icon" chip. Keys come
-// from the shared inklee icon library, so the web picker shows the same set.
+// Icon grid for trips + studios — a wrap-row of tappable chips over the
+// founder's custom inklee tattoo-badge icons, led by a slashed "no icon" chip.
+// Keys come from the shared library, so the web picker shows the same set.
+// Detailed line art, so the chips run a touch larger than a glyph chip.
 export function TravelIconPicker({
   value,
   onChange,
@@ -32,7 +33,6 @@ export function TravelIconPicker({
         />
       </IconOption>
       {TRAVEL_ICON_KEYS.map((key) => {
-        const Glyph = travelIconGlyph(key, MapPin);
         const selected = value === key;
         return (
           <IconOption
@@ -41,8 +41,10 @@ export function TravelIconPicker({
             selected={selected}
             onPress={() => onChange(key)}
           >
-            <Glyph
-              size={18}
+            <TravelIcon
+              icon={key}
+              fallback={MapPin}
+              size={30}
               color={selected ? colors.charcoal : themed.shell.dim}
             />
           </IconOption>
@@ -69,7 +71,7 @@ function IconOption({
       accessibilityLabel={label}
       accessibilityState={{ selected }}
       onPress={onPress}
-      className={`h-11 w-11 items-center justify-center rounded-xl ${
+      className={`h-14 w-14 items-center justify-center rounded-xl ${
         selected ? "bg-mustard" : "bg-shell-hover"
       } active:opacity-80`}
     >

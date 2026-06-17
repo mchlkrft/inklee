@@ -528,57 +528,64 @@ export default function StudioList({ studios }: { studios: Studio[] }) {
 
         {studios.length > 0 && (
           <div className="divide-y divide-border rounded-md border-2 border-border">
-            {studios.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between gap-3 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {s.icon ? (
-                      <TravelIcon
-                        icon={s.icon}
-                        fallback={Building2}
-                        className="h-4 w-4 text-muted-foreground"
-                      />
-                    ) : null}
-                    <p className="text-sm text-foreground">{s.name}</p>
-                    {s.is_primary && (
-                      <span className="text-xs font-medium text-brand-mustard">
-                        Primary
-                      </span>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      · {visibilityBadge(s.visibility_mode)}
-                    </span>
+            {studios.map((s) => {
+              const area = [s.city, s.country].filter(Boolean).join(", ");
+              const street = s.address || s.formatted_address || null;
+              // Skip the address line when it just repeats the city/country.
+              const showStreet = street && street !== area;
+              return (
+                <div key={s.id} className="flex items-stretch gap-3 px-4 py-3">
+                  {/* Full-height square icon tile (founder's custom inklee set) */}
+                  <div className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border bg-muted/30 text-foreground">
+                    <TravelIcon
+                      icon={s.icon}
+                      fallback={Building2}
+                      className="h-9 w-9"
+                    />
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {s.formatted_address
-                      ? s.formatted_address
-                      : [s.city, s.country].filter(Boolean).join(", ") ||
-                        s.address ||
-                        "No location"}
-                  </p>
+                  <div className="min-w-0 flex-1 self-center">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-foreground">
+                        {s.name}
+                      </p>
+                      {s.is_primary && (
+                        <span className="text-xs font-medium text-brand-mustard">
+                          Primary
+                        </span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        · {visibilityBadge(s.visibility_mode)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {area || "No location"}
+                    </p>
+                    {showStreet && (
+                      <p className="text-xs text-muted-foreground/80 truncate">
+                        {street}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 self-center">
+                    <button
+                      type="button"
+                      onClick={() => setEditingStudio(s)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleting === s.id}
+                      onClick={() => handleDelete(s.id)}
+                      className="text-xs text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                    >
+                      {deleting === s.id ? "…" : "Remove"}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setEditingStudio(s)}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    disabled={deleting === s.id}
-                    onClick={() => handleDelete(s.id)}
-                    className="text-xs text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                  >
-                    {deleting === s.id ? "…" : "Remove"}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

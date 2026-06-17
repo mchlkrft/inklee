@@ -119,9 +119,9 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
       onPress={() => router.push(`/travel/trips/${g.tripId}`)}
       className="mt-3 flex-row items-center gap-3 active:opacity-70"
     >
-      {g.icon ? (
-        <TravelIcon icon={g.icon} fallback={MapPin} size={16} color={themed.cobalt} />
-      ) : null}
+      <View className="h-10 w-10 items-center justify-center rounded-lg border border-shell-border bg-shell-hover">
+        <TravelIcon icon={g.icon} fallback={MapPin} size={24} color={themed.shell.fg} />
+      </View>
       <View className="flex-1">
         <Text className="text-body font-medium text-foreground" numberOfLines={1}>
           {g.studioName ?? g.tripTitle}
