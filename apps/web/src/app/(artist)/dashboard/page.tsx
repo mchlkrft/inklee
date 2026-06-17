@@ -20,7 +20,7 @@ import BookingLinkWidget from "./booking-link-widget";
 import ActionFeed from "./action-feed";
 
 const STAT_BOX =
-  "flex flex-col rounded-[20px] border border-border p-4 transition-colors hover:bg-[color:var(--color-workspace-hover)]";
+  "flex flex-1 basis-0 min-w-0 flex-col rounded-[20px] border border-border p-4 transition-colors hover:bg-[color:var(--color-workspace-hover)]";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -113,11 +113,13 @@ export default async function DashboardPage() {
         </Link>
       )}
 
-      {/* Glance grid: hero "Requests waiting" + tappable satellites */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {/* Glance: hero "Requests waiting" full width + an always-filled satellite
+          row (2 stat boxes, or 3 when deposits are outstanding) — mirrors the
+          app's home glance so the grid never leaves a hole. */}
+      <div className="space-y-4">
         <Link
           href="/bookings"
-          className="col-span-2 flex flex-col justify-between rounded-[20px] border border-brand-mustard/30 bg-brand-mustard/10 p-5 transition-transform hover:-translate-y-0.5"
+          className="flex flex-col rounded-[20px] border border-brand-mustard/30 bg-brand-mustard/10 p-5 transition-transform hover:-translate-y-0.5"
         >
           <IconChip icon={Inbox} tint="mustard" />
           <div className="mt-6">
@@ -130,45 +132,47 @@ export default async function DashboardPage() {
           </div>
         </Link>
 
-        <Link href="/bookings/calendar" className={STAT_BOX}>
-          <IconChip icon={CalendarDays} tint="rosa" size="sm" />
-          <p className="mt-3 text-2xl font-semibold text-foreground">
-            {data.upcomingCount}
-          </p>
-          <p className="text-xs text-muted-foreground">Upcoming</p>
-        </Link>
-
-        {showDeposits && (
-          <Link href="/bookings/deposits" className={STAT_BOX}>
-            <IconChip
-              icon={Banknote}
-              tint={data.depositsOverdueCount > 0 ? "rosa" : "cobalt"}
-              size="sm"
-            />
-            <p
-              className={`mt-3 text-2xl font-semibold ${
-                data.depositsOverdueCount > 0
-                  ? "text-destructive"
-                  : "text-foreground"
-              }`}
-            >
-              {data.depositsOutstandingCount}
+        <div className="flex gap-4">
+          <Link href="/bookings/calendar" className={STAT_BOX}>
+            <IconChip icon={CalendarDays} tint="rosa" size="sm" />
+            <p className="mt-3 text-2xl font-semibold text-foreground">
+              {data.upcomingCount}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {data.depositsOverdueCount > 0
-                ? `Deposits due (${data.depositsOverdueCount} overdue)`
-                : "Deposits due"}
-            </p>
+            <p className="text-xs text-muted-foreground">Upcoming</p>
           </Link>
-        )}
 
-        <Link href="/analytics" className={STAT_BOX}>
-          <IconChip icon={BarChart3} tint="bone" size="sm" />
-          <p className="mt-3 text-2xl font-semibold text-foreground">
-            {data.thisMonthCount}
-          </p>
-          <p className="text-xs text-muted-foreground">This month</p>
-        </Link>
+          {showDeposits && (
+            <Link href="/bookings/deposits" className={STAT_BOX}>
+              <IconChip
+                icon={Banknote}
+                tint={data.depositsOverdueCount > 0 ? "rosa" : "cobalt"}
+                size="sm"
+              />
+              <p
+                className={`mt-3 text-2xl font-semibold ${
+                  data.depositsOverdueCount > 0
+                    ? "text-destructive"
+                    : "text-foreground"
+                }`}
+              >
+                {data.depositsOutstandingCount}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {data.depositsOverdueCount > 0
+                  ? `Deposits due (${data.depositsOverdueCount} overdue)`
+                  : "Deposits due"}
+              </p>
+            </Link>
+          )}
+
+          <Link href="/analytics" className={STAT_BOX}>
+            <IconChip icon={BarChart3} tint="bone" size="sm" />
+            <p className="mt-3 text-2xl font-semibold text-foreground">
+              {data.thisMonthCount}
+            </p>
+            <p className="text-xs text-muted-foreground">This month</p>
+          </Link>
+        </div>
       </div>
 
       {/* Action required feed (or the calm caught-up / zero-request state) */}

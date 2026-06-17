@@ -13,7 +13,10 @@ import {
   BarChart3,
   Banknote,
   CalendarDays,
+  Check,
   ChevronRight,
+  Copy,
+  ExternalLink,
   Inbox,
   Link2,
   MapPin,
@@ -25,7 +28,7 @@ import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { TravelIcon } from "@/components/TravelIcon";
 import { Card } from "@/components/Card";
 import { CardHeader } from "@/components/CardHeader";
-import { PillButton } from "@/components/PillButton";
+import { IconButton } from "@/components/IconButton";
 import { EmptyState } from "@/components/EmptyState";
 import { ActionFeed } from "@/components/home/ActionFeed";
 import { useApiQuery } from "@/lib/api";
@@ -131,22 +134,50 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
   );
 }
 
-function LinkRow({ label, url }: { label: string; url: string }) {
+// One page row: label + URL on the left, compact outlined icon actions (copy +
+// preview) pinned right. Mirrors the Action-required row structure but swaps the
+// text verbs for symbols so the two cards stay visually distinct.
+function LinkRow({
+  label,
+  url,
+  last = false,
+}: {
+  label: string;
+  url: string;
+  last?: boolean;
+}) {
+  const themed = useColors();
   const [copied, markCopied] = useTimedFlag();
   const copy = async () => {
     await Clipboard.setStringAsync(url);
     markCopied();
   };
   return (
-    <View className="mt-3 gap-1.5">
-      <Text className="text-caption text-shell-dim">{label}</Text>
-      <Text className="text-sm text-shell-dim" numberOfLines={1}>
-        {displayUrl(url)}
-      </Text>
-      <View className="flex-row gap-2">
-        <PillButton label={copied ? "Copied" : "Copy link"} onPress={copy} />
-        <PillButton
-          label="Preview"
+    <View
+      className={`flex-row items-center gap-3 py-3 ${last ? "" : "border-b border-shell-border"}`}
+    >
+      <View className="flex-1">
+        <Text className="text-body font-medium text-foreground" numberOfLines={1}>
+          {label}
+        </Text>
+        <Text className="mt-0.5 text-caption text-shell-dim" numberOfLines={1}>
+          {displayUrl(url)}
+        </Text>
+      </View>
+      <View className="flex-row items-center gap-2">
+        <IconButton
+          icon={copied ? Check : Copy}
+          label={copied ? "Copied" : `Copy ${label} link`}
+          outlined
+          iconSize={16}
+          color={copied ? themed.successFg : themed.bone}
+          onPress={copy}
+        />
+        <IconButton
+          icon={ExternalLink}
+          label={`Preview ${label}`}
+          outlined
+          iconSize={16}
           onPress={() => {
             void WebBrowser.openBrowserAsync(url);
           }}
@@ -168,9 +199,11 @@ function PagesCard({
   return (
     <Card>
       <CardHeader icon={Link2} tint="bone" title="Your pages" />
-      <LinkRow label="Booking" url={publicUrl} />
-      <LinkRow label="Waitlist" url={waitlistUrl} />
-      <LinkRow label="Link Hub" url={hubUrl} />
+      <View className="mt-1">
+        <LinkRow label="Booking" url={publicUrl} />
+        <LinkRow label="Waitlist" url={waitlistUrl} />
+        <LinkRow label="Link Hub" url={hubUrl} last />
+      </View>
     </Card>
   );
 }

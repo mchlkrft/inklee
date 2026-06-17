@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Link2 } from "lucide-react";
+import { Link2, Copy, Check, ExternalLink } from "lucide-react";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 
-// One shareable page link: label, the bare URL, a copy button, and a preview
-// that opens the real public URL. Preview uses the absolute `url` (not
-// `/${slug}`) so it resolves correctly under subdomain routing too.
+const ICON_BTN =
+  "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground";
+
+// One shareable page link: label + bare URL on the left, compact outlined icon
+// actions (copy + preview) pinned right. Mirrors the Action-required row layout
+// but swaps the text verbs for symbols so the two cards read differently.
+// Preview uses the absolute `url` (not `/${slug}`) so it resolves under
+// subdomain routing too.
 function LinkRow({ label, url }: { label: string; url: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -18,25 +23,36 @@ function LinkRow({ label, url }: { label: string; url: string }) {
   }
 
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="truncate font-mono text-sm text-muted-foreground">
-        {url.replace(/^https?:\/\//, "")}
-      </p>
-      <div className="flex gap-2">
+    <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-foreground">{label}</p>
+        <p className="truncate font-mono text-xs text-muted-foreground">
+          {url.replace(/^https?:\/\//, "")}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
         <button
+          type="button"
           onClick={copy}
-          className="rounded-md border border-border bg-transparent px-3 py-1.5 text-xs text-muted-foreground"
+          aria-label={copied ? "Copied" : `Copy ${label} link`}
+          title={copied ? "Copied" : "Copy link"}
+          className={ICON_BTN}
         >
-          {copied ? "Copied" : "Copy link"}
+          {copied ? (
+            <Check className="h-4 w-4 text-brand-green" aria-hidden />
+          ) : (
+            <Copy className="h-4 w-4" aria-hidden />
+          )}
         </button>
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-md border border-border bg-transparent px-3 py-1.5 text-xs text-muted-foreground"
+          aria-label={`Preview ${label}`}
+          title="Preview"
+          className={ICON_BTN}
         >
-          Preview
+          <ExternalLink className="h-4 w-4" aria-hidden />
         </a>
       </div>
     </div>
@@ -60,9 +76,11 @@ export default function BookingLinkWidget({
         <IconChip icon={Link2} tint="bone" />
         <p className="text-sm font-medium text-foreground">Your pages</p>
       </CardHeader>
-      <LinkRow label="Booking" url={publicUrl} />
-      <LinkRow label="Waitlist" url={waitlistUrl} />
-      <LinkRow label="Link Hub" url={hubUrl} />
+      <div className="divide-y divide-border">
+        <LinkRow label="Booking" url={publicUrl} />
+        <LinkRow label="Waitlist" url={waitlistUrl} />
+        <LinkRow label="Link Hub" url={hubUrl} />
+      </div>
     </Card>
   );
 }
