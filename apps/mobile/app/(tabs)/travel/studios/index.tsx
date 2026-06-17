@@ -94,39 +94,49 @@ function StudioRowView({
 }) {
   const themed = useColors();
   const place = [studio.city, studio.country].filter(Boolean).join(", ");
+  const street = studio.address;
+  const showStreet = street && street !== place;
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
+      className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-glass p-3 active:opacity-80"
     >
-      <View className="flex-row items-center justify-between">
-        {studio.icon ? (
-          <View className="mr-2">
-            <TravelIcon
-              icon={studio.icon}
-              fallback={Building2}
-              size={16}
-              color={themed.cobalt}
-            />
-          </View>
-        ) : null}
-        <Text
-          className="flex-1 pr-2 text-base font-semibold text-foreground"
-          numberOfLines={1}
-        >
-          {studio.name}
-        </Text>
-        {studio.isPrimary ? (
-          <Text className="text-xs font-medium text-accent">Primary</Text>
-        ) : null}
+      {/* Full-height square icon tile (founder's custom inklee set) */}
+      <View className="h-16 w-16 items-center justify-center rounded-xl border border-shell-border bg-shell-hover">
+        <TravelIcon
+          icon={studio.icon}
+          fallback={Building2}
+          size={34}
+          color={themed.shell.fg}
+        />
       </View>
-      {place ? (
-        <Text className="mt-0.5 text-sm text-shell-dim">{place}</Text>
-      ) : null}
-      <Text className="mt-1.5 text-xs text-shell-mute">
-        {visibilityLabel(studio.visibilityMode)}
-      </Text>
+      <View className="flex-1 justify-center">
+        <View className="flex-row items-center justify-between">
+          <Text
+            className="flex-1 pr-2 text-base font-semibold text-foreground"
+            numberOfLines={1}
+          >
+            {studio.name}
+          </Text>
+          {studio.isPrimary ? (
+            <Text className="text-xs font-medium text-accent">Primary</Text>
+          ) : null}
+        </View>
+        {place ? (
+          <Text className="mt-0.5 text-sm text-shell-dim" numberOfLines={1}>
+            {place}
+          </Text>
+        ) : null}
+        {showStreet ? (
+          <Text className="mt-0.5 text-xs text-shell-mute" numberOfLines={1}>
+            {street}
+          </Text>
+        ) : null}
+        <Text className="mt-1 text-xs text-shell-mute">
+          {visibilityLabel(studio.visibilityMode)}
+        </Text>
+      </View>
     </Pressable>
   );
 }
