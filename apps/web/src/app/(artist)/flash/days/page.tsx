@@ -42,7 +42,11 @@ export default async function FlashDaysPage() {
   const [{ data: days }, { data: profile }] = await Promise.all([
     supabase
       .from("flash_days")
-      .select("*, studios:studio_id(name, city), flash_items(id)")
+      // Name the FK explicitly: once the flash_day_items junction exists,
+      // an un-hinted flash_items embed under flash_days is ambiguous. This
+      // counts designs by the legacy primary-day FK (unchanged until the
+      // junction read cutover in a later slice).
+      .select("*, studios:studio_id(name, city), flash_items!flash_day_id(id)")
       .eq("artist_id", user!.id)
       .order("scheduled_on", { ascending: false }),
     supabase.from("profiles").select("slug").eq("id", user!.id).single(),

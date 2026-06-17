@@ -420,6 +420,27 @@ export const flashItems = pgTable("flash_items", {
     .defaultNow(),
 });
 
+// Many-to-many flash day <-> design membership (migration 0051). Source of truth
+// for day rosters; flash_items.flash_day_id is a kept back-compat "primary day".
+// The (day_id, item_id) UNIQUE + indexes live in the SQL migration (this file
+// omits composite constraints, like flash_items' UNIQUE(artist_id, slug)).
+export const flashDayItems = pgTable("flash_day_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dayId: uuid("day_id")
+    .notNull()
+    .references(() => flashDays.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id")
+    .notNull()
+    .references(() => flashItems.id, { onDelete: "cascade" }),
+  artistId: uuid("artist_id")
+    .notNull()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const clientNotes = pgTable("client_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   artistId: uuid("artist_id")
