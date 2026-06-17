@@ -121,7 +121,6 @@ export async function createFlashItemAction(
     is_bookable: formData.get("is_bookable") !== "false",
     available_from: parseString(formData, "available_from"),
     available_until: parseString(formData, "available_until"),
-    flash_day_id: parseString(formData, "flash_day_id"),
   });
 
   if (error) {
@@ -211,7 +210,6 @@ export async function updateFlashItemAction(
       is_bookable: formData.get("is_bookable") !== "false",
       available_from: parseString(formData, "available_from"),
       available_until: parseString(formData, "available_until"),
-      flash_day_id: parseString(formData, "flash_day_id"),
     })
     .eq("id", id)
     .eq("artist_id", user.id);
@@ -285,15 +283,14 @@ export async function publishFlashItemAction(id: string): Promise<State> {
   return { success: true };
 }
 
-// Load a flash item's edit values + the artist's flash days for the inline
-// edit modal (78f/DT-16). Mirrors the data the /flash/items/[id] edit page
-// assembles, so FlashItemForm can render without navigating to a subpage.
-export async function loadFlashItemForEditAction(id: string): Promise<
-  | {
-      initial: import("./flash-item-form").InitialValues;
-      flashDays: import("./flash-item-form").FlashDay[];
-    }
-  | { error: string }
+// Load a flash item's edit values for the inline edit modal (78f/DT-16).
+// Mirrors the data the /flash/items/[id] edit page assembles, so FlashItemForm
+// can render without navigating to a subpage. Day membership is no longer set
+// from the item form (it lives in the day builder), so flash days are not loaded.
+export async function loadFlashItemForEditAction(
+  id: string,
+): Promise<
+  { initial: import("./flash-item-form").InitialValues } | { error: string }
 > {
   const supabase = await createClient();
   const {
@@ -301,20 +298,12 @@ export async function loadFlashItemForEditAction(id: string): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const [{ data: item }, { data: flashDays }] = await Promise.all([
-    supabase
-      .from("flash_items")
-      .select("*")
-      .eq("id", id)
-      .eq("artist_id", user.id)
-      .single(),
-    supabase
-      .from("flash_days")
-      .select("id, title, scheduled_on")
-      .eq("artist_id", user.id)
-      .in("status", ["upcoming", "active"])
-      .order("scheduled_on", { ascending: true }),
-  ]);
+  const { data: item } = await supabase
+    .from("flash_items")
+    .select("*")
+    .eq("id", id)
+    .eq("artist_id", user.id)
+    .single();
 
   if (!item) return { error: "That flash design could not be found." };
 
@@ -336,8 +325,6 @@ export async function loadFlashItemForEditAction(id: string): Promise<
       isBookable: item.is_bookable,
       availableFrom: item.available_from,
       availableUntil: item.available_until,
-      flashDayId: item.flash_day_id,
     },
-    flashDays: flashDays ?? [],
   };
 }

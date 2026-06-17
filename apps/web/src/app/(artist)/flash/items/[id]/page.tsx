@@ -22,22 +22,15 @@ export default async function FlashItemDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: item }, { data: flashDays }, { data: profile }] =
-    await Promise.all([
-      supabase
-        .from("flash_items")
-        .select("*")
-        .eq("id", id)
-        .eq("artist_id", user!.id)
-        .single(),
-      supabase
-        .from("flash_days")
-        .select("id, title, scheduled_on")
-        .eq("artist_id", user!.id)
-        .in("status", ["upcoming", "active"])
-        .order("scheduled_on", { ascending: true }),
-      supabase.from("profiles").select("slug").eq("id", user!.id).single(),
-    ]);
+  const [{ data: item }, { data: profile }] = await Promise.all([
+    supabase
+      .from("flash_items")
+      .select("*")
+      .eq("id", id)
+      .eq("artist_id", user!.id)
+      .single(),
+    supabase.from("profiles").select("slug").eq("id", user!.id).single(),
+  ]);
 
   if (!item) notFound();
 
@@ -108,9 +101,7 @@ export default async function FlashItemDetailPage({
               isBookable: item.is_bookable,
               availableFrom: item.available_from,
               availableUntil: item.available_until,
-              flashDayId: item.flash_day_id,
             }}
-            flashDays={flashDays ?? []}
           />
         </div>
 

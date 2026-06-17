@@ -4,12 +4,9 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import Spinner from "@/components/spinner";
 import { loadFlashItemForEditAction } from "./actions";
-import FlashItemForm, {
-  type InitialValues,
-  type FlashDay,
-} from "./flash-item-form";
+import FlashItemForm, { type InitialValues } from "./flash-item-form";
 
-type Loaded = { initial: InitialValues; flashDays: FlashDay[] };
+type Loaded = { initial: InitialValues };
 
 // Inline edit modal for /flash/items (78f/DT-16) — opened from a grid tile
 // instead of navigating to the /flash/items/[id] subpage. Mirrors the goods
@@ -85,11 +82,7 @@ export default function FlashEditModal({
                 <Spinner className="h-5 w-5" />
               </div>
             ) : (
-              <FlashItemForm
-                initial={loaded.initial}
-                flashDays={loaded.flashDays}
-                onSuccess={onClose}
-              />
+              <FlashItemForm initial={loaded.initial} onSuccess={onClose} />
             )}
           </div>
         </div>

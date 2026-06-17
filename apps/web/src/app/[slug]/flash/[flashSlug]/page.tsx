@@ -8,7 +8,13 @@ import {
   formatPrice,
   FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
+import type { Metadata } from "next";
 import FlashBookingForm from "./flash-booking-form";
+
+// Hidden from search, matching the booking-page noindex decision (2026-06-16).
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 export default async function PublicFlashItemPage({
   params,
@@ -51,11 +57,15 @@ export default async function PublicFlashItemPage({
     location: string | null;
   } | null = null;
   if (item.flash_day_id) {
+    // Gate on artist ownership + is_public: the primary-day hint can point at a
+    // PRIVATE day, and this block renders the day's title/date/venue publicly.
     const { data: day } = await serviceClient
       .from("flash_days")
       .select("id, title, scheduled_on, location")
       .eq("id", item.flash_day_id)
-      .single();
+      .eq("artist_id", profile.id)
+      .eq("is_public", true)
+      .maybeSingle();
     flashDay = day;
   }
 

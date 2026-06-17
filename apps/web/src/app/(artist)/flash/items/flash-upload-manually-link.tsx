@@ -3,8 +3,6 @@
 import { useState } from "react";
 import FlashQuickCreateModal from "./flash-quick-create-modal";
 
-type FlashDay = { id: string; title: string; scheduled_on: string | null };
-
 /**
  * Small "Or upload a design manually" link for the FlashEmptyState branches.
  *
@@ -12,11 +10,7 @@ type FlashDay = { id: string; title: string; scheduled_on: string | null };
  * empty-state CTAs don't have to navigate to a (now-redirecting) /flash/items/new
  * page and lose context.
  */
-export default function FlashUploadManuallyLink({
-  flashDays,
-}: {
-  flashDays: FlashDay[];
-}) {
+export default function FlashUploadManuallyLink() {
   const [open, setOpen] = useState(false);
 
   return (
@@ -28,12 +22,7 @@ export default function FlashUploadManuallyLink({
       >
         Or upload a design manually
       </button>
-      {open && (
-        <FlashQuickCreateModal
-          onClose={() => setOpen(false)}
-          flashDays={flashDays}
-        />
-      )}
+      {open && <FlashQuickCreateModal onClose={() => setOpen(false)} />}
     </>
   );
 }

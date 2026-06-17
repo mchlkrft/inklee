@@ -2,12 +2,18 @@ import { serviceClient } from "@/lib/supabase/service";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
   formatPrice,
   FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
+
+// Hidden from search, matching the booking-page noindex decision (2026-06-16).
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 export default async function PublicFlashOverviewPage({
   params,

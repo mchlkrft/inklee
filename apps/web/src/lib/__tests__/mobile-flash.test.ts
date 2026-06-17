@@ -24,7 +24,7 @@ describe("normalizeFlashItemUpdate", () => {
       placementNotes: "",
       availableFrom: "2026-07-01",
       availableUntil: "",
-      flashDayId: `  ${UUID} `,
+      folderId: `  ${UUID} `,
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -33,13 +33,13 @@ describe("normalizeFlashItemUpdate", () => {
       expect(r.value.placementNotes).toBeNull();
       expect(r.value.availableFrom).toBe("2026-07-01");
       expect(r.value.availableUntil).toBeNull();
-      expect(r.value.flashDayId).toBe(UUID);
+      expect(r.value.folderId).toBe(UUID);
     }
   });
 
-  it("rejects a non-UUID flash day, an unreal date, and until-before-from", () => {
+  it("rejects a non-UUID folder, an unreal date, and until-before-from", () => {
     expect(
-      normalizeFlashItemUpdate({ ...baseItem, flashDayId: "day-1" }).ok,
+      normalizeFlashItemUpdate({ ...baseItem, folderId: "folder-1" }).ok,
     ).toBe(false);
     expect(
       normalizeFlashItemUpdate({ ...baseItem, availableFrom: "2026-13-45" }).ok,
@@ -115,6 +115,7 @@ describe("normalizeFlashDayInput", () => {
       value: {
         title: "Walk-in day",
         scheduledOn: "2026-08-15",
+        studioId: null,
         location: "Studio X",
         description: null,
         status: "upcoming",
@@ -137,5 +138,24 @@ describe("normalizeFlashDayInput", () => {
     const r = normalizeFlashDayInput({ title: "X" });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.isPublic).toBe(false);
+  });
+
+  it("clears free-text location when a studio is chosen", () => {
+    const r = normalizeFlashDayInput({
+      title: "Guest spot",
+      studioId: UUID,
+      location: "ignored text",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.studioId).toBe(UUID);
+      expect(r.value.location).toBeNull();
+    }
+  });
+
+  it("rejects a non-UUID studio", () => {
+    expect(
+      normalizeFlashDayInput({ title: "X", studioId: "studio-1" }).ok,
+    ).toBe(false);
   });
 });

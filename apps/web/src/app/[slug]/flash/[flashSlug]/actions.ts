@@ -82,7 +82,7 @@ export async function submitFlashBookingAction(
 
   const { allowed } = await checkRateLimit(ip, artistId);
   if (!allowed) {
-    return { error: "too many requests — please wait before submitting again" };
+    return { error: "Too many requests. Please wait before submitting again." };
   }
 
   if (
@@ -104,6 +104,20 @@ export async function submitFlashBookingAction(
     .single();
 
   if (!flashItem) return { error: "flash item not found" };
+
+  // Attribution guard: flash_day_id arrives from a client field, so only record
+  // it if this design is actually a member of that day; otherwise drop it.
+  let attributedDayId: string | null = null;
+  if (flashDayId) {
+    const { data: membership } = await serviceClient
+      .from("flash_day_items")
+      .select("day_id")
+      .eq("day_id", flashDayId)
+      .eq("item_id", flashItemId)
+      .eq("artist_id", artistId)
+      .maybeSingle();
+    attributedDayId = membership ? flashDayId : null;
+  }
 
   // Count active requests for this item so unique/limited flash cannot collect
   // more pending requests than its intake capacity.
@@ -137,7 +151,7 @@ export async function submitFlashBookingAction(
     if ((recentCount ?? 0) > 0) {
       return {
         error:
-          "your request was already submitted — check your email for confirmation",
+          "Your request was already submitted. Check your email for confirmation.",
       };
     }
   }
@@ -166,14 +180,14 @@ export async function submitFlashBookingAction(
       customer_token_hash: data.email ? tokenHash : null,
       origin: "public_form",
       flash_item_id: flashItemId,
-      flash_day_id: flashDayId || null,
+      flash_day_id: attributedDayId,
     });
 
   if (insertError) {
     Sentry.captureException(insertError, {
       tags: { action: "flash_booking_insert" },
     });
-    return { error: "something went wrong — try again" };
+    return { error: "Something went wrong. Try again." };
   }
 
   // Audit log
@@ -217,8 +231,8 @@ export async function submitFlashBookingAction(
           customer_handle: data.instagram_handle,
           artist_name: artistProfile.display_name,
           artist_slug: artistSlug,
-          placement: `${flashItem.title} — ${data.placement}`,
-          size: flashItem.size_info ?? "—",
+          placement: `${flashItem.title}, ${data.placement}`,
+          size: flashItem.size_info ?? "-",
           date: data.preferred_date,
           magic_link: magicLink,
         },

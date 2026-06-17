@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import FlashQuickCreateModal from "./flash-quick-create-modal";
 
-type FlashDay = { id: string; title: string; scheduled_on: string | null };
-
 /**
  * "+ New design" entry point on /flash/items.
  *
@@ -19,11 +17,9 @@ type FlashDay = { id: string; title: string; scheduled_on: string | null };
 export default function FlashNewItemButton({
   igConnected,
   igPostCount,
-  flashDays,
 }: {
   igConnected: boolean;
   igPostCount: number;
-  flashDays: FlashDay[];
 }) {
   const [forkOpen, setForkOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -126,10 +122,7 @@ export default function FlashNewItemButton({
       )}
 
       {quickOpen && (
-        <FlashQuickCreateModal
-          onClose={() => setQuickOpen(false)}
-          flashDays={flashDays}
-        />
+        <FlashQuickCreateModal onClose={() => setQuickOpen(false)} />
       )}
     </>
   );

@@ -1,6 +1,6 @@
 # Flash feature: audit, scope, and slice plan
 
-**Created:** 2026-06-17 · **Status:** plan awaiting founder decisions (§5) before implementation.
+**Created:** 2026-06-17 · **Status:** IMPLEMENTED on `feat/flash-redesign` (FX-0→FX-7b), not yet merged to `master`. See [As-built status](#as-built-status-2026-06-17) at the bottom for what shipped, what's deferred, and the deploy steps.
 **How this was produced:** a multi-agent workflow (6 parallel auditors across web backend / web public / mobile app / mobile API / data+RLS / scope-docs → synthesis → target design → slice plan → 3 adversarial critics). All three critics returned `needs-revision`; their blocker fixes are folded into the plan in §6, and the two load-bearing ones were re-verified against the code (see §8).
 
 ---
@@ -178,3 +178,43 @@ Future, separate, irreversible: **drop `flash_items.flash_day_id`** once all mob
 
 ## 9. Doc updates this produces (FX-8)
 `docs/roadmap.md` (E7), `SLICES_CONTINUATION.md` (FX-0…FX-8), `docs/flash-restructure-slice-60d.md` (as-built), `docs/mobile-parity-plan-2026-06-11.md` (stale claims), `docs/seo-state.md` (public-flash noindex), `db/schema.ts` (drift — done in FX-0/FX-1/FX-2).
+
+---
+
+## As-built status (2026-06-17)
+
+Branch `feat/flash-redesign`, 8 commits (FX-0 → FX-7b), all gated green
+(web typecheck + 450 tests + lint; mobile typecheck + lucide + lint). Migrations
+`0050`/`0051` already applied to the prod-shared DB. **Not yet merged to `master`.**
+
+| Slice | What shipped | Status |
+| --- | --- | --- |
+| FX-0 | Shared `flash-format` (formatters + status vocab + `FLASH_ACTIVE_REQUEST_STATUSES`), schema-drift fix, D5 availability gate (pending = booked) | ✅ done |
+| FX-1 | `flash_folders` + `flash_items.folder_id` (migration 0050) | ✅ done + applied |
+| FX-2 | `flash_day_items` junction + backfill + PostgREST embed fix (migration 0051) | ✅ done + applied |
+| FX-3 | Shared single-writer modules `flash-day-membership.ts` + `flash-folders.ts` (+ unit tests) | ✅ done |
+| FX-4 | Web day builder on the junction; removed all legacy `flash_day_id` writers (item form / quick-create / edit modal) | ✅ done |
+| FX-5 | Public day **grid + modal booking** (reuses `FlashBookingForm`), junction read, noindex, em-dash fixes | ✅ done |
+| FX-6 | Mobile API: folders + day-items routes, `?folder=`, junction counts, `studio_id`, contract update | ✅ done |
+| FX-7a | Mobile item editor: folder picker, day picker removed | ✅ done |
+| FX-7b | Mobile **day-items manager** (build a day's roster from the app) | ✅ done |
+
+**Deferred (API ready, flagged):**
+- **Mobile polish:** studio picker on the day form (G9), folder filter + grid on the designs list (G11/G3-mobile), a folder-management screen. All backed by FX-6 endpoints; pure RN UI.
+- **Native Instagram import (D4):** externally gated — needs Meta OAuth redirect-URI config (app scheme) + a device test, so it can't be built+verified in code alone (same class as ME-7). Web Instagram import is unchanged and works.
+- **Folder management UI — both platforms (vision #4, API-ready, UI-pending):** the folders table + shared module + mobile assign-picker + day-items endpoints all exist, but there is **no folder create/rename/delete entry point** on web or mobile yet, so folders are not usable end-to-end. The mobile folder picker is hidden until folders exist (so no dead control ships). Remaining UI: web library folder rail + status filter + move-to-folder + add-folder-to-day (FX-4b), plus a mobile "new folder" affordance + an add-folder-to-day control.
+- **Drop `flash_items.flash_day_id`:** keep one release as the synced primary-day hint; drop in a later migration once safe.
+
+**Deploy steps (founder + Claude):**
+1. Open a PR `feat/flash-redesign` → `master` and merge (deploys FX-3…FX-7b; FX-0…FX-2 already on prod via PR #4).
+2. **Reconcile the junction (non-destructive — NEVER `TRUNCATE`).** Prod ran the old single-FK builder between `0051` and this deploy, so a design assigned on prod in that window has `flash_day_id` set but no junction row. Fill only the gaps. Do **not** truncate-and-rebuild: the new code writes the junction the instant it deploys, and `flash_day_id` only holds the *primary* day, so a rebuild from it would wipe every secondary-day membership + custom order created by the new builder.
+   ```sql
+   INSERT INTO flash_day_items (day_id, item_id, artist_id, position)
+   SELECT fi.flash_day_id, fi.id, fi.artist_id,
+          (row_number() OVER (PARTITION BY fi.flash_day_id ORDER BY fi.created_at) - 1)::int
+   FROM flash_items fi
+   WHERE fi.flash_day_id IS NOT NULL
+   ON CONFLICT (day_id, item_id) DO NOTHING;
+   ```
+   (Skip entirely if no flash-day memberships were edited on prod since `0051`. `position` here applies only to brand-new rows; existing rows keep their order.)
+3. Smoke-test: artist Flash → Days loads; a public day page renders the grid + modal; booking from the modal lands on `/request/submitted`.

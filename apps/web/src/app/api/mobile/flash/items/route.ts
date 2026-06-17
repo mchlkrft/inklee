@@ -26,17 +26,25 @@ export async function GET(req: Request) {
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
 
-  const status = new URL(req.url).searchParams.get("status");
+  const params = new URL(req.url).searchParams;
+  const status = params.get("status");
+  const folder = params.get("folder");
 
   let query = supabase
     .from("flash_items")
     .select(
-      "id, title, slug, status, price_type, price, is_bookable, preview_image_url, booking_mode, max_bookings, available_from, available_until, flash_day_id",
+      "id, title, slug, status, price_type, price, is_bookable, preview_image_url, booking_mode, max_bookings, available_from, available_until, folder_id",
     )
     .eq("artist_id", userId)
     .order("created_at", { ascending: false });
   if (status && (FLASH_ITEM_STATUSES as readonly string[]).includes(status)) {
     query = query.eq("status", status);
+  }
+  // ?folder=unfiled -> designs with no folder; ?folder=<uuid> -> that folder.
+  if (folder === "unfiled") {
+    query = query.is("folder_id", null);
+  } else if (folder) {
+    query = query.eq("folder_id", folder);
   }
 
   const { data, error } = await query;
@@ -88,7 +96,7 @@ export async function GET(req: Request) {
       isBookable: r.is_bookable,
       previewImageUrl: r.preview_image_url,
       bookingMode: r.booking_mode,
-      flashDayId: r.flash_day_id,
+      folderId: r.folder_id,
       bookable: av.bookable,
       // Hide the label on the default happy path (published + bookable +
       // unlimited) to keep rows uncluttered, matching the web tile.

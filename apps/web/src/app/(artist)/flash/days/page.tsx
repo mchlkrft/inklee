@@ -3,6 +3,7 @@ import Link from "next/link";
 import FeatureIntroModal from "@/components/feature-intro-modal";
 import CopyButton from "@/components/copy-button";
 import { publicArtistUrl } from "@/lib/public-url";
+import { countDayItems } from "@/lib/server/flash-day-membership";
 
 function DayStatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -39,18 +40,19 @@ export default async function FlashDaysPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: days }, { data: profile }] = await Promise.all([
+  const [{ data: days }, { data: profile }, countResult] = await Promise.all([
     supabase
       .from("flash_days")
-      // Name the FK explicitly: once the flash_day_items junction exists,
-      // an un-hinted flash_items embed under flash_days is ambiguous. This
-      // counts designs by the legacy primary-day FK (unchanged until the
-      // junction read cutover in a later slice).
-      .select("*, studios:studio_id(name, city), flash_items!flash_day_id(id)")
+      .select("*, studios:studio_id(name, city)")
       .eq("artist_id", user!.id)
       .order("scheduled_on", { ascending: false }),
     supabase.from("profiles").select("slug").eq("id", user!.id).single(),
+    // Design counts come from the junction (source of truth), matching the
+    // public day grid.
+    countDayItems(supabase, user!.id),
   ]);
+
+  const dayItemCounts = "counts" in countResult ? countResult.counts : {};
 
   const slug = profile?.slug ?? null;
 
@@ -96,9 +98,7 @@ export default async function FlashDaysPage() {
       ) : (
         <div className="overflow-hidden rounded-[20px] border border-border divide-y divide-border">
           {days.map((day) => {
-            const itemCount = Array.isArray(day.flash_items)
-              ? day.flash_items.length
-              : 0;
+            const itemCount = dayItemCounts[day.id] ?? 0;
             const studio = (
               Array.isArray(day.studios) ? day.studios[0] : day.studios
             ) as StudioRef;
