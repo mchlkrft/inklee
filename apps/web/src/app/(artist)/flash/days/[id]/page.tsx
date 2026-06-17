@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import FlashDayForm from "../flash-day-form";
 import FlashDayItemsManager from "./flash-day-items-manager";
+import { listDayRoster } from "@/lib/server/flash-day-membership";
 
 export default async function FlashDayDetailPage({
   params,
@@ -15,7 +16,7 @@ export default async function FlashDayDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: day }, { data: studios }, { data: allItems }] =
+  const [{ data: day }, { data: studios }, { data: allItems }, roster] =
     await Promise.all([
       supabase
         .from("flash_days")
@@ -28,29 +29,33 @@ export default async function FlashDayDetailPage({
         .select("id, name, city, country")
         .eq("artist_id", user!.id)
         .order("name", { ascending: true }),
-      // Pull all flash items for the artist; we'll split into linked /
-      // unattached client-side so the attach UI can show every option.
       supabase
         .from("flash_items")
-        .select("id, title, status, preview_image_url, flash_day_id")
+        .select("id, title, status, preview_image_url")
         .eq("artist_id", user!.id)
         .neq("status", "archived")
         .order("created_at", { ascending: false }),
+      // The day roster is junction-backed (source of truth), ordered by position.
+      listDayRoster(supabase, id, user!.id),
     ]);
 
   if (!day) notFound();
 
-  const items = allItems ?? [];
-  const linked = items
-    .filter((i) => i.flash_day_id === id)
-    .map(({ id, title, status, preview_image_url }) => ({
-      id,
-      title,
-      status,
-      preview_image_url,
-    }));
-  const unattached = items
-    .filter((i) => i.flash_day_id === null)
+  const linked =
+    "items" in roster
+      ? roster.items.map(({ id, title, status, preview_image_url }) => ({
+          id,
+          title,
+          status,
+          preview_image_url,
+        }))
+      : [];
+  const linkedIds = new Set(linked.map((i) => i.id));
+  // Candidates: every non-archived design not already in this day. A design in
+  // OTHER days is still a valid candidate (many-to-many), unlike the old
+  // single-FK "unattached only" filter.
+  const candidates = (allItems ?? [])
+    .filter((i) => !linkedIds.has(i.id))
     .map(({ id, title, status, preview_image_url }) => ({
       id,
       title,
@@ -88,7 +93,7 @@ export default async function FlashDayDetailPage({
       <FlashDayItemsManager
         dayId={day.id}
         linked={linked}
-        unattached={unattached}
+        unattached={candidates}
       />
     </div>
   );

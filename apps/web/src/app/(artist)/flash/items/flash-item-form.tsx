@@ -11,12 +11,6 @@ import { createFlashItemAction, updateFlashItemAction } from "./actions";
 
 type State = { error: string } | { success: true; id?: string } | null;
 
-export type FlashDay = {
-  id: string;
-  title: string;
-  scheduled_on: string | null;
-};
-
 export type InitialValues = {
   id?: string;
   title?: string;
@@ -34,16 +28,13 @@ export type InitialValues = {
   isBookable?: boolean;
   availableFrom?: string | null;
   availableUntil?: string | null;
-  flashDayId?: string | null;
 };
 
 export default function FlashItemForm({
   initial = {},
-  flashDays = [],
   onSuccess,
 }: {
   initial?: InitialValues;
-  flashDays?: FlashDay[];
   // When set (edit-in-modal), called after a successful save so the modal can
   // close. Without it (the standalone create/edit page) behaviour is unchanged.
   onSuccess?: () => void;
@@ -449,31 +440,6 @@ export default function FlashItemForm({
           />
         </div>
       </div>
-
-      {/* Flash day association */}
-      {flashDays.length > 0 && (
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Flash day{" "}
-            <span className="font-normal text-muted-foreground">
-              (optional)
-            </span>
-          </label>
-          <select
-            name="flash_day_id"
-            defaultValue={initial.flashDayId ?? ""}
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="">None</option>
-            {flashDays.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.title}
-                {d.scheduled_on ? ` — ${d.scheduled_on}` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {state && "error" in state && (
         <p className="text-sm text-destructive">{state.error}</p>

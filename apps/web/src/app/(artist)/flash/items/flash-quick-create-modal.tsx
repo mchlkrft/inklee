@@ -9,8 +9,6 @@ import { createFlashItemAction } from "./actions";
 
 type State = { error: string } | { success: true; id?: string } | null;
 
-type FlashDay = { id: string; title: string; scheduled_on: string | null };
-
 /**
  * Lightweight "+ New design" surface — replaces the old `/flash/items/new`
  * subpage (which had 12+ fields visible). Core idea: a big image up top,
@@ -26,10 +24,8 @@ type FlashDay = { id: string; title: string; scheduled_on: string | null };
 // prop or manual reset effect here.
 export default function FlashQuickCreateModal({
   onClose,
-  flashDays,
 }: {
   onClose: () => void;
-  flashDays: FlashDay[];
 }) {
   const [state, formAction, pending] = useActionState<State, FormData>(
     createFlashItemAction,
@@ -364,27 +360,6 @@ export default function FlashQuickCreateModal({
                     />
                   </div>
                 </div>
-
-                {flashDays.length > 0 && (
-                  <div className="space-y-1.5">
-                    <label className="text-sm text-muted-foreground">
-                      Flash day
-                    </label>
-                    <select
-                      name="flash_day_id"
-                      defaultValue=""
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="">None</option>
-                      {flashDays.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.title}
-                          {d.scheduled_on ? ` — ${d.scheduled_on}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
             )}
 

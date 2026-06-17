@@ -2,6 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import {
+  attachItemsToDay,
+  detachItemFromDay,
+} from "@/lib/server/flash-day-membership";
 
 type State = { error: string } | { success: true; id?: string } | null;
 type SimpleState = { error: string } | { success: true } | null;
@@ -97,9 +101,9 @@ export async function updateFlashDayAction(
 }
 
 /**
- * Attach multiple flash items to a day in one round-trip. Used by the
- * multi-select section on /flash/days/[id]. Items not already on this day
- * get updated; items already attached are silently no-op'd.
+ * Attach multiple designs to a day (multi-select section on /flash/days/[id]).
+ * Delegates to the shared single-writer membership module so web + mobile agree;
+ * a design can be in this day AND others (many-to-many), re-attach is a no-op.
  */
 export async function attachFlashItemsToDayAction(
   dayId: string,
@@ -112,30 +116,17 @@ export async function attachFlashItemsToDayAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Confirm ownership of the day to avoid attaching items into a stranger's day
-  const { data: day } = await supabase
-    .from("flash_days")
-    .select("id")
-    .eq("id", dayId)
-    .eq("artist_id", user.id)
-    .maybeSingle();
-  if (!day) return { error: "Day not found." };
-
-  const { error } = await supabase
-    .from("flash_items")
-    .update({ flash_day_id: dayId })
-    .in("id", itemIds)
-    .eq("artist_id", user.id);
-
-  if (error) return { error: error.message };
+  const result = await attachItemsToDay(supabase, dayId, itemIds, user.id);
+  if (!result.ok) return { error: result.error };
   revalidatePath(`/flash/days/${dayId}`);
   revalidatePath("/flash/items");
   return { success: true };
 }
 
 /**
- * Detach a single flash item from a day. Used by per-item "remove" affordance
- * on the day-detail attached-items list.
+ * Detach a single design from a day (per-item "remove" on the day-detail list).
+ * Delegates to the shared module, which also repoints the design's primary-day
+ * hint if needed.
  */
 export async function detachFlashItemFromDayAction(
   dayId: string,
@@ -147,14 +138,8 @@ export async function detachFlashItemFromDayAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { error } = await supabase
-    .from("flash_items")
-    .update({ flash_day_id: null })
-    .eq("id", itemId)
-    .eq("artist_id", user.id)
-    .eq("flash_day_id", dayId);
-
-  if (error) return { error: error.message };
+  const result = await detachItemFromDay(supabase, dayId, itemId, user.id);
+  if (!result.ok) return { error: result.error };
   revalidatePath(`/flash/days/${dayId}`);
   revalidatePath("/flash/items");
   return { success: true };
