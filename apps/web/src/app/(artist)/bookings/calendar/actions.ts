@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { sendBookingEmail } from "@/lib/email/send-booking-email";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
-import { cancelBookingCore } from "@/lib/server/bookings";
+import { cancelBookingCore, editAppointmentCore } from "@/lib/server/bookings";
 
 type ActionResult = { error: string } | { success: true };
 
@@ -99,48 +99,18 @@ export async function editAppointmentAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: booking } = await supabase
-    .from("booking_requests")
-    .select("artist_id, form_data, customer_email")
-    .eq("id", id)
-    .single();
-
-  if (!booking || booking.artist_id !== user.id) return { error: "Not found." };
-
-  const fd = booking.form_data as Record<string, string> | null;
-  const handle = (formData.get("customer_handle") as string)
-    .replace(/^@/, "")
-    .trim();
-  const date = formData.get("preferred_date") as string;
-  const placement = (formData.get("placement") as string).trim();
-  const size = formData.get("size") as string;
-  const description =
-    (formData.get("description") as string | null)?.trim() ?? "";
-  const email =
-    (formData.get("customer_email") as string | null)?.trim() || null;
-
-  const { error } = await supabase
-    .from("booking_requests")
-    .update({
-      customer_handle: handle,
-      customer_email: email || null,
-      preferred_date: date,
-      form_data: { ...fd, placement, size, description },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  if (error) return { error: error.message };
-
-  await supabase.from("audit_log").insert({
-    booking_id: id,
-    action: "booking_edited",
-    actor: user.id,
-    details: { by: "artist" },
+  // Delegate to the shared core (the SAME path the mobile PATCH calls) so the
+  // approved-only status gate + required-field validation live in one place.
+  const result = await editAppointmentCore(supabase, user.id, id, {
+    handle: (formData.get("customer_handle") as string | null) ?? "",
+    email: (formData.get("customer_email") as string | null)?.trim() || null,
+    date: (formData.get("preferred_date") as string | null) ?? "",
+    placement: (formData.get("placement") as string | null) ?? "",
+    size: (formData.get("size") as string | null) ?? "",
+    description: (formData.get("description") as string | null) ?? "",
   });
-
-  revalidateBookingViews(id);
-  return { success: true };
+  if ("success" in result) revalidateBookingViews(id);
+  return result;
 }
 
 export async function cancelAppointmentAction(

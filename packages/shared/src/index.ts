@@ -21,3 +21,4 @@ export * from "./studio-validation";
 export * from "./custom-fields";
 export * from "./books-settings";
 export * from "./dashboard-settings";
+export * from "./auth-derivations";

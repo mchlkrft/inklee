@@ -51,6 +51,9 @@ export async function GET(req: Request) {
     bio: (profile?.bio as string | null) ?? null,
     booksOpen: booksSettings.books_open && !windowExpired,
     onboardingCompleted,
+    // The artist-timezone "today" for the Home greeting date (the app has no
+    // Intl to compute it itself). Reuses the same `today` already derived above.
+    todayKey: today,
     dashboardWidgets: widgets,
     pendingCount: data.pendingCount,
     pending: data.pending,

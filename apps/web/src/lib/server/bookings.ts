@@ -1189,3 +1189,75 @@ export async function cancelBookingCore(
 
   return { success: true };
 }
+
+/** Editable appointment fields, already string-typed by the calling adapter
+ *  (web FormData / mobile JSON). Normalization + validation live in the core. */
+export type EditAppointmentInput = {
+  handle: string;
+  email: string | null;
+  date: string;
+  placement: string;
+  size: string;
+  description: string;
+};
+
+/**
+ * Edit an accepted appointment's fields. The SINGLE source for the web calendar
+ * drawer (editAppointmentAction) and the mobile PATCH /bookings/:id, so the
+ * status gate + required-field validation can't diverge (BUG-5: the web copy
+ * had neither and would rewrite a deposit_pending / terminal booking or blank
+ * out placement/size). Approved-only by design — the only surface that exposes
+ * appointment editing.
+ */
+export async function editAppointmentCore(
+  supabase: SupabaseClient,
+  userId: string,
+  id: string,
+  input: EditAppointmentInput,
+): Promise<BookingMutationResult> {
+  const { data: booking } = await supabase
+    .from("booking_requests")
+    .select("artist_id, status, form_data")
+    .eq("id", id)
+    .single();
+  if (!booking || booking.artist_id !== userId) {
+    return { error: "Booking not found." };
+  }
+  if (booking.status !== "approved") {
+    return { error: "Only accepted appointments can be edited." };
+  }
+
+  const fd = (booking.form_data ?? {}) as Record<string, string>;
+  const handle = input.handle.replace(/^@/, "").trim();
+  const date = input.date.trim();
+  const placement = input.placement.trim();
+  const size = input.size.trim();
+  const description = input.description.trim();
+  const email = input.email?.trim() || null;
+
+  if (!handle) return { error: "Instagram handle is required." };
+  if (!date) return { error: "Date is required." };
+  if (!placement) return { error: "Placement is required." };
+  if (!size) return { error: "Size is required." };
+
+  const { error } = await supabase
+    .from("booking_requests")
+    .update({
+      customer_handle: handle,
+      customer_email: email,
+      preferred_date: date,
+      form_data: { ...fd, placement, size, description },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  await supabase.from("audit_log").insert({
+    booking_id: id,
+    action: "booking_edited",
+    actor: userId,
+    details: { by: "artist" },
+  });
+
+  return { success: true };
+}

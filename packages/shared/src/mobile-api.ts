@@ -142,6 +142,12 @@ export type MobileHome = {
   bio: string | null;
   booksOpen: boolean;
   onboardingCompleted: boolean;
+  /** Today's date-key (YYYY-MM-DD) in the ARTIST's timezone, for the Home
+   *  greeting date. Server-provided so a travelling artist sees the same "today"
+   *  as the web dashboard and the client never touches Intl (Hermes iOS has
+   *  none). Optional for version skew: older servers omit it and the app falls
+   *  back to the device-local day. */
+  todayKey?: string;
   /** Per-widget visibility (mirrors the web dashboard widget toggles). */
   dashboardWidgets: DashboardWidgets;
   pendingCount: number;
