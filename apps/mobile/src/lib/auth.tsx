@@ -40,6 +40,16 @@ type AuthState = {
   ) => Promise<{ needsConfirmation: boolean }>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  /** Send a password-reset email. The link deep-links to inklee://reset-password
+   *  so the recovery code is exchanged ON THIS DEVICE (PKCE: the verifier lives
+   *  in this device's SecureStore, so a web callback couldn't complete it).
+   *  Resolves whether or not the email exists (Supabase never reveals it), so the
+   *  UI always shows the same "check your inbox" state. */
+  sendPasswordReset: (email: string) => Promise<void>;
+  /** Complete a reset: exchange the recovery code for a session, then set the
+   *  new password. On success the session is live and the root navigator routes
+   *  into the app. Throws on an invalid/expired code or a rejected password. */
+  completePasswordReset: (code: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -170,6 +180,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         if (error) throw new Error(error.message);
         track("sign_in", { method: "apple" });
+      },
+      // Password reset, request half. emailRedirectTo deep-links to the in-app
+      // reset-password screen so the recovery code is exchanged on THIS device
+      // (PKCE), same reason as the sign-up confirmation flow.
+      sendPasswordReset: async (email) => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: Linking.createURL("reset-password"),
+        });
+        if (error) throw new Error(error.message);
+      },
+      // Password reset, completion half. The reset screen holds the code until
+      // the artist submits a new password, so the session is created here (not on
+      // mount) and the root navigator routes straight into the app afterwards.
+      completePasswordReset: async (code, password) => {
+        const { error: exErr } =
+          await supabase.auth.exchangeCodeForSession(code);
+        if (exErr) throw new Error(exErr.message);
+        const { error: upErr } = await supabase.auth.updateUser({ password });
+        if (upErr) throw new Error(upErr.message);
       },
       signOut: async () => {
         // Deregister while still authenticated; deregister swallows its own

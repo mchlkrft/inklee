@@ -193,6 +193,7 @@ function RootNavigator() {
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
+        <Stack.Screen name="forgot-password" />
       </Stack.Protected>
 
       <Stack.Protected guard={needsOnboarding}>
@@ -240,6 +241,12 @@ function RootNavigator() {
           sign-up. Ungated so it resolves before a session exists; it exchanges
           the code and the guards above take over once the session lands. */}
       <Stack.Screen name="auth-confirm" />
+
+      {/* Password-reset deep link (inklee://reset-password). Ungated for the
+          same reason: it renders before a session exists and holds the recovery
+          code until the artist submits a new password, then the guards above
+          route into the app. */}
+      <Stack.Screen name="reset-password" />
     </Stack>
     );
   }

@@ -50,12 +50,18 @@ export default function SignIn() {
           className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
         />
         <PasswordInput
-          className="mb-4"
+          className="mb-2"
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
           autoComplete="current-password"
         />
+        <Pressable
+          onPress={() => router.push("/forgot-password")}
+          className="mb-4 self-end active:opacity-70"
+        >
+          <Text className="text-sm text-accent">Forgot password?</Text>
+        </Pressable>
 
         {error ? (
           <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
