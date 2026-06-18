@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   let query = supabase
     .from("flash_items")
     .select(
-      "id, title, slug, status, price_type, price, is_bookable, preview_image_url, booking_mode, max_bookings, available_from, available_until, folder_id",
+      "id, title, slug, status, price_type, price, currency, is_bookable, preview_image_url, booking_mode, max_bookings, available_from, available_until, folder_id",
     )
     .eq("artist_id", userId)
     .order("created_at", { ascending: false });
@@ -93,6 +93,7 @@ export async function GET(req: Request) {
       status: r.status,
       priceType: r.price_type,
       price: r.price != null ? Number(r.price) : null,
+      currency: r.currency ?? "eur",
       isBookable: r.is_bookable,
       previewImageUrl: r.preview_image_url,
       bookingMode: r.booking_mode,

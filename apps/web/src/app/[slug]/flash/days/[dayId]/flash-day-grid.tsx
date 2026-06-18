@@ -14,6 +14,7 @@ export type FlashDayGridItem = {
   shortDescription: string | null;
   priceType: string;
   price: string | number | null;
+  currency: string | null;
   sizeInfo: string | null;
   placementNotes: string | null;
   bookable: boolean;
@@ -83,7 +84,11 @@ export default function FlashDayGrid({
                   {item.title}
                 </p>
                 <p className="text-xs text-white/80">
-                  {formatPrice(item.priceType, item.price)}
+                  {formatPrice(
+                    item.priceType,
+                    item.price,
+                    item.currency ?? "eur",
+                  )}
                 </p>
               </div>
 
@@ -163,7 +168,13 @@ export default function FlashDayGrid({
                   </p>
                 )}
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                  <span>{formatPrice(active.priceType, active.price)}</span>
+                  <span>
+                    {formatPrice(
+                      active.priceType,
+                      active.price,
+                      active.currency ?? "eur",
+                    )}
+                  </span>
                   {active.sizeInfo && <span>{active.sizeInfo}</span>}
                   {active.placementNotes && (
                     <span>{active.placementNotes}</span>

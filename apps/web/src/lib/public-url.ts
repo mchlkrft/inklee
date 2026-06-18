@@ -75,6 +75,28 @@ export function publicArtistUrl(
   return `${getAppOrigin()}/${slug}${subpath}`;
 }
 
+/** Host-aware href for an artist-relative link rendered INSIDE a public
+ *  artist page (booking, flash, waitlist, hub).
+ *
+ *  The proxy rewrites `<slug>.inkl.ee/<path>` to the internal `/<slug>/<path>`
+ *  route but the browser URL bar stays on the subdomain. A `<Link>` that
+ *  hardcodes `/<slug>/<path>` therefore navigates the subdomain to
+ *  `<slug>.inkl.ee/<slug>/<path>`, which the proxy rewrites again to
+ *  `/<slug>/<slug>/<path>` and 404s. On the subdomain the link must be the
+ *  bare subpath; on the apex (`inklee.app/<slug>`) it must keep the slug
+ *  prefix. The proxy sets `x-host-routing: subdomain` on every artist
+ *  rewrite, so we branch on that.
+ *
+ *  Server-only (reads `headers()`); await it in the async server component
+ *  and pass the resolved string to `<Link href>`. `subpath` must start with
+ *  "/" (or be empty for the artist root). */
+export async function artistHref(slug: string, subpath = ""): Promise<string> {
+  const { headers } = await import("next/headers");
+  const isSubdomain = (await headers()).get("x-host-routing") === "subdomain";
+  if (isSubdomain) return subpath || "/";
+  return `/${slug}${subpath}`;
+}
+
 /** The artist's Link Hub URL ("Linklee"). Subdomain mode emits
  *  `https://<slug>.l.<bio domain>` (e.g. ouch370.l.inkl.ee) — reusing the same
  *  NEXT_PUBLIC_PUBLIC_BIO_DOMAIN as the booking subdomain, so it needs only the

@@ -42,6 +42,7 @@ type Studio = {
   public_note: string | null;
   is_primary: boolean;
   icon?: string | null;
+  iconColor?: string | null;
 };
 
 type State = { error: string } | { success: true } | null;
@@ -292,7 +293,10 @@ function StudioForm({
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Icon
         </p>
-        <IconPickerGrid initial={studio?.icon ?? null} />
+        <IconPickerGrid
+          initial={studio?.icon ?? null}
+          initialColor={studio?.iconColor ?? null}
+        />
       </div>
 
       {/* Section 3: Public visibility — styled radio cards */}
@@ -541,6 +545,7 @@ export default function StudioList({ studios }: { studios: Studio[] }) {
                       icon={s.icon}
                       fallback={Building2}
                       className="h-9 w-9"
+                      color={s.iconColor ?? undefined}
                     />
                   </div>
                   <div className="min-w-0 flex-1 self-center">

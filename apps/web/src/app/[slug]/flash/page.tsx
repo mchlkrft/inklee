@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
+import { artistHref } from "@/lib/public-url";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
@@ -30,10 +31,15 @@ export default async function PublicFlashOverviewPage({
 
   if (!profile) notFound();
 
+  // Host-aware links: bare subpaths on the artist subdomain, slug-prefixed on
+  // the apex (see artistHref).
+  const bookingHref = await artistHref(slug, "");
+  const flashHref = await artistHref(slug, "/flash");
+
   const { data: items } = await serviceClient
     .from("flash_items")
     .select(
-      "id, title, slug, preview_image_url, short_description, price_type, price, size_info, booking_mode, max_bookings, is_bookable, available_from, available_until, status",
+      "id, title, slug, preview_image_url, short_description, price_type, price, currency, size_info, booking_mode, max_bookings, is_bookable, available_from, available_until, status",
     )
     .eq("artist_id", profile.id)
     .eq("status", "published")
@@ -78,7 +84,7 @@ export default async function PublicFlashOverviewPage({
           </h1>
           <p className="text-sm text-muted-foreground">Flash designs</p>
           <Link
-            href={`/${slug}`}
+            href={bookingHref}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             ← Back to booking page
@@ -109,7 +115,7 @@ export default async function PublicFlashOverviewPage({
                         key={item.id}
                         item={item}
                         av={av}
-                        artistSlug={slug}
+                        flashHref={flashHref}
                       />
                     );
                   })}
@@ -133,7 +139,7 @@ export default async function PublicFlashOverviewPage({
                         key={item.id}
                         item={item}
                         av={av}
-                        artistSlug={slug}
+                        flashHref={flashHref}
                         disabled
                       />
                     );
@@ -167,7 +173,7 @@ export default async function PublicFlashOverviewPage({
 function FlashCard({
   item,
   av,
-  artistSlug,
+  flashHref,
   disabled = false,
 }: {
   item: {
@@ -178,10 +184,12 @@ function FlashCard({
     short_description: string | null;
     price_type: string;
     price: string | null;
+    currency: string | null;
     size_info: string | null;
   };
   av: ReturnType<typeof computeFlashAvailability>;
-  artistSlug: string;
+  /** Host-aware base for the flash overview, e.g. "/flash" or "/<slug>/flash". */
+  flashHref: string;
   disabled?: boolean;
 }) {
   const inner = (
@@ -206,7 +214,9 @@ function FlashCard({
           </p>
         )}
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-          <span>{formatPrice(item.price_type, item.price)}</span>
+          <span>
+            {formatPrice(item.price_type, item.price, item.currency ?? "eur")}
+          </span>
           {item.size_info && <span>{item.size_info}</span>}
           <span
             className={av.bookable ? "text-green-500" : "text-muted-foreground"}
@@ -225,5 +235,5 @@ function FlashCard({
 
   if (disabled) return <div className="pointer-events-none">{inner}</div>;
 
-  return <Link href={`/${artistSlug}/flash/${item.slug}`}>{inner}</Link>;
+  return <Link href={`${flashHref}/${item.slug}`}>{inner}</Link>;
 }

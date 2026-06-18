@@ -138,7 +138,7 @@ export default async function FlashItemDetailPage({
             <div className="flex justify-between px-4 py-3">
               <span className="text-muted-foreground">Price</span>
               <span className="text-foreground">
-                {formatPrice(item.price_type, item.price)}
+                {formatPrice(item.price_type, item.price, item.currency)}
               </span>
             </div>
           </div>

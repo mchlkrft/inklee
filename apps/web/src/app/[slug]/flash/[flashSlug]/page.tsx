@@ -2,6 +2,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { artistHref } from "@/lib/public-url";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
@@ -49,6 +50,9 @@ export default async function PublicFlashItemPage({
 
   const availability = computeFlashAvailability(item, activeRequestCount ?? 0);
 
+  // Host-aware so the breadcrumb works on the artist subdomain AND the apex.
+  const flashHref = await artistHref(slug, "/flash");
+
   // Fetch flash day details if linked
   let flashDay: {
     id: string;
@@ -75,7 +79,7 @@ export default async function PublicFlashItemPage({
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link
-            href={`/${slug}/flash`}
+            href={flashHref}
             className="hover:text-foreground transition-colors"
           >
             Flash
@@ -111,7 +115,9 @@ export default async function PublicFlashItemPage({
             )}
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              <span>{formatPrice(item.price_type, item.price)}</span>
+              <span>
+                {formatPrice(item.price_type, item.price, item.currency)}
+              </span>
               {item.size_info && <span>{item.size_info}</span>}
               {item.placement_notes && <span>{item.placement_notes}</span>}
             </div>
@@ -180,7 +186,7 @@ export default async function PublicFlashItemPage({
               This design is no longer available for booking.
             </p>
             <Link
-              href={`/${slug}/flash`}
+              href={flashHref}
               className="inline-block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
             >
               See other available designs

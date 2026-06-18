@@ -88,6 +88,7 @@ export async function PUT(
     updated_at: new Date().toISOString(),
   };
   if (v.icon !== undefined) update.icon = v.icon;
+  if (v.icon_color !== undefined) update.icon_color = v.icon_color;
 
   const { error } = await supabase
     .from("studios")

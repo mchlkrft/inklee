@@ -48,6 +48,7 @@ type Trip = {
   showOnBookingForm: boolean;
   legs: TripLeg[];
   icon?: string | null;
+  iconColor?: string | null;
 };
 type State = { error: string } | { success: true } | null;
 
@@ -852,7 +853,10 @@ function EditTripModal({
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Icon</label>
-          <IconPickerGrid initial={trip.icon ?? null} />
+          <IconPickerGrid
+            initial={trip.icon ?? null}
+            initialColor={trip.iconColor ?? null}
+          />
         </div>
 
         <div className="flex items-center justify-between rounded-md border-2 border-border px-4 py-3">
@@ -1004,6 +1008,7 @@ function TripSummaryCard({
                 icon={trip.icon}
                 fallback={MapPin}
                 className="h-4 w-4 text-muted-foreground"
+                color={trip.iconColor ?? undefined}
               />
             ) : null}
             <span className="text-sm font-semibold text-foreground">

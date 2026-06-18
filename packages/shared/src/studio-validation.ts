@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { TRAVEL_ICON_KEYS, sanitizeTravelIcon } from "./travel-icons";
+import {
+  TRAVEL_ICON_KEYS,
+  TRAVEL_ICON_COLORS,
+  sanitizeTravelIcon,
+  sanitizeTravelIconColor,
+} from "./travel-icons";
 
 export const VISIBILITY_MODES = [
   "public_exact_address",
@@ -34,6 +39,9 @@ export const studioSchema = z.object({
   // .optional() keeps their saves from clearing it (callers must omit the
   // column from the update when undefined); null clears explicitly.
   icon: z.enum(TRAVEL_ICON_KEYS).optional().nullable(),
+  // Chosen icon color (hex from the shared palette). Same tri-state rules as
+  // icon: absent leaves the column, null clears.
+  icon_color: z.enum(TRAVEL_ICON_COLORS).optional().nullable(),
 });
 
 export type StudioInput = z.infer<typeof studioSchema>;
@@ -61,5 +69,8 @@ export function parseStudioFormData(formData: FormData): StudioInput {
     // Sanitized before the enum so an off-library value degrades to "no icon"
     // instead of failing the whole save.
     icon: sanitizeTravelIcon((formData.get("icon") as string)?.trim() || null),
+    icon_color: sanitizeTravelIconColor(
+      (formData.get("icon_color") as string)?.trim() || null,
+    ),
   });
 }
