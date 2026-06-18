@@ -56,6 +56,38 @@ describe("normalizeStudioInput", () => {
       normalizeStudioInput({ name: "X", visibility_mode: "everywhere" }).ok,
     ).toBe(false);
   });
+
+  // BUG-4 regression: the app posts the icon color as camelCase `iconColor`,
+  // but the schema field is snake_case `icon_color`. Before the mapping fix,
+  // z.object silently stripped `iconColor` and the chosen color never persisted.
+  it("maps the app's camelCase iconColor onto the schema's icon_color", () => {
+    const r = normalizeStudioInput({
+      name: "Ink Lab",
+      icon: "panther",
+      iconColor: "#e9b22b",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.icon).toBe("panther");
+      expect(r.value.icon_color).toBe("#e9b22b");
+    }
+  });
+
+  it("leaves icon_color undefined when the client omits it (tri-state)", () => {
+    const r = normalizeStudioInput({ name: "Ink Lab" });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.icon_color).toBeUndefined();
+    }
+  });
+
+  it("clears icon_color when the app explicitly sends iconColor: null", () => {
+    const r = normalizeStudioInput({ name: "Ink Lab", iconColor: null });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.icon_color).toBeNull();
+    }
+  });
 });
 
 describe("normalizeTripLegInput", () => {

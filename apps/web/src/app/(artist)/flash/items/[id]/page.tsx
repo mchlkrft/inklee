@@ -94,6 +94,7 @@ export default async function FlashItemDetailPage({
               shortDescription: item.short_description,
               priceType: item.price_type,
               price: item.price,
+              currency: item.currency,
               sizeInfo: item.size_info,
               placementNotes: item.placement_notes,
               bookingMode: item.booking_mode,

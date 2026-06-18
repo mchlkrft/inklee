@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { parseBooksSettings } from "@/lib/books-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -39,6 +40,10 @@ export async function saveBooksSettingsAction(
     .single();
 
   const current = (existing?.settings ?? {}) as Record<string, unknown>;
+  // Spread the parsed current books_settings so sibling keys the artist owns
+  // elsewhere (notably form_appearance, set via saveFormAppearanceAction) are
+  // preserved instead of being reset to their defaults on every save.
+  const currentBooks = parseBooksSettings(current.books_settings);
 
   const { error } = await supabase
     .from("profiles")
@@ -46,6 +51,7 @@ export async function saveBooksSettingsAction(
       settings: {
         ...current,
         books_settings: {
+          ...currentBooks,
           books_open: booksOpen,
           booking_cap: bookingCap,
           booking_window_ends_at: windowEndsAt,
