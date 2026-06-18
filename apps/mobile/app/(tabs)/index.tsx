@@ -120,7 +120,7 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
       className="mt-3 flex-row items-center gap-3 active:opacity-70"
     >
       <View className="h-10 w-10 items-center justify-center rounded-lg border border-shell-border bg-shell-hover">
-        <TravelIcon icon={g.icon} fallback={MapPin} size={24} color={themed.shell.fg} />
+        <TravelIcon icon={g.icon} fallback={MapPin} size={24} color={g.iconColor ?? themed.shell.fg} />
       </View>
       <View className="flex-1">
         <Text className="text-body font-medium text-foreground" numberOfLines={1}>

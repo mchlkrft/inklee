@@ -12,6 +12,7 @@ import {
 import { TextArea } from "@/components/TextArea";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ChevronUp } from "lucide-react-native";
 import * as WebBrowser from "expo-web-browser";
 import type {
   MobileFlashFoldersResponse,
@@ -24,9 +25,12 @@ import { DangerButton } from "@/components/DangerButton";
 import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { Segmented } from "@/components/Segmented";
+import { RadioList } from "@/components/RadioList";
 import { ImageUploadField } from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
+import { CURRENCIES, DEFAULT_CURRENCY } from "@/lib/goods";
 import { useApiQuery, apiPut, apiPost } from "@/lib/api";
+import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { config } from "@/lib/config";
 import {
   BOOKING_MODE_OPTIONS,
@@ -41,6 +45,11 @@ import { colors } from "@/lib/tokens";
 type ItemStatus = (typeof ITEM_STATUS_OPTIONS)[number]["value"];
 type PriceType = (typeof PRICE_TYPE_OPTIONS)[number]["value"];
 type BookingMode = (typeof BOOKING_MODE_OPTIONS)[number]["value"];
+
+const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({
+  value: c,
+  label: c.toUpperCase(),
+}));
 
 export default function EditFlashItem() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -77,6 +86,7 @@ function ItemForm({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const themed = useColors();
   const me = useApiQuery<MobileMe>("/me");
   const [archiving, setArchiving] = useState(false);
 
@@ -101,7 +111,7 @@ function ItemForm({
             try {
               await apiPost(`/flash/items/${id}/archive`);
               await invalidateFlash(queryClient);
-              router.back();
+              leave();
             } catch (e) {
               captureError(e, { op: "archiveFlashItem" });
               setArchiving(false);
@@ -121,6 +131,8 @@ function ItemForm({
   const [price, setPrice] = useState(
     initial.price != null ? String(initial.price) : "",
   );
+  const [currency, setCurrency] = useState(initial.currency ?? DEFAULT_CURRENCY);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const [bookingMode, setBookingMode] = useState<BookingMode>(
     initial.bookingMode as BookingMode,
   );
@@ -142,6 +154,24 @@ function ItemForm({
   const [folderId, setFolderId] = useState(initial.folderId ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dirty =
+    title !== initial.title ||
+    status !== (initial.status as ItemStatus) ||
+    priceType !== (initial.priceType as PriceType) ||
+    price !== (initial.price != null ? String(initial.price) : "") ||
+    currency !== (initial.currency ?? DEFAULT_CURRENCY) ||
+    bookingMode !== (initial.bookingMode as BookingMode) ||
+    maxBookings !==
+      (initial.maxBookings != null ? String(initial.maxBookings) : "") ||
+    isBookable !== initial.isBookable ||
+    shortDescription !== (initial.shortDescription ?? "") ||
+    sizeInfo !== (initial.sizeInfo ?? "") ||
+    placementNotes !== (initial.placementNotes ?? "") ||
+    availableFrom !== (initial.availableFrom ?? "") ||
+    availableUntil !== (initial.availableUntil ?? "") ||
+    folderId !== (initial.folderId ?? "");
+  const { leave } = useUnsavedGuard(dirty && !saving && !archiving, save);
 
   // Folders organize the library; day membership lives in the day builder, not
   // here (a design can be in many days).
@@ -192,6 +222,7 @@ function ItemForm({
         status,
         priceType,
         price: priceValue,
+        currency,
         shortDescription: shortDescription.trim(),
         sizeInfo: sizeInfo.trim(),
         placementNotes: placementNotes.trim(),
@@ -205,7 +236,7 @@ function ItemForm({
       // Folder/status changes affect the library list, so invalidate every
       // /flash view.
       await invalidateFlash(queryClient);
-      router.back();
+      leave();
     } catch (e) {
       captureError(e, { op: "saveFlashItem" });
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
@@ -306,13 +337,50 @@ function ItemForm({
           onChange={setPriceType}
         />
         {priceType !== "request" ? (
-          <TextField
-            label="Amount (EUR)"
-            value={price}
-            onChangeText={setPrice}
-            keyboardType="decimal-pad"
-            placeholder="e.g. 120"
-          />
+          <>
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <TextField
+                  label="Amount"
+                  value={price}
+                  onChangeText={setPrice}
+                  keyboardType="decimal-pad"
+                  placeholder="e.g. 120"
+                />
+              </View>
+              <View className="w-28">
+                <FieldLabel>Currency</FieldLabel>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Currency: ${currency.toUpperCase()}`}
+                  accessibilityState={{ expanded: currencyOpen }}
+                  onPress={() => setCurrencyOpen((v) => !v)}
+                  className="h-12 flex-row items-center justify-between rounded-xl border border-shell-border px-4 active:opacity-80"
+                >
+                  <Text className="text-base text-foreground">
+                    {currency.toUpperCase()}
+                  </Text>
+                  {currencyOpen ? (
+                    <ChevronUp size={16} color={themed.shell.dim} />
+                  ) : (
+                    <ChevronDown size={16} color={themed.shell.dim} />
+                  )}
+                </Pressable>
+              </View>
+            </View>
+            {currencyOpen ? (
+              <View className="mt-2">
+                <RadioList
+                  options={CURRENCY_OPTIONS}
+                  value={currency}
+                  onChange={(v) => {
+                    setCurrency(v);
+                    setCurrencyOpen(false);
+                  }}
+                />
+              </View>
+            ) : null}
+          </>
         ) : null}
 
         <FieldLabel>Booking mode</FieldLabel>

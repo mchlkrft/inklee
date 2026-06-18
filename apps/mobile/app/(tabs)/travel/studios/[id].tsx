@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { TextArea } from "@/components/TextArea";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   VISIBILITY_MODES,
@@ -17,6 +17,7 @@ import {
 } from "@inklee/shared/studio-validation";
 import {
   sanitizeTravelIcon,
+  sanitizeTravelIconColor,
   type TravelIconKey,
 } from "@inklee/shared/travel-icons";
 import type { MobileStudio } from "@inklee/shared/mobile-api";
@@ -25,10 +26,11 @@ import { Button } from "@/components/Button";
 import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
 import { RadioList } from "@/components/RadioList";
-import { TravelIconPicker } from "@/components/TravelIconPicker";
+import { IconHeaderControl } from "@/components/IconHeaderControl";
 import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { VISIBILITY_OPTIONS, invalidateTravel } from "@/lib/travel";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
@@ -72,26 +74,48 @@ function StudioForm({
   id: string;
   initial: MobileStudio | null;
 }) {
-  const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [name, setName] = useState(initial?.name ?? "");
-  const [city, setCity] = useState(initial?.city ?? "");
-  const [country, setCountry] = useState(initial?.country ?? "");
-  const [address, setAddress] = useState(initial?.address ?? "");
-  const [publicNote, setPublicNote] = useState(initial?.publicNote ?? "");
-  const [visibility, setVisibility] = useState<VisibilityMode>(() => {
-    const v = initial?.visibilityMode;
-    return (VISIBILITY_MODES as readonly string[]).includes(v ?? "")
-      ? (v as VisibilityMode)
-      : "hidden";
-  });
-  const [isPrimary, setIsPrimary] = useState(initial?.isPrimary ?? false);
-  const [icon, setIcon] = useState<TravelIconKey | null>(
-    sanitizeTravelIcon(initial?.icon ?? null),
-  );
+  // Seed values, captured once so the unsaved-changes guard can compare against
+  // exactly what the fields started at.
+  const seedName = initial?.name ?? "";
+  const seedCity = initial?.city ?? "";
+  const seedCountry = initial?.country ?? "";
+  const seedAddress = initial?.address ?? "";
+  const seedPublicNote = initial?.publicNote ?? "";
+  const seedVisibility: VisibilityMode = (
+    VISIBILITY_MODES as readonly string[]
+  ).includes(initial?.visibilityMode ?? "")
+    ? (initial!.visibilityMode as VisibilityMode)
+    : "hidden";
+  const seedIsPrimary = initial?.isPrimary ?? false;
+  const seedIcon = sanitizeTravelIcon(initial?.icon ?? null);
+  const seedIconColor = sanitizeTravelIconColor(initial?.iconColor ?? null);
+
+  const [name, setName] = useState(seedName);
+  const [city, setCity] = useState(seedCity);
+  const [country, setCountry] = useState(seedCountry);
+  const [address, setAddress] = useState(seedAddress);
+  const [publicNote, setPublicNote] = useState(seedPublicNote);
+  const [visibility, setVisibility] = useState<VisibilityMode>(seedVisibility);
+  const [isPrimary, setIsPrimary] = useState(seedIsPrimary);
+  const [icon, setIcon] = useState<TravelIconKey | null>(seedIcon);
+  const [iconColor, setIconColor] = useState<string | null>(seedIconColor);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dirty =
+    name !== seedName ||
+    city !== seedCity ||
+    country !== seedCountry ||
+    address !== seedAddress ||
+    publicNote !== seedPublicNote ||
+    visibility !== seedVisibility ||
+    isPrimary !== seedIsPrimary ||
+    icon !== seedIcon ||
+    iconColor !== seedIconColor;
+
+  const { leave } = useUnsavedGuard(dirty && !saving, save);
 
   async function save() {
     if (!name.trim()) {
@@ -110,12 +134,13 @@ function StudioForm({
       visibility_mode: visibility,
       is_primary: isPrimary,
       icon,
+      iconColor,
     };
     try {
       if (isNew) await apiPost("/travel/studios", payload);
       else await apiPut(`/travel/studios/${id}`, payload);
       await invalidateTravel(queryClient);
-      router.back();
+      leave();
     } catch (e) {
       captureError(e, { op: "saveStudio" });
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
@@ -140,7 +165,7 @@ function StudioForm({
     try {
       await apiDelete(`/travel/studios/${id}`);
       await invalidateTravel(queryClient);
-      router.back();
+      leave();
     } catch (e) {
       captureError(e, { op: "deleteStudio" });
       setError(e instanceof Error ? e.message : "Couldn't delete. Try again.");
@@ -150,7 +175,21 @@ function StudioForm({
 
   return (
     <Screen edges={["left", "right"]}>
-      <Stack.Screen options={{ title: isNew ? "New studio" : "Studio" }} />
+      <Stack.Screen
+        options={{
+          title: isNew ? "New studio" : "Studio",
+          headerRight: () => (
+            <IconHeaderControl
+              icon={icon}
+              iconColor={iconColor}
+              onChange={({ icon: nextIcon, iconColor: nextColor }) => {
+                setIcon(nextIcon);
+                setIconColor(nextColor);
+              }}
+            />
+          ),
+        }}
+      />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -180,9 +219,6 @@ function StudioForm({
           value={address}
           onChangeText={setAddress}
         />
-
-        <FieldLabel>Icon</FieldLabel>
-        <TravelIconPicker value={icon} onChange={setIcon} />
 
         <FieldLabel>Public note (optional)</FieldLabel>
         <TextArea

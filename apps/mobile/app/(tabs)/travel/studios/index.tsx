@@ -108,7 +108,7 @@ function StudioRowView({
           icon={studio.icon}
           fallback={Building2}
           size={34}
-          color={themed.shell.fg}
+          color={studio.iconColor ?? themed.shell.fg}
         />
       </View>
       <View className="flex-1 justify-center">
