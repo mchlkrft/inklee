@@ -211,6 +211,28 @@ export default function BookingDetailScreen() {
           </View>
         </Card>
 
+        {/* Additional details — the artist's custom booking-form questions and
+            the client's answers (pre-formatted server-side). */}
+        {(b.customAnswers ?? []).length > 0 ? (
+          <Card>
+            <CardHeader
+              icon={FileText}
+              tint="bone"
+              title="Additional details"
+            />
+            <View className="mt-4">
+              {(b.customAnswers ?? []).map((ans, i) => (
+                <InfoRow
+                  key={`${ans.label}-${i}`}
+                  first={i === 0}
+                  label={ans.label}
+                  value={ans.value}
+                />
+              ))}
+            </View>
+          </Card>
+        ) : null}
+
         {/* Reference */}
         {hasReference ? (
           <Card>

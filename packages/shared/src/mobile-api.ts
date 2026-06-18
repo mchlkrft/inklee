@@ -295,6 +295,11 @@ export type MobileBookingDetail = {
   size: string | null;
   sizeRaw: string | null;
   description: string | null;
+  /** The artist's custom booking-form questions + the client's answers, each
+   *  pre-formatted server-side (formatCustomAnswer uses Intl for dates, which
+   *  Hermes iOS lacks, so the client must not re-format). Optional for version
+   *  skew: older servers omit it. */
+  customAnswers?: { label: string; value: string }[];
   referenceLink: string | null;
   /** @deprecated Raw storage paths; kept so older installed builds don't crash.
    *  New code reads referenceImages (signed URLs). */

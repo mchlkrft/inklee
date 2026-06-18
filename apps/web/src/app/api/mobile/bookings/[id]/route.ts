@@ -7,6 +7,7 @@ import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
 import { editAppointmentCore } from "@/lib/server/bookings";
 import { isDepositRefunded } from "@/lib/deposit-state";
+import { formatCustomAnswer, type CustomFieldType } from "@/lib/custom-fields";
 import { describeBookingActivity } from "@inklee/shared/booking-activity";
 import type {
   MobileBookingDetail,
@@ -70,6 +71,42 @@ function sanitizeAnnotations(raw: unknown): MobileImageAnnotation[] | null {
     ];
   });
   return clean.length > 0 ? clean : null;
+}
+
+// The custom_answers blob is whatever the public booking form wrote (validated
+// at submit, but defensively re-checked here). Each answer is formatted
+// SERVER-SIDE because formatCustomAnswer uses Intl for date fields, which Hermes
+// iOS lacks; malformed entries are dropped rather than shipped to the device.
+function readCustomAnswers(
+  formData: unknown,
+): { label: string; value: string }[] {
+  const raw = (formData as Record<string, unknown> | null)?.custom_answers;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((a): { label: string; value: string }[] => {
+    if (typeof a !== "object" || a === null) return [];
+    const { key, label, type, value } = a as Record<string, unknown>;
+    if (
+      typeof key !== "string" ||
+      typeof label !== "string" ||
+      typeof type !== "string" ||
+      (typeof value !== "string" &&
+        typeof value !== "number" &&
+        typeof value !== "boolean")
+    ) {
+      return [];
+    }
+    return [
+      {
+        label,
+        value: formatCustomAnswer({
+          key,
+          label,
+          type: type as CustomFieldType,
+          value,
+        }),
+      },
+    ];
+  });
 }
 
 // GET /api/mobile/bookings/:id — full request detail (the core screen).
@@ -179,6 +216,7 @@ export async function GET(
     size: fd.size ? formatSize(fd.size) : null,
     sizeRaw: fd.size ?? null,
     description: fd.description ?? null,
+    customAnswers: readCustomAnswers(b.form_data),
     referenceLink: fd.reference_link ?? null,
     referenceImagePaths: images.map((i) => i.storage_path),
     referenceImages,
