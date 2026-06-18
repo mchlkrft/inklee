@@ -10,7 +10,9 @@ import {
 } from "@inklee/shared/studio-validation";
 import {
   sanitizeTravelIcon,
+  sanitizeTravelIconColor,
   type TravelIconKey,
+  type TravelIconColor,
 } from "@inklee/shared/travel-icons";
 import {
   validateTripLeg,
@@ -27,7 +29,7 @@ function asString(value: unknown): string {
 // Shared studio row → MobileStudio mapping, used by the studios list + detail
 // routes. Google Places columns are intentionally not surfaced to the app.
 export const STUDIO_COLS =
-  "id, name, city, country, address, public_note, visibility_mode, is_primary, icon";
+  "id, name, city, country, address, public_note, visibility_mode, is_primary, icon, icon_color";
 
 export type StudioRow = {
   id: string;
@@ -39,6 +41,7 @@ export type StudioRow = {
   visibility_mode: string;
   is_primary: boolean;
   icon: string | null;
+  icon_color: string | null;
 };
 
 export function toStudio(r: StudioRow): MobileStudio {
@@ -52,6 +55,7 @@ export function toStudio(r: StudioRow): MobileStudio {
     visibilityMode: r.visibility_mode,
     isPrimary: r.is_primary,
     icon: r.icon ?? null,
+    iconColor: r.icon_color ?? null,
   };
 }
 
@@ -65,6 +69,8 @@ export type TripInput = {
   /** undefined = the client didn't send the field (old app) — leave the
    *  column untouched; null = clear; a key = set. */
   icon?: TravelIconKey | null;
+  /** Same tri-state as icon, for the chosen icon color. */
+  iconColor?: TravelIconColor | null;
 };
 
 /** Validate a trip create/update payload (legs are handled separately). */
@@ -99,6 +105,9 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
   // can never wipe an icon chosen elsewhere.
   if ("icon" in b) {
     value.icon = sanitizeTravelIcon(b.icon);
+  }
+  if ("iconColor" in b) {
+    value.iconColor = sanitizeTravelIconColor(b.iconColor);
   }
 
   return { ok: true, value };

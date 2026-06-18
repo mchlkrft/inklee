@@ -12,11 +12,16 @@ export function TravelIcon({
   icon,
   fallback,
   className,
+  color,
 }: {
   icon: string | null | undefined;
   fallback: LucideIcon;
   className?: string;
+  /** Optional explicit color (hex). When set, overrides the ambient text color
+   *  so the artist's chosen icon color shows; absent = inherit currentColor. */
+  color?: string | null;
 }) {
+  const style = color ? { color } : undefined;
   const art = icon ? INKLEE_ICON_ART[icon] : undefined;
   if (art) {
     return (
@@ -24,6 +29,7 @@ export function TravelIcon({
         viewBox={art.viewBox}
         fill="currentColor"
         className={className}
+        style={style}
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: art.inner }}
       />
@@ -31,5 +37,5 @@ export function TravelIcon({
   }
   // createElement, not JSX: the glyph is SELECTED (never created during render),
   // but the static-components lint rule can't tell.
-  return createElement(fallback, { className });
+  return createElement(fallback, { className, style });
 }

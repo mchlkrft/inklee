@@ -6,6 +6,7 @@ import Link from "next/link";
 import DateInput from "@/components/date-input";
 import Spinner from "@/components/spinner";
 import { slugify } from "@/lib/flash";
+import { CURRENCIES } from "@inklee/shared/goods";
 import { prepareImageUpload, applyFileToInput } from "@/lib/image-compress";
 import { createFlashItemAction, updateFlashItemAction } from "./actions";
 
@@ -21,6 +22,7 @@ export type InitialValues = {
   shortDescription?: string | null;
   priceType?: string;
   price?: string | null;
+  currency?: string | null;
   sizeInfo?: string | null;
   placementNotes?: string | null;
   bookingMode?: string;
@@ -61,6 +63,7 @@ export default function FlashItemForm({
     initial.bookingMode ?? "unique",
   );
   const [priceType, setPriceType] = useState(initial.priceType ?? "request");
+  const [currency, setCurrency] = useState(initial.currency ?? "eur");
   const [isBookable, setIsBookable] = useState(initial.isBookable ?? true);
   const [previewUrl, setPreviewUrl] = useState(initial.previewImageUrl ?? "");
   const [imageError, setImageError] = useState<string | null>(null);
@@ -363,7 +366,19 @@ export default function FlashItemForm({
         </select>
         {priceType !== "request" && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">€</span>
+            <select
+              name="currency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              aria-label="Currency"
+              className="rounded-md border border-border bg-background px-2 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c.toUpperCase()}
+                </option>
+              ))}
+            </select>
             <input
               name="price"
               type="number"

@@ -56,7 +56,7 @@ export function DayAgenda({
                 icon={g.icon ?? null}
                 fallback={MapPin}
                 size={16}
-                color={themed.cobalt}
+                color={g.iconColor ?? themed.cobalt}
               />
               <Text
                 className="flex-1 text-base font-medium text-foreground"

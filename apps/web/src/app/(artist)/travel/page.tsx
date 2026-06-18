@@ -22,14 +22,14 @@ export default async function TravelPage() {
       supabase
         .from("trips")
         .select(
-          "id, title, description, show_on_booking_form, icon, trip_legs(id, starts_on, ends_on, notes, studios(id, name))",
+          "id, title, description, show_on_booking_form, icon, icon_color, trip_legs(id, starts_on, ends_on, notes, studios(id, name))",
         )
         .eq("artist_id", user!.id)
         .order("created_at", { ascending: false }),
       supabase
         .from("studios")
         .select(
-          "id, name, city, country, address, google_place_id, formatted_address, latitude, longitude, google_maps_url, visibility_mode, public_note, is_primary, icon",
+          "id, name, city, country, address, google_place_id, formatted_address, latitude, longitude, google_maps_url, visibility_mode, public_note, is_primary, icon, icon_color",
         )
         .eq("artist_id", user!.id)
         .order("name", { ascending: true }),
@@ -47,6 +47,7 @@ export default async function TravelPage() {
     description: t.description,
     showOnBookingForm: t.show_on_booking_form,
     icon: (t.icon as string | null) ?? null,
+    iconColor: (t.icon_color as string | null) ?? null,
     legs: (
       (t.trip_legs as unknown as Array<{
         id: string;
@@ -81,6 +82,7 @@ export default async function TravelPage() {
     public_note: s.public_note,
     is_primary: s.is_primary,
     icon: (s.icon as string | null) ?? null,
+    iconColor: (s.icon_color as string | null) ?? null,
   }));
 
   // Trip manager only needs minimal studio info for leg assignment

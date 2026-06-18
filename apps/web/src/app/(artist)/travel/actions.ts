@@ -7,7 +7,10 @@ import {
   validateTripLegsPayload,
 } from "@/lib/trip-validation";
 import { parseStudioFormData } from "@/lib/studio-validation";
-import { sanitizeTravelIcon } from "@inklee/shared/travel-icons";
+import {
+  sanitizeTravelIcon,
+  sanitizeTravelIconColor,
+} from "@inklee/shared/travel-icons";
 import { z } from "zod";
 
 type State = { error: string } | { success: true } | null;
@@ -78,6 +81,7 @@ export async function createStudioAction(
     public_note: input.public_note,
     is_primary: input.is_primary,
     icon: input.icon ?? null,
+    icon_color: input.icon_color ?? null,
   });
 
   if (error) return { error: error.message };
@@ -134,6 +138,7 @@ export async function updateStudioAction(
       // The web form always posts the icon input ("" = none), so null here is
       // an explicit clear, never an accidental wipe.
       icon: input.icon ?? null,
+      icon_color: input.icon_color ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -224,6 +229,7 @@ export async function createStudioAndReturnAction(formData: FormData): Promise<
       public_note: input.public_note,
       is_primary: input.is_primary,
       icon: input.icon ?? null,
+      icon_color: input.icon_color ?? null,
     })
     .select("id, name, city, country")
     .single();
@@ -250,6 +256,9 @@ export async function createTripAction(
   const showOnBookingForm = formData.get("show_on_booking_form") !== "false";
   const icon = sanitizeTravelIcon(
     (formData.get("icon") as string)?.trim() || null,
+  );
+  const iconColor = sanitizeTravelIconColor(
+    (formData.get("icon_color") as string)?.trim() || null,
   );
 
   if (!title) return { error: "Title is required." };
@@ -280,6 +289,7 @@ export async function createTripAction(
       description,
       show_on_booking_form: showOnBookingForm,
       icon,
+      icon_color: iconColor,
     })
     .select("id")
     .single();
@@ -325,6 +335,9 @@ export async function updateTripAction(
   const icon = sanitizeTravelIcon(
     (formData.get("icon") as string)?.trim() || null,
   );
+  const iconColor = sanitizeTravelIconColor(
+    (formData.get("icon_color") as string)?.trim() || null,
+  );
 
   if (!title) return { error: "Title is required." };
 
@@ -335,6 +348,7 @@ export async function updateTripAction(
       description,
       show_on_booking_form: showOnBookingForm,
       icon,
+      icon_color: iconColor,
     })
     .eq("id", id)
     .eq("artist_id", user.id);

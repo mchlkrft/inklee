@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { PasswordInput } from "@/components/PasswordInput";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { useAuth } from "@/lib/auth";
 import { useColors } from "@/lib/theme";
@@ -48,14 +49,12 @@ export default function SignIn() {
           autoComplete="email"
           className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
         />
-        <TextInput
+        <PasswordInput
+          className="mb-4"
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
-          placeholderTextColor={colors.shell.mute}
-          secureTextEntry
           autoComplete="current-password"
-          className="mb-4 h-12 rounded-xl border border-shell-border px-4 text-foreground"
         />
 
         {error ? (

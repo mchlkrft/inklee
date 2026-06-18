@@ -5,6 +5,8 @@
 // these Flash* type names also exist as re-export shims in apps/web/src/lib/flash.ts
 // and apps/web/src/lib/mobile-flash.ts, so a barrel `export *` would collide.
 
+import { CURRENCY_SYMBOLS } from "./money";
+
 export const FLASH_ITEM_STATUSES = ["draft", "published", "archived"] as const;
 export const FLASH_PRICE_TYPES = ["fixed", "from", "request"] as const;
 export const FLASH_BOOKING_MODES = ["unique", "limited", "repeatable"] as const;
@@ -110,14 +112,18 @@ export function formatFlashAvailabilityLabel(av: FlashAvailability): string {
 }
 
 // One price string for web (client-facing) AND mobile (artist-facing). Sentence
-// case, no em-dash.
+// case, no em-dash. `currency` is an ISO code (e.g. "eur", "usd"); it defaults
+// to EUR so older callers that predate per-design currency keep their output.
 export function formatPrice(
   priceType: string,
   price: string | number | null,
+  currency: string = "eur",
 ): string {
   if (priceType === "request" || price === null || price === undefined) {
     return "Price on request";
   }
-  const formatted = `€${Number(price).toFixed(0)}`;
+  const code = (currency || "eur").toLowerCase();
+  const symbol = CURRENCY_SYMBOLS[code] ?? `${code.toUpperCase()} `;
+  const formatted = `${symbol}${Number(price).toFixed(0)}`;
   return priceType === "from" ? `From ${formatted}` : formatted;
 }

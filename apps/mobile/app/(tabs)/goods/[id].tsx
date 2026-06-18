@@ -31,6 +31,7 @@ import { MultiImageField } from "@/components/MultiImageField";
 import type { PickedImage } from "@/components/ImageUploadField";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiUpload, apiDelete } from "@/lib/api";
+import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import {
   CURRENCIES,
   DEFAULT_CURRENCY,
@@ -177,6 +178,45 @@ function ProductForm({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Unsaved-changes guard. Image edits are persisted eagerly in edit mode, so
+  // they aren't "unsaved"; the queued create photos (pendingPhotos) are. Variant
+  // rows compare by their serialized name/price/stock, ignoring local keys.
+  const seedCategory: Category = PRODUCT_CATEGORY_OPTIONS.some(
+    (o) => o.value === initial?.category,
+  )
+    ? (initial!.category as Category)
+    : "other";
+  const seedStatus: Status = PRODUCT_STATUS_OPTIONS.some(
+    (o) => o.value === initial?.status,
+  )
+    ? (initial!.status as Status)
+    : "active";
+  const seedVariantKey = initialVariants
+    .map(
+      (v) =>
+        `${v.name}|${v.priceOverride != null ? String(v.priceOverride) : ""}|${
+          v.stock != null ? String(v.stock) : ""
+        }`,
+    )
+    .join(";;");
+  const currentVariantKey = variantRows
+    .map((r) => `${r.name}|${r.price}|${r.stock}`)
+    .join(";;");
+  const dirty =
+    title !== (initial?.title ?? "") ||
+    price !== (initial?.price != null ? String(initial.price) : "") ||
+    currency !== (initial?.currency ?? DEFAULT_CURRENCY) ||
+    category !== seedCategory ||
+    status !== seedStatus ||
+    description !== (initial?.description ?? "") ||
+    pickupNote !== (initial?.pickupNote ?? "") ||
+    quantity !== (initial?.quantity != null ? String(initial.quantity) : "") ||
+    isPublicVisible !== (initial?.isPublicVisible ?? true) ||
+    hasOptions !== initialVariants.length > 0 ||
+    currentVariantKey !== seedVariantKey ||
+    (isNew && pendingPhotos.length > 0);
+  const { leave } = useUnsavedGuard(dirty && !saving, save);
 
   // The live image cap follows the option rows exactly like the web editor:
   // adding an option opens an image slot (one per option plus a shared one).
@@ -333,7 +373,7 @@ function ProductForm({
           // duplicate). Land on the edit screen, which retries naturally.
           // Queued photos don't survive the hop, so say what needs re-adding.
           const droppedPhotos = pendingPhotos.length - uploadedPhotos;
-          router.replace(`/goods/${created.id}`);
+          leave(() => router.replace(`/goods/${created.id}`));
           Alert.alert(
             "Product saved",
             failedStep === "options"
@@ -346,7 +386,7 @@ function ProductForm({
           );
           return;
         }
-        router.back();
+        leave();
       } else {
         await apiPut(`/goods/${id}`, payload);
         // Skip the reconcile when there is nothing to save AND nothing to
@@ -358,7 +398,7 @@ function ProductForm({
         // The unmount effect in ProductScreen drops the cached detail as the
         // screen leaves, so the next open seeds fresh.
         await invalidateGoods(queryClient);
-        router.back();
+        leave();
       }
     } catch (e) {
       captureError(e, { op: "saveProduct" });
@@ -380,7 +420,7 @@ function ProductForm({
     try {
       await apiDelete(`/goods/${id}`);
       await invalidateGoods(queryClient);
-      router.back();
+      leave();
     } catch (e) {
       captureError(e, { op: "deleteProduct" });
       setError(e instanceof Error ? e.message : "Couldn't delete. Try again.");

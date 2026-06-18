@@ -5,6 +5,7 @@ import { ChevronDown, ImagePlus, X } from "lucide-react";
 import DateInput from "@/components/date-input";
 import Spinner from "@/components/spinner";
 import { prepareImageUpload, applyFileToInput } from "@/lib/image-compress";
+import { CURRENCIES } from "@inklee/shared/goods";
 import { createFlashItemAction } from "./actions";
 
 type State = { error: string } | { success: true; id?: string } | null;
@@ -38,6 +39,7 @@ export default function FlashQuickCreateModal({
   const [priceType, setPriceType] = useState<"request" | "fixed" | "from">(
     "request",
   );
+  const [currency, setCurrency] = useState("eur");
   const [bookingMode, setBookingMode] = useState<
     "unique" | "limited" | "repeatable"
   >("unique");
@@ -181,17 +183,29 @@ export default function FlashQuickCreateModal({
                   <option value="from">From</option>
                 </select>
                 {priceType !== "request" && (
-                  <div className="flex flex-1 items-center gap-1 rounded-md border border-border bg-transparent px-3 py-2 text-sm focus-within:ring-1 focus-within:ring-ring">
-                    <span className="text-muted-foreground">€</span>
+                  <>
+                    <select
+                      name="currency"
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value)}
+                      aria-label="Currency"
+                      className="rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      {CURRENCIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       name="price"
                       type="number"
                       min="0"
                       step="1"
                       placeholder="0"
-                      className="flex-1 bg-transparent text-foreground focus:outline-none"
+                      className="flex-1 rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
-                  </div>
+                  </>
                 )}
               </div>
             </div>

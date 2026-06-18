@@ -142,7 +142,7 @@ export async function getDashboardData(
       ? supabase
           .from("trips")
           .select(
-            "id, title, icon, trip_legs(id, starts_on, ends_on, studios(name))",
+            "id, title, icon, icon_color, trip_legs(id, starts_on, ends_on, studios(name))",
           )
           .eq("artist_id", userId)
       : Promise.resolve({ data: null }),
@@ -177,6 +177,7 @@ export async function getDashboardData(
       id: string;
       title: string;
       icon?: string | null;
+      icon_color?: string | null;
       trip_legs?: unknown;
     }[]
   )
@@ -189,6 +190,7 @@ export async function getDashboardData(
         startsOn: l.starts_on,
         endsOn: l.ends_on,
         icon: (t.icon ?? null) as string | null,
+        iconColor: (t.icon_color ?? null) as string | null,
       })),
     )
     .filter((l) => l.endsOn >= today)

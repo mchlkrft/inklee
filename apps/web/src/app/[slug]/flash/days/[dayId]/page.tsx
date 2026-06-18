@@ -8,6 +8,7 @@ import {
   FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import { formatDateKey } from "@/lib/date-utils";
+import { artistHref } from "@/lib/public-url";
 import FlashDayGrid, { type FlashDayGridItem } from "./flash-day-grid";
 
 // Public flash-day pages are hidden from search, matching the 2026-06-16
@@ -58,7 +59,7 @@ export default async function PublicFlashDayPage({
   const { data: rosterRows } = await serviceClient
     .from("flash_day_items")
     .select(
-      "position, flash_items!item_id(id, title, slug, preview_image_url, short_description, price_type, price, size_info, placement_notes, booking_mode, max_bookings, is_bookable, available_from, available_until, status)",
+      "position, flash_items!item_id(id, title, slug, preview_image_url, short_description, price_type, price, currency, size_info, placement_notes, booking_mode, max_bookings, is_bookable, available_from, available_until, status)",
     )
     .eq("day_id", dayId)
     .eq("artist_id", profile.id)
@@ -116,6 +117,7 @@ export default async function PublicFlashDayPage({
       shortDescription: (d.short_description as string | null) ?? null,
       priceType: d.price_type as string,
       price: (d.price as string | number | null) ?? null,
+      currency: (d.currency as string | null) ?? null,
       sizeInfo: (d.size_info as string | null) ?? null,
       placementNotes: (d.placement_notes as string | null) ?? null,
       bookable: av.bookable,
@@ -155,7 +157,7 @@ export default async function PublicFlashDayPage({
             </p>
           )}
           <Link
-            href={`/${slug}/flash`}
+            href={await artistHref(slug, "/flash")}
             className="inline-block pt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             ← All flash designs

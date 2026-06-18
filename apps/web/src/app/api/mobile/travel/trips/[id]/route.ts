@@ -40,7 +40,7 @@ export async function GET(
 
   const { data: trip, error } = await supabase
     .from("trips")
-    .select("id, title, description, show_on_booking_form, icon")
+    .select("id, title, description, show_on_booking_form, icon, icon_color")
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
@@ -84,6 +84,7 @@ export async function GET(
       city: s.city,
     })),
     icon: (trip.icon as string | null) ?? null,
+    iconColor: (trip.icon_color as string | null) ?? null,
   };
   return mobileOk(body);
 }
@@ -125,6 +126,7 @@ export async function PUT(
     show_on_booking_form: v.showOnBookingForm,
   };
   if (v.icon !== undefined) update.icon = v.icon;
+  if (v.iconColor !== undefined) update.icon_color = v.iconColor;
 
   const { error } = await supabase
     .from("trips")

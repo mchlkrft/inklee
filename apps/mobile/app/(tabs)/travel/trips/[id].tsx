@@ -18,6 +18,7 @@ import type {
 } from "@inklee/shared/mobile-api";
 import {
   sanitizeTravelIcon,
+  sanitizeTravelIconColor,
   type TravelIconKey,
 } from "@inklee/shared/travel-icons";
 import { Screen } from "@/components/Screen";
@@ -27,10 +28,11 @@ import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
 import { DateField } from "@/components/DateField";
 import { RadioList } from "@/components/RadioList";
-import { TravelIconPicker } from "@/components/TravelIconPicker";
+import { IconHeaderControl } from "@/components/IconHeaderControl";
 import { DangerButton } from "@/components/DangerButton";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import {
   formatDateRange,
   invalidateTravel,
@@ -77,9 +79,18 @@ function CreateTrip() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState<TravelIconKey | null>(null);
+  const [iconColor, setIconColor] = useState<string | null>(null);
   const [show, setShow] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dirty =
+    title.trim() !== "" ||
+    description.trim() !== "" ||
+    icon !== null ||
+    iconColor !== null ||
+    show !== true;
+  const { leave } = useUnsavedGuard(dirty && !saving, create);
 
   async function create() {
     if (!title.trim()) {
@@ -95,10 +106,12 @@ function CreateTrip() {
         description: description.trim() || null,
         showOnBookingForm: show,
         icon,
+        iconColor,
       });
       await invalidateTravel(queryClient);
-      // Land on the detail so the artist can add date stops.
-      router.replace(`/travel/trips/${id}`);
+      // Land on the detail so the artist can add date stops. Bypass the guard:
+      // the create is the intentional navigation.
+      leave(() => router.replace(`/travel/trips/${id}`));
     } catch (e) {
       captureError(e, { op: "createTrip" });
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
@@ -108,7 +121,21 @@ function CreateTrip() {
 
   return (
     <Screen edges={["left", "right"]}>
-      <Stack.Screen options={{ title: "New trip" }} />
+      <Stack.Screen
+        options={{
+          title: "New trip",
+          headerRight: () => (
+            <IconHeaderControl
+              icon={icon}
+              iconColor={iconColor}
+              onChange={({ icon: nextIcon, iconColor: nextColor }) => {
+                setIcon(nextIcon);
+                setIconColor(nextColor);
+              }}
+            />
+          ),
+        }}
+      />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -127,8 +154,6 @@ function CreateTrip() {
           onChangeText={setDescription}
           placeholder="Details clients see"
         />
-        <FieldLabel>Icon</FieldLabel>
-        <TravelIconPicker value={icon} onChange={setIcon} />
         <ShowToggle value={show} onChange={setShow} />
         {error ? (
           <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
@@ -140,17 +165,30 @@ function CreateTrip() {
 }
 
 function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
-  const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [title, setTitle] = useState(initial.title);
-  const [description, setDescription] = useState(initial.description ?? "");
-  const [icon, setIcon] = useState<TravelIconKey | null>(
-    sanitizeTravelIcon(initial.icon ?? null),
-  );
-  const [show, setShow] = useState(initial.showOnBookingForm);
+  // Seeds captured for the unsaved-changes guard's dirty comparison.
+  const seedTitle = initial.title;
+  const seedDescription = initial.description ?? "";
+  const seedIcon = sanitizeTravelIcon(initial.icon ?? null);
+  const seedIconColor = sanitizeTravelIconColor(initial.iconColor ?? null);
+  const seedShow = initial.showOnBookingForm;
+
+  const [title, setTitle] = useState(seedTitle);
+  const [description, setDescription] = useState(seedDescription);
+  const [icon, setIcon] = useState<TravelIconKey | null>(seedIcon);
+  const [iconColor, setIconColor] = useState<string | null>(seedIconColor);
+  const [show, setShow] = useState(seedShow);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dirty =
+    title !== seedTitle ||
+    description !== seedDescription ||
+    icon !== seedIcon ||
+    iconColor !== seedIconColor ||
+    show !== seedShow;
+  const { leave } = useUnsavedGuard(dirty && !saving, saveTrip);
 
   async function saveTrip() {
     if (!title.trim()) {
@@ -166,9 +204,10 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
         description: description.trim() || null,
         showOnBookingForm: show,
         icon,
+        iconColor,
       });
       await invalidateTravel(queryClient);
-      router.back();
+      leave();
     } catch (e) {
       captureError(e, { op: "saveTrip" });
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
@@ -193,7 +232,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
     try {
       await apiDelete(`/travel/trips/${id}`);
       await invalidateTravel(queryClient);
-      router.back();
+      leave();
     } catch (e) {
       captureError(e, { op: "deleteTrip" });
       setError(e instanceof Error ? e.message : "Couldn't delete. Try again.");
@@ -203,7 +242,21 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
 
   return (
     <Screen edges={["left", "right"]}>
-      <Stack.Screen options={{ title: initial.title }} />
+      <Stack.Screen
+        options={{
+          title: initial.title,
+          headerRight: () => (
+            <IconHeaderControl
+              icon={icon}
+              iconColor={iconColor}
+              onChange={({ icon: nextIcon, iconColor: nextColor }) => {
+                setIcon(nextIcon);
+                setIconColor(nextColor);
+              }}
+            />
+          ),
+        }}
+      />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -224,8 +277,6 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           onChangeText={setDescription}
           placeholder="Details clients see"
         />
-        <FieldLabel>Icon</FieldLabel>
-        <TravelIconPicker value={icon} onChange={setIcon} />
         <ShowToggle value={show} onChange={setShow} />
         <Button label="Save trip" onPress={saveTrip} loading={saving} />
 

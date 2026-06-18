@@ -122,7 +122,7 @@ function TripRow({ trip, onPress }: { trip: MobileTrip; onPress: () => void }) {
               icon={trip.icon}
               fallback={MapPin}
               size={16}
-              color={themed.cobalt}
+              color={trip.iconColor ?? themed.cobalt}
             />
           </View>
         ) : null}

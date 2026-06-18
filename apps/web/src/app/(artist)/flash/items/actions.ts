@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { slugify } from "@/lib/flash";
+import { isCurrency, DEFAULT_CURRENCY } from "@inklee/shared/goods";
 import sharp from "sharp";
 
 type State = { error: string } | { success: true; id?: string } | null;
@@ -18,6 +19,13 @@ function parseNumeric(v: FormData, key: string): number | null {
 function parseString(v: FormData, key: string): string | null {
   const raw = v.get(key) as string | null;
   return raw?.trim() || null;
+}
+
+// Currency is validated against the shared list; an unknown/absent value falls
+// back to EUR (the historical default), never a free-text code.
+function parseCurrency(v: FormData): string {
+  const raw = (v.get("currency") as string | null)?.toLowerCase();
+  return raw && isCurrency(raw) ? raw : DEFAULT_CURRENCY;
 }
 
 async function uploadPreviewImage(
@@ -114,6 +122,7 @@ export async function createFlashItemAction(
     short_description: parseString(formData, "short_description"),
     price_type: priceType,
     price: priceType !== "request" ? parseNumeric(formData, "price") : null,
+    currency: parseCurrency(formData),
     size_info: parseString(formData, "size_info"),
     placement_notes: parseString(formData, "placement_notes"),
     booking_mode: bookingMode,
@@ -203,6 +212,7 @@ export async function updateFlashItemAction(
       short_description: parseString(formData, "short_description"),
       price_type: priceType,
       price: priceType !== "request" ? parseNumeric(formData, "price") : null,
+      currency: parseCurrency(formData),
       size_info: parseString(formData, "size_info"),
       placement_notes: parseString(formData, "placement_notes"),
       booking_mode: bookingMode,
@@ -318,6 +328,7 @@ export async function loadFlashItemForEditAction(
       shortDescription: item.short_description,
       priceType: item.price_type,
       price: item.price,
+      currency: item.currency,
       sizeInfo: item.size_info,
       placementNotes: item.placement_notes,
       bookingMode: item.booking_mode,

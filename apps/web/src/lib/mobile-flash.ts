@@ -25,6 +25,7 @@ import type {
   FlashBookingMode,
   FlashDayStatus,
 } from "@inklee/shared/flash-format";
+import { isCurrency, DEFAULT_CURRENCY } from "@inklee/shared/goods";
 
 export {
   FLASH_ITEM_STATUSES,
@@ -77,6 +78,7 @@ export type FlashItemUpdate = {
   status: FlashItemStatus;
   priceType: FlashPriceType;
   price: number | null;
+  currency: string;
   shortDescription: string | null;
   sizeInfo: string | null;
   placementNotes: string | null;
@@ -131,6 +133,12 @@ export function normalizeFlashItemUpdate(
     }
     price = Math.round(b.price * 100) / 100;
   }
+
+  // Currency: validated against the shared list; unknown/absent falls back to
+  // EUR (the historical default), matching the web flash action.
+  const currencyRaw =
+    typeof b.currency === "string" ? b.currency.toLowerCase() : "";
+  const currency = isCurrency(currencyRaw) ? currencyRaw : DEFAULT_CURRENCY;
 
   // maxBookings only applies to "limited" mode.
   let maxBookings: number | null = null;
@@ -191,6 +199,7 @@ export function normalizeFlashItemUpdate(
       status: b.status,
       priceType: b.priceType,
       price,
+      currency,
       shortDescription: shortRaw || null,
       sizeInfo: sizeRaw || null,
       placementNotes: placementRaw || null,

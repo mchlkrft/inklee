@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { PasswordInput } from "@/components/PasswordInput";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { useAuth } from "@/lib/auth";
 import { useColors } from "@/lib/theme";
@@ -103,14 +104,11 @@ export default function SignUp() {
           autoComplete="email"
           className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
         />
-        <TextInput
+        <PasswordInput
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
-          placeholderTextColor={colors.shell.mute}
-          secureTextEntry
           autoComplete="new-password"
-          className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
         />
         <Text className="mb-4 mt-1.5 text-xs text-shell-mute">
           Use at least 8 characters.

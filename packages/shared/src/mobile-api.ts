@@ -104,6 +104,8 @@ export type MobileHomeBooking = {
 export type MobileGuestSpot = {
   /** Library icon key of the parent trip (artist-side display only). */
   icon?: string | null;
+  /** Chosen icon color (hex) or null/absent = default color. */
+  iconColor?: string | null;
   id: string;
   tripId: string;
   tripTitle: string;
@@ -401,6 +403,7 @@ export type MobileFlashItem = {
   status: string; // draft | published | archived
   priceType: string; // fixed | from | request
   price: number | null;
+  currency: string; // iso code, e.g. "eur"
   isBookable: boolean;
   previewImageUrl: string | null;
   bookingMode: string; // unique | limited | repeatable
@@ -427,6 +430,7 @@ export type MobileFlashItemDetail = {
   status: string;
   priceType: string;
   price: number | null;
+  currency: string; // iso code, e.g. "eur"
   shortDescription: string | null;
   sizeInfo: string | null;
   placementNotes: string | null;
@@ -489,6 +493,8 @@ export type MobileStudio = {
   isPrimary: boolean;
   /** Library icon key (artist-side display only); null/absent = default glyph. */
   icon?: string | null;
+  /** Chosen icon color (hex) or null/absent = default color. */
+  iconColor?: string | null;
 };
 
 export type MobileStudiosResponse = { items: MobileStudio[] };
@@ -519,6 +525,8 @@ export type MobileTrip = {
   legCount: number;
   /** Library icon key (artist-side display only); null/absent = default glyph. */
   icon?: string | null;
+  /** Chosen icon color (hex) or null/absent = default color. */
+  iconColor?: string | null;
 };
 
 export type MobileTripsResponse = { items: MobileTrip[] };
@@ -609,6 +617,8 @@ export type MobileTripDetail = {
   studios: MobileStudioOption[];
   /** Library icon key (artist-side display only); null/absent = default glyph. */
   icon?: string | null;
+  /** Chosen icon color (hex) or null/absent = default color. */
+  iconColor?: string | null;
 };
 
 /** One of the five per-status booking email templates

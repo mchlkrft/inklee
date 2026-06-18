@@ -51,3 +51,28 @@ export function sanitizeTravelIcon(value: unknown): TravelIconKey | null {
     ? (value as TravelIconKey)
     : null;
 }
+
+// Curated brand palette for the artist-chosen icon color (founder round, ME test
+// 2026-06-18). NULL = no choice → render the surface's default icon color. Both
+// platforms render the same hex, so the picker and the displayed icon match.
+// Values are the brand tokens (mustard, rosa, cobalt, red, green, bone).
+export const TRAVEL_ICON_COLORS = [
+  "#e9b22b",
+  "#db88b9",
+  "#0b3d9f",
+  "#cf2e2c",
+  "#105f2d",
+  "#e5e1d5",
+] as const;
+
+export type TravelIconColor = (typeof TRAVEL_ICON_COLORS)[number];
+
+/** Write guard for the icon color: a value outside the palette saves as NULL
+ *  (default color). Case-insensitive so "#E9B22B" matches. */
+export function sanitizeTravelIconColor(value: unknown): TravelIconColor | null {
+  if (typeof value !== "string") return null;
+  const lower = value.toLowerCase();
+  return (TRAVEL_ICON_COLORS as readonly string[]).includes(lower)
+    ? (lower as TravelIconColor)
+    : null;
+}
