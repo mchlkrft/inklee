@@ -13,6 +13,12 @@ export function markAllNotificationsRead() {
   return apiPost<{ ok: true }>("/notifications/read-all");
 }
 
+// Resolve a system warning (sets is_resolved + is_read), mirroring the web
+// resolveWarningAction so a warning can be cleared from the app, not just the web.
+export function resolveNotificationWarning(id: string) {
+  return apiPost<{ ok: true }>("/notifications/resolve", { id });
+}
+
 export function invalidateNotifications(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
 }
