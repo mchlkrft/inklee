@@ -1261,3 +1261,95 @@ export async function editAppointmentCore(
 
   return { success: true };
 }
+
+/** Fields for a manual (artist-authored) appointment, already string-typed by
+ *  the calling adapter (web FormData / mobile JSON). */
+export type CreateAppointmentInput = {
+  handle: string;
+  email: string | null;
+  date: string;
+  placement: string;
+  size: string;
+  description: string;
+  /** Send the branded approval email with a magic link (needs an email). */
+  sendEmail: boolean;
+};
+
+/**
+ * Create an artist-authored approved booking (a manual calendar appointment).
+ * The SINGLE source for the web createAppointmentAction and the mobile POST
+ * /calendar/appointments, so the security-sensitive bits (the magic-link token
+ * generation + hashing, the inserted row shape, the audit row, the approval
+ * email) live in one place and can't drift. Returns the new booking id or an
+ * error string.
+ */
+export async function createAppointmentCore(
+  supabase: SupabaseClient,
+  userId: string,
+  input: CreateAppointmentInput,
+): Promise<{ id: string } | { error: string }> {
+  const handle = input.handle.replace(/^@/, "").trim();
+  const date = input.date.trim();
+  const placement = input.placement.trim();
+  const size = input.size.trim();
+  const description = input.description.trim();
+  const email = input.email?.trim() || null;
+
+  if (!handle) return { error: "Instagram handle is required." };
+  if (!date) return { error: "Date is required." };
+  if (!placement) return { error: "Placement is required." };
+  if (!size) return { error: "Size is required." };
+
+  const bookingId = crypto.randomUUID();
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const decidedAt = new Date().toISOString();
+
+  const { error } = await supabase.from("booking_requests").insert({
+    id: bookingId,
+    artist_id: userId,
+    status: "approved",
+    origin: "artist_created",
+    customer_handle: handle,
+    customer_email: email,
+    // Only mint a usable magic link when there's an email to send it to.
+    customer_token_hash: email ? tokenHash : null,
+    preferred_date: date,
+    form_data: { placement, size, description },
+    decided_at: decidedAt,
+    updated_at: decidedAt,
+  });
+  if (error) return { error: error.message };
+
+  await supabase.from("audit_log").insert({
+    booking_id: bookingId,
+    action: "booking_created",
+    actor: userId,
+    details: { origin: "artist_created" },
+  });
+
+  if (email && input.sendEmail) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, slug")
+      .eq("id", userId)
+      .single();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+    await sendBookingEmail({
+      type: "customer_booking_approved",
+      to: email,
+      artistId: userId,
+      vars: {
+        customer_handle: handle,
+        artist_name: profile?.display_name ?? "",
+        artist_slug: profile?.slug ?? "",
+        placement,
+        size,
+        date,
+        magic_link: `${appUrl}/request/${token}`,
+      },
+    });
+  }
+
+  return { id: bookingId };
+}
