@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { captureError } from "@/lib/telemetry";
 import { Button } from "@/components/Button";
 import { useColors } from "@/lib/theme";
+import { deriveSignInIdentity } from "@inklee/shared/auth-derivations";
 
 // Apple 5.1.1(v) + counsel §9 in-app account deletion. A deliberate full-screen
 // flow that requires BOTH re-authentication (re-enter password / re-complete
@@ -23,7 +24,12 @@ export default function DeleteAccountScreen() {
     signInWithGoogle,
     signOut,
   } = useAuth();
-  const provider = session?.user?.app_metadata?.provider ?? "email";
+  // Sign-in identity from the linked identities (shared with web), NOT
+  // app_metadata.provider — an email+OAuth account is password-capable and
+  // should re-auth with its password.
+  const { hasPassword, oauthProvider } = deriveSignInIdentity(
+    session?.user?.identities,
+  );
   const email = session?.user?.email ?? "";
   // Pin the account-to-delete at mount. Re-auth (esp. the Apple/Google sheet)
   // SWAPS the active session, so we compare the post-re-auth user id against this
@@ -68,7 +74,7 @@ export default function DeleteAccountScreen() {
         return;
       }
       setReauthError(
-        provider === "email"
+        hasPassword
           ? "Incorrect password. Try again."
           : "Couldn't confirm your identity. Try again.",
       );
@@ -119,7 +125,7 @@ export default function DeleteAccountScreen() {
             Identity confirmed
           </Text>
         </View>
-      ) : provider === "email" ? (
+      ) : hasPassword ? (
         <View className="gap-2">
           <TextInput
             value={password}
@@ -138,7 +144,7 @@ export default function DeleteAccountScreen() {
             onPress={() => reauth(() => signInWithPassword(email, password))}
           />
         </View>
-      ) : provider === "apple" ? (
+      ) : oauthProvider === "apple" ? (
         <Button
           label="Confirm with Apple"
           variant="secondary"

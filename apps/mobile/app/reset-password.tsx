@@ -6,6 +6,10 @@ import { Button } from "@/components/Button";
 import { PasswordInput } from "@/components/PasswordInput";
 import { useAuth } from "@/lib/auth";
 import { captureError } from "@/lib/telemetry";
+import {
+  validatePassword,
+  PASSWORD_MIN_LENGTH,
+} from "@inklee/shared/auth-validation";
 
 // Password reset, completion half. Landing for the recovery link from
 // forgot-password, which sets redirectTo to inklee://reset-password so the code
@@ -43,8 +47,9 @@ export default function ResetPassword() {
 
   async function submit() {
     if (!code) return;
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    const pwError = validatePassword(password);
+    if (pwError) {
+      setError(pwError);
       return;
     }
     if (password !== confirm) {
@@ -116,7 +121,7 @@ export default function ResetPassword() {
           autoComplete="new-password"
         />
         <Text className="mb-4 mt-1.5 text-xs text-shell-mute">
-          Use at least 8 characters.
+          Use at least {PASSWORD_MIN_LENGTH} characters.
         </Text>
 
         {error ? (

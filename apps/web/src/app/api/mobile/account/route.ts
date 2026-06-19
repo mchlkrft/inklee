@@ -7,7 +7,10 @@ import {
   deleteOwnAccountCore,
   isReauthFresh,
 } from "@/lib/server/account-deletion";
-import { isMfaEnabled } from "@inklee/shared/auth-derivations";
+import {
+  isMfaEnabled,
+  deriveSignInIdentity,
+} from "@inklee/shared/auth-derivations";
 import type { MobileAccount } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -37,11 +40,7 @@ export async function GET(req: Request) {
   ]);
   const user = userData.user;
 
-  const identities = user?.identities ?? [];
-  const hasPassword = identities.some((i) => i.provider === "email");
-  const oauthProvider = hasPassword
-    ? null
-    : (identities.find((i) => i.provider !== "email")?.provider ?? null);
+  const { hasPassword, oauthProvider } = deriveSignInIdentity(user?.identities);
   const mfaEnabled = isMfaEnabled(user?.factors);
 
   const body: MobileAccount = {

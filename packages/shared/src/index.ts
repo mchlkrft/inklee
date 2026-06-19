@@ -22,5 +22,6 @@ export * from "./custom-fields";
 export * from "./books-settings";
 export * from "./dashboard-settings";
 export * from "./auth-derivations";
+export * from "./auth-validation";
 export * from "./profile-validation";
 export * from "./cover-colors";
