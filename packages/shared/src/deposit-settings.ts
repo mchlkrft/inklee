@@ -19,9 +19,11 @@ export const DEPOSIT_DEFAULTS_FALLBACK: DepositDefaults = {
   note: "",
 };
 
-const MAX_AMOUNT = 100_000;
-const MAX_DUE_DAYS = 90;
-const MAX_NOTE = 300;
+// Deposit-defaults bounds — the SINGLE source, consumed by the web save action
+// and the mobile-settings validator (both previously re-declared them). (ME-10 D5)
+export const DEPOSIT_MAX_AMOUNT = 100_000;
+export const DEPOSIT_MAX_DUE_DAYS = 90;
+export const DEPOSIT_MAX_NOTE = 300;
 
 export function parseDepositDefaults(raw: unknown): DepositDefaults {
   if (!raw || typeof raw !== "object") return DEPOSIT_DEFAULTS_FALLBACK;
@@ -29,16 +31,17 @@ export function parseDepositDefaults(raw: unknown): DepositDefaults {
 
   let amount: number | null = null;
   if (typeof obj.amount === "number" && Number.isFinite(obj.amount)) {
-    amount = Math.max(0, Math.min(MAX_AMOUNT, obj.amount));
+    amount = Math.max(0, Math.min(DEPOSIT_MAX_AMOUNT, obj.amount));
     if (amount === 0) amount = null;
   }
 
   let due_days = DEPOSIT_DEFAULTS_FALLBACK.due_days;
   if (typeof obj.due_days === "number" && Number.isFinite(obj.due_days)) {
-    due_days = Math.max(1, Math.min(MAX_DUE_DAYS, Math.round(obj.due_days)));
+    due_days = Math.max(1, Math.min(DEPOSIT_MAX_DUE_DAYS, Math.round(obj.due_days)));
   }
 
-  const note = typeof obj.note === "string" ? obj.note.slice(0, MAX_NOTE) : "";
+  const note =
+    typeof obj.note === "string" ? obj.note.slice(0, DEPOSIT_MAX_NOTE) : "";
 
   return { amount, due_days, note };
 }

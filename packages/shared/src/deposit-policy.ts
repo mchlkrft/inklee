@@ -36,11 +36,18 @@ export const DEPOSIT_POLICY_DEFAULT: DepositPolicy = {
   lastMinute: null,
 };
 
-const MAX_DAYS = 365;
-const MAX_HOURS = 720;
+// Policy-window bounds — the SINGLE source, consumed by clampWindow here plus the
+// web saveDepositPolicyAction and the mobile normalizePolicyWindow. (ME-10 D5)
+export const POLICY_WINDOW_MAX_DAYS = 365;
+export const POLICY_WINDOW_MAX_HOURS = 720;
+
+/** Upper bound for a policy window value, by unit (0..365 days / 0..720 hours). */
+export function policyWindowMax(unit: TimeUnit): number {
+  return unit === "hours" ? POLICY_WINDOW_MAX_HOURS : POLICY_WINDOW_MAX_DAYS;
+}
 
 function clampWindow(w: PolicyWindow): PolicyWindow {
-  const max = w.unit === "hours" ? MAX_HOURS : MAX_DAYS;
+  const max = policyWindowMax(w.unit);
   const value = Math.max(0, Math.min(max, Math.round(w.value)));
   return { value, unit: w.unit };
 }

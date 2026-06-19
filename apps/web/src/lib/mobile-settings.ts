@@ -9,10 +9,14 @@
 import type { BooksSettings } from "./books-settings";
 import {
   DEPOSIT_DEFAULTS_FALLBACK,
+  DEPOSIT_MAX_AMOUNT,
+  DEPOSIT_MAX_DUE_DAYS,
+  DEPOSIT_MAX_NOTE,
   type DepositDefaults,
 } from "./deposit-settings";
 import {
   FORFEIT_PCT_OPTIONS,
+  policyWindowMax,
   type DepositPolicy,
   type ForfeitPct,
   type PolicyWindow,
@@ -39,9 +43,9 @@ export {
 } from "@inklee/shared/profile-validation";
 export { sanitizeCoverColor };
 export const CLOSED_MESSAGE_MAX = 280;
-export const DEPOSIT_MAX_AMOUNT = 100_000;
-export const DEPOSIT_MAX_DUE_DAYS = 90;
-export const DEPOSIT_MAX_NOTE = 300;
+// Deposit-defaults bounds are single-sourced in deposit-settings (ME-10 D5);
+// re-export so the existing `@/lib/mobile-settings` import surface stays intact.
+export { DEPOSIT_MAX_AMOUNT, DEPOSIT_MAX_DUE_DAYS, DEPOSIT_MAX_NOTE };
 
 export type ProfileUpdate = {
   displayName: string;
@@ -231,7 +235,7 @@ export function normalizeDepositDefaults(
 function normalizePolicyWindow(raw: unknown): Result<PolicyWindow> {
   const o = (raw ?? {}) as Record<string, unknown>;
   const unit: TimeUnit = o.unit === "hours" ? "hours" : "days";
-  const max = unit === "hours" ? 720 : 365;
+  const max = policyWindowMax(unit);
   if (
     typeof o.value !== "number" ||
     !Number.isInteger(o.value) ||

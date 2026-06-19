@@ -2,19 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { DepositDefaults } from "@/lib/deposit-settings";
+import {
+  DEPOSIT_MAX_AMOUNT,
+  DEPOSIT_MAX_DUE_DAYS,
+  DEPOSIT_MAX_NOTE,
+  type DepositDefaults,
+} from "@/lib/deposit-settings";
 import {
   FORFEIT_PCT_OPTIONS,
+  policyWindowMax,
   type DepositPolicy,
   type ForfeitPct,
   type TimeUnit,
 } from "@/lib/deposit-policy";
 
 type State = { error: string } | { success: true } | null;
-
-const MAX_AMOUNT = 100_000;
-const MAX_DUE_DAYS = 90;
-const MAX_NOTE = 300;
 
 export async function saveDepositDefaultsAction(
   _prev: State,
@@ -34,9 +36,9 @@ export async function saveDepositDefaultsAction(
     if (!Number.isFinite(parsed) || parsed < 0) {
       return { error: "Default amount must be a positive number." };
     }
-    if (parsed > MAX_AMOUNT) {
+    if (parsed > DEPOSIT_MAX_AMOUNT) {
       return {
-        error: `Default amount can’t exceed ${MAX_AMOUNT.toLocaleString()}.`,
+        error: `Default amount can’t exceed ${DEPOSIT_MAX_AMOUNT.toLocaleString()}.`,
       };
     }
     amount = parsed === 0 ? null : Math.round(parsed * 100) / 100;
@@ -45,13 +47,19 @@ export async function saveDepositDefaultsAction(
   // Due-window in days from "today" — required.
   const dueDaysRaw = (formData.get("due_days") as string | null)?.trim() ?? "";
   const dueDays = Number.parseInt(dueDaysRaw, 10);
-  if (!Number.isFinite(dueDays) || dueDays < 1 || dueDays > MAX_DUE_DAYS) {
-    return { error: `Due window must be between 1 and ${MAX_DUE_DAYS} days.` };
+  if (
+    !Number.isFinite(dueDays) ||
+    dueDays < 1 ||
+    dueDays > DEPOSIT_MAX_DUE_DAYS
+  ) {
+    return {
+      error: `Due window must be between 1 and ${DEPOSIT_MAX_DUE_DAYS} days.`,
+    };
   }
 
   const note = ((formData.get("note") as string | null) ?? "")
     .trim()
-    .slice(0, MAX_NOTE);
+    .slice(0, DEPOSIT_MAX_NOTE);
 
   const defaults: DepositDefaults = {
     amount,
@@ -95,7 +103,7 @@ function parseWindowField(
     10,
   );
   const unit: TimeUnit = formData.get(unitKey) === "hours" ? "hours" : "days";
-  const max = unit === "hours" ? 720 : 365;
+  const max = policyWindowMax(unit);
   if (!Number.isFinite(value) || value < 0 || value > max) {
     return { error: `Each window must be between 0 and ${max} ${unit}.` };
   }
