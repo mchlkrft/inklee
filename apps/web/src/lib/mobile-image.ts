@@ -5,16 +5,13 @@
 // quality) so the body stays under the platform cap; this re-encodes anyway as
 // defense in depth and to normalize format/size.
 
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 import { serviceClient } from "@/lib/supabase/service";
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 // Kept under Vercel's ~4.5MB serverless body cap (a larger body is rejected by
 // the platform before the handler runs). The picker compresses well under this.
 const MAX_UPLOAD_SIZE = 4 * 1024 * 1024; // 4MB
-// Guard against decompression bombs: a tiny file can still decode to a huge
-// raster. sharp throws past this → our catch turns it into a clean 400.
-const MAX_INPUT_PIXELS = 50_000_000; // ~50MP
 
 type FileResult =
   | { ok: true; file: File }
@@ -69,7 +66,7 @@ export async function processAndUpload(
   let processed: Buffer;
   try {
     const input = Buffer.from(await file.arrayBuffer());
-    processed = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
+    processed = await guardedSharp(input)
       .resize(opts.width, opts.height, {
         fit,
         position: "centre",

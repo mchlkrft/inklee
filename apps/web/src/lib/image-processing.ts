@@ -1,4 +1,4 @@
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 
 const MAX_DIMENSION = 1600;
 const WEBP_QUALITY = 85;
@@ -14,7 +14,7 @@ export type ProcessedImage = {
 export async function processImage(file: File): Promise<ProcessedImage> {
   const input = Buffer.from(await file.arrayBuffer());
 
-  const pipeline = sharp(input).rotate(); // auto-rotate from EXIF
+  const pipeline = guardedSharp(input).rotate(); // auto-rotate from EXIF
 
   const meta = await pipeline.clone().metadata();
   const origW = meta.width ?? 0;

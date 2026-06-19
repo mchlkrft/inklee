@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 import { writeAudit } from "@/lib/audit";
 
 type State = { error: string } | { success: true } | null;
@@ -76,7 +76,7 @@ export async function updateProfileAction(
     let resized: Buffer;
     try {
       const buffer = Buffer.from(await logoFile.arrayBuffer());
-      resized = await sharp(buffer)
+      resized = await guardedSharp(buffer)
         .resize(512, 512, { fit: "cover", position: "centre" })
         .webp({ quality: 85 })
         .toBuffer();
@@ -121,7 +121,7 @@ export async function updateProfileAction(
     let resized: Buffer;
     try {
       const buffer = Buffer.from(await coverFile.arrayBuffer());
-      resized = await sharp(buffer)
+      resized = await guardedSharp(buffer)
         .resize(1600, 600, { fit: "cover", position: "centre" })
         .webp({ quality: 80 })
         .toBuffer();

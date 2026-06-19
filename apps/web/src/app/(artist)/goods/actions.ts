@@ -2,7 +2,7 @@
 
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import {
@@ -192,7 +192,7 @@ async function uploadProductImage(
   let resized: Buffer;
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    resized = await sharp(buffer)
+    resized = await guardedSharp(buffer)
       .resize(800, 800, { fit: "cover", position: "centre" })
       .webp({ quality: 82 })
       .toBuffer();

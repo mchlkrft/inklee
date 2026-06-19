@@ -5,7 +5,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { slugify } from "@/lib/flash";
 import { isCurrency, DEFAULT_CURRENCY } from "@inklee/shared/goods";
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 
 type State = { error: string } | { success: true; id?: string } | null;
 
@@ -42,7 +42,7 @@ async function uploadPreviewImage(
   let processed: Buffer;
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    processed = await sharp(buffer)
+    processed = await guardedSharp(buffer)
       .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
