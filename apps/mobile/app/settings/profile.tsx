@@ -13,6 +13,8 @@ import * as WebBrowser from "expo-web-browser";
 import { ArrowUpRight, Check, Slash } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MobileProfile } from "@inklee/shared/mobile-api";
+import { COVER_COLORS } from "@inklee/shared/cover-colors";
+import { BIO_MAX } from "@inklee/shared/profile-validation";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -28,20 +30,8 @@ import { config, displayUrl } from "@/lib/config";
 import { border, colors, tint } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
-const BIO_MAX = 280;
 // Align with the web logo cap (2 MB); the cover field has its own 4 MB cap.
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
-
-// Brand swatches for the public-page cover (mirrors the web profile form's
-// COVER_COLORS; the ids are what sanitizeCoverColor accepts server-side and
-// they line up with the tint map, whose fg is the readable check color).
-const COVER_COLORS = [
-  { id: "mustard", hex: "#e9b22b", label: "Mustard" },
-  { id: "rosa", hex: "#db88b9", label: "Rosa" },
-  { id: "cobalt", hex: "#0b3d9f", label: "Cobalt" },
-  { id: "red", hex: "#cf2e2c", label: "Red" },
-  { id: "green", hex: "#105f2d", label: "Green" },
-] as const;
 
 export default function EditProfile() {
   const q = useApiQuery<MobileProfile>("/settings/profile");

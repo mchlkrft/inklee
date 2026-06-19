@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { guardedSharp } from "@/lib/image-guard";
 import { writeAudit } from "@/lib/audit";
+import { normalizeProfileFields } from "@inklee/shared/profile-validation";
+import { sanitizeCoverColor } from "@inklee/shared/cover-colors";
 
 type State = { error: string } | { success: true } | null;
 
@@ -14,23 +16,6 @@ const MAX_SIZE = 2 * 1024 * 1024; // 2MB
 // as an opaque 500 instead of a friendly message. The same limit is enforced
 // client-side in profile-form.tsx so oversized files never leave the browser.
 const MAX_COVER_SIZE = 4 * 1024 * 1024; // 4MB
-
-const COVER_COLOR_NAMES = new Set([
-  "mustard",
-  "rosa",
-  "cobalt",
-  "red",
-  "green",
-]);
-
-function sanitizeCoverColor(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const v = value.trim().toLowerCase();
-  if (!v) return null;
-  if (COVER_COLOR_NAMES.has(v)) return v;
-  if (/^#[0-9a-f]{3,8}$/.test(v)) return v;
-  return null;
-}
 
 export async function updateProfileAction(
   _prev: State,
@@ -43,13 +28,16 @@ export async function updateProfileAction(
 
   if (!user) return { error: "Not authenticated." };
 
-  const displayName = (formData.get("display_name") as string).trim();
-  const instagramHandle = (formData.get("instagram_handle") as string | null)
-    ?.trim()
-    .replace(/^@/, "");
-  const bio = (formData.get("bio") as string | null)?.trim();
+  const fields = normalizeProfileFields({
+    displayName: formData.get("display_name"),
+    bio: formData.get("bio"),
+    instagramHandle: formData.get("instagram_handle"),
+    location: formData.get("location"),
+  });
+  if (!fields.ok) return { error: fields.error };
+  const { displayName, bio, instagramHandle, location } = fields.value;
+
   const timezone = formData.get("timezone") as string;
-  const location = (formData.get("location") as string | null)?.trim();
   const bookingMode = formData.get("booking_mode") as
     | "preferred_date"
     | "fixed_slots"
@@ -58,10 +46,6 @@ export async function updateProfileAction(
   const coverFile = formData.get("cover_image") as File | null;
   const removeCoverImage = formData.get("remove_cover_image") === "1";
   const coverColorRaw = formData.get("cover_color") as string | null;
-
-  if (!displayName) return { error: "Display name is required." };
-  if (bio && bio.length > 280)
-    return { error: "Bio must be 280 characters or fewer." };
 
   let logoUrl: string | undefined;
 

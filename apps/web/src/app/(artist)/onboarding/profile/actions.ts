@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { normalizeProfileFields } from "@inklee/shared/profile-validation";
 
 type State = { error: string } | null;
 
@@ -15,22 +16,23 @@ export async function saveOnboardingProfileAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const location = (formData.get("location") as string | null)?.trim() || null;
-  const instagramHandle =
-    (formData.get("instagram_handle") as string | null)
-      ?.trim()
-      .replace(/^@/, "") || null;
-  const bio = (formData.get("bio") as string | null)?.trim() || null;
-
-  if (bio && bio.length > 280)
-    return { error: "Bio must be 280 characters or fewer." };
+  // The display name was set at claim time; this step edits bio/instagram/location.
+  const fields = normalizeProfileFields(
+    {
+      bio: formData.get("bio"),
+      instagramHandle: formData.get("instagram_handle"),
+      location: formData.get("location"),
+    },
+    { requireDisplayName: false },
+  );
+  if (!fields.ok) return { error: fields.error };
 
   const { error } = await supabase
     .from("profiles")
     .update({
-      location,
-      instagram_handle: instagramHandle,
-      bio,
+      location: fields.value.location,
+      instagram_handle: fields.value.instagramHandle,
+      bio: fields.value.bio,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);

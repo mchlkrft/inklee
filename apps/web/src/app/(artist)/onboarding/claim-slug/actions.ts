@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { validateSlug } from "@/lib/slug";
+import { normalizeProfileFields } from "@inklee/shared/profile-validation";
 import { redirect } from "next/navigation";
 
 type State = { error: string } | null;
@@ -41,16 +42,19 @@ export async function claimSlugAction(
   formData: FormData,
 ): Promise<State> {
   const slug = (formData.get("slug") as string).trim().toLowerCase();
-  const displayName = (formData.get("display_name") as string | null)?.trim();
-  const instagramHandle =
-    (formData.get("instagram_handle") as string | null)
-      ?.trim()
-      .replace(/^@/, "") || null;
-  const location = (formData.get("location") as string | null)?.trim() || null;
-
   const validationError = validateSlug(slug);
   if (validationError) return { error: validationError };
-  if (!displayName) return { error: "Artist name is required." };
+
+  const fields = normalizeProfileFields(
+    {
+      displayName: formData.get("display_name"),
+      instagramHandle: formData.get("instagram_handle"),
+      location: formData.get("location"),
+    },
+    { displayNameRequiredError: "Artist name is required." },
+  );
+  if (!fields.ok) return { error: fields.error };
+  const { displayName, instagramHandle, location } = fields.value;
 
   const supabase = await createClient();
   const {
