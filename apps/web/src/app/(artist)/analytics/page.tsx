@@ -1,12 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  analyticsCutoffIso,
+  computeAnalytics,
+  type AnalyticsRow,
+} from "@inklee/shared/analytics";
 import AnalyticsClient from "./analytics-client";
-
-function getCutoff(range: string): string | null {
-  const now = Date.now();
-  if (range === "30") return new Date(now - 30 * 86400000).toISOString();
-  if (range === "90") return new Date(now - 90 * 86400000).toISOString();
-  return null;
-}
 
 export default async function AnalyticsPage({
   searchParams,
@@ -19,7 +17,7 @@ export default async function AnalyticsPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const cutoff = getCutoff(range);
+  const cutoff = analyticsCutoffIso(range);
 
   let query = supabase
     .from("booking_requests")
@@ -32,54 +30,17 @@ export default async function AnalyticsPage({
   const { data: bookings } = await query;
   const rows = bookings ?? [];
 
-  // --- Metrics ---
-  const total = rows.length;
-  const approved = rows.filter(
-    (r) => r.status === "approved" || r.status === "deposit_pending",
-  ).length;
-  const rejected = rows.filter((r) => r.status === "rejected").length;
-  const conversionRate = total > 0 ? Math.round((approved / total) * 100) : 0;
-  const rejectionRate = total > 0 ? Math.round((rejected / total) * 100) : 0;
+  // --- Metrics (shared core, single-sourced with the mobile route) ---
+  const m = computeAnalytics(rows as AnalyticsRow[]);
 
-  const emailCounts = new Map<string, number>();
-  for (const r of rows) {
-    if (r.customer_email) {
-      emailCounts.set(
-        r.customer_email,
-        (emailCounts.get(r.customer_email) ?? 0) + 1,
-      );
-    }
-  }
-  const uniqueClients = emailCounts.size;
-  const repeatClients = [...emailCounts.values()].filter((c) => c > 1).length;
-  const returnRate =
-    uniqueClients > 0 ? Math.round((repeatClients / uniqueClients) * 100) : 0;
-
-  const depositRequested = rows.filter((r) => r.deposit_amount !== null).length;
-  const depositPaid = rows.filter(
-    (r) => r.status === "approved" && r.deposit_amount !== null,
-  ).length;
-  const depositRate =
-    depositRequested > 0
-      ? Math.round((depositPaid / depositRequested) * 100)
-      : null;
-
-  // --- Monthly volume chart ---
-  const monthMap = new Map<string, number>();
-  for (const r of rows) {
-    const key = r.created_at.slice(0, 7); // "YYYY-MM"
-    monthMap.set(key, (monthMap.get(key) ?? 0) + 1);
-  }
-  const months = [...monthMap.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([month, count]) => ({
-      label: new Date(month + "-01").toLocaleDateString("en", {
-        month: "short",
-        year: "2-digit",
-      }),
-      count,
-    }));
+  // --- Monthly volume chart (the Intl label stays in this rendering layer) ---
+  const months = m.months.map(({ month, count }) => ({
+    label: new Date(month + "-01").toLocaleDateString("en", {
+      month: "short",
+      year: "2-digit",
+    }),
+    count,
+  }));
 
   // --- Per-day calendar for the most recent active month (DT-4) ---
   const dayMap = new Map<string, number>();
@@ -88,7 +49,7 @@ export default async function AnalyticsPage({
     dayMap.set(dayKey, (dayMap.get(dayKey) ?? 0) + 1);
   }
   const latestMonthKey =
-    [...monthMap.keys()].sort().at(-1) ?? new Date().toISOString().slice(0, 7);
+    m.months.at(-1)?.month ?? new Date().toISOString().slice(0, 7);
   const [calYear, calMonth] = latestMonthKey.split("-").map(Number); // calMonth 1-based
   const daysInMonth = new Date(calYear, calMonth, 0).getDate();
   // Monday-start grid: JS getDay() is 0=Sun, shift so Mon=0.
@@ -112,11 +73,11 @@ export default async function AnalyticsPage({
     <AnalyticsClient
       range={range}
       metrics={{
-        total,
-        conversionRate,
-        rejectionRate,
-        returnRate,
-        depositRate,
+        total: m.total,
+        conversionRate: m.conversionRate,
+        rejectionRate: m.rejectionRate,
+        returnRate: m.returnRate,
+        depositRate: m.depositRate,
       }}
       months={months}
       calendar={calendar}

@@ -5,6 +5,7 @@
 // two sides cannot drift. These describe ONLY the `data` payload — the route
 // helpers wrap it in the `{ data }` / `{ error }` envelope.
 
+import type { AnalyticsMetrics } from "./analytics";
 import type { BooksSettings } from "./books-settings";
 import type { CustomFieldType } from "./custom-fields";
 import type { DashboardWidgets } from "./dashboard-settings";
@@ -355,22 +356,10 @@ export type MobileWaitlistResponse = {
   items: MobileWaitlistEntry[];
 };
 
-/** GET /api/mobile/analytics?range=30|90|all — headline booking metrics. */
-export type MobileAnalytics = {
-  range: string;
-  total: number;
-  approved: number;
-  rejected: number;
-  conversionRate: number;
-  rejectionRate: number;
-  uniqueClients: number;
-  repeatClients: number;
-  returnRate: number;
-  depositRequested: number;
-  depositPaid: number;
-  depositRate: number | null;
-  months: { month: string; count: number }[];
-};
+/** GET /api/mobile/analytics?range=30|90|all — headline booking metrics. The
+ *  metric shape is the shared AnalyticsMetrics (one source with the web page +
+ *  the computeAnalytics core); the route adds the echoed `range`. */
+export type MobileAnalytics = AnalyticsMetrics & { range: string };
 
 /** GET /api/mobile/notifications — the feed (newest first) + unread count. */
 export type MobileNotificationsResponse = {
