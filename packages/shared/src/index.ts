@@ -23,6 +23,7 @@ export * from "./books-settings";
 export * from "./dashboard-settings";
 export * from "./reminder-settings";
 export * from "./analytics";
+export * from "./clients";
 export * from "./auth-derivations";
 export * from "./auth-validation";
 export * from "./profile-validation";
