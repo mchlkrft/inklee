@@ -9,6 +9,7 @@ import {
   type BioModuleKey,
 } from "@/lib/bio-page-settings";
 import { fileNoSlotsWarning } from "@/lib/server/slots";
+import { isBookingMode } from "@inklee/shared/booking-domain";
 
 type State = { error: string } | { success: true } | null;
 
@@ -22,8 +23,8 @@ export async function saveBookingModeAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const mode = formData.get("booking_mode") as string;
-  if (mode !== "preferred_date" && mode !== "fixed_slots") {
+  const mode = formData.get("booking_mode");
+  if (!isBookingMode(mode)) {
     return { error: "Invalid booking mode." };
   }
 

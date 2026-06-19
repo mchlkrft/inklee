@@ -18,7 +18,7 @@ import {
   type PolicyWindow,
   type TimeUnit,
 } from "./deposit-policy";
-import type { BookingMode } from "@inklee/shared/booking-domain";
+import { isBookingMode, type BookingMode } from "@inklee/shared/booking-domain";
 import { normalizeProfileFields } from "@inklee/shared/profile-validation";
 import { sanitizeCoverColor } from "@inklee/shared/cover-colors";
 
@@ -81,7 +81,7 @@ export function normalizeProfileUpdate(body: unknown): Result<ProfileUpdate> {
   if (timezone) value.timezone = timezone;
 
   if (b.bookingMode !== undefined) {
-    if (b.bookingMode !== "preferred_date" && b.bookingMode !== "fixed_slots") {
+    if (!isBookingMode(b.bookingMode)) {
       return { ok: false, error: "Invalid booking mode." };
     }
     value.bookingMode = b.bookingMode;
@@ -108,7 +108,7 @@ export function normalizeProfileUpdate(body: unknown): Result<ProfileUpdate> {
 /** Validate a standalone booking-mode change (POST /settings/booking-mode).
  * Mirrors saveBookingModeAction's enum check, including its error copy. */
 export function normalizeBookingMode(value: unknown): Result<BookingMode> {
-  if (value !== "preferred_date" && value !== "fixed_slots") {
+  if (!isBookingMode(value)) {
     return { ok: false, error: "Invalid booking mode." };
   }
   return { ok: true, value };

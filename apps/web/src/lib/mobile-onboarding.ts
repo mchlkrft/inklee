@@ -6,22 +6,16 @@
 // settings.ts are, without a route-handler mocking harness.
 
 import { validateSlug } from "./slug";
-import type { BookingMode } from "@inklee/shared/booking-domain";
+import {
+  isBookingMode,
+  BOOKING_MODES,
+  type BookingMode,
+} from "@inklee/shared/booking-domain";
 import { normalizeProfileFields } from "@inklee/shared/profile-validation";
 
-/** The two booking modes stored in `profiles.booking_mode` (canonical type from
- *  @inklee/shared/booking-domain). */
-export const BOOKING_MODES = [
-  "preferred_date",
-  "fixed_slots",
-] as const satisfies readonly BookingMode[];
-
-export function isBookingMode(value: unknown): value is BookingMode {
-  return (
-    typeof value === "string" &&
-    (BOOKING_MODES as readonly string[]).includes(value)
-  );
-}
+// Canonical booking-mode tuple + strict predicate live in booking-domain;
+// re-export so existing `@/lib/mobile-onboarding` importers (+ tests) resolve.
+export { isBookingMode, BOOKING_MODES };
 
 /** Fallback when the client sends no device timezone. */
 export const DEFAULT_TIMEZONE = "Europe/Berlin";

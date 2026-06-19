@@ -2,6 +2,26 @@ import type { CustomAnswerSnapshot } from "./custom-fields";
 
 export type BookingMode = "preferred_date" | "fixed_slots";
 
+/** The two booking modes stored in profiles.booking_mode (a Postgres enum). */
+export const BOOKING_MODES = [
+  "preferred_date",
+  "fixed_slots",
+] as const satisfies readonly BookingMode[];
+
+/**
+ * Strict membership check for the WRITE paths: reject anything that isn't one of
+ * the two modes (anything else gets a friendly app-layer error instead of a raw
+ * Postgres enum error). The coercing normalizeBookingMode below answers a
+ * different question (coerce a stored value to a safe display mode) and must NOT
+ * be used to validate writes. (ME-10 D16)
+ */
+export function isBookingMode(value: unknown): value is BookingMode {
+  return (
+    typeof value === "string" &&
+    (BOOKING_MODES as readonly string[]).includes(value)
+  );
+}
+
 type BookingFormData = Record<string, unknown> | null | undefined;
 
 export function normalizeBookingMode(
