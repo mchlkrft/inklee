@@ -8,6 +8,7 @@ import {
   deleteOwnAccountCore,
   isReauthFresh,
 } from "@/lib/server/account-deletion";
+import { validatePassword } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | { success: true } | null;
 
@@ -112,8 +113,8 @@ export async function changePasswordAction(
 
   if (!currentPassword || !newPassword || !confirmPassword)
     return { error: "All fields are required." };
-  if (newPassword.length < 8)
-    return { error: "New password must be at least 8 characters." };
+  const pwError = validatePassword(newPassword, { label: "New password" });
+  if (pwError) return { error: pwError };
   if (newPassword !== confirmPassword)
     return { error: "Passwords do not match." };
   if (newPassword === currentPassword)

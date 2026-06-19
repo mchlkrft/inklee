@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isMfaEnabled } from "@inklee/shared/auth-derivations";
+import {
+  isMfaEnabled,
+  deriveSignInIdentity,
+} from "@inklee/shared/auth-derivations";
 
 describe("isMfaEnabled", () => {
   it("is false for no factors", () => {
@@ -35,5 +38,41 @@ describe("isMfaEnabled", () => {
     expect(isMfaEnabled([{ factor_type: "phone", status: "verified" }])).toBe(
       false,
     );
+  });
+});
+
+describe("deriveSignInIdentity", () => {
+  it("treats null/empty identities as no-password OAuth-less", () => {
+    expect(deriveSignInIdentity(null)).toEqual({
+      hasPassword: false,
+      oauthProvider: null,
+    });
+    expect(deriveSignInIdentity([])).toEqual({
+      hasPassword: false,
+      oauthProvider: null,
+    });
+  });
+
+  it("reports a password account (oauthProvider null)", () => {
+    expect(deriveSignInIdentity([{ provider: "email" }])).toEqual({
+      hasPassword: true,
+      oauthProvider: null,
+    });
+  });
+
+  it("reports the OAuth provider for an OAuth-only account", () => {
+    expect(deriveSignInIdentity([{ provider: "google" }])).toEqual({
+      hasPassword: false,
+      oauthProvider: "google",
+    });
+  });
+
+  // An email+OAuth account is password-capable: prefer the password path,
+  // exactly like web. (The old mobile app_metadata.provider check could read
+  // "google" here and wrongly hide the password re-auth.)
+  it("prefers password when both email and OAuth identities exist", () => {
+    expect(
+      deriveSignInIdentity([{ provider: "google" }, { provider: "email" }]),
+    ).toEqual({ hasPassword: true, oauthProvider: null });
   });
 });

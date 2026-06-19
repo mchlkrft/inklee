@@ -1,4 +1,4 @@
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 import { serviceClient } from "@/lib/supabase/service";
 
 const MAX_DIMENSION = 1200;
@@ -30,7 +30,7 @@ export async function downloadInstagramThumbnail(
     if (!res.ok) return null;
 
     const buffer = Buffer.from(await res.arrayBuffer());
-    const processed = await sharp(buffer)
+    const processed = await guardedSharp(buffer)
       .rotate()
       .resize(MAX_DIMENSION, MAX_DIMENSION, {
         fit: "inside",

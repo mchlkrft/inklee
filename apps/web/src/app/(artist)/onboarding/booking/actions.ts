@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { isBookingMode } from "@inklee/shared/booking-domain";
 
 type State = { error: string } | null;
 
@@ -15,10 +16,10 @@ export async function saveOnboardingBookingAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const bookingMode = formData.get("booking_mode") as
-    | "preferred_date"
-    | "fixed_slots";
-  if (!bookingMode) return { error: "Select a booking mode." };
+  const bookingMode = formData.get("booking_mode");
+  // Strict (shared) validation: a missing/unknown value gets a friendly error
+  // instead of a raw Postgres enum error on insert.
+  if (!isBookingMode(bookingMode)) return { error: "Select a booking mode." };
 
   const { error } = await supabase
     .from("profiles")

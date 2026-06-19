@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { readIcalToken, icalFeedUrl } from "@/lib/server/ical";
 import { generateIcalToken, revokeIcalToken } from "./actions";
 
 export default async function CalendarExportPage() {
@@ -13,10 +14,10 @@ export default async function CalendarExportPage() {
     .eq("id", user!.id)
     .single();
 
-  const settings = profile?.settings as Record<string, string> | null;
-  const token = settings?.ical_token ?? null;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  const feedUrl = token ? `${appUrl}/api/ical/${token}` : null;
+  const token = readIcalToken(
+    profile?.settings as Record<string, unknown> | null,
+  );
+  const feedUrl = icalFeedUrl(token);
 
   return (
     <div className="space-y-6 max-w-2xl">

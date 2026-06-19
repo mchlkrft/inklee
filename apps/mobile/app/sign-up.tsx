@@ -10,6 +10,10 @@ import { useAuth } from "@/lib/auth";
 import { useColors } from "@/lib/theme";
 import { captureError } from "@/lib/telemetry";
 import { config } from "@/lib/config";
+import {
+  validatePassword,
+  PASSWORD_MIN_LENGTH,
+} from "@inklee/shared/auth-validation";
 
 // Native email/password sign-up (E1 follow-up: the app shipped sign-in only, so
 // new email artists had to register on the web). Mirrors the web signup action
@@ -35,8 +39,9 @@ export default function SignUp() {
       setError("Email and password are required.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    const pwError = validatePassword(password);
+    if (pwError) {
+      setError(pwError);
       return;
     }
     setLoading(true);
@@ -111,7 +116,7 @@ export default function SignUp() {
           autoComplete="new-password"
         />
         <Text className="mb-4 mt-1.5 text-xs text-shell-mute">
-          Use at least 8 characters.
+          Use at least {PASSWORD_MIN_LENGTH} characters.
         </Text>
 
         {error ? (

@@ -56,3 +56,54 @@ export function validateTripLegsPayload(raw: string | null): TripLegInput[] {
 
   return parsed.map((entry) => validateTripLeg(entry));
 }
+
+export const TRIP_TITLE_MAX = 120;
+export const TRIP_DESCRIPTION_MAX = 2000;
+
+export type TripMeta = { title: string; description: string | null };
+
+/**
+ * Validate a trip's title + description to the canonical caps. The web trip
+ * action previously enforced neither cap; the mobile route capped title 120 /
+ * description 2000. Single-sourced so both agree. (ME-10 D13)
+ */
+export function validateTripMeta(input: {
+  title?: unknown;
+  description?: unknown;
+}): { ok: true; value: TripMeta } | { ok: false; error: string } {
+  const title = (typeof input.title === "string" ? input.title : "").trim();
+  if (!title) return { ok: false, error: "Title is required." };
+  if (title.length > TRIP_TITLE_MAX) {
+    return { ok: false, error: `Title is too long (max ${TRIP_TITLE_MAX}).` };
+  }
+  const descRaw =
+    typeof input.description === "string" ? input.description.trim() : "";
+  if (descRaw.length > TRIP_DESCRIPTION_MAX) {
+    return { ok: false, error: "Description is too long." };
+  }
+  return { ok: true, value: { title, description: descRaw || null } };
+}
+
+/**
+ * Two date-key ranges overlap when each starts on or before the other ends.
+ * Pure lexical compare on YYYY-MM-DD (tz-safe). Shared by the web trip-manager
+ * and the mobile travel screens. (ME-10 D14)
+ */
+export function rangesOverlap(
+  ranges: { startsOn: string; endsOn: string }[],
+): boolean {
+  return ranges.some((a, i) =>
+    ranges.some(
+      (b, j) => i !== j && a.startsOn <= b.endsOn && b.startsOn <= a.endsOn,
+    ),
+  );
+}
+
+/** A leg is "active" when `today` (a YYYY-MM-DD date-key) is within its range. */
+export function legIsActive(
+  startsOn: string,
+  endsOn: string,
+  today: string,
+): boolean {
+  return startsOn <= today && endsOn >= today;
+}

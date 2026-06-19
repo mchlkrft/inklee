@@ -9,16 +9,22 @@
 import type { BooksSettings } from "./books-settings";
 import {
   DEPOSIT_DEFAULTS_FALLBACK,
+  DEPOSIT_MAX_AMOUNT,
+  DEPOSIT_MAX_DUE_DAYS,
+  DEPOSIT_MAX_NOTE,
   type DepositDefaults,
 } from "./deposit-settings";
 import {
   FORFEIT_PCT_OPTIONS,
+  policyWindowMax,
   type DepositPolicy,
   type ForfeitPct,
   type PolicyWindow,
   type TimeUnit,
 } from "./deposit-policy";
-import type { BookingMode } from "@inklee/shared/booking-domain";
+import { isBookingMode, type BookingMode } from "@inklee/shared/booking-domain";
+import { normalizeProfileFields } from "@inklee/shared/profile-validation";
+import { sanitizeCoverColor } from "@inklee/shared/cover-colors";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -26,35 +32,20 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-// Field bounds (mirror the web actions / shared parsers).
-export const DISPLAY_NAME_MAX = 80;
-export const BIO_MAX = 280;
-export const INSTAGRAM_MAX = 30;
-export const LOCATION_MAX = 120;
+// Profile text-field bounds + the cover-color sanitizer now live in the shared
+// validators (one source for web + mobile + onboarding). Re-export so the
+// existing `@/lib/mobile-settings` import surface (and its tests) stays intact.
+export {
+  DISPLAY_NAME_MAX,
+  BIO_MAX,
+  INSTAGRAM_MAX,
+  LOCATION_MAX,
+} from "@inklee/shared/profile-validation";
+export { sanitizeCoverColor };
 export const CLOSED_MESSAGE_MAX = 280;
-export const DEPOSIT_MAX_AMOUNT = 100_000;
-export const DEPOSIT_MAX_DUE_DAYS = 90;
-export const DEPOSIT_MAX_NOTE = 300;
-
-// Cover color for the public-page header — a brand swatch name or a raw #hex.
-// Mirrors sanitizeCoverColor in the web updateProfileAction so both write
-// paths accept exactly the same values.
-const COVER_COLOR_NAMES = new Set([
-  "mustard",
-  "rosa",
-  "cobalt",
-  "red",
-  "green",
-]);
-
-export function sanitizeCoverColor(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const v = value.trim().toLowerCase();
-  if (!v) return null;
-  if (COVER_COLOR_NAMES.has(v)) return v;
-  if (/^#[0-9a-f]{3,8}$/.test(v)) return v;
-  return null;
-}
+// Deposit-defaults bounds are single-sourced in deposit-settings (ME-10 D5);
+// re-export so the existing `@/lib/mobile-settings` import surface stays intact.
+export { DEPOSIT_MAX_AMOUNT, DEPOSIT_MAX_DUE_DAYS, DEPOSIT_MAX_NOTE };
 
 export type ProfileUpdate = {
   displayName: string;
@@ -75,46 +66,26 @@ export type ProfileUpdate = {
 export function normalizeProfileUpdate(body: unknown): Result<ProfileUpdate> {
   const b = (body ?? {}) as Record<string, unknown>;
 
-  const displayName = asString(b.displayName).trim();
-  if (!displayName) return { ok: false, error: "Display name is required." };
-  if (displayName.length > DISPLAY_NAME_MAX) {
-    return {
-      ok: false,
-      error: `Display name is too long (max ${DISPLAY_NAME_MAX} characters).`,
-    };
-  }
+  const fields = normalizeProfileFields({
+    displayName: b.displayName,
+    bio: b.bio,
+    instagramHandle: b.instagramHandle,
+    location: b.location,
+  });
+  if (!fields.ok) return fields;
 
-  const bioRaw = asString(b.bio).trim();
-  if (bioRaw.length > BIO_MAX) {
-    return { ok: false, error: `Bio must be ${BIO_MAX} characters or fewer.` };
-  }
-  const bio = bioRaw.length > 0 ? bioRaw : null;
-
-  const instagramRaw = asString(b.instagramHandle).trim().replace(/^@+/, "");
-  if (instagramRaw.length > INSTAGRAM_MAX) {
-    return {
-      ok: false,
-      error: `Instagram handle is too long (max ${INSTAGRAM_MAX} characters).`,
-    };
-  }
-  const instagramHandle = instagramRaw.length > 0 ? instagramRaw : null;
-
-  const locationRaw = asString(b.location).trim();
-  if (locationRaw.length > LOCATION_MAX) {
-    return {
-      ok: false,
-      error: `Location is too long (max ${LOCATION_MAX} characters).`,
-    };
-  }
-  const location = locationRaw.length > 0 ? locationRaw : null;
-
-  const value: ProfileUpdate = { displayName, bio, instagramHandle, location };
+  const value: ProfileUpdate = {
+    displayName: fields.value.displayName,
+    bio: fields.value.bio,
+    instagramHandle: fields.value.instagramHandle,
+    location: fields.value.location,
+  };
 
   const timezone = asString(b.timezone).trim();
   if (timezone) value.timezone = timezone;
 
   if (b.bookingMode !== undefined) {
-    if (b.bookingMode !== "preferred_date" && b.bookingMode !== "fixed_slots") {
+    if (!isBookingMode(b.bookingMode)) {
       return { ok: false, error: "Invalid booking mode." };
     }
     value.bookingMode = b.bookingMode;
@@ -141,7 +112,7 @@ export function normalizeProfileUpdate(body: unknown): Result<ProfileUpdate> {
 /** Validate a standalone booking-mode change (POST /settings/booking-mode).
  * Mirrors saveBookingModeAction's enum check, including its error copy. */
 export function normalizeBookingMode(value: unknown): Result<BookingMode> {
-  if (value !== "preferred_date" && value !== "fixed_slots") {
+  if (!isBookingMode(value)) {
     return { ok: false, error: "Invalid booking mode." };
   }
   return { ok: true, value };
@@ -264,7 +235,7 @@ export function normalizeDepositDefaults(
 function normalizePolicyWindow(raw: unknown): Result<PolicyWindow> {
   const o = (raw ?? {}) as Record<string, unknown>;
   const unit: TimeUnit = o.unit === "hours" ? "hours" : "days";
-  const max = unit === "hours" ? 720 : 365;
+  const max = policyWindowMax(unit);
   if (
     typeof o.value !== "number" ||
     !Number.isInteger(o.value) ||

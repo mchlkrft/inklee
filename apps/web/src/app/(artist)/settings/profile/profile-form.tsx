@@ -5,20 +5,13 @@ import Image from "next/image";
 import Spinner from "@/components/spinner";
 import { updateProfileAction } from "./actions";
 import { CURATED_TIMEZONES } from "@inklee/shared/timezone";
+import { COVER_COLORS } from "@inklee/shared/cover-colors";
 
 type State = { error: string } | { success: true } | null;
 
 // Shared with the mobile timezone picker (packages/shared/src/timezone.ts) so
 // the two platforms cannot drift.
 const TIMEZONES = CURATED_TIMEZONES;
-
-const COVER_COLORS = [
-  { id: "mustard", hex: "#e9b22b", label: "Mustard" },
-  { id: "rosa", hex: "#db88b9", label: "Rosa" },
-  { id: "cobalt", hex: "#0b3d9f", label: "Cobalt" },
-  { id: "red", hex: "#cf2e2c", label: "Red" },
-  { id: "green", hex: "#105f2d", label: "Green" },
-] as const;
 
 // Mirror the server-side limits (actions.ts) so an oversized or wrong-format
 // file is caught in the browser with a clear message, instead of being sent

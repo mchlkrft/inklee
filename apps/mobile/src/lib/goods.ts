@@ -4,6 +4,14 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { apiPatch, invalidateByPathPrefix } from "./api";
 
+import {
+  PRODUCT_CATEGORIES,
+  PRODUCT_CATEGORY_LABELS,
+  PRODUCT_STATUSES,
+  PRODUCT_STATUS_LABELS,
+  parsePriceInput,
+} from "@inklee/shared/goods";
+
 export {
   CURRENCIES,
   DEFAULT_CURRENCY,
@@ -41,37 +49,27 @@ export async function setProductStatus(
   dropProductDetail(client, id);
 }
 
-export const PRODUCT_CATEGORY_OPTIONS = [
-  { value: "print", label: "Print" },
-  { value: "shirt", label: "Shirt" },
-  { value: "sticker", label: "Sticker" },
-  { value: "zine", label: "Zine" },
-  { value: "flash_sheet", label: "Flash sheet" },
-  { value: "original", label: "Original" },
-  { value: "patch", label: "Patch" },
-  { value: "other", label: "Other" },
-] as const;
+// Picker options derived from the shared enums + labels (one source of truth;
+// the value/label pairs were previously re-declared here and could drift).
+export const PRODUCT_CATEGORY_OPTIONS = PRODUCT_CATEGORIES.map((value) => ({
+  value,
+  label: PRODUCT_CATEGORY_LABELS[value],
+}));
 
-export const PRODUCT_STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "hidden", label: "Hidden" },
-  { value: "sold_out", label: "Sold out" },
-] as const;
-
-const STATUS_LABELS: Record<string, string> = Object.fromEntries(
-  PRODUCT_STATUS_OPTIONS.map((o) => [o.value, o.label]),
-);
+export const PRODUCT_STATUS_OPTIONS = PRODUCT_STATUSES.map((value) => ({
+  value,
+  label: PRODUCT_STATUS_LABELS[value],
+}));
 
 export function productStatusLabel(s: string): string {
-  return STATUS_LABELS[s] ?? s;
+  return PRODUCT_STATUS_LABELS[s as keyof typeof PRODUCT_STATUS_LABELS] ?? s;
 }
 
 /** Parse a price typed with EU formatting (comma decimal, dot/space grouping)
- *  into a non-negative number, or null when blank/invalid. */
+ *  into a non-negative number, or null when blank/invalid. Thin adapter over the
+ *  shared parsePriceInput so web + mobile parse prices identically (it also now
+ *  rounds to 2 dp and caps at MAX_PRICE, previously enforced only server-side). */
 export function parseEuAmount(raw: string): number | null {
-  let s = raw.trim().replace(/\s/g, "");
-  if (s === "") return null;
-  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  const r = parsePriceInput(raw);
+  return "value" in r ? r.value : null;
 }

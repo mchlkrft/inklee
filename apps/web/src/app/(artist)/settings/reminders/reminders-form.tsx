@@ -3,7 +3,10 @@
 import { useActionState, useState } from "react";
 import { saveReminderSettingsAction } from "./actions";
 import Spinner from "@/components/spinner";
-import type { ReminderSettings } from "@/lib/reminder-settings";
+import {
+  REMINDER_BOUNDS,
+  type ReminderSettings,
+} from "@/lib/reminder-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -95,13 +98,15 @@ export default function RemindersForm({
                 id="appointment_days"
                 name="appointment_reminder_days"
                 type="number"
-                min={1}
-                max={14}
+                min={REMINDER_BOUNDS.appointmentReminderDays.min}
+                max={REMINDER_BOUNDS.appointmentReminderDays.max}
                 value={values.appointment_reminder_days}
                 onChange={(e) =>
                   setValues((v) => ({
                     ...v,
-                    appointment_reminder_days: parseInt(e.target.value) || 3,
+                    appointment_reminder_days:
+                      parseInt(e.target.value) ||
+                      REMINDER_BOUNDS.appointmentReminderDays.default,
                   }))
                 }
                 className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-ring"
@@ -151,13 +156,15 @@ export default function RemindersForm({
                 id="reconfirmation_days"
                 name="reconfirmation_days"
                 type="number"
-                min={3}
-                max={30}
+                min={REMINDER_BOUNDS.reconfirmationDays.min}
+                max={REMINDER_BOUNDS.reconfirmationDays.max}
                 value={values.reconfirmation_days}
                 onChange={(e) =>
                   setValues((v) => ({
                     ...v,
-                    reconfirmation_days: parseInt(e.target.value) || 14,
+                    reconfirmation_days:
+                      parseInt(e.target.value) ||
+                      REMINDER_BOUNDS.reconfirmationDays.default,
                   }))
                 }
                 className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-ring"

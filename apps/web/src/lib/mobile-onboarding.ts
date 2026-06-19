@@ -6,30 +6,27 @@
 // settings.ts are, without a route-handler mocking harness.
 
 import { validateSlug } from "./slug";
-import type { BookingMode } from "@inklee/shared/booking-domain";
+import {
+  isBookingMode,
+  BOOKING_MODES,
+  type BookingMode,
+} from "@inklee/shared/booking-domain";
+import { normalizeProfileFields } from "@inklee/shared/profile-validation";
 
-/** The two booking modes stored in `profiles.booking_mode` (canonical type from
- *  @inklee/shared/booking-domain). */
-export const BOOKING_MODES = [
-  "preferred_date",
-  "fixed_slots",
-] as const satisfies readonly BookingMode[];
-
-export function isBookingMode(value: unknown): value is BookingMode {
-  return (
-    typeof value === "string" &&
-    (BOOKING_MODES as readonly string[]).includes(value)
-  );
-}
+// Canonical booking-mode tuple + strict predicate live in booking-domain;
+// re-export so existing `@/lib/mobile-onboarding` importers (+ tests) resolve.
+export { isBookingMode, BOOKING_MODES };
 
 /** Fallback when the client sends no device timezone. */
 export const DEFAULT_TIMEZONE = "Europe/Berlin";
 
-// Length caps — defensive bounds on the free-text profile fields (the DB columns
-// are unbounded text, but the UI never needs more than this).
-export const DISPLAY_NAME_MAX = 80;
-export const INSTAGRAM_MAX = 30;
-export const LOCATION_MAX = 120;
+// Length caps now live in the shared profile validator; re-export so existing
+// importers of `@/lib/mobile-onboarding` (and its tests) keep resolving.
+export {
+  DISPLAY_NAME_MAX,
+  INSTAGRAM_MAX,
+  LOCATION_MAX,
+} from "@inklee/shared/profile-validation";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -62,39 +59,27 @@ export function normalizeProfileInput(
   const slugError = validateSlug(slug);
   if (slugError) return { ok: false, error: slugError };
 
-  const displayName = asString(b.displayName).trim();
-  if (!displayName) return { ok: false, error: "Display name is required." };
-  if (displayName.length > DISPLAY_NAME_MAX) {
-    return {
-      ok: false,
-      error: `Display name is too long (max ${DISPLAY_NAME_MAX} characters).`,
-    };
-  }
-
-  const instagramRaw = asString(b.instagramHandle).trim().replace(/^@+/, "");
-  if (instagramRaw.length > INSTAGRAM_MAX) {
-    return {
-      ok: false,
-      error: `Instagram handle is too long (max ${INSTAGRAM_MAX} characters).`,
-    };
-  }
-  const instagramHandle = instagramRaw.length > 0 ? instagramRaw : null;
-
-  const locationRaw = asString(b.location).trim();
-  if (locationRaw.length > LOCATION_MAX) {
-    return {
-      ok: false,
-      error: `Location is too long (max ${LOCATION_MAX} characters).`,
-    };
-  }
-  const location = locationRaw.length > 0 ? locationRaw : null;
+  // Display name + instagram + location share the canonical bounds/normalization
+  // (the claim payload has no bio). Same error copy as before.
+  const fields = normalizeProfileFields({
+    displayName: b.displayName,
+    instagramHandle: b.instagramHandle,
+    location: b.location,
+  });
+  if (!fields.ok) return fields;
 
   const timezoneRaw = asString(b.timezone).trim();
   const timezone = timezoneRaw.length > 0 ? timezoneRaw : DEFAULT_TIMEZONE;
 
   return {
     ok: true,
-    value: { slug, displayName, instagramHandle, location, timezone },
+    value: {
+      slug,
+      displayName: fields.value.displayName,
+      instagramHandle: fields.value.instagramHandle,
+      location: fields.value.location,
+      timezone,
+    },
   };
 }
 

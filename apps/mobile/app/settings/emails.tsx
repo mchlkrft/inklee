@@ -18,6 +18,7 @@ import type {
   MobileEmailTemplatesResponse,
   MobileReminderSettings,
 } from "@inklee/shared/mobile-api";
+import { REMINDER_BOUNDS } from "@inklee/shared/reminder-settings";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -236,8 +237,8 @@ function RemindersForm({ initial }: { initial: MobileReminderSettings }) {
         {appointmentEnabled ? (
           <DaysRow
             value={appointmentDays}
-            min={1}
-            max={14}
+            min={REMINDER_BOUNDS.appointmentReminderDays.min}
+            max={REMINDER_BOUNDS.appointmentReminderDays.max}
             onChange={(v) => edit(() => setAppointmentDays(v))}
           />
         ) : null}
@@ -252,8 +253,8 @@ function RemindersForm({ initial }: { initial: MobileReminderSettings }) {
         {reconfirmationEnabled ? (
           <DaysRow
             value={reconfirmationDays}
-            min={3}
-            max={30}
+            min={REMINDER_BOUNDS.reconfirmationDays.min}
+            max={REMINDER_BOUNDS.reconfirmationDays.max}
             onChange={(v) => edit(() => setReconfirmationDays(v))}
           />
         ) : null}

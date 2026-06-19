@@ -5,6 +5,7 @@ import {
 } from "@/lib/server/mobile-auth";
 import {
   parseReminderSettings,
+  sanitizeReminderSettings,
   type ReminderSettings,
 } from "@/lib/reminder-settings";
 import type { MobileReminderSettings } from "@inklee/shared/mobile-api";
@@ -34,18 +35,11 @@ export async function GET(req: Request) {
   return mobileOk(body);
 }
 
-// JSON-body equivalent of saveReminderSettingsAction's `parseInt(...) || n`
-// coercion: a non-numeric value collapses to 0 so the `|| default` kicks in.
-function toInt(value: unknown): number {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? Math.trunc(n) : 0;
-}
-
 // POST /api/mobile/settings/reminders { ...5 reminder fields } — persist into
-// profiles.settings.reminder_settings. Mirrors saveReminderSettingsAction
-// exactly: strict boolean coercion, day counts clamped to 1-14 / 3-30 with the
-// web defaults (3 / 14) as fallback, and the settings JSONB merged so other
-// keys (deposit_defaults, dashboard widgets, …) are preserved.
+// profiles.settings.reminder_settings. Uses the shared sanitizer with
+// absentBooleans:"false" (an omitted flag means the artist turned it off,
+// matching the web save action), day counts clamped to 1-14 / 3-30, and the
+// settings JSONB merged so other keys (deposit_defaults, …) are preserved.
 export async function POST(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
@@ -60,21 +54,9 @@ export async function POST(req: Request) {
   if (!raw || typeof raw !== "object") {
     return mobileError(400, "Invalid body.");
   }
-  const r = raw as Record<string, unknown>;
-
-  const reminderSettings: ReminderSettings = {
-    deposit_overdue_enabled: r.deposit_overdue_enabled === true,
-    appointment_reminder_enabled: r.appointment_reminder_enabled === true,
-    appointment_reminder_days: Math.min(
-      14,
-      Math.max(1, toInt(r.appointment_reminder_days) || 3),
-    ),
-    reconfirmation_enabled: r.reconfirmation_enabled === true,
-    reconfirmation_days: Math.min(
-      30,
-      Math.max(3, toInt(r.reconfirmation_days) || 14),
-    ),
-  };
+  const reminderSettings: ReminderSettings = sanitizeReminderSettings(raw, {
+    absentBooleans: "false",
+  });
 
   const { data: profile, error: readError } = await supabase
     .from("profiles")

@@ -12,6 +12,10 @@ import FilterRow, { type FilterGroup } from "./filter-row";
 import { publicArtistUrl } from "@/lib/public-url";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import {
+  aggregateClients,
+  type ClientBookingRow,
+} from "@inklee/shared/clients";
 
 // Labels mirror the StatusBadge / humanStatusLabel vocabulary so the chip
 // row and the row badges below speak the same language. URL `value`s stay
@@ -24,14 +28,6 @@ const STATUS_FILTERS = [
   { label: "Passed", value: "rejected" },
   { label: "Cancelled", value: "cancelled" },
 ] as const;
-
-type ClientRow = {
-  email: string;
-  handle: string;
-  bookingCount: number;
-  lastBookingAt: string;
-  latestStatus: string;
-};
 
 async function RequestsView({
   status,
@@ -291,23 +287,7 @@ async function ClientsView({ publicUrl }: { publicUrl: string | null }) {
     .not("customer_email", "is", null)
     .order("created_at", { ascending: false });
 
-  const map = new Map<string, ClientRow>();
-  for (const b of bookings ?? []) {
-    const email = b.customer_email!;
-    if (!map.has(email)) {
-      map.set(email, {
-        email,
-        handle: b.customer_handle ?? "",
-        bookingCount: 1,
-        lastBookingAt: b.created_at,
-        latestStatus: b.status,
-      });
-    } else {
-      map.get(email)!.bookingCount++;
-    }
-  }
-
-  const clients = [...map.values()];
+  const clients = aggregateClients((bookings ?? []) as ClientBookingRow[]);
 
   return (
     <div className="space-y-5">

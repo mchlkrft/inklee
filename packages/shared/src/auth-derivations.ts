@@ -23,3 +23,34 @@ export function isMfaEnabled(
     (f) => f.factor_type === "totp" && f.status === "verified",
   );
 }
+
+/** A linked identity as returned by Supabase getUser().identities — only the
+ *  provider field is read. */
+export type AuthIdentityLike = { provider?: string | null };
+
+export type SignInIdentity = {
+  /** The account has an email/password identity (can re-auth with a password). */
+  hasPassword: boolean;
+  /** For OAuth-only accounts, the provider to re-verify with (e.g. "google",
+   *  "apple"); null when the account has a password. */
+  oauthProvider: string | null;
+};
+
+/**
+ * Derive the sign-in identity from the user's linked identities. Scans the
+ * identity LIST — not `app_metadata.provider`, which records only the most-recent
+ * provider and made the mobile delete screen disagree with web (an email+google
+ * account showed the Google re-auth instead of the password field). An account
+ * with an "email" identity is password-capable; otherwise the first non-email
+ * provider is the one to re-verify with. (ME-10 D23)
+ */
+export function deriveSignInIdentity(
+  identities: readonly AuthIdentityLike[] | null | undefined,
+): SignInIdentity {
+  const list = identities ?? [];
+  const hasPassword = list.some((i) => i.provider === "email");
+  const oauthProvider = hasPassword
+    ? null
+    : (list.find((i) => i.provider !== "email")?.provider ?? null);
+  return { hasPassword, oauthProvider };
+}

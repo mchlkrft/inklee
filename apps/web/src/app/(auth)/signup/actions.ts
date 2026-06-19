@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { checkSignupRateLimit } from "@/lib/ratelimit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { validatePassword } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | { sent: true } | null;
 
@@ -16,8 +17,8 @@ export async function signUpAction(
   const password = formData.get("password") as string;
 
   if (!email || !password) return { error: "Email and password are required." };
-  if (password.length < 8)
-    return { error: "Password must be at least 8 characters." };
+  const pwError = validatePassword(password);
+  if (pwError) return { error: pwError };
 
   const ip = getClientIp(await headers());
   const { allowed } = await checkSignupRateLimit(ip);

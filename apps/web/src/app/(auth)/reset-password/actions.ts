@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { validatePassword } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | null;
 
@@ -13,8 +14,8 @@ export async function resetPasswordAction(
   const confirm = formData.get("confirm") as string;
 
   if (!password) return { error: "Password is required." };
-  if (password.length < 8)
-    return { error: "Password must be at least 8 characters." };
+  const pwError = validatePassword(password);
+  if (pwError) return { error: pwError };
   if (password !== confirm) return { error: "Passwords don’t match." };
 
   const supabase = await createClient();

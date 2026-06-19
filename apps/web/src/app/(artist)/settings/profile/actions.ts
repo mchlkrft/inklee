@@ -2,8 +2,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 import { writeAudit } from "@/lib/audit";
+import { normalizeProfileFields } from "@inklee/shared/profile-validation";
+import { sanitizeCoverColor } from "@inklee/shared/cover-colors";
+import { isBookingMode } from "@inklee/shared/booking-domain";
 
 type State = { error: string } | { success: true } | null;
 
@@ -14,23 +17,6 @@ const MAX_SIZE = 2 * 1024 * 1024; // 2MB
 // as an opaque 500 instead of a friendly message. The same limit is enforced
 // client-side in profile-form.tsx so oversized files never leave the browser.
 const MAX_COVER_SIZE = 4 * 1024 * 1024; // 4MB
-
-const COVER_COLOR_NAMES = new Set([
-  "mustard",
-  "rosa",
-  "cobalt",
-  "red",
-  "green",
-]);
-
-function sanitizeCoverColor(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const v = value.trim().toLowerCase();
-  if (!v) return null;
-  if (COVER_COLOR_NAMES.has(v)) return v;
-  if (/^#[0-9a-f]{3,8}$/.test(v)) return v;
-  return null;
-}
 
 export async function updateProfileAction(
   _prev: State,
@@ -43,25 +29,25 @@ export async function updateProfileAction(
 
   if (!user) return { error: "Not authenticated." };
 
-  const displayName = (formData.get("display_name") as string).trim();
-  const instagramHandle = (formData.get("instagram_handle") as string | null)
-    ?.trim()
-    .replace(/^@/, "");
-  const bio = (formData.get("bio") as string | null)?.trim();
+  const fields = normalizeProfileFields({
+    displayName: formData.get("display_name"),
+    bio: formData.get("bio"),
+    instagramHandle: formData.get("instagram_handle"),
+    location: formData.get("location"),
+  });
+  if (!fields.ok) return { error: fields.error };
+  const { displayName, bio, instagramHandle, location } = fields.value;
+
   const timezone = formData.get("timezone") as string;
-  const location = (formData.get("location") as string | null)?.trim();
-  const bookingMode = formData.get("booking_mode") as
-    | "preferred_date"
-    | "fixed_slots"
-    | null;
+  // Strict (shared) validation, like the other booking_mode write paths: an
+  // absent/unknown value is ignored (left unwritten) rather than reaching the
+  // Postgres enum. The profile form doesn't currently submit this field.
+  const bookingModeRaw = formData.get("booking_mode");
+  const bookingMode = isBookingMode(bookingModeRaw) ? bookingModeRaw : null;
   const logoFile = formData.get("logo") as File | null;
   const coverFile = formData.get("cover_image") as File | null;
   const removeCoverImage = formData.get("remove_cover_image") === "1";
   const coverColorRaw = formData.get("cover_color") as string | null;
-
-  if (!displayName) return { error: "Display name is required." };
-  if (bio && bio.length > 280)
-    return { error: "Bio must be 280 characters or fewer." };
 
   let logoUrl: string | undefined;
 
@@ -76,7 +62,7 @@ export async function updateProfileAction(
     let resized: Buffer;
     try {
       const buffer = Buffer.from(await logoFile.arrayBuffer());
-      resized = await sharp(buffer)
+      resized = await guardedSharp(buffer)
         .resize(512, 512, { fit: "cover", position: "centre" })
         .webp({ quality: 85 })
         .toBuffer();
@@ -121,7 +107,7 @@ export async function updateProfileAction(
     let resized: Buffer;
     try {
       const buffer = Buffer.from(await coverFile.arrayBuffer());
-      resized = await sharp(buffer)
+      resized = await guardedSharp(buffer)
         .resize(1600, 600, { fit: "cover", position: "centre" })
         .webp({ quality: 80 })
         .toBuffer();

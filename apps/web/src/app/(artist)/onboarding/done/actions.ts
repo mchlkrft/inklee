@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
+import { guardedSharp } from "@/lib/image-guard";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 
@@ -50,7 +50,7 @@ export async function uploadOnboardingLogoAction(
   let resized: Buffer;
   try {
     const buffer = Buffer.from(await logoFile.arrayBuffer());
-    resized = await sharp(buffer)
+    resized = await guardedSharp(buffer)
       .resize(512, 512, { fit: "cover", position: "centre" })
       .webp({ quality: 85 })
       .toBuffer();

@@ -4,7 +4,10 @@ import {
   VISIBILITY_LABELS,
   VISIBILITY_MODES,
 } from "@inklee/shared/studio-validation";
+import { legIsActive as sharedLegIsActive } from "@inklee/shared/trip-validation";
 import { localDateKey } from "@inklee/shared/date-utils";
+
+export { rangesOverlap } from "@inklee/shared/trip-validation";
 import { invalidateByPathPrefix } from "./api";
 import { formatShortDate } from "./date";
 
@@ -31,23 +34,8 @@ export function formatDateRange(startsOn: string, endsOn: string): string {
   return `${formatShortDate(startsOn)} – ${formatShortDate(endsOn)}`;
 }
 
-// Two date ranges overlap when each starts on or before the other ends. Pure
-// date-key string compare (tz-safe, YYYY-MM-DD sorts lexically) — the same logic
-// web's trip-manager uses. Overlapping stops are allowed (an artist can work
-// several studios at once), but the client can't tell which studio applies, so
-// we surface a notice.
-export function rangesOverlap(
-  ranges: { startsOn: string; endsOn: string }[],
-): boolean {
-  return ranges.some((a, i) =>
-    ranges.some(
-      (b, j) => i !== j && a.startsOn <= b.endsOn && b.startsOn <= a.endsOn,
-    ),
-  );
-}
-
-/** A leg is "active" when today's local date-key falls within its range. */
+/** A leg is "active" when today's local (device) date-key falls within its
+ *  range. Thin wrapper over the shared predicate, injecting the device today. */
 export function legIsActive(startsOn: string, endsOn: string): boolean {
-  const today = localDateKey();
-  return startsOn <= today && endsOn >= today;
+  return sharedLegIsActive(startsOn, endsOn, localDateKey());
 }

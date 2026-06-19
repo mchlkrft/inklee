@@ -13,7 +13,10 @@ import {
 } from "@/lib/email/reminder-emails";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
 import { checkReminderRateLimit } from "@/lib/ratelimit";
-import type { ReminderSettings } from "@/lib/reminder-settings";
+import {
+  sanitizeReminderSettings,
+  type ReminderSettings,
+} from "@/lib/reminder-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import { localToUTC } from "@/lib/timezone";
 
@@ -56,26 +59,19 @@ export async function saveReminderSettingsAction(
     .single();
 
   const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
-  const reminderSettings: ReminderSettings = {
-    deposit_overdue_enabled: formData.get("deposit_overdue_enabled") === "true",
-    appointment_reminder_enabled:
-      formData.get("appointment_reminder_enabled") === "true",
-    appointment_reminder_days: Math.min(
-      14,
-      Math.max(
-        1,
-        parseInt(formData.get("appointment_reminder_days") as string, 10) || 3,
+  // A form that omits a toggle means the artist turned it off → absentBooleans: "false".
+  const reminderSettings: ReminderSettings = sanitizeReminderSettings(
+    {
+      deposit_overdue_enabled: formData.get("deposit_overdue_enabled"),
+      appointment_reminder_enabled: formData.get(
+        "appointment_reminder_enabled",
       ),
-    ),
-    reconfirmation_enabled: formData.get("reconfirmation_enabled") === "true",
-    reconfirmation_days: Math.min(
-      30,
-      Math.max(
-        3,
-        parseInt(formData.get("reconfirmation_days") as string, 10) || 14,
-      ),
-    ),
-  };
+      appointment_reminder_days: formData.get("appointment_reminder_days"),
+      reconfirmation_enabled: formData.get("reconfirmation_enabled"),
+      reconfirmation_days: formData.get("reconfirmation_days"),
+    },
+    { absentBooleans: "false" },
+  );
 
   const { error } = await supabase
     .from("profiles")

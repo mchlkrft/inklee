@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { isMfaEnabled } from "@inklee/shared/auth-derivations";
+import {
+  isMfaEnabled,
+  deriveSignInIdentity,
+} from "@inklee/shared/auth-derivations";
 import GeneralForm from "./general-form";
 import SecurityForm from "./security-form";
 import TwoFactorSection from "./two-factor-section";
@@ -18,14 +21,10 @@ export default async function AccountPage() {
     .eq("id", user!.id)
     .single();
 
-  // Detect whether the account has a password (vs Google-only)
-  const identities = user?.identities ?? [];
-  const hasPassword = identities.some((i) => i.provider === "email");
-  // For OAuth-only accounts, the provider to re-verify with before deletion
-  // (counsel §9 re-auth, enforced server-side via last_sign_in_at freshness).
-  const oauthProvider = hasPassword
-    ? null
-    : (identities.find((i) => i.provider !== "email")?.provider ?? null);
+  // Sign-in identity: password-capable vs OAuth-only, plus the provider to
+  // re-verify with before deletion (counsel §9 re-auth, enforced server-side via
+  // last_sign_in_at freshness). Shared so web + mobile derive it identically.
+  const { hasPassword, oauthProvider } = deriveSignInIdentity(user?.identities);
 
   // Check TOTP enrollment. Scan ALL factors via the shared derivation (not just
   // totp[0]) so this matches the mobile /api/mobile/account pill exactly (BUG-7).

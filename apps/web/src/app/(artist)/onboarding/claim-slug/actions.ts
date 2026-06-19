@@ -2,6 +2,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { validateSlug } from "@/lib/slug";
+import { normalizeProfileFields } from "@inklee/shared/profile-validation";
+import {
+  resolveSlugAvailabilityServer,
+  isSlugTakenByOther,
+} from "@/lib/server/slug-availability";
 import { redirect } from "next/navigation";
 
 type State = { error: string } | null;
@@ -17,23 +22,13 @@ export async function checkSlugAvailability(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  // Free to claim.
-  if (!data) return { available: true, owned: false, error: null };
-
-  // Already the current user's slug — re-claiming it is fine (e.g. they
-  // stepped back to this step). Treat as available so the form stays usable.
-  if (user && data.id === user.id) {
-    return { available: true, owned: true, error: null };
-  }
-
-  // Taken by someone else.
-  return { available: false, owned: false, error: null };
+  // Service-client lookup: an RLS read can't see other artists' rows (0030), so
+  // it would mark every taken slug as free. Mirrors the mobile slug-check route.
+  const { available, owned } = await resolveSlugAvailabilityServer(
+    slug,
+    user?.id ?? "",
+  );
+  return { available, owned, error: null };
 }
 
 export async function claimSlugAction(
@@ -41,16 +36,19 @@ export async function claimSlugAction(
   formData: FormData,
 ): Promise<State> {
   const slug = (formData.get("slug") as string).trim().toLowerCase();
-  const displayName = (formData.get("display_name") as string | null)?.trim();
-  const instagramHandle =
-    (formData.get("instagram_handle") as string | null)
-      ?.trim()
-      .replace(/^@/, "") || null;
-  const location = (formData.get("location") as string | null)?.trim() || null;
-
   const validationError = validateSlug(slug);
   if (validationError) return { error: validationError };
-  if (!displayName) return { error: "Artist name is required." };
+
+  const fields = normalizeProfileFields(
+    {
+      displayName: formData.get("display_name"),
+      instagramHandle: formData.get("instagram_handle"),
+      location: formData.get("location"),
+    },
+    { displayNameRequiredError: "Artist name is required." },
+  );
+  if (!fields.ok) return { error: fields.error };
+  const { displayName, instagramHandle, location } = fields.value;
 
   const supabase = await createClient();
   const {
@@ -65,14 +63,12 @@ export async function claimSlugAction(
     .eq("id", user.id)
     .maybeSingle();
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("slug", slug)
-    .neq("id", user.id)
-    .single();
-
-  if (existing) return { error: "That slug is already taken." };
+  // Service-client pre-check (0030 dropped the public profiles SELECT policy, so
+  // an RLS read can't see another artist's row). The 23505 catch below is the
+  // check<->upsert race backstop, matching the mobile onboarding route.
+  if (await isSlugTakenByOther(slug, user.id)) {
+    return { error: "That slug is already taken." };
+  }
 
   const { error } = await supabase.from("profiles").upsert({
     id: user.id,
@@ -84,7 +80,12 @@ export async function claimSlugAction(
     updated_at: new Date().toISOString(),
   });
 
-  if (error) return { error: error.message.toLowerCase() };
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "That slug is already taken." };
+    }
+    return { error: error.message.toLowerCase() };
+  }
 
   redirect("/onboarding/booking");
 }

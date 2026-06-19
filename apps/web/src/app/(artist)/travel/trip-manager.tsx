@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 import Spinner from "@/components/spinner";
 import DateInput from "@/components/date-input";
 import { formatDateKey, localDateKey } from "@/lib/date-utils";
+import { rangesOverlap, legIsActive } from "@/lib/trip-validation";
 import {
   createTripAction,
   updateTripAction,
@@ -320,19 +321,9 @@ function StudioSelectWithAdd({
   );
 }
 
-// Two date ranges overlap when each starts on or before the other ends.
-// Overlapping stops are allowed (an artist can work several studios at once),
+// rangesOverlap is single-sourced in @inklee/shared/trip-validation (D14):
+// overlapping stops are allowed (an artist can work several studios at once),
 // but the client can't tell which studio applies — so we warn the artist.
-function rangesOverlap(
-  ranges: { startsOn: string; endsOn: string }[],
-): boolean {
-  return ranges.some((a, i) =>
-    ranges.some(
-      (b, j) => i !== j && a.startsOn <= b.endsOn && b.startsOn <= a.endsOn,
-    ),
-  );
-}
-
 function OverlapNotice() {
   return (
     <div className="rounded-md border border-brand-mustard/40 bg-brand-mustard/[0.07] px-3 py-2.5">
@@ -895,7 +886,7 @@ function EditTripModal({
         {trip.legs.length > 0 && (
           <div className="divide-y divide-border rounded-md border-2 border-border">
             {trip.legs.map((leg) => {
-              const legActive = leg.startsOn <= today && leg.endsOn >= today;
+              const legActive = legIsActive(leg.startsOn, leg.endsOn, today);
               return (
                 <div
                   key={leg.id}
@@ -984,8 +975,8 @@ function TripSummaryCard({
   onClick: () => void;
 }) {
   const today = localDateKey();
-  const isActive = trip.legs.some(
-    (l) => l.startsOn <= today && l.endsOn >= today,
+  const isActive = trip.legs.some((l) =>
+    legIsActive(l.startsOn, l.endsOn, today),
   );
   const isUpcoming = !isActive && trip.legs.some((l) => l.startsOn > today);
 
