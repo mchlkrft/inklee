@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parsePriceInput,
   parseOptionalPriceInput,
+  normalizePriceNumber,
   formatPrice,
   toPriceNumber,
   isProductCategory,
@@ -22,6 +23,22 @@ describe("parsePriceInput", () => {
     expect("error" in parsePriceInput("-5")).toBe(true);
     expect("error" in parsePriceInput("abc")).toBe(true);
     expect("error" in parsePriceInput(String(MAX_PRICE + 1))).toBe(true);
+  });
+
+  it("treats a comma as the decimal separator (EU), dots/spaces as grouping", () => {
+    expect(parsePriceInput("1,50")).toEqual({ value: 1.5 });
+    expect(parsePriceInput("1.234,56")).toEqual({ value: 1234.56 });
+    expect(parsePriceInput("1 234,50")).toEqual({ value: 1234.5 });
+  });
+});
+
+describe("normalizePriceNumber", () => {
+  it("rounds to 2dp and enforces the bounds on an already-numeric value", () => {
+    expect(normalizePriceNumber(19.999)).toEqual({ value: 20 });
+    expect(normalizePriceNumber(12.5)).toEqual({ value: 12.5 });
+    expect("error" in normalizePriceNumber(-1)).toBe(true);
+    expect("error" in normalizePriceNumber(MAX_PRICE + 1)).toBe(true);
+    expect("error" in normalizePriceNumber(NaN)).toBe(true);
   });
 });
 

@@ -8,11 +8,11 @@ import {
   isCurrency,
   isProductCategory,
   isProductStatus,
+  normalizePriceNumber,
   DEFAULT_CURRENCY,
   MAX_PRODUCT_TITLE,
   MAX_PRODUCT_DESCRIPTION,
   MAX_PICKUP_NOTE,
-  MAX_PRICE,
   MAX_VARIANTS,
   MAX_VARIANT_NAME,
   type ProductCategory,
@@ -51,16 +51,12 @@ export function normalizeProductInput(body: unknown): Result<ProductInput> {
     };
   }
 
-  if (typeof b.price !== "number" || !Number.isFinite(b.price) || b.price < 0) {
+  if (typeof b.price !== "number") {
     return { ok: false, error: "Price must be a positive number." };
   }
-  if (b.price > MAX_PRICE) {
-    return {
-      ok: false,
-      error: `Price cannot exceed ${MAX_PRICE.toLocaleString()}.`,
-    };
-  }
-  const price = Math.round(b.price * 100) / 100;
+  const priceResult = normalizePriceNumber(b.price);
+  if ("error" in priceResult) return { ok: false, error: priceResult.error };
+  const price = priceResult.value;
 
   // currency / category / status coerce to a safe default if unrecognized
   // (matches the web action's lenient behavior).
@@ -142,23 +138,21 @@ export function normalizeVariantsInput(body: unknown): Result<VariantInput[]> {
 
     let priceOverride: number | null = null;
     if (o.priceOverride !== null && o.priceOverride !== undefined) {
-      if (
-        typeof o.priceOverride !== "number" ||
-        !Number.isFinite(o.priceOverride) ||
-        o.priceOverride < 0
-      ) {
+      if (typeof o.priceOverride !== "number") {
         return {
           ok: false,
           error: `Variant "${name}": price must be a positive number.`,
         };
       }
-      if (o.priceOverride > MAX_PRICE) {
+      const r = normalizePriceNumber(o.priceOverride);
+      if ("error" in r) {
+        // Re-scope the shared bounds error to this variant (lowercased lead-in).
         return {
           ok: false,
-          error: `Variant "${name}": price cannot exceed ${MAX_PRICE.toLocaleString()}.`,
+          error: `Variant "${name}": ${r.error.charAt(0).toLowerCase()}${r.error.slice(1)}`,
         };
       }
-      priceOverride = Math.round(o.priceOverride * 100) / 100;
+      priceOverride = r.value;
     }
 
     let stock: number | null = null;

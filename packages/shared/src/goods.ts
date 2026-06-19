@@ -99,11 +99,11 @@ export function isProductStatus(v: unknown): v is ProductStatus {
 
 type PriceResult = { value: number } | { error: string };
 
-/** Parse a required price string from a form into a 2-dp number, or an error. */
-export function parsePriceInput(raw: string | null | undefined): PriceResult {
-  const s = (raw ?? "").trim();
-  if (s === "") return { error: "Enter a price." };
-  const n = Number.parseFloat(s);
+/** Apply the price bounds (non-negative, <= MAX_PRICE) and round to 2 dp to an
+ *  ALREADY-numeric value. The mobile API payload arrives as a number, not a form
+ *  string, so its route re-validators call this directly — same rule as
+ *  parsePriceInput's numeric half, single-sourced. */
+export function normalizePriceNumber(n: number): PriceResult {
   if (!Number.isFinite(n) || n < 0) {
     return { error: "Price must be a positive number." };
   }
@@ -111,6 +111,22 @@ export function parsePriceInput(raw: string | null | undefined): PriceResult {
     return { error: `Price cannot exceed ${MAX_PRICE.toLocaleString()}.` };
   }
   return { value: Math.round(n * 100) / 100 };
+}
+
+/**
+ * Parse a required price string from a form into a 2-dp number, or an error.
+ * EU-aware: a comma is the decimal separator and dots/spaces are thousands
+ * grouping ("1.234,56" -> 1234.56, "1,50" -> 1.5), so a comma-typing artist no
+ * longer has "1,50" truncated to 1. Dot-decimal input (every HTML number input)
+ * is unchanged. This is the ONE parser for both the web form and the mobile
+ * TextInput (the old mobile parseEuAmount is now a thin adapter over it).
+ */
+export function parsePriceInput(raw: string | null | undefined): PriceResult {
+  let s = (raw ?? "").trim();
+  if (s === "") return { error: "Enter a price." };
+  s = s.replace(/\s/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  return normalizePriceNumber(Number.parseFloat(s));
 }
 
 /** Optional price (e.g. a variant override): blank input means null. */

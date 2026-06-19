@@ -26,6 +26,7 @@ import {
   reconcileVariants,
   type VariantInput,
 } from "@/lib/server/goods-variants";
+import { ownedGoodsStoragePath } from "@/lib/server/mobile-goods-server";
 import type { ProductFormValues } from "./product-form";
 import type { VariantInputRow } from "./product-form-fields";
 
@@ -212,42 +213,9 @@ async function uploadProductImage(
   return { url: data.publicUrl, path };
 }
 
-// Derive the storage path from a public URL so we can delete the file when the
-// artist removes the image from a product. Public URL shape:
-//   https://<ref>.supabase.co/storage/v1/object/public/logos/<path>
-function goodsImagePathFromUrl(url: string): string | null {
-  const marker = "/storage/v1/object/public/logos/";
-  const idx = url.indexOf(marker);
-  if (idx < 0) return null;
-  const tail = url.slice(idx + marker.length);
-  return tail.split("?")[0] || null;
-}
-
-// SECURITY: derive a storage path AND verify it lives under this artist's +
-// product's namespace. Anything else — another artist's path, a sibling
-// product's path, a directory escape — returns null. Used everywhere we
-// `.storage.remove()` so a crafted `existing_image_urls` payload cannot
-// reach across artists/products.
-function ownedGoodsStoragePath(
-  url: string,
-  userId: string,
-  productId: string,
-): string | null {
-  const path = goodsImagePathFromUrl(url);
-  if (!path) return null;
-  // No directory traversal — Supabase storage doesn't interpret these but we
-  // still reject as a belt-and-suspenders signal.
-  if (path.includes("..")) return null;
-  const dirPrefix = `${userId}/goods/${productId}/`;
-  const legacyPath = `${userId}/goods/${productId}.webp`;
-  if (path === legacyPath) return path;
-  // Per-image layout (mig 0038): exactly one segment under the product dir.
-  if (path.startsWith(dirPrefix)) {
-    const rest = path.slice(dirPrefix.length);
-    if (rest.length > 0 && !rest.includes("/")) return path;
-  }
-  return null;
-}
+// ownedGoodsStoragePath (the SECURITY path-ownership check used before every
+// .storage.remove()) is single-sourced in @/lib/server/mobile-goods-server so
+// the web action and the mobile image route can't drift (ME-10 D12).
 
 // Shared image-write path for create + update. Reads:
 //   • existing_image_urls (JSON string of URLs to keep, in order) — empty on
