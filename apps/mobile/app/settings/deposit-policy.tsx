@@ -13,6 +13,7 @@ import {
   FORFEIT_PCT_OPTIONS,
   depositPolicyLines,
   isDraftDefaultPolicy,
+  policyWindowMax,
   type DepositPolicy,
   type ForfeitPct,
   type TimeUnit,
@@ -57,7 +58,7 @@ function validateWindow(
   raw: string,
   unit: TimeUnit,
 ): { value: number } | { error: string } {
-  const max = unit === "hours" ? 720 : 365;
+  const max = policyWindowMax(unit);
   const value = Number.parseInt(raw.trim(), 10);
   if (!Number.isFinite(value) || value < 0 || value > max) {
     return { error: `Each window must be between 0 and ${max} ${unit}.` };

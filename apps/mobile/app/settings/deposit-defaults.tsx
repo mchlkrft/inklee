@@ -9,7 +9,11 @@ import {
 import { TextArea } from "@/components/TextArea";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import type { DepositDefaults } from "@inklee/shared/deposit-settings";
+import {
+  DEPOSIT_MAX_NOTE,
+  DEPOSIT_MAX_DUE_DAYS,
+  type DepositDefaults,
+} from "@inklee/shared/deposit-settings";
 import type { MobilePayouts } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
@@ -18,8 +22,6 @@ import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
-
-const NOTE_MAX = 300;
 
 export default function DepositDefaultsScreen() {
   const q = useApiQuery<DepositDefaults>("/settings/deposit-defaults");
@@ -82,8 +84,8 @@ function DepositForm({ initial }: { initial: DepositDefaults }) {
     }
 
     const days = parseInt(dueDays.trim(), 10);
-    if (!Number.isFinite(days) || days < 1 || days > 90) {
-      setError("Due window must be between 1 and 90 days.");
+    if (!Number.isFinite(days) || days < 1 || days > DEPOSIT_MAX_DUE_DAYS) {
+      setError(`Due window must be between 1 and ${DEPOSIT_MAX_DUE_DAYS} days.`);
       return;
     }
 
@@ -150,7 +152,7 @@ function DepositForm({ initial }: { initial: DepositDefaults }) {
         <TextArea
           value={note}
           onChangeText={setNote}
-          maxLength={NOTE_MAX}
+          maxLength={DEPOSIT_MAX_NOTE}
           placeholder="Shown in the deposit request email"
           showCounter
         />
