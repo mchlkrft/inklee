@@ -65,6 +65,23 @@ export function formatDayLabel(dateKey: string): string {
   return `${WEEKDAY_LONG[d.getDay()]}, ${d.getDate()} ${MONTH_LONG[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/** "Thursday, June 18" — the Home greeting date (weekday-long, month-long,
+ *  day-numeric), Intl-free to match the web formatLongDate shape. Takes a
+ *  YYYY-MM-DD date-key; the server sends today in the artist's timezone. */
+export function formatLongDate(dateKey: string): string {
+  const d = toLocalDate(dateKey);
+  return `${WEEKDAY_LONG[d.getDay()]}, ${MONTH_LONG[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** Today's date-key (YYYY-MM-DD) in the DEVICE timezone, Intl-free. Only a
+ *  fallback for older servers that don't send a timezone-aware todayKey. */
+export function deviceTodayKey(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 /** "12 Jun 2026" — compact absolute date (accepts a date-key or an ISO string). */
 export function formatShortDate(value: string): string {
   const d = toLocalDate(value);

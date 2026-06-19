@@ -3,9 +3,9 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
-import { parseBooksSettings } from "@/lib/books-settings";
+import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { parseDashboardWidgets } from "@/lib/dashboard-settings";
-import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
+import { todayInTimeZone } from "@/lib/date-utils";
 import { getDashboardData } from "@/lib/server/dashboard";
 import type { MobileHome } from "@inklee/shared/mobile-api";
 
@@ -33,11 +33,10 @@ export async function GET(req: Request) {
   const onboardingCompleted = settings.onboarding_completed === true;
   const timezone = profile?.timezone ?? "Europe/Berlin";
   const today = todayInTimeZone(timezone);
-  // Match the web: an expired booking window closes the books even if the
-  // books_open flag is still true.
-  const windowExpired =
-    booksSettings.booking_window_ends_at !== null &&
-    isDateKeyBefore(booksSettings.booking_window_ends_at, today);
+  // Effective books-open via the one shared helper (an expired booking window
+  // closes the books even while books_open is true) — same source as /me and the
+  // public page.
+  const { booksOpen } = deriveBooksOpen(booksSettings, today);
 
   const data = await getDashboardData(supabase, userId, {
     timezone,
@@ -49,8 +48,11 @@ export async function GET(req: Request) {
     displayName: profile?.display_name ?? null,
     slug: profile?.slug ?? null,
     bio: (profile?.bio as string | null) ?? null,
-    booksOpen: booksSettings.books_open && !windowExpired,
+    booksOpen,
     onboardingCompleted,
+    // The artist-timezone "today" for the Home greeting date (the app has no
+    // Intl to compute it itself). Reuses the same `today` already derived above.
+    todayKey: today,
     dashboardWidgets: widgets,
     pendingCount: data.pendingCount,
     pending: data.pending,

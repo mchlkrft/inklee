@@ -1,11 +1,9 @@
 "use server";
 
-import crypto from "crypto";
-import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
-import { sendWaitlistConversionEmail } from "@/lib/email/send-booking-email";
+import { convertWaitlistEntryCore } from "@/lib/server/waitlist";
 import {
   approveBookingCore,
   approveBookingWithInterestDecisionsCore,
@@ -207,62 +205,21 @@ export async function dismissWaitlistEntry(
 
 export async function convertWaitlistEntry({
   entryId,
-  customerEmail,
-  customerHandle,
-  note,
 }: {
   entryId: string;
-  customerEmail: string;
-  customerHandle: string;
-  note: string;
+  // Accepted for backward-compat with the existing caller but unused: the shared
+  // core reads the entry from the DB and never trusts client-passed values, so
+  // the guards (already-converted, missing-email, concurrent-convert claim)
+  // can't be bypassed. See convertWaitlistEntryCore.
+  customerEmail?: string;
+  customerHandle?: string;
+  note?: string;
 }): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await cookieUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name")
-    .eq("id", user.id)
-    .single();
-
-  const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  const decidedAt = new Date().toISOString();
-
-  const { error } = await supabase.from("booking_requests").insert({
-    artist_id: user.id,
-    status: "approved",
-    origin: "artist_created",
-    customer_email: customerEmail,
-    customer_handle: customerHandle,
-    customer_token_hash: tokenHash,
-    // Mark the waitlist origin in form_data (no enum migration needed) so the
-    // requests list can flag it with a "Waitlist" chip (78c/DT-5).
-    form_data: { description: note || "", source: "waitlist" },
-    decided_at: decidedAt,
-    updated_at: decidedAt,
-  });
-
-  if (error) {
-    Sentry.captureException(error, { tags: { action: "waitlist_convert" } });
-    return { error: error.message };
-  }
-
-  await supabase
-    .from("waitlist_entries")
-    .update({ status: "converted" })
-    .eq("id", entryId);
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-  await sendWaitlistConversionEmail({
-    to: customerEmail,
-    artistName: profile?.display_name ?? "",
-    magicLink: `${appUrl}/request/${token}`,
-    customerHandle,
-  });
+  const result = await convertWaitlistEntryCore(supabase, user.id, entryId);
+  if (!result.ok) return { error: result.error };
 
   revalidateBookingViews();
   return { success: true };

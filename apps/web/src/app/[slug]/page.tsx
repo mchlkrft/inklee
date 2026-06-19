@@ -12,12 +12,11 @@ import { InterestSelectionsProvider } from "./interest-selections-context";
 import { formatSlotDisplay } from "@/lib/timezone";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
-import { parseBooksSettings } from "@/lib/books-settings";
+import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import {
   dateKeyInTimeZone,
   formatDateKey,
-  isDateKeyBefore,
   todayInTimeZone,
 } from "@/lib/date-utils";
 import { clampDescription } from "@/lib/seo";
@@ -397,15 +396,16 @@ export default async function ArtistPublicPage({
   }
 
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
-  const windowExpired =
-    booksSettings.booking_window_ends_at !== null &&
-    isDateKeyBefore(
-      booksSettings.booking_window_ends_at,
-      todayInTimeZone(profile.timezone ?? "Europe/Berlin"),
-    );
-
+  // One shared derivation (same as the booking-submit gate + mobile /me, /home):
+  // an expired booking window keeps the books closed even while the flag is on.
+  const { booksOpen, windowExpired } = deriveBooksOpen(
+    booksSettings,
+    todayInTimeZone(profile.timezone ?? "Europe/Berlin"),
+  );
+  // isManualClose is the raw flag alone (drives the "books closed" message);
+  // isManuallyClosed folds in the expired window (== !effective-open).
   const isManualClose = !booksSettings.books_open;
-  const isManuallyClosed = isManualClose || windowExpired;
+  const isManuallyClosed = !booksOpen;
   const isSlotsClosed = isSlotMode && slots.length === 0;
 
   let isCapReached = false;

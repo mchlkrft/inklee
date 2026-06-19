@@ -14,7 +14,7 @@ import * as Sentry from "@sentry/nextjs";
 import { validateCustomAnswers } from "@/lib/custom-fields";
 import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
-import { parseBooksSettings } from "@/lib/books-settings";
+import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { isAllowedBookingOrigin } from "@/lib/host";
 import { parseFormSettings } from "@/lib/form-settings";
 import { processImage } from "@/lib/image-processing";
@@ -26,7 +26,6 @@ import {
 } from "@/lib/booking-domain";
 import {
   dateKeyInTimeZone,
-  isDateKeyBefore,
   isDateKeyOnOrBefore,
   todayInTimeZone,
 } from "@/lib/date-utils";
@@ -171,13 +170,11 @@ export async function submitBookingAction(
   }
 
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
-  const windowExpired =
-    booksSettings.booking_window_ends_at !== null &&
-    isDateKeyBefore(
-      booksSettings.booking_window_ends_at,
-      todayInTimeZone(artistTimeZone),
-    );
-  if (!booksSettings.books_open || windowExpired) {
+  const { booksOpen } = deriveBooksOpen(
+    booksSettings,
+    todayInTimeZone(artistTimeZone),
+  );
+  if (!booksOpen) {
     return { error: "Booking requests are currently closed." };
   }
   if (booksSettings.booking_cap !== null) {

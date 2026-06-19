@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Inbox, Banknote } from "lucide-react";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
 import type { MobileActionItem } from "@inklee/shared/mobile-api";
+import { formatMoneyShort } from "@inklee/shared/money";
 import {
   acceptRequestAction,
   passRequestAction,
@@ -12,18 +13,6 @@ import {
 } from "./actions";
 
 type ActionResult = { error: string } | { success: true };
-
-function money(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("en", {
-      style: "currency",
-      currency: currency.toUpperCase(),
-      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    }).format(amount);
-  } catch {
-    return `${currency.toUpperCase()} ${amount}`;
-  }
-}
 
 const BTN_PRIMARY =
   "rounded-full bg-brand-mustard px-3.5 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50";
@@ -162,7 +151,7 @@ export default function ActionFeed({ items }: { items: MobileActionItem[] }) {
                   </span>
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
-                  {money(item.amount, item.currency)}
+                  {formatMoneyShort(item.amount, item.currency)}
                 </p>
               </div>
               <button

@@ -13,19 +13,8 @@ import {
 } from "@/lib/bookings";
 import { invalidateBookingViews } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
+import { formatMoneyShort } from "@inklee/shared/money";
 import type { MobileActionItem } from "@inklee/shared/mobile-api";
-
-function money(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("en", {
-      style: "currency",
-      currency: currency.toUpperCase(),
-      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    }).format(amount);
-  } catch {
-    return `${currency.toUpperCase()} ${amount}`;
-  }
-}
 
 function Pill({ label, tone }: { label: string; tone: "pending" | "overdue" | "awaiting" }) {
   const cls =
@@ -186,7 +175,7 @@ export function ActionFeed({ items }: { items: MobileActionItem[] }) {
                 {item.client}
               </Text>
               <Text className="mt-0.5 text-caption text-shell-dim">
-                {money(item.amount, item.currency)}
+                {formatMoneyShort(item.amount, item.currency)}
               </Text>
             </View>
             <View className="flex-row items-center">

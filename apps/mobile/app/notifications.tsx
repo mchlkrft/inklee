@@ -15,6 +15,7 @@ import {
   invalidateNotifications,
   markAllNotificationsRead,
   markNotificationsRead,
+  resolveNotificationWarning,
 } from "@/lib/notifications";
 import { formatShortDateTime } from "@/lib/date";
 import { webHrefToRoute } from "@/lib/push";
@@ -54,6 +55,25 @@ export default function NotificationsScreen() {
       await markAllNotificationsRead();
     } catch (e) {
       captureError(e, { op: "markAllNotificationsRead" });
+    } finally {
+      void invalidateNotifications(queryClient);
+    }
+  }
+
+  // Resolve a system warning: flip is_resolved + is_read locally so the Resolve
+  // affordance + unread dot clear instantly, then reconcile with the server.
+  async function onResolve(n: Notification) {
+    queryClient.setQueryData<MobileNotificationsResponse>(KEY, (old) => {
+      if (!old) return old;
+      const items = old.items.map((x) =>
+        x.id === n.id ? { ...x, is_resolved: true, is_read: true } : x,
+      );
+      return { items, unread: items.filter((x) => !x.is_read).length };
+    });
+    try {
+      await resolveNotificationWarning(n.id);
+    } catch (e) {
+      captureError(e, { op: "resolveNotificationWarning" });
     } finally {
       void invalidateNotifications(queryClient);
     }
@@ -115,7 +135,11 @@ export default function NotificationsScreen() {
         keyExtractor={(n) => n.id}
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
         renderItem={({ item }) => (
-          <NotificationRow n={item} onPress={() => onPress(item)} />
+          <NotificationRow
+            n={item}
+            onPress={() => onPress(item)}
+            onResolve={() => onResolve(item)}
+          />
         )}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -167,15 +191,21 @@ const PRIORITY_DOT: Record<NotificationPriority, string> = {
 function NotificationRow({
   n,
   onPress,
+  onResolve,
 }: {
   n: Notification;
   onPress: () => void;
+  onResolve: () => void;
 }) {
   // Mirrors the web feed row: rosa/10 tint + "Unread" chip while unread, a
   // "Critical" chip on critical priority, the bell's category emoji + priority
   // dot, an absolute timestamp, and the cta_label as an explicit affordance
   // when the cta resolves to an in-app route (the whole row navigates).
   const showCta = !!n.cta_label && !!webHrefToRoute(n.cta_href);
+  // An open system warning gets a Resolve action, matching the web feed's
+  // Resolve button (resolveWarningAction). Nested Pressable: a tap on Resolve is
+  // captured here and does not also fire the row's navigate-on-press.
+  const showResolve = n.category === "system_warning" && !n.is_resolved;
   return (
     <View className="mb-2">
       {/* Hand-rolled Card motif (rounded-card + brand border) — Card's bg-card
@@ -229,6 +259,18 @@ function NotificationRow({
               <Text className="mt-2 text-sm font-semibold text-accent">
                 {n.cta_label}
               </Text>
+            ) : null}
+            {showResolve ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onResolve}
+                hitSlop={6}
+                className="mt-3 self-start rounded-full border border-shell-border px-3.5 py-1.5 active:opacity-70"
+              >
+                <Text className="text-xs font-semibold text-foreground">
+                  Resolve
+                </Text>
+              </Pressable>
             ) : null}
           </View>
         </View>

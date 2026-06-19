@@ -1,3 +1,5 @@
+import { isDateKeyBefore } from "./date-utils";
+
 export type FormAppearance = "dark" | "light" | "auto";
 
 export interface BooksSettings {
@@ -43,4 +45,23 @@ export function parseBooksSettings(raw: unknown): BooksSettings {
         ? appearance
         : DEFAULT_BOOKS_SETTINGS.form_appearance,
   };
+}
+
+/**
+ * The EFFECTIVE books-open state: an expired booking window keeps the books
+ * closed even while the `books_open` flag is on. `todayKey` is the artist's
+ * timezone date key (YYYY-MM-DD) the caller resolves server-side via
+ * `todayInTimeZone` — passing it in keeps this Intl-free, so mobile (Hermes,
+ * no Intl) can call it too. This is the ONE definition shared by the public
+ * booking page render, the public booking-submit gate, and the mobile /me and
+ * /home routes, so the four can never disagree on whether books are open.
+ */
+export function deriveBooksOpen(
+  books: BooksSettings,
+  todayKey: string,
+): { booksOpen: boolean; windowExpired: boolean } {
+  const windowExpired =
+    books.booking_window_ends_at !== null &&
+    isDateKeyBefore(books.booking_window_ends_at, todayKey);
+  return { booksOpen: books.books_open && !windowExpired, windowExpired };
 }

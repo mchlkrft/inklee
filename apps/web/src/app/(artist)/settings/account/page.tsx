@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { isMfaEnabled } from "@inklee/shared/auth-derivations";
 import GeneralForm from "./general-form";
 import SecurityForm from "./security-form";
 import TwoFactorSection from "./two-factor-section";
@@ -26,10 +27,17 @@ export default async function AccountPage() {
     ? null
     : (identities.find((i) => i.provider !== "email")?.provider ?? null);
 
-  // Check TOTP enrollment
+  // Check TOTP enrollment. Scan ALL factors via the shared derivation (not just
+  // totp[0]) so this matches the mobile /api/mobile/account pill exactly (BUG-7).
   const { data: factors } = await supabase.auth.mfa.listFactors();
-  const totpFactor = factors?.totp?.[0] ?? null;
-  const mfaEnabled = totpFactor?.status === "verified";
+  const mfaEnabled = isMfaEnabled(factors?.all);
+  // The factor the Two-factor section manages: prefer the verified TOTP factor
+  // (consistent with mfaEnabled), falling back to the first for an enrollment in
+  // progress.
+  const totpFactor =
+    factors?.totp?.find((f) => f.status === "verified") ??
+    factors?.totp?.[0] ??
+    null;
 
   return (
     <div className="space-y-10 max-w-2xl">

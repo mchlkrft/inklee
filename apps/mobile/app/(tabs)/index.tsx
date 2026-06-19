@@ -37,7 +37,7 @@ import { useScrollHide } from "@/lib/scroll-hide";
 import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { config, displayUrl } from "@/lib/config";
 import { useTimedFlag } from "@/lib/use-timed-flag";
-import { formatShortDate } from "@/lib/date";
+import { formatShortDate, formatLongDate, deviceTodayKey } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
 import { pickGreeting } from "@inklee/shared/greeting";
 import type { MobileHome, MobileGuestSpot } from "@inklee/shared/mobile-api";
@@ -46,12 +46,6 @@ import { DEFAULT_DASHBOARD_WIDGETS } from "@inklee/shared/dashboard-settings";
 // Greeting seed is fixed once per JS launch (≈ per login), so the rotating line
 // is stable within a session and fresh next launch.
 const GREETING_SEED = Math.floor(Math.random() * 100_000);
-
-const DATE_FMT = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  month: "long",
-  day: "numeric",
-});
 
 // The "glance" widgets (the hero Requests card + its stat satellites) are
 // fixed-color brand chips in BOTH themes per the dashboard redesign: a solid
@@ -272,7 +266,7 @@ export default function HomeScreen() {
                 {pickGreeting(data.displayName, GREETING_SEED)}
               </Text>
               <Text className="text-sm text-shell-dim">
-                {DATE_FMT.format(new Date())}
+                {formatLongDate(data.todayKey ?? deviceTodayKey())}
               </Text>
             </View>
 

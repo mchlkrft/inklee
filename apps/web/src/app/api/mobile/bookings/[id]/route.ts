@@ -5,7 +5,9 @@ import {
 } from "@/lib/server/mobile-auth";
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
+import { editAppointmentCore } from "@/lib/server/bookings";
 import { isDepositRefunded } from "@/lib/deposit-state";
+import { formatCustomAnswer, type CustomFieldType } from "@/lib/custom-fields";
 import { describeBookingActivity } from "@inklee/shared/booking-activity";
 import type {
   MobileBookingDetail,
@@ -69,6 +71,42 @@ function sanitizeAnnotations(raw: unknown): MobileImageAnnotation[] | null {
     ];
   });
   return clean.length > 0 ? clean : null;
+}
+
+// The custom_answers blob is whatever the public booking form wrote (validated
+// at submit, but defensively re-checked here). Each answer is formatted
+// SERVER-SIDE because formatCustomAnswer uses Intl for date fields, which Hermes
+// iOS lacks; malformed entries are dropped rather than shipped to the device.
+function readCustomAnswers(
+  formData: unknown,
+): { label: string; value: string }[] {
+  const raw = (formData as Record<string, unknown> | null)?.custom_answers;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((a): { label: string; value: string }[] => {
+    if (typeof a !== "object" || a === null) return [];
+    const { key, label, type, value } = a as Record<string, unknown>;
+    if (
+      typeof key !== "string" ||
+      typeof label !== "string" ||
+      typeof type !== "string" ||
+      (typeof value !== "string" &&
+        typeof value !== "number" &&
+        typeof value !== "boolean")
+    ) {
+      return [];
+    }
+    return [
+      {
+        label,
+        value: formatCustomAnswer({
+          key,
+          label,
+          type: type as CustomFieldType,
+          value,
+        }),
+      },
+    ];
+  });
 }
 
 // GET /api/mobile/bookings/:id — full request detail (the core screen).
@@ -178,6 +216,7 @@ export async function GET(
     size: fd.size ? formatSize(fd.size) : null,
     sizeRaw: fd.size ?? null,
     description: fd.description ?? null,
+    customAnswers: readCustomAnswers(b.form_data),
     referenceLink: fd.reference_link ?? null,
     referenceImagePaths: images.map((i) => i.storage_path),
     referenceImages,
@@ -220,54 +259,20 @@ export async function PATCH(
     return mobileError(400, "Invalid JSON body.");
   }
 
-  const { data: booking } = await supabase
-    .from("booking_requests")
-    .select("artist_id, status, form_data")
-    .eq("id", id)
-    .single();
-  if (!booking || booking.artist_id !== userId) {
-    return mobileError(404, "Booking not found.", "not_found");
-  }
-  // Appointment editing is an approved-booking surface (the web drawer and the
-  // mobile Edit link both only exist there). Refusing other statuses keeps a
-  // raw API call from rewriting a terminal or deposit-pending booking's fields.
-  if (booking.status !== "approved") {
-    return mobileError(409, "Only accepted appointments can be edited.");
-  }
-  const fd = (booking.form_data ?? {}) as Record<string, string>;
-
-  const handle = String(raw.handle ?? "")
-    .replace(/^@/, "")
-    .trim();
-  const date = String(raw.date ?? "").trim();
-  const placement = String(raw.placement ?? "").trim();
-  const size = String(raw.size ?? "").trim();
-  const description = String(raw.description ?? "").trim();
-  const email = (raw.email ? String(raw.email).trim() : "") || null;
-
-  if (!handle) return mobileError(400, "Instagram handle is required.");
-  if (!date) return mobileError(400, "Date is required.");
-  if (!placement) return mobileError(400, "Placement is required.");
-  if (!size) return mobileError(400, "Size is required.");
-
-  const { error } = await supabase
-    .from("booking_requests")
-    .update({
-      customer_handle: handle,
-      customer_email: email,
-      preferred_date: date,
-      form_data: { ...fd, placement, size, description },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-  if (error) return mobileError(500, error.message);
-
-  await supabase.from("audit_log").insert({
-    booking_id: id,
-    action: "booking_edited",
-    actor: userId,
-    details: { by: "artist" },
+  // Delegate to the shared core (the SAME path the web calendar drawer calls)
+  // so the approved-only status gate + required-field validation live in one
+  // place. The core normalizes (strips a leading @, trims) and validates.
+  const result = await editAppointmentCore(supabase, userId, id, {
+    handle: String(raw.handle ?? ""),
+    email: raw.email != null ? String(raw.email) : null,
+    date: String(raw.date ?? ""),
+    placement: String(raw.placement ?? ""),
+    size: String(raw.size ?? ""),
+    description: String(raw.description ?? ""),
   });
-
+  if ("error" in result) {
+    const status = result.error === "Booking not found." ? 404 : 400;
+    return mobileError(status, result.error);
+  }
   return mobileOk({ id });
 }

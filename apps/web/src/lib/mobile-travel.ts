@@ -115,7 +115,15 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
 
 /** Validate a studio create/update payload via the shared zod schema. */
 export function normalizeStudioInput(body: unknown): Result<StudioInput> {
-  const parsed = studioSchema.safeParse(body ?? {});
+  const b = (body ?? {}) as Record<string, unknown>;
+  // The app posts the icon color as camelCase `iconColor` (its convention for
+  // both trips and studios), but the shared studioSchema field is `icon_color`
+  // (snake, matching the DB column + the web FormData parser). Map it before the
+  // parse so z.object doesn't silently strip the chosen color. Tri-state is
+  // preserved: only inject the key when the client actually sent it, so an old
+  // app's save can't wipe a color chosen elsewhere.
+  const input = "iconColor" in b ? { ...b, icon_color: b.iconColor } : b;
+  const parsed = studioSchema.safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,

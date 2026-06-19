@@ -142,6 +142,12 @@ export type MobileHome = {
   bio: string | null;
   booksOpen: boolean;
   onboardingCompleted: boolean;
+  /** Today's date-key (YYYY-MM-DD) in the ARTIST's timezone, for the Home
+   *  greeting date. Server-provided so a travelling artist sees the same "today"
+   *  as the web dashboard and the client never touches Intl (Hermes iOS has
+   *  none). Optional for version skew: older servers omit it and the app falls
+   *  back to the device-local day. */
+  todayKey?: string;
   /** Per-widget visibility (mirrors the web dashboard widget toggles). */
   dashboardWidgets: DashboardWidgets;
   pendingCount: number;
@@ -289,6 +295,11 @@ export type MobileBookingDetail = {
   size: string | null;
   sizeRaw: string | null;
   description: string | null;
+  /** The artist's custom booking-form questions + the client's answers, each
+   *  pre-formatted server-side (formatCustomAnswer uses Intl for dates, which
+   *  Hermes iOS lacks, so the client must not re-format). Optional for version
+   *  skew: older servers omit it. */
+  customAnswers?: { label: string; value: string }[];
   referenceLink: string | null;
   /** @deprecated Raw storage paths; kept so older installed builds don't crash.
    *  New code reads referenceImages (signed URLs). */
