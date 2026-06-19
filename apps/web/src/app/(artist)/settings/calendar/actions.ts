@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import crypto from "crypto";
+import { generateIcalTokenFor, revokeIcalTokenFor } from "@/lib/server/ical";
 
 export async function generateIcalToken(): Promise<void> {
   const supabase = await createClient();
@@ -11,26 +11,11 @@ export async function generateIcalToken(): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  const token = crypto.randomBytes(16).toString("hex");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...((profile?.settings as object) ?? {}), ical_token: token },
-    })
-    .eq("id", user.id);
-
-  if (error) {
-    console.error("[ical] generate failed:", error.message);
+  const result = await generateIcalTokenFor(supabase, user.id);
+  if ("error" in result) {
+    console.error("[ical] generate failed:", result.error);
     return;
   }
-
   revalidatePath("/settings/calendar");
 }
 
@@ -41,26 +26,10 @@ export async function revokeIcalToken(): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const settings = {
-    ...((profile?.settings as Record<string, unknown>) ?? {}),
-  };
-  delete settings.ical_token;
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ settings })
-    .eq("id", user.id);
-
-  if (error) {
-    console.error("[ical] revoke failed:", error.message);
+  const result = await revokeIcalTokenFor(supabase, user.id);
+  if (result?.error) {
+    console.error("[ical] revoke failed:", result.error);
     return;
   }
-
   revalidatePath("/settings/calendar");
 }
