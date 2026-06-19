@@ -16,15 +16,12 @@ import {
 } from "@inklee/shared/travel-icons";
 import {
   validateTripLeg,
+  validateTripMeta,
   type TripLegInput,
 } from "@inklee/shared/trip-validation";
 import type { MobileStudio } from "@inklee/shared/mobile-api";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-
-function asString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
 
 // Shared studio row → MobileStudio mapping, used by the studios list + detail
 // routes. Google Places columns are intentionally not surfaced to the app.
@@ -59,9 +56,6 @@ export function toStudio(r: StudioRow): MobileStudio {
   };
 }
 
-const TITLE_MAX = 120;
-const DESCRIPTION_MAX = 2000;
-
 export type TripInput = {
   title: string;
   description: string | null;
@@ -77,16 +71,8 @@ export type TripInput = {
 export function normalizeTripInput(body: unknown): Result<TripInput> {
   const b = (body ?? {}) as Record<string, unknown>;
 
-  const title = asString(b.title).trim();
-  if (!title) return { ok: false, error: "Title is required." };
-  if (title.length > TITLE_MAX) {
-    return { ok: false, error: `Title is too long (max ${TITLE_MAX}).` };
-  }
-
-  const descRaw = asString(b.description).trim();
-  if (descRaw.length > DESCRIPTION_MAX) {
-    return { ok: false, error: "Description is too long." };
-  }
+  const meta = validateTripMeta({ title: b.title, description: b.description });
+  if (!meta.ok) return meta;
 
   if (
     b.showOnBookingForm !== undefined &&
@@ -96,8 +82,8 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
   }
 
   const value: TripInput = {
-    title,
-    description: descRaw || null,
+    title: meta.value.title,
+    description: meta.value.description,
     // Default visible (matches the web create action).
     showOnBookingForm: b.showOnBookingForm !== false,
   };

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   validateTripLeg,
   validateTripLegsPayload,
+  validateTripMeta,
 } from "@/lib/trip-validation";
 import { parseStudioFormData } from "@/lib/studio-validation";
 import {
@@ -251,8 +252,12 @@ export async function createTripAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const title = (formData.get("title") as string)?.trim();
-  const description = (formData.get("description") as string)?.trim() || null;
+  const meta = validateTripMeta({
+    title: formData.get("title"),
+    description: formData.get("description"),
+  });
+  if (!meta.ok) return { error: meta.error };
+  const { title, description } = meta.value;
   const showOnBookingForm = formData.get("show_on_booking_form") !== "false";
   const icon = sanitizeTravelIcon(
     (formData.get("icon") as string)?.trim() || null,
@@ -260,8 +265,6 @@ export async function createTripAction(
   const iconColor = sanitizeTravelIconColor(
     (formData.get("icon_color") as string)?.trim() || null,
   );
-
-  if (!title) return { error: "Title is required." };
 
   let legs;
   try {
@@ -328,8 +331,12 @@ export async function updateTripAction(
   if (!user) return { error: "Not authenticated." };
 
   const id = formData.get("id") as string;
-  const title = (formData.get("title") as string)?.trim();
-  const description = (formData.get("description") as string)?.trim() || null;
+  const meta = validateTripMeta({
+    title: formData.get("title"),
+    description: formData.get("description"),
+  });
+  if (!meta.ok) return { error: meta.error };
+  const { title, description } = meta.value;
   const showOnBookingForm = formData.get("show_on_booking_form") === "true";
   // The edit form always posts the icon input ("" = none) — explicit clear.
   const icon = sanitizeTravelIcon(
@@ -338,8 +345,6 @@ export async function updateTripAction(
   const iconColor = sanitizeTravelIconColor(
     (formData.get("icon_color") as string)?.trim() || null,
   );
-
-  if (!title) return { error: "Title is required." };
 
   const { error } = await supabase
     .from("trips")
