@@ -26,10 +26,10 @@ export type DepositPolicy = {
   lastMinute: PolicyWindow | null;
 };
 
-// Conservative DRAFT default, pending counsel review of the safe-harbour values
-// (draft §9 §14): refundable until 7 days before the appointment, 50% forfeit
-// thereafter, full refund if the artist cancels. The settings UI labels this
-// "draft default — pending counsel review" until counsel confirms.
+// Conservative default safe-harbour values (draft §9 §14): refundable until 7
+// days before the appointment, 50% forfeit thereafter, full refund if the artist
+// cancels. The settings UI surfaces this as "These are conservative starting
+// values" (no internal counsel-process language leaks to artists, P0-5).
 export const DEPOSIT_POLICY_DEFAULT: DepositPolicy = {
   refundWindow: { value: 7, unit: "days" },
   lateCancelForfeitPct: 50,

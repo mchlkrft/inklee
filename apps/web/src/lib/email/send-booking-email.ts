@@ -278,14 +278,17 @@ export async function sendArtistDepositPaidEmail({
   date: string;
 }): Promise<void> {
   try {
+    // P0-6: honour the artist's settlement currency for goods lines too, like
+    // the deposit line below. The webhook passes the real intent.currency.
+    const code = currency.toUpperCase();
     const goodsBlock =
       goodsLines.length > 0
         ? `\n\nGoods reserved for pickup:\n${goodsLines
             .map(
               (l) =>
-                `- ${l.title}${l.variant ? ` (${l.variant})` : ""} x${l.quantity}: EUR ${l.total.toFixed(2)}`,
+                `- ${l.title}${l.variant ? ` (${l.variant})` : ""} x${l.quantity}: ${code} ${l.total.toFixed(2)}`,
             )
-            .join("\n")}\nGoods total: EUR ${goodsTotal.toFixed(2)}`
+            .join("\n")}\nGoods total: ${code} ${goodsTotal.toFixed(2)}`
         : "";
     const body = `${customerHandle} paid their deposit. The booking is confirmed.
 

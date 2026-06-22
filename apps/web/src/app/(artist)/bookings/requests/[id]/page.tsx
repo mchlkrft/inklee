@@ -147,6 +147,12 @@ export default async function RequestDetailPage({
     },
     !!refundRow,
   );
+  // G2-F1: a paid deposit must show "Paid", not a stale "Due <date>". These are
+  // time-independent buckets (refunded -> the Refunded line below; paid -> "Paid";
+  // otherwise -> "Due"), so no `now` is needed here. "refunded" is single-sourced
+  // via isDepositRefunded above; "paid" uses the same deposit_paid_at check the
+  // shared depositState classifier uses, so the surfaces can't drift.
+  const depositPaidNotRefunded = !depositRefunded && !!booking.deposit_paid_at;
 
   // Goods the client marked they'd like to buy when submitting (commerce-layer
   // extension). Rendered as an "Interested in buying" section + drives the
@@ -473,11 +479,15 @@ export default async function RequestDetailPage({
                   (booking.deposit_currency as string) ?? "eur",
                 )}
               </p>
-              {booking.deposit_due_at && (
+              {depositPaidNotRefunded ? (
                 <p className="text-xs text-muted-foreground">
-                  Due {formatDate(booking.deposit_due_at)}
+                  Paid {formatDate(booking.deposit_paid_at as string)}
                 </p>
-              )}
+              ) : !depositRefunded && booking.deposit_due_at ? (
+                <p className="text-xs text-muted-foreground">
+                  Due {formatDate(booking.deposit_due_at as string)}
+                </p>
+              ) : null}
               {booking.deposit_note && (
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {booking.deposit_note}
