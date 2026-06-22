@@ -305,7 +305,7 @@ export default function BookingDetailScreen() {
                   value={formatShortDate(d.refundedAt)}
                 />
               ) : null}
-              {d.dueAt ? (
+              {d.dueAt && !d.paid && !d.refunded ? (
                 <InfoRow
                   icon={CalendarClock}
                   label="Due by"
