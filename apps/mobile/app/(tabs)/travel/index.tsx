@@ -63,6 +63,13 @@ export default function TripsList() {
           label="Studios"
           onPress={() => router.push("/travel/studios")}
         />
+        {q.data.items.length > 0 ? (
+          <NavCardRow
+            icon="map-outline"
+            label="Show on map"
+            onPress={() => router.push("/travel/map")}
+          />
+        ) : null}
       </View>
     </>
   );
