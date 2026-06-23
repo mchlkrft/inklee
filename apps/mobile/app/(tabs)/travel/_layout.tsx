@@ -11,6 +11,7 @@ export default function TravelLayout() {
       <Stack.Screen name="trips/[id]" options={{ title: "Trip" }} />
       <Stack.Screen name="studios/index" options={{ title: "Studios" }} />
       <Stack.Screen name="studios/[id]" options={{ title: "Studio" }} />
+      <Stack.Screen name="map" options={{ title: "Travel map" }} />
     </Stack>
   );
 }

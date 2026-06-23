@@ -26,6 +26,7 @@ import type { PlaceResult } from "@/components/google-places-picker";
 import { IconPickerGrid } from "./icon-picker";
 import { TravelIcon } from "@/components/travel-icon";
 import { MapPin } from "lucide-react";
+import { DEFAULT_ICON_COLOR } from "@inklee/shared/travel-icons";
 
 const GooglePlacesPicker = dynamic(
   () => import("@/components/google-places-picker"),
@@ -449,7 +450,7 @@ function CreateTripModal({
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Icon</label>
-          <IconPickerGrid />
+          <IconPickerGrid randomizeWhenEmpty />
         </div>
 
         {/* Stops on your trip */}
@@ -989,39 +990,38 @@ function TripSummaryCard({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left rounded-md border-2 border-border px-5 py-4 hover:border-foreground/40 transition-colors"
+      className="flex w-full items-stretch gap-3 rounded-md border-2 border-border px-4 py-3 text-left hover:border-foreground/40 transition-colors"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {trip.icon ? (
-              <TravelIcon
-                icon={trip.icon}
-                fallback={MapPin}
-                className="h-4 w-4 text-muted-foreground"
-                color={trip.iconColor ?? undefined}
-              />
-            ) : null}
-            <span className="text-sm font-semibold text-foreground">
-              {trip.title}
-            </span>
-            {isActive && (
-              <span className="text-xs text-green-500 font-medium">Active</span>
-            )}
-            {isUpcoming && (
-              <span className="text-xs text-muted-foreground">Upcoming</span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground mt-0.5">{dateRange}</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span
-            className={`text-xs font-medium ${trip.showOnBookingForm ? "text-foreground" : "text-muted-foreground"}`}
-          >
-            {trip.showOnBookingForm ? "On form" : "Hidden"}
+      {/* Square icon tile — matches the studio card. */}
+      <div className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border bg-brand-bone">
+        <TravelIcon
+          icon={trip.icon}
+          fallback={MapPin}
+          className="h-9 w-9"
+          color={trip.iconColor ?? DEFAULT_ICON_COLOR}
+        />
+      </div>
+      <div className="min-w-0 flex-1 self-center">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold text-foreground">
+            {trip.title}
           </span>
-          <span className="text-xs text-muted-foreground">→</span>
+          {isActive && (
+            <span className="text-xs text-green-500 font-medium">Active</span>
+          )}
+          {isUpcoming && (
+            <span className="text-xs text-muted-foreground">Upcoming</span>
+          )}
         </div>
+        <p className="text-sm text-muted-foreground mt-0.5">{dateRange}</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0 self-center">
+        <span
+          className={`text-xs font-medium ${trip.showOnBookingForm ? "text-foreground" : "text-muted-foreground"}`}
+        >
+          {trip.showOnBookingForm ? "On form" : "Hidden"}
+        </span>
+        <span className="text-xs text-muted-foreground">→</span>
       </div>
     </button>
   );

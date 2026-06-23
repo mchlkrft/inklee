@@ -114,6 +114,14 @@ export default async function TravelPage() {
               Preview public page &rarr;
             </a>
           )}
+          {(trips.length > 0 || studioList.length > 0) && (
+            <Link
+              href="/map"
+              className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Show on map &rarr;
+            </Link>
+          )}
         </div>
         <FeatureIntroModal featureKey="travel" isEmpty={trips.length === 0} />
       </div>

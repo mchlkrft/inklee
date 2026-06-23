@@ -5,15 +5,13 @@ import { Ban, MapPin } from "lucide-react";
 import {
   TRAVEL_ICON_KEYS,
   TRAVEL_ICON_COLORS,
+  DEFAULT_ICON_COLOR,
+  randomTravelIconKey,
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
   type TravelIconKey,
 } from "@inklee/shared/travel-icons";
 import { TravelIcon } from "@/components/travel-icon";
-
-// Default icon color when none is chosen (mirrors the mobile DEFAULT_ICON_COLOR
-// so the two pickers preview the same fallback).
-const DEFAULT_ICON_COLOR = "#e9b22b";
 
 // Icon grid + color row for trips + studios (artist-side only): a wrap-row of the
 // founder's custom inklee tattoo-badge icons led by a "no icon" chip, plus a
@@ -24,14 +22,20 @@ export function IconPickerGrid({
   colorName = "icon_color",
   initial,
   initialColor,
+  randomizeWhenEmpty = false,
 }: {
   name?: string;
   colorName?: string;
   initial?: string | null;
   initialColor?: string | null;
+  /** New trips/studios pre-fill a random inklee icon instead of "no icon", so
+   *  the default is a real mark not the generic fallback. Computed once. */
+  randomizeWhenEmpty?: boolean;
 }) {
   const [value, setValue] = useState<TravelIconKey | null>(
-    sanitizeTravelIcon(initial ?? null),
+    () =>
+      sanitizeTravelIcon(initial ?? null) ??
+      (randomizeWhenEmpty ? randomTravelIconKey() : null),
   );
   const [color, setColor] = useState<string | null>(
     sanitizeTravelIconColor(initialColor ?? null),
@@ -65,7 +69,7 @@ export function IconPickerGrid({
               onClick={() => setValue(key)}
               className={`flex h-12 w-12 items-center justify-center rounded-lg border transition-colors ${
                 selected
-                  ? "border-foreground bg-muted/30"
+                  ? "border-foreground bg-brand-bone"
                   : "border-border hover:opacity-80"
               }`}
             >
