@@ -16,10 +16,11 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // unpkg.com serves the MapLibre GL library (travel map); CARTO basemap +
-      // its tiles/glyphs/sprites are on basemaps/tiles.basemaps.cartocdn.com.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://plausible.io https://js.stripe.com https://maps.googleapis.com https://unpkg.com",
-      "style-src 'self' 'unsafe-inline' https://unpkg.com",
+      // Travel map: MapLibre GL is bundled (no CDN script). The CARTO basemap
+      // style is on basemaps.cartocdn.com; its tiles/glyphs/sprites are on
+      // tiles.basemaps.cartocdn.com (img + connect below); it runs a blob worker.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://plausible.io https://js.stripe.com https://maps.googleapis.com",
+      "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co https://basemaps.cartocdn.com https://tiles.basemaps.cartocdn.com",
       // *.ingest.*.sentry.io covers the region-scoped Sentry ingest hosts so the
       // browser Sentry client (instrumentation-client.ts) can actually upload

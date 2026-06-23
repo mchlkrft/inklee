@@ -61,6 +61,22 @@ export function googleMapsNavUrl(latitude: number, longitude: number): string {
 }
 
 /**
+ * The Google Maps link to open for a stop: the studio's saved URL only when it
+ * is an https URL, otherwise a directions link to the coordinate. The saved URL
+ * is artist-entered free text, so this guards against an odd scheme being
+ * opened (native) or injected into an href (web). One source.
+ */
+export function safeMapsUrl(stop: {
+  googleMapsUrl: string | null;
+  latitude: number;
+  longitude: number;
+}): string {
+  const u = stop.googleMapsUrl;
+  if (u && /^https:\/\//i.test(u)) return u;
+  return googleMapsNavUrl(stop.latitude, stop.longitude);
+}
+
+/**
  * Group journey stops by trip for display. `active` trips (still have a
  * current/upcoming stop) lead, current-containing trips first; `past` trips (all
  * stops previous) are returned separately for a collapsed section. Date order is

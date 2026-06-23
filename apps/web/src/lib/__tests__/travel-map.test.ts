@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   googleMapsNavUrl,
+  safeMapsUrl,
   travelStopTimeframe,
   groupJourneyByTrip,
   type TravelMapStop,
@@ -30,6 +31,29 @@ describe("googleMapsNavUrl", () => {
     expect(googleMapsNavUrl(52.52, 13.405)).toBe(
       "https://www.google.com/maps/dir/?api=1&destination=52.52%2C13.405",
     );
+  });
+});
+
+describe("safeMapsUrl", () => {
+  it("keeps an https studio url but rejects odd schemes", () => {
+    expect(
+      safeMapsUrl({
+        googleMapsUrl: "https://maps.google.com/?q=x",
+        latitude: 1,
+        longitude: 2,
+      }),
+    ).toBe("https://maps.google.com/?q=x");
+    // javascript: / non-https falls back to the coordinate directions link
+    expect(
+      safeMapsUrl({
+        googleMapsUrl: "javascript:alert(1)",
+        latitude: 1,
+        longitude: 2,
+      }),
+    ).toBe(googleMapsNavUrl(1, 2));
+    expect(
+      safeMapsUrl({ googleMapsUrl: null, latitude: 1, longitude: 2 }),
+    ).toBe(googleMapsNavUrl(1, 2));
   });
 });
 

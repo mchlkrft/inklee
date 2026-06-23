@@ -1,89 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import type { TravelMapStop } from "@inklee/shared/travel-map";
-import { googleMapsNavUrl } from "@inklee/shared/travel-map";
+import { safeMapsUrl } from "@inklee/shared/travel-map";
 import { INKLEE_ICON_ART } from "@inklee/shared/inklee-icon-art";
 import { BRAND, PAST_GREY, VOYAGER_STYLE, onPinText } from "./map-style";
 
-// MapLibre is loaded at runtime from a CDN (the GooglePlacesPicker pattern), so
-// no npm dependency is needed. The base style is CARTO Voyager (OSM-based, no
-// key), brand-tinted + theme-aware at load.
-const MAPLIBRE_VERSION = "4.7.1";
-const MAPLIBRE_JS = `https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.js`;
-const MAPLIBRE_CSS = `https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.css`;
-
-interface MlMarkerOptions {
-  element?: HTMLElement;
-  anchor?: string;
-}
-interface MlMarker {
-  setLngLat(c: [number, number]): MlMarker;
-  setPopup(p: MlPopup): MlMarker;
-  addTo(m: MlMap): MlMarker;
-  remove(): void;
-}
-interface MlPopup {
-  setHTML(html: string): MlPopup;
-}
-interface MlMap {
-  addControl(c: unknown): void;
-  on(type: string, listener: () => void): void;
-  addSource(id: string, source: Record<string, unknown>): void;
-  addLayer(layer: Record<string, unknown>, beforeId?: string): void;
-  getStyle(): { layers?: Array<{ id: string; type: string }> } | undefined;
-  getZoom(): number;
-  fitBounds(
-    bounds: [[number, number], [number, number]],
-    opts?: Record<string, unknown>,
-  ): void;
-  remove(): void;
-}
-interface MlGlobal {
-  Map: new (opts: Record<string, unknown>) => MlMap;
-  Marker: new (opts?: MlMarkerOptions) => MlMarker;
-  Popup: new (opts?: Record<string, unknown>) => MlPopup;
-  NavigationControl: new () => unknown;
-}
-declare global {
-  interface Window {
-    maplibregl?: MlGlobal;
-  }
-}
-
-function loadMapLibre(): Promise<MlGlobal> {
-  return new Promise((resolve, reject) => {
-    if (window.maplibregl) return resolve(window.maplibregl);
-    if (!document.querySelector(`link[data-maplibre]`)) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = MAPLIBRE_CSS;
-      link.setAttribute("data-maplibre", "1");
-      document.head.appendChild(link);
-    }
-    const existing = document.querySelector<HTMLScriptElement>(
-      "script[data-maplibre]",
-    );
-    if (existing) {
-      existing.addEventListener("load", () =>
-        window.maplibregl
-          ? resolve(window.maplibregl)
-          : reject(new Error("maplibre missing")),
-      );
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = MAPLIBRE_JS;
-    script.async = true;
-    script.setAttribute("data-maplibre", "1");
-    script.onload = () =>
-      window.maplibregl
-        ? resolve(window.maplibregl)
-        : reject(new Error("maplibre missing"));
-    script.onerror = () => reject(new Error("Failed to load the map library."));
-    document.head.appendChild(script);
-  });
-}
+// maplibre-gl is bundled (not loaded from a CDN) so there is no third-party
+// runtime script dependency and the CSP needs no script-src CDN allowance. The
+// base style is CARTO Voyager (OSM-based, no key), brand-tinted + theme-aware.
 
 function isDarkSurface(hex: string): boolean {
   const m = hex.trim().match(/^#?([0-9a-fA-F]{6})$/);
@@ -95,8 +22,7 @@ function isDarkSurface(hex: string): boolean {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
 }
 
-// Brand-tint the basemap (land + water) per theme, keeping the Google-like
-// road/label structure. Best-effort: unknown shapes pass through.
+// Brand-tint the basemap (land + water) per theme. Best-effort.
 function brandPatchStyle(style: unknown, isDark: boolean): unknown {
   const land = isDark ? BRAND.charcoal : BRAND.bone;
   const water = isDark ? "#16263d" : "#cdd9ec";
@@ -124,12 +50,17 @@ function themedStyleUrl(isDark: boolean): string {
     : VOYAGER_STYLE;
 }
 
-async function resolveStyle(isDark: boolean): Promise<unknown> {
+async function resolveStyle(
+  isDark: boolean,
+): Promise<string | maplibregl.StyleSpecification> {
   const url = themedStyleUrl(isDark);
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`style ${res.status}`);
-    return brandPatchStyle(await res.json(), isDark);
+    return brandPatchStyle(
+      await res.json(),
+      isDark,
+    ) as maplibregl.StyleSpecification;
   } catch {
     return url; // let MapLibre fetch it (no brand tint)
   }
@@ -220,7 +151,7 @@ function badgePills(labels: string[]): string {
 }
 
 function navButton(href: string): string {
-  return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="bg-brand-mustard text-brand-charcoal"
+  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="bg-brand-mustard text-brand-charcoal"
     style="margin-top:14px;display:block;text-align:center;font:600 14px/1 var(--font-sans);text-decoration:none;padding:12px 16px;border-radius:9999px;">
     Open in Google Maps &#8599;</a>`;
 }
@@ -260,8 +191,6 @@ function stopPopupHtml(stop: TravelMapStop, isDark: boolean): string {
     : "";
   const n = stop.bookingCount;
   const bookings = `<a href="/bookings/requests" style="display:inline-block;margin-top:10px;font:600 13px/1.3 var(--font-sans);color:${linkColor};text-decoration:underline;text-underline-offset:2px;">${n} ${n === 1 ? "booking" : "bookings"} during this trip &#8599;</a>`;
-  const mapsHref =
-    stop.googleMapsUrl || googleMapsNavUrl(stop.latitude, stop.longitude);
   return card(
     `<div style="display:flex;align-items:center;gap:9px;margin-bottom:6px;padding-right:26px;">${iconSvg}<div style="font:800 17px/1.2 var(--font-sans);color:${POP_FG};">${escapeHtml(
       stop.name,
@@ -273,7 +202,7 @@ function stopPopupHtml(stop: TravelMapStop, isDark: boolean): string {
     )}</div>
     ${badgePills([TIMEFRAME_LABEL[stop.timeframe]])}
     <div>${bookings}</div>
-    ${navButton(mapsHref)}`,
+    ${navButton(safeMapsUrl(stop))}`,
   );
 }
 
@@ -303,8 +232,8 @@ export default function MapClient({ journey }: { journey: TravelMapStop[] }) {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    let map: MlMap | null = null;
-    let markers: MlMarker[] = [];
+    let map: maplibregl.Map | null = null;
+    let markers: maplibregl.Marker[] = [];
     let cancelled = false;
 
     (async () => {
@@ -312,17 +241,16 @@ export default function MapClient({ journey }: { journey: TravelMapStop[] }) {
         getComputedStyle(container).getPropertyValue("--background"),
       );
       const style = await resolveStyle(isDark);
-      const ml = await loadMapLibre();
       if (cancelled) return;
 
-      map = new ml.Map({
+      map = new maplibregl.Map({
         container,
         style,
         center: [13.405, 52.52],
         zoom: 1.6,
       });
       const theMap = map;
-      theMap.addControl(new ml.NavigationControl());
+      theMap.addControl(new maplibregl.NavigationControl());
       injectPopupStyles();
 
       const journeyEls: HTMLElement[] = [];
@@ -334,10 +262,10 @@ export default function MapClient({ journey }: { journey: TravelMapStop[] }) {
         const ariaLabel = `Stop ${i + 1}: ${stop.name}${place ? `, ${place}` : ""}${past ? " (visited)" : ""}`;
         const el = pinElement(color, String(i + 1), ariaLabel, name, past);
         journeyEls.push(el);
-        const marker = new ml.Marker({ element: el, anchor: "bottom" })
+        const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
           .setLngLat([stop.longitude, stop.latitude])
           .setPopup(
-            new ml.Popup({
+            new maplibregl.Popup({
               offset: 40,
               maxWidth: "340px",
               className: "inklee-popup",
@@ -402,7 +330,7 @@ export default function MapClient({ journey }: { journey: TravelMapStop[] }) {
                 source: id,
                 layout: { "line-cap": "round", "line-join": "round" },
                 paint,
-              },
+              } as maplibregl.LayerSpecification,
               beforeId,
             );
           };

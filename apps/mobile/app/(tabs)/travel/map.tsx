@@ -19,7 +19,7 @@ import type {
   TravelJourneyResponse,
   TravelMapStop,
 } from "@inklee/shared/travel-map";
-import { googleMapsNavUrl, groupJourneyByTrip } from "@inklee/shared/travel-map";
+import { groupJourneyByTrip, safeMapsUrl } from "@inklee/shared/travel-map";
 import { Screen } from "@/components/Screen";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
@@ -233,12 +233,7 @@ export default function TravelMapScreen() {
                 trip
               </Text>
               <Pressable
-                onPress={() =>
-                  Linking.openURL(
-                    selected.googleMapsUrl ??
-                      googleMapsNavUrl(selected.latitude, selected.longitude),
-                  )
-                }
+                onPress={() => Linking.openURL(safeMapsUrl(selected))}
                 className="mt-2 items-center rounded-full bg-brand-mustard py-2.5"
               >
                 <Text className="text-sm font-semibold text-brand-charcoal">
