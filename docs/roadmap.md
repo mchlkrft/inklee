@@ -63,6 +63,8 @@ Nothing else should accelerate until this horizon is clean. This is what blocks 
 
 The 2026-05-28 scope change reopened the launch line: launch now also gates on the Bio Page + Goods cluster (§3.8) and, for production goods money, OT-12. UX polish (§3.2) and the Phase D gate (§3.3) still stand.
 
+> **→ The current consolidated launch gate (Android-first + web, 2026-06-23) is [`docs/launch-gate.md`](./launch-gate.md).** It supersedes the scattered blocker references in this section as the single top-level to-do; the deposit-path code is closed and the remainder is founder config + ops + the push send-half.
+
 ### 3.2 Pre-launch UX polish — ✅ COMPLETE
 
 Slice 60 expanded 2026-05-16 into a platform-wide UX audit + restructure (60a–60d); 60e added 2026-05-20 for deposit UX; 61 (auth UI) distinct. **All closed by 2026-05-24:**
@@ -75,6 +77,8 @@ Slice 60 expanded 2026-05-16 into a platform-wide UX audit + restructure (60a–
 - **61** — Auth UI audit + fixes; `PasswordInput`, `?error=` surfacing (`49ce728`). Audit doc `docs/nav-auth-ui-audit-slice-61.md`.
 
 ### 3.3 Phase D — Final MVP UX review (the gate)
+
+> **📋 DEFINITIVE LAUNCH GATE — see [`docs/launch-gate.md`](./launch-gate.md) (2026-06-23).** Launch decision: **Android + web first**, iOS/Apple deferred. A 7-agent sweep (roadmap + payment audit + the fail-closed config gates in code + the mobile/web audits) consolidated the remaining to-do there. **The deposit-path code is DONE; what's left is ~90% founder config + external ops + one code task (server push send-half).** Newly surfaced beyond the Stripe-keys / Apple / Instagram / onboarding-art set the founder already owns: **Upstash Redis** unset fail-closed-rejects every public submission (booking/waitlist/auth); the **Supabase Send-Email hook secret**; the **Supabase Auth dashboard** deep-link allowlist + Google provider + "Allow new signups" (without which the mobile app cannot sign in); `CRON_SECRET` (incl. the GDPR retention purge); `ADMIN_EMAILS`; and the server push send-half (`lib/server/push.ts` does not exist) + Android FCM creds. Shipped since: guest-spot travel map + icon polish + mobile splash (prod `master 268996f`; Android preview APK `ebae8796`).
 
 **Plan: option 3 (Both).** Agent sweep first, then a live walkthrough with the founder.
 
