@@ -16,6 +16,7 @@ import {
   type VisibilityMode,
 } from "@inklee/shared/studio-validation";
 import {
+  randomTravelIconKey,
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
   type TravelIconKey,
@@ -89,7 +90,11 @@ function StudioForm({
     ? (initial!.visibilityMode as VisibilityMode)
     : "hidden";
   const seedIsPrimary = initial?.isPrimary ?? false;
-  const seedIcon = sanitizeTravelIcon(initial?.icon ?? null);
+  // New studios default to a random inklee icon (not the generic fallback);
+  // editing keeps the saved icon (or null if the artist cleared it).
+  const seedIcon =
+    sanitizeTravelIcon(initial?.icon ?? null) ??
+    (isNew ? randomTravelIconKey() : null);
   const seedIconColor = sanitizeTravelIconColor(initial?.iconColor ?? null);
 
   const [name, setName] = useState(seedName);

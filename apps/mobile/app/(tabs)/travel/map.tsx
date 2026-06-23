@@ -234,9 +234,9 @@ export default function TravelMapScreen() {
               </Text>
               <Pressable
                 onPress={() => Linking.openURL(safeMapsUrl(selected))}
-                className="mt-2 items-center rounded-full bg-brand-mustard py-2.5"
+                className="mt-2 items-center rounded-full bg-mustard py-2.5"
               >
-                <Text className="text-sm font-semibold text-brand-charcoal">
+                <Text className="text-sm font-semibold text-charcoal">
                   Open in Google Maps
                 </Text>
               </Pressable>

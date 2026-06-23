@@ -17,6 +17,7 @@ import type {
   MobileTripLeg,
 } from "@inklee/shared/mobile-api";
 import {
+  randomTravelIconKey,
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
   type TravelIconKey,
@@ -78,7 +79,10 @@ function CreateTrip() {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [icon, setIcon] = useState<TravelIconKey | null>(null);
+  // New trips default to a random inklee icon, not the generic fallback. Tracked
+  // as the baseline so the unsaved guard doesn't flag the default as a change.
+  const [initialIcon] = useState(randomTravelIconKey);
+  const [icon, setIcon] = useState<TravelIconKey | null>(initialIcon);
   const [iconColor, setIconColor] = useState<string | null>(null);
   const [show, setShow] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -87,7 +91,7 @@ function CreateTrip() {
   const dirty =
     title.trim() !== "" ||
     description.trim() !== "" ||
-    icon !== null ||
+    icon !== initialIcon ||
     iconColor !== null ||
     show !== true;
   const { leave } = useUnsavedGuard(dirty && !saving, create);

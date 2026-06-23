@@ -12,6 +12,7 @@ import type {
   MobileStudio,
   MobileStudiosResponse,
 } from "@inklee/shared/mobile-api";
+import { DEFAULT_ICON_COLOR } from "@inklee/shared/travel-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
@@ -92,7 +93,6 @@ function StudioRowView({
   studio: MobileStudio;
   onPress: () => void;
 }) {
-  const themed = useColors();
   const place = [studio.city, studio.country].filter(Boolean).join(", ");
   const street = studio.address;
   const showStreet = street && street !== place;
@@ -103,12 +103,12 @@ function StudioRowView({
       className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-glass p-3 active:opacity-80"
     >
       {/* Full-height square icon tile (founder's custom inklee set) */}
-      <View className="h-16 w-16 items-center justify-center rounded-xl border border-shell-border bg-shell-hover">
+      <View className="h-16 w-16 items-center justify-center rounded-xl border border-shell-border bg-bone">
         <TravelIcon
           icon={studio.icon}
           fallback={Building2}
           size={34}
-          color={studio.iconColor ?? themed.shell.fg}
+          color={studio.iconColor ?? DEFAULT_ICON_COLOR}
         />
       </View>
       <View className="flex-1 justify-center">

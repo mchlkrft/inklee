@@ -72,7 +72,7 @@ function IconOption({
       accessibilityState={{ selected }}
       onPress={onPress}
       className={`h-14 w-14 items-center justify-center rounded-xl ${
-        selected ? "bg-mustard" : "bg-shell-hover"
+        selected ? "bg-bone" : "bg-shell-hover"
       } active:opacity-80`}
     >
       {children}

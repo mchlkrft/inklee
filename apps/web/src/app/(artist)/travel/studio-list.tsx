@@ -19,6 +19,7 @@ import type { PlaceResult } from "@/components/google-places-picker";
 import { IconPickerGrid } from "./icon-picker";
 import { TravelIcon } from "@/components/travel-icon";
 import { Building2 } from "lucide-react";
+import { DEFAULT_ICON_COLOR } from "@inklee/shared/travel-icons";
 
 const GooglePlacesPicker = dynamic(
   () => import("@/components/google-places-picker"),
@@ -296,6 +297,7 @@ function StudioForm({
         <IconPickerGrid
           initial={studio?.icon ?? null}
           initialColor={studio?.iconColor ?? null}
+          randomizeWhenEmpty={!studio}
         />
       </div>
 
@@ -540,12 +542,12 @@ export default function StudioList({ studios }: { studios: Studio[] }) {
               return (
                 <div key={s.id} className="flex items-stretch gap-3 px-4 py-3">
                   {/* Full-height square icon tile (founder's custom inklee set) */}
-                  <div className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border bg-muted/30 text-foreground">
+                  <div className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border bg-brand-bone">
                     <TravelIcon
                       icon={s.icon}
                       fallback={Building2}
                       className="h-9 w-9"
-                      color={s.iconColor ?? undefined}
+                      color={s.iconColor ?? DEFAULT_ICON_COLOR}
                     />
                   </div>
                   <div className="min-w-0 flex-1 self-center">

@@ -52,20 +52,32 @@ export function sanitizeTravelIcon(value: unknown): TravelIconKey | null {
     : null;
 }
 
-// Curated brand palette for the artist-chosen icon color (founder round, ME test
-// 2026-06-18). NULL = no choice → render the surface's default icon color. Both
-// platforms render the same hex, so the picker and the displayed icon match.
-// Values are the brand tokens (mustard, rosa, cobalt, red, green, bone).
+// Curated brand palette for the artist-chosen icon color. Icons always sit on a
+// bone tile (both themes), so the palette is colours that read on bone: mustard,
+// rosa, cobalt, red, green, charcoal. (Bone was dropped — bone-on-bone is
+// invisible — and charcoal added for a clean dark mark on the bone tile.) NULL =
+// no choice → DEFAULT_ICON_COLOR. Both platforms render the same hex.
 export const TRAVEL_ICON_COLORS = [
   "#e9b22b",
   "#db88b9",
   "#0b3d9f",
   "#cf2e2c",
   "#105f2d",
-  "#e5e1d5",
+  "#1e1e1e",
 ] as const;
 
 export type TravelIconColor = (typeof TRAVEL_ICON_COLORS)[number];
+
+/** The icon color used when the artist makes no choice. Mustard reads on the
+ *  bone tile in both themes (theme foreground would vanish on bone in dark).
+ *  One source for the web + mobile pickers and the card renderers. */
+export const DEFAULT_ICON_COLOR = "#e9b22b";
+
+/** A random icon from the library, for pre-filling a NEW trip/studio so the
+ *  default is a real inklee mark rather than the generic fallback glyph. */
+export function randomTravelIconKey(): TravelIconKey {
+  return TRAVEL_ICON_KEYS[Math.floor(Math.random() * TRAVEL_ICON_KEYS.length)];
+}
 
 /** Write guard for the icon color: a value outside the palette saves as NULL
  *  (default color). Case-insensitive so "#E9B22B" matches. */

@@ -8,6 +8,7 @@ import {
 import { useRouter } from "expo-router";
 import { MapPin } from "lucide-react-native";
 import type { MobileTrip, MobileTripsResponse } from "@inklee/shared/mobile-api";
+import { DEFAULT_ICON_COLOR } from "@inklee/shared/travel-icons";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
@@ -115,46 +116,46 @@ export default function TripsList() {
 }
 
 function TripRow({ trip, onPress }: { trip: MobileTrip; onPress: () => void }) {
-  const themed = useColors();
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="rounded-2xl border border-shell-border bg-glass p-4 active:opacity-80"
+      className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-glass p-3 active:opacity-80"
     >
-      <View className="flex-row items-center justify-between">
-        {trip.icon ? (
-          <View className="mr-2">
-            <TravelIcon
-              icon={trip.icon}
-              fallback={MapPin}
-              size={16}
-              color={trip.iconColor ?? themed.cobalt}
-            />
-          </View>
+      {/* Full-height square icon tile (matches the studio card). */}
+      <View className="h-16 w-16 items-center justify-center rounded-xl border border-shell-border bg-bone">
+        <TravelIcon
+          icon={trip.icon}
+          fallback={MapPin}
+          size={34}
+          color={trip.iconColor ?? DEFAULT_ICON_COLOR}
+        />
+      </View>
+      <View className="flex-1 justify-center">
+        <View className="flex-row items-center justify-between">
+          <Text
+            className="flex-1 pr-2 text-base font-semibold text-foreground"
+            numberOfLines={1}
+          >
+            {trip.title}
+          </Text>
+          <Text
+            className={`text-xs font-medium ${
+              trip.showOnBookingForm ? "text-success-fg" : "text-shell-dim"
+            }`}
+          >
+            {trip.showOnBookingForm ? "On booking form" : "Hidden"}
+          </Text>
+        </View>
+        {trip.description ? (
+          <Text className="mt-0.5 text-sm text-shell-dim" numberOfLines={1}>
+            {trip.description}
+          </Text>
         ) : null}
-        <Text
-          className="flex-1 pr-2 text-base font-semibold text-foreground"
-          numberOfLines={1}
-        >
-          {trip.title}
-        </Text>
-        <Text
-          className={`text-xs font-medium ${
-            trip.showOnBookingForm ? "text-success-fg" : "text-shell-dim"
-          }`}
-        >
-          {trip.showOnBookingForm ? "On booking form" : "Hidden"}
+        <Text className="mt-1 text-xs text-shell-mute">
+          {trip.legCount} stop{trip.legCount === 1 ? "" : "s"}
         </Text>
       </View>
-      {trip.description ? (
-        <Text className="mt-1 text-sm text-shell-dim" numberOfLines={1}>
-          {trip.description}
-        </Text>
-      ) : null}
-      <Text className="mt-1.5 text-xs text-shell-mute">
-        {trip.legCount} stop{trip.legCount === 1 ? "" : "s"}
-      </Text>
     </Pressable>
   );
 }

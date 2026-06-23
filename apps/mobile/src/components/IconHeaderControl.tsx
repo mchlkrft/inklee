@@ -3,16 +3,16 @@ import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { ChevronDown, MapPin, Slash, X } from "lucide-react-native";
 import {
   TRAVEL_ICON_COLORS,
+  DEFAULT_ICON_COLOR,
   type TravelIconKey,
 } from "@inklee/shared/travel-icons";
 import { TravelIcon } from "./TravelIcon";
 import { TravelIconPicker } from "./TravelIconPicker";
-import { colors } from "@/lib/tokens";
 import { useColors } from "@/lib/theme";
 
-// Default icon color when the artist hasn't picked one (null). Mustard reads on
-// the dark shell and matches the brand accent the icons used before color choice.
-export const DEFAULT_ICON_COLOR = colors.mustard;
+// Re-export the shared default so existing importers (editors, cards) keep
+// importing it from this control. One source: @inklee/shared/travel-icons.
+export { DEFAULT_ICON_COLOR };
 
 // Header control for the studio/trip editors (ME test 2026-06-18): the icon
 // choice lives top-right in the navigation header, not in the form body. The
@@ -89,12 +89,12 @@ export function IconHeaderControl({
             >
               {/* Live preview in the chosen color. */}
               <View className="mb-4 items-center">
-                <View className="h-16 w-16 items-center justify-center rounded-2xl bg-shell-hover">
+                <View className="h-16 w-16 items-center justify-center rounded-2xl bg-bone">
                   <TravelIcon
                     icon={icon}
                     fallback={MapPin}
                     size={40}
-                    color={icon ? resolved : themed.shell.mute}
+                    color={icon ? resolved : DEFAULT_ICON_COLOR}
                   />
                 </View>
               </View>
