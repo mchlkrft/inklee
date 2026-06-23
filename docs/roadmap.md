@@ -313,6 +313,12 @@ Research only. Output `docs/payments-strategy.md` v1. NOT implementation. Open q
 
 Onboarding improvements, educational content, booking-form template marketplace, short-domain shareability fully fleshed out, studio referrals, continued SEO/GEO, Instagram marketing loop.
 
+### 6.6 Studios, Guest Spots & Tattoo Map — FUTURE (local prototype only)
+
+> **Future development. Not part of launch. Local prototype only. Feature flags default OFF. Not deployed. Not on `master`.**
+
+A multi-artist studio **business** layer (organizations / locations / workspaces / role-based memberships / guest-spot request→proposal→stay workflow) + a **tattoo discovery map** + an **artist travel/share map**. Distinct from the existing artist-owned travel feature (`studios`/`trips`/`trip_legs` → "Guest Spots" → `/travel`); the new entities are namespaced `studio_organizations`/`guest_spot_*`/`map_*` to never collide. Built 2026-06-23 as a dormant foundation in an **isolated worktree** (`A:\WORK\inklee-studios-guestspots-map`, branch `feature/local-studios-guestspots-map`, never pushed): slices 0–8 + a 47-agent quality audit, all gate-green (web+mobile tsc, lint, 783 tests, full build). Migrations `0054–0058` are **local-only** (never applied to prod). Full plan + audit + resume steps in `docs/features/studios-guest-spots-map/` (in the worktree) and memory `studios-guestspots-map-feature`. Promotion to launch requires a dedicated production-readiness review (Stripe/legal/RLS/mobile parity) — do NOT merge or deploy without it.
+
 ---
 
 ## 7. Parallel tracks (always on)
