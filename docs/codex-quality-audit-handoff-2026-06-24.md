@@ -339,18 +339,21 @@ Run at least `pnpm test` for changed packages plus the existing lint/type gate u
 
 | Finding | Owner | Fix commit | Verification |
 | --- | --- | --- | --- |
-| MONEY-01 | Claude |  |  |
-| MONEY-02 | Claude |  |  |
-| MONEY-03 | Claude |  |  |
-| INJ-01 | Claude |  |  |
-| AUTH-01 | Claude |  |  |
-| MONEY-04 | Claude |  |  |
-| INJ-02 | Claude |  |  |
-| INJ-03 | Claude |  |  |
-| SSRF-01 | Claude |  |  |
-| MOBILE-01 | Claude |  |  |
-| DRIFT-01 | Claude |  |  |
-| AUTH-02 | Claude |  |  |
-| SEO-01 | Claude |  |  |
-| COPY-01 | Claude |  |  |
-| HARDEN-01 | Claude |  |  |
+| MONEY-01 | Claude | `9432d19` | Webhook flip is an atomic `.eq(status=deposit_pending).is(deposit_paid_at null).select` gate; side effects run only when 1 row flipped; orphan re-read on lost race. |
+| MONEY-02 | Claude | `9432d19` | Reuse path returns a retry error on `paymentIntents.update` failure before any DB write. |
+| MONEY-03 | Claude | `9432d19` | All 3 `requestDepositCore` writes gate on `.eq("status", booking.status).select`; new-intent path cancels its orphan intent on a lost race. |
+| MONEY-04 | Claude | `9432d19` | Migration **0054** partial unique index (one `deposit_refunded` per booking); both writers treat 23505 as success. **Needs prod apply.** |
+| INJ-01 | Claude | `627e5fc` | Shared `sanitizeHttpUrl` (http/https only) in `bookingSchema` + both web render sinks; `url.test.ts`. |
+| AUTH-01 | Claude | `6cf575b` | `timingSafeEqual` + callback bound to the signed-in artist. (One-time nonce table deferred; feature is env-OFF.) |
+| MONEY-04 | Claude | `9432d19` | (see above) |
+| INJ-02 | Claude | `627e5fc` | `renderBody` sanitizes URL lines via `sanitizeHrefForEmail`; `renderEmailShell` escapes the footer; footer-escape test. |
+| INJ-03 | Claude | `627e5fc` | `icalEscape` collapses CRLF / bare CR / LF. |
+| SSRF-01 | Claude | `6cf575b` | https + Instagram/Facebook CDN host allowlist + `redirect:"error"` + content-type/size caps before sharp. |
+| MOBILE-01 | Claude | `6e03900` | Migration **0055** `UNIQUE(artist_id, token)` + upsert `onConflict("artist_id,token")`. **Needs prod apply.** |
+| DRIFT-01 | Claude | `6e03900` | `lib/server/push.ts` (Expo fan-out + dead-token prune) wired into `createNotification`. Needs FCM/APNs creds + a fresh EAS build to actually deliver. |
+| AUTH-02 | Claude | `d2dfd3e` | Email hook rejects stale/future `webhook-timestamp` (5-min window). |
+| SEO-01 | Claude | `627e5fc` | `serializeJsonLd` escapes `<` + U+2028/U+2029; `json-ld.test.ts`. |
+| COPY-01 | Claude | `d2dfd3e` | Travel card "start to end" (no em-dash). |
+| HARDEN-01 | Claude | `d2dfd3e` | `import "server-only"` on `service.ts`; vitest aliases `server-only` to a no-op. |
+
+**All 15 fixed on local `master` (`9432d19`, `627e5fc`, `d2dfd3e`, `6cf575b`, `6e03900`); not yet pushed.** Each cluster gated green: web + mobile tsc, lint, 525 web tests, `next build`. **Two migrations (0054, 0055) must be applied to prod** before their guarantees take effect (the code is forward-compatible without them). Notes: AUTH-01 uses session-binding rather than a server-side nonce table (the feature is env-OFF; the table is the further-hardening option); DRIFT-01's delivery is gated externally on FCM/APNs credentials.
