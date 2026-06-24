@@ -110,17 +110,27 @@ export async function POST(request: Request) {
       .eq("booking_id", booking.id)
       .eq("action", "deposit_refunded");
     if ((count ?? 0) === 0) {
-      await serviceClient.from("audit_log").insert({
-        booking_id: booking.id,
-        action: "deposit_refunded",
-        details: {
-          via: "stripe_webhook",
-          currency: charge.currency,
-          amount_eur: (charge.amount_refunded ?? 0) / 100,
-          payment_intent_id: intentId,
-          charge_id: charge.id,
-        },
-      });
+      const { error: refundLogError } = await serviceClient
+        .from("audit_log")
+        .insert({
+          booking_id: booking.id,
+          action: "deposit_refunded",
+          details: {
+            via: "stripe_webhook",
+            currency: charge.currency,
+            amount_eur: (charge.amount_refunded ?? 0) / 100,
+            payment_intent_id: intentId,
+            charge_id: charge.id,
+          },
+        });
+      // MONEY-04: a 23505 from the one-refund-per-booking unique index means the
+      // in-app refund logged first — benign (the Stripe refund is idempotent).
+      if (refundLogError && refundLogError.code !== "23505") {
+        Sentry.captureException(refundLogError, {
+          tags: { action: "webhook_refund_log" },
+          extra: { bookingId: booking.id },
+        });
+      }
       revalidateBookingViews(booking.id);
     }
     return NextResponse.json({ received: true });
@@ -311,20 +321,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Booking-side write: only on the first successful delivery for this
-    // intent. Token rotation, status flip, audit row all gated together so a
-    // partial-failure retry doesn't double-rotate the magic link.
+    // MONEY-01: the booking-side write is gated by an ATOMIC conditional UPDATE
+    // (status='deposit_pending' AND deposit_paid_at IS NULL) so only the FIRST
+    // delivery that still observes a pending, unpaid deposit flips the booking.
+    // Concurrent or replayed deliveries — and a booking rejected/cancelled
+    // between our read above and here — change 0 rows and skip ALL booking-side
+    // effects (token rotation, audit row, emails, sponsored-fee accounting).
     let bookingSideRanThisCall = false;
     let newToken: string | null = null;
     if (!bookingAlreadyDone) {
       const crypto = await import("crypto");
-      newToken = crypto.randomBytes(32).toString("hex");
-      const newHash = crypto
-        .createHash("sha256")
-        .update(newToken)
-        .digest("hex");
+      const token = crypto.randomBytes(32).toString("hex");
+      const newHash = crypto.createHash("sha256").update(token).digest("hex");
 
-      const { error: updateError } = await serviceClient
+      const { data: flipped, error: updateError } = await serviceClient
         .from("booking_requests")
         .update({
           status: "approved",
@@ -334,7 +344,10 @@ export async function POST(request: Request) {
           deposit_payment_intent_id: intent.id,
           customer_token_hash: newHash,
         })
-        .eq("id", bookingId);
+        .eq("id", bookingId)
+        .eq("status", "deposit_pending")
+        .is("deposit_paid_at", null)
+        .select("id");
 
       if (updateError) {
         return NextResponse.json(
@@ -343,49 +356,78 @@ export async function POST(request: Request) {
         );
       }
 
-      await serviceClient.from("audit_log").insert({
-        booking_id: bookingId,
-        action: "deposit_paid",
-        details: {
-          payment_intent_id: intent.id,
-          // `currency` makes the amounts interpretable for non-EUR deposits;
-          // the `*_eur` keys are kept for backward-compat with rows written
-          // before multi-currency but hold the amount in `currency`.
-          currency: intent.currency,
-          amount_eur: intent.amount / 100,
-          // The gross 3% application fee Inklee collected on this deposit
-          // (Custom Connect: Stripe's processing fee is then billed to Inklee's
-          // platform balance, so net keep is this minus Stripe's cut). 0 for
-          // manual / pre-fee intents. Logged for revenue reconciliation.
-          application_fee_eur: (intent.application_fee_amount ?? 0) / 100,
-          via: "stripe_webhook",
-        },
-      });
+      if (flipped && flipped.length === 1) {
+        newToken = token;
+        bookingSideRanThisCall = true;
 
-      // Slice 81: if Inklee sponsored this deposit's fee, the foregone fee was
-      // stamped on the intent at request time — track it against the artist's
-      // sponsorship budget so the spend cap is enforced on the next request.
-      const sponsoredCents = parseInt(
-        intent.metadata?.sponsored_fee_cents ?? "",
-        10,
-      );
-      if (Number.isFinite(sponsoredCents) && sponsoredCents > 0) {
-        const { data: ov } = await serviceClient
-          .from("account_overrides")
-          .select("fee_sponsored_used_cents")
-          .eq("artist_id", booking.artist_id)
-          .maybeSingle();
-        await serviceClient
-          .from("account_overrides")
-          .update({
-            fee_sponsored_used_cents:
-              (ov?.fee_sponsored_used_cents ?? 0) + sponsoredCents,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("artist_id", booking.artist_id);
+        await serviceClient.from("audit_log").insert({
+          booking_id: bookingId,
+          action: "deposit_paid",
+          details: {
+            payment_intent_id: intent.id,
+            // `currency` makes the amounts interpretable for non-EUR deposits;
+            // the `*_eur` keys are kept for backward-compat with rows written
+            // before multi-currency but hold the amount in `currency`.
+            currency: intent.currency,
+            amount_eur: intent.amount / 100,
+            // The gross 3% application fee Inklee collected on this deposit
+            // (Custom Connect: Stripe's processing fee is then billed to
+            // Inklee's platform balance, so net keep is this minus Stripe's
+            // cut). 0 for manual / pre-fee intents. Logged for reconciliation.
+            application_fee_eur: (intent.application_fee_amount ?? 0) / 100,
+            via: "stripe_webhook",
+          },
+        });
+
+        // Slice 81: if Inklee sponsored this deposit's fee, track the foregone
+        // fee against the artist's sponsorship budget. This runs under the same
+        // once-only gate, so a replayed delivery can never double-count it.
+        const sponsoredCents = parseInt(
+          intent.metadata?.sponsored_fee_cents ?? "",
+          10,
+        );
+        if (Number.isFinite(sponsoredCents) && sponsoredCents > 0) {
+          const { data: ov } = await serviceClient
+            .from("account_overrides")
+            .select("fee_sponsored_used_cents")
+            .eq("artist_id", booking.artist_id)
+            .maybeSingle();
+          await serviceClient
+            .from("account_overrides")
+            .update({
+              fee_sponsored_used_cents:
+                (ov?.fee_sponsored_used_cents ?? 0) + sponsoredCents,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("artist_id", booking.artist_id);
+        }
+      } else {
+        // Lost the FSM race: re-read to distinguish a benign concurrent
+        // delivery (already approved elsewhere) from a real orphan — the
+        // booking moved to a terminal state after our read while the card was
+        // charged, so the money needs a manual refund/reconcile.
+        const { data: afterRace } = await serviceClient
+          .from("booking_requests")
+          .select("status")
+          .eq("id", bookingId)
+          .single();
+        if (
+          afterRace &&
+          (afterRace.status === "rejected" || afterRace.status === "cancelled")
+        ) {
+          const { count: loggedNow } = await serviceClient
+            .from("audit_log")
+            .select("id", { count: "exact", head: true })
+            .eq("booking_id", bookingId)
+            .eq("action", "deposit_paid")
+            .contains("details", { payment_intent_id: intent.id });
+          if ((loggedNow ?? 0) === 0) {
+            flagOrphanedPayment(
+              "booking moved to a terminal state before the deposit could confirm",
+            );
+          }
+        }
       }
-
-      bookingSideRanThisCall = true;
     }
 
     // Order + fulfillment side effects (Slice 74/75). Independently

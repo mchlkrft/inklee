@@ -753,8 +753,11 @@ export async function requestDepositCore(
 
     if (reuseCardIntent && stripe) {
       // F5 (RS-3): keep the live PaymentIntent's amount + fee in step with the
-      // re-requested deposit. Best-effort — the webhook's amount check is the
-      // backstop.
+      // re-requested deposit. MONEY-02: this is NOT best-effort. If Stripe
+      // refuses the update (the intent is already processing / succeeded /
+      // canceled) we must not rewrite the booking to a new amount against a
+      // stale intent — that creates a charge the webhook later refuses to
+      // reconcile. Leave the booking untouched and surface a retry error.
       try {
         await stripe.paymentIntents.update(fresh.deposit_payment_intent_id, {
           amount: amountCents,
@@ -766,9 +769,15 @@ export async function requestDepositCore(
           tags: { action: "stripe_update_intent" },
           extra: { bookingId: id },
         });
+        return {
+          error:
+            "Couldn't update the existing deposit request. It may already be processing. Refresh and try again.",
+        };
       }
 
-      const { error: reuseError } = await supabase
+      // MONEY-03: gate the write on the status we authorised against so a
+      // concurrent change can't be clobbered back to deposit_pending.
+      const { data: reuseFlipped, error: reuseError } = await supabase
         .from("booking_requests")
         .update({
           deposit_amount: amount,
@@ -781,8 +790,13 @@ export async function requestDepositCore(
           decided_at: decidedAt,
           updated_at: decidedAt,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("status", booking.status)
+        .select("id");
       if (reuseError) return { error: reuseError.message };
+      if (!reuseFlipped || reuseFlipped.length === 0) {
+        return { error: "This booking changed. Refresh and try again." };
+      }
     } else {
       // Can't reuse the card intent → cancel the dead one and convert this
       // booking to a manual deposit (null intent fields).
@@ -793,7 +807,7 @@ export async function requestDepositCore(
           // already paid/cancelled — nothing to undo.
         }
       }
-      const { error: manualError } = await supabase
+      const { data: manualFlipped, error: manualError } = await supabase
         .from("booking_requests")
         .update({
           deposit_amount: amount,
@@ -808,8 +822,13 @@ export async function requestDepositCore(
           decided_at: decidedAt,
           updated_at: decidedAt,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("status", booking.status) // MONEY-03
+        .select("id");
       if (manualError) return { error: manualError.message };
+      if (!manualFlipped || manualFlipped.length === 0) {
+        return { error: "This booking changed. Refresh and try again." };
+      }
     }
 
     await notifyDepositRequested(
@@ -869,7 +888,9 @@ export async function requestDepositCore(
     }
   }
 
-  const { error } = await supabase
+  // MONEY-03: gate on the authorised status so a concurrent change isn't
+  // clobbered back to deposit_pending with a fresh payment link.
+  const { data: flipped, error } = await supabase
     .from("booking_requests")
     .update({
       status: "deposit_pending",
@@ -884,13 +905,27 @@ export async function requestDepositCore(
       decided_at: decidedAt,
       updated_at: decidedAt,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", booking.status)
+    .select("id");
 
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "booking_status_change" },
     });
     return { error: error.message };
+  }
+  if (!flipped || flipped.length === 0) {
+    // The booking moved on after we created the intent — cancel it so we don't
+    // leave an orphaned live PaymentIntent against a booking that changed.
+    if (paymentIntentId && stripe) {
+      try {
+        await stripe.paymentIntents.cancel(paymentIntentId);
+      } catch {
+        // already gone — nothing to undo.
+      }
+    }
+    return { error: "This booking changed. Refresh and try again." };
   }
 
   await supabase.from("audit_log").insert({
@@ -1065,7 +1100,7 @@ export async function refundDepositCore(
     };
   }
 
-  await supabase.from("audit_log").insert({
+  const { error: refundLogError } = await supabase.from("audit_log").insert({
     booking_id: id,
     action: "deposit_refunded",
     actor: userId,
@@ -1076,6 +1111,12 @@ export async function refundDepositCore(
       payment_intent_id: fresh.deposit_payment_intent_id,
     },
   });
+  // MONEY-04: a 23505 from the one-refund-per-booking unique index means the
+  // charge.refunded webhook logged this refund first. The Stripe refund is
+  // idempotent via the key above, so the money is back either way — success.
+  if (refundLogError && refundLogError.code !== "23505") {
+    return { error: refundLogError.message };
+  }
 
   return { success: true };
 }
