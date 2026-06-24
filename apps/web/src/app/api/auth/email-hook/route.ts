@@ -20,6 +20,15 @@ function verifyHookSignature(
   const msgTimestamp = headers.get("webhook-timestamp") ?? "";
   const msgSignature = headers.get("webhook-signature") ?? "";
 
+  // AUTH-02: reject stale/future timestamps (replay hardening), matching the
+  // Resend webhook. Standard Webhooks sends a Unix-seconds timestamp; a 5-min
+  // window tolerates clock skew while bounding replay of a captured payload.
+  const ts = parseInt(msgTimestamp, 10);
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(ts) || Math.abs(nowSec - ts) > 300) {
+    return false;
+  }
+
   const signedContent = `${msgId}.${msgTimestamp}.${rawBody}`;
   const computed = createHmac("sha256", key)
     .update(signedContent)

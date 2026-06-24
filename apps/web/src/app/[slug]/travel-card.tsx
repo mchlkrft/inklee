@@ -85,7 +85,7 @@ export default function TravelCard({ trips }: { trips: Trip[] }) {
                   />
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
-                      {fmt(s.startsOn)} — {fmt(s.endsOn)}
+                      {fmt(s.startsOn)} to {fmt(s.endsOn)}
                     </p>
                     {s.locationLabel && (
                       <p className="text-sm text-brand-charcoal/60">
