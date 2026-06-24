@@ -81,7 +81,15 @@ export function verifyOAuthState(state: string): string | null {
     .createHmac("sha256", getStateSecret())
     .update(payload)
     .digest("hex");
-  if (sig !== expected) return null;
+  // AUTH-01: constant-time compare (the previous `!==` leaked timing).
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (
+    sigBuf.length !== expBuf.length ||
+    !crypto.timingSafeEqual(sigBuf, expBuf)
+  ) {
+    return null;
+  }
   try {
     const { artistId, ts } = JSON.parse(
       Buffer.from(payload, "base64url").toString(),

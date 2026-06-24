@@ -8,6 +8,7 @@ import {
   fetchInstagramMedia,
 } from "@/lib/instagram";
 import { downloadInstagramThumbnail } from "@/lib/instagram-storage";
+import { createClient } from "@/lib/supabase/server";
 
 // Thumbnail download adds ~5–15s to a 50-post sync; default 10s timeout would clip it.
 export const maxDuration = 60;
@@ -27,6 +28,18 @@ export async function GET(req: NextRequest) {
 
   const artistId = verifyOAuthState(state);
   if (!artistId) {
+    return NextResponse.redirect(`${baseRedirect}?error=state`);
+  }
+
+  // AUTH-01: the state is a stateless HMAC (replayable within its 15-min
+  // window), so additionally bind the callback to the signed-in artist. The
+  // browser completing the OAuth round trip must BE that artist, so a leaked
+  // state can't attach an Instagram account to someone else.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || user.id !== artistId) {
     return NextResponse.redirect(`${baseRedirect}?error=state`);
   }
 
