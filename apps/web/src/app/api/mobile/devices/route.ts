@@ -29,6 +29,10 @@ export async function POST(req: Request) {
     return mobileError(400, "platform must be 'ios' or 'android'.");
   }
 
+  // MOBILE-01: conflict on (artist_id, token), not the global token, so
+  // re-registering by the SAME artist refreshes last_seen while a different
+  // artist presenting the same token gets a separate row (no ownership
+  // transfer). Migration 0055 backs this with a UNIQUE (artist_id, token).
   const { error } = await supabase.from("device_tokens").upsert(
     {
       artist_id: userId,
@@ -37,7 +41,7 @@ export async function POST(req: Request) {
       app_version: typeof body.appVersion === "string" ? body.appVersion : null,
       last_seen_at: new Date().toISOString(),
     },
-    { onConflict: "token" },
+    { onConflict: "artist_id,token" },
   );
   if (error) return mobileError(500, error.message);
 

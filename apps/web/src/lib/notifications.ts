@@ -1,4 +1,5 @@
 import { serviceClient } from "@/lib/supabase/service";
+import { sendPushToArtist } from "@/lib/server/push";
 export type {
   NotificationCategory,
   NotificationPriority,
@@ -49,6 +50,19 @@ export async function createNotification(
     });
     return { ok: false, error: error.message };
   }
+
+  // DRIFT-01: fan the same alert out to the artist's devices via Expo push.
+  // Best-effort (never throws); the in-app feed row above is the source of
+  // truth, so a push failure does not fail the notification.
+  await sendPushToArtist(input.artistId, {
+    title: input.title,
+    body: input.message,
+    data: {
+      type: input.type,
+      ...(input.ctaHref ? { href: input.ctaHref } : {}),
+      ...(input.metadata ?? {}),
+    },
+  });
 
   return { ok: true };
 }
