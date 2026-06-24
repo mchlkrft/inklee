@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sanitizeHttpUrl } from "./url";
 
 export const SIZES = ["palm-sized", "hand-sized", "forearm", "larger"] as const;
 
@@ -37,12 +38,25 @@ export const bookingSchema = z.object({
   placement: z.string().max(200),
   size: z.union([z.enum(SIZES), z.literal("")]),
   preferred_date: z.string(),
-  // Always-present fields
+  // Always-present fields. INJ-01: z.string().url() accepts javascript:/data:
+  // schemes, and the value is later rendered as an <a href> on artist surfaces.
+  // Accept only http(s), normalized, so an unsafe scheme can never be stored.
   reference_link: z
     .string()
-    .url("must be a valid url")
-    .or(z.literal(""))
-    .optional(),
+    .max(2000)
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined || v === "") return v;
+      const safe = sanitizeHttpUrl(v);
+      if (!safe) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter a valid http or https link.",
+        });
+        return z.NEVER;
+      }
+      return safe;
+    }),
   description: z.string().max(1000, "max 1000 characters"),
 });
 

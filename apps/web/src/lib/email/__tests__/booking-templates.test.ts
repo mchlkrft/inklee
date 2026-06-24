@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sanitizeHrefForEmail } from "../booking-templates";
+import { renderEmailShell } from "../layout";
 
 describe("sanitizeHrefForEmail", () => {
   it("accepts plain http/https URLs and HTML-escapes the result", () => {
@@ -31,5 +32,23 @@ describe("sanitizeHrefForEmail", () => {
     expect(sanitizeHrefForEmail("not a url")).toBeNull();
     expect(sanitizeHrefForEmail("")).toBeNull();
     expect(sanitizeHrefForEmail("/relative/path")).toBeNull();
+  });
+});
+
+describe("renderEmailShell footer escaping (INJ-02)", () => {
+  it("escapes HTML in a caller-provided footer note (untrusted artist name)", () => {
+    const html = renderEmailShell({
+      contentHtml: "<p>body</p>",
+      footerNote: 'Sent by <img src=x onerror="alert(1)"> Studio',
+    });
+    // The shell has a logo <img>, so target the injected footer specifically:
+    // the angle brackets are escaped and the onerror handler never lands raw.
+    expect(html).toContain("&lt;img");
+    expect(html).not.toContain('onerror="alert(1)"');
+  });
+
+  it("leaves the default tagline intact", () => {
+    const html = renderEmailShell({ contentHtml: "x" });
+    expect(html).toContain("Inklee. Tattoo bookings, clearly organized.");
   });
 });

@@ -1,6 +1,6 @@
 import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { formatCustomAnswer } from "@/lib/custom-fields";
-import { renderEmailShell } from "./layout";
+import { renderEmailShell, escapeHtml } from "./layout";
 import {
   ALLOWED_VARS,
   type TemplateVars,
@@ -15,16 +15,6 @@ export {
   templateBodySchema,
 } from "@inklee/shared/email-templates";
 export type { TemplateVars } from "@inklee/shared/email-templates";
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/\n/g, "<br/>");
-}
 
 // Only allow http(s) URLs and escape for an HTML href attribute. The studio
 // row stores google_maps_url as free text (artist input, validated by length
@@ -126,11 +116,18 @@ function ctaButton(url: string, label: string): string {
 function renderBody(plainText: string, ctaLabel: string): string {
   return plainText
     .split("\n")
-    .map((line) =>
-      /^https?:\/\/\S+$/.test(line.trim())
-        ? ctaButton(line.trim(), ctaLabel)
-        : escapeHtml(line),
-    )
+    .map((line) => {
+      const trimmed = line.trim();
+      if (/^https?:\/\/\S+$/.test(trimmed)) {
+        // INJ-02: only build a CTA for a URL that parses as a clean http(s)
+        // link (sanitizeHrefForEmail normalizes + HTML-escapes it); otherwise
+        // fall back to escaped text so a crafted line can't break out of the
+        // href attribute.
+        const safeHref = sanitizeHrefForEmail(trimmed);
+        if (safeHref) return ctaButton(safeHref, ctaLabel);
+      }
+      return escapeHtml(line);
+    })
     .join("<br/>");
 }
 

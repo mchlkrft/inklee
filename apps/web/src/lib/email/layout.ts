@@ -12,6 +12,19 @@ const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
 // `footerNote` overrides the default tagline — used to add a "Sent by Inklee
 // on behalf of <artist>" line to customer-facing mail, which is a strong
 // anti-phishing signal on the highest-trust-risk message (deposit requests).
+// Escape user/artist free-text for HTML email (and turn newlines into <br/> for
+// multiline bodies). Shared with booking-templates so the body, the footer, and
+// every interpolated value escape consistently. (INJ-02)
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/\n/g, "<br/>");
+}
+
 export function renderEmailShell({
   contentHtml,
   footerNote,
@@ -20,7 +33,12 @@ export function renderEmailShell({
   footerNote?: string;
 }): string {
   const logoUrl = `${APP_ORIGIN}/branding/logos/inklee-email-logo.png`;
-  const footer = footerNote ?? "Inklee. Tattoo bookings, clearly organized.";
+  // INJ-02: the footer carries the caller-built "on behalf of <artist>" note,
+  // so the artist display name is untrusted free-text — escape it (the default
+  // tagline has no special chars, so escaping is a no-op there).
+  const footer = escapeHtml(
+    footerNote ?? "Inklee. Tattoo bookings, clearly organized.",
+  );
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

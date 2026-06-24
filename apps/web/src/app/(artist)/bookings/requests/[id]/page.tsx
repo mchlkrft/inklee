@@ -14,6 +14,7 @@ import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
+import { sanitizeHttpUrl } from "@inklee/shared/url";
 import { resolveBookingGuestSpotStudio } from "@/lib/booking-studio";
 import { formatPrice } from "@/lib/goods";
 import { customerLabel } from "@/lib/booking-domain";
@@ -345,21 +346,37 @@ export default async function RequestDetailPage({
               />
             )}
             {locationLabel && <Row label="Location" value={locationLabel} />}
-            {typeof fd?.reference_link === "string" && (
-              <div className="flex px-4 py-3 gap-4">
-                <span className="text-sm text-muted-foreground w-32 shrink-0">
-                  Reference
-                </span>
-                <a
-                  href={fd.reference_link as string}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-foreground underline underline-offset-4 break-all"
-                >
-                  {fd.reference_link as string}
-                </a>
-              </div>
-            )}
+            {(() => {
+              const link =
+                fd && typeof fd.reference_link === "string"
+                  ? fd.reference_link
+                  : "";
+              if (!link) return null;
+              // INJ-01: only render http(s) as a clickable href; defensively
+              // downgrade any legacy unsafe-scheme link to plain text.
+              const href = sanitizeHttpUrl(link);
+              return (
+                <div className="flex px-4 py-3 gap-4">
+                  <span className="text-sm text-muted-foreground w-32 shrink-0">
+                    Reference
+                  </span>
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-foreground underline underline-offset-4 break-all"
+                    >
+                      {link}
+                    </a>
+                  ) : (
+                    <span className="text-sm text-foreground break-all">
+                      {link}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             {customAnswers.map((ans) => (
               <Row
                 key={ans.key}

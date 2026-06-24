@@ -15,6 +15,7 @@ import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { detectStripeMode } from "@/lib/deposit-settings";
 import type { AddonProductView } from "./addons-checkout";
 import type { DepositPolicy } from "@/lib/deposit-policy";
+import { sanitizeHttpUrl } from "@inklee/shared/url";
 
 // RS-3: goods commerce is parked. The deposit-only path renders the plain
 // DepositPaymentForm (no goods rows, no prepareCheckoutAction round-trip — the
@@ -264,18 +265,30 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
         <Row label="Placement" value={booking.placement} />
         <Row label="Size" value={formatSize(booking.size)} />
         <Row label="Preferred date" value={formatDate(booking.preferredDate)} />
-        {booking.referenceLink && (
-          <Row label="Reference">
-            <a
-              href={booking.referenceLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="break-all text-foreground underline underline-offset-4"
-            >
-              {booking.referenceLink}
-            </a>
-          </Row>
-        )}
+        {booking.referenceLink &&
+          (() => {
+            // INJ-01: only link out to http(s); legacy unsafe schemes render
+            // as plain text.
+            const href = sanitizeHttpUrl(booking.referenceLink);
+            return (
+              <Row label="Reference">
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-foreground underline underline-offset-4"
+                  >
+                    {booking.referenceLink}
+                  </a>
+                ) : (
+                  <span className="break-all text-foreground">
+                    {booking.referenceLink}
+                  </span>
+                )}
+              </Row>
+            );
+          })()}
         {booking.description && (
           <div className="space-y-1 px-4 py-3">
             <span className="text-muted-foreground">Description</span>

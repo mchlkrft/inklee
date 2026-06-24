@@ -6,7 +6,11 @@ function icalDate(d: string) {
 }
 
 function icalEscape(s: string) {
-  return s.replace(/[\\;,]/g, (c) => `\\${c}`).replace(/\n/g, "\\n");
+  // INJ-03: escape backslash/semicolon/comma, then collapse EVERY newline
+  // variant (CRLF, bare CR, LF) to an escaped \n. A bare CR was previously
+  // passed through, which some calendar parsers treat as a line break and use
+  // to inject extra properties/events.
+  return s.replace(/[\\;,]/g, (c) => `\\${c}`).replace(/\r\n|\r|\n/g, "\\n");
 }
 
 export async function GET(
