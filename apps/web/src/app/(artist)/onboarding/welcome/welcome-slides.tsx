@@ -2,13 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import {
-  Link2,
-  Image as ImageIcon,
-  Check,
-  Sparkles,
-  ChevronLeft,
-} from "lucide-react";
+import { ChevronLeft } from "lucide-react";
+import { ONBOARDING_ART } from "@inklee/shared/onboarding-art";
+import { ONBOARDING_INTRO_SLIDES } from "@inklee/shared/onboarding-intro";
 
 // Instagram-story-style intro. Each slide auto-advances after this many ms;
 // the segmented bar at the top doubles as the running timer.
@@ -16,132 +12,10 @@ const SLIDE_DURATION = 6500;
 
 const CLAIM_HREF = "/onboarding/claim-slug";
 
-/* ── Slide visuals ──────────────────────────────────────────────────────────
-   Each visual sits on a solid brand-color card so it reads the same in light
-   and dark — the faux UI inside uses bone panels + charcoal accents only. */
-
-function LinkVisual() {
-  return (
-    <div className="flex h-full items-center justify-center p-7">
-      <div className="w-full max-w-[230px] rounded-2xl bg-brand-bone p-5 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-charcoal/10">
-            <Sparkles className="h-5 w-5 text-brand-charcoal/45" />
-          </div>
-          <div className="space-y-1.5">
-            <div className="h-2.5 w-20 rounded-full bg-brand-charcoal/25" />
-            <div className="h-2 w-14 rounded-full bg-brand-charcoal/12" />
-          </div>
-        </div>
-        <div className="mt-5 flex items-center gap-2 rounded-xl bg-brand-charcoal px-3 py-2.5">
-          <Link2 className="h-4 w-4 shrink-0 text-brand-mustard" />
-          <span className="truncate text-xs font-medium text-brand-bone">
-            inklee.app/you
-          </span>
-        </div>
-        <div className="mt-2.5 h-2 w-2/3 rounded-full bg-brand-charcoal/10" />
-      </div>
-    </div>
-  );
-}
-
-function RequestVisual() {
-  return (
-    <div className="flex h-full items-center justify-center p-7">
-      <div className="w-full max-w-[235px] space-y-3 rounded-2xl bg-brand-bone p-4 shadow-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-full bg-brand-charcoal/10" />
-            <div className="h-2.5 w-16 rounded-full bg-brand-charcoal/22" />
-          </div>
-          <span className="rounded-full bg-brand-rosa px-2 py-0.5 text-[9px] font-semibold text-brand-charcoal">
-            New
-          </span>
-        </div>
-        {["Placement", "Style", "Size"].map((field) => (
-          <div key={field} className="flex items-center gap-2">
-            <span className="shrink-0 rounded-md bg-brand-charcoal/10 px-2 py-1 text-[9px] font-medium text-brand-charcoal/70">
-              {field}
-            </span>
-            <div className="h-2 flex-1 rounded-full bg-brand-charcoal/12" />
-          </div>
-        ))}
-        <div className="flex gap-1.5 pt-0.5">
-          <div className="h-10 flex-1 rounded-lg bg-brand-charcoal/[0.07]" />
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-charcoal/[0.07]">
-            <ImageIcon className="h-4 w-4 text-brand-charcoal/30" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ApproveVisual() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-7">
-      <div className="w-full max-w-[235px] space-y-3 rounded-2xl bg-brand-bone p-4 shadow-xl">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-full bg-brand-charcoal/10" />
-          <div className="space-y-1.5">
-            <div className="h-2 w-16 rounded-full bg-brand-charcoal/22" />
-            <div className="h-1.5 w-10 rounded-full bg-brand-charcoal/12" />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <div className="flex h-8 flex-1 items-center justify-center gap-1 rounded-full bg-brand-mustard text-[10px] font-semibold text-brand-charcoal">
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
-            Accept
-          </div>
-          <div className="h-8 w-16 rounded-lg border border-brand-charcoal/15" />
-        </div>
-      </div>
-      <div className="w-full max-w-[235px] rounded-2xl bg-brand-bone p-3 shadow-xl">
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: 21 }).map((_, i) => (
-            <div
-              key={i}
-              className={`flex aspect-square items-center justify-center rounded-[5px] ${
-                i === 9 ? "bg-brand-green" : "bg-brand-charcoal/[0.07]"
-              }`}
-            >
-              {i === 9 && (
-                <Check
-                  className="h-2.5 w-2.5 text-brand-bone"
-                  strokeWidth={3}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const SLIDES = [
-  {
-    bg: "bg-brand-mustard",
-    eyebrow: "Your booking link",
-    title: "One link. Every booking.",
-    body: "Drop a single Inklee link in your Instagram bio. Clients tap it to start a request. No more booking chaos buried in your DMs.",
-    Visual: LinkVisual,
-  },
-  {
-    bg: "bg-brand-rosa",
-    eyebrow: "Your inbox",
-    title: "Requests, already sorted.",
-    body: "Every client tells you placement, style, size and a reference up front. Each request lands in one tidy dashboard, ready to review.",
-    Visual: RequestVisual,
-  },
-  {
-    bg: "bg-brand-green",
-    eyebrow: "Your calendar",
-    title: "Review, approve, done.",
-    body: "Accept or pass with a tap. Accepted bookings move straight to your calendar, so you stay in control and organised.",
-    Visual: ApproveVisual,
-  },
-] as const;
+// Slide copy + illustrations both come from @inklee/shared (one source of truth
+// with the mobile twin, OnboardingIntro.tsx); each illustration bakes in its own
+// brand-colour card, so there is no separate brand-bg / faux-UI per slide.
+const SLIDES = ONBOARDING_INTRO_SLIDES;
 
 /** Active timer segment — runs its own rAF tick, fills 0→100% over
  *  SLIDE_DURATION, respects the parent's `isHeldRef` for press-and-hold
@@ -213,7 +87,7 @@ export default function WelcomeSlides() {
   const [index, setIndex] = useState(0);
   const isLast = index === SLIDES.length - 1;
   const slide = SLIDES[index];
-  const { Visual } = slide;
+  const art = ONBOARDING_ART[index];
 
   // Pause state lives in a ref so toggling it doesn't restart the rAF
   // tick effect. The tick reads `isHeldRef.current` each frame.
@@ -270,18 +144,17 @@ export default function WelcomeSlides() {
         ))}
       </div>
 
-      {/* Visual card — tap left third to go back, right to advance */}
+      {/* Illustration card — the brand-colour card + rounded corners are baked
+          into the artwork. Tap left third to go back, right to advance. */}
       <div className="relative">
-        <div
-          className={`relative aspect-[4/5] overflow-hidden rounded-[28px] ${slide.bg}`}
-        >
-          <div
-            key={index}
-            className="h-full w-full animate-in fade-in zoom-in-95 duration-500"
-          >
-            <Visual />
-          </div>
-        </div>
+        <svg
+          key={index}
+          viewBox={art.viewBox}
+          aria-hidden="true"
+          className="block w-full animate-in fade-in zoom-in-95 duration-500"
+          style={{ aspectRatio: art.ratio }}
+          dangerouslySetInnerHTML={{ __html: art.inner }}
+        />
         {/* Tap zones — story gesture. Press-and-hold pauses the timer;
             quick release (<TAP_MS) counts as a tap and navigates. Pointer
             events fire on touch + mouse + pen. Excluded from tab order

@@ -1,56 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Pressable, Text, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { SvgXml } from "react-native-svg";
+import { ONBOARDING_ART } from "@inklee/shared/onboarding-art";
+import { ONBOARDING_INTRO_SLIDES } from "@inklee/shared/onboarding-intro";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { colors } from "@/lib/tokens";
 
-// Native port of the web onboarding intro (welcome-slides.tsx) — a 3-slide
+// Native twin of the web onboarding intro (welcome-slides.tsx) — a 3-slide
 // "story" that auto-advances, pauses while pressed, and lets the artist tap
-// left/right to move between slides. Graphics are placeholder brand cards +
-// icons for v1 (real illustrations = follow-up FU-13). Skip and the final "Get
-// started" both call onDone, which routes on to the claim step.
+// left/right to move between slides. Copy and illustrations both come from
+// @inklee/shared so the two surfaces can't drift; the brand-colour background
+// card is baked into each illustration. Skip and the final "Get started" both
+// call onDone, which routes on to the claim step.
 
 const SLIDE_MS = 5000;
 
-type Slide = {
-  bg: string; // NativeWind brand bg class
-  icon: keyof typeof Ionicons.glyphMap;
-  eyebrow: string;
-  title: string;
-  body: string;
-};
-
-const SLIDES: Slide[] = [
-  {
-    bg: "bg-mustard",
-    icon: "link-outline",
-    eyebrow: "Your booking link",
-    title: "One link. Every booking.",
-    body: "Drop a single Inklee link in your Instagram bio. Clients tap it to start a request. No more booking chaos buried in your DMs.",
-  },
-  {
-    bg: "bg-rosa",
-    icon: "albums-outline",
-    eyebrow: "Your inbox",
-    title: "Requests, already sorted.",
-    body: "Every client tells you placement, style, size and a reference up front. Each request lands in one tidy inbox, ready to review.",
-  },
-  {
-    bg: "bg-success",
-    icon: "checkmark-circle-outline",
-    eyebrow: "Your calendar",
-    title: "Review, accept, done.",
-    body: "Accept or pass with a tap. Accepted bookings move straight to your calendar, so you stay in control.",
-  },
-];
+// Copy (shared) zips with ONBOARDING_ART (shared) by index — 1 per slide.
+const SLIDES = ONBOARDING_INTRO_SLIDES;
 
 export function OnboardingIntro({ onDone }: { onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [screenReader, setScreenReader] = useState(false);
+  // Card width, measured once on layout, so the SVG renders at a concrete pixel
+  // size (more reliable than "100%" across react-native-svg versions).
+  const [cardW, setCardW] = useState(0);
   const isLast = index === SLIDES.length - 1;
   const slide = SLIDES[index];
+  const art = ONBOARDING_ART[index];
+  // Assemble the full <svg> for SvgXml (the shared module stores viewBox + inner,
+  // matching the icon-art contract). Multi-colour art: fills are baked in, so no
+  // color prop. Cheap to build for one visible slide.
+  const artXml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${art.viewBox}">${art.inner}</svg>`;
 
   // Don't auto-advance while a screen reader is active — VoiceOver/TalkBack users
   // need to read at their own pace (Next + Skip still work).
@@ -111,14 +92,20 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
           ))}
         </View>
 
-        {/* Visual card with tap zones (left third = back, right = forward). */}
-        <View className="relative">
-          <View
-            className={`aspect-[4/5] w-full items-center justify-center rounded-[28px] ${slide.bg}`}
-          >
-            <View className="h-24 w-24 items-center justify-center rounded-full bg-[rgba(30,30,30,0.12)]">
-              <Ionicons name={slide.icon} size={52} color={colors.charcoal} />
-            </View>
+        {/* Illustration card with tap zones (left third = back, right = forward).
+            The brand-colour card + rounded corners are baked into the artwork. */}
+        <View
+          className="relative"
+          onLayout={(e) => setCardW(e.nativeEvent.layout.width)}
+        >
+          <View style={{ width: "100%", aspectRatio: art.ratio }}>
+            {cardW > 0 ? (
+              <SvgXml
+                xml={artXml}
+                width={cardW}
+                height={cardW / art.ratio}
+              />
+            ) : null}
           </View>
           <Pressable
             accessibilityRole="button"
