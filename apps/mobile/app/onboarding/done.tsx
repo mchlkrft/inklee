@@ -2,6 +2,8 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Pressable,
+  ScrollView,
   Share,
   Text,
   View,
@@ -15,11 +17,33 @@ import type {
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { ImageUploadField } from "@/components/ImageUploadField";
+import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useApiQuery, apiPost, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { track } from "@/lib/analytics";
 import { config } from "@/lib/config";
 import { useColors } from "@/lib/theme";
+
+// "Set up when ready" optional features (mirrors the web done step). Each routes
+// to the feature AFTER completing onboarding, via finish(route).
+const OPTIONAL_FEATURES: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  route: string;
+}[] = [
+  { icon: "flash-outline", label: "Flash items", route: "/flash" },
+  { icon: "airplane-outline", label: "Guest spots", route: "/travel" },
+  { icon: "mail-outline", label: "Email templates", route: "/settings/emails" },
+  {
+    icon: "card-outline",
+    label: "Deposit collection",
+    route: "/settings/deposit-defaults",
+  },
+];
+
+// Mirror the web logo cap (2 MB) so an oversized photo fails before upload.
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 export default function YoureLive() {
   const themed = useColors();
@@ -32,8 +56,9 @@ export default function YoureLive() {
   // Completing flips settings.onboarding_completed so the root navigator's /me
   // gate swaps this stack for the tabs — no manual navigation, the same elegant
   // pattern as the session gate. `next` routes onward AFTER the swap (the slots
-  // builder for fixed-slots artists): the gate flip is a synchronous cache
-  // write, so by the time the timer fires the onboarded tree is mounted.
+  // builder for fixed-slots artists, or an optional-feature shortcut): the gate
+  // flip is a synchronous cache write, so by the time the timer fires the
+  // onboarded tree is mounted.
   async function finish(next?: string) {
     setFinishing(true);
     setError(null);
@@ -96,6 +121,26 @@ export default function YoureLive() {
   const isFixedSlots = me.data.bookingMode === "fixed_slots";
   const booksOpen = me.data.booksOpen;
 
+  // Readiness checklist (mirrors the web done step) — reflects the answers the
+  // wizard just collected.
+  const checklist = [
+    { label: "Profile set up", detail: me.data.displayName ?? host },
+    {
+      label: "Booking mode",
+      detail: isFixedSlots ? "Fixed slots" : "Request a date",
+    },
+    {
+      label: "Availability",
+      detail: me.data.booksOpenFlag ? "Open for requests" : "Opening later",
+    },
+    {
+      label: "Booking form ready",
+      detail: isFixedSlots
+        ? "Publish slots to start taking bookings"
+        : "Clients can submit requests",
+    },
+  ];
+
   async function shareLink() {
     try {
       await Share.share({ message: url, url });
@@ -106,7 +151,12 @@ export default function YoureLive() {
 
   return (
     <Screen>
-      <View className="flex-1 pt-4">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
+      >
+        <OnboardingProgress current={5} />
+
         <View className="items-center pb-6">
           <View className="h-16 w-16 items-center justify-center rounded-full bg-[rgba(16,95,45,0.18)]">
             <Ionicons
@@ -128,8 +178,32 @@ export default function YoureLive() {
               : "Your page is set up. Tap the status pill up top to open your books whenever you're ready."}
         </Text>
 
+        {/* Readiness checklist */}
+        <View className="mt-7 rounded-2xl border border-shell-border bg-glass">
+          {checklist.map((item, i) => (
+            <View
+              key={item.label}
+              className={`flex-row items-center gap-3 p-4 ${
+                i > 0 ? "border-t border-shell-border" : ""
+              }`}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={18}
+                color={themed.successFg}
+              />
+              <View className="flex-1">
+                <Text className="text-sm text-foreground">{item.label}</Text>
+                <Text className="mt-0.5 text-xs text-shell-mute">
+                  {item.detail}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
         {/* The link */}
-        <View className="mt-7 rounded-2xl border border-shell-border bg-glass p-4">
+        <View className="mt-4 rounded-2xl border border-shell-border bg-glass p-4">
           <View className="flex-row items-center gap-2">
             <Ionicons name="link" size={15} color={themed.shell.mute} />
             <Text className="text-xs uppercase tracking-widest text-shell-mute">
@@ -168,24 +242,53 @@ export default function YoureLive() {
           )}
         </View>
 
-        <View className="mt-5 flex-row items-start gap-2 px-1">
-          <Ionicons
-            name="bulb-outline"
-            size={15}
-            color={themed.shell.mute}
-            style={{ marginTop: 2 }}
-          />
-          <Text className="flex-1 text-xs leading-relaxed text-shell-dim">
-            Add a logo and set up deposit collection any time from Settings in
-            the top-bar menu.
-          </Text>
+        {/* Logo (optional) — inline upload, mirrors the web done step. */}
+        <Text className="mt-7 text-xs font-semibold uppercase tracking-widest text-shell-mute">
+          Add your logo
+        </Text>
+        <Text className="mb-3 mt-1 text-xs text-shell-dim">
+          Optional. Shown on your booking page. PNG, JPG or WebP, max 2 MB.
+        </Text>
+        <ImageUploadField
+          label="Logo"
+          imageUrl={null}
+          endpoint="/settings/profile/logo"
+          shape="circle"
+          maxBytes={MAX_LOGO_BYTES}
+          onUploaded={() => invalidateIdentity(queryClient)}
+        />
+
+        {/* Set up when ready — optional features (mirrors the web done grid). */}
+        <Text className="mt-4 text-xs font-semibold uppercase tracking-widest text-shell-mute">
+          Set up when ready
+        </Text>
+        <Text className="mt-1 text-xs text-shell-dim">
+          Optional. Configure these whenever they actually help your workflow.
+        </Text>
+        <View className="mt-3 gap-2">
+          {OPTIONAL_FEATURES.map((f) => (
+            <Pressable
+              key={f.label}
+              accessibilityRole="button"
+              disabled={finishing}
+              onPress={() => {
+                void finish(f.route);
+              }}
+              className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-glass px-4 py-3 active:opacity-70"
+            >
+              <Ionicons name={f.icon} size={16} color={themed.shell.dim} />
+              <Text className="text-sm text-foreground">{f.label}</Text>
+            </Pressable>
+          ))}
         </View>
 
         {error ? (
-          <Text className="mt-4 text-center text-sm text-danger-fg">{error}</Text>
+          <Text className="mt-4 text-center text-sm text-danger-fg">
+            {error}
+          </Text>
         ) : null}
 
-        <View className="mt-auto pb-2">
+        <View className="mt-6">
           <Button
             label="Start using Inklee"
             onPress={() => {
@@ -194,7 +297,7 @@ export default function YoureLive() {
             loading={finishing}
           />
         </View>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

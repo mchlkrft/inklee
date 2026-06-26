@@ -20,6 +20,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
+import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { apiGet, apiPost, ApiError, invalidateIdentity } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { config } from "@/lib/config";
@@ -204,7 +205,11 @@ export default function ClaimLink() {
           />
         </View>
 
-        <View className="pb-6 pt-2">
+        <View className="mt-2">
+          <OnboardingProgress current={1} />
+        </View>
+
+        <View className="pb-6">
           <Text className="text-2xl font-bold text-foreground">
             Claim your booking link
           </Text>
