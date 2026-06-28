@@ -43,7 +43,7 @@ Pointer, not a changelog — detail lives in git history, `SLICES.md` / `SLICES_
 | Strategy + analytics + mobile-strategy docs                                                         | ✓                              | `docs/business-model.md`, `docs/analytics-audit-2026-05-14.md`, `docs/mobile-strategy.md`                                                                                                                    |
 | Pre-walkthrough UX + branding bug sweep (Slice 77)                                                  | ✓ 2026-06-04                   | `SLICES_CONTINUATION.md` Slice 77 — mobile nav (Goods/Settings), Size-radio mobile layout + full-label transport, banner-upload error handling, unified branded email shell + real logo + deposit trust copy |
 | Phase D cross-device fixes — desktop quick-wins + IP-ROOT (iPad) + UP-1 (uploads)                   | ✓ 2026-06-04                   | `docs/phase-d-walkthrough-2026-05-27.md` rounds 1–4; commits `e32fb6d`, `6a3d493`, `85773c6`. Remaining punch-list = Slice 78 cluster (§3.3)                                                                 |
-| MVP bughunting batch (mobile dashboard cards, guest-spot map redesign + branded MapLibre style, flash "More details" collapse, favicon)            | ✓ code 2026-06-28 (branch `mvp-bughunting`, not pushed) | `docs/fixes-2026-06-28.md`; commit `1f14294`; memory `mvp-bughunting.md`. Worktree studio-visibility default (`9c022bf`) on the local studios branch                                                          |
+| MVP bughunting batch (mobile dashboard cards, guest-spot map redesign + branded MapLibre style, flash "More details" collapse, favicon)            | ✓ code 2026-06-28 (branch `mvp-bughunting`, not pushed) | `docs/fixes-2026-06-28.md`; commit `1f14294`; memory `mvp-bughunting.md`. Worktree studio-visibility default (`9c022bf`) on the local studios branch. Android preview EAS build `e9e555b5` queued 2026-06-29                  |
 
 ---
 
@@ -159,7 +159,9 @@ Sequencing: 72 → 73 → 74 → 75 → 76 — **all built in code** (migrations
 
 ---
 
-### 3.9 Founding Artist Beta landing page (NEW, in progress 2026-06-28)
+### 3.9 Founding Artist Beta landing page (CODE COMPLETE 2026-06-28/29)
+
+**Status (2026-06-29):** built on branch `feat/founding-artist-beta` (off master, NOT pushed; commits 0a7b7cd page+backend, d8c9438 admin+tests, d0c5a80 config). Migration `0056` APPLIED + verified on the linked DB via `supabase db push` (RLS on, 0 policies, 4 indexes; also repaired pre-existing 0052-0055 bookkeeping drift). Instagram handle set to `inklee.app`. Remaining = optional (live-stats wiring, sitemap entry) + push/PR. Full detail: `docs/founding-artist-beta.md`, memory `mvp-bughunting.md`.
 
 Conversion-focused, invite-only beta recruitment page + application backend. Goal: a selective, scene-native page (not a generic SaaS waitlist) that recruits a small, manually-reviewed cohort of Founding Artists. Scope:
 
