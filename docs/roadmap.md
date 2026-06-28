@@ -43,6 +43,7 @@ Pointer, not a changelog — detail lives in git history, `SLICES.md` / `SLICES_
 | Strategy + analytics + mobile-strategy docs                                                         | ✓                              | `docs/business-model.md`, `docs/analytics-audit-2026-05-14.md`, `docs/mobile-strategy.md`                                                                                                                    |
 | Pre-walkthrough UX + branding bug sweep (Slice 77)                                                  | ✓ 2026-06-04                   | `SLICES_CONTINUATION.md` Slice 77 — mobile nav (Goods/Settings), Size-radio mobile layout + full-label transport, banner-upload error handling, unified branded email shell + real logo + deposit trust copy |
 | Phase D cross-device fixes — desktop quick-wins + IP-ROOT (iPad) + UP-1 (uploads)                   | ✓ 2026-06-04                   | `docs/phase-d-walkthrough-2026-05-27.md` rounds 1–4; commits `e32fb6d`, `6a3d493`, `85773c6`. Remaining punch-list = Slice 78 cluster (§3.3)                                                                 |
+| MVP bughunting batch (mobile dashboard cards, guest-spot map redesign + branded MapLibre style, flash "More details" collapse, favicon)            | ✓ code 2026-06-28 (branch `mvp-bughunting`, not pushed) | `docs/fixes-2026-06-28.md`; commit `1f14294`; memory `mvp-bughunting.md`. Worktree studio-visibility default (`9c022bf`) on the local studios branch                                                          |
 
 ---
 
@@ -155,6 +156,20 @@ Locked decisions: (D1) whole cluster ships **before public launch**; (D2) keep e
 | 76    | Paywall readiness flags + analytics + QA hardening                                  | none                                                 | Low    | ◑ flags + tests; QA ongoing |
 
 Sequencing: 72 → 73 → 74 → 75 → 76 — **all built in code** (migrations 0035 + 0036 applied; `src/lib/features.ts` flags live; 213 vitest tests green as of 2026-05-29). Per D3, goods money stays in **test mode**: `checkout_addons` is OFF in production until **OT-12 Stripe Connect** is live and artists are onboarded as connected accounts. Remaining before launch: the Phase D walkthrough (§3.3), OT-12, and a manual QA pass of the live add-ons flow (plan §10).
+
+---
+
+### 3.9 Founding Artist Beta landing page (NEW, in progress 2026-06-28)
+
+Conversion-focused, invite-only beta recruitment page + application backend. Goal: a selective, scene-native page (not a generic SaaS waitlist) that recruits a small, manually-reviewed cohort of Founding Artists. Scope:
+
+- **Page** at `/founding-artists` (marketing-v2 design language, indexable, canonical metadata, OG image). Positioning "One link. Every booking." Sections: hero (real product imagery) → pain points → how it works (3 steps) → capabilities (by outcome, only real features) → Founding Artist benefits → participation expectations → who-it's-for → social proof (hidden until real stats exist) → application form → FAQ → final CTA. Primary CTA "Apply as a Founding Artist" (manual review), secondary "See how it works".
+- **Backend**: `founding_artist_applications` table, RLS public-INSERT-only (no public read/enumerate; admins read/update via existing admin), normalized Instagram handle, UTM + referrer capture, duplicate-email/handle handled gracefully. Statuses: new/reviewing/shortlisted/invited/onboarded/declined/waitlisted.
+- **Admin**: applications review section in the existing admin (filter by status/country/type/device, search, detail, internal notes, status change, invite-sent, CSV export if pattern exists).
+- **Analytics**: existing Plausible events (page view, CTA clicks, form start/complete/fail, FAQ, IG/store link clicks).
+- Configurable pricing/free-period/fee-support values (no hardcoded terms; no invented stats; no unsupported claims).
+
+Plan/tracker: `docs/founding-artist-beta.md` (created during implementation). Memory `mvp-bughunting.md`.
 
 ---
 
