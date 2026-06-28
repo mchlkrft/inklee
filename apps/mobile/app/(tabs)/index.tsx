@@ -85,9 +85,9 @@ function StatBox({
     <Pressable
       onPress={onPress}
       style={{ backgroundColor: CHIP_CREAM, borderColor: CHIP_BORDER }}
-      className="flex-1 rounded-card border-brand p-4 active:opacity-80"
+      className="flex-1 rounded-card border-brand p-5 active:opacity-80"
     >
-      <Icon size={18} color={danger ? ON_CHIP_DANGER : ON_CHIP_FG} />
+      <Icon size={22} color={danger ? ON_CHIP_DANGER : ON_CHIP_FG} />
       <Text
         className="mt-2 text-xl font-bold"
         style={{ color: danger ? ON_CHIP_DANGER : ON_CHIP_FG }}

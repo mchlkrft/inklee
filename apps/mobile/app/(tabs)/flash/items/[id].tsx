@@ -152,6 +152,7 @@ function ItemForm({
     initial.availableUntil ?? "",
   );
   const [folderId, setFolderId] = useState(initial.folderId ?? "");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -399,42 +400,63 @@ function ItemForm({
           />
         ) : null}
 
-        <FieldLabel>Short description</FieldLabel>
-        <TextArea
-          value={shortDescription}
-          onChangeText={setShortDescription}
-          maxLength={280}
-          placeholder="A short line clients see"
-          minHeight={56}
-        />
+        {/* Secondary details collapsed by default to keep the form short.
+            Values live in component state, so collapsing (unmounting) the inputs
+            never drops what the artist typed. */}
+        <Pressable
+          onPress={() => setMoreOpen((v) => !v)}
+          className="mb-3 mt-1 flex-row items-center justify-between rounded-xl border border-shell-border px-3 py-3 active:opacity-70"
+        >
+          <Text className="text-body font-medium text-foreground">
+            More details
+          </Text>
+          {moreOpen ? (
+            <ChevronUp size={18} color={themed.shell.dim} />
+          ) : (
+            <ChevronDown size={18} color={themed.shell.dim} />
+          )}
+        </Pressable>
 
-        <TextField
-          label="Size"
-          value={sizeInfo}
-          onChangeText={setSizeInfo}
-          placeholder="e.g. ~10–15 cm"
-        />
-        <TextField
-          label="Placement notes"
-          value={placementNotes}
-          onChangeText={setPlacementNotes}
-          placeholder="e.g. forearm, calf"
-        />
+        {moreOpen ? (
+          <>
+            <FieldLabel>Short description</FieldLabel>
+            <TextArea
+              value={shortDescription}
+              onChangeText={setShortDescription}
+              maxLength={280}
+              placeholder="A short line clients see"
+              minHeight={56}
+            />
 
-        <TextField
-          label="Available from"
-          value={availableFrom}
-          onChangeText={setAvailableFrom}
-          placeholder="YYYY-MM-DD"
-          autoCapitalize="none"
-        />
-        <TextField
-          label="Available until"
-          value={availableUntil}
-          onChangeText={setAvailableUntil}
-          placeholder="YYYY-MM-DD"
-          autoCapitalize="none"
-        />
+            <TextField
+              label="Size"
+              value={sizeInfo}
+              onChangeText={setSizeInfo}
+              placeholder="e.g. ~10–15 cm"
+            />
+            <TextField
+              label="Placement notes"
+              value={placementNotes}
+              onChangeText={setPlacementNotes}
+              placeholder="e.g. forearm, calf"
+            />
+
+            <TextField
+              label="Available from"
+              value={availableFrom}
+              onChangeText={setAvailableFrom}
+              placeholder="YYYY-MM-DD"
+              autoCapitalize="none"
+            />
+            <TextField
+              label="Available until"
+              value={availableUntil}
+              onChangeText={setAvailableUntil}
+              placeholder="YYYY-MM-DD"
+              autoCapitalize="none"
+            />
+          </>
+        ) : null}
 
         {folderOptions.length > 1 ? (
           <>

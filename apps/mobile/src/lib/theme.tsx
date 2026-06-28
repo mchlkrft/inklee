@@ -111,7 +111,11 @@ const toVars = (p: Palette) =>
     "--danger-fg": p.dangerFg,
   });
 
-const themeVars: Record<Scheme, ReturnType<typeof vars>> = {
+// Exported so portalled trees (RN Modal) can re-establish the CSS vars: a Modal
+// renders OUTSIDE the ThemeProvider wrapper View, so without re-applying these the
+// className `var(--…)` tokens fall back to global.css :root (always dark). Wrap the
+// modal root in `<View style={themeVars[scheme]}>` to keep it light/dark aware.
+export const themeVars: Record<Scheme, ReturnType<typeof vars>> = {
   light: toVars(palettes.light),
   dark: toVars(palettes.dark),
 };

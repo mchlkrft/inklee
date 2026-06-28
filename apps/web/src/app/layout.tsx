@@ -24,6 +24,21 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  // Explicit icon declarations. The App Router auto-serves favicon.ico/icon.svg
+  // from app/, but Google's SERP favicon crawler wants an explicit <link rel> in
+  // the homepage <head> pointing at a square raster >=48px. icon.png is the
+  // brand spiderweb at 96px (a 48 multiple). Without this Google kept showing its
+  // cached Vercel-default favicon. A favicon refresh in search results can still
+  // lag days to weeks after deploy; request a reindex of the homepage in GSC.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "96x96" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
   openGraph: {
     title: "Tattoo booking requests without DM chaos",
     description:
