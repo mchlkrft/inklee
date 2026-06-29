@@ -20,6 +20,12 @@ const ALLOWED_STATUS = new Set([
   "cancelled",
 ]);
 
+// Guard the trip filter so a malformed value degrades to "unfiltered" instead of
+// a Postgres 22P02 (invalid uuid syntax). The artist_id scope still applies, so a
+// trip belonging to another artist simply returns nothing.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type BookingRow = {
   id: string;
   status: string;
@@ -33,8 +39,10 @@ type BookingRow = {
   deposit_paid_at: string | null;
 };
 
-// GET /api/mobile/bookings?status=&cursor=&limit= — the booking inbox.
+// GET /api/mobile/bookings?status=&tripId=&cursor=&limit= — the booking inbox.
 // Keyset-paginated by created_at (descending). RLS scopes to the artist.
+// `tripId` filters to bookings the client placed against one trip (the dashboard
+// guest-spot row deep-links here; mirrors the web overview's ?trip= filter).
 export async function GET(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
@@ -42,6 +50,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
+  const tripId = url.searchParams.get("tripId");
   const cursor = url.searchParams.get("cursor"); // created_at ISO of the last item
   const limit = Math.min(
     Math.max(parseInt(url.searchParams.get("limit") ?? "20", 10) || 20, 1),
@@ -58,6 +67,7 @@ export async function GET(req: Request) {
     .limit(limit + 1); // fetch one extra to detect "has more"
 
   if (status && ALLOWED_STATUS.has(status)) query = query.eq("status", status);
+  if (tripId && UUID_RE.test(tripId)) query = query.eq("trip_id", tripId);
   if (cursor) query = query.lt("created_at", cursor);
 
   const { data, error } = await query;

@@ -110,7 +110,15 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
       : `${formatShortDate(g.startsOn)} - ${formatShortDate(g.endsOn)}`;
   return (
     <Pressable
-      onPress={() => router.push(`/travel/trips/${g.tripId}`)}
+      // Open the booking inbox filtered to this trip (not the trip editor) so the
+      // artist lands on the requests for that guest spot. The bookings screen
+      // shows a "no bookings for this trip yet" empty state when there are none.
+      onPress={() =>
+        router.navigate({
+          pathname: "/bookings",
+          params: { tripId: g.tripId, tripTitle: g.tripTitle },
+        })
+      }
       className="mt-3 flex-row items-center gap-3 active:opacity-70"
     >
       <View className="h-10 w-10 items-center justify-center rounded-lg border border-shell-border bg-shell-hover">

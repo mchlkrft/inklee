@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
+import { MapPin, X } from "lucide-react-native";
 import { humanStatusLabel } from "@inklee/shared/status-labels";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
@@ -130,7 +132,31 @@ export default function RequestsScreen() {
   const headerInset = useBookingsHeaderInset();
   const [status, setStatus] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const path = status ? `/bookings?status=${status}` : "/bookings";
+
+  // Trip filter arrives as a route param (the dashboard guest-spot row deep-links
+  // here). We read it once into local state and immediately clear the param, so
+  // re-opening the Bookings tab later from the nav doesn't resurrect a stale
+  // filter — but navigating from a guest spot again re-applies it.
+  const params = useLocalSearchParams<{ tripId?: string; tripTitle?: string }>();
+  // Lazy init covers the fresh-mount deep link (filter applied on first render,
+  // no wasted unfiltered fetch); the effect covers re-navigation when the tab is
+  // already mounted. Both consume the param so it can't get stuck.
+  const [trip, setTrip] = useState<{ id: string; title: string } | null>(() =>
+    params.tripId
+      ? { id: params.tripId, title: params.tripTitle || "this trip" }
+      : null,
+  );
+  useEffect(() => {
+    if (params.tripId) {
+      setTrip({ id: params.tripId, title: params.tripTitle || "this trip" });
+      router.setParams({ tripId: "", tripTitle: "" });
+    }
+  }, [params.tripId, params.tripTitle, router]);
+
+  const queryParts: string[] = [];
+  if (status) queryParts.push(`status=${status}`);
+  if (trip) queryParts.push(`tripId=${encodeURIComponent(trip.id)}`);
+  const path = queryParts.length ? `/bookings?${queryParts.join("&")}` : "/bookings";
   const q = useInfiniteApiQuery<MobileBookingListItem>(path);
   const stats = useApiQuery<MobileBookingStats>("/bookings/stats");
   const me = useApiQuery<MobileMe>("/me");
@@ -141,32 +167,57 @@ export default function RequestsScreen() {
   // reclaim space (founder round 8).
   const listHeader = (
     <>
+      {/* Trip filter banner: shown when the artist arrived from a dashboard guest
+          spot. Names the trip and offers a one-tap way back to the full inbox. */}
+      {trip ? (
+        <View className="mt-1 flex-row items-center gap-2 rounded-card border-brand border-shell-border bg-shell-hover px-4 py-2.5">
+          <MapPin size={16} color={colors.accent} />
+          <Text className="flex-1 text-sm text-foreground" numberOfLines={1}>
+            Showing {trip.title}
+          </Text>
+          <Pressable
+            onPress={() => setTrip(null)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Clear trip filter"
+            className="flex-row items-center gap-1 active:opacity-70"
+          >
+            <Text className="text-sm font-medium text-accent">Clear</Text>
+            <X size={16} color={colors.accent} />
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* Founder round 4: prominent big numbers for the booking pipeline.
           Sourced from /bookings/stats (NOT the widget-gated /home counts).
           While the filter strip is open the tiles compact into one-liners
-          ("26 pending") to win the header height back (founder round 8). */}
-      <View className="flex-row gap-2 pt-1">
-        <StatTile
-          value={stats.data?.pendingCount ?? null}
-          label="Pending"
-          compact={filtersOpen}
-          onPress={() => {
-            setStatus("pending");
-            setFiltersOpen(true);
-          }}
-        />
-        <StatTile
-          value={stats.data?.upcomingCount ?? null}
-          label="Upcoming"
-          compact={filtersOpen}
-          onPress={() => router.replace("/bookings/calendar")}
-        />
-        <StatTile
-          value={stats.data?.thisMonthCount ?? null}
-          label="This month"
-          compact={filtersOpen}
-        />
-      </View>
+          ("26 pending") to win the header height back (founder round 8).
+          Hidden while a trip filter is active: the stats are whole-pipeline
+          totals and would contradict the trip-scoped list below. */}
+      {trip ? null : (
+        <View className="flex-row gap-2 pt-1">
+          <StatTile
+            value={stats.data?.pendingCount ?? null}
+            label="Pending"
+            compact={filtersOpen}
+            onPress={() => {
+              setStatus("pending");
+              setFiltersOpen(true);
+            }}
+          />
+          <StatTile
+            value={stats.data?.upcomingCount ?? null}
+            label="Upcoming"
+            compact={filtersOpen}
+            onPress={() => router.replace("/bookings/calendar")}
+          />
+          <StatTile
+            value={stats.data?.thisMonthCount ?? null}
+            label="This month"
+            compact={filtersOpen}
+          />
+        </View>
+      )}
 
       {/* Collapsed-by-default status filter (web filter-row parity): a single
           Filter pill that reveals the chip strip; the active status stays
@@ -254,6 +305,15 @@ export default function RequestsScreen() {
         ListEmptyComponent={
           q.loading ? null : q.error ? (
             <EmptyState title="Couldn't load requests" subtitle={q.error} />
+          ) : trip ? (
+            <EmptyState
+              title="No bookings for this trip yet"
+              subtitle={
+                status
+                  ? "Try another status filter."
+                  : "Requests clients place for this trip will show up here."
+              }
+            />
           ) : status ? (
             <EmptyState title="No requests here" subtitle="Try another filter." />
           ) : (
