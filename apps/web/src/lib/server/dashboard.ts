@@ -34,6 +34,7 @@ type BookingRow = {
 
 type DepositRow = {
   id: string;
+  status: string;
   customer_handle: string | null;
   customer_email: string | null;
   deposit_amount: string | number | null;
@@ -151,13 +152,18 @@ export async function getDashboardData(
       .select("id", { count: "exact", head: true })
       .eq("artist_id", userId)
       .gte("created_at", monthStart),
-    // Unpaid deposits (a deposit was set but not yet paid). Card + manual.
+    // Unpaid deposits to chase (card + manual). Scoped to `deposit_pending`: a
+    // deposit is only live while the booking is awaiting it. A cancelled / passed
+    // / accepted-directly booking can still carry an unpaid deposit_amount, but
+    // that deposit is dead and must never surface as overdue or as a "Mark
+    // received" action item (the founder bug).
     supabase
       .from("booking_requests")
       .select(
-        "id, customer_handle, customer_email, deposit_amount, deposit_currency, deposit_due_at, deposit_paid_at, deposit_payment_intent_id",
+        "id, status, customer_handle, customer_email, deposit_amount, deposit_currency, deposit_due_at, deposit_paid_at, deposit_payment_intent_id",
       )
       .eq("artist_id", userId)
+      .eq("status", "deposit_pending")
       .not("deposit_amount", "is", null)
       .is("deposit_paid_at", null)
       .order("deposit_due_at", { ascending: true, nullsFirst: false })
@@ -197,9 +203,9 @@ export async function getDashboardData(
     .sort((a, b) => a.startsOn.localeCompare(b.startsOn))
     .slice(0, 3);
 
-  // Deposits are pre-filtered to unpaid, so depositState only ever returns
-  // "awaiting" or "overdue" (never paid/refunded). outstanding = all unpaid;
-  // overdue = past the due date.
+  // Deposits are pre-filtered to unpaid + deposit_pending, so depositState only
+  // ever returns "awaiting" or "overdue" (never paid/refunded/cancelled).
+  // outstanding = all unpaid; overdue = past the due date.
   const depRows = (depositsRes.data ?? []) as DepositRow[];
   const depItems = depRows.map((d) => ({
     bookingId: d.id,
@@ -207,7 +213,7 @@ export async function getDashboardData(
     amount: d.deposit_amount != null ? Number(d.deposit_amount) : 0,
     currency: d.deposit_currency ?? "eur",
     dueAt: d.deposit_due_at,
-    overdue: depositState(d, false, now) === "overdue",
+    overdue: depositState(d, false, now, d.status) === "overdue",
     manual: !d.deposit_payment_intent_id,
   }));
   const depositsOutstandingCount = depItems.length;

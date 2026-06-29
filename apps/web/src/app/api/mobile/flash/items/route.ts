@@ -90,6 +90,7 @@ export async function GET(req: Request) {
     return {
       id: r.id,
       title: r.title,
+      slug: r.slug,
       status: r.status,
       priceType: r.price_type,
       price: r.price != null ? Number(r.price) : null,

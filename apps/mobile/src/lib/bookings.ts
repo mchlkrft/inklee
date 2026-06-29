@@ -36,6 +36,11 @@ export function rejectBooking(id: string) {
 export function cancelBooking(id: string) {
   return apiPost<{ ok: true }>(`/bookings/${id}/cancel`);
 }
+// Reopen a cancelled/passed booking back to `pending` so the artist can
+// re-request a deposit (the server re-checks no deposit money was kept).
+export function reopenBooking(id: string) {
+  return apiPost<{ ok: true }>(`/bookings/${id}/reopen`);
+}
 export function requestDeposit(
   id: string,
   amount: number,

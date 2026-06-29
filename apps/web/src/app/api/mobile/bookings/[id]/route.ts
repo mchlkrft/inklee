@@ -6,7 +6,7 @@ import {
 import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
 import { editAppointmentCore } from "@/lib/server/bookings";
-import { isDepositRefunded } from "@/lib/deposit-state";
+import { depositState, isDepositRefunded } from "@/lib/deposit-state";
 import { formatCustomAnswer, type CustomFieldType } from "@/lib/custom-fields";
 import { describeBookingActivity } from "@inklee/shared/booking-activity";
 import type {
@@ -234,6 +234,9 @@ export async function GET(
             hasCardIntent: !!b.deposit_payment_intent_id,
             refunded: depositRefunded,
             refundedAt: depositRefundedAt,
+            // Same classifier the deposits overview uses, so the detail card and
+            // the overview can never disagree on this booking's deposit state.
+            state: depositState(b, !!refundRow, Date.now(), b.status),
           }
         : null,
   };

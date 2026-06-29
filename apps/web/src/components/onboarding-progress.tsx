@@ -67,7 +67,7 @@ export default function OnboardingProgress({
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Step {current} of {STEPS.length} — {STEPS[current - 1].label}
+        Step {current} of {STEPS.length}: {STEPS[current - 1].label}
       </p>
     </div>
   );

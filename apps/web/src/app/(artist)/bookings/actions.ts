@@ -13,6 +13,7 @@ import {
   markDepositReceivedCore,
   refundDepositCore,
   cancelBookingCore,
+  reopenBookingCore,
   type InterestDecisionPayload,
 } from "@/lib/server/bookings";
 
@@ -124,6 +125,14 @@ export async function cancelBooking(id: string): Promise<ActionResult> {
   const { supabase, user } = await cookieUser();
   if (!user) return { error: "Not authenticated." };
   const result = await cancelBookingCore(supabase, user.id, id);
+  if ("success" in result) revalidateBookingViews(id);
+  return result;
+}
+
+export async function reopenBooking(id: string): Promise<ActionResult> {
+  const { supabase, user } = await cookieUser();
+  if (!user) return { error: "Not authenticated." };
+  const result = await reopenBookingCore(supabase, user.id, id);
   if ("success" in result) revalidateBookingViews(id);
   return result;
 }

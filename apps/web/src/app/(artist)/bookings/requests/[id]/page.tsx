@@ -21,6 +21,7 @@ import { customerLabel } from "@/lib/booking-domain";
 import { formatSize } from "@/lib/booking-schema";
 import { artistDepositCurrency } from "@/lib/connect-countries";
 import { isDepositRefunded } from "@/lib/deposit-state";
+import { isReopenable } from "@/lib/booking-fsm";
 import GoodsPickupButton from "./goods-pickup-button";
 import DepositRefundButton from "./deposit-refund-button";
 import CancelBookingButton from "./cancel-booking-button";
@@ -154,6 +155,17 @@ export default async function RequestDetailPage({
   // via isDepositRefunded above; "paid" uses the same deposit_paid_at check the
   // shared depositState classifier uses, so the surfaces can't drift.
   const depositPaidNotRefunded = !depositRefunded && !!booking.deposit_paid_at;
+  // An unpaid deposit is only live while the booking is `deposit_pending`. In any
+  // other status it's dead (client/artist cancelled, passed, or accepted without
+  // it) — show "Cancelled", never a stale "Due <past date>". This mirrors the
+  // shared depositState classifier exactly (the overdue/awaiting split it makes
+  // collapses to "Due" here, so no `now` is needed). Reopen is offered on a
+  // dead, money-free booking.
+  const depositInactive =
+    !depositRefunded &&
+    !booking.deposit_paid_at &&
+    booking.status !== "deposit_pending";
+  const canReopen = isReopenable(booking.status) && !booking.deposit_paid_at;
 
   // Goods the client marked they'd like to buy when submitting (commerce-layer
   // extension). Rendered as an "Interested in buying" section + drives the
@@ -297,6 +309,7 @@ export default async function RequestDetailPage({
           currency={artistCurrency}
           hasDepositIntent={!!booking.deposit_payment_intent_id}
           confirmStudio={confirmStudio}
+          canReopen={canReopen}
           pendingInterests={interests
             .filter((i) => i.status === "pending")
             .map((i) => ({
@@ -473,6 +486,7 @@ export default async function RequestDetailPage({
               currency={artistCurrency}
               hasDepositIntent={!!booking.deposit_payment_intent_id}
               confirmStudio={confirmStudio}
+              canReopen={canReopen}
               pendingInterests={interests
                 .filter((i) => i.status === "pending")
                 .map((i) => ({
@@ -500,6 +514,10 @@ export default async function RequestDetailPage({
                 <p className="text-xs text-muted-foreground">
                   Paid {formatDate(booking.deposit_paid_at as string)}
                 </p>
+              ) : depositInactive ? (
+                // Dead deposit (never paid, booking no longer awaiting it):
+                // "Cancelled", not a stale "Due <past date>".
+                <p className="text-xs text-muted-foreground">Cancelled</p>
               ) : !depositRefunded && booking.deposit_due_at ? (
                 <p className="text-xs text-muted-foreground">
                   Due {formatDate(booking.deposit_due_at as string)}

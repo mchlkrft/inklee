@@ -17,6 +17,7 @@ import type {
   MobileFlashFoldersResponse,
   MobileFlashItem,
   MobileFlashItemsResponse,
+  MobileMe,
 } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
@@ -29,6 +30,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { NavCardRow } from "@/components/NavCardRow";
 import { AddToFolderSheet } from "@/components/flash/AddToFolderSheet";
+import { FlashItemSheet } from "@/components/flash/FlashItemSheet";
 import { apiPost, apiPut, useApiQuery } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import {
@@ -66,8 +68,11 @@ export default function FlashItemsList() {
   const [newName, setNewName] = useState("");
   const [savingFolder, setSavingFolder] = useState(false);
   const foldersQ = useApiQuery<MobileFlashFoldersResponse>("/flash/folders");
+  // Artist slug (for the detail modal's Share / public-page link).
+  const me = useApiQuery<MobileMe>("/me");
 
-  // Long-press → "Add to folder" sheet.
+  // Tap → item detail modal; long-press → "Add to folder" sheet.
+  const [detailItem, setDetailItem] = useState<MobileFlashItem | null>(null);
   const [sheetItem, setSheetItem] = useState<MobileFlashItem | null>(null);
 
   // Drag-into-folder: the lifted design follows the finger as a floating clone,
@@ -342,7 +347,7 @@ export default function FlashItemsList() {
           <FlashItemRow
             item={item}
             dragging={dragItem?.id === item.id}
-            onPress={() => router.push(`/flash/items/${item.id}`)}
+            onPress={() => setDetailItem(item)}
             onLongPress={() => setSheetItem(item)}
             onDragStart={startDrag}
             onDragMove={moveDrag}
@@ -368,6 +373,16 @@ export default function FlashItemsList() {
           </View>
         </Animated.View>
       ) : null}
+
+      <FlashItemSheet
+        item={detailItem}
+        artistSlug={me.data?.slug ?? null}
+        onClose={() => setDetailItem(null)}
+        onEdit={(itemId) => {
+          setDetailItem(null);
+          router.push(`/flash/items/${itemId}`);
+        }}
+      />
 
       <AddToFolderSheet
         visible={sheetItem !== null}

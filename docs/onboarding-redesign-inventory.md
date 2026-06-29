@@ -37,7 +37,7 @@ Source: `apps/web/src/app/globals.css` (`--color-brand-*`), `apps/mobile/src/lib
 
 Both surfaces: 3-slide Instagram-story format (auto-advance, press-and-hold to pause, tap left third = back / right two-thirds = forward). Card is **aspect 4:5**, corner radius **28px**, on a solid brand-color background. Web auto-advance **6500ms**; mobile **5000ms** (and mobile disables auto-advance under a screen reader).
 
-**Graphics today:** Web has hand-built **faux-UI illustrations** (divs styled as mini app screens). Mobile has **placeholder** single-icon cards — the code says so explicitly: *"Graphics are placeholder brand cards + icons for v1 (real illustrations = follow-up FU-13)."* The web faux-UI is exported as PNG in `docs/onboarding-assets/` (see [Assets](#assets)) as a visual starting point.
+**Graphics today:** Web has hand-built **faux-UI illustrations** (divs styled as mini app screens). Mobile now ships the **founder's three brand illustrations** (`apps/mobile/src/components/onboarding/onboarding-art.ts`, rendered via `react-native-svg` `SvgXml`); the brand-colour background card is baked into each illustration (FU-13 — done for mobile; web still on faux-UI). The web faux-UI is exported as PNG in `docs/onboarding-assets/` (see [Assets](#assets)) as a visual starting point.
 
 ### Copy (identical structure both surfaces, minor word drift noted)
 
@@ -45,7 +45,7 @@ Both surfaces: 3-slide Instagram-story format (auto-advance, press-and-hold to p
 | --- | --- | --- | --- | --- |
 | 1 | mustard | `Your booking link` | **One link. Every booking.** | Drop a single Inklee link in your Instagram bio. Clients tap it to start a request. No more booking chaos buried in your DMs. |
 | 2 | rosa | `Your inbox` | **Requests, already sorted.** | Every client tells you placement, style, size and a reference up front. Each request lands in one tidy **dashboard** *(mobile: "inbox")*, ready to review. |
-| 3 | green | `Your calendar` | **Review, approve, done.** *(mobile: "Review, accept, done.")* | Accept or pass with a tap. Accepted bookings move straight to your calendar, so you stay in control **and organised.** *(mobile drops "and organised")* |
+| 3 | green *(mobile illustration uses a bone card)* | `Your calendar` *(mobile: `Your studio`)* | **Review, approve, done.** *(mobile: "Run it all in one place.")* | Accept or pass with a tap. Accepted bookings move straight to your calendar, so you stay in control **and organised.** *(mobile, feature-expanded: "Accept or pass requests with a tap, and bookings land on your calendar. Then build your Link Hub, organize guest spots and manage the rest of your studio.")* |
 
 ### Graphic detail (web faux-UI, per slide)
 
@@ -53,9 +53,9 @@ Both surfaces: 3-slide Instagram-story format (auto-advance, press-and-hold to p
 - **Slide 2 — `RequestVisual`:** bone card; avatar + skeleton bar + rosa **`New`** chip; three labeled rows **`Placement` / `Style` / `Size`** each with a value-skeleton; an upload tile + a square with an `Image` icon.
 - **Slide 3 — `ApproveVisual`:** two stacked bone cards. Card 1: avatar + bars, then a mustard **`Accept`** button (`Check`, strokeWidth 3) beside a ghost outline box. Card 2: a 7×3 day grid (21 cells) with one green checked day (`Check`, bone).
 
-### Mobile placeholder (per slide)
+### Mobile illustrations (per slide) — shipped
 
-Single Ionicon (charcoal) in a translucent circle, centered on the brand card: slide 1 `link-outline`, slide 2 `albums-outline`, slide 3 `checkmark-circle-outline`.
+Founder brand illustrations, each baked onto its own full-bleed brand-colour card (rounded corners live in the artwork): slide 1 hamsa hand (mustard), slide 2 face/mask (rosa), slide 3 dinosaur (bone). Source art lives outside the repo (`Branding/illustrations/Onboarding/inklee-onboarding-slides-0{1,2,3}.svg`); `.scratch/gen-onboarding-art.cjs` normalises it into `onboarding-art.ts` — it inlines the CSS-class fills to presentation attributes (SvgXml does not resolve `<style>` selectors), drops invisible `fill:none` duplicate paths, rounds coordinates to 2 dp (keeping the decimal point so adjacent path numbers can't merge), and pixel-verifies each result against the source with `sharp`. Replaced the former single-Ionicon placeholders (`link-outline` / `albums-outline` / `checkmark-circle-outline`).
 
 ### Controls
 

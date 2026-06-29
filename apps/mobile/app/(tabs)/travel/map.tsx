@@ -2,11 +2,13 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Camera,
   GeoJSONSource,
@@ -14,22 +16,23 @@ import {
   Map as MLMap,
   Marker,
 } from "@maplibre/maplibre-react-native";
-import { MapPin, X } from "lucide-react-native";
+import { MapPin, Route, X } from "lucide-react-native";
 import type {
   TravelJourneyResponse,
   TravelMapStop,
 } from "@inklee/shared/travel-map";
 import { groupJourneyByTrip, safeMapsUrl } from "@inklee/shared/travel-map";
 import { Screen } from "@/components/Screen";
-import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { TravelIcon } from "@/components/TravelIcon";
 import { useApiQuery } from "@/lib/api";
-import { useColors } from "@/lib/theme";
+import { brandMapStyle, mapInk } from "@/lib/map-style";
+import { themeVars, useColors, useThemePreference } from "@/lib/theme";
 
-// CARTO Voyager: OSM-based, no API key. Matches the web basemap. MapLibre native
-// renders it without a Google/Mapbox token.
-const VOYAGER = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+// Numbered stop badges stay theme-independent (mustard fill, charcoal number):
+// they read on both the modal card and the brand basemap. The route lines and the
+// map markers, however, switch with the scheme via mapInk() so they don't vanish
+// against the mustard light base.
 const MUSTARD = "#e9b22b";
 const GREY = "#8a8a8a";
 const CHARCOAL = "#1e1e1e";
@@ -88,9 +91,12 @@ function lineFeature(stops: TravelMapStop[]): GeoJSON.Feature {
 
 export default function TravelMapScreen() {
   const colors = useColors();
+  const { scheme } = useThemePreference();
+  const insets = useSafeAreaInsets();
   const q = useApiQuery<TravelJourneyResponse>("/travel/journey");
   const [selected, setSelected] = useState<TravelMapStop | null>(null);
   const [showPast, setShowPast] = useState(false);
+  const [tripsOpen, setTripsOpen] = useState(false);
 
   if (!q.data) {
     return (
@@ -114,6 +120,10 @@ export default function TravelMapScreen() {
   const { active, past } = groupJourneyByTrip(stops);
   const coords = stops.map((s) => [s.longitude, s.latitude] as [number, number]);
   const bounds = boundsOf(coords);
+  const ink = mapInk(scheme);
+  // Passed as a JSON string: the mapStyle prop accepts a style URL or a stringified
+  // style JSON, which sidesteps the strict StyleSpecification object type.
+  const mapStyle = JSON.stringify(brandMapStyle(scheme));
 
   const splitIdx = stops.findIndex((s) => s.timeframe !== "previous");
   const traveled = splitIdx === -1 ? stops : stops.slice(0, splitIdx + 1);
@@ -121,158 +131,208 @@ export default function TravelMapScreen() {
   const numberById = new Map(stops.map((s, i) => [s.id, i + 1]));
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} padded={false}>
       <View className="flex-1">
-        <View style={{ height: 320 }}>
-          {stops.length === 0 ? (
-            <View className="flex-1 items-center justify-center bg-card">
-              <Text className="text-xs text-shell-mute">
-                Add a studio with a location to a trip to see it here.
-              </Text>
-            </View>
-          ) : (
-            <MLMap mapStyle={VOYAGER} style={{ flex: 1 }}>
-              <Camera bounds={bounds ?? [-160, -60, 160, 75]} />
+        {stops.length === 0 ? (
+          <View className="flex-1 items-center justify-center bg-background px-8">
+            <Text className="text-center text-sm text-shell-mute">
+              Add a studio with a location to a trip to see it on the map.
+            </Text>
+          </View>
+        ) : (
+          <MLMap mapStyle={mapStyle} style={{ flex: 1 }}>
+            <Camera bounds={bounds ?? [-160, -60, 160, 75]} />
 
-              {traveled.length >= 2 ? (
-                <GeoJSONSource id="traveled" data={lineFeature(traveled)}>
-                  <Layer
-                    id="traveled-line"
-                    type="line"
-                    layout={{ "line-cap": "round", "line-join": "round" }}
-                    paint={{
-                      "line-color": GREY,
-                      "line-width": 3,
-                      "line-dasharray": [2, 2],
+            {traveled.length >= 2 ? (
+              <GeoJSONSource id="traveled" data={lineFeature(traveled)}>
+                <Layer
+                  id="traveled-line"
+                  type="line"
+                  layout={{ "line-cap": "round", "line-join": "round" }}
+                  paint={{
+                    "line-color": ink.traveled,
+                    "line-width": 3,
+                    "line-dasharray": [2, 2],
+                  }}
+                />
+              </GeoJSONSource>
+            ) : null}
+
+            {planned.length >= 2 ? (
+              <GeoJSONSource id="planned" data={lineFeature(planned)}>
+                <Layer
+                  id="planned-line"
+                  type="line"
+                  layout={{ "line-cap": "round", "line-join": "round" }}
+                  paint={{ "line-color": ink.planned, "line-width": 5 }}
+                />
+              </GeoJSONSource>
+            ) : null}
+
+            {stops.map((s) => {
+              const isPast = s.timeframe === "previous";
+              return (
+                <Marker
+                  key={s.id}
+                  id={`stop-${s.id}`}
+                  lngLat={[s.longitude, s.latitude]}
+                  anchor="center"
+                  onPress={() => setSelected(s)}
+                >
+                  <View
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 13,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: isPast ? ink.traveled : ink.planned,
+                      borderWidth: 2,
+                      borderColor: ink.markerBorder,
                     }}
-                  />
-                </GeoJSONSource>
-              ) : null}
-
-              {planned.length >= 2 ? (
-                <GeoJSONSource id="planned" data={lineFeature(planned)}>
-                  <Layer
-                    id="planned-line"
-                    type="line"
-                    layout={{ "line-cap": "round", "line-join": "round" }}
-                    paint={{ "line-color": MUSTARD, "line-width": 5 }}
-                  />
-                </GeoJSONSource>
-              ) : null}
-
-              {stops.map((s) => {
-                const isPast = s.timeframe === "previous";
-                return (
-                  <Marker
-                    key={s.id}
-                    id={`stop-${s.id}`}
-                    lngLat={[s.longitude, s.latitude]}
-                    anchor="center"
-                    onPress={() => setSelected(s)}
                   >
-                    <View
+                    <Text
                       style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 13,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: isPast ? GREY : MUSTARD,
-                        borderWidth: 2,
-                        borderColor: "#ffffff",
+                        color: isPast ? ink.onPast : ink.onActive,
+                        fontWeight: "800",
+                        fontSize: 12,
                       }}
                     >
-                      <Text
-                        style={{
-                          color: CHARCOAL,
-                          fontWeight: "800",
-                          fontSize: 12,
-                        }}
-                      >
-                        {numberById.get(s.id) ?? ""}
-                      </Text>
-                    </View>
-                  </Marker>
-                );
-              })}
-            </MLMap>
-          )}
+                      {numberById.get(s.id) ?? ""}
+                    </Text>
+                  </View>
+                </Marker>
+              );
+            })}
+          </MLMap>
+        )}
 
-          {selected ? (
-            <View className="absolute inset-x-3 bottom-3 rounded-2xl border border-shell-border bg-card p-3">
-              <View className="flex-row items-start gap-2">
-                <TravelIcon
-                  icon={selected.icon}
-                  fallback={MapPin}
-                  size={22}
-                  color={selected.iconColor ?? MUSTARD}
-                />
-                <View className="min-w-0 flex-1">
-                  <Text
-                    className="text-base font-semibold text-foreground"
-                    numberOfLines={1}
-                  >
-                    {selected.name}
-                  </Text>
-                  <Text className="text-xs text-shell-mute">
-                    {selected.tripTitle} · {TIMEFRAME_LABEL[selected.timeframe]}
-                  </Text>
-                </View>
-                <Pressable hitSlop={8} onPress={() => setSelected(null)}>
-                  <X size={18} color={colors.charcoal} />
-                </Pressable>
-              </View>
-              <Text className="mt-1 text-xs text-shell-mute">
-                {[selected.city, selected.country].filter(Boolean).join(", ")}
-                {selected.city || selected.country ? " · " : ""}
-                {fmtRange(selected.startsAt, selected.endsAt)}
-              </Text>
-              <Text className="mt-1 text-xs text-shell-mute">
-                {selected.bookingCount}{" "}
-                {selected.bookingCount === 1 ? "booking" : "bookings"} during this
-                trip
-              </Text>
-              <Pressable
-                onPress={() => Linking.openURL(safeMapsUrl(selected))}
-                className="mt-2 items-center rounded-full bg-mustard py-2.5"
-              >
-                <Text className="text-sm font-semibold text-charcoal">
-                  Open in Google Maps
+        {/* Trip history opens in a layover modal so the map can stay full-screen. */}
+        {stops.length > 0 ? (
+          <Pressable
+            onPress={() => setTripsOpen(true)}
+            style={{ position: "absolute", top: 12, right: 12 }}
+            className="flex-row items-center gap-1.5 rounded-full border border-shell-border bg-chrome px-3 py-2 active:opacity-80"
+          >
+            {/* Theme-reactive foreground (colors.bone) so the label reads on the
+                theme-reactive bg-chrome in BOTH modes: dark text on the light
+                chip in light mode, bone text on the dark chip in dark mode. */}
+            <Route size={16} color={colors.bone} />
+            <Text style={{ color: colors.bone }} className="text-sm font-medium">
+              Trips
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {selected ? (
+          <View
+            style={{ position: "absolute", left: 12, right: 12, bottom: insets.bottom + 84 }}
+            className="rounded-2xl border border-shell-border bg-card p-3"
+          >
+            <View className="flex-row items-start gap-2">
+              <TravelIcon
+                icon={selected.icon}
+                fallback={MapPin}
+                size={22}
+                color={selected.iconColor ?? MUSTARD}
+              />
+              <View className="min-w-0 flex-1">
+                <Text
+                  className="text-base font-semibold text-foreground"
+                  numberOfLines={1}
+                >
+                  {selected.name}
                 </Text>
+                <Text className="text-xs text-shell-mute">
+                  {selected.tripTitle} · {TIMEFRAME_LABEL[selected.timeframe]}
+                </Text>
+              </View>
+              <Pressable hitSlop={8} onPress={() => setSelected(null)}>
+                <X size={18} color={colors.bone} />
               </Pressable>
             </View>
-          ) : null}
-        </View>
+            <Text className="mt-1 text-xs text-shell-mute">
+              {[selected.city, selected.country].filter(Boolean).join(", ")}
+              {selected.city || selected.country ? " · " : ""}
+              {fmtRange(selected.startsAt, selected.endsAt)}
+            </Text>
+            <Text className="mt-1 text-xs text-shell-mute">
+              {selected.bookingCount}{" "}
+              {selected.bookingCount === 1 ? "booking" : "bookings"} during this
+              trip
+            </Text>
+            <Pressable
+              onPress={() => Linking.openURL(safeMapsUrl(selected))}
+              className="mt-2 items-center rounded-full bg-mustard py-2.5"
+            >
+              <Text className="text-sm font-semibold text-charcoal">
+                Open in Google Maps
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
-          {stops.length === 0 ? (
-            <EmptyState
-              title="No travel to map yet"
-              subtitle="Plan a trip with a studio that has a location."
-            />
-          ) : (
-            <>
+      <Modal
+        visible={tripsOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setTripsOpen(false)}
+      >
+        {/* Re-apply theme vars: a Modal portals outside the ThemeProvider wrapper,
+            so without this the className tokens fall back to the dark :root. */}
+        <View style={[themeVars[scheme], { flex: 1 }]} className="justify-end">
+          <Pressable
+            onPress={() => setTripsOpen(false)}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.35)",
+            }}
+          />
+          <View
+            className="rounded-t-3xl border-t border-shell-border bg-background"
+            style={{ maxHeight: "82%", paddingBottom: insets.bottom + 12 }}
+          >
+            <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
+              <Text className="text-base font-semibold text-foreground">
+                Your trips
+              </Text>
+              <Pressable hitSlop={8} onPress={() => setTripsOpen(false)}>
+                <X size={20} color={colors.bone} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }}>
               <Text className="mb-1 text-xs uppercase tracking-wider text-shell-mute">
                 Map key
               </Text>
               <View className="mb-4 flex-row flex-wrap gap-x-4 gap-y-1">
-                <Legend color={MUSTARD} label="Upcoming stop" />
-                <Legend color={GREY} label="Visited" />
+                <Legend color={ink.planned} label="Upcoming stop" />
+                <Legend color={ink.traveled} label="Visited" />
               </View>
 
               <Text className="mb-2 text-sm font-semibold text-foreground">
                 Your travel
               </Text>
-              {active.map((g) => (
-                <View key={g.tripId} className="mb-3">
-                  <Text className="mb-1 text-sm font-semibold text-foreground">
-                    {g.tripTitle}
-                  </Text>
-                  {g.stops.map((s) => (
-                    <StopRow key={s.id} stop={s} n={numberById.get(s.id) ?? 0} />
-                  ))}
-                </View>
-              ))}
+              {active.length === 0 ? (
+                <Text className="mb-3 text-sm text-shell-mute">
+                  No current or upcoming trips.
+                </Text>
+              ) : (
+                active.map((g) => (
+                  <View key={g.tripId} className="mb-3">
+                    <Text className="mb-1 text-sm font-semibold text-foreground">
+                      {g.tripTitle}
+                    </Text>
+                    {g.stops.map((s) => (
+                      <StopRow key={s.id} stop={s} n={numberById.get(s.id) ?? 0} />
+                    ))}
+                  </View>
+                ))
+              )}
 
               {past.length > 0 ? (
                 <View className="mt-1 rounded-2xl border border-shell-border">
@@ -304,10 +364,10 @@ export default function TravelMapScreen() {
                   ) : null}
                 </View>
               ) : null}
-            </>
-          )}
-        </ScrollView>
-      </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }

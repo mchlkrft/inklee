@@ -53,6 +53,9 @@ export function describeBookingActivity(
         // is the deposit-request mail date.
         return { kind: "deposit_requested", label: "Deposit requested" };
       if (to === "cancelled") return { kind: "cancelled", label: "Cancelled" };
+      // Reopening a dead booking lands it back on `pending`; surface it so the
+      // restart is visible in the history (reuses the generic status kind).
+      if (to === "pending") return { kind: "status_other", label: "Reopened" };
       return { kind: "status_other", label: "Status updated" };
     }
     default:

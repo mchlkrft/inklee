@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CURATED_TIMEZONES } from "@inklee/shared/timezone";
 import { border, radius } from "@/lib/tokens";
-import { useColors } from "@/lib/theme";
+import { themeVars, useColors, useThemePreference } from "@/lib/theme";
 
 // Curated timezone picker — a pressable field opening a bottom-sheet list of
 // the shared curated zones (the same list behind the web profile form's
@@ -22,6 +22,7 @@ export function TimezoneField({
   deviceTz: string | null;
 }) {
   const c = useColors();
+  const { scheme } = useThemePreference();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
@@ -69,11 +70,14 @@ export function TimezoneField({
         onRequestClose={() => setOpen(false)}
         statusBarTranslucent
       >
+        {/* Re-apply theme vars: the Modal portals outside the ThemeProvider, so
+            the className text tokens (text-foreground/-shell-mute) would fall
+            back to the dark :root and read as light text on the light sheet. */}
         <Pressable
           accessibilityLabel="Close timezone picker"
           onPress={() => setOpen(false)}
           className="flex-1 justify-end"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          style={[themeVars[scheme], { backgroundColor: "rgba(0,0,0,0.5)" }]}
         >
           {/* Stop taps inside the sheet from closing it. */}
           <Pressable

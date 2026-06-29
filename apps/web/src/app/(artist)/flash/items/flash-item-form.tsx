@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import DateInput from "@/components/date-input";
 import Spinner from "@/components/spinner";
 import { slugify } from "@/lib/flash";
@@ -67,6 +68,7 @@ export default function FlashItemForm({
   const [isBookable, setIsBookable] = useState(initial.isBookable ?? true);
   const [previewUrl, setPreviewUrl] = useState(initial.previewImageUrl ?? "");
   const [imageError, setImageError] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Redirect to edit page after successful create
@@ -245,21 +247,6 @@ export default function FlashItemForm({
         )}
       </div>
 
-      {/* Description */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">
-          Short description{" "}
-          <span className="font-normal text-muted-foreground">(optional)</span>
-        </label>
-        <textarea
-          name="short_description"
-          rows={3}
-          defaultValue={initial.shortDescription ?? ""}
-          placeholder="Brief description of this flash design…"
-          className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-      </div>
-
       {/* Preview image */}
       <div className="space-y-3">
         <label className="text-sm font-medium text-foreground">
@@ -392,67 +379,111 @@ export default function FlashItemForm({
         )}
       </div>
 
-      {/* Size + Placement */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Size info{" "}
-            <span className="font-normal text-muted-foreground">
-              (optional)
-            </span>
-          </label>
-          <input
-            name="size_info"
-            type="text"
-            defaultValue={initial.sizeInfo ?? ""}
-            placeholder="e.g. approx. 8 cm"
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+      {/* Secondary details, collapsed by default to keep the form short. */}
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <span>More details</span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${moreOpen ? "rotate-180" : ""}`}
           />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Placement notes{" "}
-            <span className="font-normal text-muted-foreground">
-              (optional)
-            </span>
-          </label>
-          <input
-            name="placement_notes"
-            type="text"
-            defaultValue={initial.placementNotes ?? ""}
-            placeholder="e.g. works well on forearm"
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
-      </div>
+        </button>
 
-      {/* Availability window */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Available from{" "}
-            <span className="font-normal text-muted-foreground">
-              (optional)
-            </span>
-          </label>
-          <DateInput
-            name="available_from"
-            defaultValue={initial.availableFrom ?? ""}
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Available until{" "}
-            <span className="font-normal text-muted-foreground">
-              (optional)
-            </span>
-          </label>
-          <DateInput
-            name="available_until"
-            defaultValue={initial.availableUntil ?? ""}
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+        {/* Kept mounted (hidden, not unmounted) when collapsed: the update action
+            treats an absent field as null, so unmounting would wipe an existing
+            item's description/size/placement/availability on a save that never
+            opened this section. display:none inputs still submit. */}
+        <div
+          className={
+            moreOpen
+              ? "space-y-6 rounded-md border border-border bg-muted/10 p-4"
+              : "hidden"
+          }
+        >
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">
+              Short description{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </label>
+            <textarea
+              name="short_description"
+              rows={3}
+              defaultValue={initial.shortDescription ?? ""}
+              placeholder="Brief description of this flash design…"
+              className="w-full resize-none rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
+          {/* Size + Placement */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Size info{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </label>
+              <input
+                name="size_info"
+                type="text"
+                defaultValue={initial.sizeInfo ?? ""}
+                placeholder="e.g. approx. 8 cm"
+                className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Placement notes{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </label>
+              <input
+                name="placement_notes"
+                type="text"
+                defaultValue={initial.placementNotes ?? ""}
+                placeholder="e.g. works well on forearm"
+                className="w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          {/* Availability window */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Available from{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </label>
+              <DateInput
+                name="available_from"
+                defaultValue={initial.availableFrom ?? ""}
+                className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Available until{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </label>
+              <DateInput
+                name="available_until"
+                defaultValue={initial.availableUntil ?? ""}
+                className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

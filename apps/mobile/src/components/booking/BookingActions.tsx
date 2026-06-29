@@ -15,6 +15,7 @@ import {
   markDepositReceived,
   refundDeposit,
   rejectBooking,
+  reopenBooking,
   requestDeposit,
   type BookingDetail,
 } from "@/lib/bookings";
@@ -32,7 +33,7 @@ import {
   isDateKey,
   localDateKey,
 } from "@inklee/shared/date-utils";
-import { isTerminal } from "@inklee/shared/booking-fsm";
+import { isReopenable, isTerminal } from "@inklee/shared/booking-fsm";
 import { artistDepositCurrency } from "@inklee/shared/connect-countries";
 import type { MobilePayouts } from "@inklee/shared/mobile-api";
 
@@ -79,7 +80,28 @@ export function BookingActions({ booking }: { booking: BookingDetail }) {
 
   // Terminal-state check from the shared FSM (the server's source of truth)
   // rather than a local string compare, so the gating can't drift from it.
-  if (isTerminal(status)) return null;
+  if (isTerminal(status)) {
+    // A dead booking the artist can revive: cancelled/passed AND no deposit
+    // money was kept. Reopening returns it to pending (the server re-checks the
+    // money rule), where Accept / Request deposit / Pass come back so the loop
+    // can continue when both sides still want to finish.
+    const canReopen = isReopenable(status) && !booking.deposit?.paid;
+    if (!canReopen) return null;
+    return (
+      <View className="gap-3">
+        {error ? <Text className="text-sm text-danger-fg">{error}</Text> : null}
+        <Action hint="Brings this request back as pending so you can accept it or request a fresh deposit. The client keeps their history.">
+          <Button
+            label="Reopen booking"
+            variant="secondary"
+            loading={pending === "reopen"}
+            disabled={busy}
+            onPress={() => run("reopen", () => reopenBooking(booking.id))}
+          />
+        </Action>
+      </View>
+    );
+  }
 
   // A paid, not-yet-refunded card deposit: refundable in-app, and an artist
   // cancel will auto-refund it. Web only ever surfaces refund alongside the

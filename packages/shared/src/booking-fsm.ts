@@ -41,3 +41,15 @@ export function isTerminal(status: string): boolean {
   const allowed = TRANSITIONS[status as BookingStatus];
   return allowed !== undefined && allowed.length === 0;
 }
+
+// A dead booking (cancelled or passed) can be REOPENED back to `pending` so the
+// artist can re-request a deposit and restart the loop — neither party stays
+// stuck when both still want to finish. This is a deliberate, money-gated action
+// that lives OUTSIDE the generic TRANSITIONS table (so `isTerminal` keeps its
+// meaning for every other surface); the reopen core re-checks that no deposit
+// money was ever kept before allowing it.
+export const REOPENABLE_STATUSES: BookingStatus[] = ["cancelled", "rejected"];
+
+export function isReopenable(status: string): boolean {
+  return (REOPENABLE_STATUSES as string[]).includes(status);
+}

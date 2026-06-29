@@ -1,19 +1,19 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
-import { useQueryClient } from "@tanstack/react-query";
 import type { BookingMode } from "@inklee/shared/booking-domain";
-import type { MobileOnboardingBooking } from "@inklee/shared/mobile-api";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { ModeCard } from "@/components/ModeCard";
-import { TextField } from "@/components/TextField";
-import { apiPost, invalidateIdentity } from "@/lib/api";
-import { captureError } from "@/lib/telemetry";
+import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useColors } from "@/lib/theme";
 
+// Wizard step 2 (mirrors the web booking step). Picks the booking mode only —
+// availability moved to its own step (availability.tsx) to match the web flow.
+// The mode is carried forward as a route param; the single /onboarding/booking
+// write happens on the availability step, so nothing persists here.
 const MODES: { value: BookingMode; title: string; body: string }[] = [
   {
     value: "preferred_date",
@@ -27,72 +27,15 @@ const MODES: { value: BookingMode; title: string; body: string }[] = [
   },
 ];
 
-function StatusPill({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      className={`h-11 flex-1 items-center justify-center rounded-xl border active:opacity-80 ${
-        selected ? "border-mustard bg-mustard" : "border-shell-border"
-      }`}
-    >
-      <Text
-        className={`text-sm font-semibold ${
-          selected ? "text-charcoal" : "text-shell-dim"
-        }`}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 export default function BookingSetup() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const themed = useColors();
-
   const [mode, setMode] = useState<BookingMode>("preferred_date");
-  const [booksOpen, setBooksOpen] = useState(true);
-  const [closedMessage, setClosedMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await apiPost<MobileOnboardingBooking>("/onboarding/booking", {
-        bookingMode: mode,
-        booksOpen,
-        booksClosedMessage: booksOpen
-          ? undefined
-          : closedMessage.trim() || undefined,
-      });
-      await invalidateIdentity(queryClient);
-      router.push("/onboarding/done");
-    } catch (e) {
-      captureError(e, { op: "onboardingBooking" });
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   return (
     <Screen>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
       >
@@ -106,7 +49,11 @@ export default function BookingSetup() {
           />
         </View>
 
-        <View className="pb-6 pt-2">
+        <View className="mt-2">
+          <OnboardingProgress current={2} />
+        </View>
+
+        <View className="pb-6">
           <Text className="text-2xl font-bold text-foreground">
             How do clients book?
           </Text>
@@ -125,45 +72,16 @@ export default function BookingSetup() {
           />
         ))}
 
-        <Text className="mb-2 mt-5 text-sm font-medium text-foreground">
-          Booking status
-        </Text>
-        <View className="flex-row gap-3">
-          <StatusPill
-            label="Open"
-            selected={booksOpen}
-            onPress={() => setBooksOpen(true)}
-          />
-          <StatusPill
-            label="Closed"
-            selected={!booksOpen}
-            onPress={() => setBooksOpen(false)}
-          />
-        </View>
-        <Text className="mt-2 text-xs text-shell-dim">
-          {booksOpen
-            ? "Your page accepts new requests right away."
-            : "Your page shows a closed notice. Open it whenever you're ready."}
-        </Text>
-
-        {!booksOpen ? (
-          <View className="mt-4">
-            <TextField
-              label="Closed message (optional)"
-              value={closedMessage}
-              onChangeText={setClosedMessage}
-              placeholder="Books reopen in July"
-              autoCapitalize="sentences"
-            />
-          </View>
-        ) : null}
-
-        {error ? (
-          <Text className="mt-3 text-sm text-danger-fg">{error}</Text>
-        ) : null}
-
         <View className="mt-6">
-          <Button label="Continue" onPress={submit} loading={submitting} />
+          <Button
+            label="Continue"
+            onPress={() =>
+              router.push({
+                pathname: "/onboarding/availability",
+                params: { mode },
+              })
+            }
+          />
         </View>
       </ScrollView>
     </Screen>

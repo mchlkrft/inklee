@@ -69,7 +69,9 @@ export async function getDepositsOverview(
   const items: MobileDepositListItem[] = rows.map((b) => {
     // Single source of truth: the same classifier the booking detail uses, so
     // the overview and the detail can never disagree on a deposit's state.
-    const state = depositState(b, refunded.has(b.id), now);
+    // Passing the booking status keeps a dead deposit (cancelled booking) out of
+    // the overdue/outstanding buckets instead of stranding it as overdue.
+    const state = depositState(b, refunded.has(b.id), now, b.status);
     const outstanding = state === "awaiting" || state === "overdue";
     return {
       bookingId: b.id,
@@ -89,18 +91,21 @@ export async function getDepositsOverview(
     };
   });
 
-  // Order for the UI: overdue, then awaiting, then paid, then refunded last.
-  // Within a state the query's created-desc order is preserved (stable sort).
+  // Order for the UI: overdue, awaiting, paid, then the settled tail (cancelled,
+  // refunded). Within a state the query's created-desc order is preserved
+  // (stable sort).
   const rank: Record<MobileDepositListItem["state"], number> = {
     overdue: 0,
     awaiting: 1,
     paid: 2,
-    refunded: 3,
+    cancelled: 3,
+    refunded: 4,
   };
   items.sort((a, b) => rank[a.state] - rank[b.state]);
 
   // Outstanding = awaiting + overdue; overdue is the urgent subset; collected =
-  // paid. Refunded (money returned) counts in none of the rollups.
+  // paid. Refunded (money returned) and cancelled (dead/unpaid) count in none of
+  // the rollups.
   const overdue = items.filter((i) => i.state === "overdue");
   const outstanding = items.filter(
     (i) => i.state === "awaiting" || i.state === "overdue",
