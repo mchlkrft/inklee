@@ -44,6 +44,23 @@ import { formatShortDate, relativeTime } from "@/lib/date";
 // and empty). The submitted form info now lives in bordered cards with icon
 // headers and an aligned label/value table (InfoRow); a stat strip up top gives
 // the at-a-glance overview (when + deposit), and Instagram / email are tappable.
+// Status label from the shared `deposit.state`. paid/refunded/cancelled are
+// terminal; awaiting + overdue both read as the "awaiting" line (card vs manual),
+// matching the web detail card — the deposits overview is where overdue is
+// emphasised louder.
+function depositStatusLabel(d: NonNullable<BookingDetail["deposit"]>): string {
+  switch (d.state) {
+    case "refunded":
+      return "Refunded";
+    case "paid":
+      return "Paid";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return d.hasCardIntent ? "Awaiting card payment" : "Awaiting payment";
+  }
+}
+
 export default function BookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -79,15 +96,12 @@ export default function BookingDetailScreen() {
   const b = data;
   const d = b.deposit;
   const initial = (b.client?.trim()?.[0] ?? "?").toUpperCase();
-  const depositState = d
-    ? d.refunded
-      ? "Refunded"
-      : d.paid
-        ? "Paid"
-        : d.hasCardIntent
-          ? "Awaiting card payment"
-          : "Awaiting payment"
-    : null;
+  // Status label driven by the SHARED classifier (`deposit.state`), so the
+  // detail card can't disagree with the deposits overview. "cancelled" covers a
+  // dead deposit (client/artist cancelled, or accepted without it) — the founder
+  // bug where a client-cancelled card deposit stayed stuck looking live.
+  const depositLabel = d ? depositStatusLabel(d) : null;
+  const depositLive = d ? d.state === "awaiting" || d.state === "overdue" : false;
   const hasReference =
     !!b.referenceLink || b.referenceImagePaths.length > 0;
 
@@ -153,7 +167,7 @@ export default function BookingDetailScreen() {
             icon={Wallet}
             label="Deposit"
             value={d ? formatMoney(d.amount, d.currency) : "Not set"}
-            sub={depositState ?? "Not requested"}
+            sub={depositLabel ?? "Not requested"}
           />
         </View>
 
@@ -297,7 +311,7 @@ export default function BookingDetailScreen() {
                 label="Amount"
                 value={formatMoney(d.amount, d.currency)}
               />
-              <InfoRow icon={Clock} label="Status" value={depositState} />
+              <InfoRow icon={Clock} label="Status" value={depositLabel} />
               {d.refunded && d.refundedAt ? (
                 <InfoRow
                   icon={CalendarClock}
@@ -305,7 +319,7 @@ export default function BookingDetailScreen() {
                   value={formatShortDate(d.refundedAt)}
                 />
               ) : null}
-              {d.dueAt && !d.paid && !d.refunded ? (
+              {d.dueAt && depositLive ? (
                 <InfoRow
                   icon={CalendarClock}
                   label="Due by"

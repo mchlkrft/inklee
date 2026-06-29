@@ -17,6 +17,7 @@ function whenLabel(d: MobileDepositListItem): string {
   if (d.state === "paid")
     return d.paidAt ? `Paid ${formatDate(d.paidAt)}` : "Paid";
   if (d.state === "refunded") return "Returned to client";
+  if (d.state === "cancelled") return "Cancelled";
   return d.dueLabel ?? "No due date";
 }
 
@@ -89,6 +90,7 @@ export default async function DepositsOverviewPage() {
   const overdue = items.filter((i) => i.state === "overdue");
   const awaiting = items.filter((i) => i.state === "awaiting");
   const collected = items.filter((i) => i.state === "paid");
+  const cancelled = items.filter((i) => i.state === "cancelled");
   const refunded = items.filter((i) => i.state === "refunded");
   const hasOutstanding = summary.outstandingCount > 0;
 
@@ -156,6 +158,7 @@ export default async function DepositsOverviewPage() {
           <Section title="Overdue" items={overdue} danger />
           <Section title="Awaiting" items={awaiting} />
           <Section title="Collected" items={collected} />
+          <Section title="Cancelled" items={cancelled} />
           <Section title="Refunded" items={refunded} />
         </>
       )}

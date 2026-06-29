@@ -15,7 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
 import { formatSize } from "@/lib/booking-schema";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
-import { canTransition } from "@/lib/booking-fsm";
+import { canTransition, isReopenable } from "@/lib/booking-fsm";
 import { isDateKey, isDateKeyBefore, localDateKey } from "@/lib/date-utils";
 import {
   sendBookingEmail,
@@ -1227,6 +1227,98 @@ export async function cancelBookingCore(
       },
     });
   }
+
+  return { success: true };
+}
+
+// Reopen a dead booking (cancelled or passed) back to `pending`, so the artist
+// can re-request a deposit and restart the loop when both sides still want to
+// finish. Money-gated: refuse to reopen a booking whose deposit was ever PAID
+// (forfeited on a client cancel, or paid then cancelled) — reopening settled
+// money is ambiguous and the artist should start fresh. Any lingering UNPAID
+// intent is cancelled, and the dead deposit columns are cleared so the booking
+// returns to a clean undecided state (the next "Request deposit" mints a fresh
+// intent + payment link). The status flip is gated on the status we read so a
+// concurrent change can't be clobbered.
+export async function reopenBookingCore(
+  supabase: SupabaseClient,
+  userId: string,
+  id: string,
+): Promise<BookingMutationResult> {
+  const authorised = await getAuthorisedBooking(supabase, userId, id);
+  if ("error" in authorised) return authorised;
+
+  const { booking } = authorised;
+  if (!isReopenable(booking.status)) {
+    return { error: "Only a cancelled or passed booking can be reopened." };
+  }
+
+  // Re-read the deposit fields fresh (getAuthorisedBooking doesn't carry them).
+  const { data: depo } = await supabase
+    .from("booking_requests")
+    .select("deposit_payment_intent_id, deposit_paid_at")
+    .eq("id", id)
+    .single();
+
+  // Money guard: never reopen a booking whose deposit money already moved.
+  if (depo?.deposit_paid_at) {
+    return {
+      error:
+        "This booking's deposit was already paid. Start a new booking instead.",
+    };
+  }
+
+  // Best-effort: cancel any lingering unpaid intent so reopening leaves no live
+  // PaymentIntent behind (a fresh one is created on the next deposit request).
+  if (stripe && depo?.deposit_payment_intent_id) {
+    try {
+      await stripe.paymentIntents.cancel(depo.deposit_payment_intent_id);
+    } catch (cancelErr) {
+      Sentry.captureException(cancelErr, {
+        tags: { action: "stripe_cancel_intent_on_reopen" },
+        extra: { bookingId: id },
+      });
+    }
+  }
+
+  const now = new Date().toISOString();
+  const { data: reopened, error } = await supabase
+    .from("booking_requests")
+    .update({
+      status: "pending",
+      decided_at: null,
+      updated_at: now,
+      // Clear the dead deposit so the booking returns to a clean undecided state
+      // and drops out of the deposits overview; the artist re-requests fresh.
+      deposit_amount: null,
+      deposit_currency: null,
+      deposit_due_at: null,
+      deposit_note: null,
+      deposit_payment_intent_id: null,
+      deposit_client_secret: null,
+      deposit_policy: null,
+      deposit_policy_snapshot: null,
+    })
+    .eq("id", id)
+    .eq("status", booking.status)
+    .select("id");
+
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "booking_status_change" },
+    });
+    return { error: error.message };
+  }
+  if (!reopened || reopened.length === 0) {
+    return { error: "This booking just changed. Refresh and try again." };
+  }
+
+  await supabase.from("audit_log").insert({
+    booking_id: id,
+    action: "status_changed",
+    actor: userId,
+    details: { from: booking.status, to: "pending", via: "reopen" },
+  });
 
   return { success: true };
 }

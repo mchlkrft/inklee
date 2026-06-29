@@ -8,7 +8,7 @@ import {
 } from "@inklee/shared/travel-icons";
 import { TravelIcon } from "./TravelIcon";
 import { TravelIconPicker } from "./TravelIconPicker";
-import { useColors } from "@/lib/theme";
+import { themeVars, useColors, useThemePreference } from "@/lib/theme";
 
 // Re-export the shared default so existing importers (editors, cards) keep
 // importing it from this control. One source: @inklee/shared/travel-icons.
@@ -32,6 +32,7 @@ export function IconHeaderControl({
   }) => void;
 }) {
   const themed = useColors();
+  const { scheme } = useThemePreference();
   const [open, setOpen] = useState(false);
   const resolved = iconColor ?? DEFAULT_ICON_COLOR;
 
@@ -59,7 +60,10 @@ export function IconHeaderControl({
         animationType="slide"
         onRequestClose={() => setOpen(false)}
       >
+        {/* Re-apply theme vars: a RN Modal portals outside the ThemeProvider, so
+            without this the className tokens fall back to the dark :root. */}
         <Pressable
+          style={themeVars[scheme]}
           className="flex-1 justify-end bg-black/50"
           onPress={() => setOpen(false)}
         >

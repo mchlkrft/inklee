@@ -27,7 +27,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { TravelIcon } from "@/components/TravelIcon";
 import { useApiQuery } from "@/lib/api";
 import { brandMapStyle, mapInk } from "@/lib/map-style";
-import { chrome, themeVars, useColors, useThemePreference } from "@/lib/theme";
+import { themeVars, useColors, useThemePreference } from "@/lib/theme";
 
 // Numbered stop badges stay theme-independent (mustard fill, charcoal number):
 // they read on both the modal card and the brand basemap. The route lines and the
@@ -131,7 +131,7 @@ export default function TravelMapScreen() {
   const numberById = new Map(stops.map((s, i) => [s.id, i + 1]));
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} padded={false}>
       <View className="flex-1">
         {stops.length === 0 ? (
           <View className="flex-1 items-center justify-center bg-background px-8">
@@ -214,8 +214,11 @@ export default function TravelMapScreen() {
             style={{ position: "absolute", top: 12, right: 12 }}
             className="flex-row items-center gap-1.5 rounded-full border border-shell-border bg-chrome px-3 py-2 active:opacity-80"
           >
-            <Route size={16} color={chrome.fg} />
-            <Text style={{ color: chrome.fg }} className="text-sm font-medium">
+            {/* Theme-reactive foreground (colors.bone) so the label reads on the
+                theme-reactive bg-chrome in BOTH modes: dark text on the light
+                chip in light mode, bone text on the dark chip in dark mode. */}
+            <Route size={16} color={colors.bone} />
+            <Text style={{ color: colors.bone }} className="text-sm font-medium">
               Trips
             </Text>
           </Pressable>

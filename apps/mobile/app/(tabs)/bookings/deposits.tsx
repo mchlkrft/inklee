@@ -30,6 +30,7 @@ function whenLabel(d: MobileDepositListItem): string {
   if (d.state === "paid")
     return d.paidAt ? `Paid ${formatShortDate(d.paidAt)}` : "Paid";
   if (d.state === "refunded") return "Returned to client";
+  if (d.state === "cancelled") return "Cancelled";
   return d.dueLabel ?? "No due date";
 }
 
@@ -157,6 +158,7 @@ export default function DepositsScreen() {
   const overdue = items.filter((i) => i.state === "overdue");
   const awaiting = items.filter((i) => i.state === "awaiting");
   const collected = items.filter((i) => i.state === "paid");
+  const cancelled = items.filter((i) => i.state === "cancelled");
   const refunded = items.filter((i) => i.state === "refunded");
   const hasOutstanding = (summary?.outstandingCount ?? 0) > 0;
   const openBooking = (id: string) => router.push(`/bookings/${id}`);
@@ -250,6 +252,7 @@ export default function DepositsScreen() {
             />
             <Section title="Awaiting" items={awaiting} onRow={openBooking} />
             <Section title="Collected" items={collected} onRow={openBooking} />
+            <Section title="Cancelled" items={cancelled} onRow={openBooking} />
             <Section title="Refunded" items={refunded} onRow={openBooking} />
 
             {/* Pointers to the deposit configuration, split across the two

@@ -12,6 +12,7 @@ import {
   rejectBooking,
   requestDeposit,
   markDepositReceived,
+  reopenBooking,
   type InterestDecisionPayload,
 } from "../../actions";
 import {
@@ -55,6 +56,7 @@ export default function StatusActions({
   confirmStudio = null,
   pendingInterests = [],
   currency = "eur",
+  canReopen = false,
 }: {
   booking: Booking;
   depositDefaults?: DepositDefaults;
@@ -80,6 +82,10 @@ export default function StatusActions({
   // The artist's deposit currency (Slice 79d) — what amounts in the deposit
   // request form + fee preview are denominated in.
   currency?: string;
+  // True when this booking is cancelled/passed AND no deposit money was kept, so
+  // the artist can reopen it back to pending and restart the loop. The server
+  // re-checks the money condition before reopening.
+  canReopen?: boolean;
 }) {
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(booking.status);
   const [, startTransition] = useTransition();
@@ -95,6 +101,7 @@ export default function StatusActions({
   );
   const [depositNote, setDepositNote] = useState(depositDefaults.note);
   const [confirmReject, setConfirmReject] = useState(false);
+  const [confirmReopen, setConfirmReopen] = useState(false);
   // Confirmation popup that fires whenever the booking has a guest-spot
   // studio AND/OR pending goods interests. `pendingAction` carries which
   // button triggered it so the popup's confirm step can branch:
@@ -217,6 +224,12 @@ export default function StatusActions({
     optimisticStatus,
   );
   const isDepositPending = optimisticStatus === "deposit_pending";
+  // A dead booking the artist can revive: cancelled/passed AND no money kept.
+  // Reopening returns it to pending, where the full action set (Accept / Request
+  // deposit / Pass) comes back so the loop can continue.
+  const showReopen =
+    canReopen &&
+    (optimisticStatus === "cancelled" || optimisticStatus === "rejected");
 
   // RS-4: the platform fee only applies to in-app (Connect-routed) deposits.
   // Manual deposits go straight to the artist and carry no Inklee fee, so the
@@ -637,6 +650,51 @@ export default function StatusActions({
                 <button
                   onClick={() => setConfirmReject(false)}
                   className="rounded-full border border-border px-4 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showReopen && (
+        <div className="flex flex-col gap-3">
+          {!confirmReopen ? (
+            <div className="space-y-1">
+              <button
+                onClick={() => setConfirmReopen(true)}
+                className="w-full rounded-full border border-border px-5 py-2.5 text-sm text-foreground transition-colors hover:bg-muted/30"
+              >
+                Reopen booking
+              </button>
+              <p className="text-xs text-muted-foreground">
+                Brings this request back so you can accept it or request a fresh
+                deposit. The client keeps their history.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <p className="text-sm text-foreground">Reopen this booking?</p>
+              <p className="text-xs text-muted-foreground">
+                It returns to your requests as pending. Any earlier deposit
+                request is cleared, so you can send a new one if you still want
+                to.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    run(reopenBooking, "pending");
+                    setConfirmReopen(false);
+                  }}
+                  className="rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-semibold text-brand-charcoal"
+                >
+                  Yes, reopen
+                </button>
+                <button
+                  onClick={() => setConfirmReopen(false)}
+                  className="rounded-full border border-border px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Cancel
                 </button>

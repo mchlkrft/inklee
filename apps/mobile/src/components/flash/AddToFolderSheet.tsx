@@ -1,6 +1,6 @@
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { Check, X } from "lucide-react-native";
-import { useColors } from "@/lib/theme";
+import { themeVars, useColors, useThemePreference } from "@/lib/theme";
 
 // Bottom sheet listing every folder (plus Unfiled), opened by long-pressing a
 // flash design in the library (ME test 2026-06-18). Selecting a row moves the
@@ -21,6 +21,7 @@ export function AddToFolderSheet({
   onClose: () => void;
 }) {
   const themed = useColors();
+  const { scheme } = useThemePreference();
   const options: { id: string | null; name: string }[] = [
     { id: null, name: "Unfiled" },
     ...folders.map((f) => ({ id: f.id, name: f.name })),
@@ -33,7 +34,11 @@ export function AddToFolderSheet({
       animationType="slide"
       onRequestClose={onClose}
     >
+      {/* Re-apply theme vars: a RN Modal portals outside the ThemeProvider, so
+          without this the className `var(--…)` tokens fall back to the dark
+          :root and the sheet renders dark even in light mode. */}
       <Pressable
+        style={themeVars[scheme]}
         className="flex-1 justify-end bg-black/50"
         onPress={onClose}
       >

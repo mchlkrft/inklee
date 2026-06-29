@@ -9,6 +9,7 @@ import type { AnalyticsMetrics } from "./analytics";
 import type { BooksSettings } from "./books-settings";
 import type { CustomFieldType } from "./custom-fields";
 import type { DashboardWidgets } from "./dashboard-settings";
+import type { DepositState } from "./deposit-state";
 import type { StripeMode } from "./deposit-settings";
 
 /** GET /api/mobile/me — the signed-in artist's identity + plan/entitlement state. */
@@ -217,10 +218,14 @@ export type MobileDepositListItem = {
   currency: string;
   dueAt: string | null;
   paidAt: string | null;
-  state: "awaiting" | "overdue" | "paid" | "refunded";
+  /** Single-sourced via the shared `depositState` classifier. `cancelled` = an
+   *  unpaid deposit on a dead/settled booking (the client or artist cancelled,
+   *  or the artist accepted without it) — kept for reference, counted in NONE of
+   *  the rollups. */
+  state: DepositState;
   card: boolean;
   /** Relative due label ("due in 3 days" / "5 days overdue"), server-computed
-   *  for awaiting + overdue rows; null for settled (paid/refunded) rows. */
+   *  for awaiting + overdue rows; null for settled (paid/refunded/cancelled). */
   dueLabel: string | null;
 };
 
@@ -256,6 +261,9 @@ export type MobileBookingDeposit = {
   refunded: boolean;
   /** When the refund was issued (from the audit log), for the "Refunded on" note. */
   refundedAt: string | null;
+  /** Lifecycle state from the shared `depositState` classifier — the SAME value
+   *  the deposits overview shows, so the detail card can't disagree with it. */
+  state: DepositState;
 };
 
 /** One client annotation pinned on a reference image (normalized 0..1 coords). */
@@ -400,6 +408,7 @@ export type MobileClientDetail = {
 export type MobileFlashItem = {
   id: string;
   title: string;
+  slug: string;
   status: string; // draft | published | archived
   priceType: string; // fixed | from | request
   price: number | null;
