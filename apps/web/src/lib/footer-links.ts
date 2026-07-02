@@ -106,6 +106,11 @@ export const FOOTER_GROUPS: FooterGroup[] = [
     label: "Resources",
     items: [
       {
+        label: "How to take tattoo deposits online",
+        href: "/guides/how-to-take-tattoo-deposits-online",
+        active: true,
+      },
+      {
         label: "Tattoo booking form checklist",
         href: "/resources/tattoo-booking-form-checklist",
         active: false,

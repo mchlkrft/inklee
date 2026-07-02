@@ -75,6 +75,11 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
   },
   { path: "/download", changeFrequency: "monthly", priority: 0.85 },
   { path: "/dm-chaos", changeFrequency: "monthly", priority: 0.8 },
+  {
+    path: "/guides/how-to-take-tattoo-deposits-online",
+    changeFrequency: "monthly",
+    priority: 0.6,
+  },
   { path: "/about", changeFrequency: "monthly", priority: 0.6 },
   { path: "/help", changeFrequency: "monthly", priority: 0.6 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },

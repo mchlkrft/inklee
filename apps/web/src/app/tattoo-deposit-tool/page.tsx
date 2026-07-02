@@ -202,6 +202,12 @@ const RELATED_LINKS: Related[] = [
       "Overdue deposits get a clear follow-up email automatically, with the amount and your payment note.",
   },
   {
+    title: "Guide: how to take tattoo deposits online",
+    href: "/guides/how-to-take-tattoo-deposits-online",
+    description:
+      "Amount, policy, payment methods, timing, and record keeping, step by step, with or without software.",
+  },
+  {
     title: "Tattoo Deposit Policy Template",
     href: "https://github.com/mchlkrft/tattoo-booking-form-template/blob/main/docs/tattoo-deposit-policy-template.md",
     description:
