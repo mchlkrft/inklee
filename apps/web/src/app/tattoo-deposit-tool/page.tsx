@@ -6,12 +6,12 @@ import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
 const PAGE_PATH = "/tattoo-deposit-tool";
-const PAGE_TITLE = "Tattoo Deposit Tool for Artists | Inklee";
+const PAGE_TITLE = "Tattoo deposit software for artists · Inklee";
 const PAGE_DESCRIPTION =
-  "Inklee helps tattoo artists make deposits part of the booking flow with structured requests, approval states, and clearer client handling.";
-const OG_TITLE = "Tattoo Deposit Tool for Artists";
+  "Tattoo deposit software that makes deposits part of the booking flow. Collect tattoo deposits online after you approve a request, and cut no-shows.";
+const OG_TITLE = "Tattoo deposit software for artists";
 const OG_DESCRIPTION =
-  "A tattoo-deposit-aware booking flow for artists who want less payment chaos and clearer request handling.";
+  "Tie tattoo deposits to approved requests for clearer payments and fewer no-shows, without the DM back and forth.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,

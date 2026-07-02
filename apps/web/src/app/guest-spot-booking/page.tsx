@@ -6,9 +6,9 @@ import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
 const PAGE_PATH = "/guest-spot-booking";
-const PAGE_TITLE = "Guest Spot Booking Tool for Tattoo Artists · Inklee";
+const PAGE_TITLE = "Tattoo guest spot organizer for artists · Inklee";
 const PAGE_DESCRIPTION =
-  "Organize tattoo guest spot booking requests by city, travel dates, client details, references, and waitlists without DM chaos.";
+  "Tattoo guest spot organizer for traveling artists. Organize guest spot requests by city, travel dates, references, and waitlists, without DM chaos.";
 const OG_TITLE = "Guest spot bookings without the DM mess";
 const OG_DESCRIPTION =
   "Inklee helps traveling tattoo artists collect guest spot requests, city demand, travel dates, and client details in one cleaner flow.";

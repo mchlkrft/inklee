@@ -6,7 +6,7 @@ import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
 const PAGE_PATH = "/about";
-const PAGE_TITLE = "About Inklee | Tattoo Booking Tool for Artists";
+const PAGE_TITLE = "About Inklee · Built by a tattoo artist for tattoo artists";
 const PAGE_DESCRIPTION =
   "Inklee is a tattoo booking request tool built by a tattoo artist to help freelance and traveling artists replace DM chaos with structured requests.";
 const OG_TITLE = "About Inklee, built by a tattoo artist for tattoo artists";

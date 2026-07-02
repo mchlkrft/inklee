@@ -220,7 +220,7 @@ One search intent has one owner URL. Supporting keywords are on-page copy/headin
 
 **Current URL:** `/tattoo-deposit-tool`
 
-**Status:** Live (reposition)
+**Status:** Live (metadata repositioned around `tattoo deposit software`, 2026-07-02)
 
 **Primary keyword:** `tattoo deposit software`
 
@@ -323,7 +323,7 @@ The page must explain **artist-controlled scheduling** rather than unrestricted 
 
 **URL:** `/tattoo-artist-waitlist`
 
-**Status:** Live (reposition)
+**Status:** Live (metadata repositioned around `tattoo waitlist software`, 2026-07-02)
 
 **Primary keyword:** `tattoo waitlist software`
 
@@ -508,12 +508,14 @@ Priorities are documented here for sequencing. Implementation of each item is a 
 ### P0
 
 - Redirect `/guest-spots` to `/guest-spot-booking`. **(Done, deployed 2026-07-02.)**
-- Separate homepage, About page, and category-pillar metadata ownership.
-- Keep `/tattoo-booking-software` as the main category pillar.
-- Reposition the deposit page around `tattoo deposit software`.
-- Reposition the waitlist page around `tattoo waitlist software`.
-- Strengthen the guest-spot page around `tattoo guest spot organizer`.
-- Keep the DM page problem-led.
+- Separate homepage, About page, and category-pillar metadata ownership. **(Done, 2026-07-02:** home owns brand + "tattoo booking tool", pillar owns "tattoo booking software", About moved to brand/trust "Built by a tattoo artist for tattoo artists".**)**
+- Keep `/tattoo-booking-software` as the main category pillar. **(Kept, unchanged.)**
+- Reposition the deposit page around `tattoo deposit software`. **(Done, 2026-07-02, metadata.)**
+- Reposition the waitlist page around `tattoo waitlist software`. **(Done, 2026-07-02, metadata.)**
+- Strengthen the guest-spot page around `tattoo guest spot organizer`. **(Done, 2026-07-02, metadata.)**
+- Keep the DM page problem-led. **(Kept, unchanged.)**
+
+_Note: the P0 repositioning above changed page metadata (title, description, OG/Twitter). Deeper on-page alignment (H1 and body copy leading with the same primary keyword) is a follow-up on-page slice, not yet done._
 
 ### P1
 

@@ -6,10 +6,10 @@ import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
 const PAGE_PATH = "/tattoo-artist-waitlist";
-const PAGE_TITLE = "Tattoo Artist Waitlist Tool | Inklee";
+const PAGE_TITLE = "Tattoo waitlist software for artists · Inklee";
 const PAGE_DESCRIPTION =
-  "Inklee helps tattoo artists keep future demand organized with structured waitlists for closed books, guest spots, and booking waves.";
-const OG_TITLE = "Tattoo Artist Waitlist Tool";
+  "Tattoo waitlist software that keeps future demand organized. Hold requests for closed books, guest spots, and booking waves, and fill cancellations fast.";
+const OG_TITLE = "Tattoo waitlist software for artists";
 const OG_DESCRIPTION =
   "Keep future tattoo requests visible when books are closed, guest spots fill up, or clients need to wait for the next booking window.";
 
