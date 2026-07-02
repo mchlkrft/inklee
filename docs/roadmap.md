@@ -31,7 +31,7 @@ Pointer, not a changelog — detail lives in git history, `SLICES.md` / `SLICES_
 | Core MVP + hardening (Slices 0–53)                                                                  | ✓                              | `SLICES.md`, `SLICES_CONTINUATION.md` — product, RLS, rate limiting, payment hardening, Trip Planner, Flash, admin, branding                                                                                 |
 | Security incident recovery (RLS, 2026-05-10)                                                        | ✓                              | Migrations 0026–0031; memory `project_inklee_roadmap.md` "Security incident" section                                                                                                                         |
 | UI rework — app shell + page polish                                                                 | ✓                              | Commits `885f9f8` + `2a4af67`                                                                                                                                                                                |
-| SEO/GEO (10 pages) + reworked About + public template repo v1.x                                     | ✓                              | Slices 5–8, 11–16; memory `project_inklee_seo.md`; github.com/mchlkrft/tattoo-booking-form-template                                                                                                          |
+| SEO/GEO (10 pages) + reworked About + public template repo v1.x                                     | ✓                              | Slices 5–8, 11–16; strategy + page map now in `docs/seo-strategy.md` (replaces lost memory `project_inklee_seo.md`); github.com/mchlkrft/tattoo-booking-form-template                                          |
 | Legal package (imprint/terms/DPA/AUP/privacy/cookies/subprocessors + Section 8 notice + DSA report) | ✓ counsel-cleared 2026-05-20   | memory `project_inklee_legal_package.md`; commits `421e91f`→`063052a`. Remaining track-to-closure items in §3.5 + §3.6                                                                                       |
 | OT-01 storage bucket policy audit                                                                   | ✓ 2026-05-20                   | `0022_storage_policies.sql`; service-role writes only on both buckets; FU-6 listing tightening still open                                                                                                    |
 | Pre-launch UX polish (Slices 60a–60e + 61)                                                          | ✓                              | §3.2; commits `8a5ea32`, `25d0373`, `d95d1af`, `ee21328`, `49ce728`                                                                                                                                          |
@@ -181,7 +181,7 @@ Parallel tracks once launch is stable — different cognitive surfaces.
 
 ### 4.1 SEO sprint continuation
 
-Asset delivery, hero sizing, and density retrofits all closed via Slice 70. Remaining: **17+ Resources/\* checklist pages** (⏳ planned, 4 entries reserved in footer) — start with `/resources/tattoo-booking-form-checklist`, born in the marketing-v2 design language. Detail in memory `project_inklee_seo.md`.
+**Source of truth (2026-07-01): `docs/seo-strategy.md`.** Full strategy, keyword-to-page ownership map, page map, implementation waves (0–6), prioritization scoring, measurement framework, and validation backlog now live there. It replaces the lost legacy memory `project_inklee_seo.md` and consolidates the two slice docs (`seo-geo-audit-slice-1.md` now historical; `seo-landing-template-system-slice-4.md` still valid for assembly). A 2026-07-01 re-strategy pass audited the live architecture against new qualitative Reddit keyword research and concluded the research **validates** the existing product-led spine rather than overturning it. Key roadmap-changing decisions: (1) **consolidate `/guest-spots` → `/guest-spot-booking`** (only live cannibalization pair); (2) **do not build separate "Google Forms/Calendly alternative" pages** — the existing `-vs-` pages own that intent, just tune titles/copy to capture "alternative" phrasing; (3) **add two feature pages that map to shipped features** — `/tattoo-appointment-reminders` and `/tattoo-client-management` (native language; "CRM" secondary only); (4) codify the **request-vs-self-booking** distinction as an SEO guardrail (keep "scheduling app / appointment calendar" terms secondary, no self-booking page); (5) **retire the unvalidated "17+ Resources/\* checklist pages" commitment** in favor of validated, problem-led Wave 3 guides that link up into the commercial spine; (6) add a cannibalization ruleset + a validation backlog (search volume/difficulty/SERP not yet run; UK "tattooist/enquiry" variants pending GSC data). Chosen approach = a specific **hybrid**: keep the built commercial spine, stop expanding it with near-duplicates, invest new content effort in problem-led guides that feed the spine. The 4 footer `/resources/*` stubs are reframed under Wave 3 (keep only those matching a validated query). Asset delivery, hero sizing, and density retrofits all closed via Slice 70.
 
 **Launch SEO sprint (2026-06-16, all merged to master + deployed; backlog in memory [[seo-state]]).** Full marketing-surface audit via workflow `wr7ghu0bq` (titles/meta, internal linking, structured data/OG, technical/GEO). Foundation confirmed strong (metadataBase=inklee.app, self-canonicals, JSON-LD Org/WebSite/SoftwareApplication/WebPage/FAQ, OG images). **Shipped:** sitemap cleaned (dropped /login + /signup) + **submitted to GSC** (inklee.app Domain property) + **indexing requested for the top 10 pages**; `/help` indexing bug fixed (had inherited the home title + a canonical to `/`); em-dashes removed from titles; `/start` noindexed (homepage near-dup); home vs /tattoo-booking-software title dedup; `/download` description trimmed; **artist booking pages (`<slug>.inkl.ee`) set to noindex by default** (founder decision, reversible later via a per-artist "list me in search" opt-in + a dynamic sitemap); Org+WebSite JSON-LD moved to the root layout (now site-wide, home dup dropped); **home -> cluster internal links** (feature cards link to their landing pages + a "Compare Inklee" row); `/dm-chaos` WebPage schema + footer entry; `/help` de-orphaned with shared nav+footer. **Remaining (deferred):** P2 code = twitter `summary_large_image` sweep, BreadcrumbList schema, per-route OG images, remaining per-page Related-link tweaks; founder/off-page = **Bing Webmaster + IndexNow**, Product Hunt + directory listings (G2/Capterra/AlternativeTo/SaaSHub) for LLM citations, `guest-spot-booking`/`guest-spots` consolidation call, Review/AggregateRating schema once real reviews exist, German `/de` tree later. Note the benign GSC notice "Alternative Seite mit richtigem kanonischen Tag" is the canonical system working, not an error.
 
@@ -214,7 +214,7 @@ Pending the user-provided mockup. When it arrives: audit `src/app/[slug]/page.ts
 
 ### 4.6 Public template repo cadence
 
-Independent track, low touch. ✅ **v1.3.0 shipped 2026-06-15** (`tattoo-pricing-and-quotes-guide.md`, pulled early as a pre-launch organic push); v1.2.0 2026-06-12 (waitlist signup template + guide). Next Week 7 (2026-06-26); monthly after. Repo: github.com/mchlkrft/tattoo-booking-form-template (local clone `A:\WORK\tattoo-booking-form-template`). Cadence + voice rules in memory `template-repo-cadence`.
+Independent track, low touch. **On-demand cadence since 2026-06-24** (founder triggers each release; ~every 3 days when active, was bi-weekly then monthly). ✅ Latest **v1.5.0 shipped 2026-07-01** (`docs/tattoo-aftercare-followup-and-touch-ups.md`, commit `a5c4e6a` + tag `v1.5.0` pushed — post-session stage: aftercare follow-up messages + fair touch-up policy + structured touch-up request fields); v1.4.0 2026-06-24 (consent + health intake fields guide); v1.3.0 2026-06-15 (pricing + quote-requests guide). Repo: github.com/mchlkrft/tattoo-booking-form-template (local clone `A:\WORK\tattoo-booking-form-template`). Cadence, voice rules, and the release-idea backlog live in memory `template-repo-cadence` (next pick = flash-day runbook doc; re-rank via the SEO/GEO research workflow before writing).
 
 ---
 
@@ -355,9 +355,9 @@ A multi-artist studio **business** layer (organizations / locations / workspaces
 
 ## 7. Parallel tracks (always on)
 
-### 7.1 Public template repo bi-weekly cadence
+### 7.1 Public template repo on-demand cadence
 
-See §4.6. Independent track. Memory: `project_inklee_template_repo.md`.
+See §4.6. Independent track. Memory: `template-repo-cadence` (replaces the lost `project_inklee_template_repo.md`).
 
 ### 7.2 Open follow-ups (low-priority backlog)
 
@@ -430,8 +430,8 @@ Independent: [Phase E: mobile] (after first real artist AND after the Bio Page +
 | Mobile app strategy (Phase E)                  | `docs/mobile-strategy.md`                 |
 | Analytics state + A/B test plan                | `docs/analytics-audit-2026-05-14.md`      |
 | Paid-plan infra upgrade triggers               | `docs/paid-plan-triggers.md`              |
-| SEO pages: which exist + density rules         | Memory: `project_inklee_seo.md`           |
-| Public template repo cadence                   | Memory: `project_inklee_template_repo.md` |
+| SEO strategy, keyword ownership, page map, waves | `docs/seo-strategy.md` (replaces lost memory `project_inklee_seo.md`) |
+| Public template repo cadence                   | Memory: `template-repo-cadence` (replaces lost `project_inklee_template_repo.md`) |
 | Founder follow-ups (low priority)              | Memory: `inklee_followup.md`              |
 | Architectural decisions                        | `DECISIONS.md`                            |
 | Operational runbook                            | `RUNBOOK.md`                              |
