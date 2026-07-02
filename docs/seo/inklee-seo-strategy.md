@@ -220,7 +220,7 @@ One search intent has one owner URL. Supporting keywords are on-page copy/headin
 
 **Current URL:** `/tattoo-deposit-tool`
 
-**Status:** Live (metadata repositioned around `tattoo deposit software`, 2026-07-02)
+**Status:** Live (metadata + visible copy aligned around `tattoo deposit software`, 2026-07-02)
 
 **Primary keyword:** `tattoo deposit software`
 
@@ -237,13 +237,13 @@ One search intent has one owner URL. Supporting keywords are on-page copy/headin
 
 Keep the current URL unless a migration has a strong technical and SEO justification. Copy stays cautious about card processing (card = a paid, Stripe-connected feature; manual deposit tracking is free).
 
-**Supporting guide:** `/guides/how-to-take-tattoo-deposits-online` — **Status: To build.**
+**Supporting guide:** `/guides/how-to-take-tattoo-deposits-online` — **Status: Live (built 2026-07-02, validated in `docs/seo/problem-guide-validation.md`).**
 
 ### Client management
 
-**URL (recommended):** `/tattoo-client-management`
+**URL:** `/tattoo-client-management`
 
-**Status:** To build
+**Status:** Live (built 2026-07-02; native language leads, CRM secondary only)
 
 **Primary keyword:** `tattoo client management software`
 
@@ -281,9 +281,9 @@ The page must explain **artist-controlled scheduling** rather than unrestricted 
 
 ### Reminders
 
-**URL (recommended):** `/tattoo-appointment-reminders`
+**URL:** `/tattoo-appointment-reminders`
 
-**Status:** To build
+**Status:** Live (built 2026-07-02; email-only claims, no SMS targeting)
 
 **Primary keyword:** `tattoo appointment reminder software`
 
@@ -323,7 +323,7 @@ The page must explain **artist-controlled scheduling** rather than unrestricted 
 
 **URL:** `/tattoo-artist-waitlist`
 
-**Status:** Live (metadata repositioned around `tattoo waitlist software`, 2026-07-02)
+**Status:** Live (metadata + visible copy aligned around `tattoo waitlist software`, 2026-07-02)
 
 **Primary keyword:** `tattoo waitlist software`
 
@@ -1056,6 +1056,16 @@ _No open proposals. Claude Code adds entries here when implementation evidence s
 ---
 
 ## Decision log
+
+### 2026-07-02: P0/P1/P2 implementation status (same-day execution)
+
+- P0 conversion measurement: implemented (four Plausible events, attribution, internal exclusion, duplicate prevention with unit tests). Founder actions remaining: Plausible goal + custom-property registration, `?internal=1` browser marking (see `docs/seo/conversion-measurement.md`).
+- P0 GSC baseline: **framework complete, numeric data pending** (`docs/seo/gsc-baseline.md`). GSC is not accessible from the dev environment; the founder export steps are in the doc. The numeric baseline is NOT marked complete.
+- P0 existing-page alignment: complete (deposit, waitlist, guest-spot, homepage, pillar visible copy).
+- P0 sitemap dates + roadmap references + comparison-page safeguard review: complete.
+- P1: `/tattoo-appointment-reminders` and `/tattoo-client-management` built and live.
+- P2: six guide topics validated (`docs/seo/problem-guide-validation.md`); `/guides/how-to-take-tattoo-deposits-online` and `/guides/how-to-reduce-tattoo-no-shows` built and live. The other four candidates remain postponed or copy-only per the validation doc.
+- Implementation detail per slice: `docs/seo/seo-implementation-log.md`.
 
 ### 2026-07-02: Hybrid execution model narrowed
 
