@@ -36,6 +36,11 @@
       "source": "/impressum",
       "destination": "/imprint",
       "permanent": true
+    },
+    {
+      "source": "/guest-spots",
+      "destination": "/guest-spot-booking",
+      "permanent": true
     }
   ]
 }

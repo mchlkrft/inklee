@@ -1,5 +1,7 @@
 # Inklee SEO/GEO Audit — Slice 1: Indexing & Technical Baseline
 
+> **HISTORICAL (2026-07-01).** Most P0/P1 findings here were fixed in the June 2026 launch sprint (per-page metadata, robots disallows, clean sitemap, JSON-LD, artist-page noindex). Kept as a record of the original baseline. Current SEO source of truth = `docs/seo-strategy.md`.
+
 **Date:** 2026-05-03  
 **Auditor:** Claude Code (automated codebase inspection)  
 **Scope:** Slice 1 only — indexing configuration, metadata, sitemap coverage, robots, heading structure, JSON-LD, noindex risks. No changes made. Punch list at end.

@@ -11,7 +11,7 @@ import {
 const PAGE_PATH = "/tattoo-booking-software-vs-calendly";
 const PAGE_TITLE = "Tattoo Booking Software vs Calendly | Inklee";
 const PAGE_DESCRIPTION =
-  "Calendly is great for scheduling, but tattoo intake needs idea-first requests, artist review, deposits, waitlists, and guest spot flow.";
+  "A Calendly alternative for tattoo artists. Tattoo intake needs idea-first requests, artist review, deposits, waitlists, and guest spot flow.";
 const OG_TITLE = "Tattoo Booking Software vs Calendly";
 const OG_DESCRIPTION =
   "See when Calendly works for tattoo artists and when Inklee's tattoo-first request flow makes more sense.";
@@ -73,6 +73,11 @@ const FAQ = [
     question: "Is Inklee only for custom tattoo work?",
     answer:
       "No. Inklee can support different tattoo workflows, but it is especially useful when the artist needs to review requests before approving what gets booked.",
+  },
+  {
+    question: "Is Inklee a good Calendly alternative for tattoo artists?",
+    answer:
+      "Yes, for tattoo intake. Calendly is a scheduling alternative for fixed appointments like consultations and touch-ups, but Inklee is built for tattoo booking requests: the client submits the idea, placement, size, and references, and the artist reviews before a slot becomes a booking.",
   },
 ];
 

@@ -27,7 +27,7 @@ import { Button } from "@/components/Button";
 import { FieldLabel } from "@/components/FieldLabel";
 import { IconButton } from "@/components/IconButton";
 import { TextField } from "@/components/TextField";
-import { DateField } from "@/components/DateField";
+import { DateRangeField } from "@/components/DateRangeField";
 import { RadioList } from "@/components/RadioList";
 import { IconHeaderControl } from "@/components/IconHeaderControl";
 import { DangerButton } from "@/components/DangerButton";
@@ -40,7 +40,6 @@ import {
   legIsActive,
   rangesOverlap,
 } from "@/lib/travel";
-import { toLocalDate } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
@@ -282,7 +281,6 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           placeholder="Details clients see"
         />
         <ShowToggle value={show} onChange={setShow} />
-        <Button label="Save trip" onPress={saveTrip} loading={saving} />
 
         <Text className="mb-2 mt-7 text-xs font-semibold uppercase tracking-wide text-shell-mute">
           Date stops
@@ -314,6 +312,12 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
         {error ? (
           <Text className="mt-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
+
+        {/* Primary CTA sits at the bottom, after every field and the stops are
+            filled in above. (Stops POST on their own; this saves the header.) */}
+        <View className="mt-6">
+          <Button label="Save trip" onPress={saveTrip} loading={saving} />
+        </View>
 
         <DangerButton
           label="Delete trip"
@@ -457,8 +461,8 @@ function AddLeg({
   ];
 
   async function add() {
-    if (!startsOn || !endsOn) {
-      setError("Start and end dates are required.");
+    if (!startsOn) {
+      setError("Pick a date for this stop.");
       return;
     }
     Keyboard.dismiss();
@@ -467,7 +471,8 @@ function AddLeg({
     try {
       await apiPost(`/travel/trips/${tripId}/legs`, {
         startsOn,
-        endsOn,
+        // No end date picked = a single-day stop (end on the start).
+        endsOn: endsOn ?? startsOn,
         studioId: studioId || null,
         notes: notes.trim() || null,
       });
@@ -487,12 +492,14 @@ function AddLeg({
   return (
     <View className="rounded-2xl border border-shell-border p-4">
       <Text className="mb-3 text-sm font-medium text-foreground">Add a stop</Text>
-      <DateField label="Start date" value={startsOn} onChange={setStartsOn} />
-      <DateField
-        label="End date"
-        value={endsOn}
-        onChange={setEndsOn}
-        minimumDate={startsOn ? toLocalDate(startsOn) : undefined}
+      <DateRangeField
+        label="Dates"
+        startValue={startsOn}
+        endValue={endsOn}
+        onChange={(s, e) => {
+          setStartsOn(s);
+          setEndsOn(e);
+        }}
       />
       {studios.length > 0 ? (
         <>
