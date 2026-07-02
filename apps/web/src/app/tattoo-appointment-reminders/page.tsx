@@ -6,13 +6,13 @@ import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
-const PAGE_PATH = "/tattoo-artist-waitlist";
-const PAGE_TITLE = "Tattoo waitlist software for artists · Inklee";
+const PAGE_PATH = "/tattoo-appointment-reminders";
+const PAGE_TITLE = "Tattoo appointment reminder software · Inklee";
 const PAGE_DESCRIPTION =
-  "Tattoo waitlist software that keeps future demand organized. Hold requests for closed books, guest spots, and booking waves, and fill cancellations fast.";
-const OG_TITLE = "Tattoo waitlist software for artists";
+  "Tattoo appointment reminder software for artists. Automatic reminder emails, reconfirmation requests, and deposit follow-ups tied to accepted bookings.";
+const OG_TITLE = "Tattoo appointment reminder software";
 const OG_DESCRIPTION =
-  "Keep future tattoo requests visible when books are closed, guest spots fill up, or clients need to wait for the next booking window.";
+  "Reminder emails, reconfirmation requests, and deposit follow-ups that stay tied to the accepted booking, so fewer appointments get forgotten.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -37,175 +37,175 @@ type Related = { title: string; description: string; href: string };
 
 const PROBLEM_POINTS: Item[] = [
   {
-    title: "Good requests disappear in DMs",
+    title: "Reminding clients by hand does not scale",
     description:
-      "When books are closed, serious clients still message you, but their requests can get buried before you are ready to reopen.",
+      "Scrolling back through DMs to remind every client before their session is exactly the kind of admin that gets skipped on busy weeks.",
   },
   {
-    title: "No useful request context",
+    title: "Forgotten appointments cost real money",
     description:
-      "A name on a list is not enough if you cannot remember the idea, placement, size, references, or timing later.",
+      "A client who genuinely forgot is still an empty chair, lost preparation time, and a slot someone else wanted.",
   },
   {
-    title: "Guest spot demand gets mixed up",
+    title: "Chasing deposits feels awkward",
     description:
-      "Requests from different cities become hard to compare when every location lives in the same inbox or spreadsheet.",
+      "Following up on an unpaid deposit by DM mixes money talk into a casual chat thread, and it is easy to forget who still owes what.",
   },
   {
-    title: "No clear follow-up status",
+    title: "You find out about cancellations too late",
     description:
-      "Without status tracking, it is easy to forget who was contacted, who replied, and who already moved forward.",
+      "Without a reconfirmation step, plans that changed weeks ago only surface on the day of the appointment.",
   },
   {
-    title: "Demand disappears after books reopen",
+    title: "Travel makes timing harder",
     description:
-      "If the waitlist is not connected to the booking flow, the next booking window starts from chaos again.",
-  },
-];
-
-const SOLUTION_POINTS: Item[] = [
-  {
-    title: "Structured waitlist entries",
-    description:
-      "Clients can leave useful request details instead of sending vague “let me know when books open” messages.",
-  },
-  {
-    title: "Request context stays visible",
-    description:
-      "Idea, placement, size, references, contact details, and timing stay easier to review when the artist comes back later.",
-  },
-  {
-    title: "Cleaner books closed flow",
-    description:
-      "When books are closed, artists can still collect future interest without pretending every request can be booked right now.",
-  },
-  {
-    title: "Better guest spot planning",
-    description:
-      "Waitlist demand can help artists understand which cities have serious interest before planning another trip.",
-  },
-  {
-    title: "Easier follow-up later",
-    description:
-      "Status handling makes it easier to see who is waiting, who was contacted, and which requests might move forward.",
+      "Guest spots and short booking windows leave no room for a no-show. A reminder a few days ahead matters even more on the road.",
   },
 ];
 
-const FIELDS_ITEMS: Item[] = [
+const REMINDER_TYPES: Item[] = [
   {
-    title: "Tattoo idea",
+    title: "Appointment reminders",
     description:
-      "The waitlist should capture what the client actually wants, not just their name and contact.",
+      "Clients get a reminder email a set number of days before the appointment, with the date, placement, and studio or location details.",
   },
   {
-    title: "Placement and size",
+    title: "Reconfirmation requests",
     description:
-      "Body area and rough size help the artist judge whether the request fits future availability.",
+      "Ahead of the appointment, clients can be asked to confirm they are still coming. The email carries a secure link, so a client whose plans changed can cancel early and you can offer the slot to someone else.",
   },
   {
-    title: "References",
+    title: "Deposit follow-ups",
     description:
-      "Reference images or links make the request easier to understand when the artist reviews it later.",
+      "When a deposit is past its due date, the client gets a clear follow-up with the amount, the due date, and your payment note, and you get a copy, so nobody has to chase by DM.",
   },
   {
-    title: "City and timing",
+    title: "You control the schedule",
     description:
-      "For guest spots and travel artists, location and date context can make waitlist demand much more useful.",
+      "Each reminder type has its own on and off switch, and you choose how many days before the appointment reminders and reconfirmations go out.",
+  },
+  {
+    title: "Tied to accepted bookings",
+    description:
+      "Reminders only ever go to bookings you approved. Nothing is sent for requests you passed on or have not reviewed yet.",
   },
 ];
 
-const SCENARIO_CARDS: Array<Item & { variant: "mustard" | "bone" | "rosa" }> = [
+const CONTEXT_ITEMS: Item[] = [
   {
-    title: "Books are closed",
+    title: "The booking, not a generic blast",
     description:
-      "Artists can collect future interest without turning the inbox into a pile of unread booking requests.",
+      "Every reminder carries the context of the specific booking: date, placement, and the studio or city where the appointment happens.",
+  },
+  {
+    title: "Deposit status included",
+    description:
+      "Deposit follow-ups state the amount, currency, due date, and your own payment note, so the client knows exactly what is open.",
+  },
+  {
+    title: "Editable booking emails",
+    description:
+      "The booking-status emails (request received, accepted, passed, cancelled) are fully editable, subject and body, in your voice. Reminder emails you switch on and schedule.",
+  },
+  {
+    title: "No client account needed",
+    description:
+      "Clients confirm or cancel through a secure link in the email. They never need to create an account or install anything.",
+  },
+];
+
+const OUTCOME_ITEMS: Array<Item & { variant: "mustard" | "bone" | "rosa" }> = [
+  {
+    title: "Fewer forgotten appointments",
+    description:
+      "A reminder a few days ahead catches the honest forgetters. Reminders cannot guarantee attendance, but they remove the most avoidable no-shows.",
     variant: "mustard",
   },
   {
-    title: "Guest spot is full",
+    title: "Cancellations surface earlier",
     description:
-      "Clients who missed the current city window can still stay visible for the next trip.",
+      "When a client cancels through the reconfirmation link, you hear about it days ahead instead of at the door, with time to fill the slot.",
     variant: "bone",
   },
   {
-    title: "Demand by city",
+    title: "Deposit chasing stops being personal",
     description:
-      "Traveling artists can see where people are waiting before deciding where to go next.",
+      "A neutral follow-up email does the awkward part. You only step in when something actually needs a conversation.",
     variant: "rosa",
   },
   {
-    title: "Long lead times",
+    title: "One less thing to remember",
     description:
-      "Artists with bigger projects or limited availability can keep future requests organized.",
+      "The reminders run nightly on their own. Your part is accepting the right requests and showing up to tattoo.",
     variant: "bone",
   },
 ];
 
-const WAITLIST_FAQ: Faq[] = [
+const REMINDERS_FAQ: Faq[] = [
   {
-    question: "Should tattoo artists have a waitlist?",
+    question: "Do appointment reminders stop no-shows?",
     answer:
-      "A waitlist can help when an artist gets more serious requests than they can book right now. It keeps future demand visible instead of letting good requests disappear in DMs.",
+      "They reduce the avoidable ones. Clients who genuinely forgot, mixed up dates, or needed a nudge to cancel early are exactly who reminders catch. No tool can guarantee every client shows up.",
   },
   {
-    question: "What is the difference between a waitlist and saved DMs?",
+    question: "When are the reminders sent?",
     answer:
-      "Saved DMs are still scattered chats. A useful tattoo waitlist keeps request details, contact information, timing, and status together so the artist can review them later.",
+      "You choose how many days before the appointment the reminder and the reconfirmation request go out. Inklee sends them automatically once a day.",
   },
   {
-    question: "How do guest spots affect waitlist needs?",
+    question: "Can I turn individual reminder types on or off?",
     answer:
-      "Guest spots create city-based demand. A waitlist can help artists see who is interested in a specific location after the current booking window is full.",
+      "Yes. Appointment reminders, reconfirmation requests, and deposit follow-ups each have their own switch, so you only send what fits your workflow.",
   },
   {
-    question: "How long should I keep someone on a tattoo waitlist?",
+    question: "Can clients confirm or cancel from the reminder?",
     answer:
-      "That depends on your workflow, booking windows, and client communication style. The important part is to set expectations clearly so clients know what waiting means.",
+      "The reconfirmation email contains a secure personal link. If the client's plans changed, they can cancel there, and you can offer the slot to someone on your waitlist.",
   },
   {
-    question: "Should I contact waitlist entries in order?",
+    question: "Are SMS text reminders supported?",
     answer:
-      "Not always. Some artists work by order, while others choose based on style fit, project size, location, or available dates. The process should match your booking policy.",
+      "No. Inklee reminders are email only today. Every reminder goes to the email address the client used on their booking request.",
   },
   {
-    question: "What happens when my books reopen?",
+    question: "Can I edit what the emails say?",
     answer:
-      "When books reopen, the artist can review waitlist entries, contact suitable clients, and move the right requests forward instead of starting from a messy inbox.",
+      "The booking-status emails (request received, accepted, passed, cancelled by you) are fully editable in your own words. The three reminder types are not free-text: you control whether they send and how many days ahead.",
   },
   {
-    question: "Can a waitlist help me decide where to travel next?",
+    question: "Do reminders work together with deposits?",
     answer:
-      "Yes. For guest spot artists, city-based waitlist demand can show where people are interested before planning another trip.",
+      "Yes. If a deposit is past due, the client gets a follow-up with the amount and your payment note, and you get a copy, so deposit chasing does not depend on you remembering.",
   },
   {
-    question: "Do I need a separate waitlist tool?",
+    question: "Do my clients need an Inklee account?",
     answer:
-      "A separate list can work at low volume, but it often becomes messy. Inklee keeps waitlist interest connected to tattoo requests, booking states, and guest spot context.",
+      "No. Clients only receive emails and use secure links. Accounts are for artists.",
   },
 ];
 
 const RELATED_LINKS: Related[] = [
   {
-    title: "Guest Spot Booking",
-    href: "/guest-spot-booking",
+    title: "Tattoo Booking Software",
+    href: "/tattoo-booking-software",
     description:
-      "See how Inklee helps traveling artists organize requests around cities, dates, and booking windows.",
+      "See the full booking flow: structured requests, artist review, deposits, waitlist, and guest spots in one system.",
   },
   {
     title: "Tattoo Deposit Tool",
     href: "/tattoo-deposit-tool",
     description:
-      "Learn how deposit status can stay connected to the booking flow instead of scattered across DMs.",
+      "Deposits as part of the booking flow, with paid, pending, and overdue status connected to each request.",
   },
   {
-    title: "Tattoo Appointment Reminders",
-    href: "/tattoo-appointment-reminders",
+    title: "Tattoo Artist Waitlist",
+    href: "/tattoo-artist-waitlist",
     description:
-      "Reconfirmation emails surface cancellations early, so waitlist entries can take the freed slot.",
+      "When a reconfirmation surfaces a cancellation early, a waitlist gives you someone to offer the slot to.",
   },
 ];
 
-export default function WaitlistPage() {
+export default function TattooAppointmentRemindersPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <JsonLd
@@ -216,28 +216,26 @@ export default function WaitlistPage() {
         })}
         id="ld-webpage"
       />
-      <JsonLd data={faqPageSchema(WAITLIST_FAQ)} id="ld-faq" />
+      <JsonLd data={faqPageSchema(REMINDERS_FAQ)} id="ld-faq" />
       <PillNav />
       <main className="flex-1">
-        {/* Hero (charcoal) */}
         <section className="overflow-hidden md:flex md:min-h-[calc(100svh-80px)] md:items-center">
           <div className="container-marketing-wide">
             <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
               <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-shell-fg-dim">
-                  Tattoo waitlist software for artists
+                  Tattoo appointment reminder software
                 </p>
                 <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
-                  <span className="block">Keep future tattoo</span>
+                  <span className="block">Appointment reminders,</span>
                   <span className="block text-brand-mustard">
-                    requests visible.
+                    tied to real bookings.
                   </span>
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
-                  When your books are closed or a guest spot fills up, serious
-                  requests should not disappear into DMs. Inklee&apos;s waitlist
-                  software keeps future demand organized as part of your booking
-                  flow.
+                  Automatic reminder emails, reconfirmation requests, and
+                  deposit follow-ups for the bookings you accepted. Fewer
+                  forgotten appointments, without another app to check.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
                   <TrackedCtaLink
@@ -248,12 +246,10 @@ export default function WaitlistPage() {
                     Create your booking link
                   </TrackedCtaLink>
                   <Link
-                    href="/bert-grimm"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href="/tattoo-booking-software"
                     className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
                   >
-                    See a live example →
+                    See the full booking flow →
                   </Link>
                 </div>
                 <div className="mt-6 flex items-center gap-3 md:mt-10">
@@ -274,10 +270,10 @@ export default function WaitlistPage() {
                 </div>
               </div>
               <div className="order-1 flex justify-center pt-5 md:order-2 md:pt-0">
-                <div className="animate-hero-float w-full max-w-2xs md:max-w-sm">
+                <div className="animate-hero-float w-full max-w-xs md:max-w-md">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/branding/illustrations/mixed/inklee-_artist-shows-inklee-app.svg"
+                    src="/branding/illustrations/feature-calendar.svg"
                     alt=""
                     aria-hidden="true"
                     className="h-auto w-full"
@@ -289,7 +285,6 @@ export default function WaitlistPage() {
           </div>
         </section>
 
-        {/* Definition (bone) */}
         <section
           data-appearance="light"
           className="bg-brand-bone text-brand-charcoal"
@@ -299,53 +294,52 @@ export default function WaitlistPage() {
               <div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/branding/illustrations/mixed/inklee-_artist-using-inklee.svg"
+                  src="/branding/illustrations/mixed/inklee-_Client-Question-Conversation.svg"
                   alt=""
                   aria-hidden="true"
-                  className="mx-auto h-auto w-full max-w-sm md:mx-0 md:max-w-md"
+                  className="mx-auto h-auto w-full max-w-lg md:mx-0"
                   draggable={false}
                 />
               </div>
               <div>
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                  What a tattoo waitlist actually does
+                  Reminders, connected to the booking
                 </p>
                 <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-                  A waitlist is more than
-                  <br />a list of names.
+                  A reminder is only useful
+                  <br />
+                  if it knows the booking.
                 </h2>
                 <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                  A tattoo waitlist is not just a list of people who sent DMs
-                  while your books were closed. It should keep useful request
-                  details visible so you can come back to serious clients when
-                  the timing makes sense.
+                  Generic reminder software does not know what you approved,
+                  what deposit is open, or which city the appointment is in.
+                  Inklee sends reminders from the booking itself, so the date,
+                  placement, deposit, and location context is already there.
                 </p>
                 <p className="mt-4 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                  For tattoo artists, a waitlist works best when it stays
-                  connected to the booking request: idea, placement, size,
-                  references, contact details, city, travel dates, and status.
+                  Built for custom tattoo work: request first, artist approval
+                  second, appointment and reminders after that.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Problem (charcoal, stacked cards) */}
         <section className="bg-shell-bg text-shell-fg">
           <div className="container-marketing py-24 md:py-32">
             <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
               <div>
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
-                  Where informal waitlists break
+                  Why manual reminding fails
                 </p>
                 <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
-                  Saved DMs feel fine
+                  You should not be
                   <br />
-                  until the next wave hits.
+                  your own reminder app.
                 </h2>
                 <p className="mt-6 max-w-md text-base leading-relaxed text-shell-fg-dim md:text-lg">
-                  Manual lists and screenshots work at low volume. Then future
-                  demand gets messy fast.
+                  Reminding clients by DM works until the week gets busy, and
+                  the busy weeks are exactly when no-shows hurt most.
                 </p>
               </div>
               <div className="space-y-4 md:space-y-5">
@@ -358,7 +352,7 @@ export default function WaitlistPage() {
                     "mustard",
                   ];
                   const v = variants[i % variants.length];
-                  const bg =
+                  const bgClass =
                     v === "mustard"
                       ? "bg-brand-mustard"
                       : v === "rosa"
@@ -367,7 +361,7 @@ export default function WaitlistPage() {
                   return (
                     <div
                       key={p.title}
-                      className={`flex flex-col gap-2 rounded-3xl p-6 md:p-7 ${bg}`}
+                      className={`flex flex-col gap-2 rounded-3xl p-6 md:p-7 ${bgClass}`}
                     >
                       <h3 className="text-lg font-black leading-tight text-brand-charcoal md:text-xl">
                         {p.title}
@@ -383,26 +377,25 @@ export default function WaitlistPage() {
           </div>
         </section>
 
-        {/* Solution (mustard) */}
         <section className="bg-brand-mustard">
           <div className="container-marketing py-20 md:py-28">
             <div className="mb-12 max-w-3xl md:mb-16">
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                How Inklee handles waitlists
+                How Inklee reminders work
               </p>
               <h2 className="text-4xl font-black leading-tight tracking-tight text-brand-charcoal md:text-5xl lg:text-6xl">
-                A waitlist built into
+                Accept the booking.
                 <br />
-                the booking flow.
+                The reminders take over.
               </h2>
               <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                Inklee keeps future demand connected to real request details, so
-                artists can reopen books, plan guest spots, and follow up with
-                more clarity.
+                Three reminder types run automatically for accepted bookings.
+                Each one can be switched on or off, and you decide how many days
+                ahead they go out.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {SOLUTION_POINTS.map((s, i) => (
+              {REMINDER_TYPES.map((s, i) => (
                 <div
                   key={s.title}
                   className="flex flex-col gap-3 rounded-3xl bg-brand-charcoal/8 p-5"
@@ -422,7 +415,6 @@ export default function WaitlistPage() {
           </div>
         </section>
 
-        {/* Fields (bone, colored cards) */}
         <section
           data-appearance="light"
           className="bg-brand-bone text-brand-charcoal"
@@ -430,18 +422,19 @@ export default function WaitlistPage() {
           <div className="container-marketing py-24 md:py-32">
             <div className="mb-12 max-w-3xl md:mb-16">
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                What the waitlist captures
+                Tattoo context included
               </p>
               <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-                Four details that make
-                <br />a waitlist actually useful.
+                What every reminder
+                <br />
+                already knows.
               </h2>
             </div>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4 md:gap-6">
-              {FIELDS_ITEMS.map((f, i) => {
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:gap-6">
+              {CONTEXT_ITEMS.map((item, i) => {
                 const variants = ["mustard", "bone-card", "rosa", "bone-card"];
                 const v = variants[i];
-                const bg =
+                const bgClass =
                   v === "mustard"
                     ? "bg-brand-mustard"
                     : v === "rosa"
@@ -449,17 +442,17 @@ export default function WaitlistPage() {
                       : "bg-[#d9d4c7]";
                 return (
                   <div
-                    key={f.title}
-                    className={`flex h-full flex-col gap-3 rounded-3xl p-6 ${bg}`}
+                    key={item.title}
+                    className={`flex h-full flex-col gap-3 rounded-3xl p-7 ${bgClass}`}
                   >
                     <span className="text-xs font-black uppercase tracking-[0.18em] text-brand-charcoal/70">
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <h3 className="text-lg font-black leading-tight text-brand-charcoal md:text-xl">
-                      {f.title}
+                    <h3 className="text-2xl font-black leading-tight text-brand-charcoal">
+                      {item.title}
                     </h3>
-                    <p className="text-sm leading-relaxed text-brand-charcoal/75">
-                      {f.description}
+                    <p className="text-base leading-relaxed text-brand-charcoal/75">
+                      {item.description}
                     </p>
                   </div>
                 );
@@ -468,37 +461,36 @@ export default function WaitlistPage() {
           </div>
         </section>
 
-        {/* Scenarios (charcoal) */}
         <section className="bg-shell-bg text-shell-fg">
           <div className="container-marketing py-24 md:py-32">
             <div className="mb-12 max-w-2xl md:mb-16">
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
-                When a waitlist helps
+                What changes
               </p>
               <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
-                Four moments when a real
+                Fewer no-shows.
                 <br />
-                waitlist pays off.
+                No promises, just fewer.
               </h2>
             </div>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:gap-6">
-              {SCENARIO_CARDS.map((a) => {
-                const bg =
-                  a.variant === "mustard"
+              {OUTCOME_ITEMS.map((item) => {
+                const bgClass =
+                  item.variant === "mustard"
                     ? "bg-brand-mustard"
-                    : a.variant === "rosa"
+                    : item.variant === "rosa"
                       ? "bg-brand-rosa"
                       : "bg-brand-bone";
                 return (
                   <div
-                    key={a.title}
-                    className={`flex h-full flex-col gap-3 rounded-3xl p-7 ${bg}`}
+                    key={item.title}
+                    className={`flex h-full flex-col gap-3 rounded-3xl p-7 ${bgClass}`}
                   >
                     <h3 className="text-2xl font-black leading-tight text-brand-charcoal">
-                      {a.title}
+                      {item.title}
                     </h3>
                     <p className="text-base leading-relaxed text-brand-charcoal/75">
-                      {a.description}
+                      {item.description}
                     </p>
                   </div>
                 );
@@ -507,7 +499,6 @@ export default function WaitlistPage() {
           </div>
         </section>
 
-        {/* FAQ (bone) */}
         <section
           data-appearance="light"
           className="bg-brand-bone text-brand-charcoal"
@@ -519,13 +510,13 @@ export default function WaitlistPage() {
                   FAQ
                 </p>
                 <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl">
-                  Tattoo waitlists, answered.
+                  Tattoo appointment reminders, answered.
                 </h2>
               </div>
               <div className="rounded-3xl border-[1.5px] border-brand-charcoal/15 bg-[#d9d4c7] px-6 md:px-10">
-                {WAITLIST_FAQ.map((item, idx) => {
+                {REMINDERS_FAQ.map((item, idx) => {
                   const number = String(idx + 1).padStart(2, "0");
-                  const isLast = idx === WAITLIST_FAQ.length - 1;
+                  const isLast = idx === REMINDERS_FAQ.length - 1;
                   return (
                     <details
                       key={item.question}
@@ -558,15 +549,19 @@ export default function WaitlistPage() {
           </div>
         </section>
 
-        {/* Related (charcoal) */}
-        <section className="bg-shell-bg text-shell-fg">
+        <section
+          data-appearance="light"
+          className="bg-brand-bone text-brand-charcoal"
+        >
           <div className="container-marketing py-20 md:py-28">
             <div className="mb-12 max-w-2xl">
-              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
                 More to read
               </p>
-              <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl">
-                Keep going.
+              <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl">
+                Build the rest of
+                <br />
+                your booking flow.
               </h2>
             </div>
             <div className="grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-6">
@@ -574,17 +569,17 @@ export default function WaitlistPage() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="group flex h-full flex-col justify-between gap-6 rounded-3xl border-[1.5px] border-shell-border p-6 transition-colors hover:border-shell-fg hover:bg-[#252525]"
+                  className="group flex h-full flex-col justify-between gap-6 rounded-3xl border-[1.5px] border-brand-charcoal/15 p-6 transition-colors hover:border-brand-charcoal/40 hover:bg-[#d9d4c7]"
                 >
                   <div className="space-y-3">
-                    <h3 className="text-xl font-black leading-tight text-shell-fg">
+                    <h3 className="text-xl font-black leading-tight text-brand-charcoal">
                       {link.title}
                     </h3>
-                    <p className="text-sm leading-relaxed text-shell-fg-dim">
+                    <p className="text-sm leading-relaxed text-brand-charcoal/75">
                       {link.description}
                     </p>
                   </div>
-                  <span className="text-sm font-bold text-shell-fg-dim transition-colors group-hover:text-shell-fg">
+                  <span className="text-sm font-bold text-brand-charcoal/70 transition-colors group-hover:text-brand-charcoal">
                     Read more →
                   </span>
                 </Link>
@@ -593,7 +588,6 @@ export default function WaitlistPage() {
           </div>
         </section>
 
-        {/* Final CTA (rosa) */}
         <section className="bg-brand-rosa">
           <div className="container-marketing py-20 md:py-28">
             <div className="mx-auto max-w-3xl text-center">
@@ -606,13 +600,13 @@ export default function WaitlistPage() {
                 draggable={false}
               />
               <h2 className="text-4xl font-black leading-tight tracking-tight text-brand-charcoal md:text-6xl lg:text-7xl">
-                Stop losing future
+                Stop being your own
                 <br />
-                bookings in DMs.
+                reminder system.
               </h2>
               <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                Collect structured requests, keep future demand visible, and
-                move the right waitlist entries forward when books reopen.
+                Accept the right requests. Let the reminders handle the
+                follow-up.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <TrackedCtaLink

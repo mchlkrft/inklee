@@ -63,6 +63,11 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
     changeFrequency: "monthly",
     priority: 0.85,
   },
+  {
+    path: "/tattoo-appointment-reminders",
+    changeFrequency: "monthly",
+    priority: 0.85,
+  },
   { path: "/download", changeFrequency: "monthly", priority: 0.85 },
   { path: "/dm-chaos", changeFrequency: "monthly", priority: 0.8 },
   { path: "/about", changeFrequency: "monthly", priority: 0.6 },

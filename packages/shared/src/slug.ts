@@ -91,6 +91,9 @@ export const RESERVED_SLUGS = new Set([
   "tattoo-booking-software-vs-calendly",
   "tattoo-booking-software-vs-google-forms",
   "tattoo-booking-software-vs-instagram-dms",
+  "tattoo-appointment-reminders",
+  "tattoo-client-management",
+  "guides",
   "resources",
 
   // Framework sentinel / public root files

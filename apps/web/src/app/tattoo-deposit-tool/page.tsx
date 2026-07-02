@@ -196,10 +196,10 @@ const RELATED_LINKS: Related[] = [
       "See how Inklee helps tattoo artists manage requests, approvals, deposits, waitlists, and guest spots.",
   },
   {
-    title: "Tattoo Booking Form",
-    href: "/tattoo-booking-form",
+    title: "Tattoo Appointment Reminders",
+    href: "/tattoo-appointment-reminders",
     description:
-      "Learn what details a tattoo request form should collect before an artist says yes.",
+      "Overdue deposits get a clear follow-up email automatically, with the amount and your payment note.",
   },
   {
     title: "Tattoo Deposit Policy Template",

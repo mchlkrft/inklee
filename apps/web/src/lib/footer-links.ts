@@ -59,6 +59,11 @@ export const FOOTER_GROUPS: FooterGroup[] = [
         active: true,
       },
       {
+        label: "Appointment reminders",
+        href: "/tattoo-appointment-reminders",
+        active: true,
+      },
+      {
         label: "Mobile app",
         href: "/download",
         active: true,

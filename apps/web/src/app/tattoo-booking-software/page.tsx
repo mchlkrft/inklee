@@ -261,6 +261,12 @@ const RELATED_LINKS: Related[] = [
     description:
       "Organize city demand, travel dates, and guest spot requests without DM chaos.",
   },
+  {
+    title: "Tattoo appointment reminders",
+    href: "/tattoo-appointment-reminders",
+    description:
+      "Automatic reminder emails, reconfirmations, and deposit follow-ups for accepted bookings.",
+  },
 ];
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
