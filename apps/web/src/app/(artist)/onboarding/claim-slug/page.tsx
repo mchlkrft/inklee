@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { checkSlugAvailability, claimSlugAction } from "./actions";
+import AttributionFields from "@/components/attribution-fields";
 import OnboardingProgress from "@/components/onboarding-progress";
 
 type State = { error: string } | null;
@@ -90,6 +91,9 @@ export default function ClaimSlugPage() {
       <OnboardingProgress current={1} />
 
       <form action={action} className="space-y-5">
+        {/* First-touch marketing attribution for the booking_link_created
+            conversion event (paths/campaign labels only, no personal data). */}
+        <AttributionFields />
         {state?.error && (
           <p className="text-sm text-destructive">{state.error}</p>
         )}

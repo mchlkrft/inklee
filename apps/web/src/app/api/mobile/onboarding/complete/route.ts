@@ -4,6 +4,9 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { isClaimedProfile } from "@/lib/mobile-onboarding";
+import { isAdminEmail } from "@/lib/admin-guard";
+import { evaluateSignupCompletion } from "@/lib/analytics-gates";
+import { trackServerEvent } from "@/lib/track-server";
 import { writeAudit } from "@/lib/audit";
 import type { MobileOnboardingComplete } from "@inklee/shared/mobile-api";
 
@@ -22,7 +25,7 @@ export async function POST(req: Request) {
 
   const { data: profile, error: readError } = await supabase
     .from("profiles")
-    .select("slug, settings")
+    .select("slug, settings, is_tester")
     .eq("id", userId)
     .maybeSingle();
   if (readError) return mobileError(500, readError.message);
@@ -30,12 +33,24 @@ export async function POST(req: Request) {
     return mobileError(409, "Claim your link first.", "no_profile");
   }
 
-  const current = (profile.settings ?? {}) as Record<string, unknown>;
-  if (current.onboarding_completed !== true) {
+  // signup_completed conversion gate (shared with the web done page): fires
+  // once per account on the genuine completion transition; internal traffic
+  // (admins, is_tester) persists the flag but never sends the event.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isInternalUser =
+    isAdminEmail(user?.email) ||
+    (profile as { is_tester?: boolean | null }).is_tester === true;
+  const gate = evaluateSignupCompletion(
+    profile.settings as Record<string, unknown> | null,
+    isInternalUser,
+  );
+  if (gate.completesNow) {
     const { error } = await supabase
       .from("profiles")
       .update({
-        settings: { ...current, onboarding_completed: true },
+        settings: gate.nextSettings,
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId);
@@ -47,6 +62,14 @@ export async function POST(req: Request) {
       category: "settings",
       details: {},
     });
+
+    if (gate.fire) {
+      trackServerEvent("signup_completed", {
+        path: "/onboarding/done",
+        props: { platform: "mobile_app" },
+        headers: req.headers,
+      });
+    }
   }
 
   const body: MobileOnboardingComplete = { onboardingCompleted: true };

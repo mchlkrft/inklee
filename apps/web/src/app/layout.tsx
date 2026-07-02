@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
+import AnalyticsBootstrap from "@/components/analytics-bootstrap";
 import CookieBanner from "@/components/cookie-banner";
 import JsonLd from "@/components/seo/json-ld";
 import { organizationSchema, websiteSchema } from "@/lib/jsonld";
@@ -81,6 +82,7 @@ export default function RootLayout({
           {`(function(){function s(){document.documentElement.dataset.scrolled=window.scrollY>60?"1":"0"}s();window.addEventListener("scroll",s,{passive:true})})();`}
         </Script>
         {children}
+        <AnalyticsBootstrap />
         <CookieBanner />
         <Script
           defer

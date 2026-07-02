@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import TrackedCtaLink from "@/components/tracked-cta-link";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
@@ -238,12 +239,13 @@ export default function WaitlistPage() {
                   demand organized as part of your booking flow.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
-                  <Link
+                  <TrackedCtaLink
+                    cta="hero-signup"
                     href="/signup"
                     className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
                   >
                     Create your booking link
-                  </Link>
+                  </TrackedCtaLink>
                   <Link
                     href="/bert-grimm"
                     target="_blank"
@@ -612,12 +614,13 @@ export default function WaitlistPage() {
                 move the right waitlist entries forward when books reopen.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link
+                <TrackedCtaLink
+                  cta="final-signup"
                   href="/signup"
                   className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
                 >
                   Create your booking link
-                </Link>
+                </TrackedCtaLink>
               </div>
             </div>
           </div>

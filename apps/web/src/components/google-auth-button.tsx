@@ -5,13 +5,18 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function GoogleAuthButton({
   label = "Continue with Google",
+  onEngage,
 }: {
   label?: string;
+  /** Called when the user starts the Google flow (analytics hook; signup page
+   *  uses it for signup_started). */
+  onEngage?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGoogleSignIn() {
+    onEngage?.();
     setLoading(true);
     setError(null);
 

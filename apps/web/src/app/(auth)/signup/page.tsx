@@ -6,6 +6,7 @@ import { Mail } from "lucide-react";
 import { signUpAction } from "./actions";
 import GoogleAuthButton from "@/components/google-auth-button";
 import PasswordInput from "@/components/password-input";
+import { trackEvent } from "@/lib/track";
 
 type State = { error: string } | { sent: true } | null;
 
@@ -71,7 +72,11 @@ export default function SignupPage() {
         </p>
       </div>
 
-      <form action={action} className="space-y-4">
+      <form
+        action={action}
+        onSubmit={() => trackEvent("signup_started", { method: "email" })}
+        className="space-y-4"
+      >
         {state && "error" in state && (
           <p className="text-sm text-destructive">{state.error}</p>
         )}
@@ -146,7 +151,10 @@ export default function SignupPage() {
         </div>
       </div>
 
-      <GoogleAuthButton label="Sign up with Google" />
+      <GoogleAuthButton
+        label="Sign up with Google"
+        onEngage={() => trackEvent("signup_started", { method: "google" })}
+      />
     </div>
   );
 }

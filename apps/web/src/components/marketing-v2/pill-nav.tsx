@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TrackedCtaLink from "@/components/tracked-cta-link";
 
 /** Floating two-pill nav shared across all redesigned marketing pages.
  *
@@ -67,13 +68,14 @@ export default function PillNav() {
               scale the button down when html[data-scrolled="0"] on
               mobile. Without the attribute the button stays at its
               default size on every breakpoint. */}
-          <Link
+          <TrackedCtaLink
+            cta="nav-get-started"
             href="/signup"
             data-fab-cta=""
             className="rounded-full bg-brand-mustard px-5 py-3 text-base font-bold text-brand-charcoal shadow-shell transition-transform duration-300 ease-out hover:opacity-90 sm:px-5 sm:py-1.5 sm:text-sm sm:shadow-none"
           >
             Get started
-          </Link>
+          </TrackedCtaLink>
         </nav>
       </div>
     </header>

@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/admin-guard";
+import { evaluateSignupCompletion } from "@/lib/analytics-gates";
 import LogoUpload from "./logo-upload";
+import SignupCompletedTracker from "./signup-completed-tracker";
 import { publicArtistUrl } from "@/lib/public-url";
 
 const OPTIONAL_FEATURES = [
@@ -43,18 +46,24 @@ export default async function OnboardingDonePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("slug, display_name, booking_mode, settings, logo_url")
+    .select("slug, display_name, booking_mode, settings, logo_url, is_tester")
     .eq("id", user!.id)
     .single();
 
   if (!profile?.slug) redirect("/onboarding/claim-slug");
 
-  const currentSettings = (profile.settings ?? {}) as Record<string, unknown>;
-  if (!currentSettings.onboarding_completed) {
+  // signup_completed conversion gate: fires exactly once per account, on the
+  // genuine completion transition, never for internal traffic (admins,
+  // is_tester accounts). The permanent signup_event_fired flag survives the
+  // admin onboarding reset, so re-completing onboarding cannot re-fire.
+  const isInternalUser =
+    isAdminEmail(user?.email) || profile.is_tester === true;
+  const signupGate = evaluateSignupCompletion(profile.settings, isInternalUser);
+  if (signupGate.completesNow) {
     await supabase
       .from("profiles")
       .update({
-        settings: { ...currentSettings, onboarding_completed: true },
+        settings: signupGate.nextSettings,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user!.id);
@@ -103,6 +112,7 @@ export default async function OnboardingDonePage() {
 
   return (
     <div className="space-y-8">
+      {signupGate.fire && <SignupCompletedTracker />}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-5 w-5 text-brand-green" />

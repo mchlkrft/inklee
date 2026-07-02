@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import TrackedCtaLink from "@/components/tracked-cta-link";
 import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
@@ -253,12 +254,13 @@ export default function BestBookingAppPage() {
                   tattoo intake through the wrong tool.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
-                  <Link
+                  <TrackedCtaLink
+                    cta="hero-signup"
                     href="/signup"
                     className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
                   >
                     Create your booking link
-                  </Link>
+                  </TrackedCtaLink>
                   <Link
                     href="/tattoo-booking-software"
                     className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
@@ -528,12 +530,13 @@ export default function BestBookingAppPage() {
                 need to review the idea before approving a booking.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link
+                <TrackedCtaLink
+                  cta="final-signup"
                   href="/signup"
                   className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
                 >
                   Create your booking link
-                </Link>
+                </TrackedCtaLink>
               </div>
             </div>
           </div>

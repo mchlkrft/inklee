@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TrackedCtaLink from "@/components/tracked-cta-link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SiteLogo from "@/components/site-logo";
@@ -122,12 +123,13 @@ function HeroSection() {
               manage approvals, and keep bookings organized in one booking link.
             </p>
             <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
-              <Link
+              <TrackedCtaLink
+                cta="hero-signup"
                 href="/signup"
                 className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
               >
                 Get started free
-              </Link>
+              </TrackedCtaLink>
               <Link
                 href="/bert-grimm"
                 target="_blank"
@@ -513,12 +515,13 @@ function AboutSection() {
               from spot to spot.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
+              <TrackedCtaLink
+                cta="mid-signup"
                 href="/signup"
                 className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
               >
                 Get started free
-              </Link>
+              </TrackedCtaLink>
               <Link
                 href="/about"
                 className="inline-flex items-center rounded-full border-[1.5px] border-brand-charcoal px-6 py-3 text-base font-bold text-brand-charcoal transition-colors hover:bg-brand-charcoal/8"
@@ -561,12 +564,13 @@ function FinalCtaSection() {
             No payment required. Free to get started.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link
+            <TrackedCtaLink
+              cta="final-signup"
               href="/signup"
               className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
             >
               Create your booking page
-            </Link>
+            </TrackedCtaLink>
           </div>
         </div>
       </div>

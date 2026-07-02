@@ -7,6 +7,13 @@ import {
   resolveSlugAvailabilityServer,
   isSlugTakenByOther,
 } from "@/lib/server/slug-availability";
+import { isAdminEmail } from "@/lib/admin-guard";
+import {
+  attributionPropsFromForm,
+  shouldFireBookingLinkCreated,
+} from "@/lib/analytics-gates";
+import { trackServerEvent } from "@/lib/track-server";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 type State = { error: string } | null;
@@ -59,7 +66,7 @@ export async function claimSlugAction(
 
   const { data: currentProfile } = await supabase
     .from("profiles")
-    .select("timezone")
+    .select("timezone, slug, is_tester")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -85,6 +92,19 @@ export async function claimSlugAction(
       return { error: "That slug is already taken." };
     }
     return { error: error.message.toLowerCase() };
+  }
+
+  // booking_link_created: only on the first null -> slug transition (the
+  // upsert also runs for own-slug re-claims); internal traffic excluded.
+  // Attribution props arrive as hidden form fields (validated + clamped).
+  const isInternalUser =
+    isAdminEmail(user.email) || currentProfile?.is_tester === true;
+  if (shouldFireBookingLinkCreated(currentProfile?.slug, isInternalUser)) {
+    trackServerEvent("booking_link_created", {
+      path: "/onboarding/claim-slug",
+      props: { ...attributionPropsFromForm(formData), platform: "web" },
+      headers: await headers(),
+    });
   }
 
   redirect("/onboarding/booking");

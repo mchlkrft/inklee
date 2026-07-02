@@ -5,6 +5,9 @@ import {
 } from "@/lib/server/mobile-auth";
 import { serviceClient } from "@/lib/supabase/service";
 import { normalizeProfileInput } from "@/lib/mobile-onboarding";
+import { isAdminEmail } from "@/lib/admin-guard";
+import { shouldFireBookingLinkCreated } from "@/lib/analytics-gates";
+import { trackServerEvent } from "@/lib/track-server";
 import { writeAudit } from "@/lib/audit";
 import type { MobileOnboardingProfile } from "@inklee/shared/mobile-api";
 
@@ -49,6 +52,14 @@ export async function POST(req: Request) {
   if (lookupError) return mobileError(500, lookupError.message);
   if (taken) return mobileError(409, "That link was just taken.", "slug_taken");
 
+  // Prior state, read before the upsert so booking_link_created can fire only
+  // on the first null -> slug transition (the upsert also runs on re-claims).
+  const { data: prevProfile } = await supabase
+    .from("profiles")
+    .select("slug, is_tester")
+    .eq("id", userId)
+    .maybeSingle();
+
   const { error } = await supabase.from("profiles").upsert({
     id: userId,
     slug,
@@ -72,6 +83,26 @@ export async function POST(req: Request) {
     category: "settings",
     details: { slug },
   });
+
+  // booking_link_created conversion event (internal traffic excluded).
+  if (
+    shouldFireBookingLinkCreated(
+      prevProfile?.slug,
+      (prevProfile as { is_tester?: boolean | null } | null)?.is_tester ===
+        true,
+    )
+  ) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!isAdminEmail(user?.email)) {
+      trackServerEvent("booking_link_created", {
+        path: "/onboarding/claim-slug",
+        props: { platform: "mobile_app" },
+        headers: req.headers,
+      });
+    }
+  }
 
   const body: MobileOnboardingProfile = { slug, displayName };
   return mobileOk(body);

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import TrackedCtaLink from "@/components/tracked-cta-link";
 import SiteLogo from "@/components/site-logo";
 import { getRenderableFooterGroups } from "@/lib/footer-links";
 import { PillNav } from "@/components/marketing-v2";
@@ -81,12 +82,13 @@ function HeroSection() {
               reviewing real bookings.
             </p>
             <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
-              <Link
+              <TrackedCtaLink
+                cta="hero-signup"
                 href="/signup"
                 className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
               >
                 Get started free
-              </Link>
+              </TrackedCtaLink>
               <Link
                 href="/bert-grimm"
                 target="_blank"
@@ -293,12 +295,13 @@ function SolutionSection() {
         </div>
 
         <div className="mt-10">
-          <Link
+          <TrackedCtaLink
+            cta="mid-signup"
             href="/signup"
             className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
           >
             Create your booking link
-          </Link>
+          </TrackedCtaLink>
         </div>
       </div>
     </section>
@@ -565,12 +568,13 @@ function ArtistNativeSection() {
               compare.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
+              <TrackedCtaLink
+                cta="mid-signup-2"
                 href="/signup"
                 className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
               >
                 Create your booking link
-              </Link>
+              </TrackedCtaLink>
             </div>
           </div>
         </div>
@@ -610,12 +614,13 @@ function FinalCtaSection() {
             .
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link
+            <TrackedCtaLink
+              cta="final-signup"
               href="/signup"
               className="inline-flex items-center rounded-full bg-brand-charcoal px-6 py-3 text-base font-bold text-brand-bone transition-opacity hover:opacity-90"
             >
               Create your booking link
-            </Link>
+            </TrackedCtaLink>
           </div>
           <p className="mt-4 text-xs text-brand-charcoal/70">
             Free to get started. No payment required.
