@@ -111,6 +111,11 @@ export const FOOTER_GROUPS: FooterGroup[] = [
         active: true,
       },
       {
+        label: "How to reduce tattoo no-shows",
+        href: "/guides/how-to-reduce-tattoo-no-shows",
+        active: true,
+      },
+      {
         label: "Tattoo booking form checklist",
         href: "/resources/tattoo-booking-form-checklist",
         active: false,

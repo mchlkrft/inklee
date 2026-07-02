@@ -209,6 +209,12 @@ const RELATED_LINKS: Related[] = [
     description:
       "Reminders already know the client. See the record they belong to: contact info, history, and notes.",
   },
+  {
+    title: "Guide: how to reduce tattoo no-shows",
+    href: "/guides/how-to-reduce-tattoo-no-shows",
+    description:
+      "The full no-show system: deposits, policy, reminders, an easy cancel path, and a refill plan.",
+  },
 ];
 
 export default function TattooAppointmentRemindersPage() {
