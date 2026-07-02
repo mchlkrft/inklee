@@ -8,6 +8,7 @@
 - Metadata and ownership change date: 2026-07-02
 - Data source: Google Search Console, Domain property `inklee.app` (numbers pending founder export; see "Founder export instructions")
 - Prepared by: Claude Code (framework + URL inventory); founder (GSC exports)
+- Status 2026-07-03: founder completed the GSC-side actions (sitemap re-submitted with the 22-URL version, reindexing requested for the repositioned pages) and the Bing Webmaster setup (GSC import, sitemap, URL submission). The numeric tables below still carry "requires export" markers until the exported numbers are pasted here or a Sheet link is added under Data source.
 
 ## Important interpretation note
 
