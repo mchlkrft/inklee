@@ -11,7 +11,7 @@ import {
 const PAGE_PATH = "/tattoo-booking-software-vs-google-forms";
 const PAGE_TITLE = "Tattoo Booking Software vs Google Forms | Inklee";
 const PAGE_DESCRIPTION =
-  "Google Forms can collect tattoo requests, but Inklee adds approval flow, booking states, deposits, waitlists, and guest spot structure.";
+  "A Google Forms alternative for tattoo bookings. Inklee adds approval flow, booking states, deposits, waitlists, and guest spot structure.";
 const OG_TITLE = "Tattoo Booking Software vs Google Forms";
 const OG_DESCRIPTION =
   "See when Google Forms is enough and when tattoo artists need a structured booking request flow built for real tattoo work.";
@@ -73,6 +73,11 @@ const FAQ = [
     question: "Is Inklee only for established tattoo artists?",
     answer:
       "No. Inklee is useful for solo artists, freelance artists, traveling guest spot artists, and growing artists who want more structure before their booking process becomes messy.",
+  },
+  {
+    question: "Is Inklee a good Google Forms alternative for tattoo artists?",
+    answer:
+      "Yes. Inklee is a Google Forms alternative built for tattoo bookings. Instead of collecting answers into a spreadsheet, it keeps the request, artist approval, deposit status, waitlist, and guest spot context together in one booking flow.",
   },
 ];
 

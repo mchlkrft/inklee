@@ -240,10 +240,10 @@ const RELATED_LINKS: Related[] = [
       "Move serious booking requests from Instagram into a cleaner tattoo request flow.",
   },
   {
-    title: "Guest spots feature page",
-    href: "/guest-spots",
+    title: "Tattoo artist waitlist",
+    href: "/tattoo-artist-waitlist",
     description:
-      "See the existing guest spots page and how Inklee frames travel-based booking.",
+      "Turn guest spot city demand into a structured waitlist while your books are closed.",
   },
 ];
 
@@ -287,10 +287,10 @@ export default function GuestSpotBookingPage() {
                     Create your booking link
                   </Link>
                   <Link
-                    href="/guest-spots"
+                    href="/tattoo-booking-software"
                     className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
                   >
-                    See the guest spots feature →
+                    See the booking tool →
                   </Link>
                 </div>
                 <div className="mt-6 flex items-center gap-3 md:mt-10">
