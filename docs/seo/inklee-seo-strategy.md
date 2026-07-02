@@ -164,13 +164,13 @@ One search intent has one owner URL. Supporting keywords are on-page copy/headin
 - tattoo inquiry form
 - tattoo reference upload form
 
-**Separate supporting resource:** `/tattoo-booking-form-template` — **Status: To build.** The template page must provide an actual useful template or checklist and must not duplicate the commercial page.
+**Separate supporting resource:** `/tattoo-booking-form-template` — **Status: To build (validate).** The template page must provide an actual useful template or checklist and must not duplicate the commercial page.
 
 ### Booking management
 
 **URL (recommended):** `/tattoo-booking-management`
 
-**Status:** To build
+**Status:** To build (validate)
 
 **Primary keyword:** `tattoo booking management`
 
@@ -263,7 +263,7 @@ Keep the current URL unless a migration has a strong technical and SEO justifica
 
 **URL (recommended):** `/tattoo-appointment-calendar`
 
-**Status:** To build
+**Status:** To build (validate)
 
 **Primary keyword:** `tattoo appointment calendar`
 
@@ -503,52 +503,572 @@ This is the single owner for broad plural comparison intent.
 
 ## Execution priority
 
-Priorities are documented here for sequencing. Implementation of each item is a separate, gated slice owned by Claude Code (see `docs/seo/README.md`). This document does not itself change any page.
+Inklee follows a hybrid SEO model:
 
-### P0
+1. Preserve and strengthen the existing product-led commercial spine.
+2. Do not expand the spine with near-duplicate feature, synonym, or wording-variation pages.
+3. Build topical authority through validated problem-led guides using language tattoo artists naturally use.
+4. Link each guide to the commercial page that owns the corresponding product intent.
+5. Treat account creation as the primary conversion.
 
-- Redirect `/guest-spots` to `/guest-spot-booking`. **(Done, deployed 2026-07-02.)**
-- Separate homepage, About page, and category-pillar metadata ownership. **(Done, 2026-07-02:** home owns brand + "tattoo booking tool", pillar owns "tattoo booking software", About moved to brand/trust "Built by a tattoo artist for tattoo artists".**)**
-- Keep `/tattoo-booking-software` as the main category pillar. **(Kept, unchanged.)**
-- Reposition the deposit page around `tattoo deposit software`. **(Done, 2026-07-02, metadata.)**
-- Reposition the waitlist page around `tattoo waitlist software`. **(Done, 2026-07-02, metadata.)**
-- Strengthen the guest-spot page around `tattoo guest spot organizer`. **(Done, 2026-07-02, metadata.)**
-- Keep the DM page problem-led. **(Kept, unchanged.)**
+Each implementation remains a separate operational slice owned by Claude Code, even when several slices are completed during one development session.
 
-_Note: the P0 repositioning above changed page metadata (title, description, OG/Twitter). Deeper on-page alignment (H1 and body copy leading with the same primary keyword) is a follow-up on-page slice, not yet done._
+### P0: measurement and existing-page completion
 
-### P1
+Complete measurement and existing-page alignment before expanding the indexable page inventory.
 
-- Build `/tattoo-booking-management`.
-- Build `/tattoo-client-management`.
-- Build `/tattoo-appointment-calendar`.
-- Build `/tattoo-appointment-reminders`.
-- Build `/tattoo-artist-booking-page`.
-- Build `/tattoo-booking-form-template`.
+#### Google Search Console baseline
 
-None of these pages exist yet, so none are implemented as part of this setup task.
+Record the current Google Search Console baseline for every indexable marketing page.
 
-### P2
+Capture:
 
-- Validate books-open terminology.
-- Build books-open management after validation.
-- Build flash-booking coverage.
-- Build the artist-shop page only when product support and intent are clear.
-- Publish high-value operational guides.
-- Validate one high-intent competitor comparison.
+- query
+- landing page
+- country
+- device
+- clicks
+- impressions
+- CTR
+- average position
+- branded versus non-branded classification
+- competing Inklee URLs appearing for the same query
 
-### P3
+The baseline must note that the deposit, waitlist, guest-spot, homepage, About, and category-pillar ownership changes were implemented on 2026-07-02.
 
-- Broader informational authority content.
-- Regional localization.
-- Studio software after product readiness.
-- Additional competitor comparisons after validation.
+Historical data from before 2026-07-02 may still be used, but the current baseline is the post-repositioning reference point.
+
+Store the baseline and review notes in:
+
+`docs/seo/gsc-baseline.md`
+
+Do not paste raw exports into the canonical strategy.
+
+#### Conversion measurement
+
+Implement reliable measurement for:
+
+- `marketing_cta_click`
+- `signup_started`
+- `signup_completed`
+- `booking_link_created`
+
+Where technically appropriate, record:
+
+- entry landing page
+- current page
+- referrer
+- source
+- medium
+- campaign
+- device
+- internal-user status
+
+`signup_completed` must:
+
+- fire only when onboarding is genuinely complete
+- fire only once per account
+- preserve the original marketing entry page where possible
+- exclude internal and administrative traffic
+
+Plausible remains the analytics platform.
+
+Do not introduce Meta Pixel as part of this work.
+
+#### Existing-page alignment
+
+Strengthen the following pages without turning them into exact-match keyword pages:
+
+- `/tattoo-deposit-tool`
+- `/tattoo-artist-waitlist`
+- `/guest-spot-booking`
+- `/`
+- `/tattoo-booking-software`
+
+Review:
+
+- eyebrow
+- H1
+- opening paragraph
+- section headings
+- FAQ wording
+- internal anchor text
+- related-page cards
+- CTA context
+
+Canonical keyword ownership remains:
+
+| URL | Primary ownership |
+| --- | --- |
+| `/` | Inklee brand, target audience, connected value proposition, and conversion |
+| `/tattoo-booking-software` | tattoo booking software, app, and system category |
+| `/tattoo-deposit-tool` | tattoo deposit software |
+| `/tattoo-artist-waitlist` | tattoo waitlist software |
+| `/guest-spot-booking` | tattoo guest spot organizer and guest spot booking |
+
+The visible copy should support the assigned intent naturally.
+
+Exact keyword repetition is not required.
+
+#### Homepage positioning
+
+Keep DM chaos as an acquisition hook, but do not present it as Inklee's unique advantage.
+
+The homepage must clearly communicate:
+
+> Clients submit complete tattoo requests. The artist decides what gets booked.
+
+Supporting copy should show that Inklee connects:
+
+- booking form
+- request review
+- Accept or Pass
+- deposits
+- client information and history
+- calendar
+- reminders
+- waitlist
+- books-open periods
+- guest spots
+- flash
+- public artist page
+
+The homepage remains a brand and conversion page.
+
+`/tattoo-booking-software` remains the comprehensive category page.
+
+#### Category-pillar strengthening
+
+Review `/tattoo-booking-software` against the current competitive reality.
+
+The page must explain that Inklee is:
+
+- request first
+- artist controlled
+- designed for custom tattoo work
+- connected across requests, deposits, clients, reminders, travel, and availability
+- not a generic salon scheduler
+- not unrestricted client self-booking
+- not a heavy studio-management suite
+
+Do not create separate pages for:
+
+- tattoo booking app
+- tattoo booking system
+- booking app for tattoo artists
+- booking software for tattoo artists
+- tattoo artist booking app
+
+These remain supporting variants owned by the category pillar.
+
+#### Technical and documentation cleanup
+
+- Update `docs/roadmap.md` so SEO strategy references point to `docs/seo/inklee-seo-strategy.md`.
+- Preserve `docs/seo-strategy.md` as the analytical companion.
+- Stop assigning the current timestamp as `lastModified` to every marketing URL on every sitemap generation.
+- Use reliable route-specific modification dates or omit `lastModified`.
+- Confirm the sitemap, canonicals, robots directives, schema, and internal links remain consistent.
+- Record completed work in `docs/seo/seo-implementation-log.md`.
+
+#### P0 completion gate
+
+P0 is complete when:
+
+- account creation can be attributed to a marketing entry page
+- a dated Google Search Console baseline document exists
+- internal traffic is excluded from conversion reporting
+- existing repositioned pages have aligned visible copy
+- the homepage explains the connected artist-controlled workflow
+- the category pillar clearly protects the request-first distinction
+- the sitemap does not falsely report every route as newly modified
+- all strategic references point to the canonical SEO file
+
+### P1: validated feature gaps
+
+Build only the two currently validated commercial feature pages.
+
+#### Tattoo appointment reminders
+
+URL:
+
+`/tattoo-appointment-reminders`
+
+Primary keyword:
+
+`tattoo appointment reminder software`
+
+Supporting keywords:
+
+- tattoo appointment reminders
+- automatic reminders for tattoo appointments
+- tattoo booking reminder emails
+- tattoo appointment confirmation
+- tattoo client reminders
+- reduce tattoo no-shows
+
+Required content scope:
+
+- configurable reminder emails
+- appointment confirmation
+- appointment preparation communication
+- reconfirmation where supported
+- connection to the approved booking
+- deposit and appointment context
+- reducing no-shows without making guarantees
+- editable artist communication
+
+Do not target SMS-specific keywords unless SMS is supported.
+
+Do not imply that reminders eliminate all no-shows.
+
+#### Tattoo client management
+
+URL:
+
+`/tattoo-client-management`
+
+Primary keyword:
+
+`tattoo client management software`
+
+Supporting keywords:
+
+- tattoo client database
+- tattoo client information
+- tattoo client notes
+- tattoo client history
+- tattoo appointment history
+- CRM for tattoo artists
+- tattoo CRM
+
+Required content scope:
+
+- automatically created client records
+- contact information
+- tattoo request and booking history
+- private notes
+- deposit and appointment context
+- returning-client visibility
+- search by handle or email
+
+Lead with native tattoo-artist language.
+
+Use `CRM` only as a secondary term.
+
+Do not imply:
+
+- enterprise CRM
+- marketing automation
+- POS
+- inventory
+- staff management
+- studio multi-tenancy
+- unrestricted client access
+
+#### P1 completion gate
+
+Each page must have:
+
+- one distinct primary intent
+- unique title
+- unique meta description
+- one clear H1
+- self-referencing canonical
+- sitemap inclusion
+- appropriate WebPage schema
+- FAQ schema only where the FAQ is visible and useful
+- contextual links from at least two relevant existing pages
+- links back into the commercial spine
+- a clear account-creation CTA
+- copy grounded in shipped functionality
+- no unsupported competitor or product claims
+
+### P2: problem-led authority validation
+
+Problem-led guides are the primary new authority-building track.
+
+Candidate topics:
+
+1. `how to manage tattoo bookings`
+2. `how to organize tattoo requests`
+3. `how to stop booking through Instagram DMs`
+4. `how to create a tattoo booking process`
+5. `how to take tattoo deposits online`
+6. `how to reduce tattoo no-shows`
+
+Do not publish all six.
+
+Validate all six and select the strongest two first.
+
+#### Guide validation criteria
+
+Score each candidate from 1 to 5 for:
+
+- search intent clarity
+- relevance to shipped Inklee functionality
+- ranking feasibility
+- weakness of existing SERP results
+- use of native tattoo-artist language
+- commercial connection
+- distinction from an existing Inklee page
+- conversion relevance
+- ability to provide genuinely useful information
+
+Also record:
+
+- monthly volume where available
+- keyword difficulty where available
+- CPC where available
+- dominant page type
+- top-ranking competitors
+- community wording
+- closest existing Inklee page
+- cannibalization risk
+- recommended commercial owner page
+
+Store the validation in:
+
+`docs/seo/problem-guide-validation.md`
+
+#### Guide selection rule
+
+Select the first two guides based on:
+
+1. distinct search intent
+2. realistic ranking opportunity
+3. strong product connection
+4. low cannibalization risk
+5. usefulness without requiring Inklee
+6. a natural path into one commercial page
+
+The first two guides must not be chosen only because they have the highest volume.
+
+#### Guide requirements
+
+Each selected guide must:
+
+- solve the operational problem before promoting Inklee
+- use natural tattoo-industry terminology
+- link primarily to one commercial owner page
+- include a clear path toward account creation
+- avoid duplicating the commercial page
+- avoid implying that Inklee creates client demand by itself
+- avoid generic marketing filler
+- include practical steps, examples, or templates
+- remain useful to an artist who has not created an Inklee account
+
+Recommended acquisition framing:
+
+> Getting attention is only half the problem. The booking process has to turn that attention into complete, manageable tattoo requests.
+
+#### Likely guide-to-commercial relationships
+
+| Candidate guide | Likely commercial owner |
+| --- | --- |
+| how to manage tattoo bookings | `/tattoo-booking-software` |
+| how to organize tattoo requests | `/tattoo-booking-form` |
+| how to stop booking through Instagram DMs | `/dm-chaos` or `/instagram-booking-link-for-tattoo-artists` |
+| how to create a tattoo booking process | `/tattoo-booking-software` |
+| how to take tattoo deposits online | `/tattoo-deposit-tool` |
+| how to reduce tattoo no-shows | `/tattoo-appointment-reminders` |
+
+The final relationship must be decided after SERP and cannibalization review.
+
+### P3: validation-gated routes
+
+Do not build the following pages until their search intent and separation from existing pages have been validated:
+
+- `/tattoo-booking-management`
+- `/tattoo-appointment-calendar`
+- `/tattoo-artist-booking-page`
+- `/tattoo-booking-form-template`
+- `/tattoo-books-open-management`
+- `/tattoo-flash-booking`
+- `/online-shop-for-tattoo-artists`
+- `/venue-ink-alternative`
+- `/fresha-for-tattoo-artists`
+- `/booksy-for-tattoo-artists`
+- `/square-appointments-for-tattoo-artists`
+
+#### Validation record
+
+For every candidate route, record:
+
+- target URL
+- primary keyword
+- supporting keywords
+- search intent
+- dominant SERP page type
+- top-ranking competitors
+- product capability represented
+- nearest existing Inklee page
+- shared top-ten results
+- business value
+- ranking feasibility
+- conversion argument
+- final decision
+
+Allowed final decisions:
+
+- build
+- merge into an existing owner
+- support through copy only
+- postpone
+- drop
+
+### SERP overlap decision rules
+
+Use top-ten result overlap as a guide:
+
+| Shared top-ten results | Interpretation |
+| ---: | --- |
+| 60% or more | One page should normally own both terms |
+| 30% to 59% | Inspect intent and page differentiation manually |
+| Below 30% | Separate pages may be justified |
+
+SERP overlap alone is not sufficient.
+
+A separate page must also have:
+
+- a distinct user problem
+- a distinct Inklee capability
+- unique content
+- a different conversion argument
+- no material cannibalization with an existing page
+
+### Comparison-page rule
+
+The existing comparison pages own both `vs` and `alternative` intent for their respective competitors:
+
+- `/tattoo-booking-software-vs-instagram-dms`
+- `/tattoo-booking-software-vs-google-forms`
+- `/tattoo-booking-software-vs-calendly`
+
+Do not create separate alternative pages for the same competitor.
+
+Use `alternative` naturally in metadata, FAQs, or body copy where supported by SERP intent.
+
+Every comparison must:
+
+- use current verified facts
+- compare workflows rather than only feature counts
+- explain when the competitor may be the better choice
+- avoid fabricated reviews
+- avoid unsupported criticism
+- avoid duplicate `vs` and `alternative` URLs
+
+Before changing a comparison title, validate whether `vs` and `alternative` results materially overlap.
+
+### UK terminology rule
+
+Do not create separate UK pages solely for spelling variations.
+
+Use globally clear terms in titles and H1s:
+
+- tattoo artist
+- tattoo booking software
+- tattoo booking form
+
+Use UK variants naturally in supporting copy:
+
+- tattooist
+- enquiry
+- enquiry form
+
+Reconsider dedicated localization only when:
+
+- the UK produces meaningful impressions or account creation
+- UK SERPs differ materially
+- pricing, payment, or legal information differs
+- localized pages can provide more than spelling changes
+
+### Future product gates
+
+Do not target capabilities that have not shipped.
+
+#### Flash
+
+Keep these intents separate:
+
+1. flash tattoo booking and reservation
+2. selling tattoo flash or products online
+
+A flash-booking page may be considered after validation because Inklee supports a public flash catalog and booking flow.
+
+Do not target:
+
+- ecommerce
+- digital-product sales
+- product checkout
+- order management
+- transactional storefronts
+
+until public checkout has shipped.
+
+#### Artist shop
+
+Do not build `/online-shop-for-tattoo-artists` while goods remain showcase-only.
+
+#### Studio
+
+Do not build studio-management pages until the following have shipped:
+
+- multi-artist permissions
+- shared workflows
+- request assignment
+- shared calendar
+- studio administration
+- team-level data boundaries
+
+### P4: later expansion
+
+After the first two feature pages and first two guides have generated usable Search Console and conversion data, reconsider:
+
+- booking-management page
+- appointment-calendar page
+- public artist booking page
+- booking-form template
+- books-open content
+- cancellation content
+- UK terminology expansion
+- Linktree comparison
+- competitor alternatives
+- flash booking
+- localization
+- studio software
+
+Prioritize evidence from:
+
+- Google Search Console
+- account-creation attribution
+- user interviews
+- competitor movement
+- product usage
+- keyword tools
+- manual SERP reviews
 
 ---
 
 ## Proposed strategic changes
 
 _No open proposals. Claude Code adds entries here when implementation evidence suggests a strategic change. Until the canonical strategy above is updated, a proposal is not approved strategy. Each proposal must contain: current decision · proposed decision · technical or data-based reason · pages affected · cannibalization risk · recommended next step._
+
+---
+
+## Decision log
+
+### 2026-07-02: Hybrid execution model narrowed
+
+- Reconfirmed the product-led commercial spine as Inklee's conversion layer.
+- Reconfirmed problem-led guides as the primary authority and discovery layer.
+- Stopped automatic expansion into adjacent feature and synonym pages.
+- Limited the immediate new commercial-page queue to `/tattoo-appointment-reminders` and `/tattoo-client-management`.
+- Moved `/tattoo-booking-management`, `/tattoo-appointment-calendar`, `/tattoo-artist-booking-page`, and `/tattoo-booking-form-template` behind explicit SERP and cannibalization validation.
+- Required validation of six problem-led topics before selecting the first two guides.
+- Added conversion measurement and a dated Google Search Console baseline as prerequisites for further page expansion.
+- Reconfirmed that the existing comparison URLs own both `vs` and `alternative` intent unless SERP evidence supports a different structure.
+- Reconfirmed that UK spelling variants belong in supporting copy, not separate pages.
+- Reconfirmed that flash booking, flash ecommerce, artist storefronts, and studio software remain separate and product-gated territories.
 
 ---
 
