@@ -267,6 +267,12 @@ const RELATED_LINKS: Related[] = [
     description:
       "Automatic reminder emails, reconfirmations, and deposit follow-ups for accepted bookings.",
   },
+  {
+    title: "Tattoo client management",
+    href: "/tattoo-client-management",
+    description:
+      "Client records that build themselves from booking requests: contact info, history, and private notes.",
+  },
 ];
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */

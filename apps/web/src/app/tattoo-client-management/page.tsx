@@ -6,13 +6,13 @@ import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
 
-const PAGE_PATH = "/tattoo-appointment-reminders";
-const PAGE_TITLE = "Tattoo appointment reminder software · Inklee";
+const PAGE_PATH = "/tattoo-client-management";
+const PAGE_TITLE = "Tattoo client management software · Inklee";
 const PAGE_DESCRIPTION =
-  "Tattoo appointment reminder software for artists. Automatic reminder emails, reconfirmation requests, and deposit follow-ups tied to accepted bookings.";
-const OG_TITLE = "Tattoo appointment reminder software";
+  "Tattoo client management software for artists. Client records build themselves from booking requests: contact info, tattoo history, and private notes.";
+const OG_TITLE = "Tattoo client management software";
 const OG_DESCRIPTION =
-  "Reminder emails, reconfirmation requests, and deposit follow-ups that stay tied to the accepted booking, so fewer appointments get forgotten.";
+  "Client information, booking history, and private notes that build themselves from tattoo requests. No spreadsheets, no manual data entry.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -37,150 +37,150 @@ type Related = { title: string; description: string; href: string };
 
 const PROBLEM_POINTS: Item[] = [
   {
-    title: "Reminding clients by hand does not scale",
+    title: "Client information lives in five places",
     description:
-      "Scrolling back through DMs to remind every client before their session is exactly the kind of admin that gets skipped on busy weeks.",
+      "Names in DMs, dates in a calendar, references in camera rolls, deposit notes in a chat thread. Nothing connects.",
   },
   {
-    title: "Forgotten appointments cost real money",
+    title: "Returning clients look like strangers",
     description:
-      "A client who genuinely forgot is still an empty chair, lost preparation time, and a slot someone else wanted.",
+      "Someone you tattooed last year messages again, and you are scrolling old chats trying to reconstruct what you did and how it went.",
   },
   {
-    title: "Chasing deposits feels awkward",
+    title: "Session context disappears",
     description:
-      "Following up on an unpaid deposit by DM mixes money talk into a casual chat thread, and it is easy to forget who still owes what.",
+      "Placement, size, references, and timing were all in the request, but by appointment week they are buried under newer messages.",
   },
   {
-    title: "You find out about cancellations too late",
+    title: "Notes do not survive the inbox",
     description:
-      "Without a reconfirmation step, plans that changed weeks ago only surface on the day of the appointment.",
+      "Skin sensitivity, style preferences, how the last session went: memory and chat scrollback are not a system.",
   },
   {
-    title: "Travel makes timing harder",
+    title: "Spreadsheets need feeding",
     description:
-      "Guest spots and short booking windows leave no room for a no-show. A reminder a few days ahead matters even more on the road.",
+      "A client spreadsheet only works if you maintain it after every booking, which is exactly the admin that gets skipped.",
   },
 ];
 
-const REMINDER_TYPES: Item[] = [
+const RECORD_POINTS: Item[] = [
   {
-    title: "Appointment reminders",
+    title: "Records build themselves",
     description:
-      "Clients get a reminder email a set number of days before the appointment, with the date, placement, and studio or location details.",
+      "Every booking request creates or updates the client's record automatically. No data entry, no importing, no upkeep.",
   },
   {
-    title: "Reconfirmation requests",
+    title: "Contact details stay attached",
     description:
-      "Ahead of the appointment, clients can be asked to confirm they are still coming. The email carries a secure link, so a client whose plans changed can cancel early and you can offer the slot to someone else.",
+      "Email and Instagram handle stay connected to the client, exactly as they arrived with the request.",
   },
   {
-    title: "Deposit follow-ups",
+    title: "Tattoo and booking history",
     description:
-      "When a deposit is past its due date, the client gets a clear follow-up with the amount, the due date, and your payment note, and you get a copy, so nobody has to chase by DM.",
+      "Every request from that client with placement, size, dates, booking status, and deposit amounts, in one view instead of scattered chats.",
   },
   {
-    title: "You control the schedule",
+    title: "Private notes",
     description:
-      "Each reminder type has its own on and off switch, and you choose how many days before the appointment reminders and reconfirmations go out.",
+      "Keep your own notes per client: style preferences, session details, anything worth remembering. Only you can see them.",
   },
   {
-    title: "Tied to accepted bookings",
+    title: "Returning clients are obvious",
     description:
-      "Reminders only ever go to bookings you approved. Nothing is sent for requests you passed on or have not reviewed yet.",
+      "Booking counts and history make repeat clients visible at a glance, so a familiar name never gets treated like a cold request.",
   },
 ];
 
 const CONTEXT_ITEMS: Item[] = [
   {
-    title: "The booking, not a generic blast",
+    title: "Search on the go",
     description:
-      "Every reminder carries the context of the specific booking: date, placement, and the studio or city where the appointment happens.",
+      "In the Inklee mobile app, search your clients by Instagram handle or email. On the web, the full client list lives next to your bookings.",
   },
   {
-    title: "Deposit status included",
+    title: "Clients never need an account",
     description:
-      "Deposit follow-ups state the amount, currency, due date, and your own payment note, so the client knows exactly what is open.",
+      "Client records exist for you. Your clients just send requests and get emails; they never sign up for anything.",
   },
   {
-    title: "Editable booking emails",
+    title: "Not a marketing database",
     description:
-      "The booking-status emails (request received, accepted, passed, cancelled) are fully editable, subject and body, in your voice. Reminder emails you switch on and schedule.",
+      "There are no newsletters, campaigns, or lead scoring here. Client data stays scoped to bookings, which is what artists and GDPR both prefer.",
   },
   {
-    title: "No client account needed",
+    title: "Connected to the rest of the flow",
     description:
-      "Clients confirm or cancel through a secure link in the email. They never need to create an account or install anything.",
+      "The same record ties into deposits and reminders, so payment status and appointment follow-ups always know who they are about.",
   },
 ];
 
 const OUTCOME_ITEMS: Array<Item & { variant: "mustard" | "bone" | "rosa" }> = [
   {
-    title: "Fewer forgotten appointments",
+    title: "Recognize the regulars",
     description:
-      "A reminder a few days ahead catches the honest forgetters. Reminders cannot guarantee attendance, but they remove the most avoidable no-shows.",
+      "See who keeps coming back and treat them like it, without archaeology in your DMs.",
     variant: "mustard",
   },
   {
-    title: "Cancellations surface earlier",
+    title: "Walk in with context",
     description:
-      "When a client cancels through the reconfirmation link, you hear about it days ahead instead of at the door, with time to fill the slot.",
+      "Before a session or a reply, one look at the record shows the history, the notes, and the open deposit.",
     variant: "bone",
   },
   {
-    title: "Deposit chasing stops being personal",
+    title: "Notes that outlive your memory",
     description:
-      "A neutral follow-up email does the awkward part. You only step in when something actually needs a conversation.",
+      "What you noted after the last session is still there at the next request, even a year later.",
     variant: "rosa",
   },
   {
-    title: "One less thing to remember",
+    title: "Zero maintenance",
     description:
-      "The reminders run nightly on their own. Your part is accepting the right requests and showing up to tattoo.",
+      "The list stays current because it is built from the bookings themselves, not from your discipline with a spreadsheet.",
     variant: "bone",
   },
 ];
 
-const REMINDERS_FAQ: Faq[] = [
+const CLIENTS_FAQ: Faq[] = [
   {
-    question: "Do appointment reminders stop no-shows?",
+    question: "How are client records created?",
     answer:
-      "They reduce the avoidable ones. Clients who genuinely forgot, mixed up dates, or needed a nudge to cancel early are exactly who reminders catch. No tool can guarantee every client shows up.",
+      "Automatically. When someone submits a booking request, Inklee creates or updates their client record from it. There is no manual data entry and nothing to import.",
   },
   {
-    question: "When are the reminders sent?",
+    question: "What is in a tattoo client record?",
     answer:
-      "You choose how many days before the appointment the reminder and the reconfirmation request go out. Inklee sends them automatically once a day.",
+      "Contact details (email and Instagram handle), every booking request with placement, size, dates, and status, deposit amounts where relevant, and your private notes.",
   },
   {
-    question: "Can I turn individual reminder types on or off?",
+    question: "Can I keep private notes on a client?",
     answer:
-      "Yes. Appointment reminders, reconfirmation requests, and deposit follow-ups each have their own switch, so you only send what fits your workflow.",
+      "Yes. Each client has a notes field only you can see: style preferences, session details, whatever helps next time.",
   },
   {
-    question: "Can clients confirm or cancel from the reminder?",
+    question: "Can I search my client list?",
     answer:
-      "The reconfirmation email contains a secure personal link. If the client's plans changed, they can cancel there, and you can offer the slot to someone on your waitlist.",
+      "In the mobile app you can search by Instagram handle or email. On the web, the full client list is part of your bookings workspace.",
   },
   {
-    question: "Are SMS text reminders supported?",
+    question: "Is Inklee a CRM for tattoo artists?",
     answer:
-      "No. Inklee reminders are email only today. Every reminder goes to the email address the client used on their booking request.",
+      "It covers what most artists actually need from a CRM: client information, history, and notes connected to bookings. It is not an enterprise CRM: there is no marketing automation, no sales pipeline, and no lead scoring.",
   },
   {
-    question: "Can I edit what the emails say?",
+    question: "Can I send newsletters or campaigns to my clients?",
     answer:
-      "The booking-status emails (request received, accepted, passed, cancelled by you) are fully editable in your own words. The three reminder types are not free-text: you control whether they send and how many days ahead.",
+      "No. Inklee is not a marketing tool. Client emails are used for booking communication like confirmations, reminders, and deposit follow-ups.",
   },
   {
-    question: "Do reminders work together with deposits?",
+    question: "Do my clients see their record or need an account?",
     answer:
-      "Yes. If a deposit is past due, the client gets a follow-up with the amount and your payment note, and you get a copy, so deposit chasing does not depend on you remembering.",
+      "No. Records are private to you. Clients only interact with your booking page and the emails about their own bookings.",
   },
   {
-    question: "Do my clients need an Inklee account?",
+    question: "Does client history include deposits?",
     answer:
-      "No. Clients only receive emails and use secure links. Accounts are for artists.",
+      "Yes. A client's booking history shows the deposit amounts and status connected to each booking, so money context is never separate from the person.",
   },
 ];
 
@@ -189,29 +189,23 @@ const RELATED_LINKS: Related[] = [
     title: "Tattoo Booking Software",
     href: "/tattoo-booking-software",
     description:
-      "See the full booking flow: structured requests, artist review, deposits, waitlist, and guest spots in one system.",
+      "The full booking flow: structured requests, artist review, deposits, waitlist, and guest spots in one system.",
   },
   {
-    title: "Tattoo Deposit Tool",
-    href: "/tattoo-deposit-tool",
+    title: "Tattoo Booking Form",
+    href: "/tattoo-booking-form",
     description:
-      "Deposits as part of the booking flow, with paid, pending, and overdue status connected to each request.",
+      "The structured request form that feeds every client record: idea, placement, size, references, and contact.",
   },
   {
-    title: "Tattoo Artist Waitlist",
-    href: "/tattoo-artist-waitlist",
+    title: "Tattoo Appointment Reminders",
+    href: "/tattoo-appointment-reminders",
     description:
-      "When a reconfirmation surfaces a cancellation early, a waitlist gives you someone to offer the slot to.",
-  },
-  {
-    title: "Tattoo Client Management",
-    href: "/tattoo-client-management",
-    description:
-      "Reminders already know the client. See the record they belong to: contact info, history, and notes.",
+      "Automatic reminder emails and deposit follow-ups that already know which client and booking they are about.",
   },
 ];
 
-export default function TattooAppointmentRemindersPage() {
+export default function TattooClientManagementPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <JsonLd
@@ -222,7 +216,7 @@ export default function TattooAppointmentRemindersPage() {
         })}
         id="ld-webpage"
       />
-      <JsonLd data={faqPageSchema(REMINDERS_FAQ)} id="ld-faq" />
+      <JsonLd data={faqPageSchema(CLIENTS_FAQ)} id="ld-faq" />
       <PillNav />
       <main className="flex-1">
         <section className="overflow-hidden md:flex md:min-h-[calc(100svh-80px)] md:items-center">
@@ -230,18 +224,18 @@ export default function TattooAppointmentRemindersPage() {
             <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
               <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-shell-fg-dim">
-                  Tattoo appointment reminder software
+                  Tattoo client management software
                 </p>
                 <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
-                  <span className="block">Appointment reminders,</span>
+                  <span className="block">Client records that</span>
                   <span className="block text-brand-mustard">
-                    tied to real bookings.
+                    build themselves.
                   </span>
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
-                  Automatic reminder emails, reconfirmation requests, and
-                  deposit follow-ups for the bookings you accepted. Fewer
-                  forgotten appointments, without another app to check.
+                  Every booking request becomes a client record: contact info,
+                  tattoo history, deposits, and your private notes. No
+                  spreadsheet to maintain, no data entry.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
                   <TrackedCtaLink
@@ -252,10 +246,10 @@ export default function TattooAppointmentRemindersPage() {
                     Create your booking link
                   </TrackedCtaLink>
                   <Link
-                    href="/tattoo-booking-software"
+                    href="/tattoo-booking-form"
                     className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
                   >
-                    See the full booking flow →
+                    See the booking form →
                   </Link>
                 </div>
                 <div className="mt-6 flex items-center gap-3 md:mt-10">
@@ -279,7 +273,7 @@ export default function TattooAppointmentRemindersPage() {
                 <div className="animate-hero-float w-full max-w-xs md:max-w-md">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/branding/illustrations/feature-calendar.svg"
+                    src="/branding/illustrations/feature-requests.svg"
                     alt=""
                     aria-hidden="true"
                     className="h-auto w-full"
@@ -300,7 +294,7 @@ export default function TattooAppointmentRemindersPage() {
               <div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/branding/illustrations/mixed/inklee-_Client-Question-Conversation.svg"
+                  src="/branding/illustrations/mixed/inklee-_contact-form.svg"
                   alt=""
                   aria-hidden="true"
                   className="mx-auto h-auto w-full max-w-lg md:mx-0"
@@ -309,22 +303,23 @@ export default function TattooAppointmentRemindersPage() {
               </div>
               <div>
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                  Reminders, connected to the booking
+                  Client management, native to the booking flow
                 </p>
                 <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-                  A reminder is only useful
+                  Your clients are already
                   <br />
-                  if it knows the booking.
+                  in your bookings.
                 </h2>
                 <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                  Generic reminder software does not know what you approved,
-                  what deposit is open, or which city the appointment is in.
-                  Inklee sends reminders from the booking itself, so the date,
-                  placement, deposit, and location context is already there.
+                  Every complete tattoo request already contains the client: who
+                  they are, what they want, and how to reach them. Inklee keeps
+                  that as a living record instead of letting it sink into chat
+                  history.
                 </p>
                 <p className="mt-4 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                  Built for custom tattoo work: request first, artist approval
-                  second, appointment and reminders after that.
+                  Client information, client notes, and tattoo history, kept in
+                  the same system that handles your requests, deposits, and
+                  reminders.
                 </p>
               </div>
             </div>
@@ -336,16 +331,16 @@ export default function TattooAppointmentRemindersPage() {
             <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
               <div>
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
-                  Why manual reminding fails
+                  Why DM archaeology fails
                 </p>
                 <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
-                  You should not be
+                  Scrollback is not
                   <br />
-                  your own reminder app.
+                  client management.
                 </h2>
                 <p className="mt-6 max-w-md text-base leading-relaxed text-shell-fg-dim md:text-lg">
-                  Reminding clients by DM works until the week gets busy, and
-                  the busy weeks are exactly when no-shows hurt most.
+                  The information exists. It is just spread across chats, notes
+                  apps, and memory, where it quietly expires.
                 </p>
               </div>
               <div className="space-y-4 md:space-y-5">
@@ -387,21 +382,20 @@ export default function TattooAppointmentRemindersPage() {
           <div className="container-marketing py-20 md:py-28">
             <div className="mb-12 max-w-3xl md:mb-16">
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                How Inklee reminders work
+                What Inklee keeps for you
               </p>
               <h2 className="text-4xl font-black leading-tight tracking-tight text-brand-charcoal md:text-5xl lg:text-6xl">
-                Accept the booking.
+                One record per client.
                 <br />
-                The reminders take over.
+                Built from real bookings.
               </h2>
               <p className="mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                Three reminder types run automatically for accepted bookings.
-                Each one can be switched on or off, and you decide how many days
-                ahead they go out.
+                No setup and no imports. The client list assembles itself from
+                the requests you already receive.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {REMINDER_TYPES.map((s, i) => (
+              {RECORD_POINTS.map((s, i) => (
                 <div
                   key={s.title}
                   className="flex flex-col gap-3 rounded-3xl bg-brand-charcoal/8 p-5"
@@ -428,12 +422,12 @@ export default function TattooAppointmentRemindersPage() {
           <div className="container-marketing py-24 md:py-32">
             <div className="mb-12 max-w-3xl md:mb-16">
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                Tattoo context included
+                Honest boundaries
               </p>
               <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
-                What every reminder
+                Built for artists,
                 <br />
-                already knows.
+                not for sales teams.
               </h2>
             </div>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:gap-6">
@@ -474,9 +468,9 @@ export default function TattooAppointmentRemindersPage() {
                 What changes
               </p>
               <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
-                Fewer no-shows.
+                Know your clients.
                 <br />
-                No promises, just fewer.
+                Skip the admin.
               </h2>
             </div>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:gap-6">
@@ -516,13 +510,13 @@ export default function TattooAppointmentRemindersPage() {
                   FAQ
                 </p>
                 <h2 className="text-4xl font-black leading-tight tracking-tight md:text-5xl">
-                  Tattoo appointment reminders, answered.
+                  Tattoo client management, answered.
                 </h2>
               </div>
               <div className="rounded-3xl border-[1.5px] border-brand-charcoal/15 bg-[#d9d4c7] px-6 md:px-10">
-                {REMINDERS_FAQ.map((item, idx) => {
+                {CLIENTS_FAQ.map((item, idx) => {
                   const number = String(idx + 1).padStart(2, "0");
-                  const isLast = idx === REMINDERS_FAQ.length - 1;
+                  const isLast = idx === CLIENTS_FAQ.length - 1;
                   return (
                     <details
                       key={item.question}
@@ -606,13 +600,12 @@ export default function TattooAppointmentRemindersPage() {
                 draggable={false}
               />
               <h2 className="text-4xl font-black leading-tight tracking-tight text-brand-charcoal md:text-6xl lg:text-7xl">
-                Stop being your own
+                Stop losing clients
                 <br />
-                reminder system.
+                to your own inbox.
               </h2>
               <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
-                Accept the right requests. Let the reminders handle the
-                follow-up.
+                Let the booking flow build your client list for you.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <TrackedCtaLink

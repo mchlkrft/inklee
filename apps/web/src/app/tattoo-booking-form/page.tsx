@@ -244,10 +244,10 @@ const RELATED_LINKS: Related[] = [
       "Move serious booking requests from Instagram into a cleaner tattoo request flow.",
   },
   {
-    title: "Booking requests without DM chaos",
-    href: "/dm-chaos",
+    title: "Tattoo client management",
+    href: "/tattoo-client-management",
     description:
-      "See how Inklee keeps serious requests from disappearing in Instagram chats.",
+      "Every submitted form builds the client's record: contact info, history, and your private notes.",
   },
 ];
 

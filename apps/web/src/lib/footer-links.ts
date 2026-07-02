@@ -64,6 +64,11 @@ export const FOOTER_GROUPS: FooterGroup[] = [
         active: true,
       },
       {
+        label: "Client management",
+        href: "/tattoo-client-management",
+        active: true,
+      },
+      {
         label: "Mobile app",
         href: "/download",
         active: true,
