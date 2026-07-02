@@ -8,6 +8,28 @@ This folder is the shared SEO operating system for Inklee. It is designed so tha
 
 Temporary keyword exports, raw competitor notes, and tool exports must **not** become the canonical strategy. They can inform it, but only the canonical file above is authoritative.
 
+## How ChatGPT connects to this space
+
+This SEO space is plain Markdown on the **default branch (`master`)** of the GitHub repo `mchlkrft/inklee`, so ChatGPT reaches it through the **GitHub connector** (ChatGPT → Settings → Connectors → GitHub; connect an account with access to this private repo). Put the SEO work in a ChatGPT Project and paste the operating rules into the Project's custom instructions.
+
+**Read these first, every session:**
+
+- `docs/seo/inklee-seo-strategy.md` — canonical strategy (source of truth)
+- `docs/seo/README.md` — this operating model
+- `docs/seo/seo-implementation-log.md` — what Claude Code has shipped
+- `docs/seo-strategy.md` — analytical companion (audit, research, scoring, measurement, validation backlog)
+
+Raw-file URL pattern for fetching exact contents: `https://raw.githubusercontent.com/mchlkrft/inklee/master/<path>`.
+
+**Read vs write.** The GitHub connector is read-oriented: ChatGPT *reads* these files but does not push commits. So ChatGPT authors strategy; the change is applied by the founder or by Claude Code (see the update loop below). If a connector/action with write access is configured, ChatGPT may commit directly, but do not assume it by default.
+
+**Update loop (keeps both sides in sync through GitHub):**
+
+1. ChatGPT reads the canonical file and proposes a change in the proposal format from "Strategic change rule" below, outputting the exact Markdown to paste.
+2. The founder pastes it into `docs/seo/inklee-seo-strategy.md` and commits, or hands it to Claude Code, which applies it, runs checks, and commits/pushes to `master`.
+3. Once it is on `master`, ChatGPT re-reads the updated file. GitHub is the single shared state, so both sides are back in sync automatically.
+4. Implementation of any page/metadata change is a Claude Code slice, logged in `seo-implementation-log.md`.
+
 ## Responsibilities
 
 ### ChatGPT
