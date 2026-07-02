@@ -267,7 +267,7 @@ export default function GuestSpotBookingPage() {
             <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
               <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-shell-fg-dim">
-                  Guest spot booking for tattoo artists
+                  Tattoo guest spot organizer for traveling artists
                 </p>
                 <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
                   <span className="block">Guest spot bookings,</span>
@@ -276,9 +276,9 @@ export default function GuestSpotBookingPage() {
                   </span>
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
-                  Organize tattoo guest spot requests by city, travel dates,
-                  client details, and references. One link replaces ten DM
-                  threads.
+                  One guest spot organizer for requests by city, travel dates,
+                  client details, references, and waitlists. One link replaces
+                  ten DM threads, and you still approve every booking.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
                   <TrackedCtaLink

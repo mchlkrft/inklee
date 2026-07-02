@@ -119,8 +119,9 @@ function HeroSection() {
               </span>
             </h1>
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg md:mt-5">
-              Turn Instagram DMs into structured tattoo requests. Review ideas,
-              manage approvals, and keep bookings organized in one booking link.
+              Clients submit complete tattoo requests. You decide what gets
+              booked. Inklee keeps approvals, deposits, clients, and reminders
+              connected in one booking link.
             </p>
             <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
               <TrackedCtaLink
@@ -375,6 +376,12 @@ function FeaturesSection() {
             <br />
             booking flow, in one place.
           </h2>
+          <p className="mt-6 max-w-2xl text-base leading-relaxed text-shell-fg-dim md:text-lg">
+            Booking form, request review, Accept or Pass, deposits, client
+            history, calendar, reminders, waitlist, books-open periods, guest
+            spots, flash, and your public page. One connected system built
+            around the artist&apos;s decision.
+          </p>
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 md:gap-6">
           {FEATURES.map((f) => (

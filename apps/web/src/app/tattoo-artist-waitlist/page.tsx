@@ -225,7 +225,7 @@ export default function WaitlistPage() {
             <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
               <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-shell-fg-dim">
-                  Waitlist for tattoo artists
+                  Tattoo waitlist software for artists
                 </p>
                 <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
                   <span className="block">Keep future tattoo</span>
@@ -235,8 +235,9 @@ export default function WaitlistPage() {
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
                   When your books are closed or a guest spot fills up, serious
-                  requests should not disappear into DMs. Inklee keeps future
-                  demand organized as part of your booking flow.
+                  requests should not disappear into DMs. Inklee&apos;s waitlist
+                  software keeps future demand organized as part of your booking
+                  flow.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
                   <TrackedCtaLink

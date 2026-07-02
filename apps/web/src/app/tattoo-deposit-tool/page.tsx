@@ -229,18 +229,19 @@ export default function TattooDepositToolPage() {
             <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[5fr_7fr] md:gap-0">
               <div className="order-2 pb-10 pt-4 md:order-1 md:py-16 md:pr-10">
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-shell-fg-dim">
-                  Tattoo deposit tool for artists
+                  Tattoo deposit software for artists
                 </p>
                 <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
-                  <span className="block">A deposit-aware</span>
+                  <span className="block">Tattoo deposit software,</span>
                   <span className="block text-brand-mustard">
-                    tattoo booking flow.
+                    built into the booking flow.
                   </span>
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
-                  Inklee makes deposits part of the booking flow, so paid,
-                  pending, and confirmed bookings stay connected instead of
-                  scattered across DMs and spreadsheets.
+                  Inklee is tattoo deposit software that makes deposits part of
+                  the booking flow, so paid, pending, and confirmed bookings
+                  stay connected instead of scattered across DMs and
+                  spreadsheets.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
                   <Link
