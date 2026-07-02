@@ -221,6 +221,7 @@ Status legend: **Live** = shipped and indexable; **Live (fix)** = shipped but ne
 4. **Scheduling/calendar terms stay secondary.** No standalone self-booking/scheduling page (product mismatch, §1).
 5. **Guides never duplicate their money page.** A Wave 3 guide must answer a "how to" question the commercial page does not; if a guide's intent collapses into an existing commercial page, drop the guide and strengthen the page instead.
 6. **New page gate:** before any new page, confirm (a) it maps to a shipped feature, (b) it has a distinct primary keyword not already owned above, and (c) SERP evidence shows a different intent from the nearest existing page.
+7. **Cross-property (GitHub):** inklee.app owns commercial and comparison intent. The public GitHub repos stay tool-neutral how-to/templates (content repo) and product-transparency/technical (product repo), and must not restate the commercial pitch or duplicate a page's query. See `docs/github-publishing-strategy.md` §8-§9.
 
 ---
 

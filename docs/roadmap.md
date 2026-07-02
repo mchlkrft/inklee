@@ -214,7 +214,7 @@ Pending the user-provided mockup. When it arrives: audit `src/app/[slug]/page.ts
 
 ### 4.6 Public template repo cadence
 
-Independent track, low touch. **On-demand cadence since 2026-06-24** (founder triggers each release; ~every 3 days when active, was bi-weekly then monthly). ✅ Latest **v1.5.0 shipped 2026-07-01** (`docs/tattoo-aftercare-followup-and-touch-ups.md`, commit `a5c4e6a` + tag `v1.5.0` pushed — post-session stage: aftercare follow-up messages + fair touch-up policy + structured touch-up request fields); v1.4.0 2026-06-24 (consent + health intake fields guide); v1.3.0 2026-06-15 (pricing + quote-requests guide). Repo: github.com/mchlkrft/tattoo-booking-form-template (local clone `A:\WORK\tattoo-booking-form-template`). Cadence, voice rules, and the release-idea backlog live in memory `template-repo-cadence` (next pick = flash-day runbook doc; re-rank via the SEO/GEO research workflow before writing).
+Independent track, low touch. **Publishing SoT = `docs/github-publishing-strategy.md` (2026-07-02).** The 3-day quota is RETIRED in favor of a milestone/evergreen/maintenance hybrid (quality-gated, review ≠ auto-post); still founder-triggered, no autonomous schedule. (Note: both the content repo and the `mchlkrft/inklee` product repo are public GitHub surfaces; see the strategy doc for their split roles + the internal-docs exposure flag.) ✅ Latest **v1.5.0 shipped 2026-07-01** (`docs/tattoo-aftercare-followup-and-touch-ups.md`, commit `a5c4e6a` + tag `v1.5.0` pushed — post-session stage: aftercare follow-up messages + fair touch-up policy + structured touch-up request fields); v1.4.0 2026-06-24 (consent + health intake fields guide); v1.3.0 2026-06-15 (pricing + quote-requests guide). Repo: github.com/mchlkrft/tattoo-booking-form-template (local clone `A:\WORK\tattoo-booking-form-template`). Cadence, voice rules, and the release-idea backlog live in memory `template-repo-cadence` (next pick = flash-day runbook doc; re-rank via the SEO/GEO research workflow before writing).
 
 ---
 
@@ -357,7 +357,7 @@ A multi-artist studio **business** layer (organizations / locations / workspaces
 
 ### 7.1 Public template repo on-demand cadence
 
-See §4.6. Independent track. Memory: `template-repo-cadence` (replaces the lost `project_inklee_template_repo.md`).
+See §4.6. Independent track. Publishing SoT: `docs/github-publishing-strategy.md`. Memory: `template-repo-cadence` (replaces the lost `project_inklee_template_repo.md`).
 
 ### 7.2 Open follow-ups (low-priority backlog)
 
