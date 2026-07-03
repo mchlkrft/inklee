@@ -13,8 +13,8 @@ import {
   requestDeposit,
   markDepositReceived,
   reopenBooking,
-  type InterestDecisionPayload,
 } from "../../actions";
+import type { InterestDecisionPayload } from "@/lib/booking-interests";
 import {
   DEPOSIT_DEFAULTS_FALLBACK,
   type DepositDefaults,

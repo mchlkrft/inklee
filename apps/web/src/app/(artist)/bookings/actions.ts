@@ -14,13 +14,11 @@ import {
   refundDepositCore,
   cancelBookingCore,
   reopenBookingCore,
-  type InterestDecisionPayload,
 } from "@/lib/server/bookings";
-
-// Re-export so existing component imports (`import { ..., type
-// InterestDecisionPayload } from "../actions"`) keep working after the
-// money-path logic moved to @/lib/server/bookings.
-export type { InterestDecisionPayload };
+// A "use server" file may only export async functions, so the type is imported
+// (erased at compile) but NOT re-exported. Consumers import it directly from
+// the client-safe @/lib/booking-interests module.
+import type { InterestDecisionPayload } from "@/lib/booking-interests";
 
 type ActionResult = { error: string } | { success: true };
 

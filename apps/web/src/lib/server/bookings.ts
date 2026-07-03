@@ -51,12 +51,11 @@ export type AuthorisedBooking = {
 
 // Per-item availability decision from the Accept popup. `interestId` is the
 // id of the booking_interests row; `declineNote` is only used when
-// `available === false` (capped at 300 chars on the server).
-export type InterestDecisionPayload = {
-  interestId: string;
-  available: boolean;
-  declineNote: string | null;
-};
+// `available === false` (capped at 300 chars on the server). The type lives in
+// the client-safe @/lib/booking-interests module; re-exported here so existing
+// server importers (the mobile approve route) keep their import path.
+export type { InterestDecisionPayload } from "@/lib/booking-interests";
+import type { InterestDecisionPayload } from "@/lib/booking-interests";
 
 type AuthorisedBookingResult =
   | { error: string }

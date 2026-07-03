@@ -8,7 +8,9 @@
     "build": "pnpm --filter inklee build",
     "typecheck": "pnpm --filter inklee typecheck",
     "lint": "pnpm --filter inklee lint",
-    "test": "pnpm --filter inklee test"
+    "test": "pnpm --filter inklee test",
+    "test:e2e": "pnpm --filter inklee test:e2e",
+    "test:launch": "pnpm --filter inklee test:launch"
   },
   "devDependencies": {
     "husky": "^9.1.7"

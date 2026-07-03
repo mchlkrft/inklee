@@ -20,6 +20,16 @@ export type InterestSelection = {
   quantity: number;
 };
 
+// The artist's per-interest decision on Accept. Lives here (a client-safe pure
+// module) rather than in the "use server" actions file or the server-only
+// bookings core, so the client status-actions component can import the type
+// without pulling in server code. `declineNote` is set when `available === false`.
+export type InterestDecisionPayload = {
+  interestId: string;
+  available: boolean;
+  declineNote: string | null;
+};
+
 export type InterestRow = {
   productId: string;
   variantId: string | null;
