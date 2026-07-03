@@ -55,7 +55,7 @@
 | Vercel Preview deployment protection | Verified OFF today. Previews point at prod Supabase — do not share preview URLs until enabled. Pre-public item, not MVP. |
 | CAPTCHA/Turnstile on public forms | Rate limiter is active (Upstash set). Add before public marketing push. |
 | Supabase Pro upgrade / backups | Privacy page promises 30-day backups vs Free tier's 7 — fix (upgrade or copy change) before PUBLIC launch; a comped private beta accepts the risk knowingly. |
-| Password min length 8 + HIBP | Verified currently 6/off. Hardening, do with the Supabase dashboard session (items 5–6) if convenient. |
+| Password policy | ✅ DONE 2026-07-04: min 8 + required lower/upper/digit enforced server-side (Management API) AND in the shared client validator; signup now has a confirm-password field on both surfaces. NEW passwords only — existing logins unaffected. Still parked: HIBP leaked-password check (Supabase Pro feature). |
 | Email-verification cutover (`feat/email-verification`, unmerged) | Optional hygiene; G-5 will reveal whether confirm-email is already effectively on. |
 | Stripe non-EUR / declined-card / reuse-after-deauthorize edges | EUR-only beta; smoke-test before the first non-EUR artist. |
 | Privacy retention-row vs cleanup-cron wording check | Quick doc-accuracy check before PUBLIC web launch. |

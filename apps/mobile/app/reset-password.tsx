@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { captureError } from "@/lib/telemetry";
 import {
   validatePassword,
-  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULES_HINT,
 } from "@inklee/shared/auth-validation";
 
 // Password reset, completion half. Landing for the recovery link from
@@ -121,7 +121,7 @@ export default function ResetPassword() {
           autoComplete="new-password"
         />
         <Text className="mb-4 mt-1.5 text-xs text-shell-mute">
-          Use at least {PASSWORD_MIN_LENGTH} characters.
+          {PASSWORD_RULES_HINT}
         </Text>
 
         {error ? (

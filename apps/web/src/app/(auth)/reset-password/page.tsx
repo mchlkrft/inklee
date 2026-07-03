@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { resetPasswordAction } from "./actions";
 import PasswordInput from "@/components/password-input";
+import { PASSWORD_RULES_HINT } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | null;
 
@@ -39,7 +40,7 @@ export default function ResetPasswordPage() {
             required
             minLength={8}
           />
-          <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+          <p className="text-xs text-muted-foreground">{PASSWORD_RULES_HINT}</p>
         </div>
 
         <div className="space-y-1.5">

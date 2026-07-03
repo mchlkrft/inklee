@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { changePasswordAction } from "./actions";
 import { logoutAction } from "@/app/(auth)/signup/actions";
+import { PASSWORD_RULES_HINT } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | { success: true } | null;
 
@@ -55,7 +56,7 @@ export default function SecurityForm({
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             <p className="text-xs text-muted-foreground">
-              Minimum 8 characters
+              {PASSWORD_RULES_HINT}
             </p>
           </div>
 

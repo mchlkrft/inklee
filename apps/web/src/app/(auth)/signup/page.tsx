@@ -7,6 +7,7 @@ import { signUpAction } from "./actions";
 import GoogleAuthButton from "@/components/google-auth-button";
 import PasswordInput from "@/components/password-input";
 import { trackEvent } from "@/lib/track";
+import { PASSWORD_RULES_HINT } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | { sent: true } | null;
 
@@ -108,7 +109,23 @@ export default function SignupPage() {
             required
             minLength={8}
           />
-          <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+          <p className="text-xs text-muted-foreground">{PASSWORD_RULES_HINT}</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label
+            htmlFor="password_confirm"
+            className="text-sm text-muted-foreground"
+          >
+            Confirm password
+          </label>
+          <PasswordInput
+            id="password_confirm"
+            name="password_confirm"
+            autoComplete="new-password"
+            required
+            minLength={8}
+          />
         </div>
 
         <p className="text-xs text-muted-foreground">

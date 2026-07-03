@@ -12,7 +12,7 @@ import { captureError } from "@/lib/telemetry";
 import { config } from "@/lib/config";
 import {
   validatePassword,
-  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULES_HINT,
 } from "@inklee/shared/auth-validation";
 
 // Native email/password sign-up (E1 follow-up: the app shipped sign-in only, so
@@ -25,6 +25,7 @@ export default function SignUp() {
   const colors = useColors();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -42,6 +43,10 @@ export default function SignUp() {
     const pwError = validatePassword(password);
     if (pwError) {
       setError(pwError);
+      return;
+    }
+    if (password !== passwordConfirm) {
+      setError("Passwords do not match.");
       return;
     }
     setLoading(true);
@@ -115,9 +120,16 @@ export default function SignUp() {
           placeholder="Password"
           autoComplete="new-password"
         />
-        <Text className="mb-4 mt-1.5 text-xs text-shell-mute">
-          Use at least {PASSWORD_MIN_LENGTH} characters.
+        <Text className="mb-3 mt-1.5 text-xs text-shell-mute">
+          {PASSWORD_RULES_HINT}
         </Text>
+        <PasswordInput
+          value={passwordConfirm}
+          onChangeText={setPasswordConfirm}
+          placeholder="Confirm password"
+          autoComplete="new-password"
+        />
+        <View className="mb-4" />
 
         {error ? (
           <Text className="mb-3 text-sm text-danger-fg">{error}</Text>

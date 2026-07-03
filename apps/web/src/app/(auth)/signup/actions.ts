@@ -15,15 +15,19 @@ export async function signUpAction(
 ): Promise<State> {
   const email = (formData.get("email") as string).trim();
   const password = formData.get("password") as string;
+  const passwordConfirm = formData.get("password_confirm") as string;
 
   if (!email || !password) return { error: "Email and password are required." };
   const pwError = validatePassword(password);
   if (pwError) return { error: pwError };
+  if (password !== passwordConfirm) {
+    return { error: "Passwords do not match." };
+  }
 
   const ip = getClientIp(await headers());
   const { allowed } = await checkSignupRateLimit(ip);
   if (!allowed) {
-    return { error: "Too many sign-up attempts — please wait a few minutes." };
+    return { error: "Too many sign-up attempts. Please wait a few minutes." };
   }
 
   const supabase = await createClient();
