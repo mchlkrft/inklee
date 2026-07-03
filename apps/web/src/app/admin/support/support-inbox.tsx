@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import SelectInput from "@/components/select-input";
+import SupportStatusChip from "@/app/(artist)/support/support-status-chip";
 import {
   SUPPORT_CATEGORIES,
   SUPPORT_CATEGORY_LABELS,
@@ -12,6 +14,27 @@ import {
   type SupportCategory,
   type SupportStatus,
 } from "@/lib/support";
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "attention", label: "Needs attention" },
+  { value: "all", label: "All statuses" },
+  ...SUPPORT_STATUSES.map((s) => ({
+    value: s,
+    label: SUPPORT_STATUS_LABELS[s],
+  })),
+];
+const CATEGORY_FILTER_OPTIONS = [
+  { value: "all", label: "All categories" },
+  ...SUPPORT_CATEGORIES.map((c) => ({
+    value: c,
+    label: SUPPORT_CATEGORY_LABELS[c],
+  })),
+];
+const SORT_OPTIONS = [
+  { value: "last_activity", label: "Last activity" },
+  { value: "oldest_unanswered", label: "Oldest unanswered" },
+  { value: "newest", label: "Newest created" },
+];
 
 export type InboxTicket = {
   id: string;
@@ -98,8 +121,8 @@ export default function SupportInbox({
     return list;
   }, [tickets, statusFilter, categoryFilter, search, sort]);
 
-  const selectCls =
-    "rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
+  const filterTriggerCls =
+    "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -133,54 +156,38 @@ export default function SupportInbox({
             placeholder="Search reference, subject, artist, email"
             className="w-64 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          <label className="sr-only" htmlFor="support-status-filter">
-            Status filter
-          </label>
-          <select
-            id="support-status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className={selectCls}
-          >
-            <option value="attention">Needs attention</option>
-            <option value="all">All statuses</option>
-            {SUPPORT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {SUPPORT_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-          <label className="sr-only" htmlFor="support-category-filter">
-            Category filter
-          </label>
-          <select
-            id="support-category-filter"
-            value={categoryFilter}
-            onChange={(e) =>
-              setCategoryFilter(e.target.value as "all" | SupportCategory)
-            }
-            className={selectCls}
-          >
-            <option value="all">All categories</option>
-            {SUPPORT_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {SUPPORT_CATEGORY_LABELS[c]}
-              </option>
-            ))}
-          </select>
-          <label className="sr-only" htmlFor="support-sort">
-            Sort
-          </label>
-          <select
-            id="support-sort"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            className={selectCls}
-          >
-            <option value="last_activity">Last activity</option>
-            <option value="oldest_unanswered">Oldest unanswered</option>
-            <option value="newest">Newest created</option>
-          </select>
+          <div className="w-44">
+            <SelectInput
+              id="support-status-filter"
+              ariaLabel="Status filter"
+              options={STATUS_FILTER_OPTIONS}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+              className={filterTriggerCls}
+            />
+          </div>
+          <div className="w-48">
+            <SelectInput
+              id="support-category-filter"
+              ariaLabel="Category filter"
+              options={CATEGORY_FILTER_OPTIONS}
+              value={categoryFilter}
+              onChange={(e) =>
+                setCategoryFilter(e.target.value as "all" | SupportCategory)
+              }
+              className={filterTriggerCls}
+            />
+          </div>
+          <div className="w-44">
+            <SelectInput
+              id="support-sort"
+              ariaLabel="Sort order"
+              options={SORT_OPTIONS}
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className={filterTriggerCls}
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto rounded-md border border-border">
@@ -224,13 +231,16 @@ export default function SupportInbox({
                 return (
                   <tr
                     key={t.id}
-                    className="border-b border-border last:border-b-0"
+                    className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/20"
                   >
                     <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
                       {t.reference}
                     </td>
                     <td className="max-w-[260px] px-4 py-2.5">
-                      <span className="block truncate text-foreground">
+                      <Link
+                        href={`/admin/support/${t.id}`}
+                        className="block truncate text-foreground hover:underline underline-offset-4"
+                      >
                         {unanswered && (
                           <span
                             className="mr-1.5 inline-block rounded-full bg-brand-mustard px-1.5 py-0.5 align-middle text-[10px] font-semibold text-brand-charcoal"
@@ -240,7 +250,7 @@ export default function SupportInbox({
                           </span>
                         )}
                         {t.subject}
-                      </span>
+                      </Link>
                     </td>
                     <td className="px-4 py-2.5">
                       <span className="block text-foreground">
@@ -253,8 +263,8 @@ export default function SupportInbox({
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
                       {SUPPORT_CATEGORY_LABELS[t.category]}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-foreground">
-                      {SUPPORT_STATUS_LABELS[t.status]}
+                    <td className="px-4 py-2.5">
+                      <SupportStatusChip status={t.status} />
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
                       {relTime(t.createdAt)}

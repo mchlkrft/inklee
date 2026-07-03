@@ -5,10 +5,10 @@ import { serviceClient } from "@/lib/supabase/service";
 import { UUID_RE } from "@/lib/mobile-booking-form";
 import {
   SUPPORT_CATEGORY_LABELS,
-  SUPPORT_STATUS_LABELS,
   type SupportCategory,
   type SupportStatus,
 } from "@/lib/support";
+import SupportStatusChip from "@/app/(artist)/support/support-status-chip";
 import { AdminReplyForm, AdminStatusForm } from "./admin-ticket-controls";
 
 export const metadata = { title: "Admin · Support ticket" };
@@ -143,9 +143,9 @@ export default async function AdminSupportTicketPage({
                 {ticket.reference}
               </p>
               <h1 className="text-2xl font-semibold">{ticket.subject}</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {SUPPORT_CATEGORY_LABELS[ticket.category]} ·{" "}
-                {SUPPORT_STATUS_LABELS[ticket.status]}
+              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <SupportStatusChip status={ticket.status} />
+                <span>{SUPPORT_CATEGORY_LABELS[ticket.category]}</span>
               </p>
             </div>
             <AdminStatusForm

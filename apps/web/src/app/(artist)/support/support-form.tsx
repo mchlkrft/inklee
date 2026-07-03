@@ -2,11 +2,17 @@
 
 import { useActionState } from "react";
 import { createTicketAction } from "./actions";
+import SelectInput from "@/components/select-input";
 import {
   SUPPORT_CATEGORIES,
   SUPPORT_CATEGORY_LABELS,
   SUPPORT_LIMITS,
 } from "@/lib/support";
+
+const CATEGORY_OPTIONS = SUPPORT_CATEGORIES.map((c) => ({
+  value: c,
+  label: SUPPORT_CATEGORY_LABELS[c],
+}));
 
 type State = { error: string } | { ok: true } | null;
 
@@ -50,22 +56,13 @@ export default function SupportForm() {
         <label htmlFor="support-category" className={LABEL_CLS}>
           Category
         </label>
-        <select
+        <SelectInput
           id="support-category"
           name="category"
           required
-          defaultValue=""
-          className={INPUT_CLS}
-        >
-          <option value="" disabled>
-            Pick a category
-          </option>
-          {SUPPORT_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {SUPPORT_CATEGORY_LABELS[c]}
-            </option>
-          ))}
-        </select>
+          options={CATEGORY_OPTIONS}
+          placeholder="Pick a category"
+        />
       </div>
 
       <div className="space-y-1.5">

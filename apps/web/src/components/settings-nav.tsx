@@ -7,6 +7,7 @@ const ITEMS = [
   { label: "Payouts", href: "/settings/payouts" },
   { label: "Dashboard", href: "/settings/dashboard" },
   { label: "Account", href: "/settings/account" },
+  { label: "Support", href: "/support" },
 ];
 
 export default function SettingsNav() {

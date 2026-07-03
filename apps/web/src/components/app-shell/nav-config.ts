@@ -9,7 +9,6 @@ import {
   Users,
   ShoppingBag,
   Link2,
-  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 import Spiderweb from "@/components/icons/spiderweb";
@@ -87,12 +86,13 @@ export const SIDEBAR_NAV: NavGroup[] = [
       { label: "Link Hub", href: "/link-hub", icon: Link2 },
       { label: "Analytics", href: "/analytics", icon: BarChart3 },
       { label: "Notifications", href: "/notifications", icon: Bell },
-      { label: "Support", href: "/support", icon: LifeBuoy },
       {
         label: "Settings",
         href: "/settings/profile",
         icon: Settings,
-        match: ["/settings"],
+        // "/support" keeps the Settings group open while on the support pages
+        // — Support lives here as the last sub-item (founder call, 2026-07-04).
+        match: ["/settings", "/support"],
         children: [
           { label: "Profile", href: "/settings/profile" },
           { label: "Emails", href: "/settings/emails" },
@@ -101,6 +101,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
           { label: "Deposits", href: "/settings/deposits" },
           { label: "Home widgets", href: "/settings/dashboard" },
           { label: "Account", href: "/settings/account" },
+          { label: "Support", href: "/support" },
         ],
       },
     ],

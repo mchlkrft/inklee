@@ -135,7 +135,10 @@ export default async function SupportTicketPage({
       </div>
 
       {created === "1" && (
-        <div className="rounded-md border border-brand-mustard/50 bg-brand-mustard/10 px-4 py-3">
+        <div
+          role="status"
+          className="rounded-md border border-brand-mustard/50 bg-brand-mustard/10 px-4 py-3"
+        >
           <p className="text-sm text-foreground">
             Your support request has been created. We will email you when there
             is an update, and the full conversation stays inside Inklee.
@@ -188,7 +191,11 @@ export default async function SupportTicketPage({
             {messages.map((m) => (
               <li
                 key={m.id}
-                className="rounded-md border border-border px-4 py-3"
+                className={`rounded-md border border-border px-4 py-3 ${
+                  m.author_role === "admin"
+                    ? "border-l-2 border-l-brand-mustard"
+                    : ""
+                }`}
               >
                 <p className="text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">

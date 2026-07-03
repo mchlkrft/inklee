@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { SUPPORT_FAQ } from "@/lib/support-faq";
 import {
@@ -103,14 +104,16 @@ export default async function SupportPage() {
         </h2>
         <div className="divide-y divide-border rounded-md border border-border">
           {SUPPORT_FAQ.map((item) => (
-            <details key={item.question} className="group px-4 py-3">
-              <summary className="cursor-pointer list-none text-sm font-medium text-foreground marker:hidden [&::-webkit-details-marker]:hidden">
-                <span className="mr-2 inline-block text-muted-foreground transition-transform group-open:rotate-90">
-                  ›
-                </span>
+            <details key={item.question} className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <ChevronRight
+                  className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+                  strokeWidth={1.8}
+                  aria-hidden
+                />
                 {item.question}
               </summary>
-              <div className="mt-2 space-y-2 pl-5">
+              <div className="space-y-2 px-4 pb-4 pl-10">
                 <p className="text-sm leading-relaxed text-muted-foreground">
                   {item.answer}
                 </p>

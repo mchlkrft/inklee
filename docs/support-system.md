@@ -49,6 +49,13 @@ Safe sequencing instead of a DB transaction (house style, no RPCs for writes): m
 - **Message editing** (`updated_at` on messages), SLA automation, satisfaction scoring, email ingestion — out of scope by design.
 - **Privacy policy**: support tickets are a new personal-data category (ticket content, device info). The privacy page should mention it at the next counsel-reviewed edit — do not edit counsel-cleared copy silently.
 
+## UI audit (2026-07-04, same-day follow-up)
+
+- **New shared `components/select-input.tsx`** — brand-styled select replacing native `<select>` chrome, following the `DateInput` precedent (custom popover: bone surface, mustard selected check, rounded, flip-up). WAI-ARIA listbox pattern: full keyboard support (arrows, Home/End, Enter/Space, Escape, first-character typeahead), `aria-activedescendant`, native-form-compatible API via an sr-only input. Adopted across all six support dropdowns; available for app-wide adoption (the other ~14 native selects are a follow-up).
+- **Status chips aligned to the platform StatusBadge rule** (solid brand fills, not tints): awaiting artist = mustard (your turn), open/awaiting support = rosa (waiting on Inklee), resolved = green, closed = muted. Same chip now used in the admin inbox + detail header.
+- **Nav placement (founder call):** Support is the LAST sub-item of Settings (sidebar `nav-config.ts`, Settings `match` includes `/support`) and the last tab in `settings-nav.tsx` — not a standalone Tools item.
+- UX fixes: FAQ uses a rotating lucide chevron with hover + focus-visible ring; admin replies in the artist thread carry a mustard left accent; the internal-note toggle disables the status picker and relabels the composer/button; admin inbox subjects are links and rows have hover states; created-banner announces via `role="status"`.
+
 ## Ops
 
 No new env vars. `support@inklee.app` must exist as a real mailbox (it is already the imprint/DSA contact). Migration 0057 was applied + verified via the Management API and recorded in `schema_migrations`.
