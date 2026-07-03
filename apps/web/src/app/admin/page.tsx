@@ -10,6 +10,7 @@ import {
   getIntegrityFlags,
   type DateRange,
 } from "@/lib/admin-queries";
+import { getSupportSummary } from "@/lib/server/support";
 import AdminClient from "./admin-client";
 
 export default async function AdminPage({
@@ -38,6 +39,7 @@ export default async function AdminPage({
     quality,
     artists,
     integrity,
+    support,
   ] = await Promise.all([
     getKpis(range),
     getOnboardingFunnel(range),
@@ -46,6 +48,7 @@ export default async function AdminPage({
     getQualitySignals(),
     getArtistRoster(),
     getIntegrityFlags(),
+    getSupportSummary(),
   ]);
 
   return (
@@ -58,6 +61,7 @@ export default async function AdminPage({
       quality={quality}
       artists={artists}
       integrity={integrity}
+      support={support}
     />
   );
 }

@@ -9,6 +9,7 @@ import {
   Users,
   ShoppingBag,
   Link2,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 import Spiderweb from "@/components/icons/spiderweb";
@@ -86,6 +87,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
       { label: "Link Hub", href: "/link-hub", icon: Link2 },
       { label: "Analytics", href: "/analytics", icon: BarChart3 },
       { label: "Notifications", href: "/notifications", icon: Bell },
+      { label: "Support", href: "/support", icon: LifeBuoy },
       {
         label: "Settings",
         href: "/settings/profile",

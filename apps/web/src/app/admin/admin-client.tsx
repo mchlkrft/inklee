@@ -22,6 +22,7 @@ type Props = {
   quality: Awaited<ReturnType<typeof getQualitySignals>>;
   artists: Awaited<ReturnType<typeof getArtistRoster>>;
   integrity: Awaited<ReturnType<typeof getIntegrityFlags>>;
+  support: { needsAttention: number; total: number };
 };
 
 const RANGES = [
@@ -66,6 +67,7 @@ export default function AdminClient({
   quality,
   artists,
   integrity,
+  support,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,6 +108,29 @@ export default function AdminClient({
             ))}
           </div>
         </div>
+
+        {/* Support inbox summary */}
+        <section>
+          <Link
+            href="/admin/support"
+            className="flex items-center justify-between rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
+          >
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Support</p>
+              <p className="text-2xl font-semibold tabular-nums text-foreground">
+                {support.needsAttention}
+              </p>
+              <p
+                className={`text-xs ${support.needsAttention > 0 ? "text-brand-mustard" : "text-muted-foreground"}`}
+              >
+                {support.needsAttention > 0
+                  ? `ticket${support.needsAttention === 1 ? "" : "s"} awaiting support · ${support.total} total`
+                  : `no tickets waiting · ${support.total} total`}
+              </p>
+            </div>
+            <span className="text-sm text-muted-foreground">Open inbox →</span>
+          </Link>
+        </section>
 
         {/* KPI Row */}
         <section className="space-y-3">
