@@ -1,120 +1,80 @@
-# Inklee launch gate — final to-do (Android-first + web)
+# Inklee launch gate — strict MVP blockers (web + Android)
 
-**Decision (2026-06-23):** launch **Android + web first**; the iOS/Apple track is deferred.
+**Rewritten 2026-07-03** after challenging the previous version against `docs/roadmap.md` and LIVE verification (Vercel env API, Supabase Management API, Resend API, git). The old gate was materially stale: most "unset env" blockers were already set, the push send-half already exists, the onboarding art already shipped. This version lists ONLY tasks that block a fully working web + Android MVP; everything else is explicitly parked at the bottom with the reason.
 
-**Where we are:** the deposit-path **code is done** (Slice 80 P0 closeout, verified 2026-06-23) and the guest-spot map + icon polish + mobile splash shipped (prod `master 268996f`). What remains is almost entirely **founder config** (Vercel env + Stripe/Supabase dashboards) and **external ops** (store, real artist, counsel), plus **one real code task** (server push send-half).
+**Definition of "fully working MVP":** a real artist can sign up (web AND the Android app), configure their page, receive real client bookings, collect a real deposit with the 3% fee, get emails and push notifications, and the founder can administer accounts. Nothing fails silently.
 
-**Source:** the 2026-06-23 launch-blocker sweep (7-agent workflow over roadmap + payment audit + the fail-closed config gates in code + the mobile/web audits). Deep procedures live in [`beta-launch-checklist.md`](./beta-launch-checklist.md) (Stripe live phases C–E) and [`mobile-launch-checklist.md`](./mobile-launch-checklist.md) (mobile T1–T6); this file is the single top-level gate.
-
-**The trap to internalize:** several prod paths **fail closed** when their env var is unset. A green build does NOT prove they are set. The product can look "launched" and silently take zero bookings / send zero emails. Confirm every var in the table below.
+**Roadmap note:** roadmap §3.1/§8/§9 still carry the pre-reset "Bio Page + Goods cluster + OT-12 gate launch" framing. That is superseded — goods are showcase-only (2026-06-03 money-scope reset) and the deposit code is done. THIS file is the launch source of truth.
 
 ---
 
-## 0. Already owned by the founder (in flight — not re-listed below)
+## ✅ Verified working (live-checked 2026-07-03 — do not re-litigate)
 
-- [ ] **Stripe LIVE keys** — `sk_live_…` / `pk_live_…` in Vercel Production (code only warns on test keys, it does not block).
-- [x] **Onboarding wizard slide graphics (×3)** — ✅ DONE: the founder's 3 brand illustrations ship on BOTH surfaces via `packages/shared/src/onboarding-art.ts` (OB-1, merged to master in the 2026-06-29 mvp-bughunting merge `66fb48b`).
-- [ ] **Instagram / Meta flash-import → PUBLIC access** — ⏳ IN REVIEW (2026-07-03). Corrected: NO new Meta app was ever needed (the June-17 diagnosis confused Meta-App-ID with Instagram-App-ID); prod env + redirect have been correct since May 10 and the flow works end-to-end for Instagram-Testers. The real chain to public: Business verification for portfolio "inklee.app" as Inklee OÜ (**resubmitted 2026-07-03, in Meta review**) → clear the Business-Account restriction → Zugriffsverifizierung (tech provider, ~5 days) → App Review Advanced Access for `instagram_business_basic` → app Live. Code prep before App Review: privacy-policy Instagram section + disconnect must delete the token row (currently only flips `connected`). Detail: memory `flash-instagram-meta-setup`.
-- [ ] **Apple / iOS App Store** — DEFERRED (Android-first). Not an Android blocker.
-
----
-
-## 1. 🔴 Hard blockers (the product is broken or unsafe without these)
-
-### 1a. Vercel Production env — fail-closed gates
-> **✅ Verified 2026-07-03 (names via the Vercel API):** every var in the quick-reference table below EXISTS in Production, including both Upstash vars, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_AUTH_HOOK_SECRET`, Resend, `CRON_SECRET`, `ADMIN_EMAILS`, both Sentry DSNs; `GOODS_COMMERCE_ENABLED`/`CHECKOUT_ADDONS_PROD_READY` are correctly UNSET. Values were not decrypted — the remaining risk is a wrong/stale VALUE, and `STRIPE_SECRET_KEY` is known to be a TEST key. Behavior checks (a real booking submission, an auth email) still prove the values work; fold them into G-5.
-
-- [x] **`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`** — set; confirm with one real test booking during G-5.
-- [x] **`STRIPE_WEBHOOK_SECRET`** — set, but it must be replaced with the LIVE webhook's `whsec_…` at cutover (the current one is the test-mode endpoint's).
-- [x] **`SUPABASE_AUTH_HOOK_SECRET`** — set; confirm with one signup/reset email during G-5.
-
-### 1b. Stripe LIVE setup (live mode is separate from sandbox — see `beta-launch-checklist.md` Phase C–E)
-- [ ] **Enable Connect + Custom accounts in LIVE mode** and complete the Inklee OÜ platform profile. Re-confirm the controller / loss-liability / `fees.payer:application` settings match sandbox (sandbox config does NOT carry over). [OT-12]
-- [ ] **Create the LIVE webhook** → `https://inklee.app/api/stripe/webhook` (NOT the apex `inkl.ee`, which 308-redirects and strips the body/signature). Events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `account.updated`, `account.application.deauthorized`. Put its `whsec_…` in `STRIPE_WEBHOOK_SECRET` (1a). No separate Connect webhook needed.
-- [ ] **G-5: one real €1–5 deposit + refund** end-to-end on live (the only thing never done outside sandbox). Verify via Stripe API: charge paid, `application_fee` = 3%, `on_behalf_of`/`destination` = artist, booking flipped to Accepted via the LIVE webhook, emails sent; then refund and confirm return.
-- [ ] **Comp the beta artists to Plus** (`/admin/accounts` → Plan → Plus/Comp) — deposits are entitlement-gated; without it testers get no card form. (Requires `ADMIN_EMAILS`, §2.)
-
-### 1c. Supabase Auth dashboard (this is why "Android has no blockers" is not quite true)
-The APK builds fine, but for sign-in to work, in the **prod Supabase dashboard**:
-- [ ] Add deep-link redirects to the allowlist: `inklee://auth-callback`, `inklee://auth-confirm`, `inklee://reset-password` (+ `exp://` for dev). The reset-password deep link is required for the already-shipped native forgot/reset flow.
-- [ ] Set **Site URL** = `https://inklee.app`.
-- [ ] Ensure **"Allow new signups" is ON** (off = neither web nor native sign-up can create accounts).
-- [ ] Enable the **Google provider** with prod credentials.
+- **Every Production env var is SET** (names via Vercel API): Upstash ×2, Stripe ×3, `SUPABASE_AUTH_HOOK_SECRET`, Resend + `EMAIL_FROM`, `CRON_SECRET`, `ADMIN_EMAILS`, Supabase ×4, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN`, Sentry ×2, Maps. Goods flags correctly UNSET. Only known-wrong VALUE: `STRIPE_SECRET_KEY`/publishable are test-mode; `STRIPE_WEBHOOK_SECRET` is the test endpoint's.
+- **Resend sending domain `inklee.app` is VERIFIED** (Resend API) — email infra is real.
+- **Supabase Auth prod config** (Management API): Site URL = `https://inklee.app` ✅, signups ON ✅, Google provider ENABLED ✅. Two gaps → blockers 5 + 6 below.
+- **Deposit-path code done** (Slice 80 P0 closeout + Codex MONEY-01..04); **server push send-half EXISTS** (`lib/server/push.ts`, wired into `createNotification`); **onboarding art shipped** both surfaces (OB-1); **FU-18 image-race guard + FU sweep deployed** (`ff44a7e`).
+- Web prod is live and git-tracked from `master`; 541 tests green; full build green.
 
 ---
 
-## 2. 🟠 Important — set at launch (these fail *silently*)
+## 🔴 The blockers (ordered — this is the whole list)
 
-- [ ] **`RESEND_API_KEY` (live) + `EMAIL_FROM`** + verify the `inklee.app` sending domain (SPF/DKIM/DMARC) in Resend. `send.ts` only `console.warn`s when unset, so all email silently vanishes.
-- [ ] **`CRON_SECRET`** — else all 4 Vercel crons 401: reminders stop, cleanup stops, and the **monthly GDPR retention purge never runs** (compliance exposure). Also the Instagram OAuth state-secret fallback.
-- [ ] **`ADMIN_EMAILS`** — fail-closed: unset = `/admin` reachable by no one (so you can't comp artists / moderate DSA reports).
-- [ ] **Confirm core Supabase env + pooled `DATABASE_URL`** (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` on port 6543 transaction mode `?pgbouncer=true`). Placeholders mask absence at build time.
-- [ ] **Confirm `NEXT_PUBLIC_APP_URL=https://inklee.app`** and **`NEXT_PUBLIC_PUBLIC_BIO_DOMAIN=inkl.ee`** (a wrong value silently breaks emailed magic/reconfirm links + the IG redirect).
-- [ ] **Recruit the first real artist → 4-week soak** (the actual Phase-1 close gate: ≥1 real artist daily for 4 weeks, deposits/refunds clean, no critical bug in the last 14 days).
+### Money path (web) — founder, ~half a day total
 
----
+1. **Stripe LIVE cutover.** Enable Connect + Custom accounts in live mode, complete the Inklee OÜ platform profile, re-confirm controller / loss-liability / `fees.payer: application` (sandbox config does NOT carry over). Swap `STRIPE_SECRET_KEY` + `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` to live keys in Vercel Production. Procedure: `beta-launch-checklist.md` Phases C–E.
+2. **LIVE webhook.** Create it pointing at `https://inklee.app/api/stripe/webhook` (NOT the apex `inkl.ee` — its 308 strips the signature). Events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `account.updated`, `account.application.deauthorized`. Put its `whsec_…` into `STRIPE_WEBHOOK_SECRET` and redeploy.
+3. **G-5: one real €1–5 deposit + refund end-to-end on live.** The only money flow never run outside sandbox. Verify: charge paid, `application_fee` = 3%, `on_behalf_of`/destination = artist, booking flips to Accepted via the live webhook, emails send; then refund and confirm the return. **This run doubles as the value-check for the fail-closed env vars** (one public booking submission proves Upstash; one signup/reset email proves the auth hook + Resend).
+4. **Comp the beta artists to Plus** (`/admin/accounts` → Plan). Deposits are entitlement-gated — without this, testers never see a card form. (`ADMIN_EMAILS` is set, so `/admin` works.)
 
-## 3. 🟠 Code task (the only engineering work left)
+### App path (Android) — founder config + one small code task
 
-- [x] **Server-side push send-half — ✅ BUILT 2026-06-24** (Codex audit DRIFT-01: `lib/server/push.ts` exists and is wired into `createNotification`). Delivery still fires only once **FCM creds** exist (§5) + a fresh EAS build ships. What remains here is verification, not code.
-- [ ] **Mobile min-version kill-switch** (critic catch). No OTA + no remote-disable = a bad real-money build can't be recalled. Add a tiny `/api/mobile/min-version` check + a blocking "update required" screen, before the first money-path build.
-- [ ] **Verify the privacy retention-table row** matches the cleanup-cron behavior (cancelled non-money bookings are deleted at 30 days) before the public web launch.
-- [ ] **Run the `pg_policies` RLS sanity check** before any further prod migration push (standing process gate after the 0001 incident).
-- [ ] **Smoke-test the postponed Stripe edges** before any non-EUR or manual-fallback artist: non-EUR (e.g. GBP) end-to-end, dashboard-refund reconciliation, declined-card `payment_intent.payment_failed`, reuse-after-deauthorize.
+5. **Supabase redirect allowlist — add the mobile deep links.** Verified missing: the allowlist has ONLY the two web URLs. Add `inklee://auth-callback`, `inklee://auth-confirm`, `inklee://reset-password` (+ the `exp://` dev scheme). Without these, native Google sign-in, native signup confirmation, and the native reset flow all fail on-device. 5 minutes in the dashboard.
+6. **Raise the auth email rate limit.** Verified at **2/hour** — the third auth email in an hour silently fails, which breaks onboarding more than one user. Note: `mailer_autoconfirm=false` suggests email confirmation IS currently required in prod; the G-5 signup test will confirm the actual behavior either way.
+7. **Android FCM credentials.** Create the Firebase project, upload the service account to EAS credentials. The push code is complete on both halves; creds are the only gate to Android push existing at all.
+8. **Mobile min-version kill-switch** (code, Claude, small). No OTA + no remote-disable = a bad real-money build cannot be recalled. Tiny `/api/mobile/min-version` endpoint + a blocking "update required" screen. Must land BEFORE the first money-path build.
+9. **Fresh EAS Android build + on-device sweep.** One build (after 7 + 8) carries: everything since `ebae8796`, push, the kill-switch. Then on a real device: Google sign-in (ME-7), native email signup incl. the confirm deep link (ME-8), booking flow end-to-end, one push notification E2E. Distribution for the private beta = this preview APK directly; **no Play listing needed**.
 
----
+### Standing process gates (not tasks, but do not skip)
 
-## 4. 🟡 Public-web-launch hardening (a private APK beta can defer these)
+- Before the NEXT migration push: `supabase migration repair --status applied 0052 0053 0054 0055` (bookkeeping records only through 0051) + the `pg_policies` RLS sanity check (post-0001-incident rule, see AGENTS.md).
+- While flipping Stripe vars: confirm `GOODS_COMMERCE_ENABLED` / `CHECKOUT_ADDONS_PROD_READY` stay unset (verified unset today).
 
-- [ ] **Google Play release pipeline** — only for a PUBLIC Play listing (a private comped beta distributes the existing preview APK fine). Open: production EAS profile + Play service account (`eas.json submit.production` is empty), store listing/screenshots/age-rating/**Data Safety form**, internal-testing soak. **Back up the cloud keystore (`eas credentials`) before any release.**
-- [ ] **CAPTCHA/Turnstile** on public booking + waitlist + signup (today the only defense is the per-IP rate limiter).
-- [ ] **Vercel Preview deployment protection** — previews point at the prod Supabase; a leaked preview URL is an unauth path to prod data. Confirm Deployment Protection is ON (and `NEXT_PUBLIC_LEGAL_PENDING_REVIEW=false` in Preview if you share preview URLs).
-- [ ] **Supabase plan / backups** — the privacy page promises 30-day backups, but Free = 7-day PITR + daily only. Upgrade to Pro before real artist data, or correct the privacy copy to 7 days.
-- [ ] **Supabase auth email rate limit** (default ~2–4/hr) can throttle launch-day signups/magic-links; raise it in the dashboard.
-- [ ] **Password policy** — bump minimum length to ≥8 and enable leaked-password (HIBP) protection (Pro) for accounts that control payouts.
-- [ ] **`SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`** — set at the Stripe-live cutover so payment/webhook errors are observable (the webhook already flags amount-mismatch/orphaned intents to Sentry).
-- [ ] **Lock the Google Maps key** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is in the client bundle; add an HTTP-referrer + per-API restriction to `inklee.app` + a billing quota/alert.
-- [ ] **Email verification cutover** (optional for launch; account hygiene) — the `feat/email-verification` branch is unmerged. If enforcing: merge it, flip "Confirm email" ON in the prod Supabase dashboard, verify the hook + secret, raise the rate limit, allowlist `inklee://auth-confirm`, native signup test.
-- [ ] **Keep `GOODS_COMMERCE_ENABLED` and `CHECKOUT_ADDONS_PROD_READY` UNSET** (goods stay showcase-only; known latent EUR bug) — verify they are OFF while flipping other Stripe-live vars.
-- [ ] **Post-launch hardening:** install `expo-updates` + `eas update:configure` (OTA); AES-GCM encrypt Instagram OAuth tokens at rest; iCal capability-token PII (hash token, drop email).
+### The finish line
+
+**Recruit the first real artist → 4-week soak** (daily use, deposits/refunds clean, no critical bug in the last 14 days). This is the Phase-1 close criterion, not a config task. The recruitment vehicle already exists code-complete: the Founding Artist page on branch `feat/founding-artist-beta` (roadmap §3.9, migration 0056 already applied) — merging it is the natural first step of recruitment.
 
 ---
 
-## 5. External ops (gating §3 push + the beta)
+## 📦 Parked — explicitly NOT MVP-blocking (and why)
 
-- [ ] **Android FCM credentials** — no `google-services.json` / FCM config exists; create the Firebase project + upload the service account to EAS credentials. Gates the push send-half.
-- [ ] **On-device Android bug sweep** on a real device with the latest preview APK (verify sign-in/sign-up/booking end-to-end; ME-7 Google sign-in + ME-8 native email signup are code-complete but unverified on a real build). Depends on §1c.
-
----
-
-## 6. Counsel (run in parallel; not hard blockers)
-
-- [ ] **LO-2** — PSD2 / merchant-of-record analysis for the Connect deposit flow (artist-as-MoR, `fees.payer:application`).
-- [ ] **LO-5** — DPIA covering booking-image processing, magic-link tokens, the Stripe flow.
-- [ ] Lower-urgency (post-launch follow-up): LO-1 DPO, LO-3 DSA Art.19 exemption, LO-4 liability-cap enforceability, LO-6 CCPA/CPRA, LO-7 Estonian VAT threshold, LO-8 homepage "GDPR compliant" badge residual.
-
----
-
-## 7. ✅ Verified done (so it is not re-litigated)
-
-- Deposit-path code hardening (Slice 80 P0s — 5/6 already closed, G2-F1 + the email EUR residual fixed + deployed).
-- Account-deletion re-auth (shipped server-side on both web + mobile).
-- Legal "pending review" footnote OFF in prod (`NEXT_PUBLIC_LEGAL_PENDING_REVIEW=false`, 2026-05-20).
-- Guest-spot travel map + icon polish + mobile splash (prod `master 268996f`, web live, Android APK built `ebae8796`).
+| Item | Why parked |
+| --- | --- |
+| Instagram import PUBLIC access | Works for Instagram-Testers now; public access is in Meta review (Business verification resubmitted 2026-07-03). Chain + code-prep in memory `flash-instagram-meta-setup`. |
+| Google Play listing (production EAS profile, store assets, Data Safety form) | Private beta distributes the preview APK directly. Needed only for a PUBLIC store launch. Back up the cloud keystore before any release. |
+| Vercel Preview deployment protection | Verified OFF today. Previews point at prod Supabase — do not share preview URLs until enabled. Pre-public item, not MVP. |
+| CAPTCHA/Turnstile on public forms | Rate limiter is active (Upstash set). Add before public marketing push. |
+| Supabase Pro upgrade / backups | Privacy page promises 30-day backups vs Free tier's 7 — fix (upgrade or copy change) before PUBLIC launch; a comped private beta accepts the risk knowingly. |
+| Password min length 8 + HIBP | Verified currently 6/off. Hardening, do with the Supabase dashboard session (items 5–6) if convenient. |
+| Email-verification cutover (`feat/email-verification`, unmerged) | Optional hygiene; G-5 will reveal whether confirm-email is already effectively on. |
+| Stripe non-EUR / declined-card / reuse-after-deauthorize edges | EUR-only beta; smoke-test before the first non-EUR artist. |
+| Privacy retention-row vs cleanup-cron wording check | Quick doc-accuracy check before PUBLIC web launch. |
+| Maps API key referrer lock | Cost control, not functionality. |
+| Counsel LO-2 (PSD2/MoR) + LO-5 (DPIA) | Run in parallel; counsel signed off the Custom-Connect process (G-4). |
+| Apple / iOS | Deferred by decision 2026-06-23 (Android-first). Enrollment still in progress with Apple. |
+| ME-1 store assets, ME-13 dashboard mockup, Plausible goals registration | Store listing / polish / measurement — not blocking a working product. |
 
 ---
 
-## Vercel Production env — quick reference
+## Quick reference — who does what
 
-| Var | Why | Fail mode if unset |
-| --- | --- | --- |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | rate limiter | **booking/waitlist/auth reject ALL submissions** |
-| `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | live payments | test-mode banner; no real charges |
-| `STRIPE_WEBHOOK_SECRET` | webhook verify | deposits never flip to Accepted; no emails |
-| `SUPABASE_AUTH_HOOK_SECRET` | auth email hook | all confirm/reset/magic-link email 500s |
-| `RESEND_API_KEY` / `EMAIL_FROM` | all email | email silently disappears |
-| `CRON_SECRET` | 4 crons | reminders + **GDPR purge** stop (401) |
-| `ADMIN_EMAILS` | /admin | no one can reach admin (can't comp artists) |
-| `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` / `DATABASE_URL` | DB + auth | runtime auth/DB errors (build-safe placeholders mask it) |
-| `NEXT_PUBLIC_APP_URL` (=`https://inklee.app`) / `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN` (=`inkl.ee`) | links + public hosts | emailed links break |
-| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | error monitoring | payment errors unobserved (recommended) |
+| # | Task | Owner | Size |
+| --- | --- | --- | --- |
+| 1–2 | Stripe live mode + live webhook | Founder | ~2 h |
+| 3 | G-5 real €1–5 deposit + refund | Founder (Claude verifies via API) | ~1 h |
+| 4 | Comp beta artists to Plus | Founder | 5 min |
+| 5 | Supabase deep-link allowlist | Founder | 5 min |
+| 6 | Auth email rate limit | Founder | 2 min |
+| 7 | Firebase/FCM creds → EAS | Founder | ~30 min |
+| 8 | Min-version kill-switch | Claude | small PR |
+| 9 | EAS build + on-device sweep | Claude builds, founder tests | ~1 h device time |
