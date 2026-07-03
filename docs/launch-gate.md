@@ -13,7 +13,7 @@
 ## 0. Already owned by the founder (in flight — not re-listed below)
 
 - [ ] **Stripe LIVE keys** — `sk_live_…` / `pk_live_…` in Vercel Production (code only warns on test keys, it does not block).
-- [ ] **Onboarding wizard slide graphics (×3)** — founder replacing the art.
+- [x] **Onboarding wizard slide graphics (×3)** — ✅ DONE: the founder's 3 brand illustrations ship on BOTH surfaces via `packages/shared/src/onboarding-art.ts` (OB-1, merged to master in the 2026-06-29 mvp-bughunting merge `66fb48b`).
 - [ ] **Instagram / Meta flash-import → PUBLIC access** — ⏳ IN REVIEW (2026-07-03). Corrected: NO new Meta app was ever needed (the June-17 diagnosis confused Meta-App-ID with Instagram-App-ID); prod env + redirect have been correct since May 10 and the flow works end-to-end for Instagram-Testers. The real chain to public: Business verification for portfolio "inklee.app" as Inklee OÜ (**resubmitted 2026-07-03, in Meta review**) → clear the Business-Account restriction → Zugriffsverifizierung (tech provider, ~5 days) → App Review Advanced Access for `instagram_business_basic` → app Live. Code prep before App Review: privacy-policy Instagram section + disconnect must delete the token row (currently only flips `connected`). Detail: memory `flash-instagram-meta-setup`.
 - [ ] **Apple / iOS App Store** — DEFERRED (Android-first). Not an Android blocker.
 
@@ -22,9 +22,11 @@
 ## 1. 🔴 Hard blockers (the product is broken or unsafe without these)
 
 ### 1a. Vercel Production env — fail-closed gates
-- [ ] **`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`** — **the most dangerous one.** `ratelimit.ts` fails closed in prod: unset = the **public booking form, waitlist, login, signup, password-reset all reject every submission**. Set both, then submit a real test booking to confirm.
-- [ ] **`STRIPE_WEBHOOK_SECRET`** — see Stripe live setup below (the webhook route 400s without it, so paid deposits never flip to Accepted and no emails send).
-- [ ] **`SUPABASE_AUTH_HOOK_SECRET`** — all auth email (signup confirm, reset, magic link) is sent via Resend through `/api/auth/email-hook`, which 500s if this is unset.
+> **✅ Verified 2026-07-03 (names via the Vercel API):** every var in the quick-reference table below EXISTS in Production, including both Upstash vars, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_AUTH_HOOK_SECRET`, Resend, `CRON_SECRET`, `ADMIN_EMAILS`, both Sentry DSNs; `GOODS_COMMERCE_ENABLED`/`CHECKOUT_ADDONS_PROD_READY` are correctly UNSET. Values were not decrypted — the remaining risk is a wrong/stale VALUE, and `STRIPE_SECRET_KEY` is known to be a TEST key. Behavior checks (a real booking submission, an auth email) still prove the values work; fold them into G-5.
+
+- [x] **`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`** — set; confirm with one real test booking during G-5.
+- [x] **`STRIPE_WEBHOOK_SECRET`** — set, but it must be replaced with the LIVE webhook's `whsec_…` at cutover (the current one is the test-mode endpoint's).
+- [x] **`SUPABASE_AUTH_HOOK_SECRET`** — set; confirm with one signup/reset email during G-5.
 
 ### 1b. Stripe LIVE setup (live mode is separate from sandbox — see `beta-launch-checklist.md` Phase C–E)
 - [ ] **Enable Connect + Custom accounts in LIVE mode** and complete the Inklee OÜ platform profile. Re-confirm the controller / loss-liability / `fees.payer:application` settings match sandbox (sandbox config does NOT carry over). [OT-12]
@@ -54,7 +56,7 @@ The APK builds fine, but for sign-in to work, in the **prod Supabase dashboard**
 
 ## 3. 🟠 Code task (the only engineering work left)
 
-- [ ] **Server-side push send-half.** `lib/server/push.ts` does NOT exist; `createNotification` only inserts the in-app row. Device side is complete, but **nothing POSTs to Expo**, so no Android push ever fires. Build the sender (load `device_tokens` → POST `https://exp.host/--/api/v2/push/send`, delete on `DeviceNotRegistered`), wire it into the notification-insert points, then ship a fresh EAS build (no OTA). Gated on FCM creds (§5).
+- [x] **Server-side push send-half — ✅ BUILT 2026-06-24** (Codex audit DRIFT-01: `lib/server/push.ts` exists and is wired into `createNotification`). Delivery still fires only once **FCM creds** exist (§5) + a fresh EAS build ships. What remains here is verification, not code.
 - [ ] **Mobile min-version kill-switch** (critic catch). No OTA + no remote-disable = a bad real-money build can't be recalled. Add a tiny `/api/mobile/min-version` check + a blocking "update required" screen, before the first money-path build.
 - [ ] **Verify the privacy retention-table row** matches the cleanup-cron behavior (cancelled non-money bookings are deleted at 30 days) before the public web launch.
 - [ ] **Run the `pg_policies` RLS sanity check** before any further prod migration push (standing process gate after the 0001 incident).
