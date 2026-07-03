@@ -57,6 +57,7 @@ export async function generateMetadata({
     .from("profiles")
     .select("display_name, location")
     .eq("slug", slug)
+    .eq("account_status", "active")
     .single();
 
   if (!profile?.display_name) return FALLBACK_METADATA;
@@ -116,6 +117,7 @@ export default async function ArtistPublicPage({
       "id, display_name, bio, logo_url, instagram_handle, location, booking_mode, timezone, settings",
     )
     .eq("slug", slug)
+    .eq("account_status", "active")
     .single();
 
   if (!profile) notFound();

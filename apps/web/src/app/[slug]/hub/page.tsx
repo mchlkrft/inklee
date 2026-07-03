@@ -26,6 +26,7 @@ export async function generateMetadata({
     .from("profiles")
     .select("display_name, bio")
     .eq("slug", slug)
+    .eq("account_status", "active")
     .single();
 
   if (!profile?.display_name) {
@@ -54,6 +55,7 @@ export default async function ArtistHubPage({
       "id, display_name, bio, logo_url, instagram_handle, location, settings",
     )
     .eq("slug", slug)
+    .eq("account_status", "active")
     .single();
 
   if (!profile) notFound();

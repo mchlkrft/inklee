@@ -28,6 +28,7 @@ export default async function PublicFlashDayPage({
     .from("profiles")
     .select("id, display_name")
     .eq("slug", slug)
+    .eq("account_status", "active")
     .single();
 
   if (!profile) notFound();

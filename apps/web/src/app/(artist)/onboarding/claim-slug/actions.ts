@@ -66,7 +66,7 @@ export async function claimSlugAction(
 
   const { data: currentProfile } = await supabase
     .from("profiles")
-    .select("timezone, slug, is_tester")
+    .select("timezone, slug, is_tester, instagram_handle, location")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -77,12 +77,17 @@ export async function claimSlugAction(
     return { error: "That slug is already taken." };
   }
 
+  // Blank optional fields must not wipe previously saved values — this form
+  // does not prefill them, so a re-visit (back-navigation mid-wizard, or an
+  // onboarded artist returning to /onboarding/claim-slug) would otherwise
+  // null out Instagram and location. Clearing them lives in Settings.
   const { error } = await supabase.from("profiles").upsert({
     id: user.id,
     slug,
     display_name: displayName,
-    instagram_handle: instagramHandle,
-    location,
+    instagram_handle:
+      instagramHandle ?? currentProfile?.instagram_handle ?? null,
+    location: location ?? currentProfile?.location ?? null,
     timezone: currentProfile?.timezone ?? "Europe/Berlin",
     updated_at: new Date().toISOString(),
   });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeHrefForEmail } from "../booking-templates";
+import { buildEmailHtml, sanitizeHrefForEmail } from "../booking-templates";
 import { renderEmailShell } from "../layout";
 
 describe("sanitizeHrefForEmail", () => {
@@ -32,6 +32,27 @@ describe("sanitizeHrefForEmail", () => {
     expect(sanitizeHrefForEmail("not a url")).toBeNull();
     expect(sanitizeHrefForEmail("")).toBeNull();
     expect(sanitizeHrefForEmail("/relative/path")).toBeNull();
+  });
+});
+
+describe("buildEmailHtml body-variable escaping", () => {
+  it("escapes an XSS payload arriving through a substituted variable", () => {
+    // Regression guard for the escape-order invariant: substituteVars runs
+    // first, then renderBody escapes each non-URL line. A refactor that
+    // escapes before substitution (or bypasses renderBody) reopens the hole.
+    const html = buildEmailHtml("Hi {{customer_handle}}", {
+      customer_handle: "<script>alert(1)</script>",
+    });
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).not.toContain("<script>alert(1)</script>");
+  });
+
+  it("escapes free-text vars like placement and description", () => {
+    const html = buildEmailHtml("Placement: {{placement}}", {
+      placement: '<img src=x onerror="alert(1)">',
+    });
+    expect(html).toContain("&lt;img");
+    expect(html).not.toContain('onerror="alert(1)"');
   });
 });
 

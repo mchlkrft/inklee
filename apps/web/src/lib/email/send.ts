@@ -23,6 +23,13 @@ export async function sendEmail({
 }: SendEmailParams): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
+    // In production a missing key must fail loud: the auth email-hook relies
+    // on a throw to return 500 so Supabase retries instead of marking the
+    // confirmation/reset email delivered; booking senders surface to Sentry.
+    // In dev/test, skipping keeps flows runnable without a Resend account.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("email send failed: RESEND_API_KEY is not set");
+    }
     console.warn("[email] RESEND_API_KEY not set; skipping send");
     return;
   }

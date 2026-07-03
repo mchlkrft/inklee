@@ -874,8 +874,16 @@ export async function requestDepositCore(
       };
       try {
         const intent = await stripe.paymentIntents.create(intentParams, {
-          // One intent per booking even under rapid re-submits / retries.
-          idempotencyKey: `deposit-intent-${id}`,
+          // Per-attempt key: the nonce protects transport-level retries (the
+          // SDK reuses the same key when it retries a failed request) without
+          // pinning the booking to one cached Stripe response for 24h. A
+          // booking-scoped key (`deposit-intent-${id}`) could replay an
+          // already-cancelled intent when a lost MONEY-03 race cancels the
+          // created intent and the artist re-requests, wedging the deposit
+          // until the key expired. App-level double-submits are already
+          // serialised by the conditional status UPDATE below (the loser
+          // cancels its intent).
+          idempotencyKey: `deposit-intent-${id}-${crypto.randomUUID()}`,
         });
         paymentIntentId = intent.id;
         clientSecret = intent.client_secret;
@@ -1373,7 +1381,10 @@ export async function editAppointmentCore(
   if (!placement) return { error: "Placement is required." };
   if (!size) return { error: "Size is required." };
 
-  const { error } = await supabase
+  // Status-gated conditional UPDATE: the approved-only check above is
+  // read-then-write, so gate the write itself against a concurrent
+  // cancel/reject landing in between.
+  const { data: updated, error } = await supabase
     .from("booking_requests")
     .update({
       customer_handle: handle,
@@ -1382,8 +1393,13 @@ export async function editAppointmentCore(
       form_data: { ...fd, placement, size, description },
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", "approved")
+    .select("id");
   if (error) return { error: error.message };
+  if (!updated || updated.length === 0) {
+    return { error: "This booking just changed. Refresh and try again." };
+  }
 
   await supabase.from("audit_log").insert({
     booking_id: id,

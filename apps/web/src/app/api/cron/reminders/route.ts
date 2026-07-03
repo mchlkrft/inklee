@@ -64,6 +64,25 @@ function startOfTodayUtc(timezone: string): string {
   return localToUTC(todayInTimeZone(timezone), "00:00", timezone);
 }
 
+/**
+ * Records the idempotency marker `alreadySentToday` reads. A silently failed
+ * insert would re-send the same reminder on the next run, so a failure throws
+ * into the caller's per-item catch (counted in results.errors, logged).
+ */
+async function recordReminderSent(
+  bookingId: string,
+  details: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await serviceClient.from("audit_log").insert({
+    booking_id: bookingId,
+    action: "reminder_sent",
+    details,
+  });
+  if (error) {
+    throw new Error(`reminder_sent audit insert failed: ${error.message}`);
+  }
+}
+
 async function alreadySentToday(
   bookingId: string,
   type: "deposit_overdue" | "appointment_reminder" | "reconfirmation",
@@ -163,11 +182,7 @@ export async function GET(request: Request) {
           });
         }
 
-        await serviceClient.from("audit_log").insert({
-          booking_id: booking.id,
-          action: "reminder_sent",
-          details: { type: "deposit_overdue" },
-        });
+        await recordReminderSent(booking.id, { type: "deposit_overdue" });
 
         results.deposit_overdue++;
       } catch (error) {
@@ -230,13 +245,9 @@ export async function GET(request: Request) {
           studio: await resolveStudioForBooking(booking.id),
         });
 
-        await serviceClient.from("audit_log").insert({
-          booking_id: booking.id,
-          action: "reminder_sent",
-          details: {
-            type: "appointment_reminder",
-            days_out: snapshot.settings.appointment_reminder_days,
-          },
+        await recordReminderSent(booking.id, {
+          type: "appointment_reminder",
+          days_out: snapshot.settings.appointment_reminder_days,
         });
 
         results.appointment_reminder++;
@@ -327,13 +338,9 @@ export async function GET(request: Request) {
           throw error;
         }
 
-        await serviceClient.from("audit_log").insert({
-          booking_id: booking.id,
-          action: "reminder_sent",
-          details: {
-            type: "reconfirmation",
-            days_out: snapshot.settings.reconfirmation_days,
-          },
+        await recordReminderSent(booking.id, {
+          type: "reconfirmation",
+          days_out: snapshot.settings.reconfirmation_days,
         });
 
         results.reconfirmation++;

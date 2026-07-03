@@ -35,12 +35,18 @@ function formatDate(iso: string) {
 
 export default async function SupportPage() {
   const supabase = await createClient();
-  // RLS limits this to the signed-in artist's own tickets.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  // RLS limits this to the signed-in artist's own tickets; the explicit
+  // artist_id filter keeps the read tenant-scoped even if RLS regresses.
   const { data } = await supabase
     .from("support_tickets")
     .select(
       "id, reference, subject, category, status, created_at, updated_at, last_admin_reply_at, artist_seen_at",
     )
+    .eq("artist_id", user.id)
     .order("updated_at", { ascending: false });
   const tickets = (data ?? []) as TicketListRow[];
 

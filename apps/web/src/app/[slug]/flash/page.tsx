@@ -27,6 +27,7 @@ export default async function PublicFlashOverviewPage({
     .from("profiles")
     .select("id, display_name, logo_url, instagram_handle")
     .eq("slug", slug)
+    .eq("account_status", "active")
     .single();
 
   if (!profile) notFound();

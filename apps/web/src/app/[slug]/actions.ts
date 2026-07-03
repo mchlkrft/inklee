@@ -74,6 +74,7 @@ export async function submitBookingAction(
     .from("profiles")
     .select("id, display_name, settings, booking_mode, timezone")
     .eq("slug", artistSlug)
+    .eq("account_status", "active")
     .single();
 
   if (!artistProfile) return { error: "Artist not found." };
@@ -359,10 +360,14 @@ export async function submitBookingAction(
     // the SQL level. Service role is needed because the SELECT after UPDATE
     // returns a row with status='locked', which the public anon SELECT policy
     // (status='open' only) would hide, making the lock appear to fail.
+    // .eq("artist_id", artistId) scopes the lock to the page's artist — slot
+    // ids are visible in public page HTML, so without it a submission to
+    // artist A's form could lock artist B's slot.
     const { data: locked } = await serviceClient
       .from("slots")
       .update({ status: "locked" })
       .eq("id", requestedSlotId)
+      .eq("artist_id", artistId)
       .eq("status", "open")
       .select("id, starts_at")
       .single();
@@ -418,7 +423,8 @@ export async function submitBookingAction(
       await serviceClient
         .from("slots")
         .update({ status: "open" })
-        .eq("id", slotId);
+        .eq("id", slotId)
+        .eq("artist_id", artistId);
     }
     if (uploadedImages.length > 0) {
       await serviceClient.storage
@@ -730,6 +736,7 @@ export async function submitWaitlistAction(
     .from("profiles")
     .select("id, display_name")
     .eq("slug", artistSlug)
+    .eq("account_status", "active")
     .single();
 
   if (!profile) return { error: "Artist not found." };

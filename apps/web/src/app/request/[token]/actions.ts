@@ -184,20 +184,32 @@ export async function cancelCustomerBookingAction(
   const guard = canTransition(booking.status, "cancelled");
   if (!guard.ok) return { error: guard.reason };
 
+  // Status-gated conditional UPDATE with a rowcount check (same pattern as the
+  // cores in lib/server/bookings.ts). Without the .eq("status", ...) guard a
+  // concurrent artist action (approve rotates the token; reject does not)
+  // could slip between the read above and this write — the cancel would then
+  // proceed on stale state, releasing the slot of an approved booking and
+  // emailing the artist about a cancellation that never happened.
   const cancelledAt = new Date().toISOString();
-  const { error: updateError } = await serviceClient
+  const { data: cancelled, error: updateError } = await serviceClient
     .from("booking_requests")
     .update({ status: "cancelled", updated_at: cancelledAt })
     .eq("id", booking.id)
-    .eq("customer_token_hash", tokenHash);
+    .eq("customer_token_hash", tokenHash)
+    .eq("status", booking.status)
+    .select("id");
 
   if (updateError) return { error: "Something went wrong. Try again." };
+  if (!cancelled || cancelled.length === 0) {
+    return { error: "This booking just changed. Refresh and try again." };
+  }
 
   if (booking.slot_id) {
     const { error: slotError } = await serviceClient
       .from("slots")
       .update({ status: "open" })
-      .eq("id", booking.slot_id);
+      .eq("id", booking.slot_id)
+      .eq("artist_id", booking.artist_id);
 
     if (slotError) {
       await serviceClient

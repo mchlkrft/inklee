@@ -86,13 +86,15 @@ export default async function SupportTicketPage({
   } = await supabase.auth.getUser();
   if (!user) notFound();
 
-  // RLS: this returns null for tickets the artist does not own.
+  // RLS: this returns null for tickets the artist does not own. The explicit
+  // artist_id filter keeps the read tenant-scoped even if RLS regresses.
   const { data: ticketData } = await supabase
     .from("support_tickets")
     .select(
       "id, reference, subject, category, status, description, expected_behavior, actual_behavior, reproduction_steps, relevant_area, device_info, platform_info, additional_context, created_at, updated_at",
     )
     .eq("id", ticketId)
+    .eq("artist_id", user.id)
     .maybeSingle();
   if (!ticketData) notFound();
   const ticket = ticketData as TicketRow;

@@ -104,6 +104,21 @@ export async function createSupportTicket({
 }): Promise<{ id: string; reference: string } | { error: string }> {
   const opt = (v: string) => (v.trim() ? v.trim() : null);
 
+  // Per-artist creation cap: each ticket fires two emails (team inbox +
+  // confirmation), so an unbounded loop would spam the support inbox.
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentCount } = await serviceClient
+    .from("support_tickets")
+    .select("id", { count: "exact", head: true })
+    .eq("artist_id", artistId)
+    .gte("created_at", oneHourAgo);
+  if ((recentCount ?? 0) >= 5) {
+    return {
+      error:
+        "You have opened several tickets in the last hour. Please add details to an existing ticket or try again later.",
+    };
+  }
+
   const { data: ticket, error } = await serviceClient
     .from("support_tickets")
     .insert({

@@ -173,7 +173,7 @@ export async function POST(request: Request) {
     const { data: booking, error: fetchError } = await serviceClient
       .from("booking_requests")
       .select(
-        "id, status, customer_email, customer_handle, preferred_date, form_data, artist_id, deposit_amount, deposit_payment_intent_id, deposit_policy_snapshot",
+        "id, status, customer_email, customer_handle, preferred_date, form_data, artist_id, deposit_amount, deposit_currency, deposit_payment_intent_id, deposit_policy_snapshot",
       )
       .eq("id", bookingId)
       .single();
@@ -304,6 +304,23 @@ export async function POST(request: Request) {
         {
           error: `payment amount mismatch: expected ${expectedAmount}, received ${intent.amount}`,
         },
+        { status: 409 },
+      );
+    }
+
+    // Anti-tamper backstop alongside the amount check: the minor-unit amount
+    // alone cannot distinguish 100 EUR from 100 SEK, so verify the intent
+    // settled in the currency the deposit was requested in.
+    if (
+      !order &&
+      booking.deposit_currency &&
+      intent.currency !== booking.deposit_currency
+    ) {
+      flagOrphanedPayment(
+        `currency mismatch: expected ${booking.deposit_currency}, received ${intent.currency}`,
+      );
+      return NextResponse.json(
+        { error: "payment currency does not match this booking" },
         { status: 409 },
       );
     }

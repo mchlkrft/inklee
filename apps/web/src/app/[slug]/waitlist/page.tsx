@@ -18,6 +18,7 @@ export async function generateMetadata({
     .from("profiles")
     .select("display_name")
     .eq("slug", slug)
+    .eq("account_status", "active")
     .maybeSingle();
   const name = data?.display_name ?? "Inklee";
   return {
@@ -50,6 +51,7 @@ export default async function PublicWaitlistPage({
     .from("profiles")
     .select("display_name, slug")
     .eq("slug", slug)
+    .eq("account_status", "active")
     .maybeSingle();
 
   if (!profile) notFound();

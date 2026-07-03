@@ -14,6 +14,8 @@ import { isDateKeyOnOrAfter, todayInTimeZone } from "@/lib/date-utils";
 import { formatSlotDisplay } from "@/lib/timezone";
 import { parseDepositDefaults, detectStripeMode } from "@/lib/deposit-settings";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
+import { canAccess } from "@/lib/entitlements";
+import { getAccountOverrides } from "@/lib/entitlements-server";
 import { sanitizeHttpUrl } from "@inklee/shared/url";
 import { resolveBookingGuestSpotStudio } from "@/lib/booking-studio";
 import { formatPrice } from "@/lib/goods";
@@ -73,8 +75,12 @@ export default async function RequestDetailPage({
   // RS-2: in-app card collection is only available to artists with an active
   // Stripe Connect account. Un-connected artists can still request a deposit,
   // but it's a manual one (client pays them directly; they mark it received).
-  const canCollectInApp = (await getConnectRoutingForArtist(user!.id))
-    .routeCharges;
+  // Slice 81: card collection is ALSO gated on the `deposits` entitlement —
+  // requestDepositCore falls back to a manual deposit for un-entitled artists,
+  // so the UI must not promise "client pays by card" or preview the fee.
+  const canCollectInApp =
+    (await getConnectRoutingForArtist(user!.id)).routeCharges &&
+    canAccess(await getAccountOverrides(user!.id), "deposits");
   const slotInfo =
     booking.slot_id && booking.slots
       ? formatSlotDisplay(
