@@ -66,6 +66,7 @@ blast radius; **low** = hardening / defense-in-depth / coverage.
 | MAIL-1 | low | cron | reminder `reminder_sent` idempotency marker written after the send; a failed insert silently re-sends | `recordReminderSent` throws on insert failure into the per-item catch |
 | MAIL-2 | low | email | `sendEmail` silently no-op'd on a missing key, defeating the auth-hook's fail-loud retry | throws in production when `RESEND_API_KEY` unset |
 | MAIL-3 | low | email | no test covered body-variable HTML escaping | added `buildEmailHtml` escaping regression tests |
+| DEV-1 | medium | dev tooling | a `"use server"` file re-exported `type InterestDecisionPayload`; `next build` erased it but `next dev` (Turbopack, the founder's dev command) emitted it as a value, 500-ing on EVERY Accept/Pass in dev | moved the type to the client-safe `booking-interests.ts`; server core re-exports for the mobile route, client component imports directly, the `"use server"` file no longer re-exports a type |
 
 ### Documented / not code-fixed (with rationale)
 
@@ -127,18 +128,28 @@ production. See `docs/testing.md`.
 - `pnpm --filter inklee lint` — pass (0 errors; 5 pre-existing warnings)
 - `pnpm --filter inklee test` (vitest) — 566 pass (was 564; +2 email-escaping tests)
 - `pnpm --filter inklee build` (`next build`) — pass (162 static pages; expected test-mode Stripe warnings)
-- `npx playwright test --list` — 26 tests across 11 files collected
-- E2E safety guard verified: refuses a missing env AND a production Supabase ref before any dev server starts.
-- Live read-only DB check (service-role, SELECT-only): RLS enabled on all 37 public tables; support policies present; bookkeeping through 0057.
+- `npx playwright test` against a local Supabase stack — **23 tests green**
+  (20 Chromium + 3 Pixel 7 mobile), ~35s. The run doubled as verification of
+  the audit fixes: public page hides the artist email, cross-tenant request
+  access renders the not-found page, books-closed shows the waitlist, the
+  manual deposit lifecycle completes, and expired/invalid portal tokens fail
+  safely.
+- E2E safety guard verified: refuses a missing env AND a production Supabase ref
+  before any dev server starts.
+- Live read-only DB check (service-role, SELECT-only): RLS enabled on all 37
+  public tables; support policies present; bookkeeping through 0057.
+- Local Supabase brought up via `supabase start` + `supabase db reset` (all 56
+  migrations applied cleanly + `supabase/seed.sql` grants).
 
 ## Commands that could not run (and why)
 
-- **Full E2E execution against a live app:** requires an isolated Supabase.
-  Local `.env.local` points at the PRODUCTION project, which the suite refuses
-  by design. A local Supabase stack (`supabase start`) is the intended target;
-  see `docs/testing.md` for the exact setup. The suite is validated to collect
-  and its safety guard is validated to fire; running the specs green is the
-  remaining step once the local stack is up (or in CI with dev-project secrets).
+- **Live Stripe card payment + webhook delivery:** needs live/test Stripe keys
+  and a webhook tunnel. Covered by unit tests over the shared money cores and by
+  the launch gate's one live G-5 run; not driven from E2E by design (no live
+  keys in the test env).
+- **CI E2E:** the GitHub Actions job still runs typecheck/lint/vitest only.
+  Adding E2E needs a Supabase service in the workflow (see `docs/testing.md`
+  "CI"); the env guard keeps it from ever touching production.
 
 ## Environment assumptions
 
