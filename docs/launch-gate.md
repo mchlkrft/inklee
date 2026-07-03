@@ -14,7 +14,7 @@
 
 - [ ] **Stripe LIVE keys** — `sk_live_…` / `pk_live_…` in Vercel Production (code only warns on test keys, it does not block).
 - [ ] **Onboarding wizard slide graphics (×3)** — founder replacing the art.
-- [ ] **Instagram / Meta flash-import** — blocked on the new Meta app + Business verification, then `INSTAGRAM_APP_ID/SECRET/STATE_SECRET` + the `/api/instagram/callback` redirect. Feature stays cleanly hidden until configured.
+- [ ] **Instagram / Meta flash-import → PUBLIC access** — ⏳ IN REVIEW (2026-07-03). Corrected: NO new Meta app was ever needed (the June-17 diagnosis confused Meta-App-ID with Instagram-App-ID); prod env + redirect have been correct since May 10 and the flow works end-to-end for Instagram-Testers. The real chain to public: Business verification for portfolio "inklee.app" as Inklee OÜ (**resubmitted 2026-07-03, in Meta review**) → clear the Business-Account restriction → Zugriffsverifizierung (tech provider, ~5 days) → App Review Advanced Access for `instagram_business_basic` → app Live. Code prep before App Review: privacy-policy Instagram section + disconnect must delete the token row (currently only flips `connected`). Detail: memory `flash-instagram-meta-setup`.
 - [ ] **Apple / iOS App Store** — DEFERRED (Android-first). Not an Android blocker.
 
 ---
