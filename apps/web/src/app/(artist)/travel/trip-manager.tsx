@@ -61,6 +61,13 @@ function formatDate(dateKey: string) {
   return formatDateKey(dateKey);
 }
 
+// Single-day stops render one date; ranges join with an en-dash, matching the
+// native app's travel formatter (apps/mobile/src/lib/travel.ts).
+function formatRange(startsOn: string, endsOn: string) {
+  if (startsOn === endsOn) return formatDate(startsOn);
+  return `${formatDate(startsOn)} – ${formatDate(endsOn)}`;
+}
+
 // ─── Modal shell ──────────────────────────────────────────────────────────────
 
 function Modal({
@@ -300,7 +307,7 @@ function StudioSelectWithAdd({
             {studios.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
-                {s.city ? ` — ${s.city}` : ""}
+                {s.city ? `, ${s.city}` : ""}
                 {s.country ? `, ${s.country}` : ""}
               </option>
             ))}
@@ -330,7 +337,7 @@ function OverlapNotice() {
     <div className="rounded-md border border-brand-mustard/40 bg-brand-mustard/[0.07] px-3 py-2.5">
       <p className="text-xs leading-snug text-foreground">
         <span className="font-semibold">These dates overlap.</span> That&apos;s
-        fine if you&apos;re working more than one studio at once — but clients
+        fine if you&apos;re working more than one studio at once, but clients
         booking on those days will see every matching studio and be asked to
         wait for your confirmation. Remember to tell each client which studio to
         come to.
@@ -386,13 +393,15 @@ function CreateTripModal({
   }
 
   function confirmStop() {
-    if (!stopFrom || !stopTo) return;
+    if (!stopFrom) return;
     setStops((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
         startsOn: stopFrom,
-        endsOn: stopTo,
+        // Single-day parity with the native range picker: no end date means a
+        // one-day stop.
+        endsOn: stopTo || stopFrom,
         studioId: stopStudio,
         notes: stopNotes,
       },
@@ -468,7 +477,7 @@ function CreateTripModal({
                 >
                   <div className="min-w-0 space-y-0.5">
                     <p className="text-sm text-foreground">
-                      {formatDate(stop.startsOn)} — {formatDate(stop.endsOn)}
+                      {formatRange(stop.startsOn, stop.endsOn)}
                     </p>
                     {stop.studioId && studios.length > 0 && (
                       <p className="text-sm text-muted-foreground">
@@ -507,7 +516,9 @@ function CreateTripModal({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm text-muted-foreground">To</label>
+                  <label className="text-sm text-muted-foreground">
+                    To (leave empty for a single day)
+                  </label>
                   <DateInput
                     value={stopTo}
                     onChange={(e) => setStopTo(e.target.value)}
@@ -547,7 +558,7 @@ function CreateTripModal({
                 <button
                   type="button"
                   onClick={confirmStop}
-                  disabled={!stopFrom || !stopTo}
+                  disabled={!stopFrom}
                   className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-40"
                 >
                   Add stop
@@ -691,8 +702,10 @@ function AddLegForm({
           <DateInput name="starts_on" required className={INPUT_CLS} />
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-muted-foreground">To</label>
-          <DateInput name="ends_on" required className={INPUT_CLS} />
+          <label className="text-sm text-muted-foreground">
+            To (leave empty for a single day)
+          </label>
+          <DateInput name="ends_on" className={INPUT_CLS} />
         </div>
       </div>
 
@@ -896,7 +909,7 @@ function EditTripModal({
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2">
                       <p className="text-sm text-foreground">
-                        {formatDate(leg.startsOn)} — {formatDate(leg.endsOn)}
+                        {formatRange(leg.startsOn, leg.endsOn)}
                       </p>
                       {legActive && (
                         <span className="text-xs text-green-500">Now</span>
@@ -1073,7 +1086,7 @@ export default function TripManager({
 
         {trips.length === 0 && (
           <p className="text-sm text-muted-foreground px-1">
-            No trips yet — click the card above to create your first one.
+            No trips yet. Click the card above to create your first one.
           </p>
         )}
       </div>

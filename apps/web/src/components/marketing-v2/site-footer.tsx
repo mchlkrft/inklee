@@ -2,6 +2,15 @@ import Link from "next/link";
 import SiteLogo from "@/components/site-logo";
 import { getRenderableFooterGroups } from "@/lib/footer-links";
 
+// FU-9: the md column count must track the rendered sections (1 brand column
+// + N link groups) or the last group wraps to an orphan row. Static class
+// strings because Tailwind can't see dynamically composed names.
+const MD_GRID_COLS: Record<number, string> = {
+  4: "md:grid-cols-4",
+  5: "md:grid-cols-5",
+  6: "md:grid-cols-6",
+};
+
 /** Shared site footer across all redesigned marketing pages. Inherits
  *  the trimmed Legal group from src/lib/footer-links.ts (Imprint /
  *  Privacy / Terms only — DPA / Acceptable Use / Cookies /
@@ -9,10 +18,11 @@ import { getRenderableFooterGroups } from "@/lib/footer-links";
  *  pages themselves). */
 export default function SiteFooter() {
   const groups = getRenderableFooterGroups();
+  const mdCols = MD_GRID_COLS[groups.length + 1] ?? "md:grid-cols-6";
   return (
     <footer className="border-t border-border">
       <div className="container-marketing py-12">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
+        <div className={`grid grid-cols-2 gap-8 ${mdCols}`}>
           <div className="col-span-2 md:col-span-1">
             <SiteLogo height={16} />
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">

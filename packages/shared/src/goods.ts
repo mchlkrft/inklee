@@ -84,6 +84,13 @@ export function maxProductImages(variantCount: number): number {
   return variantCount > 0 ? variantCount + 1 : 3;
 }
 
+// FU-18: every product-image writer (web save, mobile image POST/DELETE)
+// compare-and-sets on products.updated_at so a cross-device interleave cannot
+// resurrect a deleted image URL whose storage object is already gone. One
+// message for all three surfaces.
+export const PRODUCT_CONFLICT_MESSAGE =
+  "This product changed on another device. Reload and try again.";
+
 export function isProductCategory(v: unknown): v is ProductCategory {
   return (
     typeof v === "string" &&

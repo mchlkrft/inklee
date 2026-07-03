@@ -416,11 +416,18 @@ export async function createTripLegAction(
   const notes = (formData.get("notes") as string)?.trim() || null;
   if (!tripId) return { error: "Trip, start date, and end date are required." };
 
+  // Single-day parity with the native range picker: an empty end date means a
+  // one-day stop.
+  const startsOn = formData.get("starts_on");
+  const endsOnRaw = formData.get("ends_on");
+  const endsOn =
+    typeof endsOnRaw === "string" && endsOnRaw.trim() ? endsOnRaw : startsOn;
+
   let leg;
   try {
     leg = validateTripLeg({
-      startsOn: formData.get("starts_on"),
-      endsOn: formData.get("ends_on"),
+      startsOn,
+      endsOn,
       studioId: (formData.get("studio_id") as string) || null,
       notes,
     });

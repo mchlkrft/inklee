@@ -13,6 +13,7 @@ import {
   isCurrency,
   toPriceNumber,
   maxProductImages,
+  PRODUCT_CONFLICT_MESSAGE,
   DEFAULT_CURRENCY,
   MAX_PRODUCT_TITLE,
   MAX_PRODUCT_DESCRIPTION,
@@ -217,21 +218,44 @@ async function uploadProductImage(
 // .storage.remove()) is single-sourced in @/lib/server/mobile-goods-server so
 // the web action and the mobile image route can't drift (ME-10 D12).
 
+// Best-effort storage removal, path-guarded per URL. Shared by the rollback
+// and post-write cleanup paths below.
+async function removeOwnedGoodsObjects(
+  urls: string[],
+  userId: string,
+  productId: string,
+): Promise<void> {
+  for (const url of urls) {
+    const p = ownedGoodsStoragePath(url, userId, productId);
+    if (p) {
+      await serviceClient.storage
+        .from("logos")
+        .remove([p])
+        .catch(() => undefined);
+    }
+  }
+}
+
 // Shared image-write path for create + update. Reads:
 //   • existing_image_urls (JSON string of URLs to keep, in order) — empty on
 //     create, populated on edit when the artist keeps existing images.
 //   • images (one or more File entries from a multi-input).
-// Uploads each new file via uploadProductImage, composes the final array as
-// keep ++ uploaded (in posted order), and deletes from storage any URL in
-// prevImageUrls that didn't survive. On upload failure, rolls back any
+// Uploads each new file via uploadProductImage and composes the final array as
+// keep ++ uploaded (in posted order). On upload failure, rolls back any
 // just-uploaded files this call produced.
+// FU-18: it does NOT delete dropped images from storage anymore — it returns
+// them as `removed` so the caller deletes them only AFTER the DB write
+// succeeds its updated_at compare-and-set. Deleting before the write let a
+// losing writer destroy objects the winning row version still references.
 async function processProductImages(
   userId: string,
   productId: string,
   formData: FormData,
   maxImages: number,
   prevImageUrls: string[],
-): Promise<{ value: string[] } | { error: string }> {
+): Promise<
+  { value: string[]; uploaded: string[]; removed: string[] } | { error: string }
+> {
   let rawKeep: string[] = [];
   const raw = formData.get("existing_image_urls");
   if (typeof raw === "string" && raw.trim()) {
@@ -269,37 +293,20 @@ async function processProductImages(
     if ("error" in up) {
       // Rollback uses ownedGoodsStoragePath so even a freshly-uploaded URL
       // can only resolve to a path under this user/product namespace.
-      for (const url of uploadedUrls) {
-        const p = ownedGoodsStoragePath(url, userId, productId);
-        if (p) {
-          await serviceClient.storage
-            .from("logos")
-            .remove([p])
-            .catch(() => undefined);
-        }
-      }
+      await removeOwnedGoodsObjects(uploadedUrls, userId, productId);
       return up;
     }
     uploadedUrls.push(up.url);
   }
   const finalUrls = [...keep, ...uploadedUrls];
 
-  // Delete any previous URLs the artist dropped from the keep-list. Paths
-  // are re-validated against this artist + product namespace, so a tampered
+  // URLs the artist dropped from the keep-list. Paths are re-validated
+  // against this artist + product namespace at deletion time, so a tampered
   // prevImageUrls (if one ever leaked in via another bug) still can't
   // cross-artist delete.
   const removed = prevImageUrls.filter((u) => !finalUrls.includes(u));
-  for (const url of removed) {
-    const p = ownedGoodsStoragePath(url, userId, productId);
-    if (p) {
-      await serviceClient.storage
-        .from("logos")
-        .remove([p])
-        .catch(() => undefined);
-    }
-  }
 
-  return { value: finalUrls };
+  return { value: finalUrls, uploaded: uploadedUrls, removed };
 }
 
 // reconcileVariants moved to @/lib/server/goods-variants — shared with PUT
@@ -412,18 +419,20 @@ export async function updateProductAction(
   if ("error" in variantsRes) return variantsRes;
   const f = parsed.value;
 
-  // Fetch the current image list so we can diff against the keep-list and
-  // delete dropped images from storage. Falls back to legacy single image_url
-  // for rows that haven't been written since migration 0038.
+  // Fetch the current image list so we can diff against the keep-list, plus
+  // updated_at as the optimistic-concurrency token (FU-18). Falls back to
+  // legacy single image_url for rows that haven't been written since
+  // migration 0038.
   const { data: prevRow } = await supabase
     .from("products")
-    .select("image_urls, image_url")
+    .select("image_urls, image_url, updated_at")
     .eq("id", id)
     .eq("artist_id", user.id)
     .single();
-  const prevImageUrls: string[] = Array.isArray(prevRow?.image_urls)
-    ? (prevRow!.image_urls as string[])
-    : prevRow?.image_url
+  if (!prevRow) return { error: "Product not found." };
+  const prevImageUrls: string[] = Array.isArray(prevRow.image_urls)
+    ? (prevRow.image_urls as string[])
+    : prevRow.image_url
       ? [prevRow.image_url as string]
       : [];
 
@@ -436,9 +445,12 @@ export async function updateProductAction(
     prevImageUrls,
   );
   if ("error" in imagesResult) return imagesResult;
-  const imageUrls = imagesResult.value;
+  const { value: imageUrls, uploaded, removed } = imagesResult;
 
-  const { error } = await supabase
+  // FU-18 compare-and-set: the write only lands if nobody else (the mobile
+  // image routes, another tab) wrote the row since our read. A stale write
+  // here could resurrect an image URL whose storage object is already gone.
+  const { data: updatedRows, error } = await supabase
     .from("products")
     .update({
       title: f.title,
@@ -456,8 +468,21 @@ export async function updateProductAction(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("artist_id", user.id);
-  if (error) return { error: error.message };
+    .eq("artist_id", user.id)
+    .eq("updated_at", prevRow.updated_at as string)
+    .select("id");
+  if (error) {
+    await removeOwnedGoodsObjects(uploaded, user.id, id);
+    return { error: error.message };
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    // Lost the race: keep storage consistent with the row that won.
+    await removeOwnedGoodsObjects(uploaded, user.id, id);
+    return { error: PRODUCT_CONFLICT_MESSAGE };
+  }
+
+  // Only now is it safe to drop the replaced objects from storage.
+  await removeOwnedGoodsObjects(removed, user.id, id);
 
   await reconcileVariants(id, variantsRes.value);
 

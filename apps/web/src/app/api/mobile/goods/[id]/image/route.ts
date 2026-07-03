@@ -11,7 +11,7 @@ import {
 } from "@/lib/server/mobile-goods-server";
 import { serviceClient } from "@/lib/supabase/service";
 import { UUID_RE } from "@/lib/mobile-booking-form";
-import { maxProductImages } from "@/lib/goods";
+import { maxProductImages, PRODUCT_CONFLICT_MESSAGE } from "@/lib/goods";
 import type { MobileImageUpload } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -37,7 +37,7 @@ export async function POST(
 
   const { data: product, error: ownErr } = await supabase
     .from("products")
-    .select("id, image_urls, image_url")
+    .select("id, image_urls, image_url, updated_at")
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
@@ -82,7 +82,10 @@ export async function POST(
 
   const next = append ? [...current, up.url] : [up.url, ...current];
 
-  const { error } = await supabase
+  // FU-18 compare-and-set on updated_at: a concurrent writer (web save,
+  // another device) invalidates our read, and a stale write here could
+  // resurrect an image URL whose storage object is already gone.
+  const { data: updatedRows, error } = await supabase
     .from("products")
     .update({
       image_urls: next,
@@ -90,8 +93,22 @@ export async function POST(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("artist_id", userId);
-  if (error) return mobileError(500, error.message);
+    .eq("artist_id", userId)
+    .eq("updated_at", product.updated_at as string)
+    .select("id");
+  const lostRace = !error && (!updatedRows || updatedRows.length === 0);
+  if (error || lostRace) {
+    // The upload never made it into the row: remove the orphaned object.
+    const orphanPath = ownedGoodsStoragePath(up.url, userId, id);
+    if (orphanPath) {
+      await serviceClient.storage
+        .from("logos")
+        .remove([orphanPath])
+        .catch(() => undefined);
+    }
+    if (error) return mobileError(500, error.message);
+    return mobileError(409, PRODUCT_CONFLICT_MESSAGE, "conflict");
+  }
 
   await revalidatePublicPage(supabase, userId);
   const body: MobileImageUpload = { url: up.url };
@@ -128,7 +145,7 @@ export async function DELETE(
 
   const { data: product, error: ownErr } = await supabase
     .from("products")
-    .select("id, image_urls, image_url")
+    .select("id, image_urls, image_url, updated_at")
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
@@ -145,7 +162,9 @@ export async function DELETE(
   }
 
   const next = current.filter((u) => u !== body.url);
-  const { error } = await supabase
+  // FU-18 compare-and-set: on a lost race the storage object below must NOT
+  // be removed — the winning row version may still reference the URL.
+  const { data: updatedRows, error } = await supabase
     .from("products")
     .update({
       image_urls: next,
@@ -153,8 +172,13 @@ export async function DELETE(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("artist_id", userId);
+    .eq("artist_id", userId)
+    .eq("updated_at", product.updated_at as string)
+    .select("id");
   if (error) return mobileError(500, error.message);
+  if (!updatedRows || updatedRows.length === 0) {
+    return mobileError(409, PRODUCT_CONFLICT_MESSAGE, "conflict");
+  }
 
   const path = ownedGoodsStoragePath(body.url, userId, id);
   if (path) {

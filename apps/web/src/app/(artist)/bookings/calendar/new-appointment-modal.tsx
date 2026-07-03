@@ -2,7 +2,7 @@
 
 import DateInput from "@/components/date-input";
 import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
-import { useEffect, useState, startTransition } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 import { createAppointmentAction } from "./actions";
 import { SIZES } from "@/lib/booking-schema";
 
@@ -35,6 +35,44 @@ export default function NewAppointmentModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // M16/M17 remainder: move focus into the dialog on open, keep Tab cycling
+  // inside it, and hand focus back to the opener on close.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const focusables = () =>
+      Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("disabled"));
+    const firstInput = panel.querySelector<HTMLElement>(
+      "input, select, textarea",
+    );
+    (firstInput ?? focusables()[0])?.focus();
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const els = focusables();
+      if (els.length === 0) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    panel.addEventListener("keydown", onTab);
+    return () => {
+      panel.removeEventListener("keydown", onTab);
+      previouslyFocused?.focus?.();
+    };
+  }, []);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -64,7 +102,10 @@ export default function NewAppointmentModal({
         aria-labelledby="new-appt-title"
         className="fixed inset-0 z-50 flex items-center justify-center px-4"
       >
-        <div className="w-full max-w-md bg-background border border-border rounded-lg overflow-hidden">
+        <div
+          ref={panelRef}
+          className="w-full max-w-md bg-background border border-border rounded-lg overflow-hidden"
+        >
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <span
               id="new-appt-title"
