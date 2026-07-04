@@ -10,6 +10,7 @@ export * from "./deposit-settings";
 export * from "./connect-countries";
 export * from "./connect-requirements";
 export * from "./notification-types";
+export * from "./app-version";
 export * from "./status-labels";
 export * from "./booking-domain";
 export * from "./date-utils";

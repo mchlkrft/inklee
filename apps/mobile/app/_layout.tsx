@@ -14,9 +14,11 @@ import type { MobileMe } from "@inklee/shared/mobile-api";
 import { BrandLoader } from "@/components/BrandLoader";
 import { Button } from "@/components/Button";
 import { SplashOverlay } from "@/components/SplashOverlay";
+import { UpdateRequired } from "@/components/UpdateRequired";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
+import { useMinVersionGate } from "@/lib/min-version";
 import { usePushResponseObserver } from "@/lib/push";
 import { captureError } from "@/lib/telemetry";
 import { t } from "@/lib/i18n";
@@ -109,6 +111,11 @@ function RootNavigator() {
   const theme = useThemeColors();
   const userId = session?.user?.id;
 
+  // Min-version kill-switch. Fail-open: only an affirmative updateRequired
+  // blocks (see useMinVersionGate). Checked ABOVE the auth/onboarding gates so a
+  // recalled build is blocked even before sign-in.
+  const minVersion = useMinVersionGate();
+
   // Drop the previous session's cached data when the signed-in user changes
   // (sign-out, or switching accounts) so the /me gate can never read a prior
   // user's onboarding state. Skips the initial undefined→user bootstrap (cache
@@ -149,6 +156,13 @@ function RootNavigator() {
     headerTintColor: theme.foreground,
     headerShadowVisible: false,
   };
+
+  // Block everything (including the sign-in screen and the splash) when the
+  // server has recalled this build. Placed after all hooks so the early return
+  // is safe.
+  if (minVersion.updateRequired) {
+    return <UpdateRequired url={minVersion.updateUrl} />;
+  }
 
   let content: ReactNode;
   if (booting) {
