@@ -404,19 +404,18 @@ export async function POST(request: Request) {
           10,
         );
         if (Number.isFinite(sponsoredCents) && sponsoredCents > 0) {
-          const { data: ov } = await serviceClient
-            .from("account_overrides")
-            .select("fee_sponsored_used_cents")
-            .eq("artist_id", booking.artist_id)
-            .maybeSingle();
-          await serviceClient
-            .from("account_overrides")
-            .update({
-              fee_sponsored_used_cents:
-                (ov?.fee_sponsored_used_cents ?? 0) + sponsoredCents,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("artist_id", booking.artist_id);
+          // PAY-1: atomic increment (col = col + delta) so two different
+          // bookings for the same artist settling concurrently can't lose an
+          // increment via a read-modify-write.
+          const { error: incError } = await serviceClient.rpc(
+            "increment_fee_sponsored_used",
+            { p_artist_id: booking.artist_id, p_cents: sponsoredCents },
+          );
+          if (incError) {
+            Sentry.captureException(incError, {
+              tags: { action: "fee_sponsorship_increment" },
+            });
+          }
         }
       } else {
         // Lost the FSM race: re-read to distinguish a benign concurrent

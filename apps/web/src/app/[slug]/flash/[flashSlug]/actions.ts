@@ -156,38 +156,47 @@ export async function submitFlashBookingAction(
     }
   }
 
-  // Insert booking
+  // Insert booking. PUB-3: the count check above is optimistic (for the fast
+  // "no longer available" path + specific reasons); the authoritative capacity
+  // enforcement happens inside book_flash_item, which locks the flash item and
+  // re-checks the cap in the SAME transaction as the insert, so two concurrent
+  // clients can't both slip past a unique/limited cap. A NULL return means the
+  // design filled between the optimistic check and here.
   const bookingId = crypto.randomUUID();
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-  const { error: insertError } = await serviceClient
-    .from("booking_requests")
-    .insert({
-      id: bookingId,
-      artist_id: artistId,
-      status: "pending",
-      form_data: {
+  const { data: insertedId, error: insertError } = await serviceClient.rpc(
+    "book_flash_item",
+    {
+      p_flash_item_id: flashItemId,
+      p_artist_id: artistId,
+      p_booking_id: bookingId,
+      p_form_data: {
         instagram_handle: data.instagram_handle,
         placement: data.placement,
         notes: data.notes || null,
         flash_item_title: flashItem.title,
         flash_item_slug: flashItem.slug,
       },
-      preferred_date: data.preferred_date,
-      customer_email: data.email || null,
-      customer_handle: data.instagram_handle || null,
-      customer_token_hash: data.email ? tokenHash : null,
-      origin: "public_form",
-      flash_item_id: flashItemId,
-      flash_day_id: attributedDayId,
-    });
+      p_preferred_date: data.preferred_date,
+      p_customer_email: data.email || null,
+      p_customer_handle: data.instagram_handle || null,
+      p_customer_token_hash: data.email ? tokenHash : null,
+      p_flash_day_id: attributedDayId,
+    },
+  );
 
   if (insertError) {
     Sentry.captureException(insertError, {
       tags: { action: "flash_booking_insert" },
     });
     return { error: "Something went wrong. Try again." };
+  }
+
+  if (!insertedId) {
+    // Lost the capacity race (or the item is no longer bookable).
+    return { error: "this flash item is no longer available for booking" };
   }
 
   // Audit log

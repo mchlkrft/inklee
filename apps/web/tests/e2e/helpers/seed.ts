@@ -122,6 +122,35 @@ export async function createTestBooking(
   return { id: data.id, token, artistId: artist.id };
 }
 
+/** Inserts a published flash item and returns its id. */
+export async function createTestFlashItem(
+  artistId: string,
+  opts: {
+    bookingMode: "unique" | "limited" | "repeatable";
+    maxBookings?: number | null;
+    slug?: string;
+  },
+): Promise<string> {
+  const slug = opts.slug ?? `e2e-flash-${Date.now().toString(36)}`;
+  const { data, error } = await admin()
+    .from("flash_items")
+    .insert({
+      artist_id: artistId,
+      title: `E2E Flash ${slug}`,
+      slug,
+      status: "published",
+      is_bookable: true,
+      booking_mode: opts.bookingMode,
+      max_bookings: opts.maxBookings ?? null,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    throw new Error(`seed: flash item insert failed: ${error?.message}`);
+  }
+  return data.id;
+}
+
 export function daysFromNow(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
