@@ -34,6 +34,36 @@ export default async function globalSetup(_config: FullConfig) {
   const seed: SeedFile = { runId, artistA, artistB };
   writeFileSync(SEED_FILE, JSON.stringify(seed, null, 2));
 
+  // Warm the route patterns so the first real navigation in a test is not a
+  // cold Turbopack compile (which can blow a per-test timeout under parallel
+  // load on a slow CI runner). Best-effort: a GET compiles the route.
+  const baseUrl = process.env.E2E_BASE_URL || "http://localhost:3000";
+  const warmupRoutes = [
+    "/login",
+    "/signup",
+    "/onboarding/welcome",
+    "/onboarding/claim-slug",
+    "/onboarding/booking",
+    "/onboarding/availability",
+    "/onboarding/form",
+    "/onboarding/done",
+    "/bookings/overview",
+    "/bookings/calendar",
+    "/bookings/settings",
+    "/bookings/waitlist",
+    "/request/submitted",
+    "/request/warmup-token",
+    `/${artistA.slug}`,
+    `/${artistA.slug}/waitlist`,
+    "/bookings/requests/00000000-0000-0000-0000-000000000000",
+    "/admin",
+  ];
+  await Promise.allSettled(
+    warmupRoutes.map((r) =>
+      fetch(`${baseUrl}${r}`, { redirect: "manual" }).catch(() => undefined),
+    ),
+  );
+
   process.env.E2E_RUN_ID = runId;
   process.env.E2E_ARTIST_EMAIL = artistA.email;
   process.env.E2E_ARTIST_PASSWORD = artistA.password;

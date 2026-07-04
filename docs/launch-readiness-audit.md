@@ -67,14 +67,14 @@ blast radius; **low** = hardening / defense-in-depth / coverage.
 | MAIL-2 | low | email | `sendEmail` silently no-op'd on a missing key, defeating the auth-hook's fail-loud retry | throws in production when `RESEND_API_KEY` unset |
 | MAIL-3 | low | email | no test covered body-variable HTML escaping | added `buildEmailHtml` escaping regression tests |
 | DEV-1 | medium | dev tooling | a `"use server"` file re-exported `type InterestDecisionPayload`; `next build` erased it but `next dev` (Turbopack, the founder's dev command) emitted it as a value, 500-ing on EVERY Accept/Pass in dev | moved the type to the client-safe `booking-interests.ts`; server core re-exports for the mobile route, client component imports directly, the `"use server"` file no longer re-exports a type |
+| PAY-1 | low | webhook | fee-sponsorship budget counter was a read-modify-write; two bookings for the same artist settling concurrently could lose one increment | migration `0058` adds `increment_fee_sponsored_used` (atomic `col = col + delta`, service_role-only); the webhook calls it via `.rpc()`. Proven by a concurrency test: 20 concurrent +7 total exactly 140 |
+| PUB-3 | medium | flash | unique/limited flash capacity check was a non-atomic count-then-insert; two concurrent clients could both pass and overshoot capacity | migration `0059` adds `book_flash_item` (locks the flash item `FOR UPDATE`, re-checks the cap, inserts, all in one transaction; service_role-only); the public action calls it via `.rpc()`. Proven by a concurrency test: unique caps at 1/8, limited at 3/10, repeatable unbounded |
 
 ### Documented / not code-fixed (with rationale)
 
 | id | sev | area | disposition |
 | --- | --- | --- | --- |
-| PUB-3 | low | flash | unique/limited flash capacity check is non-atomic (TOCTOU); two concurrent clients can both pass. Accepted for beta: the artist manually reviews and can pass extras. Harden with a partial unique index before scaling. |
 | PUB-4 | low | waitlist | no dedupe on `(artist_id, email)`; a client can join twice. Informational; rate-limited to 3/IP/hr. |
-| PAY-1 | low | webhook | fee-sponsorship budget counter is a read-modify-write; two concurrent bookings for the same artist can lose one increment. Direction favors the artist (Inklee slightly over-sponsors), never overcharges a customer. Fix with an atomic SQL increment; low priority while sponsorship is off/rare. |
 | PAY-4 | low | webhook | a card payment that succeeds AFTER a manual "mark received" is swallowed with no orphan flag. Tight race; manual-mark for card deposits is already a hidden override. Add a `flagOrphanedPayment` branch for approved-without-audit-row. |
 | PAY-6 | low | webhook | `payment_intent.payment_failed` audit insert is unguarded (audit noise only); no chargeback (`charge.dispute.*`) handling yet. Track before scaling past the beta. |
 | ADM-2 | low | admin | self-target guard absent on non-lockout admin actions (plan/entitlement setters). Admin is already trusted; optionally block self-entitlement grants. |
@@ -173,8 +173,33 @@ These are unchanged by this audit and remain on `docs/launch-gate.md`:
 - Supabase mobile deep-link allowlist + auth email rate limit (currently 2/hr).
 - The medium/low items in "Documented / not code-fixed" above, before scaling past ~25 artists (flash capacity race, dispute handling, sponsorship counter atomicity).
 
+## New migrations on this branch
+
+- `0058_fee_sponsorship_atomic.sql` — the `increment_fee_sponsored_used` RPC (PAY-1).
+- `0059_flash_capacity_atomic.sql` — the `book_flash_item` RPC (PUB-3).
+
+Both apply cleanly to a fresh DB (verified via `supabase db reset` locally + in
+CI). Before pushing them to PRODUCTION, follow the AGENTS.md rule: prod
+bookkeeping records only through 0051, so run
+`supabase migration repair --status applied 0052 0053 0054 0055 0056 0057`
+first, then `supabase db push`, and re-run the `pg_policies` RLS sanity check.
+Neither function touches RLS or adds a tenant table, so no new anon-SELECT risk.
+
+## CI
+
+The `.github/workflows/ci.yml` `e2e` job now stands up a local Supabase
+(`supabase start` + `db reset`), writes `.env.e2e` from `supabase status -o env`,
+installs Chromium, and runs `pnpm test:e2e` against `next dev`. It runs in dev
+(not a production build) on purpose: the rate limiter fails closed in production
+when Upstash is unset, which would reject every public-form submission; dev uses
+the in-memory allow-fallback. No production or live-Stripe secrets are exposed;
+the env guard would refuse them anyway.
+
 ## Recommended next actions
 
-1. Bring up a local Supabase (or a dev project) and run `pnpm --filter inklee test:e2e` to get the suite green; wire it into CI with dev-project secrets (the `.github/workflows/ci.yml` job currently runs typecheck/lint/vitest only).
-2. Address the deferred medium items when convenient: flash-capacity partial unique index (PUB-3), atomic sponsorship counter (PAY-1), orphan flag for card-paid-after-manual (PAY-4).
-3. Add `charge.dispute.*` handling before the beta scales.
+1. Address the remaining low items when convenient: waitlist `(artist_id,email)`
+   dedupe (PUB-4), the card-paid-after-manual orphan flag (PAY-4), and the
+   unguarded `payment_intent.payment_failed` audit insert (PAY-6).
+2. Add `charge.dispute.*` (chargeback) handling before the beta scales.
+3. Optionally add an admin self-entitlement-grant guard (ADM-2) and sensitive-
+   read audit logging (AUD-1).

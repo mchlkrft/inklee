@@ -173,8 +173,31 @@ it needs no interaction.
 
 ## CI
 
-To add E2E to CI safely: stand up a local Supabase in the workflow (the
-`supabase` CLI + Docker service, `supabase db reset`), set `.env.e2e` from the
-CLI output, `npx playwright install --with-deps chromium`, then
-`pnpm --filter inklee test:e2e`. Never expose production Supabase or live Stripe
-secrets to CI — the suite's env guard would refuse them anyway.
+`.github/workflows/ci.yml` has two jobs. `verify` runs typecheck + lint + vitest
+for web and mobile. `e2e` runs the Playwright suite:
+
+1. `supabase/setup-cli` + `supabase start` (Docker is available on the runner).
+2. `supabase db reset` — applies every migration + `supabase/seed.sql` grants.
+3. Writes `.env.e2e` from `eval "$(supabase status -o env)"` (maps `API_URL` /
+   `ANON_KEY` / `SERVICE_ROLE_KEY` / `DB_URL` to the suite's var names).
+4. `playwright install --with-deps chromium`.
+5. `pnpm test:e2e` — Playwright starts `next dev` (with the e2e env) and runs
+   the suite; failures upload the `test-results/` report as an artifact.
+
+It runs against `next dev`, NOT a production build: the rate limiter fails
+closed in production when Upstash is unset (by design), which would reject every
+public-form submission, whereas dev uses an in-memory allow-fallback.
+`global-setup` warms the route patterns so the first navigation is not a cold
+compile, and CI keeps `retries: 1` for the occasional slow-runner flake.
+
+Never expose production Supabase or live Stripe/Resend secrets to CI — none are
+needed, and the suite's env guard would refuse a production target anyway.
+
+## Concurrency tests
+
+`tests/e2e/concurrency.spec.ts` calls the two hardening RPCs directly (no
+browser) to prove DB-level guarantees a UI test can't reliably trigger:
+`book_flash_item` lets exactly one booking through a `unique` design and caps a
+`limited` design at `max_bookings` under 8-10 concurrent calls (PUB-3), and
+`increment_fee_sponsored_used` loses no increments across 20 concurrent calls
+(PAY-1). These need the local Supabase but no dev server.

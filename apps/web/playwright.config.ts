@@ -21,11 +21,16 @@ try {
   // Reported by globalSetup.
 }
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+// `|| ` (not `?? `) so an empty E2E_BASE_URL is treated as unset, not as a
+// literal empty base URL.
+const baseURL = process.env.E2E_BASE_URL || "http://localhost:3000";
 
 // Env handed to the dev server. Explicit process env beats .env.local in
 // Next's env loading order, so listing a variable here pins it for the run.
 const webServerEnv: Record<string, string> = {
+  // Pin the port to the webServer.url below; a stray PORT in the environment
+  // (e.g. another local app) would otherwise make next bind the wrong port.
+  PORT: "3000",
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
   NEXT_PUBLIC_SUPABASE_ANON_KEY:
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
@@ -67,7 +72,11 @@ export default defineConfig({
       testMatch: /mobile-smoke\.spec\.ts/,
     },
   ],
-  // Start the dev server automatically when no external URL is provided.
+  // Start `next dev` automatically when no external URL is provided. It must be
+  // dev, not a production build: the rate limiter FAILS CLOSED in production
+  // when Upstash is unset (by design), which would reject every public-form
+  // submission; dev uses an in-memory allow-fallback. global-setup warms the
+  // route patterns so the first navigation is not a cold Turbopack compile.
   webServer:
     process.env.E2E_BASE_URL || !envReady
       ? undefined
