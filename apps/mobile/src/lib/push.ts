@@ -27,7 +27,7 @@ Notifications.setNotificationHandler({
 // app/notifications.tsx) — so a "new request" push deep-links to the same place
 // a tap on the in-app row does. `path` is an escape hatch for any other in-app
 // route the server may target later, without a client change.
-type PushData = { booking_id?: unknown; path?: unknown };
+type PushData = { booking_id?: unknown; path?: unknown; href?: unknown };
 
 // In-app routes the `path` escape hatch may target. Deliberately excludes
 // sensitive/destructive screens (/account, /settings) so a crafted or spoofed
@@ -58,7 +58,10 @@ export function notificationTarget(data: unknown): string | null {
   ) {
     return path;
   }
-  return null;
+  // A cta-only notification (e.g. a support reply) carries the web href the
+  // server attached; translate it through the same defensive resolver the
+  // in-app feed uses, so its push tap navigates instead of dead-ending.
+  return webHrefToRoute(d.href);
 }
 
 /**
@@ -73,6 +76,11 @@ export function webHrefToRoute(href: unknown): string | null {
   // Web booking detail -> mobile booking detail.
   const request = /^\/bookings\/requests\/([^/?#]+)$/.exec(href);
   if (request) return `/bookings/${request[1]}`;
+  // Web support ticket -> native support thread (settings stack). Closes the
+  // dead-end where a "Support replied" notification had no in-app destination.
+  const supportThread = /^\/support\/([^/?#]+)$/.exec(href);
+  if (supportThread) return `/settings/support/${supportThread[1]}`;
+  if (href === "/support") return "/settings/support";
   // Web booking settings (books warnings) -> mobile booking settings (which
   // links on to the native slots manager). The no-slots warning routes to
   // /settings/slots directly via its metadata in notifications.tsx.

@@ -68,6 +68,12 @@ export default function SettingsLayout() {
         options={{ title: "Edit template" }}
       />
       <Stack.Screen name="account" options={{ title: "Account & security" }} />
+      <Stack.Screen name="support/index" options={{ title: "Support" }} />
+      <Stack.Screen name="support/new" options={{ title: "New request" }} />
+      <Stack.Screen
+        name="support/[id]"
+        options={{ title: "Support ticket" }}
+      />
     </Stack>
   );
 }

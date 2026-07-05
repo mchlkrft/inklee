@@ -11,6 +11,7 @@ import type { CustomFieldType } from "./custom-fields";
 import type { DashboardWidgets } from "./dashboard-settings";
 import type { DepositState } from "./deposit-state";
 import type { StripeMode } from "./deposit-settings";
+import type { SupportStatus, SupportCategory } from "./support";
 
 /** GET /api/mobile/me — the signed-in artist's identity + plan/entitlement state. */
 export type MobileMe = {
@@ -864,3 +865,57 @@ export type MobileInstagramSyncResult = { synced: number };
 
 /** POST /api/mobile/instagram/import result (failures use the error envelope). */
 export type MobileInstagramImportResult = { created: number };
+
+// ─── Support tickets ────────────────────────────────────────────────────────
+
+/** A row in the native "Your tickets" list. */
+export type MobileSupportTicketListItem = {
+  id: string;
+  reference: string;
+  subject: string;
+  category: SupportCategory;
+  status: SupportStatus;
+  updatedAt: string;
+  /** Support replied since the artist last opened the ticket. */
+  unread: boolean;
+};
+
+/** GET /api/mobile/support — the artist's tickets, newest activity first. */
+export type MobileSupportList = {
+  tickets: MobileSupportTicketListItem[];
+};
+
+/** One public message in a ticket thread (internal notes never leave the server). */
+export type MobileSupportMessage = {
+  id: string;
+  /** "artist" is the signed-in artist ("You"); "admin" is the Inklee team. */
+  authorRole: "artist" | "admin";
+  body: string;
+  createdAt: string;
+};
+
+/** GET /api/mobile/support/:id — the full ticket, its report fields, and thread.
+ *  `canReply` mirrors the shared canArtistReply rule (closed tickets are
+ *  read-only). Reading a ticket stamps it seen server-side. */
+export type MobileSupportTicketDetail = {
+  id: string;
+  reference: string;
+  subject: string;
+  category: SupportCategory;
+  status: SupportStatus;
+  description: string;
+  expectedBehavior: string;
+  actualBehavior: string;
+  reproductionSteps: string | null;
+  relevantArea: string | null;
+  deviceInfo: string | null;
+  platformInfo: string | null;
+  additionalContext: string | null;
+  createdAt: string;
+  updatedAt: string;
+  canReply: boolean;
+  messages: MobileSupportMessage[];
+};
+
+/** POST /api/mobile/support result (failures use the error envelope). */
+export type MobileSupportCreateResult = { id: string; reference: string };

@@ -114,6 +114,16 @@ export default function LoginPage() {
       </div>
 
       <GoogleAuthButton label="Continue with Google" />
+
+      <p className="text-center text-xs text-muted-foreground">
+        Trouble signing in?{" "}
+        <Link
+          href="/help"
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          Visit the help page
+        </Link>
+      </p>
     </div>
   );
 }
