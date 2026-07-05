@@ -298,6 +298,10 @@ export const CONNECT_LINK_ALLOWED_NEXT = new Set([
   // handed off from the app's Account & security screen.
   "/settings/account",
   "/settings/export",
+  // Instagram OAuth handoff: the magic link lands a cookie session, then
+  // /instagram/start auto-redirects into the Instagram authorize screen so the
+  // existing (unchanged) callback binds the connection to this artist.
+  "/instagram/start",
 ]);
 
 export function resolveConnectNext(next: unknown): string {

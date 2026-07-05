@@ -1,6 +1,7 @@
 import { serviceClient } from "@/lib/supabase/service";
 import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
+import { purgeStoragePrefix } from "./storage-purge";
 import {
   ORDER_MONEY_STATES,
   buildFinancialSnapshot,
@@ -54,55 +55,8 @@ export type DeleteAccountResult =
       message: string;
     };
 
-// ── Storage purge (service-role; both buckets are RLS-locked) ────────────────
-
-// Supabase .list() is non-recursive (folders come back with a null id), so we
-// descend each level. Files are removed in batches.
-async function listAllStorageFiles(
-  bucket: string,
-  prefix: string,
-): Promise<string[]> {
-  const out: string[] = [];
-  const PAGE = 1000;
-  // Paginate each level — .list() returns at most `limit` entries with no
-  // continuation, so a busy artist's files would otherwise be silently missed.
-  for (let offset = 0; ; offset += PAGE) {
-    const { data: entries } = await serviceClient.storage
-      .from(bucket)
-      .list(prefix, { limit: PAGE, offset });
-    const page = entries ?? [];
-    for (const entry of page) {
-      if (entry.id === null) {
-        out.push(
-          ...(await listAllStorageFiles(bucket, `${prefix}/${entry.name}`)),
-        );
-      } else {
-        out.push(`${prefix}/${entry.name}`);
-      }
-    }
-    if (page.length < PAGE) break;
-  }
-  return out;
-}
-
-async function purgeStoragePrefix(
-  bucket: string,
-  prefix: string,
-): Promise<void> {
-  let files: string[] = [];
-  try {
-    files = await listAllStorageFiles(bucket, prefix);
-  } catch {
-    return; // best-effort; transient storage error must not abort the delete
-  }
-  for (let i = 0; i < files.length; i += 100) {
-    try {
-      await serviceClient.storage.from(bucket).remove(files.slice(i, i + 100));
-    } catch {
-      // continue; idempotent vs the cron cleanup
-    }
-  }
-}
+// Storage purge (service-role; both buckets are RLS-locked) is shared with the
+// Instagram disconnect teardown — see ./storage-purge (purgeStoragePrefix).
 
 // ── Orchestration ───────────────────────────────────────────────────────────
 
