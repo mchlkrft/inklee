@@ -13,9 +13,12 @@ export type SupportFaqItem = {
 
 export const SUPPORT_FAQ: SupportFaqItem[] = [
   {
-    question: "I cannot log in or access my account",
+    // You are signed in to read this, so the "locked out of everything" case
+    // cannot land here. Framed for what a signed-in artist actually hits: a
+    // second device, the app, or a teammate who is locked out.
+    question: "I am locked out on my phone or another device",
     answer:
-      "Try resetting your password first. If you signed up with Google, use the Google button on the sign-in page instead of a password. If you still cannot get in, submit a ticket from the account you can reach, or describe the locked account in the form below.",
+      "You are signed in here, so you can still get help. Resetting your password updates it everywhere you sign in, including the app. If you signed up with Google, use the Google button rather than a password. For a locked teammate or a separate account, describe it in the form below and we will help.",
     href: "/forgot-password",
     linkLabel: "Reset your password",
   },
@@ -46,6 +49,13 @@ export const SUPPORT_FAQ: SupportFaqItem[] = [
     linkLabel: "Open the deposits overview",
   },
   {
+    question: "When will I receive my deposit money?",
+    answer:
+      "Client deposits pay out to your own bank account through Stripe, on the payout schedule Stripe sets for your account. Deposits only reach you once your payout details are complete and verified. If a payout looks late, or your account still needs details, check your payout settings first, then submit a ticket with the booking reference.",
+    href: "/settings/payouts",
+    linkLabel: "Open payout settings",
+  },
+  {
     question: "The mobile app is not updating",
     answer:
       "Force-close and reopen the app first, then check for an update in your store. Your data lives on your account, not the device, so reinstalling is safe. If a screen shows stale data after that, tell us which screen in a ticket.",
@@ -56,6 +66,13 @@ export const SUPPORT_FAQ: SupportFaqItem[] = [
       "You can edit fields, requirements, and the questions clients answer under booking form settings. Changes apply to new requests immediately.",
     href: "/bookings/form",
     linkLabel: "Open booking form settings",
+  },
+  {
+    question: "How do I delete my account or export my data?",
+    answer:
+      "You can download your data from the export page in settings, and request permanent account deletion from your account settings. Deletion removes your public page, bookings, and history and cannot be undone, so export anything you want to keep first.",
+    href: "/settings/account",
+    linkLabel: "Open account settings",
   },
   {
     question: "How do I report a bug?",
