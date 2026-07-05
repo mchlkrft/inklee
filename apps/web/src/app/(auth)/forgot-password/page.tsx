@@ -87,6 +87,16 @@ export default function ForgotPasswordPage() {
           Back to sign in
         </Link>
       </p>
+
+      <p className="text-center text-xs text-muted-foreground">
+        Still stuck?{" "}
+        <Link
+          href="/help"
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          Visit the help page
+        </Link>
+      </p>
     </div>
   );
 }
