@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { isInstagramConfigured } from "@/lib/instagram";
+import { linkedPostKeys } from "@/lib/server/instagram-sync";
 import type {
   MobileInstagram,
   MobileInstagramPost,
@@ -37,23 +38,9 @@ export async function GET(req: Request) {
 
     // A post is already imported if a flash item links it by id OR permalink
     // (permalink survives a disconnect -> reconnect that re-mints post ids).
-    const [{ data: linkedById }, { data: linkedByUrl }] = await Promise.all([
-      supabase
-        .from("flash_items")
-        .select("instagram_post_id")
-        .eq("artist_id", userId)
-        .not("instagram_post_id", "is", null),
-      supabase
-        .from("flash_items")
-        .select("instagram_post_url")
-        .eq("artist_id", userId)
-        .not("instagram_post_url", "is", null),
-    ]);
-    const linkedIds = new Set(
-      (linkedById ?? []).map((r) => r.instagram_post_id as string),
-    );
-    const linkedUrls = new Set(
-      (linkedByUrl ?? []).map((r) => r.instagram_post_url as string),
+    const { ids: linkedIds, urls: linkedUrls } = await linkedPostKeys(
+      supabase,
+      userId,
     );
 
     posts = (rows ?? []).map((r) => ({

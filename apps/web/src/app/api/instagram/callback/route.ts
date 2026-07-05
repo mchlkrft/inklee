@@ -67,7 +67,13 @@ export async function GET(req: NextRequest) {
     );
 
     // Cache the artist's recent media (shared with resync + the mobile route).
-    await syncInstagramMedia(artistId);
+    // The account is already saved connected, so a sync hiccup must NOT surface
+    // as a failed connect: swallow it and let the artist resync from the page.
+    try {
+      await syncInstagramMedia(artistId);
+    } catch (syncErr) {
+      console.error("[instagram/callback] post-connect sync failed", syncErr);
+    }
 
     return NextResponse.redirect(`${baseRedirect}?connected=1`);
   } catch (err) {

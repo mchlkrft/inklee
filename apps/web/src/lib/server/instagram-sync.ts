@@ -99,6 +99,33 @@ export async function syncInstagramMedia(
 }
 
 /**
+ * The Instagram post ids + permalinks already linked to a flash item. Shared by
+ * the import dedupe and the mobile status route so the "already imported" rule
+ * lives in one place.
+ */
+export async function linkedPostKeys(
+  supabase: SupabaseClient,
+  artistId: string,
+): Promise<{ ids: Set<string>; urls: Set<string> }> {
+  const [{ data: byId }, { data: byUrl }] = await Promise.all([
+    supabase
+      .from("flash_items")
+      .select("instagram_post_id")
+      .eq("artist_id", artistId)
+      .not("instagram_post_id", "is", null),
+    supabase
+      .from("flash_items")
+      .select("instagram_post_url")
+      .eq("artist_id", artistId)
+      .not("instagram_post_url", "is", null),
+  ]);
+  return {
+    ids: new Set((byId ?? []).map((r) => r.instagram_post_id as string)),
+    urls: new Set((byUrl ?? []).map((r) => r.instagram_post_url as string)),
+  };
+}
+
+/**
  * Create draft flash items from selected Instagram posts, under the CALLER'S
  * RLS-scoped client. Dedupes on BOTH the post id and the permalink so a
  * disconnect -> reconnect (which re-mints post ids) cannot duplicate an
@@ -118,66 +145,61 @@ export async function importInstagramPosts(
     .eq("artist_id", artistId);
   if (!posts?.length) return { error: "Posts not found." };
 
-  const [{ data: linkedById }, { data: linkedByUrl }] = await Promise.all([
-    supabase
-      .from("flash_items")
-      .select("instagram_post_id")
-      .in("instagram_post_id", postIds)
-      .eq("artist_id", artistId)
-      .not("instagram_post_id", "is", null),
-    supabase
-      .from("flash_items")
-      .select("instagram_post_url")
-      .eq("artist_id", artistId)
-      .not("instagram_post_url", "is", null),
-  ]);
-  const linkedIds = new Set(
-    (linkedById ?? []).map((r) => r.instagram_post_id as string),
+  const { ids: linkedIds, urls: linkedUrls } = await linkedPostKeys(
+    supabase,
+    artistId,
   );
-  const linkedUrls = new Set(
-    (linkedByUrl ?? []).map((r) => r.instagram_post_url as string),
-  );
-
   const toImport = posts.filter(
     (p) => !linkedIds.has(p.id) && !linkedUrls.has(p.permalink),
   );
   if (!toImport.length) {
-    return { error: "all selected posts are already linked to flash items" };
+    return { error: "All selected posts are already imported." };
   }
 
-  const rows = toImport.map((post) => {
-    const rawTitle = titleFromCaption(post.caption) || "Flash Design";
-    const itemId = crypto.randomUUID();
-    // Resolve the Supabase-hosted preview to a public URL so a flash item
-    // inherits a permanent image (null if this post wasn't cached — a resync
-    // then re-import fixes it).
-    const previewUrl = post.preview_image_path
-      ? supabase.storage.from("logos").getPublicUrl(post.preview_image_path)
-          .data.publicUrl
-      : null;
-    return {
-      id: itemId,
-      artist_id: artistId,
-      title: rawTitle,
-      // UUID suffix guarantees per-artist slug uniqueness; renameable after.
-      slug: `${slugify(rawTitle) || "flash"}-${itemId.slice(0, 8)}`,
-      status: "draft",
-      instagram_post_url: post.permalink,
-      preview_image_url: previewUrl,
-      short_description: null as string | null,
-      price_type: "request",
-      price: null as string | null,
-      size_info: null as string | null,
-      placement_notes: null as string | null,
-      booking_mode: "unique",
-      max_bookings: null as number | null,
-      is_bookable: true,
-      available_from: null as string | null,
-      available_until: null as string | null,
-      flash_day_id: null as string | null,
-      instagram_post_id: post.id,
-    };
-  });
+  const rows = await Promise.all(
+    toImport.map(async (post) => {
+      const rawTitle = titleFromCaption(post.caption) || "Flash Design";
+      const itemId = crypto.randomUUID();
+      // Copy the cached Instagram thumbnail to a flash-scoped object so the
+      // imported design keeps its image even after the artist disconnects
+      // Instagram (disconnect purges the {artistId}/instagram/ prefix). Null on
+      // a copy miss — the artist can upload a new image.
+      let previewUrl: string | null = null;
+      if (post.preview_image_path) {
+        const flashPath = `${artistId}/flash/${itemId}.webp`;
+        const { error: copyErr } = await serviceClient.storage
+          .from("logos")
+          .copy(post.preview_image_path, flashPath);
+        if (!copyErr) {
+          previewUrl = serviceClient.storage
+            .from("logos")
+            .getPublicUrl(flashPath).data.publicUrl;
+        }
+      }
+      return {
+        id: itemId,
+        artist_id: artistId,
+        title: rawTitle,
+        // UUID suffix guarantees per-artist slug uniqueness; renameable after.
+        slug: `${slugify(rawTitle) || "flash"}-${itemId.slice(0, 8)}`,
+        status: "draft",
+        instagram_post_url: post.permalink,
+        preview_image_url: previewUrl,
+        short_description: null as string | null,
+        price_type: "request",
+        price: null as string | null,
+        size_info: null as string | null,
+        placement_notes: null as string | null,
+        booking_mode: "unique",
+        max_bookings: null as number | null,
+        is_bookable: true,
+        available_from: null as string | null,
+        available_until: null as string | null,
+        flash_day_id: null as string | null,
+        instagram_post_id: post.id,
+      };
+    }),
+  );
 
   const { error } = await supabase.from("flash_items").insert(rows);
   if (error) return { error: error.message };

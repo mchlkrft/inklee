@@ -161,6 +161,7 @@ function ItemForm({
   );
   const [folderId, setFolderId] = useState(initial.folderId ?? "");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -253,6 +254,9 @@ function ItemForm({
       if (instagramPostUrl.trim() !== (initial.instagramPostUrl ?? ""))
         payload.instagramPostUrl = instagramPostUrl.trim();
       await apiPut(`/flash/items/${id}`, payload);
+      // A paste URL is a one-shot replace: clear it so it can't re-send on a
+      // later metadata save and clobber an image uploaded in between.
+      setImageUrlPaste("");
       // Folder/status changes affect the library list, so invalidate every
       // /flash view.
       await invalidateFlash(queryClient);
@@ -279,17 +283,34 @@ function ItemForm({
           hero
           imageUrl={initial.previewImageUrl}
           endpoint={`/flash/items/${id}/image`}
-          onUploaded={() => invalidateFlash(queryClient)}
+          onUploaded={() => {
+            // The uploaded file is now the image: drop any pending paste URL so
+            // it can't overwrite the upload on the next save.
+            setImageUrlPaste("");
+            return invalidateFlash(queryClient);
+          }}
         />
 
-        <TextField
-          label="Or paste an image URL"
-          value={imageUrlPaste}
-          onChangeText={setImageUrlPaste}
-          keyboardType="url"
-          autoCapitalize="none"
-          placeholder="https://…"
-        />
+        {/* Paste-URL is a fallback to the uploader above, so keep it tucked
+            behind a link to keep the image area uncluttered. */}
+        {pasteOpen ? (
+          <TextField
+            label="Or paste an image URL"
+            value={imageUrlPaste}
+            onChangeText={setImageUrlPaste}
+            keyboardType="url"
+            autoCapitalize="none"
+            placeholder="https://…"
+          />
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPasteOpen(true)}
+            className="mb-4 h-9 justify-center active:opacity-70"
+          >
+            <Text className="text-sm text-accent">Or paste an image URL</Text>
+          </Pressable>
+        )}
 
         <View className="mb-4 rounded-2xl border border-shell-border bg-glass">
           <StatRow

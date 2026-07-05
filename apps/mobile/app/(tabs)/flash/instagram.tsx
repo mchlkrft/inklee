@@ -8,6 +8,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Check } from "lucide-react-native";
@@ -31,6 +32,7 @@ const H_PAD = 40; // Screen's px-5 on both sides.
 export default function InstagramScreen() {
   const q = useApiQuery<MobileInstagram>("/instagram");
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const tileSize = Math.floor((width - H_PAD - GAP * 2) / 3);
 
@@ -120,8 +122,8 @@ export default function InstagramScreen() {
       );
       setNotice(
         created === 1
-          ? "Added 1 design as a draft. Edit it in Designs."
-          : `Added ${created} designs as drafts. Edit them in Designs.`,
+          ? "Added 1 design as a draft. Edit it from your flash library."
+          : `Added ${created} designs as drafts. Edit them from your flash library.`,
       );
       setSelected(new Set());
       await q.refresh();
@@ -234,25 +236,22 @@ export default function InstagramScreen() {
         <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
       ) : null}
 
-      {account ? (
-        <View className="mb-2 flex-row items-center justify-between">
+      {account && posts.length > 0 ? (
+        <View className="mb-2">
           <Text className="text-sm font-medium text-foreground">
-            {posts.length > 0 ? "Your posts" : ""}
+            Select posts to import
           </Text>
-          {selected.size > 0 ? (
-            <View style={{ minWidth: 120 }}>
-              <Button
-                label={`Import ${selected.size}`}
-                size="sm"
-                onPress={importSelected}
-                loading={importing}
-              />
-            </View>
-          ) : null}
+          <Text className="mt-0.5 text-xs text-shell-mute">
+            {selected.size > 0
+              ? `${selected.size} selected`
+              : "Tap a post to add it as a draft design."}
+          </Text>
         </View>
       ) : null}
     </View>
   );
+
+  const showFooter = Boolean(account) && selected.size > 0;
 
   return (
     <Screen edges={["left", "right"]}>
@@ -263,7 +262,8 @@ export default function InstagramScreen() {
         columnWrapperStyle={{ gap: GAP }}
         ItemSeparatorComponent={() => <View style={{ height: GAP }} />}
         ListHeaderComponent={statusHeader}
-        contentContainerStyle={{ paddingBottom: 48 }}
+        // Leave room for the pinned Import bar so the last row isn't hidden.
+        contentContainerStyle={{ paddingBottom: showFooter ? 112 : 48 }}
         refreshControl={
           <RefreshControl
             refreshing={q.refreshing}
@@ -284,11 +284,28 @@ export default function InstagramScreen() {
             size={tileSize}
             selected={selected.has(item.id)}
             onPress={() => toggle(item)}
-            accent={colors.accent}
+            check={colors.charcoal}
             mute={colors.shell.mute}
           />
         )}
       />
+
+      {showFooter ? (
+        <View
+          className="absolute inset-x-0 bottom-0 border-t border-shell-border bg-background px-5 pt-3"
+          style={{ paddingBottom: insets.bottom + 12 }}
+        >
+          <Button
+            label={
+              selected.size === 1
+                ? "Import 1 post"
+                : `Import ${selected.size} posts`
+            }
+            onPress={importSelected}
+            loading={importing}
+          />
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -298,14 +315,14 @@ function PostTile({
   size,
   selected,
   onPress,
-  accent,
+  check,
   mute,
 }: {
   post: MobileInstagramPost;
   size: number;
   selected: boolean;
   onPress: () => void;
-  accent: string;
+  check: string;
   mute: string;
 }) {
   return (
@@ -333,7 +350,7 @@ function PostTile({
       )}
       {post.alreadyLinked ? (
         <View className="absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5">
-          <Text className="text-center text-[10px] font-medium text-white">
+          <Text className="text-center text-[10px] font-medium text-bone">
             Added
           </Text>
         </View>
@@ -342,7 +359,7 @@ function PostTile({
           className="absolute right-1 top-1 h-5 w-5 items-center justify-center rounded-full bg-mustard"
           pointerEvents="none"
         >
-          <Check size={13} color="#1e1e1e" strokeWidth={3} />
+          <Check size={13} color={check} strokeWidth={3} />
         </View>
       ) : null}
     </Pressable>

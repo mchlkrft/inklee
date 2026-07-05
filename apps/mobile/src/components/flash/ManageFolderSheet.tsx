@@ -29,11 +29,13 @@ export function ManageFolderSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reseed the field whenever a different folder opens the sheet.
+  // Reseed the field whenever a different folder opens the sheet. Safe against
+  // clobbering edits: the sheet closes (folder -> null) on save, so the name
+  // prop never changes mid-edit.
   useEffect(() => {
     setName(folder?.name ?? "");
     setError(null);
-  }, [folder?.id]);
+  }, [folder?.id, folder?.name]);
 
   async function rename() {
     if (!folder) return;

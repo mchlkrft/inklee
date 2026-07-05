@@ -28,21 +28,25 @@ export async function syncInstagramAction(): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  let synced = 0;
   try {
-    const { synced } = await syncInstagramMedia(user.id);
-    if (synced === 0) {
-      // No connected account (or nothing to sync).
-      const { data: account } = await supabase
-        .from("instagram_accounts")
-        .select("connected")
-        .eq("artist_id", user.id)
-        .eq("connected", true)
-        .maybeSingle();
-      if (!account) redirect("/flash/instagram?error=not_connected");
-    }
+    ({ synced } = await syncInstagramMedia(user.id));
   } catch (err) {
+    // redirect() throws a control-flow signal; keep it OUT of this catch so a
+    // real sync failure is the only thing that lands on error=sync_failed.
     console.error("[instagram/sync]", err);
     redirect("/flash/instagram?error=sync_failed");
+  }
+
+  if (synced === 0) {
+    // Nothing synced: distinguish "not connected" from "connected, no posts".
+    const { data: account } = await supabase
+      .from("instagram_accounts")
+      .select("connected")
+      .eq("artist_id", user.id)
+      .eq("connected", true)
+      .maybeSingle();
+    if (!account) redirect("/flash/instagram?error=not_connected");
   }
 
   revalidatePath("/flash/instagram");
