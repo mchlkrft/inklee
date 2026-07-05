@@ -477,7 +477,7 @@ function ItemForm({
               placeholder="e.g. rose-forearm"
             />
             <Text className="-mt-2 mb-3 text-xs text-shell-mute">
-              The last part of this design's public URL.
+              The last part of the public URL for this design.
             </Text>
 
             <TextField
