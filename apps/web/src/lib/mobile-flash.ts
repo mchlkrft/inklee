@@ -26,6 +26,8 @@ import type {
   FlashDayStatus,
 } from "@inklee/shared/flash-format";
 import { isCurrency, DEFAULT_CURRENCY } from "@inklee/shared/goods";
+import { sanitizeHttpUrl } from "@inklee/shared/url";
+import { slugify } from "@/lib/flash";
 
 export {
   FLASH_ITEM_STATUSES,
@@ -88,9 +90,19 @@ export type FlashItemUpdate = {
   availableFrom: string | null;
   availableUntil: string | null;
   folderId: string | null;
+  // Tri-state: present ONLY when the caller sent the key, so a metadata-only
+  // save never clobbers a freshly-uploaded image or the slug. Absent = preserve.
+  slug?: string;
+  previewImageUrl?: string | null;
+  instagramPostUrl?: string | null;
 };
 
-/** Validate the flash-item metadata edit (no image / slug — those stay web). */
+const URL_MAX = 2000;
+const SLUG_MAX = 60;
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Validate the flash-item metadata edit. Core fields are always present; slug,
+ *  preview image URL, and Instagram URL are tri-state (only written when sent). */
 export function normalizeFlashItemUpdate(
   body: unknown,
 ): Result<FlashItemUpdate> {
@@ -192,25 +204,62 @@ export function normalizeFlashItemUpdate(
     return { ok: false, error: "Placement notes are too long." };
   }
 
-  return {
-    ok: true,
-    value: {
-      title,
-      status: b.status,
-      priceType: b.priceType,
-      price,
-      currency,
-      shortDescription: shortRaw || null,
-      sizeInfo: sizeRaw || null,
-      placementNotes: placementRaw || null,
-      bookingMode: b.bookingMode,
-      maxBookings,
-      isBookable: b.isBookable,
-      availableFrom: from.value,
-      availableUntil: until.value,
-      folderId,
-    },
+  const value: FlashItemUpdate = {
+    title,
+    status: b.status,
+    priceType: b.priceType,
+    price,
+    currency,
+    shortDescription: shortRaw || null,
+    sizeInfo: sizeRaw || null,
+    placementNotes: placementRaw || null,
+    bookingMode: b.bookingMode,
+    maxBookings,
+    isBookable: b.isBookable,
+    availableFrom: from.value,
+    availableUntil: until.value,
+    folderId,
   };
+
+  // Slug: the public URL segment. Only written when the key is present. Unique
+  // per artist (DB constraint -> the route maps a violation to a friendly 409).
+  if ("slug" in b && b.slug !== undefined) {
+    const s = slugify(asString(b.slug));
+    if (!s || s.length > SLUG_MAX || !SLUG_RE.test(s)) {
+      return {
+        ok: false,
+        error: "Enter a valid link (lowercase letters, numbers, and dashes).",
+      };
+    }
+    value.slug = s;
+  }
+
+  // Preview image URL + Instagram URL: http(s) only (sanitizeHttpUrl rejects
+  // javascript:/data:); an empty string clears the field to null.
+  if ("previewImageUrl" in b && b.previewImageUrl !== undefined) {
+    const rawUrl = asString(b.previewImageUrl).trim();
+    if (rawUrl === "") value.previewImageUrl = null;
+    else {
+      const safe = sanitizeHttpUrl(rawUrl);
+      if (!safe || rawUrl.length > URL_MAX) {
+        return { ok: false, error: "Enter a valid http or https image link." };
+      }
+      value.previewImageUrl = safe;
+    }
+  }
+  if ("instagramPostUrl" in b && b.instagramPostUrl !== undefined) {
+    const rawUrl = asString(b.instagramPostUrl).trim();
+    if (rawUrl === "") value.instagramPostUrl = null;
+    else {
+      const safe = sanitizeHttpUrl(rawUrl);
+      if (!safe || rawUrl.length > URL_MAX) {
+        return { ok: false, error: "Enter a valid http or https link." };
+      }
+      value.instagramPostUrl = safe;
+    }
+  }
+
+  return { ok: true, value };
 }
 
 export type FlashDayInput = {

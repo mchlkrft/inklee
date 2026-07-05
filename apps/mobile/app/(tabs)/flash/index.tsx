@@ -31,6 +31,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { NavCardRow } from "@/components/NavCardRow";
 import { AddToFolderSheet } from "@/components/flash/AddToFolderSheet";
 import { FlashItemSheet } from "@/components/flash/FlashItemSheet";
+import { ManageFolderSheet } from "@/components/flash/ManageFolderSheet";
 import { apiPost, apiPut, useApiQuery } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import {
@@ -74,6 +75,11 @@ export default function FlashItemsList() {
   // Tap → item detail modal; long-press → "Add to folder" sheet.
   const [detailItem, setDetailItem] = useState<MobileFlashItem | null>(null);
   const [sheetItem, setSheetItem] = useState<MobileFlashItem | null>(null);
+  // Long-press a real folder chip → rename/delete sheet.
+  const [manageFolder, setManageFolder] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Drag-into-folder: the lifted design follows the finger as a floating clone,
   // and dropping over a folder chip moves it there. Chips are measured in window
@@ -254,6 +260,7 @@ export default function FlashItemsList() {
               dropHot={hoverKey === f.id}
               registerRef={(n) => registerDrop(f.id, n)}
               onPress={() => setFolder(f.id)}
+              onLongPress={() => setManageFolder({ id: f.id, name: f.name })}
             />
           ))}
           <Pressable
@@ -298,8 +305,8 @@ export default function FlashItemsList() {
         ) : null}
         {folders.length > 0 ? (
           <Text className="mt-2 text-xs text-shell-mute">
-            Tip: hold a design to file it, or drag it by the handle onto a
-            folder.
+            Tip: hold a design to file it or drag it by the handle onto a folder.
+            Hold a folder to rename or delete it.
           </Text>
         ) : null}
       </View>
@@ -333,7 +340,7 @@ export default function FlashItemsList() {
           items.length === 0 ? (
             <EmptyState
               title="No flash designs yet"
-              subtitle="Add designs on the web or import from Instagram, then manage them here."
+              subtitle="Tap New design to add your first flash."
             />
           ) : (
             <EmptyState
@@ -394,6 +401,17 @@ export default function FlashItemsList() {
           setSheetItem(null);
         }}
         onClose={() => setSheetItem(null)}
+      />
+
+      <ManageFolderSheet
+        folder={manageFolder}
+        onClose={() => setManageFolder(null)}
+        onSaved={() => void foldersQ.refresh()}
+        onDeleted={() => {
+          void foldersQ.refresh();
+          void invalidateFlash(queryClient);
+          setFolder("all");
+        }}
       />
     </Screen>
   );
@@ -538,12 +556,14 @@ function FolderChip({
   dropHot,
   registerRef,
   onPress,
+  onLongPress,
 }: {
   label: string;
   active: boolean;
   dropHot?: boolean;
   registerRef?: (node: View | null) => void;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
   return (
     <Pressable
@@ -551,6 +571,8 @@ function FolderChip({
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
       className={`rounded-full border px-3 py-1.5 active:opacity-70 ${
         dropHot
           ? "border-mustard bg-mustard/30"

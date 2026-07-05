@@ -24,6 +24,7 @@ import { Button } from "@/components/Button";
 import { DangerButton } from "@/components/DangerButton";
 import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
+import { DateField } from "@/components/DateField";
 import { Segmented } from "@/components/Segmented";
 import { RadioList } from "@/components/RadioList";
 import { ImageUploadField } from "@/components/ImageUploadField";
@@ -124,6 +125,13 @@ function ItemForm({
   }
 
   const [title, setTitle] = useState(initial.title);
+  const [slug, setSlug] = useState(initial.slug);
+  // "Paste to replace" — empty means "no change" (so a file upload, which
+  // refreshes initial.previewImageUrl, is never reverted by a stale paste value).
+  const [imageUrlPaste, setImageUrlPaste] = useState("");
+  const [instagramPostUrl, setInstagramPostUrl] = useState(
+    initial.instagramPostUrl ?? "",
+  );
   const [status, setStatus] = useState<ItemStatus>(initial.status as ItemStatus);
   const [priceType, setPriceType] = useState<PriceType>(
     initial.priceType as PriceType,
@@ -158,6 +166,9 @@ function ItemForm({
 
   const dirty =
     title !== initial.title ||
+    slug !== initial.slug ||
+    imageUrlPaste.trim() !== "" ||
+    instagramPostUrl !== (initial.instagramPostUrl ?? "") ||
     status !== (initial.status as ItemStatus) ||
     priceType !== (initial.priceType as PriceType) ||
     price !== (initial.price != null ? String(initial.price) : "") ||
@@ -218,7 +229,9 @@ function ItemForm({
     setSaving(true);
     setError(null);
     try {
-      await apiPut(`/flash/items/${id}`, {
+      // Tri-state fields (slug / preview URL / Instagram URL) are sent ONLY when
+      // changed, so a metadata save never clobbers a freshly uploaded image.
+      const payload: Record<string, unknown> = {
         title: title.trim(),
         status,
         priceType,
@@ -233,7 +246,13 @@ function ItemForm({
         availableFrom: availableFrom.trim() || null,
         availableUntil: availableUntil.trim() || null,
         folderId: folderId || null,
-      });
+      };
+      if (slug.trim() !== initial.slug) payload.slug = slug.trim();
+      if (imageUrlPaste.trim() !== "")
+        payload.previewImageUrl = imageUrlPaste.trim();
+      if (instagramPostUrl.trim() !== (initial.instagramPostUrl ?? ""))
+        payload.instagramPostUrl = instagramPostUrl.trim();
+      await apiPut(`/flash/items/${id}`, payload);
       // Folder/status changes affect the library list, so invalidate every
       // /flash view.
       await invalidateFlash(queryClient);
@@ -261,6 +280,15 @@ function ItemForm({
           imageUrl={initial.previewImageUrl}
           endpoint={`/flash/items/${id}/image`}
           onUploaded={() => invalidateFlash(queryClient)}
+        />
+
+        <TextField
+          label="Or paste an image URL"
+          value={imageUrlPaste}
+          onChangeText={setImageUrlPaste}
+          keyboardType="url"
+          autoCapitalize="none"
+          placeholder="https://…"
         />
 
         <View className="mb-4 rounded-2xl border border-shell-border bg-glass">
@@ -442,18 +470,50 @@ function ItemForm({
             />
 
             <TextField
-              label="Available from"
-              value={availableFrom}
-              onChangeText={setAvailableFrom}
-              placeholder="YYYY-MM-DD"
+              label="Public link"
+              value={slug}
+              onChangeText={setSlug}
               autoCapitalize="none"
+              placeholder="e.g. rose-forearm"
             />
+            <Text className="-mt-2 mb-3 text-xs text-shell-mute">
+              The last part of this design's public URL.
+            </Text>
+
             <TextField
-              label="Available until"
-              value={availableUntil}
-              onChangeText={setAvailableUntil}
-              placeholder="YYYY-MM-DD"
+              label="Instagram post URL"
+              value={instagramPostUrl}
+              onChangeText={setInstagramPostUrl}
+              keyboardType="url"
               autoCapitalize="none"
+              placeholder="https://instagram.com/p/…"
+            />
+            {instagramPostUrl.trim() ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  void WebBrowser.openBrowserAsync(instagramPostUrl.trim());
+                }}
+                className="-mt-2 mb-3 active:opacity-70"
+              >
+                <Text className="text-sm text-accent">View on Instagram</Text>
+              </Pressable>
+            ) : null}
+
+            <DateField
+              label="Available from"
+              value={availableFrom || null}
+              onChange={setAvailableFrom}
+              onClear={() => setAvailableFrom("")}
+            />
+            <DateField
+              label="Available until"
+              value={availableUntil || null}
+              onChange={setAvailableUntil}
+              onClear={() => setAvailableUntil("")}
+              minimumDate={
+                availableFrom ? new Date(availableFrom) : undefined
+              }
             />
           </>
         ) : null}

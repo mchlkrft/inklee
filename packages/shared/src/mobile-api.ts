@@ -451,6 +451,8 @@ export type MobileFlashItemDetail = {
   folderId: string | null;
   dayMemberships: string[];
   previewImageUrl: string | null;
+  /** The linked Instagram post permalink (import provenance / manual link). */
+  instagramPostUrl: string | null;
   /** Stats sidebar (mirrors the web detail page): approved = confirmed,
    *  pending = pending; availability is the server-computed engine result. */
   pendingCount: number;

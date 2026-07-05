@@ -23,6 +23,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FieldLabel } from "@/components/FieldLabel";
 import { TextField } from "@/components/TextField";
+import { DateField } from "@/components/DateField";
 import { Segmented } from "@/components/Segmented";
 import { RadioList } from "@/components/RadioList";
 import { ErrorState } from "@/components/ErrorState";
@@ -114,11 +115,21 @@ function DayForm({
       isPublic,
     };
     try {
-      if (isNew) await apiPost("/flash/days", payload);
-      else await apiPut(`/flash/days/${id}`, payload);
       // Item counts + the edited day's detail live under /flash too.
-      await invalidateFlash(queryClient);
-      router.back();
+      if (isNew) {
+        // Land on the just-created day so its roster builder (gated behind an
+        // existing id) is right there — adding designs is the point of a day.
+        const { id: newId } = await apiPost<{ id: string }>(
+          "/flash/days",
+          payload,
+        );
+        await invalidateFlash(queryClient);
+        router.replace(`/flash/days/${newId}`);
+      } else {
+        await apiPut(`/flash/days/${id}`, payload);
+        await invalidateFlash(queryClient);
+        router.back();
+      }
     } catch (e) {
       captureError(e, { op: "saveFlashDay" });
       setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
@@ -144,12 +155,11 @@ function DayForm({
           placeholder="e.g. Walk-in Saturday"
           autoCapitalize="sentences"
         />
-        <TextField
+        <DateField
           label="Date (optional)"
-          value={scheduledOn}
-          onChangeText={setScheduledOn}
-          placeholder="YYYY-MM-DD"
-          autoCapitalize="none"
+          value={scheduledOn || null}
+          onChange={setScheduledOn}
+          onClear={() => setScheduledOn("")}
         />
         {(studiosQ.data?.items ?? []).length > 0 ? (
           <>
