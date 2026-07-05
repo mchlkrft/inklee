@@ -5,9 +5,8 @@ import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   fetchInstagramUser,
-  fetchInstagramMedia,
 } from "@/lib/instagram";
-import { downloadInstagramThumbnail } from "@/lib/instagram-storage";
+import { syncInstagramMedia } from "@/lib/server/instagram-sync";
 import { createClient } from "@/lib/supabase/server";
 
 // Thumbnail download adds ~5–15s to a 50-post sync; default 10s timeout would clip it.
@@ -67,33 +66,13 @@ export async function GET(req: NextRequest) {
       { onConflict: "artist_id" },
     );
 
-    const media = await fetchInstagramMedia(longToken.access_token, 50);
-    if (media.length > 0) {
-      const previewPaths = await Promise.all(
-        media.map((m) => {
-          const sourceUrl =
-            m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url;
-          return sourceUrl
-            ? downloadInstagramThumbnail(sourceUrl, artistId, m.id)
-            : Promise.resolve(null);
-        }),
-      );
-
-      await serviceClient.from("instagram_posts").upsert(
-        media.map((m, i) => ({
-          artist_id: artistId,
-          instagram_media_id: m.id,
-          media_type: m.media_type,
-          media_url: m.media_url ?? null,
-          thumbnail_url: m.thumbnail_url ?? null,
-          preview_image_path: previewPaths[i],
-          permalink: m.permalink,
-          caption: m.caption ?? null,
-          posted_at: m.timestamp ? new Date(m.timestamp).toISOString() : null,
-          synced_at: now,
-        })),
-        { onConflict: "artist_id,instagram_media_id" },
-      );
+    // Cache the artist's recent media (shared with resync + the mobile route).
+    // The account is already saved connected, so a sync hiccup must NOT surface
+    // as a failed connect: swallow it and let the artist resync from the page.
+    try {
+      await syncInstagramMedia(artistId);
+    } catch (syncErr) {
+      console.error("[instagram/callback] post-connect sync failed", syncErr);
     }
 
     return NextResponse.redirect(`${baseRedirect}?connected=1`);

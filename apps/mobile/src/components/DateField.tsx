@@ -19,11 +19,15 @@ export function DateField({
   label,
   value,
   onChange,
+  onClear,
   minimumDate,
 }: {
   label?: string;
   value: string | null;
   onChange: (dateKey: string) => void;
+  /** When provided, a "Clear" control appears once a date is set, so an
+   *  optional date can be unset (availability windows, an undated flash day). */
+  onClear?: () => void;
   minimumDate?: Date;
 }) {
   const [showIos, setShowIos] = useState(false);
@@ -51,16 +55,29 @@ export function DateField({
           {label}
         </Text>
       ) : null}
-      <Pressable
-        onPress={open}
-        className="h-12 justify-center rounded-xl border-brand border-shell-border px-4 active:opacity-80"
-      >
-        <Text
-          className={`text-base ${value ? "text-foreground" : "text-shell-mute"}`}
+      <View className="flex-row items-center gap-2">
+        <Pressable
+          onPress={open}
+          className="h-12 flex-1 justify-center rounded-xl border-brand border-shell-border px-4 active:opacity-80"
         >
-          {value ? formatShortDate(value) : "Select a date"}
-        </Text>
-      </Pressable>
+          <Text
+            className={`text-base ${value ? "text-foreground" : "text-shell-mute"}`}
+          >
+            {value ? formatShortDate(value) : "Select a date"}
+          </Text>
+        </Pressable>
+        {onClear && value ? (
+          <Pressable
+            onPress={onClear}
+            accessibilityRole="button"
+            accessibilityLabel="Clear date"
+            hitSlop={8}
+            className="h-12 justify-center px-2 active:opacity-60"
+          >
+            <Text className="text-sm text-shell-dim">Clear</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {Platform.OS === "ios" && showIos ? (
         <View className="mt-2 rounded-xl border border-shell-border">
           <DateTimePicker

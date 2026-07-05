@@ -100,6 +100,7 @@ export async function GET(
     folderId: item.folder_id,
     dayMemberships,
     previewImageUrl: item.preview_image_url,
+    instagramPostUrl: item.instagram_post_url,
     pendingCount,
     confirmedCount,
     bookable: av.bookable,
@@ -155,27 +156,47 @@ export async function PUT(
       return mobileError(400, "That folder doesn't exist.", "bad_folder");
   }
 
+  // Tri-state fields (slug / preview image URL / Instagram URL) are written only
+  // when the client sent them, so a metadata-only save never overwrites a
+  // freshly-uploaded image or the slug.
+  const patch: Record<string, unknown> = {
+    title: v.title,
+    status: v.status,
+    price_type: v.priceType,
+    price: v.price,
+    currency: v.currency,
+    short_description: v.shortDescription,
+    size_info: v.sizeInfo,
+    placement_notes: v.placementNotes,
+    booking_mode: v.bookingMode,
+    max_bookings: v.maxBookings,
+    is_bookable: v.isBookable,
+    available_from: v.availableFrom,
+    available_until: v.availableUntil,
+    folder_id: v.folderId,
+  };
+  if (v.slug !== undefined) patch.slug = v.slug;
+  if (v.previewImageUrl !== undefined)
+    patch.preview_image_url = v.previewImageUrl;
+  if (v.instagramPostUrl !== undefined)
+    patch.instagram_post_url = v.instagramPostUrl;
+
   const { error } = await supabase
     .from("flash_items")
-    .update({
-      title: v.title,
-      status: v.status,
-      price_type: v.priceType,
-      price: v.price,
-      currency: v.currency,
-      short_description: v.shortDescription,
-      size_info: v.sizeInfo,
-      placement_notes: v.placementNotes,
-      booking_mode: v.bookingMode,
-      max_bookings: v.maxBookings,
-      is_bookable: v.isBookable,
-      available_from: v.availableFrom,
-      available_until: v.availableUntil,
-      folder_id: v.folderId,
-    })
+    .update(patch)
     .eq("id", id)
     .eq("artist_id", userId);
-  if (error) return mobileError(500, error.message);
+  if (error) {
+    // UNIQUE(artist_id, slug) violation -> a friendly conflict, not a 500.
+    if (error.code === "23505" || /unique/i.test(error.message)) {
+      return mobileError(
+        409,
+        "That public link is already used by another design.",
+        "slug_taken",
+      );
+    }
+    return mobileError(500, error.message);
+  }
 
   return mobileOk({ ok: true });
 }

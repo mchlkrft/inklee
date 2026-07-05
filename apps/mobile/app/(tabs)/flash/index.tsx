@@ -31,6 +31,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { NavCardRow } from "@/components/NavCardRow";
 import { AddToFolderSheet } from "@/components/flash/AddToFolderSheet";
 import { FlashItemSheet } from "@/components/flash/FlashItemSheet";
+import { ManageFolderSheet } from "@/components/flash/ManageFolderSheet";
+import { NewDesignSheet } from "@/components/flash/NewDesignSheet";
 import { apiPost, apiPut, useApiQuery } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import {
@@ -63,6 +65,7 @@ export default function FlashItemsList() {
   const onScroll = useScrollHide();
   const topBarHeight = useTopBarHeight();
   const [creating, setCreating] = useState(false);
+  const [newSheetOpen, setNewSheetOpen] = useState(false);
   const [folder, setFolder] = useState("all");
   const [newOpen, setNewOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -74,6 +77,11 @@ export default function FlashItemsList() {
   // Tap → item detail modal; long-press → "Add to folder" sheet.
   const [detailItem, setDetailItem] = useState<MobileFlashItem | null>(null);
   const [sheetItem, setSheetItem] = useState<MobileFlashItem | null>(null);
+  // Long-press a real folder chip → rename/delete sheet.
+  const [manageFolder, setManageFolder] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Drag-into-folder: the lifted design follows the finger as a floating clone,
   // and dropping over a folder chip moves it there. Chips are measured in window
@@ -221,13 +229,23 @@ export default function FlashItemsList() {
       <PageHeader title="Flash" icon={Spiderweb} iconRole="rosa" />
       <View className="pt-2">
         {/* Full md-height CTA, matching the calendar's New appointment. */}
-        <Button label="New design" onPress={newDesign} loading={creating} />
+        <Button
+          label="New design"
+          onPress={() => setNewSheetOpen(true)}
+          loading={creating}
+        />
       </View>
       <NavCardRow
         icon="calendar-outline"
         label="Flash days"
         className="mb-1 mt-3"
         onPress={() => router.push("/flash/days")}
+      />
+      <NavCardRow
+        icon="logo-instagram"
+        label="Import from Instagram"
+        className="mb-1 mt-2"
+        onPress={() => router.push("/flash/instagram")}
       />
 
       {/* Folder filter + inline create. The Unfiled + folder chips double as
@@ -254,6 +272,7 @@ export default function FlashItemsList() {
               dropHot={hoverKey === f.id}
               registerRef={(n) => registerDrop(f.id, n)}
               onPress={() => setFolder(f.id)}
+              onLongPress={() => setManageFolder({ id: f.id, name: f.name })}
             />
           ))}
           <Pressable
@@ -298,8 +317,8 @@ export default function FlashItemsList() {
         ) : null}
         {folders.length > 0 ? (
           <Text className="mt-2 text-xs text-shell-mute">
-            Tip: hold a design to file it, or drag it by the handle onto a
-            folder.
+            Tip: hold a design to file it or drag it by the handle onto a folder.
+            Hold a folder to rename or delete it.
           </Text>
         ) : null}
       </View>
@@ -333,7 +352,7 @@ export default function FlashItemsList() {
           items.length === 0 ? (
             <EmptyState
               title="No flash designs yet"
-              subtitle="Add designs on the web or import from Instagram, then manage them here."
+              subtitle="Tap New design to add your first, or import from Instagram."
             />
           ) : (
             <EmptyState
@@ -394,6 +413,30 @@ export default function FlashItemsList() {
           setSheetItem(null);
         }}
         onClose={() => setSheetItem(null)}
+      />
+
+      <ManageFolderSheet
+        folder={manageFolder}
+        onClose={() => setManageFolder(null)}
+        onSaved={() => void foldersQ.refresh()}
+        onDeleted={() => {
+          void foldersQ.refresh();
+          void invalidateFlash(queryClient);
+          setFolder("all");
+        }}
+      />
+
+      <NewDesignSheet
+        visible={newSheetOpen}
+        onClose={() => setNewSheetOpen(false)}
+        onBlank={() => {
+          setNewSheetOpen(false);
+          void newDesign();
+        }}
+        onImport={() => {
+          setNewSheetOpen(false);
+          router.push("/flash/instagram");
+        }}
       />
     </Screen>
   );
@@ -538,12 +581,14 @@ function FolderChip({
   dropHot,
   registerRef,
   onPress,
+  onLongPress,
 }: {
   label: string;
   active: boolean;
   dropHot?: boolean;
   registerRef?: (node: View | null) => void;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
   return (
     <Pressable
@@ -551,6 +596,8 @@ function FolderChip({
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
       className={`rounded-full border px-3 py-1.5 active:opacity-70 ${
         dropHot
           ? "border-mustard bg-mustard/30"

@@ -451,6 +451,8 @@ export type MobileFlashItemDetail = {
   folderId: string | null;
   dayMemberships: string[];
   previewImageUrl: string | null;
+  /** The linked Instagram post permalink (import provenance / manual link). */
+  instagramPostUrl: string | null;
   /** Stats sidebar (mirrors the web detail page): approved = confirmed,
    *  pending = pending; availability is the server-computed engine result. */
   pendingCount: number;
@@ -828,3 +830,37 @@ export type MobileReminderSettings = {
 export type MobileCalendarExport = {
   feedUrl: string | null;
 };
+
+// ─── Instagram (flash import) ───────────────────────────────────────────────
+
+/** The connected Instagram account (no token ever leaves the server). */
+export type MobileInstagramAccount = {
+  username: string;
+  lastSyncAt: string | null;
+};
+
+/** A synced Instagram post, browsable in the native import grid. */
+export type MobileInstagramPost = {
+  id: string;
+  mediaType: string;
+  /** Cached thumbnail (public logos-bucket URL), or null if not yet cached. */
+  previewUrl: string | null;
+  permalink: string;
+  caption: string | null;
+  /** True when a flash item already links this post — not re-importable. */
+  alreadyLinked: boolean;
+};
+
+/** GET /api/mobile/instagram — connection status + synced posts. */
+export type MobileInstagram = {
+  /** False when the Instagram integration is not configured on the server. */
+  configured: boolean;
+  account: MobileInstagramAccount | null;
+  posts: MobileInstagramPost[];
+};
+
+/** POST /api/mobile/instagram/sync result. */
+export type MobileInstagramSyncResult = { synced: number };
+
+/** POST /api/mobile/instagram/import result (failures use the error envelope). */
+export type MobileInstagramImportResult = { created: number };
