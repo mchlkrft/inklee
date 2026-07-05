@@ -16,11 +16,8 @@ import { BrandLoader } from "@/components/BrandLoader";
 import { ErrorState } from "@/components/ErrorState";
 import { SupportStatusChip } from "@/components/support/SupportStatusChip";
 import { useApiQuery, apiPost, invalidateByPathPrefix } from "@/lib/api";
+import { formatShortDate, formatShortDateTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString();
-}
 
 function ReportField({
   label,
@@ -115,7 +112,8 @@ export default function SupportTicketDetail() {
             </Text>
             <Text className="mt-1 text-xs text-shell-dim">
               {SUPPORT_CATEGORY_LABELS[t.category]} · opened{" "}
-              {formatDateTime(t.createdAt)}
+              {formatShortDate(t.createdAt)} · last update{" "}
+              {formatShortDate(t.updatedAt)}
             </Text>
           </View>
           <SupportStatusChip status={t.status} />
@@ -164,7 +162,7 @@ export default function SupportTicketDetail() {
                 <Text className="font-semibold text-foreground">
                   {m.authorRole === "admin" ? "Inklee support" : "You"}
                 </Text>{" "}
-                · {formatDateTime(m.createdAt)}
+                · {formatShortDateTime(m.createdAt)}
               </Text>
               <Text className="mt-1 text-sm leading-relaxed text-foreground">
                 {m.body}

@@ -11,7 +11,9 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { SectionLabel } from "@/components/SectionLabel";
 import { BrandLoader } from "@/components/BrandLoader";
+import { SupportStatusChip } from "@/components/support/SupportStatusChip";
 import { useApiQuery } from "@/lib/api";
+import { formatShortDate } from "@/lib/date";
 import { useColors } from "@/lib/theme";
 
 // A support FAQ answer may point at a web route. Map only the ones with a real
@@ -20,11 +22,9 @@ const FAQ_NATIVE_ROUTE: Record<string, string> = {
   "/settings/payouts": "/settings/payouts",
   "/settings/account": "/settings/account",
   "/bookings/form": "/settings/booking-form",
+  "/bookings/calendar": "/bookings/calendar",
+  "/bookings/deposits": "/bookings/deposits",
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString();
-}
 
 export default function SupportScreen() {
   const q = useApiQuery<MobileSupportList>("/support");
@@ -120,8 +120,11 @@ export default function SupportScreen() {
                     </Text>
                     <Text className="mt-0.5 text-xs text-shell-dim">
                       {SUPPORT_CATEGORY_LABELS[t.category]} · updated{" "}
-                      {formatDate(t.updatedAt)}
+                      {formatShortDate(t.updatedAt)}
                     </Text>
+                    <View className="mt-1.5">
+                      <SupportStatusChip status={t.status} />
+                    </View>
                   </View>
                   <Ionicons
                     name="chevron-forward"

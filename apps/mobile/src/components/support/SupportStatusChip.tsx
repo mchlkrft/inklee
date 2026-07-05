@@ -12,7 +12,7 @@ const CHIP: Record<SupportStatus, { box: string; text: string }> = {
   awaiting_support: { box: "bg-rosa", text: "text-charcoal" },
   awaiting_artist: { box: "bg-mustard", text: "text-charcoal" },
   resolved: { box: "bg-success", text: "text-bone" },
-  closed: { box: "bg-shell-hover", text: "text-shell-dim" },
+  closed: { box: "bg-shell-hover", text: "text-foreground" },
 };
 
 export function SupportStatusChip({ status }: { status: SupportStatus }) {
