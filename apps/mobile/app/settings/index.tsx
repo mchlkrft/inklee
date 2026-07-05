@@ -315,6 +315,14 @@ export default function SettingsHubScreen() {
           />
         </Card>
 
+        <SectionLabel>Support</SectionLabel>
+        <Card>
+          <SettingsRow
+            label="Help & support"
+            onPress={() => router.push("/settings/support")}
+          />
+        </Card>
+
         {/* Account & security sits at the bottom (founder round 7); account
             deletion lives inside it, not on the hub. */}
         <SectionLabel>Account</SectionLabel>

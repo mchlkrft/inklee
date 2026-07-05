@@ -14,6 +14,8 @@ export type MobileAuth =
   | {
       ok: true;
       userId: string;
+      /** The artist's email, for surfaces that notify by email (e.g. support). */
+      email: string | null;
       /** Supabase last real sign-in time (not bumped by token refresh) — used to
        *  gate re-auth-sensitive actions like account deletion. */
       lastSignInAt: string | null;
@@ -43,6 +45,7 @@ export async function requireMobileUser(req: Request): Promise<MobileAuth> {
   return {
     ok: true,
     userId: data.user.id,
+    email: data.user.email ?? null,
     lastSignInAt: data.user.last_sign_in_at ?? null,
     supabase,
   };
