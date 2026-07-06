@@ -18,6 +18,10 @@ export interface InstagramTokenResponse {
   access_token: string;
   token_type: string;
   expires_in?: number;
+  /** App-scoped user id — the id Meta's deauthorize/data-deletion callbacks
+   * reference, which can differ from the professional-account IGID that /me
+   * returns. */
+  user_id?: number | string;
 }
 
 export interface InstagramLongLivedTokenResponse {
@@ -203,6 +207,91 @@ export async function fetchInstagramMedia(
   }
   const json = (await res.json()) as { data?: InstagramMediaItem[] };
   return json.data ?? [];
+}
+
+// ─── Meta signed_request (deauthorize + data-deletion callbacks) ────────────
+
+export interface MetaSignedRequestPayload {
+  user_id?: string;
+  algorithm?: string;
+  issued_at?: number;
+}
+
+/**
+ * Verify + decode the `signed_request` Meta POSTs to the deauthorize and
+ * data-deletion callbacks: `base64url(rawHmacSig).base64url(json)`, keyed with
+ * the app secret. Meta's docs are ambiguous about whether Instagram-Login apps
+ * are signed with the Instagram app secret or the parent Meta app secret, so
+ * this accepts either (META_APP_SECRET is optional and currently unset).
+ * Returns null on any mismatch or malformed input.
+ */
+export function parseSignedRequest(
+  signedRequest: string,
+): MetaSignedRequestPayload | null {
+  const dot = signedRequest.indexOf(".");
+  if (dot === -1) return null;
+  const encodedSig = signedRequest.slice(0, dot);
+  const payload = signedRequest.slice(dot + 1);
+
+  const secrets = [
+    { name: "INSTAGRAM_APP_SECRET", secret: process.env.INSTAGRAM_APP_SECRET },
+    { name: "META_APP_SECRET", secret: process.env.META_APP_SECRET },
+  ].filter((s): s is { name: string; secret: string } => !!s.secret);
+  if (secrets.length === 0) return null;
+
+  const sig = Buffer.from(encodedSig, "base64url");
+  const verifiedWith = secrets.find(({ secret }) => {
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(payload)
+      .digest();
+    return (
+      sig.length === expected.length && crypto.timingSafeEqual(sig, expected)
+    );
+  });
+  if (!verifiedWith) return null;
+  if (verifiedWith.name !== "INSTAGRAM_APP_SECRET") {
+    // Meta never documents which secret signs Instagram-Login callbacks; log
+    // when the fallback matched so the ambiguity can be tightened later.
+    console.warn(
+      `[instagram] signed_request verified with the fallback ${verifiedWith.name}`,
+    );
+  }
+
+  try {
+    const raw = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as Record<string, unknown>;
+    if (
+      typeof raw.algorithm === "string" &&
+      raw.algorithm.toUpperCase() !== "HMAC-SHA256"
+    ) {
+      return null;
+    }
+    // Normalize user_id at the boundary: Meta documents a string, but the
+    // platform's own token endpoint returns ids as JSON numbers. Accept a
+    // safe-integer number; fail closed on anything else — an unsafe-integer
+    // number has already lost digits in JSON.parse, and passing it on would
+    // silently no-op the teardown lookup while still confirming deletion.
+    let userId: string | undefined;
+    if (typeof raw.user_id === "string" && raw.user_id.length > 0) {
+      userId = raw.user_id;
+    } else if (
+      typeof raw.user_id === "number" &&
+      Number.isSafeInteger(raw.user_id)
+    ) {
+      userId = String(raw.user_id);
+    } else if (raw.user_id != null) {
+      return null;
+    }
+    return {
+      user_id: userId,
+      algorithm: typeof raw.algorithm === "string" ? raw.algorithm : undefined,
+      issued_at: typeof raw.issued_at === "number" ? raw.issued_at : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

@@ -26,6 +26,24 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 
 ---
 
+### 2026-07-06 — Instagram data-deletion status page (noindexed utility URL)
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** New-page gate (not triggered — the page is excluded from the indexable inventory).
+
+**Files changed:** `apps/web/src/app/instagram/data-deletion/page.tsx` (new).
+
+**Implementation:** Added `/instagram/data-deletion`, the confirmation-status page Meta's data-deletion callback links to (Meta App Review requirement, not a marketing page). `robots: { index: false, follow: false }` per the auth/request-page convention; not added to the sitemap; no internal links from indexable pages.
+
+**Validation performed:** Confirmed the sitemap remains the curated list (page not referenced); noindex metadata matches the existing utility-page convention.
+
+**Remaining issues:** None.
+
+**Commit:** feat/instagram-meta-review-prep (Meta review prep slice).
+
+---
+
 ### 2026-07-02 — Strategy narrowed to the hybrid execution model
 
 **Implemented by:** Claude Code (approved ChatGPT strategy, applied as written)

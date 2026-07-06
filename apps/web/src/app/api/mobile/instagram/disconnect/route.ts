@@ -13,6 +13,14 @@ export async function POST(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
 
-  await disconnectInstagram(auth.userId);
+  try {
+    await disconnectInstagram(auth.userId);
+  } catch {
+    return mobileError(
+      502,
+      "Disconnecting Instagram failed. Try again.",
+      "disconnect_failed",
+    );
+  }
   return mobileOk({ ok: true });
 }

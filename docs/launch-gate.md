@@ -50,7 +50,7 @@
 
 | Item | Why parked |
 | --- | --- |
-| Instagram import PUBLIC access | Works for Instagram-Testers now; public access is in Meta review (Business verification resubmitted 2026-07-03). Chain + code-prep in memory `flash-instagram-meta-setup`. |
+| Instagram import PUBLIC access | Works for Instagram-Testers now. Business verification APPROVED 2026-07-06. Code prep DONE (privacy §3.4, deauthorize + data-deletion callbacks, migration 0061). Remaining = founder dashboard chain (restriction check → access verification → App Review → Live); submission kit in `docs/instagram-app-review.md`. |
 | Google Play listing (production EAS profile, store assets, Data Safety form) | Private beta distributes the preview APK directly. Needed only for a PUBLIC store launch. Back up the cloud keystore before any release. |
 | Vercel Preview deployment protection | Verified OFF today. Previews point at prod Supabase — do not share preview URLs until enabled. Pre-public item, not MVP. |
 | CAPTCHA/Turnstile on public forms | Rate limiter is active (Upstash set). Add before public marketing push. |

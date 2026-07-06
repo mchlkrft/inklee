@@ -60,7 +60,14 @@ export async function disconnectInstagramAction(): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  await disconnectInstagram(user.id);
+  try {
+    await disconnectInstagram(user.id);
+  } catch (err) {
+    // disconnectInstagram now throws on a DB delete failure; surface it
+    // instead of rendering the page as if the teardown succeeded.
+    console.error("[instagram/disconnect]", err);
+    redirect("/flash/instagram?error=disconnect_failed");
+  }
   revalidatePath("/flash/instagram");
 }
 

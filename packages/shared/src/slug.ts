@@ -58,6 +58,7 @@ export const RESERVED_SLUGS = new Set([
   "studio",
   "studios",
   "flash",
+  "instagram",
   "booking",
   "bookings",
   "request",

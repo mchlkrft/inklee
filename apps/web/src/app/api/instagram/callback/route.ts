@@ -56,6 +56,10 @@ export async function GET(req: NextRequest) {
       {
         artist_id: artistId,
         instagram_user_id: igUser.id,
+        // Meta's deauthorize/data-deletion callbacks reference this id, which
+        // can differ from the /me IGID above.
+        app_scoped_user_id:
+          shortToken.user_id != null ? String(shortToken.user_id) : null,
         username: igUser.username,
         access_token: longToken.access_token,
         token_expires_at: expiresAt,

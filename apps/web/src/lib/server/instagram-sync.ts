@@ -207,20 +207,62 @@ export async function importInstagramPosts(
 }
 
 /**
+ * Meta-initiated teardown (deauthorize / data-deletion callbacks): run the full
+ * disconnect for every artist row bound to the given Instagram user id.
+ * Returns how many accounts were torn down (0 when nothing matches, keeping
+ * the callbacks idempotent).
+ */
+export async function disconnectByInstagramUserId(
+  instagramUserId: string,
+): Promise<number> {
+  // Match on both id kinds: Meta's callbacks reference the app-scoped user id
+  // (captured from the token exchange), while instagram_user_id holds the
+  // professional-account IGID from /me. Two separate eq queries rather than a
+  // PostgREST .or() so the Meta-supplied value never enters a filter grammar.
+  // Throw on a lookup error: a swallowed DB failure would read as "no match"
+  // and falsely confirm a deletion to Meta, which then never retries.
+  const [igidRes, appScopedRes] = await Promise.all([
+    serviceClient
+      .from("instagram_accounts")
+      .select("artist_id")
+      .eq("instagram_user_id", instagramUserId),
+    serviceClient
+      .from("instagram_accounts")
+      .select("artist_id")
+      .eq("app_scoped_user_id", instagramUserId),
+  ]);
+  if (igidRes.error) throw new Error(igidRes.error.message);
+  if (appScopedRes.error) throw new Error(appScopedRes.error.message);
+  const artistIds = new Set(
+    [...(igidRes.data ?? []), ...(appScopedRes.data ?? [])].map(
+      (r) => r.artist_id as string,
+    ),
+  );
+  for (const artistId of artistIds) {
+    await disconnectInstagram(artistId);
+  }
+  return artistIds.size;
+}
+
+/**
  * Full disconnect teardown (IG-01): delete the stored token row, the synced
  * posts, and the cached thumbnails. Idempotent. Already-imported flash items
  * survive — their instagram_post_id FK is ON DELETE SET NULL and they keep the
- * copied instagram_post_url + preview_image_url.
+ * copied instagram_post_url + preview_image_url. Throws on a DB delete failure
+ * so every caller (the Meta callbacks, the web action, the mobile route)
+ * surfaces a real failure instead of confirming a deletion that did not run.
  */
 export async function disconnectInstagram(artistId: string): Promise<void> {
-  await serviceClient
+  const { error: postsErr } = await serviceClient
     .from("instagram_posts")
     .delete()
     .eq("artist_id", artistId);
-  await serviceClient
+  if (postsErr) throw new Error(postsErr.message);
+  const { error: accountErr } = await serviceClient
     .from("instagram_accounts")
     .delete()
     .eq("artist_id", artistId);
+  if (accountErr) throw new Error(accountErr.message);
   // Instagram provides no programmatic token revoke for this API; deleting our
   // stored copy is the teardown (the token also expires ~60 days after mint).
   await purgeStoragePrefix("logos", `${artistId}/instagram`);
