@@ -12,7 +12,9 @@
 
 - **Every Production env var is SET** (names via Vercel API): Upstash ×2, Stripe ×3, `SUPABASE_AUTH_HOOK_SECRET`, Resend + `EMAIL_FROM`, `CRON_SECRET`, `ADMIN_EMAILS`, Supabase ×4, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_PUBLIC_BIO_DOMAIN`, Sentry ×2, Maps. Goods flags correctly UNSET. Only known-wrong VALUE: `STRIPE_SECRET_KEY`/publishable are test-mode; `STRIPE_WEBHOOK_SECRET` is the test endpoint's.
 - **Resend sending domain `inklee.app` is VERIFIED** (Resend API) — email infra is real.
-- **Supabase Auth prod config** (Management API): Site URL = `https://inklee.app` ✅, signups ON ✅, Google provider ENABLED ✅. Two gaps → blockers 5 + 6 below.
+- **Supabase Auth prod config** (Management API): Site URL = `https://inklee.app` ✅, signups ON ✅, Google provider ENABLED ✅. The two gaps (deep-link allowlist, email rate limit) were closed 2026-07-07 → blockers 5 + 6 below.
+- **`DATABASE_URL` is the pooled connection** (re-verified 2026-07-07 via Vercel API): `*.pooler.supabase.com:6543`, and `src/db/index.ts` sets `prepare: false` for the transaction pooler. No `?pgbouncer=true` needed (that flag is a Prisma convention; the driver is postgres-js).
+- **Re-verified live 2026-07-07:** all Production env var names still set; Stripe live webhook `enabled` at `https://inklee.app/api/stripe/webhook` with all 5 events; live key `livemode: true`; `/api/mobile/min-version` returns disarmed defaults on prod.
 - **Deposit-path code done** (Slice 80 P0 closeout + Codex MONEY-01..04); **server push send-half EXISTS** (`lib/server/push.ts`, wired into `createNotification`); **onboarding art shipped** both surfaces (OB-1); **FU-18 image-race guard + FU sweep deployed** (`ff44a7e`).
 - Web prod is live and git-tracked from `master`; 541 tests green; full build green.
 
@@ -29,8 +31,8 @@
 
 ### App path (Android) — founder config + one small code task
 
-5. **Supabase redirect allowlist — add the mobile deep links.** Verified missing: the allowlist has ONLY the two web URLs. Add `inklee://auth-callback`, `inklee://auth-confirm`, `inklee://reset-password` (+ the `exp://` dev scheme). Without these, native Google sign-in, native signup confirmation, and the native reset flow all fail on-device. 5 minutes in the dashboard.
-6. **Raise the auth email rate limit.** Verified at **2/hour** — the third auth email in an hour silently fails, which breaks onboarding more than one user. Note: `mailer_autoconfirm=false` suggests email confirmation IS currently required in prod; the G-5 signup test will confirm the actual behavior either way.
+5. **Supabase redirect allowlist — add the mobile deep links.** ✅ DONE 2026-07-07 (via Management API, PATCH `config/auth`). `uri_allow_list` now = the two web URLs + `inklee://auth-callback`, `inklee://auth-confirm`, `inklee://reset-password` + `exp://**` (Expo Go dev wildcard). Verified persisted by re-reading the config. On-device confirmation happens in the blocker-9 sweep (ME-7/ME-8).
+6. **Raise the auth email rate limit.** ✅ DONE 2026-07-07 (via Management API). `rate_limit_email_sent` raised **2 → 30/hour**, verified persisted. Note: `mailer_autoconfirm=false` suggests email confirmation IS currently required in prod; the G-5 signup test will confirm the actual behavior either way.
 7. **Android FCM credentials.** Create the Firebase project, upload the service account to EAS credentials. The push code is complete on both halves; creds are the only gate to Android push existing at all.
 8. **Mobile min-version kill-switch** — ✅ CODE DONE 2026-07-04 (deployed, master `8928954`). `GET /api/mobile/min-version` (unauthenticated, fail-open) + a blocking "update required" screen wired above the auth gate; semver compare single-sourced in `packages/shared/src/app-version.ts` (unit-tested). Verified live on prod: unset = `{minVersion:"0.0.0",updateRequired:false}` (disarmed, nobody blocked). **Founder config when cutting the money-path build:** set `MOBILE_MIN_VERSION` (or `MOBILE_MIN_VERSION_ANDROID`) + `MOBILE_UPDATE_URL` in Vercel Production. To recall a bad build later: raise the minimum above it and redeploy. The mobile screen reaches devices only via the next EAS build (#9).
 9. **Fresh EAS Android build + on-device sweep.** One build (after 7 + 8) carries: everything since `ebae8796`, push, the kill-switch. Then on a real device: Google sign-in (ME-7), native email signup incl. the confirm deep link (ME-8), booking flow end-to-end, one push notification E2E. Distribution for the private beta = this preview APK directly; **no Play listing needed**.
@@ -73,8 +75,8 @@
 | 1–2 | Stripe live mode + live webhook | Founder | ~2 h |
 | 3 | G-5 real €1–5 deposit + refund | Founder (Claude verifies via API) | ~1 h |
 | 4 | Comp beta artists to Plus | Founder | 5 min |
-| 5 | Supabase deep-link allowlist | Founder | 5 min |
-| 6 | Auth email rate limit | Founder | 2 min |
+| 5 | Supabase deep-link allowlist | ✅ done (Claude, 2026-07-07) | — |
+| 6 | Auth email rate limit | ✅ done (Claude, 2026-07-07) | — |
 | 7 | Firebase/FCM creds → EAS | Founder | ~30 min |
 | 8 | Min-version kill-switch | Claude | small PR |
 | 9 | EAS build + on-device sweep | Claude builds, founder tests | ~1 h device time |
