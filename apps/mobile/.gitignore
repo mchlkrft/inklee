@@ -14,6 +14,11 @@ expo-env.d.ts
 .env.local
 .env*.local
 
+# Firebase Android config: low-sensitivity (ships in the APK) but kept out of
+# the PUBLIC repo. Local copy lives here; EAS cloud builds receive it via the
+# GOOGLE_SERVICES_JSON file env var (see app.config.js). Vault: google-services-inklee.
+google-services.json
+
 # Metro / misc
 *.log
 .DS_Store
