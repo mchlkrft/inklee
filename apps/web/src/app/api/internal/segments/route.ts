@@ -19,13 +19,14 @@ interface SegmentResult {
   sample: string[];
 }
 
-// "inkby_maya" -> "i***_m***": keep the first char of each underscore-part, mask the rest.
+// Anonymize a handle for the sample: reveal at most the first character of the WHOLE handle
+// and mask the rest — no underscore structure, no per-segment reveal — and fully mask anything
+// shorter than 4 chars. "inkby_maya" -> "i***", "maya" -> "m***", "jo" -> "***". The sample
+// exists only so an operator can eyeball that a segment resolves to real rows; it must never
+// carry reconstructable identity. Anything more sensitive (see beta_artists) is count-only.
 function maskHandle(raw: string | null | undefined): string {
-  if (!raw) return "***";
-  return raw
-    .split("_")
-    .map((part) => (part.length === 0 ? "" : `${part[0]}***`))
-    .join("_");
+  if (!raw || raw.length < 4) return "***";
+  return `${raw[0]}***`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,7 +75,13 @@ async function runProfilesByIds(
   };
 }
 
-/** Distinct artist_ids from a child table (booking_requests, trips), with optional filters. */
+/**
+ * Distinct artist_ids from a child table (booking_requests, trips), with optional filters.
+ * NOTE: this select is unbounded and PostgREST caps every response at max_rows (1000 in
+ * config.toml), so at >1000 matching child rows the id set truncates and derived segment
+ * counts become estimates, not exact. Acceptable while these are dry-run estimates; revisit
+ * with .range() pagination when the Inklee execution slice needs exact audiences.
+ */
 async function distinctArtistIds(
   table: string,
   extra?: (q: Builder) => Builder,
@@ -97,20 +104,16 @@ async function evaluate(executionKey: string): Promise<SegmentResult> {
       return runProfiles((q) => q.eq("account_status", "active"));
 
     case "beta_artists": {
-      // pre-signup applicants: their own table, no is_tester column (documented)
-      const { count, data, error } = await serviceClient
+      // Pre-signup applicants live in their own table (no is_tester column, documented).
+      // This is RLS-locked, service-role-only applicant PII (migration 0056), so the bridge
+      // returns a COUNT ONLY here — no handle sample crosses the boundary for the beta cohort.
+      const { count, error } = await serviceClient
         .from("founding_artist_applications")
-        .select("instagram_handle", { count: "exact" })
+        .select("id", { count: "exact", head: true })
         .eq("application_status", "onboarded")
-        .eq("consent_beta_communication", true)
-        .limit(SAMPLE_N);
+        .eq("consent_beta_communication", true);
       if (error) throw error;
-      return {
-        count: count ?? 0,
-        sample: (data ?? []).map((r: Builder) =>
-          maskHandle(r.instagram_handle),
-        ),
-      };
+      return { count: count ?? 0, sample: [] };
     }
 
     case "setup_incomplete":
