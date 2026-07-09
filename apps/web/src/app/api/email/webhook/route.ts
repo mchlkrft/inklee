@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { writeAudit } from "@/lib/audit";
+import { serviceClient } from "@/lib/supabase/service";
 
 // Resend webhook signature verification
 // Docs: https://resend.com/docs/dashboard/webhooks/introduction
@@ -88,6 +89,34 @@ export async function POST(request: Request) {
         reason: event.data.bounce?.message ?? event.data.complaint?.userAgent,
       },
     });
+  }
+
+  // Suppression loop (Email hub slice 9): a hard bounce or spam complaint permanently
+  // suppresses the address so no campaign send ever reaches it again. The campaign send
+  // path reads email_suppressions before every send (skipped_suppressed overrides opt-in
+  // and even transactional). AWAIT the write — a fire-and-forget insert that silently
+  // failed would leave the loop open. delivery_delayed is transient, so it stays log-only.
+  if (event.type === "email.bounced" || event.type === "email.complained") {
+    const recipient = event.data.to?.[0];
+    if (recipient) {
+      const { error: suppressErr } = await serviceClient
+        .from("email_suppressions")
+        .upsert(
+          {
+            recipient_email: recipient,
+            reason: event.type === "email.bounced" ? "bounced" : "complained",
+            hard: true,
+            source: "resend_webhook",
+          },
+          { onConflict: "recipient_email" },
+        );
+      // Do not leak the address in logs; record only that the write failed.
+      if (suppressErr) {
+        console.error("[email/webhook] suppression upsert failed", {
+          reason: suppressErr.message,
+        });
+      }
+    }
   }
 
   return NextResponse.json({ received: true });

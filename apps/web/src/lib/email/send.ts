@@ -5,6 +5,9 @@ type SendEmailParams = {
   subject: string;
   html: string;
   replyTo?: string;
+  // Custom email headers (e.g. List-Unsubscribe / List-Unsubscribe-Post for
+  // marketing/lifecycle mail). Passed straight through to Resend when present.
+  headers?: Record<string, string>;
 };
 
 // Warn once at module load if EMAIL_FROM looks misconfigured
@@ -20,6 +23,7 @@ export async function sendEmail({
   subject,
   html,
   replyTo,
+  headers,
 }: SendEmailParams): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -44,6 +48,7 @@ export async function sendEmail({
     subject,
     html,
     ...(replyToAddress ? { replyTo: replyToAddress } : {}),
+    ...(headers ? { headers } : {}),
   });
 
   if (error) {

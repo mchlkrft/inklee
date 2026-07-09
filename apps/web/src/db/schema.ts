@@ -10,6 +10,7 @@ import {
   boolean,
   numeric,
   doublePrecision,
+  unique,
 } from "drizzle-orm/pg-core";
 
 // --- Enums ---
@@ -724,4 +725,78 @@ export const deviceTokens = pgTable("device_tokens", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+// Email hub slice 9 (migration 0063) — CT→Inklee marketing/lifecycle campaign
+// dispatch + suppression/unsubscribe foundation. Service-role only (RLS enabled,
+// zero policies — see migration 0063). Control Tower never sees a recipient list;
+// the whole send runs inside Inklee and returns aggregates + masked samples only.
+// Hand-written SQL in migration 0063 is the source of truth; these mirrors track
+// table shapes for query typing (the applied path is `supabase db push`).
+
+// One row per received dispatch. Aggregates only — never a recipient list.
+export const emailJobs = pgTable("email_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  campaignId: text("campaign_id"),
+  executionKey: text("execution_key").notNull(),
+  segmentName: text("segment_name"),
+  category: text("category").notNull(),
+  subject: text("subject"),
+  dryRun: boolean("dry_run").notNull().default(true),
+  status: text("status").notNull().default("queued"),
+  audienceSize: integer("audience_size"),
+  wouldSend: integer("would_send"),
+  sentCount: integer("sent_count").default(0),
+  failedCount: integer("failed_count").default(0),
+  skippedCount: integer("skipped_count").default(0),
+  skippedDetail: jsonb("skipped_detail"),
+  sample: jsonb("sample"),
+  sendingEnabled: boolean("sending_enabled"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+// One row per recipient attempt. UNIQUE(job_id, artist_id) is the at-most-once
+// dedup key; insert-before-send turns a duplicate into skipped_dedup.
+export const emailSends = pgTable(
+  "email_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jobId: uuid("job_id").references(() => emailJobs.id, {
+      onDelete: "cascade",
+    }),
+    artistId: uuid("artist_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    recipientEmail: text("recipient_email"),
+    status: text("status"),
+    resendMessageId: text("resend_message_id"),
+    skipReason: text("skip_reason"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [unique("email_sends_job_artist_uniq").on(t.jobId, t.artistId)],
+);
+
+// Hard bounces + spam complaints. Checked before every send; overrides opt-in.
+export const emailSuppressions = pgTable("email_suppressions", {
+  recipientEmail: text("recipient_email").primaryKey(),
+  reason: text("reason"),
+  hard: boolean("hard").default(true),
+  source: text("source"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// Durable, one-per-artist unsubscribe token. Only the sha256 is stored; the raw
+// token lives in the email's List-Unsubscribe URL.
+export const emailUnsubscribeTokens = pgTable("email_unsubscribe_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  artistId: uuid("artist_id")
+    .references(() => profiles.id, { onDelete: "cascade" })
+    .unique(),
+  scope: text("scope").notNull().default("all"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
