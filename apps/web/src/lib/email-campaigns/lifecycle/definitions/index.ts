@@ -2,5 +2,14 @@
 // contents of this directory (files named [a-z0-9_]+.ts; anything else is skipped).
 // Hand edits to the ARRAY survive only until the next export; edit the definition files.
 import type { LifecycleDefinition } from "../types";
+import { definition as def_books_open_live } from "./books_open_live";
+import { definition as def_first_booking_approved } from "./first_booking_approved";
+import { definition as def_no_requests_day_14 } from "./no_requests_day_14";
+import { definition as def_no_requests_day_7 } from "./no_requests_day_7";
 
-export const LIFECYCLE_DEFINITIONS: LifecycleDefinition[] = [];
+export const LIFECYCLE_DEFINITIONS: LifecycleDefinition[] = [
+  def_books_open_live,
+  def_first_booking_approved,
+  def_no_requests_day_14,
+  def_no_requests_day_7,
+];
