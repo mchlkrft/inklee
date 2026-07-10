@@ -2,8 +2,5 @@
 // contents of this directory (files named [a-z0-9_]+.ts; anything else is skipped).
 // Hand edits to the ARRAY survive only until the next export; edit the definition files.
 import type { LifecycleDefinition } from "../types";
-import { definition as def_setup_incomplete_nudge } from "./setup_incomplete_nudge";
 
-export const LIFECYCLE_DEFINITIONS: LifecycleDefinition[] = [
-  def_setup_incomplete_nudge,
-];
+export const LIFECYCLE_DEFINITIONS: LifecycleDefinition[] = [];

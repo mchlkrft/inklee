@@ -82,12 +82,17 @@ export async function PUT(req: Request) {
     .eq("id", userId);
   if (error) return mobileError(500, error.message);
 
-  void writeAudit({
-    action: parsed.value.books_open ? "books_opened" : "books_closed",
-    actor: userId,
-    category: "settings",
-    details: { books_open: parsed.value.books_open },
-  });
+  // Audit only a real TRANSITION: books_opened/books_closed must mean the flag flipped,
+  // not "saved the form while open". The lifecycle books_open_recent segment (and any
+  // later analysis) reads these actions as deliberate toggles.
+  if (parsed.value.books_open !== currentBooks.books_open) {
+    void writeAudit({
+      action: parsed.value.books_open ? "books_opened" : "books_closed",
+      actor: userId,
+      category: "settings",
+      details: { books_open: parsed.value.books_open },
+    });
+  }
 
   return mobileOk(parsed.value);
 }
@@ -134,12 +139,16 @@ export async function POST(req: Request) {
     .eq("id", userId);
   if (error) return mobileError(500, error.message);
 
-  void writeAudit({
-    action: body.open ? "books_opened" : "books_closed",
-    actor: userId,
-    category: "settings",
-    details: { books_open: body.open },
-  });
+  // Same transition gate as the PUT: an idempotent flip (already open, set open) writes
+  // no books_opened row, so the audit action stays a true toggle record.
+  if (body.open !== books.books_open) {
+    void writeAudit({
+      action: body.open ? "books_opened" : "books_closed",
+      actor: userId,
+      category: "settings",
+      details: { books_open: body.open },
+    });
+  }
 
   return mobileOk({ booksOpen: body.open });
 }

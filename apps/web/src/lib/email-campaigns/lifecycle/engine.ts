@@ -52,7 +52,7 @@ const MARKER_INSERT_CHUNK = 200; // bulk marker upsert size
 const MARKER_SCAN_CAP = 100_000;
 const DAY_MS = 86_400_000;
 
-type SkippedDetail = {
+export type SkippedDetail = {
   no_email: number;
   suppressed: number;
   opted_out: number;
@@ -73,7 +73,7 @@ export type RunSummary = {
   error: string | null;
 };
 
-const zeroSkipped = (): SkippedDetail => ({
+export const zeroSkipped = (): SkippedDetail => ({
   no_email: 0,
   suppressed: 0,
   opted_out: 0,
@@ -82,7 +82,7 @@ const zeroSkipped = (): SkippedDetail => ({
   capped: 0,
 });
 
-const sumSkipped = (s: SkippedDetail): number =>
+export const sumSkipped = (s: SkippedDetail): number =>
   s.no_email +
   s.suppressed +
   s.opted_out +
@@ -143,6 +143,103 @@ async function updateMarker(
     .eq("id", markerId);
 }
 
+export interface EligibleArtist {
+  artistId: string;
+  email: string;
+  slug: string | null;
+  displayName: string;
+}
+
+export interface DefinitionEvaluation {
+  audienceSize: number;
+  /** Survivors after every send-time gate, BEFORE the per-run cap (a run concern). */
+  eligible: EligibleArtist[];
+  /** Per-gate skip counts; `capped` stays 0 here (the cap belongs to the run). */
+  skipped: SkippedDetail;
+}
+
+/**
+ * The READ-ONLY eligibility evaluation: resolve the definition's audience segment, then
+ * classify every artist through the exact send-time gate order (no_email, suppressed,
+ * opted_out, throttled, already_sent). Shared by runDefinition (which then caps, marks and
+ * sends) and the CT dry-run endpoint (which returns aggregates and touches nothing). Reads
+ * profiles, auth admin, suppressions and marker SELECTs only; never writes. Throws on an
+ * unknown audience key or any query failure (an incomplete suppression set must never
+ * classify anyone as sendable).
+ */
+export async function evaluateDefinition(
+  def: LifecycleDefinition,
+): Promise<DefinitionEvaluation> {
+  // (a) who currently qualifies: the same resolver the campaign path uses (non-tester only)
+  const artists: SegmentArtist[] = await resolveSegmentArtists(def.audienceKey);
+  const audienceSize = artists.length;
+  const skipped = zeroSkipped();
+
+  // (b)(c) profile meta ({{artist_name}} + opt-out settings), emails, and the suppression
+  // set via the shared resolver (lib/email-campaigns/recipients), the single implementation
+  // this engine and the campaign route both use.
+  const { profileMeta, artistEmail, suppressed } =
+    await resolveRecipientMeta(artists);
+
+  // (d) global throttle: artists with ANY lifecycle marker (any definition, any status;
+  // even a failed attempt counts as recent contact) newer than def.throttleDays. Paged to
+  // completion because a truncated set would under-throttle.
+  const cutoff = new Date(Date.now() - def.throttleDays * DAY_MS).toISOString();
+  const throttleRows = (await fetchAllRows(
+    () =>
+      serviceClient
+        .from("email_lifecycle_markers")
+        .select("artist_id")
+        .gte("created_at", cutoff),
+    MARKER_SCAN_CAP,
+  )) as { artist_id: string | null }[];
+  const throttled = new Set(
+    throttleRows.map((r) => r.artist_id).filter(Boolean),
+  );
+
+  // already-sent prefetch for THIS definition (any status: 'pending' and 'failed' block
+  // too, at most one ATTEMPT per artist by design). The run's UNIQUE insert re-checks.
+  const markerRows = (await fetchAllRows(
+    () =>
+      serviceClient
+        .from("email_lifecycle_markers")
+        .select("artist_id")
+        .eq("definition_key", def.key)
+        .eq("period_key", "once"),
+    MARKER_SCAN_CAP,
+  )) as { artist_id: string | null }[];
+  const alreadySent = new Set(
+    markerRows.map((r) => r.artist_id).filter(Boolean),
+  );
+
+  // (e) filter (gate order documented at the top of this file)
+  const eligible: EligibleArtist[] = [];
+  for (const a of artists) {
+    const email = artistEmail.get(a.id) ?? null;
+    const meta = profileMeta.get(a.id);
+    if (!email) {
+      skipped.no_email++;
+    } else if (suppressed.has(email)) {
+      // suppression overrides everything, including opt-in
+      skipped.suppressed++;
+    } else if (isOptedOut(meta?.settings ?? {}, "lifecycle")) {
+      skipped.opted_out++;
+    } else if (throttled.has(a.id)) {
+      skipped.throttled++;
+    } else if (alreadySent.has(a.id)) {
+      skipped.already_sent++;
+    } else {
+      eligible.push({
+        artistId: a.id,
+        email,
+        slug: a.slug,
+        displayName: meta?.displayName ?? "there",
+      });
+    }
+  }
+  return { audienceSize, eligible, skipped };
+}
+
 async function runDefinition(def: LifecycleDefinition): Promise<RunSummary> {
   try {
     // A real provider is required BEFORE any work: an active run without a key must fail
@@ -161,85 +258,10 @@ async function runDefinition(def: LifecycleDefinition): Promise<RunSummary> {
       return failRun(def, `unknown audience key: ${def.audienceKey}`);
     }
 
-    // (a) who currently qualifies — the same resolver the campaign path uses (non-tester only)
-    const artists: SegmentArtist[] = await resolveSegmentArtists(
-      def.audienceKey,
-    );
-    const audienceSize = artists.length;
-    const skipped = zeroSkipped();
-
-    // (b)(c) profile meta ({{artist_name}} + opt-out settings), emails, and the suppression
-    // set via the shared resolver (lib/email-campaigns/recipients), the single implementation
-    // this engine and the campaign route both use. A query failure throws into the outer
-    // catch (run failed) — an incomplete suppression set must never let a send proceed.
-    const { profileMeta, artistEmail, suppressed } =
-      await resolveRecipientMeta(artists);
-
-    // (d) global throttle: artists with ANY lifecycle marker (any definition, any status —
-    // even a failed attempt counts as recent contact) newer than def.throttleDays. One paged
-    // query per run; paged to completion because a truncated set would under-throttle.
-    const cutoff = new Date(
-      Date.now() - def.throttleDays * DAY_MS,
-    ).toISOString();
-    const throttleRows = (await fetchAllRows(
-      () =>
-        serviceClient
-          .from("email_lifecycle_markers")
-          .select("artist_id")
-          .gte("created_at", cutoff),
-      MARKER_SCAN_CAP,
-    )) as { artist_id: string | null }[];
-    const throttled = new Set(
-      throttleRows.map((r) => r.artist_id).filter(Boolean),
-    );
-
-    // already-sent prefetch for THIS definition (any status: 'pending' and 'failed' block
-    // too — at most one ATTEMPT per artist, by design). The UNIQUE insert below re-checks,
-    // so this prefetch only exists to count accurately and to keep cap slots for artists
-    // who can actually receive the send.
-    const markerRows = (await fetchAllRows(
-      () =>
-        serviceClient
-          .from("email_lifecycle_markers")
-          .select("artist_id")
-          .eq("definition_key", def.key)
-          .eq("period_key", "once"),
-      MARKER_SCAN_CAP,
-    )) as { artist_id: string | null }[];
-    const alreadySent = new Set(
-      markerRows.map((r) => r.artist_id).filter(Boolean),
-    );
-
-    // (e) filter (gate order documented at the top of this file)
-    const eligible: {
-      artistId: string;
-      email: string;
-      slug: string | null;
-      displayName: string;
-    }[] = [];
-    for (const a of artists) {
-      const email = artistEmail.get(a.id) ?? null;
-      const meta = profileMeta.get(a.id);
-      if (!email) {
-        skipped.no_email++;
-      } else if (suppressed.has(email)) {
-        // suppression overrides everything, including opt-in
-        skipped.suppressed++;
-      } else if (isOptedOut(meta?.settings ?? {}, "lifecycle")) {
-        skipped.opted_out++;
-      } else if (throttled.has(a.id)) {
-        skipped.throttled++;
-      } else if (alreadySent.has(a.id)) {
-        skipped.already_sent++;
-      } else {
-        eligible.push({
-          artistId: a.id,
-          email,
-          slug: a.slug,
-          displayName: meta?.displayName ?? "there",
-        });
-      }
-    }
+    // (a-e) the shared read-only eligibility evaluation (also powers the CT dry-run
+    // endpoint). A query failure throws into the outer catch (run failed): an incomplete
+    // suppression set must never let a send proceed.
+    const { audienceSize, eligible, skipped } = await evaluateDefinition(def);
     const eligibleCount = eligible.length;
 
     // (f) per-run cap — the overflow is picked up by the next daily run

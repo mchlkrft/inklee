@@ -129,7 +129,114 @@ async function distinctArtistIds(
 const iso = (msAgo: number): string =>
   new Date(Date.now() - msAgo).toISOString();
 
-/** The 15 valid execution keys. Shared allowlist for both the bridge and the send endpoint. */
+/**
+ * Age-window filter on profiles.created_at: at least minDays old AND younger than maxDays.
+ * profiles.created_at is the slug-claim time (the row is created by the claim upsert), so
+ * "age" here means days since onboarding started. The lifecycle trigger segments are
+ * WINDOWED, not floor-only, so an artist qualifies for exactly the one stage matching their
+ * current age and a backlog can never receive a whole staged sequence at once; the engine's
+ * once-ever marker then prevents re-fires within the stage.
+ */
+const ageWindow =
+  (minDays: number, maxDays: number) =>
+  (q: Builder): Builder =>
+    q
+      .lte("created_at", iso(minDays * DAY_MS))
+      .gt("created_at", iso(maxDays * DAY_MS));
+
+const incompleteOr =
+  "settings->>onboarding_completed.is.null,settings->>onboarding_completed.neq.true";
+
+/**
+ * Distinct actor ids from audit_log for one action since a cutoff (paged to completion).
+ * Powers books_open_recent: coverage is a deliberate SAFE SUBSET, because books default
+ * OPEN with no audit row and the onboarding paths skip the audit write; only artists with
+ * a books_opened row qualify, and nobody long-open is ever re-notified. The write sites
+ * are transition-gated (the action means the flag actually flipped), and the resolver
+ * additionally intersects with the CURRENT open state below, so an artist who opened and
+ * closed within the window can never be told their books are open.
+ */
+async function distinctActorIds(
+  action: string,
+  sinceMs: number,
+): Promise<string[]> {
+  const rows = await fetchAllRows(
+    () =>
+      serviceClient
+        .from("audit_log")
+        .select("actor")
+        .eq("action", action)
+        .gte("timestamp", iso(sinceMs)),
+    CHILD_SCAN_CAP,
+  );
+  return [
+    ...new Set(rows.map((r: Builder) => r.actor).filter(Boolean)),
+  ] as string[];
+}
+
+/**
+ * The inactivity windows: onboarding complete, active, HAD booking activity inside
+ * horizonDays but NONE for quietDays. Requiring real prior activity makes the track
+ * disjoint from the no_requests track (never-booked artists belong solely there, so
+ * nobody rides both sequences at once), and the horizon means the long-dormant base is
+ * never suddenly emailed when a definition activates. Activity is the booking-activity
+ * proxy the admin surface and inactive_artists already use (requests arriving); a true
+ * artist last-seen needs product work (flagged in the admin UI itself).
+ */
+async function inactiveWindow(
+  quietDays: number,
+  horizonDays: number,
+): Promise<SegmentArtist[]> {
+  const [recent, horizon] = await Promise.all([
+    distinctArtistIds("booking_requests", (q) =>
+      q.gte("created_at", iso(quietDays * DAY_MS)),
+    ),
+    distinctArtistIds("booking_requests", (q) =>
+      q.gte("created_at", iso(horizonDays * DAY_MS)),
+    ),
+  ]);
+  const recentSet = new Set(recent);
+  const horizonSet = new Set(horizon);
+  const rows = await fetchAllRows(() =>
+    serviceClient
+      .from("profiles")
+      .select("id, instagram_handle, slug")
+      .eq("is_tester", false)
+      .eq("account_status", "active")
+      .eq("settings->>onboarding_completed", "true")
+      .lte("created_at", iso(quietDays * DAY_MS)),
+  );
+  return (rows as SegmentArtist[]).filter(
+    (r) => horizonSet.has(r.id) && !recentSet.has(r.id),
+  );
+}
+
+/**
+ * The no-requests windows: page live (slug + active + not deleted), onboarding complete,
+ * ZERO booking requests ever, aged into the window. Page-live time is approximated by the
+ * slug-claim time (profiles.created_at), which is exact for row creation and the closest
+ * timestamp that exists (there is no page_live_at column).
+ */
+async function noRequestsWindow(
+  minDays: number,
+  maxDays: number,
+): Promise<SegmentArtist[]> {
+  const booked = await distinctArtistIds("booking_requests");
+  return runProfilesByIds(booked, false, (q) =>
+    ageWindow(
+      minDays,
+      maxDays,
+    )(
+      q
+        .not("slug", "is", null)
+        .eq("account_status", "active")
+        .is("deleted_at", null)
+        .eq("settings->>onboarding_completed", "true"),
+    ),
+  );
+}
+
+/** The valid execution keys. Shared allowlist for both the bridge and the send endpoint. */
 export const KNOWN = new Set([
   "all_artists",
   "beta_artists",
@@ -146,6 +253,20 @@ export const KNOWN = new Set([
   "new_artists",
   "high_activity_artists",
   "at_risk_inactive",
+  // lifecycle trigger segments (day-N windows; see the helper docs above)
+  "new_signups",
+  "setup_incomplete_day_1",
+  "setup_incomplete_day_3",
+  "setup_incomplete_day_7",
+  "no_requests_day_7",
+  "no_requests_day_14",
+  "no_requests_day_30",
+  "inactive_day_14",
+  "inactive_day_30",
+  "inactive_day_60",
+  "first_booking_recent",
+  "books_open_recent",
+  "guest_spot_recent",
 ]);
 
 /**
@@ -282,6 +403,124 @@ export async function resolveSegmentArtists(
         q
           .eq("settings->>onboarding_completed", "true")
           .eq("account_status", "active"),
+      );
+    }
+
+    // ------------------------------------------------ lifecycle trigger segments
+
+    case "new_signups":
+      // claimed a slug within the last 2 days; the welcome's once-ever marker plus this
+      // tight window means the existing base is never welcomed late
+      return runProfiles((q) =>
+        q.eq("account_status", "active").gte("created_at", iso(2 * DAY_MS)),
+      );
+
+    case "setup_incomplete_day_1":
+      return runProfiles((q) =>
+        ageWindow(1, 3)(q.eq("account_status", "active").or(incompleteOr)),
+      );
+
+    case "setup_incomplete_day_3":
+      return runProfiles((q) =>
+        ageWindow(3, 7)(q.eq("account_status", "active").or(incompleteOr)),
+      );
+
+    case "setup_incomplete_day_7":
+      // 30-day ceiling: dormant months-old signups are never suddenly nudged
+      return runProfiles((q) =>
+        ageWindow(7, 30)(q.eq("account_status", "active").or(incompleteOr)),
+      );
+
+    case "no_requests_day_7":
+      return noRequestsWindow(7, 14);
+    case "no_requests_day_14":
+      return noRequestsWindow(14, 30);
+    case "no_requests_day_30":
+      return noRequestsWindow(30, 90);
+
+    case "inactive_day_14":
+      return inactiveWindow(14, 30);
+    case "inactive_day_30":
+      return inactiveWindow(30, 60);
+    case "inactive_day_60":
+      return inactiveWindow(60, 120);
+
+    case "first_booking_recent": {
+      // Artists whose EARLIEST approved public-form booking was decided within the last
+      // 14 days: approved recently AND never approved before the window. origin filter:
+      // the milestone copy describes the request flow, so artist-created manual
+      // appointments neither trigger it nor suppress it. The third scan excludes artists
+      // with an approved row whose decided_at is NULL (a tracked legacy anomaly, see the
+      // admin "Approved, no decided_at" tile): an approval of unknown age must never let
+      // a later one read as the first. Known miss-only gap: a deposit marked received
+      // manually keeps its deposit-request-time decided_at, so a first booking confirmed
+      // more than 14 days after the deposit request misses the milestone (never a wrong
+      // send).
+      const [recentApproved, priorApproved, undatedApproved] =
+        await Promise.all([
+          distinctArtistIds("booking_requests", (q) =>
+            q
+              .eq("status", "approved")
+              .eq("origin", "public_form")
+              .gte("decided_at", iso(14 * DAY_MS)),
+          ),
+          distinctArtistIds("booking_requests", (q) =>
+            q
+              .eq("status", "approved")
+              .eq("origin", "public_form")
+              .lt("decided_at", iso(14 * DAY_MS)),
+          ),
+          distinctArtistIds("booking_requests", (q) =>
+            q
+              .eq("status", "approved")
+              .eq("origin", "public_form")
+              .is("decided_at", null),
+          ),
+        ]);
+      const prior = new Set([...priorApproved, ...undatedApproved]);
+      return runProfilesByIds(
+        recentApproved.filter((id) => !prior.has(id)),
+        true,
+        (q) => q.eq("account_status", "active"),
+      );
+    }
+
+    case "books_open_recent": {
+      // A books_opened audit row within 7 days (transition-gated at the write sites)
+      // INTERSECTED with the current derived open state, the same derivation
+      // books_open_users runs: an artist who opened then closed inside the window can
+      // never be told their books are open. Historical pre-gate audit rows (written on
+      // every save while open) age out of the 7-day window after deploy; the current-open
+      // intersection bounds them until then.
+      const actors = await distinctActorIds("books_opened", 7 * DAY_MS);
+      if (actors.length === 0) return [];
+      const actorSet = new Set(actors);
+      const rows = await fetchAllRows(() =>
+        serviceClient
+          .from("profiles")
+          .select("id, instagram_handle, slug, settings, timezone")
+          .eq("is_tester", false)
+          .eq("account_status", "active"),
+      );
+      return rows
+        .filter((r: Builder) => {
+          if (!actorSet.has(r.id)) return false;
+          const books = parseBooksSettings((r.settings ?? {}).books_settings);
+          return deriveBooksOpen(books, todayInTimeZone(r.timezone)).booksOpen;
+        })
+        .map((r: Builder) => ({
+          id: r.id,
+          instagram_handle: r.instagram_handle,
+          slug: r.slug,
+        }));
+    }
+
+    case "guest_spot_recent": {
+      const withNewTrips = await distinctArtistIds("trips", (q) =>
+        q.gte("created_at", iso(7 * DAY_MS)),
+      );
+      return runProfilesByIds(withNewTrips, true, (q) =>
+        q.eq("account_status", "active"),
       );
     }
 

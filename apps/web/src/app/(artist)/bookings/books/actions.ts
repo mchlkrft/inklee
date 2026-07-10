@@ -64,12 +64,16 @@ export async function saveBooksSettingsAction(
 
   if (error) return { error: error.message };
 
-  void writeAudit({
-    action: booksOpen ? "books_opened" : "books_closed",
-    actor: user.id,
-    category: "settings",
-    details: { books_open: booksOpen },
-  });
+  // Audit only a real TRANSITION (same gate as the mobile routes): books_opened must mean
+  // the flag flipped, not "saved the form while open".
+  if (booksOpen !== currentBooks.books_open) {
+    void writeAudit({
+      action: booksOpen ? "books_opened" : "books_closed",
+      actor: user.id,
+      category: "settings",
+      details: { books_open: booksOpen },
+    });
+  }
 
   revalidatePath("/bookings/books");
   revalidatePath("/bookings/settings");
