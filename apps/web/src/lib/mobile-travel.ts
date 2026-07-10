@@ -11,8 +11,10 @@ import {
 import {
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
+  sanitizeTravelIconBg,
   type TravelIconKey,
   type TravelIconColor,
+  type TravelIconBg,
 } from "@inklee/shared/travel-icons";
 import {
   validateTripLeg,
@@ -26,7 +28,7 @@ type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 // Shared studio row → MobileStudio mapping, used by the studios list + detail
 // routes. Google Places columns are intentionally not surfaced to the app.
 export const STUDIO_COLS =
-  "id, name, city, country, address, public_note, visibility_mode, is_primary, icon, icon_color";
+  "id, name, city, country, address, public_note, visibility_mode, is_primary, icon, icon_color, icon_bg";
 
 export type StudioRow = {
   id: string;
@@ -39,6 +41,7 @@ export type StudioRow = {
   is_primary: boolean;
   icon: string | null;
   icon_color: string | null;
+  icon_bg: string | null;
 };
 
 export function toStudio(r: StudioRow): MobileStudio {
@@ -53,6 +56,7 @@ export function toStudio(r: StudioRow): MobileStudio {
     isPrimary: r.is_primary,
     icon: r.icon ?? null,
     iconColor: r.icon_color ?? null,
+    iconBg: r.icon_bg ?? null,
   };
 }
 
@@ -65,6 +69,8 @@ export type TripInput = {
   icon?: TravelIconKey | null;
   /** Same tri-state as icon, for the chosen icon color. */
   iconColor?: TravelIconColor | null;
+  /** Same tri-state as icon, for the chosen tile background. */
+  iconBg?: TravelIconBg | null;
 };
 
 /** Validate a trip create/update payload (legs are handled separately). */
@@ -95,6 +101,9 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
   if ("iconColor" in b) {
     value.iconColor = sanitizeTravelIconColor(b.iconColor);
   }
+  if ("iconBg" in b) {
+    value.iconBg = sanitizeTravelIconBg(b.iconBg);
+  }
 
   return { ok: true, value };
 }
@@ -102,13 +111,14 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
 /** Validate a studio create/update payload via the shared zod schema. */
 export function normalizeStudioInput(body: unknown): Result<StudioInput> {
   const b = (body ?? {}) as Record<string, unknown>;
-  // The app posts the icon color as camelCase `iconColor` (its convention for
-  // both trips and studios), but the shared studioSchema field is `icon_color`
-  // (snake, matching the DB column + the web FormData parser). Map it before the
-  // parse so z.object doesn't silently strip the chosen color. Tri-state is
-  // preserved: only inject the key when the client actually sent it, so an old
-  // app's save can't wipe a color chosen elsewhere.
-  const input = "iconColor" in b ? { ...b, icon_color: b.iconColor } : b;
+  // The app posts the icon color/background as camelCase `iconColor`/`iconBg`
+  // (its convention for both trips and studios), but the shared studioSchema
+  // fields are `icon_color`/`icon_bg` (snake, matching the DB columns + the web
+  // FormData parser). Map them before the parse so z.object doesn't silently
+  // strip the choice. Tri-state is preserved: only inject a key when the client
+  // actually sent it, so an old app's save can't wipe a choice made elsewhere.
+  let input = "iconColor" in b ? { ...b, icon_color: b.iconColor } : b;
+  if ("iconBg" in b) input = { ...input, icon_bg: b.iconBg };
   const parsed = studioSchema.safeParse(input);
   if (!parsed.success) {
     return {

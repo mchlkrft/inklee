@@ -19,7 +19,10 @@ import type { PlaceResult } from "@/components/google-places-picker";
 import { IconPickerGrid } from "./icon-picker";
 import { TravelIcon } from "@/components/travel-icon";
 import { Building2 } from "lucide-react";
-import { DEFAULT_ICON_COLOR } from "@inklee/shared/travel-icons";
+import {
+  DEFAULT_ICON_BG,
+  DEFAULT_STUDIO_ICON_COLOR,
+} from "@inklee/shared/travel-icons";
 
 const GooglePlacesPicker = dynamic(
   () => import("@/components/google-places-picker"),
@@ -44,6 +47,7 @@ type Studio = {
   is_primary: boolean;
   icon?: string | null;
   iconColor?: string | null;
+  iconBg?: string | null;
 };
 
 type State = { error: string } | { success: true } | null;
@@ -295,8 +299,10 @@ function StudioForm({
           Icon
         </p>
         <IconPickerGrid
+          kind="studio"
           initial={studio?.icon ?? null}
           initialColor={studio?.iconColor ?? null}
+          initialBg={studio?.iconBg ?? null}
           randomizeWhenEmpty={!studio}
         />
       </div>
@@ -542,12 +548,15 @@ export default function StudioList({ studios }: { studios: Studio[] }) {
               return (
                 <div key={s.id} className="flex items-stretch gap-3 px-4 py-3">
                   {/* Full-height square icon tile (founder's custom inklee set) */}
-                  <div className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border bg-brand-bone">
+                  <div
+                    className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border"
+                    style={{ backgroundColor: s.iconBg ?? DEFAULT_ICON_BG }}
+                  >
                     <TravelIcon
                       icon={s.icon}
                       fallback={Building2}
                       className="h-9 w-9"
-                      color={s.iconColor ?? DEFAULT_ICON_COLOR}
+                      color={s.iconColor ?? DEFAULT_STUDIO_ICON_COLOR}
                     />
                   </div>
                   <div className="min-w-0 flex-1 self-center">

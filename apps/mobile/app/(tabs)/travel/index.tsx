@@ -8,7 +8,10 @@ import {
 import { useRouter } from "expo-router";
 import { MapPin } from "lucide-react-native";
 import type { MobileTrip, MobileTripsResponse } from "@inklee/shared/mobile-api";
-import { DEFAULT_ICON_COLOR } from "@inklee/shared/travel-icons";
+import {
+  DEFAULT_ICON_BG,
+  DEFAULT_TRIP_ICON_COLOR,
+} from "@inklee/shared/travel-icons";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
 import { PageHeader } from "@/components/PageHeader";
@@ -123,12 +126,15 @@ function TripRow({ trip, onPress }: { trip: MobileTrip; onPress: () => void }) {
       className="flex-row items-center gap-3 rounded-2xl border border-shell-border bg-glass p-3 active:opacity-80"
     >
       {/* Full-height square icon tile (matches the studio card). */}
-      <View className="h-16 w-16 items-center justify-center rounded-xl border border-shell-border bg-bone">
+      <View
+        className="h-16 w-16 items-center justify-center rounded-xl border border-shell-border"
+        style={{ backgroundColor: trip.iconBg ?? DEFAULT_ICON_BG }}
+      >
         <TravelIcon
           icon={trip.icon}
           fallback={MapPin}
           size={34}
-          color={trip.iconColor ?? DEFAULT_ICON_COLOR}
+          color={trip.iconColor ?? DEFAULT_TRIP_ICON_COLOR}
         />
       </View>
       <View className="flex-1 justify-center">

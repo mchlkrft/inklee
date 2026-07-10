@@ -79,6 +79,7 @@ export async function POST(req: Request) {
       is_primary: v.is_primary,
       icon: v.icon ?? null,
       icon_color: v.icon_color ?? null,
+      icon_bg: v.icon_bg ?? null,
     })
     .select("id")
     .single();

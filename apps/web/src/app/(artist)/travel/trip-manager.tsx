@@ -26,7 +26,10 @@ import type { PlaceResult } from "@/components/google-places-picker";
 import { IconPickerGrid } from "./icon-picker";
 import { TravelIcon } from "@/components/travel-icon";
 import { MapPin } from "lucide-react";
-import { DEFAULT_ICON_COLOR } from "@inklee/shared/travel-icons";
+import {
+  DEFAULT_ICON_BG,
+  DEFAULT_TRIP_ICON_COLOR,
+} from "@inklee/shared/travel-icons";
 
 const GooglePlacesPicker = dynamic(
   () => import("@/components/google-places-picker"),
@@ -51,6 +54,7 @@ type Trip = {
   legs: TripLeg[];
   icon?: string | null;
   iconColor?: string | null;
+  iconBg?: string | null;
 };
 type State = { error: string } | { success: true } | null;
 
@@ -459,7 +463,7 @@ function CreateTripModal({
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Icon</label>
-          <IconPickerGrid randomizeWhenEmpty />
+          <IconPickerGrid kind="trip" randomizeWhenEmpty />
         </div>
 
         {/* Stops on your trip */}
@@ -859,8 +863,10 @@ function EditTripModal({
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Icon</label>
           <IconPickerGrid
+            kind="trip"
             initial={trip.icon ?? null}
             initialColor={trip.iconColor ?? null}
+            initialBg={trip.iconBg ?? null}
           />
         </div>
 
@@ -1006,12 +1012,15 @@ function TripSummaryCard({
       className="flex w-full items-stretch gap-3 rounded-md border-2 border-border px-4 py-3 text-left hover:border-foreground/40 transition-colors"
     >
       {/* Square icon tile — matches the studio card. */}
-      <div className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border bg-brand-bone">
+      <div
+        className="flex aspect-square w-16 shrink-0 items-center justify-center self-stretch rounded-lg border border-border"
+        style={{ backgroundColor: trip.iconBg ?? DEFAULT_ICON_BG }}
+      >
         <TravelIcon
           icon={trip.icon}
           fallback={MapPin}
           className="h-9 w-9"
-          color={trip.iconColor ?? DEFAULT_ICON_COLOR}
+          color={trip.iconColor ?? DEFAULT_TRIP_ICON_COLOR}
         />
       </div>
       <div className="min-w-0 flex-1 self-center">

@@ -109,6 +109,8 @@ export type MobileGuestSpot = {
   icon?: string | null;
   /** Chosen icon color (hex) or null/absent = default color. */
   iconColor?: string | null;
+  /** Chosen icon tile background (hex) or null/absent = bone. */
+  iconBg?: string | null;
   id: string;
   tripId: string;
   tripTitle: string;
@@ -507,6 +509,8 @@ export type MobileStudio = {
   icon?: string | null;
   /** Chosen icon color (hex) or null/absent = default color. */
   iconColor?: string | null;
+  /** Chosen icon tile background (hex) or null/absent = bone. */
+  iconBg?: string | null;
 };
 
 export type MobileStudiosResponse = { items: MobileStudio[] };
@@ -539,6 +543,8 @@ export type MobileTrip = {
   icon?: string | null;
   /** Chosen icon color (hex) or null/absent = default color. */
   iconColor?: string | null;
+  /** Chosen icon tile background (hex) or null/absent = bone. */
+  iconBg?: string | null;
 };
 
 export type MobileTripsResponse = { items: MobileTrip[] };
@@ -631,6 +637,8 @@ export type MobileTripDetail = {
   icon?: string | null;
   /** Chosen icon color (hex) or null/absent = default color. */
   iconColor?: string | null;
+  /** Chosen icon tile background (hex) or null/absent = bone. */
+  iconBg?: string | null;
 };
 
 /** One of the five per-status booking email templates

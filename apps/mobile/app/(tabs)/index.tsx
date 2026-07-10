@@ -41,6 +41,10 @@ import { formatShortDate, formatLongDate, deviceTodayKey } from "@/lib/date";
 import { useScreenView } from "@/lib/analytics";
 import { pickGreeting } from "@inklee/shared/greeting";
 import type { MobileHome, MobileGuestSpot } from "@inklee/shared/mobile-api";
+import {
+  DEFAULT_ICON_BG,
+  DEFAULT_TRIP_ICON_COLOR,
+} from "@inklee/shared/travel-icons";
 import { DEFAULT_DASHBOARD_WIDGETS } from "@inklee/shared/dashboard-settings";
 
 // Greeting seed is fixed once per JS launch (≈ per login), so the rotating line
@@ -103,7 +107,6 @@ function StatBox({
 
 function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
   const router = useRouter();
-  const themed = useColors();
   const range =
     !g.endsOn || g.endsOn === g.startsOn
       ? formatShortDate(g.startsOn)
@@ -121,8 +124,18 @@ function GuestSpotRow({ g }: { g: MobileGuestSpot }) {
       }
       className="mt-3 flex-row items-center gap-3 active:opacity-70"
     >
-      <View className="h-10 w-10 items-center justify-center rounded-lg border border-shell-border bg-shell-hover">
-        <TravelIcon icon={g.icon} fallback={MapPin} size={24} color={g.iconColor ?? themed.shell.fg} />
+      {/* The trip's badge tile: saved background (bone default) + saved color
+          (charcoal default), matching the Guest Spots list. */}
+      <View
+        className="h-10 w-10 items-center justify-center rounded-lg border border-shell-border"
+        style={{ backgroundColor: g.iconBg ?? DEFAULT_ICON_BG }}
+      >
+        <TravelIcon
+          icon={g.icon}
+          fallback={MapPin}
+          size={24}
+          color={g.iconColor ?? DEFAULT_TRIP_ICON_COLOR}
+        />
       </View>
       <View className="flex-1">
         <Text className="text-body font-medium text-foreground" numberOfLines={1}>

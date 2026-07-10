@@ -19,7 +19,9 @@ export async function GET(req: Request) {
 
   const { data: trips, error } = await supabase
     .from("trips")
-    .select("id, title, description, show_on_booking_form, icon, icon_color")
+    .select(
+      "id, title, description, show_on_booking_form, icon, icon_color, icon_bg",
+    )
     .eq("artist_id", userId)
     .order("created_at", { ascending: false });
   if (error) return mobileError(500, error.message);
@@ -45,6 +47,7 @@ export async function GET(req: Request) {
     legCount: counts.get(t.id) ?? 0,
     icon: (t.icon as string | null) ?? null,
     iconColor: (t.icon_color as string | null) ?? null,
+    iconBg: (t.icon_bg as string | null) ?? null,
   }));
   const body: MobileTripsResponse = { items };
   return mobileOk(body);
@@ -76,6 +79,7 @@ export async function POST(req: Request) {
       show_on_booking_form: v.showOnBookingForm,
       icon: v.icon ?? null,
       icon_color: v.iconColor ?? null,
+      icon_bg: v.iconBg ?? null,
     })
     .select("id")
     .single();

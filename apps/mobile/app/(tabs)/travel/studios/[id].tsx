@@ -19,6 +19,7 @@ import {
   randomTravelIconKey,
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
+  sanitizeTravelIconBg,
   type TravelIconKey,
 } from "@inklee/shared/travel-icons";
 import type { MobileStudio } from "@inklee/shared/mobile-api";
@@ -96,6 +97,7 @@ function StudioForm({
     sanitizeTravelIcon(initial?.icon ?? null) ??
     (isNew ? randomTravelIconKey() : null);
   const seedIconColor = sanitizeTravelIconColor(initial?.iconColor ?? null);
+  const seedIconBg = sanitizeTravelIconBg(initial?.iconBg ?? null);
 
   const [name, setName] = useState(seedName);
   const [city, setCity] = useState(seedCity);
@@ -106,6 +108,7 @@ function StudioForm({
   const [isPrimary, setIsPrimary] = useState(seedIsPrimary);
   const [icon, setIcon] = useState<TravelIconKey | null>(seedIcon);
   const [iconColor, setIconColor] = useState<string | null>(seedIconColor);
+  const [iconBg, setIconBg] = useState<string | null>(seedIconBg);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,7 +121,8 @@ function StudioForm({
     visibility !== seedVisibility ||
     isPrimary !== seedIsPrimary ||
     icon !== seedIcon ||
-    iconColor !== seedIconColor;
+    iconColor !== seedIconColor ||
+    iconBg !== seedIconBg;
 
   const { leave } = useUnsavedGuard(dirty && !saving, save);
 
@@ -140,6 +144,7 @@ function StudioForm({
       is_primary: isPrimary,
       icon,
       iconColor,
+      iconBg,
     };
     try {
       if (isNew) await apiPost("/travel/studios", payload);
@@ -185,11 +190,14 @@ function StudioForm({
           title: isNew ? "New studio" : "Studio",
           headerRight: () => (
             <IconHeaderControl
+              kind="studio"
               icon={icon}
               iconColor={iconColor}
-              onChange={({ icon: nextIcon, iconColor: nextColor }) => {
+              iconBg={iconBg}
+              onChange={({ icon: nextIcon, iconColor: nextColor, iconBg: nextBg }) => {
                 setIcon(nextIcon);
                 setIconColor(nextColor);
+                setIconBg(nextBg);
               }}
             />
           ),

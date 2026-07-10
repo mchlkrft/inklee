@@ -89,6 +89,7 @@ export async function PUT(
   };
   if (v.icon !== undefined) update.icon = v.icon;
   if (v.icon_color !== undefined) update.icon_color = v.icon_color;
+  if (v.icon_bg !== undefined) update.icon_bg = v.icon_bg;
 
   const { error } = await supabase
     .from("studios")

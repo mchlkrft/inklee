@@ -2,8 +2,10 @@ import { z } from "zod";
 import {
   TRAVEL_ICON_KEYS,
   TRAVEL_ICON_COLORS,
+  TRAVEL_ICON_BG_COLORS,
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
+  sanitizeTravelIconBg,
 } from "./travel-icons";
 
 export const VISIBILITY_MODES = [
@@ -42,6 +44,8 @@ export const studioSchema = z.object({
   // Chosen icon color (hex from the shared palette). Same tri-state rules as
   // icon: absent leaves the column, null clears.
   icon_color: z.enum(TRAVEL_ICON_COLORS).optional().nullable(),
+  // Chosen tile background (hex from the shared palette). Same tri-state rules.
+  icon_bg: z.enum(TRAVEL_ICON_BG_COLORS).optional().nullable(),
 });
 
 export type StudioInput = z.infer<typeof studioSchema>;
@@ -71,6 +75,9 @@ export function parseStudioFormData(formData: FormData): StudioInput {
     icon: sanitizeTravelIcon((formData.get("icon") as string)?.trim() || null),
     icon_color: sanitizeTravelIconColor(
       (formData.get("icon_color") as string)?.trim() || null,
+    ),
+    icon_bg: sanitizeTravelIconBg(
+      (formData.get("icon_bg") as string)?.trim() || null,
     ),
   });
 }

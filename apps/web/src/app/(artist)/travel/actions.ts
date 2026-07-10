@@ -11,6 +11,7 @@ import { parseStudioFormData } from "@/lib/studio-validation";
 import {
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
+  sanitizeTravelIconBg,
 } from "@inklee/shared/travel-icons";
 import { z } from "zod";
 
@@ -83,6 +84,7 @@ export async function createStudioAction(
     is_primary: input.is_primary,
     icon: input.icon ?? null,
     icon_color: input.icon_color ?? null,
+    icon_bg: input.icon_bg ?? null,
   });
 
   if (error) return { error: error.message };
@@ -140,6 +142,7 @@ export async function updateStudioAction(
       // an explicit clear, never an accidental wipe.
       icon: input.icon ?? null,
       icon_color: input.icon_color ?? null,
+      icon_bg: input.icon_bg ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -231,6 +234,7 @@ export async function createStudioAndReturnAction(formData: FormData): Promise<
       is_primary: input.is_primary,
       icon: input.icon ?? null,
       icon_color: input.icon_color ?? null,
+      icon_bg: input.icon_bg ?? null,
     })
     .select("id, name, city, country")
     .single();
@@ -265,6 +269,9 @@ export async function createTripAction(
   const iconColor = sanitizeTravelIconColor(
     (formData.get("icon_color") as string)?.trim() || null,
   );
+  const iconBg = sanitizeTravelIconBg(
+    (formData.get("icon_bg") as string)?.trim() || null,
+  );
 
   let legs;
   try {
@@ -293,6 +300,7 @@ export async function createTripAction(
       show_on_booking_form: showOnBookingForm,
       icon,
       icon_color: iconColor,
+      icon_bg: iconBg,
     })
     .select("id")
     .single();
@@ -345,6 +353,9 @@ export async function updateTripAction(
   const iconColor = sanitizeTravelIconColor(
     (formData.get("icon_color") as string)?.trim() || null,
   );
+  const iconBg = sanitizeTravelIconBg(
+    (formData.get("icon_bg") as string)?.trim() || null,
+  );
 
   const { error } = await supabase
     .from("trips")
@@ -354,6 +365,7 @@ export async function updateTripAction(
       show_on_booking_form: showOnBookingForm,
       icon,
       icon_color: iconColor,
+      icon_bg: iconBg,
     })
     .eq("id", id)
     .eq("artist_id", user.id);

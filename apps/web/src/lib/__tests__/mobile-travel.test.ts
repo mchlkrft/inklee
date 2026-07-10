@@ -37,6 +37,28 @@ describe("normalizeTripInput", () => {
       normalizeTripInput({ title: "Trip", showOnBookingForm: "yes" }).ok,
     ).toBe(false);
   });
+
+  it("keeps iconBg tri-state: absent = omitted, sent = sanitized", () => {
+    const omitted = normalizeTripInput({ title: "Trip" });
+    expect(omitted.ok).toBe(true);
+    if (omitted.ok) {
+      expect("iconBg" in omitted.value).toBe(false);
+    }
+
+    const set = normalizeTripInput({ title: "Trip", iconBg: "#E5E1D5" });
+    expect(set.ok).toBe(true);
+    if (set.ok) {
+      // Case-insensitive palette match, lowercased on the way in.
+      expect(set.value.iconBg).toBe("#e5e1d5");
+    }
+
+    const offPalette = normalizeTripInput({ title: "Trip", iconBg: "#123456" });
+    expect(offPalette.ok).toBe(true);
+    if (offPalette.ok) {
+      // Off-palette degrades to null (default bone), never fails the save.
+      expect(offPalette.value.iconBg).toBeNull();
+    }
+  });
 });
 
 describe("normalizeStudioInput", () => {
@@ -86,6 +108,26 @@ describe("normalizeStudioInput", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.icon_color).toBeNull();
+    }
+  });
+
+  it("maps the app's camelCase iconBg onto the schema's icon_bg (tri-state)", () => {
+    const set = normalizeStudioInput({ name: "Ink Lab", iconBg: "#1e1e1e" });
+    expect(set.ok).toBe(true);
+    if (set.ok) {
+      expect(set.value.icon_bg).toBe("#1e1e1e");
+    }
+
+    const omitted = normalizeStudioInput({ name: "Ink Lab" });
+    expect(omitted.ok).toBe(true);
+    if (omitted.ok) {
+      expect(omitted.value.icon_bg).toBeUndefined();
+    }
+
+    const cleared = normalizeStudioInput({ name: "Ink Lab", iconBg: null });
+    expect(cleared.ok).toBe(true);
+    if (cleared.ok) {
+      expect(cleared.value.icon_bg).toBeNull();
     }
   });
 });

@@ -67,7 +67,7 @@ export async function GET(req: Request) {
     supabase
       .from("trips")
       .select(
-        "id, title, icon, icon_color, trip_legs(id, starts_on, ends_on, studios(name))",
+        "id, title, icon, icon_color, icon_bg, trip_legs(id, starts_on, ends_on, studios(name))",
       )
       .eq("artist_id", userId),
     flashQuery,
@@ -101,6 +101,9 @@ export async function GET(req: Request) {
         icon: ((t as { icon?: string | null }).icon ?? null) as string | null,
         iconColor: ((t as { icon_color?: string | null }).icon_color ??
           null) as string | null,
+        iconBg: ((t as { icon_bg?: string | null }).icon_bg ?? null) as
+          | string
+          | null,
       })),
     )
     .filter((l) => (!to || l.startsOn <= to) && (!from || l.endsOn >= from))

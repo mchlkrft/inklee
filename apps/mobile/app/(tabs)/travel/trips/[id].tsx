@@ -20,6 +20,7 @@ import {
   randomTravelIconKey,
   sanitizeTravelIcon,
   sanitizeTravelIconColor,
+  sanitizeTravelIconBg,
   type TravelIconKey,
 } from "@inklee/shared/travel-icons";
 import { Screen } from "@/components/Screen";
@@ -83,6 +84,7 @@ function CreateTrip() {
   const [initialIcon] = useState(randomTravelIconKey);
   const [icon, setIcon] = useState<TravelIconKey | null>(initialIcon);
   const [iconColor, setIconColor] = useState<string | null>(null);
+  const [iconBg, setIconBg] = useState<string | null>(null);
   const [show, setShow] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +94,7 @@ function CreateTrip() {
     description.trim() !== "" ||
     icon !== initialIcon ||
     iconColor !== null ||
+    iconBg !== null ||
     show !== true;
   const { leave } = useUnsavedGuard(dirty && !saving, create);
 
@@ -110,6 +113,7 @@ function CreateTrip() {
         showOnBookingForm: show,
         icon,
         iconColor,
+        iconBg,
       });
       await invalidateTravel(queryClient);
       // Land on the detail so the artist can add date stops. Bypass the guard:
@@ -129,11 +133,14 @@ function CreateTrip() {
           title: "New trip",
           headerRight: () => (
             <IconHeaderControl
+              kind="trip"
               icon={icon}
               iconColor={iconColor}
-              onChange={({ icon: nextIcon, iconColor: nextColor }) => {
+              iconBg={iconBg}
+              onChange={({ icon: nextIcon, iconColor: nextColor, iconBg: nextBg }) => {
                 setIcon(nextIcon);
                 setIconColor(nextColor);
+                setIconBg(nextBg);
               }}
             />
           ),
@@ -175,12 +182,14 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
   const seedDescription = initial.description ?? "";
   const seedIcon = sanitizeTravelIcon(initial.icon ?? null);
   const seedIconColor = sanitizeTravelIconColor(initial.iconColor ?? null);
+  const seedIconBg = sanitizeTravelIconBg(initial.iconBg ?? null);
   const seedShow = initial.showOnBookingForm;
 
   const [title, setTitle] = useState(seedTitle);
   const [description, setDescription] = useState(seedDescription);
   const [icon, setIcon] = useState<TravelIconKey | null>(seedIcon);
   const [iconColor, setIconColor] = useState<string | null>(seedIconColor);
+  const [iconBg, setIconBg] = useState<string | null>(seedIconBg);
   const [show, setShow] = useState(seedShow);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +199,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
     description !== seedDescription ||
     icon !== seedIcon ||
     iconColor !== seedIconColor ||
+    iconBg !== seedIconBg ||
     show !== seedShow;
   const { leave } = useUnsavedGuard(dirty && !saving, saveTrip);
 
@@ -208,6 +218,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
         showOnBookingForm: show,
         icon,
         iconColor,
+        iconBg,
       });
       await invalidateTravel(queryClient);
       leave();
@@ -250,11 +261,14 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           title: initial.title,
           headerRight: () => (
             <IconHeaderControl
+              kind="trip"
               icon={icon}
               iconColor={iconColor}
-              onChange={({ icon: nextIcon, iconColor: nextColor }) => {
+              iconBg={iconBg}
+              onChange={({ icon: nextIcon, iconColor: nextColor, iconBg: nextBg }) => {
                 setIcon(nextIcon);
                 setIconColor(nextColor);
+                setIconBg(nextBg);
               }}
             />
           ),
