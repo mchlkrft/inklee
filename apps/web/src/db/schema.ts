@@ -800,3 +800,16 @@ export const emailUnsubscribeTokens = pgTable("email_unsubscribe_tokens", {
   scope: text("scope").notNull().default("all"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+// Every email.* event Resend's webhook delivers, linked to a campaign recipient
+// via resend_message_id when one exists. Aggregated by /api/internal/email-metrics;
+// raw rows (recipient addresses) never leave this database.
+export const emailEvents = pgTable("email_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventType: text("event_type").notNull(),
+  resendMessageId: text("resend_message_id"),
+  recipientEmail: text("recipient_email"),
+  subject: text("subject"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});

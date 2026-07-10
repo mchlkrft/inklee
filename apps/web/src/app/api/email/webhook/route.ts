@@ -38,13 +38,27 @@ function verifyResendSignature(
 
 type ResendEvent = {
   type: string;
+  created_at?: string;
   data: {
     email_id?: string;
     to?: string[];
     subject?: string;
+    created_at?: string;
     bounce?: { message?: string };
     complaint?: { userAgent?: string };
   };
+};
+
+// The email.* event types persisted for analytics (Email hub slice 10). Anything else
+// (e.g. future Resend event kinds) is acknowledged but not stored.
+const PERSISTED_EVENTS: Record<string, string> = {
+  "email.sent": "sent",
+  "email.delivered": "delivered",
+  "email.delivery_delayed": "delivery_delayed",
+  "email.bounced": "bounced",
+  "email.complained": "complained",
+  "email.opened": "opened",
+  "email.clicked": "clicked",
 };
 
 export async function POST(request: Request) {
@@ -72,7 +86,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
-  // Only handle delivery failure events in v1
+  // Analytics loop (Email hub slice 10): persist every email.* event so delivery and
+  // engagement metrics can be rolled up per campaign (joined to email_sends via
+  // resend_message_id). AWAITED like the suppression write; a failed insert is logged
+  // (without the address) but never fails the webhook, so Resend does not retry-storm.
+  const eventType = PERSISTED_EVENTS[event.type];
+  if (eventType) {
+    const { error: eventErr } = await serviceClient
+      .from("email_events")
+      .insert({
+        event_type: eventType,
+        resend_message_id: event.data.email_id ?? null,
+        recipient_email: event.data.to?.[0] ?? null,
+        subject: event.data.subject ?? null,
+        occurred_at: event.data.created_at ?? event.created_at ?? null,
+      });
+    if (eventErr) {
+      console.error("[email/webhook] event insert failed", {
+        event_type: eventType,
+        reason: eventErr.message,
+      });
+    }
+  }
+
+  // Delivery failures also go to the audit log (pre-slice-10 behavior, kept for the
+  // admin surface that reads email_delivery_failed rows).
   if (
     event.type === "email.bounced" ||
     event.type === "email.complained" ||

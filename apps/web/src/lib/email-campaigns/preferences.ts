@@ -55,6 +55,18 @@ export async function setEmailPref(
   category: OptOutableCategory,
   enabled: boolean,
 ): Promise<void> {
+  await setEmailPrefs(artistId, { [category]: enabled });
+}
+
+/**
+ * Set both category flags in ONE read+merge round trip. Returns whether any category
+ * actually flipped from opted-in to opted-out, so callers can record an 'unsubscribed'
+ * analytics event exactly on real transitions (never on a re-save of an existing opt-out).
+ */
+export async function setEmailPrefs(
+  artistId: string,
+  prefs: Partial<Record<OptOutableCategory, boolean>>,
+): Promise<{ optedOutNow: boolean }> {
   const { data, error: readErr } = await serviceClient
     .from("profiles")
     .select("settings")
@@ -65,15 +77,40 @@ export async function setEmailPref(
   const currentSettings = (data?.settings ?? {}) as Record<string, unknown>;
   const currentPrefs = (currentSettings.email_prefs ?? {}) as EmailPrefs;
 
+  let optedOutNow = false;
+  for (const category of ["marketing", "lifecycle"] as const) {
+    const next = prefs[category];
+    if (next === false && currentPrefs[category] !== false) optedOutNow = true;
+  }
+
   const { error } = await serviceClient
     .from("profiles")
     .update({
       settings: {
         ...currentSettings,
-        email_prefs: { ...currentPrefs, [category]: enabled },
+        email_prefs: { ...currentPrefs, ...prefs },
       },
       updated_at: new Date().toISOString(),
     })
     .eq("id", artistId);
   if (error) throw error;
+  return { optedOutNow };
+}
+
+/**
+ * Record an 'unsubscribed' analytics event (Email hub slice 10). Resend has no unsubscribe
+ * event, so Inklee's own unsubscribe surfaces record it; there is no message id, so it
+ * counts globally rather than per campaign. Best-effort: an insert failure is logged and
+ * swallowed — analytics must never break an unsubscribe.
+ */
+export async function recordUnsubscribeEvent(): Promise<void> {
+  const { error } = await serviceClient.from("email_events").insert({
+    event_type: "unsubscribed",
+    occurred_at: new Date().toISOString(),
+  });
+  if (error) {
+    console.error("[email-prefs] unsubscribe event insert failed", {
+      reason: error.message,
+    });
+  }
 }
