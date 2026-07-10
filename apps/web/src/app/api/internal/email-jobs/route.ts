@@ -20,9 +20,12 @@ import {
   type SegmentArtist,
 } from "@/lib/email-campaigns/resolve-segment";
 import { isOptedOut } from "@/lib/email-campaigns/preferences";
-import { getOrCreateUnsubToken } from "@/lib/email-campaigns/unsubscribe-token";
 import { aggregateJobResponse } from "@/lib/email-campaigns/job-response";
-import { renderEmailShell, escapeHtml } from "@/lib/email/layout";
+import {
+  buildRecipientMessage,
+  type ResendMessage,
+} from "@/lib/email-campaigns/messaging";
+import { escapeHtml } from "@/lib/email/layout";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,22 +58,6 @@ function maskHandle(raw: string | null | undefined): string {
 
 function str(v: unknown): string | null {
   return typeof v === "string" ? v : null;
-}
-
-// Per-recipient token substitution. Control Tower ships INNER CONTENT with generic tokens
-// already filled, leaving only these per-recipient tokens literal:
-//   {{artist_name}} {{artist_email}} {{public_page_link}} {{booking_link}}
-//   {{unsubscribe_link}} {{preferences_link}}
-// A token whose value is null/undefined here (e.g. an artist with no slug) is LEFT LITERAL
-// rather than blanked — a documented v1 limitation, never a broken/empty link.
-function substitute(
-  tpl: string,
-  vars: Record<string, string | null | undefined>,
-): string {
-  return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => {
-    const v = vars[key];
-    return v == null ? match : v;
-  });
 }
 
 export async function POST(request: Request) {
@@ -400,16 +387,11 @@ export async function POST(request: Request) {
     }
     const resend = new Resend(apiKey);
     const from = process.env.EMAIL_FROM ?? "inklee <noreply@inklee.app>";
-    // CAN-SPAM / Gmail-Yahoo bulk-sender requirement: a physical postal address in every message.
-    // MUST be set before enabling campaigns; the placeholder makes an unset value obvious in a dry
-    // run rather than silently shipping a non-compliant email.
-    const postalAddress =
-      process.env.EMAIL_POSTAL_ADDRESS ??
-      "Inklee — postal address not configured";
 
-    // html/text are INNER CONTENT (markdown body + CTA), not a full HTML document, so the
-    // compliance footer is appended as inner content and renderEmailShell wraps the result
-    // exactly ONCE (one DOCTYPE / logo / tagline). The bodyMd fallback is likewise inner content.
+    // html/text are INNER CONTENT (markdown body + CTA), not a full HTML document —
+    // buildRecipientMessage appends the compliance footer (unsubscribe + preferences +
+    // EMAIL_POSTAL_ADDRESS) as inner content and renderEmailShell wraps the result exactly
+    // ONCE (one DOCTYPE / logo / tagline). The bodyMd fallback is likewise inner content.
     const subjectTpl = str(body.subject) ?? "";
     const htmlTpl =
       str(body.html) ??
@@ -427,42 +409,23 @@ export async function POST(request: Request) {
       }
       const chunk = survivors.slice(c * BATCH_SIZE, (c + 1) * BATCH_SIZE);
 
-      // Build one personalized message per recipient (their own token URL + headers).
-      const messages = [];
+      // Build one personalized message per recipient (their own token URL + headers) via the
+      // shared compliance-critical constructor (lib/email-campaigns/messaging), the single
+      // implementation this route and the lifecycle engine both use.
+      const messages: ResendMessage[] = [];
       for (const s of chunk) {
-        const rawToken = await getOrCreateUnsubToken(s.artistId);
-        const unsubUrl = `https://inklee.app/unsubscribe/${rawToken}`;
-        // public_page_link / booking_link both point at the artist's public page; left literal
-        // (not blanked) when the artist has no slug.
-        const pageLink = s.slug ? `https://inkl.ee/${s.slug}` : undefined;
-        const vars = {
-          artist_name: s.displayName,
-          artist_email: s.email,
-          public_page_link: pageLink,
-          booking_link: pageLink,
-          unsubscribe_link: unsubUrl,
-          preferences_link: unsubUrl,
-        };
-        const subject = substitute(subjectTpl, vars);
-        const htmlBody = substitute(htmlTpl, vars);
-        const textBody = substitute(textTpl, vars);
-        // Always-appended compliance footer (marketing/lifecycle): unsubscribe + preferences +
-        // physical postal address.
-        const footerHtml = `<p style="margin-top:24px;font-size:12px;color:#9ca3af;">You're receiving this because you have an Inklee account. <a href="${unsubUrl}" style="color:#9ca3af;">Unsubscribe</a> &middot; <a href="${unsubUrl}" style="color:#9ca3af;">Email preferences</a><br/>${escapeHtml(postalAddress)}</p>`;
-        const footerText = `\n\n---\nYou're receiving this because you have an Inklee account.\nUnsubscribe: ${unsubUrl}\nEmail preferences: ${unsubUrl}\n${postalAddress}`;
-        messages.push({
-          from,
-          to: s.email,
-          subject,
-          html: renderEmailShell({ contentHtml: htmlBody + footerHtml }),
-          text: textBody + footerText,
-          headers: {
-            // Only the https one-click URL — no mailto: alternative (unsubscribe@inklee.app is
-            // unmonitored, so a client that chose the mailto path would silently lose the opt-out).
-            "List-Unsubscribe": `<${unsubUrl}>`,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-          },
-        });
+        messages.push(
+          await buildRecipientMessage({
+            from,
+            email: s.email,
+            displayName: s.displayName,
+            slug: s.slug,
+            artistId: s.artistId,
+            subjectTpl,
+            htmlTpl,
+            textTpl,
+          }),
+        );
       }
 
       try {

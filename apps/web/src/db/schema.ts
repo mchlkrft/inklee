@@ -813,3 +813,53 @@ export const emailEvents = pgTable("email_events", {
   occurredAt: timestamp("occurred_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+// Email hub slice 11 (migration 0065) — lifecycle email engine. Service-role only
+// (RLS enabled, zero policies — see migration 0065). Definitions live in code
+// (lib/email-campaigns/lifecycle/definitions); these tables carry only per-artist
+// send state and per-run aggregates.
+
+// The at-most-once send marker: inserted 'pending' BEFORE the send, so a crash can
+// never double-send — a stuck 'pending' marker blocks the artist for that definition
+// instead. UNIQUE(definition_key, artist_id, period_key) is the database guarantee;
+// period_key is 'once' for every v1 (onceOnly) definition.
+export const emailLifecycleMarkers = pgTable(
+  "email_lifecycle_markers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    definitionKey: text("definition_key").notNull(),
+    artistId: uuid("artist_id").references(() => profiles.id, {
+      onDelete: "cascade",
+    }),
+    periodKey: text("period_key").notNull().default("once"),
+    status: text("status").notNull().default("pending"),
+    resendMessageId: text("resend_message_id"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    unique("email_lifecycle_markers_def_artist_period_uniq").on(
+      t.definitionKey,
+      t.artistId,
+      t.periodKey,
+    ),
+  ],
+);
+
+// One row per definition per cron run — aggregates only (admin visibility + CT
+// polling via /api/internal/lifecycle-runs). skipped_detail carries the skip-reason
+// breakdown (no_email / suppressed / opted_out / throttled / already_sent / capped).
+export const emailLifecycleRuns = pgTable("email_lifecycle_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  definitionKey: text("definition_key").notNull(),
+  status: text("status").notNull().default("completed"),
+  audienceSize: integer("audience_size"),
+  eligible: integer("eligible"),
+  sentCount: integer("sent_count").default(0),
+  failedCount: integer("failed_count").default(0),
+  skippedCount: integer("skipped_count").default(0),
+  skippedDetail: jsonb("skipped_detail"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
