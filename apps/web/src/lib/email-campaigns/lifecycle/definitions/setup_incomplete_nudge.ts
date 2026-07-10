@@ -9,7 +9,6 @@ export const definition: LifecycleDefinition = {
   name: "Setup incomplete nudge",
   status: "draft",
   audienceKey: "setup_incomplete",
-  onceOnly: true,
   throttleDays: 7,
   preferenceCategory: "lifecycle",
   subject: "Finish setting up your Inklee page",

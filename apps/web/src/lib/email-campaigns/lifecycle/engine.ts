@@ -33,6 +33,7 @@ import {
   type SegmentArtist,
 } from "@/lib/email-campaigns/resolve-segment";
 import { isOptedOut } from "@/lib/email-campaigns/preferences";
+import { resolveRecipientMeta } from "@/lib/email-campaigns/recipients";
 import {
   buildRecipientMessage,
   type ResendMessage,
@@ -45,8 +46,6 @@ import type { LifecycleDefinition } from "./types";
 const LIFECYCLE_RUN_CAP = 200;
 const BATCH_SIZE = 100; // Resend batch API cap
 const BATCH_PACING_MS = 500; // stay under Resend's ~2 req/s default
-const PROFILE_CHUNK = 200; // avoid oversized .in() URLs
-const EMAIL_CONCURRENCY = 10; // bounded parallelism for auth.admin.getUserById
 const MARKER_INSERT_CHUNK = 200; // bulk marker upsert size
 // Marker scans feed the throttle + already-sent EXCLUSION sets, so like the resolver's child
 // scans they must page to completion — a truncated set would under-throttle or re-send.
@@ -163,61 +162,12 @@ async function runDefinition(def: LifecycleDefinition): Promise<RunSummary> {
     const audienceSize = artists.length;
     const skipped = zeroSkipped();
 
-    // profile meta (display_name for {{artist_name}} + settings for the opt-out check)
-    const profileMeta = new Map<
-      string,
-      { displayName: string; settings: Record<string, unknown> }
-    >();
-    for (let i = 0; i < artists.length; i += PROFILE_CHUNK) {
-      const ids = artists.slice(i, i + PROFILE_CHUNK).map((a) => a.id);
-      const { data, error } = await serviceClient
-        .from("profiles")
-        .select("id, display_name, settings")
-        .in("id", ids);
-      if (error) throw error;
-      for (const p of (data ?? []) as {
-        id: string;
-        display_name: string | null;
-        settings: unknown;
-      }[]) {
-        profileMeta.set(p.id, {
-          displayName: p.display_name ?? "there",
-          settings: (p.settings ?? {}) as Record<string, unknown>,
-        });
-      }
-    }
-
-    // (b) emails via the admin API with bounded concurrency (the campaign route's pattern)
-    const artistEmail = new Map<string, string | null>();
-    for (let i = 0; i < artists.length; i += EMAIL_CONCURRENCY) {
-      const slice = artists.slice(i, i + EMAIL_CONCURRENCY);
-      const resolved = await Promise.all(
-        slice.map(async (a) => {
-          const { data } = await serviceClient.auth.admin.getUserById(a.id);
-          return [a.id, data.user?.email ?? null] as const;
-        }),
-      );
-      for (const [id, email] of resolved) artistEmail.set(id, email);
-    }
-
-    // (c) suppression set (hard bounces + complaints), chunked
-    const emails = [
-      ...new Set(
-        [...artistEmail.values()].filter((e): e is string => Boolean(e)),
-      ),
-    ];
-    const suppressed = new Set<string>();
-    for (let i = 0; i < emails.length; i += PROFILE_CHUNK) {
-      const chunk = emails.slice(i, i + PROFILE_CHUNK);
-      const { data, error } = await serviceClient
-        .from("email_suppressions")
-        .select("recipient_email")
-        .in("recipient_email", chunk);
-      if (error) throw error;
-      for (const s of (data ?? []) as { recipient_email: string }[]) {
-        suppressed.add(s.recipient_email);
-      }
-    }
+    // (b)(c) profile meta ({{artist_name}} + opt-out settings), emails, and the suppression
+    // set via the shared resolver (lib/email-campaigns/recipients), the single implementation
+    // this engine and the campaign route both use. A query failure throws into the outer
+    // catch (run failed) — an incomplete suppression set must never let a send proceed.
+    const { profileMeta, artistEmail, suppressed } =
+      await resolveRecipientMeta(artists);
 
     // (d) global throttle: artists with ANY lifecycle marker (any definition, any status —
     // even a failed attempt counts as recent contact) newer than def.throttleDays. One paged

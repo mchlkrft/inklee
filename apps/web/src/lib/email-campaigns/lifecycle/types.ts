@@ -14,7 +14,8 @@ export type LifecycleDefinition = {
   status: "draft" | "active"; // only 'active' runs; exports from CT always arrive 'draft'
   audienceKey: string; // a KNOWN segment execution key: who currently qualifies.
   // Segments are state-based, so leaving the state is the stop condition.
-  onceOnly: true; // v1: every definition sends at most once per artist, ever
+  // v1 semantics: every definition sends at most once per artist, ever — enforced by
+  // the marker table's period_key 'once' + its UNIQUE constraint, not by a field here.
   throttleDays: number; // min days since ANY lifecycle send to this artist (global gate)
   preferenceCategory: "lifecycle";
   subject: string; // may contain {{tokens}}

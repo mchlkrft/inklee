@@ -2,9 +2,10 @@
 // (/api/internal/email-jobs) and the lifecycle engine (lib/email-campaigns/lifecycle/engine)
 // so there is EXACTLY one implementation of: token substitution, the unsubscribe/preferences
 // footer (with the EMAIL_POSTAL_ADDRESS CAN-SPAM line), the renderEmailShell wrap, and the
-// RFC 8058 List-Unsubscribe headers. Extracted verbatim from the campaign route's send loop
-// (Email hub slice 11) — for the same inputs the produced message is byte-identical to what
-// the route built inline before the extraction.
+// RFC 8058 List-Unsubscribe headers. Extracted from the campaign route's send loop (Email
+// hub slice 11), preserving the original message construction exactly, with ONE deliberate
+// exception: the EMAIL_POSTAL_ADDRESS fallback placeholder was rewritten to
+// "Inklee (postal address not configured)" to drop the em dash (house style).
 import "server-only";
 import { getOrCreateUnsubToken } from "@/lib/email-campaigns/unsubscribe-token";
 import { renderEmailShell, escapeHtml } from "@/lib/email/layout";
