@@ -151,6 +151,12 @@ async function runDefinition(def: LifecycleDefinition): Promise<RunSummary> {
     if (!apiKey) {
       return failRun(def, "RESEND_API_KEY is not set");
     }
+    // Same fail-closed rule for the compliance footer's physical postal address: without it
+    // every message would violate CAN-SPAM, so the run refuses before touching any marker
+    // (buildRecipientMessage would throw anyway; this check gives the run row a clear error).
+    if (!process.env.EMAIL_POSTAL_ADDRESS) {
+      return failRun(def, "EMAIL_POSTAL_ADDRESS is not set");
+    }
     if (!KNOWN.has(def.audienceKey)) {
       return failRun(def, `unknown audience key: ${def.audienceKey}`);
     }

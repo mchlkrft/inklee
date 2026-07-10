@@ -1,8 +1,9 @@
 // Public, no-auth email preference + unsubscribe page. Mirrors app/request/[token]/page.tsx:
 // service-role server component, sha256 token lookup, inklee wordmark card, a PageState union.
 // Possession of the durable per-artist token is the capability — there is no login. The
-// token's List-Unsubscribe URL and the visible email footer both point here; RFC 8058 one-click
-// POSTs are handled by the sibling route at /api/unsubscribe/[token].
+// visible email footer links and {{unsubscribe_link}} point here; the List-Unsubscribe header
+// carries the sibling /api/unsubscribe/[token] route, which handles RFC 8058 one-click POSTs
+// (a POST to this page would not flip anything) and redirects GET visitors back to this page.
 import Link from "next/link";
 import { serviceClient } from "@/lib/supabase/service";
 import { lookupUnsubToken } from "@/lib/email-campaigns/unsubscribe-token";

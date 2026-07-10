@@ -6,6 +6,7 @@
 // plain Bearer on CT_DISPATCH_SECRET, fail-closed: missing secret -> 500, mismatch -> 401.
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { bearerMatches } from "@/lib/email-campaigns/internal-auth";
 import { LIFECYCLE_DEFINITIONS } from "@/lib/email-campaigns/lifecycle/definitions";
 
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   if (!secret) {
     return NextResponse.json({ error: "not configured" }, { status: 500 });
   }
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

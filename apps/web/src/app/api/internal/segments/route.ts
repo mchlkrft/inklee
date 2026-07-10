@@ -12,6 +12,7 @@
 // so counts derived from it become estimates above 1000 rows. Acceptable at current volume.
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { bearerMatches } from "@/lib/email-campaigns/internal-auth";
 import {
   resolveSegmentArtists,
   KNOWN,
@@ -34,7 +35,7 @@ function maskHandle(raw: string | null | undefined): string {
 
 export async function POST(request: Request) {
   const secret = process.env.CT_BRIDGE_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   let body: { executionKey?: unknown };

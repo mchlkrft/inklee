@@ -4,6 +4,7 @@
 // state-mutating dispatch write. Fail-closed: missing secret -> 500, mismatch -> 401.
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { bearerMatches } from "@/lib/email-campaigns/internal-auth";
 import { aggregateJobResponse } from "@/lib/email-campaigns/job-response";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   if (!secret) {
     return NextResponse.json({ error: "not configured" }, { status: 500 });
   }
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

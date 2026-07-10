@@ -16,9 +16,13 @@ function verifyResendSignature(
 
   if (!signature || !msgId || !msgTimestamp) return false;
 
-  // Reject timestamps more than 5 minutes old
+  // Reject non-numeric, stale or future timestamps. A NaN would slip past the window check
+  // alone; the signature covers the raw timestamp string, so this is defense in depth,
+  // matching verifyDispatchSignature.
   const ts = parseInt(msgTimestamp, 10);
-  if (Math.abs(Date.now() / 1000 - ts) > 300) return false;
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) {
+    return false;
+  }
 
   const signedContent = `${msgId}.${msgTimestamp}.${rawBody}`;
   const keyBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");

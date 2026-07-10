@@ -3,9 +3,8 @@
 // so there is EXACTLY one implementation of: token substitution, the unsubscribe/preferences
 // footer (with the EMAIL_POSTAL_ADDRESS CAN-SPAM line), the renderEmailShell wrap, and the
 // RFC 8058 List-Unsubscribe headers. Extracted from the campaign route's send loop (Email
-// hub slice 11), preserving the original message construction exactly, with ONE deliberate
-// exception: the EMAIL_POSTAL_ADDRESS fallback placeholder was rewritten to
-// "Inklee (postal address not configured)" to drop the em dash (house style).
+// hub slice 11). EMAIL_POSTAL_ADDRESS is REQUIRED: building a message without it throws
+// (fail closed), and both callers refuse earlier with a clear error.
 import "server-only";
 import { getOrCreateUnsubToken } from "@/lib/email-campaigns/unsubscribe-token";
 import { renderEmailShell, escapeHtml } from "@/lib/email/layout";
@@ -28,14 +27,18 @@ export type ResendMessage = {
 //   {{artist_name}} {{artist_email}} {{public_page_link}} {{booking_link}}
 //   {{unsubscribe_link}} {{preferences_link}}
 // A token whose value is null/undefined here (e.g. an artist with no slug) is LEFT LITERAL
-// rather than blanked — a documented v1 limitation, never a broken/empty link.
+// rather than blanked (a documented v1 limitation, never a broken/empty link). `transform`
+// runs on each substituted VALUE, letting the caller escape per output context (HTML body vs
+// subject header vs plain text) without duplicating the token walk.
 export function substituteTokens(
   tpl: string,
   vars: Record<string, string | null | undefined>,
+  transform?: (value: string) => string,
 ): string {
   return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => {
     const v = vars[key];
-    return v == null ? match : v;
+    if (v == null) return match;
+    return transform ? transform(v) : v;
   });
 }
 
@@ -46,9 +49,11 @@ export function substituteTokens(
  * html in the branded shell exactly once, and set the one-click List-Unsubscribe headers.
  *
  * subjectTpl/htmlTpl/textTpl are INNER CONTENT (not a full HTML document). The postal address
- * comes from EMAIL_POSTAL_ADDRESS (CAN-SPAM / Gmail-Yahoo bulk-sender requirement) — while
- * unset, an obvious placeholder ships instead so a dry run flags it rather than silently
- * producing a non-compliant email.
+ * comes from EMAIL_POSTAL_ADDRESS (CAN-SPAM / Gmail-Yahoo bulk-sender requirement) and is
+ * REQUIRED: while unset this function throws, so a non-compliant message can never be built.
+ * Both callers (the campaign route and the lifecycle engine) refuse before reaching here and
+ * a campaign dry run completes with a warning note, so the operator learns about the missing
+ * address without a failed real send.
  */
 export async function buildRecipientMessage(args: {
   from: string;
@@ -60,12 +65,21 @@ export async function buildRecipientMessage(args: {
   htmlTpl: string;
   textTpl: string;
 }): Promise<ResendMessage> {
-  const postalAddress =
-    process.env.EMAIL_POSTAL_ADDRESS ??
-    "Inklee (postal address not configured)";
+  // Fail closed: a marketing/lifecycle email without a physical postal address violates
+  // CAN-SPAM. Callers gate earlier with a clear recorded error; this throw is the backstop
+  // so no code path can build a non-compliant message.
+  const postalAddress = process.env.EMAIL_POSTAL_ADDRESS;
+  if (!postalAddress) {
+    throw new Error("EMAIL_POSTAL_ADDRESS is not set");
+  }
 
   const rawToken = await getOrCreateUnsubToken(args.artistId);
+  // The human preference page: the visible footer links and {{unsubscribe_link}} /
+  // {{preferences_link}} point here.
   const unsubUrl = `https://inklee.app/unsubscribe/${rawToken}`;
+  // The RFC 8058 one-click endpoint the List-Unsubscribe header carries: mail clients POST
+  // to the header URL, and only the API route (not the page) accepts that POST.
+  const oneClickUrl = `https://inklee.app/api/unsubscribe/${rawToken}`;
   // public_page_link / booking_link both point at the artist's public page; left literal
   // (not blanked) when the artist has no slug.
   const pageLink = args.slug ? `https://inkl.ee/${args.slug}` : undefined;
@@ -77,8 +91,14 @@ export async function buildRecipientMessage(args: {
     unsubscribe_link: unsubUrl,
     preferences_link: unsubUrl,
   };
-  const subject = substituteTokens(args.subjectTpl, vars);
-  const htmlBody = substituteTokens(args.htmlTpl, vars);
+  // Substituted values include user-controlled profile text (the display name), so each
+  // output context gets its own treatment: the HTML body entity-escapes every value (also
+  // href-safe, and our own URLs carry no escapable characters), the subject strips CR/LF so
+  // a crafted value cannot smuggle a header line, and the plain-text part takes values as-is.
+  const subject = substituteTokens(args.subjectTpl, vars, (v) =>
+    v.replace(/[\r\n]+/g, " "),
+  );
+  const htmlBody = substituteTokens(args.htmlTpl, vars, escapeHtml);
   const textBody = substituteTokens(args.textTpl, vars);
   // Always-appended compliance footer (marketing/lifecycle): unsubscribe + preferences +
   // physical postal address.
@@ -91,9 +111,11 @@ export async function buildRecipientMessage(args: {
     html: renderEmailShell({ contentHtml: htmlBody + footerHtml }),
     text: textBody + footerText,
     headers: {
-      // Only the https one-click URL — no mailto: alternative (unsubscribe@inklee.app is
+      // Only the https one-click URL, no mailto: alternative (unsubscribe@inklee.app is
       // unmonitored, so a client that chose the mailto path would silently lose the opt-out).
-      "List-Unsubscribe": `<${unsubUrl}>`,
+      // This MUST be the API route: RFC 8058 clients POST to the header URL, and a POST to
+      // the /unsubscribe/[token] page would 405 and silently drop the opt-out.
+      "List-Unsubscribe": `<${oneClickUrl}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   };

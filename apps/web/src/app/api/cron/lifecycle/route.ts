@@ -5,13 +5,14 @@
 // the engine still only runs definitions whose status is 'active' (CT exports arrive as
 // 'draft'), so enabling the flag alone sends nothing.
 import { NextResponse } from "next/server";
+import { bearerMatches } from "@/lib/email-campaigns/internal-auth";
 import { runLifecycleEngine } from "@/lib/email-campaigns/lifecycle/engine";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
