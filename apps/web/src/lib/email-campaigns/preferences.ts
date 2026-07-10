@@ -59,9 +59,10 @@ export async function setEmailPref(
 }
 
 /**
- * Set both category flags in ONE read+merge round trip. Returns whether any category
- * actually flipped from opted-in to opted-out, so callers can record an 'unsubscribed'
- * analytics event exactly on real transitions (never on a re-save of an existing opt-out).
+ * Set both category flags in ONE read+merge round trip. When any category actually flips
+ * from opted-in to opted-out, an 'unsubscribed' analytics event is recorded HERE — the one
+ * seam every unsubscribe surface flows through — so a re-save of an existing opt-out never
+ * counts twice and a future surface cannot forget to record it.
  */
 export async function setEmailPrefs(
   artistId: string,
@@ -94,16 +95,17 @@ export async function setEmailPrefs(
     })
     .eq("id", artistId);
   if (error) throw error;
+  if (optedOutNow) await recordUnsubscribeEvent();
   return { optedOutNow };
 }
 
 /**
  * Record an 'unsubscribed' analytics event (Email hub slice 10). Resend has no unsubscribe
- * event, so Inklee's own unsubscribe surfaces record it; there is no message id, so it
- * counts globally rather than per campaign. Best-effort: an insert failure is logged and
- * swallowed — analytics must never break an unsubscribe.
+ * event, so it is recorded at the setEmailPrefs seam; there is no message id, so it counts
+ * globally rather than per campaign. Best-effort: an insert failure is logged and swallowed —
+ * analytics must never break an unsubscribe.
  */
-export async function recordUnsubscribeEvent(): Promise<void> {
+async function recordUnsubscribeEvent(): Promise<void> {
   const { error } = await serviceClient.from("email_events").insert({
     event_type: "unsubscribed",
     occurred_at: new Date().toISOString(),

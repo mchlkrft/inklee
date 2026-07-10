@@ -11,6 +11,7 @@
 // Fail-closed: missing secret -> 500, mismatch -> 401.
 import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { fetchAllRows } from "@/lib/email-campaigns/resolve-segment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,10 @@ const EVENT_TYPES = [
 type EventType = (typeof EVENT_TYPES)[number];
 
 const ID_CHUNK = 200; // .in() URL safety
-const PAGE = 1000; // PostgREST max_rows
+// Generous paging caps for fetchAllRows: recipients are bounded by the dispatch endpoint's
+// 5000 cap; events are a small multiple of that (repeated opens/clicks included).
+const SENDS_CAP = 10_000;
+const EVENTS_CAP = 100_000;
 
 type Counts = Record<EventType, number>;
 const zeroCounts = (): Counts =>
@@ -54,16 +58,22 @@ export async function POST(request: Request) {
 
   try {
     if (body.scope === "overall") {
-      // Exact head counts per type — no rows fetched, so max_rows is irrelevant.
-      const events: Record<string, number> = {};
-      for (const t of [...EVENT_TYPES, "unsubscribed"]) {
-        const { count, error } = await serviceClient
-          .from("email_events")
-          .select("id", { count: "exact", head: true })
-          .eq("event_type", t);
-        if (error) throw error;
-        events[t] = count ?? 0;
-      }
+      // Exact head counts per type — no rows fetched, so max_rows is irrelevant. The counts
+      // are independent, so they run in parallel (one round trip of wall clock, not eight).
+      const types = [...EVENT_TYPES, "unsubscribed"];
+      const counts = await Promise.all(
+        types.map(async (t) => {
+          const { count, error } = await serviceClient
+            .from("email_events")
+            .select("id", { count: "exact", head: true })
+            .eq("event_type", t);
+          if (error) throw error;
+          return count ?? 0;
+        }),
+      );
+      const events: Record<string, number> = Object.fromEntries(
+        types.map((t, i) => [t, counts[i]]),
+      );
       return NextResponse.json({
         scope: "overall",
         jobId: null,
@@ -86,50 +96,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
 
-    // The job's delivered-to recipients: sent rows with a provider message id. Paged past
-    // max_rows; bounded in practice by the dispatch endpoint's 5000 recipient cap.
-    const messageIds: string[] = [];
-    for (let offset = 0; ; offset += PAGE) {
-      const { data, error } = await serviceClient
-        .from("email_sends")
-        .select("resend_message_id")
-        .eq("job_id", jobId)
-        .eq("status", "sent")
-        .not("resend_message_id", "is", null)
-        .order("created_at", { ascending: true })
-        .range(offset, offset + PAGE - 1);
-      if (error) throw error;
-      const rows = (data ?? []) as { resend_message_id: string }[];
-      for (const r of rows) messageIds.push(r.resend_message_id);
-      if (rows.length < PAGE) break;
-    }
+    // The job's delivered-to recipients: sent rows with a provider message id. fetchAllRows
+    // pages past max_rows with a stable id order; bounded in practice by the dispatch
+    // endpoint's 5000 recipient cap.
+    const sendRows = (await fetchAllRows(
+      () =>
+        serviceClient
+          .from("email_sends")
+          .select("resend_message_id")
+          .eq("job_id", jobId)
+          .eq("status", "sent")
+          .not("resend_message_id", "is", null),
+      SENDS_CAP,
+    )) as { resend_message_id: string }[];
+    const messageIds = sendRows.map((r) => r.resend_message_id);
 
-    // Tally events for those messages: total per type + distinct messages per type.
+    // Tally events for those messages: total per type + distinct messages per type. The
+    // id-chunks are independent, so they are fetched in parallel; paging within a chunk
+    // stays sequential inside fetchAllRows.
     const totals = zeroCounts();
     const uniqueSets: Record<EventType, Set<string>> = Object.fromEntries(
       EVENT_TYPES.map((t) => [t, new Set<string>()]),
     ) as Record<EventType, Set<string>>;
+    const chunks: string[][] = [];
     for (let i = 0; i < messageIds.length; i += ID_CHUNK) {
-      const chunk = messageIds.slice(i, i + ID_CHUNK);
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await serviceClient
-          .from("email_events")
-          .select("event_type, resend_message_id")
-          .in("resend_message_id", chunk)
-          .order("created_at", { ascending: true })
-          .range(offset, offset + PAGE - 1);
-        if (error) throw error;
-        const rows = (data ?? []) as {
-          event_type: EventType;
-          resend_message_id: string | null;
-        }[];
-        for (const r of rows) {
-          if (!(r.event_type in totals)) continue;
-          totals[r.event_type]++;
-          if (r.resend_message_id)
-            uniqueSets[r.event_type].add(r.resend_message_id);
-        }
-        if (rows.length < PAGE) break;
+      chunks.push(messageIds.slice(i, i + ID_CHUNK));
+    }
+    const chunkRows = await Promise.all(
+      chunks.map(
+        (chunk) =>
+          fetchAllRows(
+            () =>
+              serviceClient
+                .from("email_events")
+                .select("event_type, resend_message_id")
+                .in("resend_message_id", chunk),
+            EVENTS_CAP,
+          ) as Promise<
+            { event_type: EventType; resend_message_id: string | null }[]
+          >,
+      ),
+    );
+    for (const rows of chunkRows) {
+      for (const r of rows) {
+        if (!(r.event_type in totals)) continue;
+        totals[r.event_type]++;
+        if (r.resend_message_id)
+          uniqueSets[r.event_type].add(r.resend_message_id);
       }
     }
 

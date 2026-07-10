@@ -43,15 +43,22 @@ type Builder = any;
 /**
  * Page a select in 1000-row windows until a short page (or the cap). `makeQuery` must return a
  * FRESH builder each call so .range() applies to a new request. Bounded by `cap` rows total.
+ *
+ * Every page is ordered by the table's `id` (appended AFTER any order the caller set, so it
+ * acts as a tiebreaker): offset pagination over a non-unique or absent order is unstable in
+ * Postgres, and a row straddling a page boundary could be returned twice or dropped. Exported
+ * for other internal endpoints (the metrics rollup) so this logic exists exactly once.
  */
-async function fetchAllRows(
+export async function fetchAllRows(
   makeQuery: () => Builder,
   cap: number = RESOLVE_CAP,
 ): Promise<Builder[]> {
   const rows: Builder[] = [];
   for (let offset = 0; offset < cap; offset += PAGE) {
     const end = Math.min(offset + PAGE - 1, cap - 1);
-    const { data, error } = await makeQuery().range(offset, end);
+    const { data, error } = await makeQuery()
+      .order("id", { ascending: true })
+      .range(offset, end);
     if (error) throw error;
     const batch = (data ?? []) as Builder[];
     rows.push(...batch);

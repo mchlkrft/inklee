@@ -12,10 +12,7 @@
 // preference page.
 import { NextResponse } from "next/server";
 import { lookupUnsubToken } from "@/lib/email-campaigns/unsubscribe-token";
-import {
-  setEmailPrefs,
-  recordUnsubscribeEvent,
-} from "@/lib/email-campaigns/preferences";
+import { setEmailPrefs } from "@/lib/email-campaigns/preferences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,11 +24,7 @@ export async function POST(
   const { token } = await params;
   const found = await lookupUnsubToken(token);
   if (found) {
-    const { optedOutNow } = await setEmailPrefs(found.artistId, {
-      marketing: false,
-      lifecycle: false,
-    });
-    if (optedOutNow) await recordUnsubscribeEvent();
+    await setEmailPrefs(found.artistId, { marketing: false, lifecycle: false });
   }
   // Always 200 regardless of token validity (RFC 8058 one-click).
   return NextResponse.json({ ok: true });

@@ -99,7 +99,9 @@ export async function POST(request: Request) {
         resend_message_id: event.data.email_id ?? null,
         recipient_email: event.data.to?.[0] ?? null,
         subject: event.data.subject ?? null,
-        occurred_at: event.data.created_at ?? event.created_at ?? null,
+        // the top-level created_at is when the EVENT occurred; data.created_at is when the
+        // email object was created (the send time), so it is only a fallback
+        occurred_at: event.created_at ?? event.data.created_at ?? null,
       });
     if (eventErr) {
       console.error("[email/webhook] event insert failed", {
