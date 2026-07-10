@@ -7,7 +7,7 @@ import type { LifecycleDefinition } from "../types";
 export const definition: LifecycleDefinition = {
   key: "books_open_live",
   name: "Books-open activated",
-  status: "draft",
+  status: "active",
   audienceKey: "books_open_recent",
   throttleDays: 7,
   preferenceCategory: "lifecycle",
