@@ -38,7 +38,7 @@ import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
 import { config, displayUrl } from "@/lib/config";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { formatShortDate, formatLongDate, deviceTodayKey } from "@/lib/date";
-import { useScreenView } from "@/lib/analytics";
+import { useScreenView, reportBookingLinkCopied } from "@/lib/analytics";
 import { pickGreeting } from "@inklee/shared/greeting";
 import type { MobileHome, MobileGuestSpot } from "@inklee/shared/mobile-api";
 import {
@@ -156,16 +156,21 @@ function LinkRow({
   label,
   url,
   last = false,
+  trackCopy = false,
 }: {
   label: string;
   url: string;
   last?: boolean;
+  trackCopy?: boolean;
 }) {
   const themed = useColors();
   const [copied, markCopied] = useTimedFlag();
   const copy = async () => {
     await Clipboard.setStringAsync(url);
     markCopied();
+    // Growth signal only (fire-and-forget): the "link shared" step canonical
+    // data cannot see. Booking link only, matching the web dashboard.
+    if (trackCopy) reportBookingLinkCopied();
   };
   return (
     <View
@@ -215,7 +220,7 @@ function PagesCard({
     <Card>
       <CardHeader icon={Link2} tint="bone" title="Your pages" />
       <View className="mt-1">
-        <LinkRow label="Booking" url={publicUrl} />
+        <LinkRow label="Booking" url={publicUrl} trackCopy />
         <LinkRow label="Waitlist" url={waitlistUrl} />
         <LinkRow label="Link Hub" url={hubUrl} last />
       </View>

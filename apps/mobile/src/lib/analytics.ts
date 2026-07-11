@@ -5,6 +5,7 @@
 
 import { useCallback } from "react";
 import { useFocusEffect } from "expo-router";
+import { apiPost } from "./api";
 
 export type AnalyticsEvent =
   | "screen_view"
@@ -24,7 +25,27 @@ export function track(event: AnalyticsEvent, props?: AnalyticsProps) {
   if (__DEV__) {
     console.log("[analytics]", event, props ?? {});
   }
-  // TODO: POST to a mobile analytics-events endpoint once it exists.
+  // Deliberately a no-op: this vocabulary (booking accept/pass, deposit_*,
+  // onboarding_completed, sign_up) is ALREADY captured server-side by the
+  // shared mobile API cores (audit_log status changes, the onboarding-complete
+  // route, artist_signup_completed) and appears in the growth cockpit's
+  // growth_activity_events. POSTing it too would double-count. screen_view is
+  // the only net-new signal and passive navigation is intentionally not treated
+  // as meaningful activity. The one legitimate mobile growth signal that is NOT
+  // duplicated is booking_link_copied (below).
+}
+
+/**
+ * Report that the artist copied their public booking link from the app. This
+ * is the ONE mobile growth event that canonical server data cannot see (the
+ * "link shared" step between page-live and first-request). Goes to the growth
+ * analytics_events store via /api/mobile/events (catalogued + rate-limited +
+ * tester/admin-excluded server-side). Fire-and-forget: never blocks or throws.
+ */
+export function reportBookingLinkCopied() {
+  void apiPost("/events", {
+    events: [{ event: "booking_link_copied", props: { surface: "mobile_app" } }],
+  }).catch(() => undefined);
 }
 
 /** Fire a `screen_view` each time a screen gains focus (expo-router). `screen`
