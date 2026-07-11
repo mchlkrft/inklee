@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin-guard";
 import { getAccountDetail } from "@/lib/admin-queries";
+import { getArtistGrowthTimeline } from "@/lib/growth-queries";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { parseFormSettings } from "@/lib/form-settings";
 import AccountActions from "./account-actions";
@@ -26,6 +27,15 @@ function fmtDate(iso: string | null | undefined): string {
     year: "numeric",
   });
 }
+
+/** Growth cockpit stage labels (classifyStage values, definitions on
+ *  /admin/growth/definitions). */
+const GROWTH_STAGE_LABELS: Record<string, string> = {
+  claimed_not_completed: "Page claimed, onboarding not completed",
+  completed_no_requests: "Onboarding completed, no requests yet",
+  requests_no_approval: "Requests received, none approved",
+  activated: "Activated",
+};
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -87,6 +97,10 @@ export default async function AccountDetailPage({
       0,
     ),
   };
+
+  // Growth cockpit timeline; null when the account is outside the growth
+  // stats view (e.g. admin-owned accounts), which simply hides the section.
+  const growth = await getArtistGrowthTimeline(id);
 
   const {
     profile,
@@ -347,6 +361,59 @@ export default async function AccountDetailPage({
                 </div>
               )}
             </section>
+
+            {/* Growth timeline (cockpit data) */}
+            {growth && (
+              <section className="space-y-3">
+                <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Growth timeline
+                </h2>
+                <div className="rounded-md border border-border px-4 py-3">
+                  <Row
+                    label="Activated"
+                    value={
+                      growth.activated ? (
+                        <span className="text-green-500">Yes</span>
+                      ) : (
+                        <span className="text-orange-400">No</span>
+                      )
+                    }
+                  />
+                  <Row
+                    label="Stage"
+                    value={GROWTH_STAGE_LABELS[growth.stage] ?? growth.stage}
+                  />
+                </div>
+                {growth.timeline.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No growth events recorded yet.
+                  </p>
+                ) : (
+                  <div className="rounded-md border border-border divide-y divide-border">
+                    {growth.timeline.map((event, index) => (
+                      <div
+                        key={`${event.at}-${event.label}-${index}`}
+                        className="px-4 py-2.5 flex items-start justify-between gap-4"
+                      >
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-medium text-foreground">
+                            {event.label}
+                          </p>
+                          {event.detail && (
+                            <p className="text-xs text-muted-foreground">
+                              {event.detail}
+                            </p>
+                          )}
+                        </div>
+                        <p className="shrink-0 text-xs text-muted-foreground">
+                          {fmtDate(event.at)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
 
             {/* Admin action history */}
             {adminActions.length > 0 && (

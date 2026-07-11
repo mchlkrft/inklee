@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseFormSettings } from "@/lib/form-settings";
 import { redirect } from "next/navigation";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 
 type State = { error: string } | null;
 
@@ -46,6 +47,11 @@ export async function saveOnboardingFormAction(
     .eq("id", user.id);
 
   if (error) return { error: error.message.toLowerCase() };
+
+  void recordGrowthEvent(
+    { event: "onboarding_step_completed", props: { step: "form" } },
+    { artistId: user.id, source: "web", email: user.email },
+  );
 
   redirect("/onboarding/done");
 }

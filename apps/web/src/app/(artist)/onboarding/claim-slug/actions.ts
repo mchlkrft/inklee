@@ -13,6 +13,7 @@ import {
   shouldFireBookingLinkCreated,
 } from "@/lib/analytics-gates";
 import { trackServerEvent } from "@/lib/track-server";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -64,11 +65,16 @@ export async function claimSlugAction(
 
   if (!user) return { error: "Not authenticated." };
 
-  const { data: currentProfile } = await supabase
+  const { data: currentProfile, error: profileReadError } = await supabase
     .from("profiles")
     .select("timezone, slug, is_tester, instagram_handle, location")
     .eq("id", user.id)
     .maybeSingle();
+  // A failed read must not masquerade as "no profile yet": isFirstClaim below
+  // would misfire and overwrite existing signup_attribution on a re-claim.
+  if (profileReadError) {
+    return { error: "Could not load your profile. Please try again." };
+  }
 
   // Service-client pre-check (0030 dropped the public profiles SELECT policy, so
   // an RLS read can't see another artist's row). The 23505 catch below is the
@@ -76,6 +82,8 @@ export async function claimSlugAction(
   if (await isSlugTakenByOther(slug, user.id)) {
     return { error: "That slug is already taken." };
   }
+
+  const isFirstClaim = !currentProfile?.slug;
 
   // Blank optional fields must not wipe previously saved values — this form
   // does not prefill them, so a re-visit (back-navigation mid-wizard, or an
@@ -90,6 +98,20 @@ export async function claimSlugAction(
     location: location ?? currentProfile?.location ?? null,
     timezone: currentProfile?.timezone ?? "Europe/Berlin",
     updated_at: new Date().toISOString(),
+    // First-touch attribution, persisted exactly once (the first claim). The
+    // values arrive as validated, length-clamped hidden fields (localStorage
+    // capture; cookie-free). Written even when empty so "captured, nothing to
+    // attribute" (direct visit) stays distinguishable from accounts that
+    // predate capture (NULL).
+    ...(isFirstClaim
+      ? {
+          signup_attribution: {
+            ...attributionPropsFromForm(formData),
+            platform: "web",
+            captured_at: new Date().toISOString(),
+          },
+        }
+      : {}),
   });
 
   if (error) {
@@ -110,6 +132,31 @@ export async function claimSlugAction(
       props: { ...attributionPropsFromForm(formData), platform: "web" },
       headers: await headers(),
     });
+  }
+
+  if (isFirstClaim) {
+    // Growth milestones (first-party, dedupe-keyed): the page is live the
+    // moment the slug exists. Internal exclusion happens inside the recorder.
+    // AWAITED (the recorder never throws): these fire at most once per account,
+    // and a fire-and-forget write could be lost to serverless teardown.
+    await recordGrowthEvent(
+      { event: "page_published", props: {} },
+      {
+        artistId: user.id,
+        source: "web",
+        email: user.email,
+        isTester: currentProfile?.is_tester === true,
+      },
+    );
+    await recordGrowthEvent(
+      { event: "onboarding_step_completed", props: { step: "claim_slug" } },
+      {
+        artistId: user.id,
+        source: "web",
+        email: user.email,
+        isTester: currentProfile?.is_tester === true,
+      },
+    );
   }
 
   redirect("/onboarding/booking");

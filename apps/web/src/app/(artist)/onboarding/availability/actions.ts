@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { redirect } from "next/navigation";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 
 type State = { error: string } | null;
 
@@ -47,6 +48,11 @@ export async function saveOnboardingAvailabilityAction(
     .eq("id", user.id);
 
   if (error) return { error: error.message.toLowerCase() };
+
+  void recordGrowthEvent(
+    { event: "onboarding_step_completed", props: { step: "availability" } },
+    { artistId: user.id, source: "web", email: user.email },
+  );
 
   redirect("/onboarding/form");
 }

@@ -12,7 +12,10 @@
  * - Internal browsers (marked once via ?internal=1) send nothing at all.
  */
 
-import type { AttributionProps } from "@/lib/analytics-gates";
+import {
+  ATTRIBUTION_PROP_KEYS,
+  type AttributionProps,
+} from "@/lib/analytics-gates";
 
 const ATTRIBUTION_KEY = "inklee_attribution";
 const INTERNAL_KEY = "inklee_internal";
@@ -77,12 +80,26 @@ export function captureFirstTouchAttribution(): void {
     // unparsable referrer — skip
   }
 
-  const source = params.get("utm_source");
-  const medium = params.get("utm_medium");
-  const campaign = params.get("utm_campaign");
-  if (source) attribution.source = source.slice(0, 200);
-  if (medium) attribution.medium = medium.slice(0, 200);
-  if (campaign) attribution.campaign = campaign.slice(0, 200);
+  // Same hygiene as the server-side gate (sanitizeAttributionValue): clamp
+  // and drop values carrying "@" or "://" (an email in utm_source, a full URL
+  // in utm_content) so personal-data-shaped input never enters storage.
+  const clean = (value: string | null): string | null => {
+    if (!value) return null;
+    const clamped = value.trim().slice(0, 200);
+    if (!clamped || clamped.includes("@") || clamped.includes("://"))
+      return null;
+    return clamped;
+  };
+  const source = clean(params.get("utm_source"));
+  const medium = clean(params.get("utm_medium"));
+  const campaign = clean(params.get("utm_campaign"));
+  const content = clean(params.get("utm_content"));
+  const term = clean(params.get("utm_term"));
+  if (source) attribution.source = source;
+  if (medium) attribution.medium = medium;
+  if (campaign) attribution.campaign = campaign;
+  if (content) attribution.content = content;
+  if (term) attribution.term = term;
 
   try {
     store.setItem(ATTRIBUTION_KEY, JSON.stringify(attribution));
@@ -98,13 +115,7 @@ export function getStoredAttribution(): AttributionProps {
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const props: AttributionProps = {};
-    for (const key of [
-      "entry_path",
-      "referrer",
-      "source",
-      "medium",
-      "campaign",
-    ] as const) {
+    for (const key of ATTRIBUTION_PROP_KEYS) {
       const value = parsed[key];
       if (typeof value === "string" && value) props[key] = value.slice(0, 200);
     }

@@ -8,6 +8,7 @@ import { normalizeProfileInput } from "@/lib/mobile-onboarding";
 import { isAdminEmail } from "@/lib/admin-guard";
 import { shouldFireBookingLinkCreated } from "@/lib/analytics-gates";
 import { trackServerEvent } from "@/lib/track-server";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 import { writeAudit } from "@/lib/audit";
 import type { MobileOnboardingProfile } from "@inklee/shared/mobile-api";
 
@@ -54,11 +55,16 @@ export async function POST(req: Request) {
 
   // Prior state, read before the upsert so booking_link_created can fire only
   // on the first null -> slug transition (the upsert also runs on re-claims).
-  const { data: prevProfile } = await supabase
+  const { data: prevProfile, error: prevReadError } = await supabase
     .from("profiles")
     .select("slug, is_tester")
     .eq("id", userId)
     .maybeSingle();
+  // A failed read must not masquerade as "no profile yet": isFirstClaim below
+  // would misfire and overwrite existing signup_attribution on a re-claim.
+  if (prevReadError) return mobileError(500, prevReadError.message);
+
+  const isFirstClaim = !prevProfile?.slug;
 
   const { error } = await supabase.from("profiles").upsert({
     id: userId,
@@ -68,6 +74,17 @@ export async function POST(req: Request) {
     location,
     timezone,
     updated_at: new Date().toISOString(),
+    // Mobile signups carry no UTM context yet (no deep-link attribution);
+    // platform + capture time still distinguish them from pre-instrumentation
+    // accounts (NULL). Written exactly once, on the first claim.
+    ...(isFirstClaim
+      ? {
+          signup_attribution: {
+            platform: "mobile",
+            captured_at: new Date().toISOString(),
+          },
+        }
+      : {}),
   });
   if (error) {
     // Lost the check↔upsert race on the slug unique index (Postgres 23505).
@@ -102,6 +119,34 @@ export async function POST(req: Request) {
         headers: req.headers,
       });
     }
+  }
+
+  if (isFirstClaim) {
+    // Growth milestones (first-party, dedupe-keyed); internal exclusion
+    // happens inside the recorder. Awaited: once-only milestones must not be
+    // lost to serverless teardown, and the recorder never throws.
+    await recordGrowthEvent(
+      { event: "page_published", props: {} },
+      {
+        artistId: userId,
+        source: "mobile",
+        email: auth.email,
+        isTester:
+          (prevProfile as { is_tester?: boolean | null } | null)?.is_tester ===
+          true,
+      },
+    );
+    await recordGrowthEvent(
+      { event: "onboarding_step_completed", props: { step: "claim_slug" } },
+      {
+        artistId: userId,
+        source: "mobile",
+        email: auth.email,
+        isTester:
+          (prevProfile as { is_tester?: boolean | null } | null)?.is_tester ===
+          true,
+      },
+    );
   }
 
   const body: MobileOnboardingProfile = { slug, displayName };

@@ -18,6 +18,10 @@ export const runtime = "nodejs";
 //     own lifecycle, so they are left untouched here (§8 "except where linked to
 //     a retained financial record").
 //   • admin_action_log (moderation log): 24 months.
+//   • analytics_events + artist_activity_days (growth cockpit, migration 0067):
+//     24 months, matching the audit convention. Account deletion already
+//     cascades both via their profiles FK; this bounds retention for accounts
+//     that stay.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -68,9 +72,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: adminError.message }, { status: 500 });
   }
 
+  const { data: purgedEvents, error: eventsError } = await serviceClient
+    .from("analytics_events")
+    .delete()
+    .lt("occurred_at", auditCutoff)
+    .select("id");
+  if (eventsError) {
+    return NextResponse.json({ error: eventsError.message }, { status: 500 });
+  }
+
+  const auditCutoffDay = auditCutoff.slice(0, 10);
+  const { data: purgedActivity, error: activityError } = await serviceClient
+    .from("artist_activity_days")
+    .delete()
+    .lt("day", auditCutoffDay)
+    .select("artist_id");
+  if (activityError) {
+    return NextResponse.json({ error: activityError.message }, { status: 500 });
+  }
+
   return NextResponse.json({
     purged_financial_records: purgedFinancial?.length ?? 0,
     purged_audit_rows: purgedAudit?.length ?? 0,
     purged_admin_rows: purgedAdmin?.length ?? 0,
+    purged_analytics_events: purgedEvents?.length ?? 0,
+    purged_activity_days: purgedActivity?.length ?? 0,
   });
 }

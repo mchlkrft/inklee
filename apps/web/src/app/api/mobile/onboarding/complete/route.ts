@@ -7,6 +7,7 @@ import { isClaimedProfile } from "@/lib/mobile-onboarding";
 import { isAdminEmail } from "@/lib/admin-guard";
 import { evaluateSignupCompletion } from "@/lib/analytics-gates";
 import { trackServerEvent } from "@/lib/track-server";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 import { writeAudit } from "@/lib/audit";
 import type { MobileOnboardingComplete } from "@inklee/shared/mobile-api";
 
@@ -62,6 +63,31 @@ export async function POST(req: Request) {
       category: "settings",
       details: {},
     });
+
+    // Growth milestone: the completion timestamp the settings boolean lacks
+    // (dedupe-keyed; internal exclusion inside the recorder). Awaited: a
+    // once-only milestone must not be lost to serverless teardown, and the
+    // recorder never throws.
+    await recordGrowthEvent(
+      { event: "onboarding_completed", props: {} },
+      {
+        artistId: userId,
+        source: "mobile",
+        email: user?.email,
+        isTester:
+          (profile as { is_tester?: boolean | null }).is_tester === true,
+      },
+    );
+    await recordGrowthEvent(
+      { event: "onboarding_step_completed", props: { step: "done" } },
+      {
+        artistId: userId,
+        source: "mobile",
+        email: user?.email,
+        isTester:
+          (profile as { is_tester?: boolean | null }).is_tester === true,
+      },
+    );
 
     if (gate.fire) {
       trackServerEvent("signup_completed", {

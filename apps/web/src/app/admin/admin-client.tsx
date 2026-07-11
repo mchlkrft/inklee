@@ -109,8 +109,8 @@ export default function AdminClient({
           </div>
         </div>
 
-        {/* Support inbox summary */}
-        <section>
+        {/* Support inbox + Growth cockpit entry points */}
+        <section className="grid gap-3 sm:grid-cols-2">
           <Link
             href="/admin/support"
             className="flex items-center justify-between rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
@@ -129,6 +129,24 @@ export default function AdminClient({
               </p>
             </div>
             <span className="text-sm text-muted-foreground">Open inbox →</span>
+          </Link>
+          <Link
+            href="/admin/growth"
+            className="flex items-center justify-between rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
+          >
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Growth cockpit</p>
+              <p className="text-sm text-foreground">
+                Acquisition, activation, retention, bookings, lifecycle email
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Funnels, cohorts and the user explorer with documented
+                definitions.
+              </p>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              Open cockpit →
+            </span>
           </Link>
         </section>
 

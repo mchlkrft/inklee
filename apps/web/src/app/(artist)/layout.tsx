@@ -7,6 +7,7 @@ import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import { Sidebar, MobileTopBar, MobileBottomNav } from "@/components/app-shell";
 import WorkspaceTopBar from "@/components/app-shell/workspace-top-bar";
 import BooksStatusPill from "@/components/app-shell/books-status-pill";
+import { touchArtistActivity } from "@/lib/growth/activity";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -23,6 +24,10 @@ export default async function ArtistLayout({
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  // Growth cockpit day-grain presence (fire-and-forget, debounced to one
+  // write per artist per day; failures never affect the page).
+  void touchArtistActivity(user.id, "web");
 
   const { data: profile } = await supabase
     .from("profiles")

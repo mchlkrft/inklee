@@ -85,6 +85,11 @@ export const profiles = pgTable("profiles", {
   stripeAccountUpdatedAt: timestamp("stripe_account_updated_at", {
     withTimezone: true,
   }),
+  // First-touch marketing attribution persisted at claim-slug (migration 0067).
+  // Keys: entry_path, referrer (origin), source, medium, campaign, content, term,
+  // platform, captured_at. Length-clamped labels, never PII. NULL for accounts
+  // that predate the migration (unknown, not backfillable).
+  signupAttribution: jsonb("signup_attribution"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -170,6 +175,9 @@ export const slots = pgTable("slots", {
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
   status: slotStatusEnum("status").notNull().default("open"),
+  // Added in 0067 WITHOUT backfill: rows created before the migration are NULL
+  // (honestly unknown), new rows default to now().
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 export const emailTemplates = pgTable("email_templates", {
@@ -862,4 +870,76 @@ export const emailLifecycleRuns = pgTable("email_lifecycle_runs", {
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+// Growth cockpit (migration 0067) — service-role only (RLS enabled, zero
+// policies). The event catalogue and the single writer live in
+// src/lib/growth/; props are coarse labels only (no IP, no user agent, no
+// client/customer data, no free text).
+
+// Supplemental product events canonical tables cannot answer (onboarding step
+// timing, page published, booking link copied). dedupe_key makes once-only
+// milestones and backfills idempotent (partial unique index in 0067).
+export const analyticsEvents = pgTable("analytics_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventName: text("event_name").notNull(),
+  artistId: uuid("artist_id").references(() => profiles.id, {
+    onDelete: "cascade",
+  }),
+  anonymousId: text("anonymous_id"),
+  sessionId: text("session_id"),
+  source: text("source").notNull().default("web"),
+  properties: jsonb("properties").notNull().default({}),
+  dedupeKey: text("dedupe_key"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Day-grain presence: one row per (artist, day, surface), touched fire-and-forget
+// from the authed web layout and the mobile API auth. Basis for honest
+// DAU/WAU/MAU going forward (no historical login data exists).
+export const artistActivityDays = pgTable(
+  "artist_activity_days",
+  {
+    artistId: uuid("artist_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    surface: text("surface").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("artist_activity_days_pkey_mirror").on(t.artistId, t.day, t.surface),
+  ],
+);
+
+// Cockpit thresholds (active/dormant/churn-risk windows, attribution window,
+// min sample size, reporting timezone). Defaults live in src/lib/growth/settings.ts.
+export const growthSettings = pgTable("growth_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedBy: uuid("updated_by"),
+});
+
+// Per-day aggregate counts written by /api/cron/growth-snapshot. Counts only,
+// never per-artist rows or PII: intentionally survives account deletion so
+// history does not erode with the 30-day booking cleanup / 24-month audit purge.
+export const growthDailySnapshots = pgTable("growth_daily_snapshots", {
+  snapshotDate: date("snapshot_date").primaryKey(),
+  metrics: jsonb("metrics").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

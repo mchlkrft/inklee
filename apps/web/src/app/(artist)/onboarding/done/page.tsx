@@ -11,6 +11,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/admin-guard";
 import { evaluateSignupCompletion } from "@/lib/analytics-gates";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 import LogoUpload from "./logo-upload";
 import SignupCompletedTracker from "./signup-completed-tracker";
 import { publicArtistUrl } from "@/lib/public-url";
@@ -67,6 +68,30 @@ export default async function OnboardingDonePage() {
         updated_at: new Date().toISOString(),
       })
       .eq("id", user!.id);
+
+    // Growth milestones: the canonical flag above stays the source of truth;
+    // these supply the completion TIMESTAMP the boolean lacks (dedupe-keyed,
+    // internal traffic excluded inside the recorder). Awaited: once-only
+    // milestones must not be lost to serverless teardown, and the recorder
+    // never throws.
+    await recordGrowthEvent(
+      { event: "onboarding_completed", props: {} },
+      {
+        artistId: user!.id,
+        source: "web",
+        email: user?.email,
+        isTester: profile.is_tester === true,
+      },
+    );
+    await recordGrowthEvent(
+      { event: "onboarding_step_completed", props: { step: "done" } },
+      {
+        artistId: user!.id,
+        source: "web",
+        email: user?.email,
+        isTester: profile.is_tester === true,
+      },
+    );
   }
 
   const { count: slotCount } =

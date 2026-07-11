@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { touchArtistActivity } from "@/lib/growth/activity";
 
 // Slice E1 — auth for the mobile JSON API (`/app/api/mobile/*`). The web app
 // uses cookie sessions; the Expo app has no cookie jar, so it sends the Supabase
@@ -42,6 +43,11 @@ export async function requireMobileUser(req: Request): Promise<MobileAuth> {
   if (error || !data.user) {
     return { ok: false, status: 401, error: "Invalid or expired session." };
   }
+
+  // Growth cockpit day-grain presence (fire-and-forget, debounced to one
+  // write per artist per day; failures never affect the request).
+  void touchArtistActivity(data.user.id, "mobile");
+
   return {
     ok: true,
     userId: data.user.id,

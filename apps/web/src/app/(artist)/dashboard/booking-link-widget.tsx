@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Link2, Copy, Check, ExternalLink } from "lucide-react";
 import { Card, CardHeader, IconChip } from "@/components/ui/card";
+import { recordBookingLinkCopiedAction } from "@/app/(artist)/growth-track-actions";
 
 const ICON_BTN =
   "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground";
@@ -12,13 +13,25 @@ const ICON_BTN =
 // but swaps the text verbs for symbols so the two cards read differently.
 // Preview uses the absolute `url` (not `/${slug}`) so it resolves under
 // subdomain routing too.
-function LinkRow({ label, url }: { label: string; url: string }) {
+function LinkRow({
+  label,
+  url,
+  trackCopy = false,
+}: {
+  label: string;
+  url: string;
+  trackCopy?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
   function copy() {
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      // Growth signal only (fire-and-forget): sharing the booking link is the
+      // step between "page live" and "first request" that canonical data
+      // cannot see.
+      if (trackCopy) void recordBookingLinkCopiedAction("dashboard");
     });
   }
 
@@ -77,7 +90,7 @@ export default function BookingLinkWidget({
         <p className="text-sm font-medium text-foreground">Your pages</p>
       </CardHeader>
       <div className="divide-y divide-border">
-        <LinkRow label="Booking" url={publicUrl} />
+        <LinkRow label="Booking" url={publicUrl} trackCopy />
         <LinkRow label="Waitlist" url={waitlistUrl} />
         <LinkRow label="Link Hub" url={hubUrl} />
       </div>

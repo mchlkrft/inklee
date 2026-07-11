@@ -129,6 +129,18 @@ export async function checkMfaRecoverRateLimit(userId: string) {
   return check(mfaRecoverRl, userId);
 }
 
+// Growth analytics events: 120 / artist / hour, shared by the mobile batch
+// endpoint and the web link-copy action. Far above real usage, but caps a
+// single account flooding analytics_events (fire-and-forget telemetry writes).
+// Keyed by user id so rotating IPs does not sidestep it.
+const growthEventsRl = makeLimit(
+  Ratelimit.slidingWindow(120, "1 h"),
+  "inklee:growth-events",
+);
+export async function checkGrowthEventsRateLimit(userId: string) {
+  return check(growthEventsRl, userId);
+}
+
 // Mobile-app launch waitlist (/download): 3 submissions / IP / hour.
 // Same shape as the artist-side waitlist limit — low ceiling because the
 // form is a one-off signup, not a recurring action.

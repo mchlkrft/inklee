@@ -68,6 +68,8 @@ export const ATTRIBUTION_PROP_KEYS = [
   "source",
   "medium",
   "campaign",
+  "content",
+  "term",
 ] as const;
 
 export type AttributionProps = Partial<
@@ -84,9 +86,22 @@ export function attributionFieldName(
 const MAX_ATTR_VALUE_LENGTH = 200;
 
 /**
+ * Attribution values are arbitrary URL input; besides length-clamping, drop
+ * anything that looks like personal data or a full URL (an email address in
+ * utm_source, a referrer with a query string). Campaign labels never need
+ * "@" or "://".
+ */
+export function sanitizeAttributionValue(raw: string): string | null {
+  const value = raw.trim().slice(0, MAX_ATTR_VALUE_LENGTH);
+  if (!value) return null;
+  if (value.includes("@") || value.includes("://")) return null;
+  return value;
+}
+
+/**
  * Read attribution props back out of a submitted form. Only the expected keys
- * are accepted and values are length-clamped, so a tampered form cannot inject
- * arbitrary analytics payloads.
+ * are accepted and values are length-clamped and content-filtered, so a
+ * tampered form cannot inject arbitrary analytics payloads or personal data.
  */
 export function attributionPropsFromForm(formData: {
   get(name: string): unknown;
@@ -95,7 +110,7 @@ export function attributionPropsFromForm(formData: {
   for (const key of ATTRIBUTION_PROP_KEYS) {
     const raw = formData.get(attributionFieldName(key));
     if (typeof raw !== "string") continue;
-    const value = raw.trim().slice(0, MAX_ATTR_VALUE_LENGTH);
+    const value = sanitizeAttributionValue(raw);
     if (value) props[key] = value;
   }
   return props;

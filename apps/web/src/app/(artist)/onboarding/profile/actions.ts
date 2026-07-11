@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { normalizeProfileFields } from "@inklee/shared/profile-validation";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 
 type State = { error: string } | null;
 
@@ -38,6 +39,11 @@ export async function saveOnboardingProfileAction(
     .eq("id", user.id);
 
   if (error) return { error: error.message.toLowerCase() };
+
+  void recordGrowthEvent(
+    { event: "onboarding_step_completed", props: { step: "profile" } },
+    { artistId: user.id, source: "web", email: user.email },
+  );
 
   redirect("/onboarding/booking");
 }
