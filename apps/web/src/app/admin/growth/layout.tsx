@@ -5,7 +5,7 @@ import SectionNav from "@/components/section-nav";
 import GrowthSectionNav from "./growth-section-nav";
 
 const SECTIONS = [
-  { label: "Overview", href: "/admin/growth" },
+  { label: "Overview", href: "/admin/growth", exact: true },
   { label: "Acquisition", href: "/admin/growth/acquisition" },
   { label: "Search", href: "/admin/growth/search" },
   { label: "Activation", href: "/admin/growth/activation" },

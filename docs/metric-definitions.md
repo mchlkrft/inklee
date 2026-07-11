@@ -20,8 +20,11 @@ Shared facts that apply to every metric below:
   the 24-month audit purge. Snapshots hold counts only, never per-artist rows.
 - **Exclusions**: testers (`profiles.is_tester`), admin-owned accounts (matched against the
   `ADMIN_EMAILS` env config at query time), and suspended, archived, or soft-deleted accounts are
-  excluded from every aggregate. The full excluded-id list is passed into every SQL function
-  (`p_exclude`), so these accounts are absent from series and totals, not just filtered in code.
+  excluded from every account-keyed aggregate. The full excluded-id list is passed into every such
+  SQL function (`p_exclude`), so these accounts are absent from series and totals, not just filtered
+  in code. The one exception is `growth_lifecycle_engagement` (lifecycle email open/click counts),
+  which is keyed by Resend message id rather than by account and so is not `p_exclude`-filtered;
+  tester exclusion for lifecycle email happens upstream, in the send-audience segmentation.
 - **Thresholds**: names like `active_days` refer to the growth settings (`growth_settings` table,
   defaults in `apps/web/src/lib/growth/settings.ts`), editable on `/admin/growth/settings`.
 - **Last definition change**: 2026-07-11 (cockpit v1) for all metrics. The Activated definition
@@ -365,8 +368,9 @@ Shared facts for this section:
 
 - **Plain language**: one public page navigation.
 - **Calculation**: count of `pageview` events in the window. The client emits one per real
-  navigation (initial load or client-side route change) and drops same-path repeats; the ingestion
-  route additionally drops identical events arriving within five seconds.
+  navigation (initial load or client-side route change) and drops same-path repeats. There is no
+  server-side de-dup window: duplicates are prevented at the source, and a per-instance window would
+  drop legitimate repeat pageviews across serverless instances.
 - **Sources**: `web_analytics_events` via `wa_kpis` and `wa_timeseries` (0070).
 - **Inclusions**: allowlisted public paths on Inklee hostnames.
 - **Exclusions**: authenticated product prefixes and the tokened customer portal (the collector's
@@ -467,6 +471,40 @@ Shared facts for this section:
   as Google's data for those days.
 - **Last changed**: 2026-07-11.
 
+### Google clicks (Search Console)
+
+- **Plain language**: how many times someone clicked through to Inklee from a Google search result.
+- **Calculation**: sum of clicks over the range as reported by the Search Console API for the
+  connected property (`gscTotalsSeries` / `gsc_dimension_agg`, migration 0070).
+- **Sources**: `gsc_daily_totals` and `gsc_daily_dimensions` (0070), filled daily from the Search
+  Console API (search type `web`).
+- **Inclusions**: Google web-search-result clicks for the connected property.
+- **Exclusions**: none applied by Inklee; Google applies its own privacy filtering before the data
+  reaches the API.
+- **Timezone**: Google source dates, stored and displayed unconverted, labelled "Search Console
+  (delayed, source dates)"; never rebucketed into the reporting timezone.
+- **Refresh**: daily sync at 06:00 UTC (`/api/cron/gsc-sync`) with the rolling 10-day
+  self-correction window.
+- **Known limitations**: a Google click is not a first-party visit; the two systems are never merged
+  or substituted for each other.
+- **Last changed**: 2026-07-11.
+
+### Impressions (Search Console)
+
+- **Plain language**: how many times an Inklee result appeared in a Google search for a user.
+- **Calculation**: sum of impressions over the range as reported by the Search Console API for the
+  connected property (`gscTotalsSeries` / `gsc_dimension_agg`, migration 0070).
+- **Sources**: `gsc_daily_totals` and `gsc_daily_dimensions` (0070), filled daily from the Search
+  Console API.
+- **Inclusions**: search-result appearances for the connected property.
+- **Exclusions**: rows Google omits from the API never enter the total.
+- **Timezone**: Google source dates, stored and displayed unconverted, labelled "Search Console
+  (delayed, source dates)".
+- **Refresh**: daily sync at 06:00 UTC with the rolling 10-day self-correction window.
+- **Known limitations**: defined by Google, not by us; low-volume rows are omitted from the query and
+  page breakdowns, so a dimension's impressions can sum to less than the daily total.
+- **Last changed**: 2026-07-11.
+
 ---
 
 ## Known data-history limitations
@@ -485,6 +523,15 @@ These caveats apply across the whole cockpit and are surfaced in the UI where re
   that render blank.
 - Audit rows without a booking are purged after 24 months.
 - Email open counts are inflated by mail-client prefetching, so unique opens are used.
+- Public web analytics data exists only from the 2026-07 deploy onward. Plausible history is not
+  imported.
+- Search Console totals and the query and page breakdowns can disagree: Google omits low-volume rows
+  from the breakdowns.
+- Search Console clicks and first-party visits are different measurements; they are never merged or
+  substituted for each other.
+- CSV exports of high-cardinality acquisition dimensions (landing pages, referrers, campaigns) are
+  capped at the top 500 rows; the on-screen tables and the users, search, and organic exports page
+  more.
 
 ---
 

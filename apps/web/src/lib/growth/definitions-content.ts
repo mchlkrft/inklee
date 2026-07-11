@@ -402,6 +402,42 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
       "Position is defined by Google, not by us. Impression-weighted averages move when impression volume shifts, even if actual rankings are stable.",
     lastChanged: LAST_CHANGED,
   },
+  {
+    name: "Google clicks (Search Console)",
+    plainLanguage:
+      "How many times someone clicked through to Inklee from a Google search result.",
+    calculation:
+      "Clicks as reported by the Search Console API for the connected property, summed over the selected source-date range.",
+    sources:
+      "gsc_daily_totals and gsc_daily_dimensions tables and the gsc_dimension_agg SQL function (migration 0070), synced from the Search Console API.",
+    inclusions: "Web search-result clicks for the connected property.",
+    exclusions:
+      "Nothing is filtered on our side; Google applies its own privacy filtering before the data reaches the API.",
+    timezone:
+      "Search Console (delayed, source dates): Google's own day boundaries, stored and shown unconverted; never rebucketed into the reporting timezone.",
+    refresh:
+      "Updated by the sync engine; Google finalizes a day roughly 2 to 3 days after it ends.",
+    limitations:
+      "A Google click is not a first-party visit: it counts a search-result click, not an accepted pageview, and the two are never merged or substituted for each other.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "Impressions (Search Console)",
+    plainLanguage:
+      "How many times an Inklee result appeared in a Google search for a user.",
+    calculation:
+      "Impressions as reported by the Search Console API for the connected property, summed over the selected source-date range.",
+    sources:
+      "gsc_daily_totals and gsc_daily_dimensions tables and the gsc_dimension_agg SQL function (migration 0070).",
+    inclusions: "Search-result appearances for the connected property.",
+    exclusions: "Rows Google omits from the API never enter the total.",
+    timezone:
+      "Search Console (delayed, source dates): Google's own day boundaries, unconverted.",
+    refresh: "Updated by the sync engine, on Google's reporting delay.",
+    limitations:
+      "Defined by Google, not by us. Low-volume rows are omitted from the query and page breakdowns, so a dimension's impressions can sum to less than the daily total.",
+    lastChanged: LAST_CHANGED,
+  },
 ];
 
 /** Data-history caveats that apply across the whole cockpit. */
@@ -417,4 +453,5 @@ export const KNOWN_LIMITATIONS: string[] = [
   "Public web analytics data exists only from the 2026-07 deploy onward. Plausible history is not imported.",
   "Search Console totals and the query and page breakdowns can disagree: Google omits low-volume rows from the breakdowns.",
   "Search Console clicks and first-party visits are different measurements; they are never merged or substituted for each other.",
+  "CSV exports of high-cardinality acquisition dimensions (landing pages, referrers, campaigns) are capped at the top 500 rows; the on-screen tables and the users, search, and organic exports page more.",
 ];

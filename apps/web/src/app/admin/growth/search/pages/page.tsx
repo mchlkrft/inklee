@@ -14,6 +14,7 @@ import {
 } from "@/components/admin/growth/metric-card";
 import SearchNav from "../search-nav";
 import GscDimensionTable from "../gsc-dimension-table";
+import GscReconnectBanner from "../gsc-reconnect-banner";
 
 // Google pages: which Inklee URLs appear (and get clicked) in Google search.
 // Search Console data only; first-party landing-page visits live on the
@@ -98,6 +99,7 @@ export default async function SearchPagesPage({
     <div className="space-y-8">
       <SearchNav active="pages" params={params} />
       <RangePicker />
+      <GscReconnectBanner needsReconnect={state.needsReconnect} />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

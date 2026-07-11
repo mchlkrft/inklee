@@ -17,9 +17,9 @@ import {
 } from "@/components/admin/growth/metric-card";
 import AcquisitionNav, { acquisitionRangeSuffix } from "../acquisition-nav";
 
-/** "â€“" is the standing placeholder for a rate with no denominator. */
+/** "–" is the standing placeholder for a rate with no denominator. */
 function pctCell(numerator: number, denominator: number): string {
-  if (denominator <= 0) return "â€“";
+  if (denominator <= 0) return "–";
   const value = (numerator / denominator) * 100;
   // One decimal below 10% so small-but-real conversion rates never show as 0%.
   const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
@@ -277,13 +277,13 @@ export default async function AcquisitionConversionsPage({
                     className="border-t border-border"
                   >
                     <td className="px-3 py-2 break-all text-foreground">
-                      {row.utm_source || "â€“"}
+                      {row.utm_source || "–"}
                     </td>
                     <td className="px-3 py-2 break-all text-foreground">
-                      {row.utm_medium || "â€“"}
+                      {row.utm_medium || "–"}
                     </td>
                     <td className="px-3 py-2 break-all text-foreground">
-                      {row.utm_campaign || "â€“"}
+                      {row.utm_campaign || "–"}
                     </td>
                     <td className={tdNum}>{row.visitors}</td>
                     <td className={tdNum}>{row.visits}</td>
@@ -330,13 +330,13 @@ export default async function AcquisitionConversionsPage({
                     className="border-t border-border"
                   >
                     <td className="px-3 py-2 break-all text-foreground">
-                      {row.source ?? "â€“"}
+                      {row.source ?? "–"}
                     </td>
                     <td className="px-3 py-2 break-all text-foreground">
-                      {row.medium ?? "â€“"}
+                      {row.medium ?? "–"}
                     </td>
                     <td className="px-3 py-2 break-all text-foreground">
-                      {row.campaign ?? "â€“"}
+                      {row.campaign ?? "–"}
                     </td>
                     <td className={tdNum}>{row.accounts}</td>
                     <td className={tdNum}>{row.activated}</td>

@@ -15,6 +15,7 @@ import {
   SectionHeading,
 } from "@/components/admin/growth/metric-card";
 import SearchNav from "../search-nav";
+import GscReconnectBanner from "../gsc-reconnect-banner";
 import {
   joinOrganicLandingPages,
   parseOrganicSort,
@@ -160,6 +161,7 @@ export default async function GrowthSearchOrganicPage({
     <div className="space-y-6">
       <SearchNav active="organic" params={params} />
       <RangePicker />
+      <GscReconnectBanner needsReconnect={gsc.needsReconnect} />
 
       <div className="rounded-md border border-border bg-muted/30 px-4 py-3">
         <p className="text-xs text-muted-foreground">

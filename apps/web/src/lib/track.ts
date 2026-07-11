@@ -45,13 +45,37 @@ export function isInternalBrowser(): boolean {
 }
 
 /**
+ * Mirror the internal marker into a first-party cookie so SERVER-recorded
+ * conversions (signup, booking, beta invite) skip this browser too: the
+ * localStorage marker is invisible to server actions. Same value the admin
+ * exclusion toggle writes; cleared alongside the localStorage marker.
+ */
+export function setInternalCookie(on: boolean): void {
+  try {
+    document.cookie = on
+      ? `${INTERNAL_KEY}=1; Max-Age=63072000; Path=/; SameSite=Lax`
+      : `${INTERNAL_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
+  } catch {
+    // cookies blocked: the localStorage marker still covers client-side sends
+  }
+}
+
+/**
  * `?internal=1` marks this browser internal (no conversion events ever sent);
  * `?internal=0` clears the mark. Run once per pageload by AnalyticsBootstrap.
+ * Writes both the localStorage marker (client sends) and the mirrored cookie
+ * (server-recorded conversions) so the two exclusion paths stay in lockstep,
+ * matching the admin exclusion toggle.
  */
 export function handleInternalQueryFlag(): void {
   const flag = new URLSearchParams(window.location.search).get("internal");
-  if (flag === "1") storage()?.setItem(INTERNAL_KEY, "1");
-  else if (flag === "0") storage()?.removeItem(INTERNAL_KEY);
+  if (flag === "1") {
+    storage()?.setItem(INTERNAL_KEY, "1");
+    setInternalCookie(true);
+  } else if (flag === "0") {
+    storage()?.removeItem(INTERNAL_KEY);
+    setInternalCookie(false);
+  }
 }
 
 /**

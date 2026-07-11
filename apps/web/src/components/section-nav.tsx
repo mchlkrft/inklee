@@ -7,11 +7,19 @@ export interface SectionNavItem {
   label: string;
   href: string;
   match?: string[];
+  /** When true the tab is active only on an exact path match, never as a
+   *  prefix of child routes. Use it for an index tab (e.g. a section Overview)
+   *  whose href is a prefix of every sibling route. */
+  exact?: boolean;
 }
 
 export function isActiveItem(pathname: string, item: SectionNavItem): boolean {
-  if (pathname === item.href) return true;
-  if (pathname.startsWith(item.href + "/")) return true;
+  // The href can carry a query string (the growth nav appends the selected
+  // ?range/?from/?to so it survives tab switches); usePathname() never includes
+  // the query, so match against the path portion only.
+  const base = item.href.split("?")[0];
+  if (pathname === base) return true;
+  if (!item.exact && pathname.startsWith(base + "/")) return true;
   if (item.match) {
     for (const prefix of item.match) {
       if (pathname === prefix || pathname.startsWith(prefix + "/")) return true;

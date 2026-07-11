@@ -13,9 +13,9 @@ import {
 } from "@/components/admin/growth/metric-card";
 import AcquisitionNav, { acquisitionRangeSuffix } from "../acquisition-nav";
 
-/** "â€“" is the standing placeholder for a rate with no denominator. */
+/** "–" is the standing placeholder for a rate with no denominator. */
 function pctCell(value: number | null): string {
-  return value === null ? "â€“" : `${value}%`;
+  return value === null ? "–" : `${value}%`;
 }
 
 const NO_TRAFFIC_TEXT = "No public traffic recorded in this period.";
@@ -135,8 +135,8 @@ export default async function AcquisitionPagesPage({
   return (
     <div className="space-y-10">
       <div className="space-y-3">
-        <RangePicker />
         <AcquisitionNav active="pages" rangeSuffix={rangeSuffix} />
+        <RangePicker />
       </div>
 
       <section className="space-y-3">

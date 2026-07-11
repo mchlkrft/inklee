@@ -9,6 +9,7 @@ import "server-only";
 import { serviceClient } from "@/lib/supabase/service";
 import { getGrowthContext, type GrowthContext } from "@/lib/growth-queries";
 import { dayKeyInTimeZone } from "@/lib/growth/date-range";
+import { GSC_AUTH_EXPIRED_ERROR } from "@/lib/gsc/errors";
 
 export { getGrowthContext };
 
@@ -235,6 +236,11 @@ export type GscConnectionState = {
   lastSuccessfulSyncAt: string | null;
   lastFailedSyncAt: string | null;
   lastError: string | null;
+  /** True when the last sync failed because Google rejected the refresh token
+   *  (auth expired). The connection stays "connected" and keeps serving the
+   *  last-synced data, so the pages need a reconnect CTA rather than the normal
+   *  connected view. */
+  needsReconnect: boolean;
   properties: {
     id: string;
     siteUrl: string;
@@ -277,6 +283,7 @@ export async function getGscConnectionState(): Promise<GscConnectionState> {
       lastSuccessfulSyncAt: null,
       lastFailedSyncAt: null,
       lastError: null,
+      needsReconnect: false,
       properties: [],
       activeProperty: null,
       latestSourceDate: null,
@@ -330,6 +337,7 @@ export async function getGscConnectionState(): Promise<GscConnectionState> {
     lastSuccessfulSyncAt: connection.last_successful_sync_at,
     lastFailedSyncAt: connection.last_failed_sync_at,
     lastError: connection.last_error,
+    needsReconnect: connection.last_error === GSC_AUTH_EXPIRED_ERROR,
     properties: (properties ?? []).map((property) => ({
       id: property.id,
       siteUrl: property.site_url,

@@ -71,17 +71,19 @@ Every outcome returns 202 so callers get no oracle for probing the filters. In o
 1. No-op unless `WA_VISITOR_HASH_SECRET` is set and the deployment is production.
 2. Bot filter: known crawlers, link-preview bots, monitors, headless automation, and
    missing or absurdly short user agents are rejected (`isBotUserAgent`).
-3. Internal exclusion: the `x-inklee-internal: 1` header is the server-side backstop
-   for the client marker, and `WA_EXCLUDE_IPS` (IPs or /8 /16 /24 CIDR prefixes)
-   excludes office/founder networks. Matching is transient; addresses are never stored.
+3. Internal exclusion: the `x-inklee-internal: 1` header and the mirrored `inklee_internal`
+   cookie are the server-side backstop for the client marker. That marker is per-origin
+   (set on `inklee.app`), so `WA_EXCLUDE_IPS` (IPs or /8 /16 /24 CIDR prefixes) is the
+   cross-domain mechanism that also covers `inkl.ee` booking pages. Matching is transient;
+   addresses are never stored.
 4. Payload limits: 4 KB body cap, JSON only, event name and properties validated
    against the registry, pathname normalized, client timestamps accepted only within a
    skew window (else server time).
 5. Hostname allowlist: `inklee.app` and `inkl.ee` plus their subdomains only
    (`ALLOWED_HOSTNAME_SUFFIXES` in `enrich.ts`); `localhost` is rejected.
-6. Duplicate guard: an in-process sliding window drops identical
-   (visitor hash, event, path) pageviews within 5 seconds (double-mounted effects,
-   rapid re-fires). Best effort; the database is the durable record.
+6. Duplicate guard: prevented at the source. The client collector fires one pageview per real
+   route change (`lastPageviewPath`) and only in production, so there is no server-side de-dup
+   window; a per-instance one would drop legitimate repeat pageviews across serverless instances.
 7. Enrichment: deterministic channel classification (`channels.ts`), UTM cleaning
    (150-char clamp, values containing "@" or "://" dropped), country from the
    `x-vercel-ip-country` edge header, coarse UA families, screen bucket, and the daily

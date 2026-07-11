@@ -11,6 +11,7 @@
 
 import "server-only";
 import { serviceClient } from "@/lib/supabase/service";
+import { GSC_AUTH_EXPIRED_ERROR } from "./errors";
 import { decryptToken } from "./crypto";
 import {
   querySearchAnalytics,
@@ -242,7 +243,7 @@ export async function runScheduledSync(): Promise<
         .update({
           last_failed_sync_at: new Date().toISOString(),
           last_error: authExpired
-            ? "Google authorization expired. Reconnect Search Console."
+            ? GSC_AUTH_EXPIRED_ERROR
             : (err as Error).message,
         })
         .eq("id", target.connectionId);

@@ -17,6 +17,7 @@ import {
 import { BarSeries } from "@/components/admin/growth/sparkline";
 import SearchNav from "./search-nav";
 import ConnectionPanel from "./connection-panel";
+import GscReconnectBanner from "./gsc-reconnect-banner";
 
 const DELAY_NOTE =
   "Search Console data is delayed (finalized source dates, typically 2 to 3 days behind). Google clicks are Google's measurement; they are never merged with first-party visits.";
@@ -258,6 +259,7 @@ export default async function GrowthSearchPage({
         <SearchNav active="overview" params={params} />
         <GscNotice flag={params.gsc} />
         {!state.configured && <NotConfiguredCard />}
+        <GscReconnectBanner needsReconnect={state.needsReconnect} />
         <RangePicker />
         <p className="text-xs text-muted-foreground">{DELAY_NOTE}</p>
       </div>

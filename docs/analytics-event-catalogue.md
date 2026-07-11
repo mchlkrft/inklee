@@ -94,8 +94,9 @@ Stored columns per event: `event_name`, `artist_id`, `source` (`web` | `mobile`)
 - **Fires**: web copy buttons call the server action `recordBookingLinkCopiedAction` in
   `apps/web/src/app/(artist)/growth-track-actions.ts`, which allowlists the three web surfaces
   (`onboarding_done`, `dashboard`, `link_hub`) and resolves the artist from the session. The
-  `mobile_app` surface is reserved for `/api/mobile/events` once the app-side tracker is on.
-- **Platform coverage**: web live; mobile pending the tracker flip.
+  `mobile_app` surface posts to `/api/mobile/events` from the app's Home share action
+  (`reportBookingLinkCopied` in `apps/mobile/src/lib/analytics.ts`).
+- **Platform coverage**: web live; mobile live (reaches devices with the next EAS build).
 - **Answers**: whether artists actively share their booking link, and from which surface. A leading
   indicator ahead of first requests; individual copies appear on the artist growth timeline
   (`/admin/accounts/[id]`).
@@ -119,9 +120,10 @@ Stored columns per event: `event_name`, `artist_id`, `source` (`web` | `mobile`)
   cannot rewrite history.
 - **Durability**: the batch is awaited before the response is sent, so serverless teardown cannot
   lose accepted events (the recorder never throws, so awaiting is safe).
-- **Current status**: the server contract is live. The app-side `track()` is still a no-op, so no
-  mobile client events flow yet; flipping it on is a pure mobile change scheduled for the next EAS
-  build, with zero server work remaining.
+- **Current status**: live end to end. The app posts `booking_link_copied` via
+  `reportBookingLinkCopied`; the generic `track()` is a deliberate no-op (the rest of the mobile
+  vocabulary is already captured server-side and would double-count). Mobile events reach devices
+  with the next EAS build (no OTA).
 
 ## Adding a new event
 

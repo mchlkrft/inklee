@@ -14,6 +14,7 @@ import {
 } from "@/components/admin/growth/metric-card";
 import SearchNav from "../search-nav";
 import GscDimensionTable from "../gsc-dimension-table";
+import GscReconnectBanner from "../gsc-reconnect-banner";
 
 // Google queries: what people typed into Google before seeing (and clicking)
 // an Inklee result. Search Console data only; first-party visit counts live on
@@ -98,6 +99,7 @@ export default async function SearchQueriesPage({
     <div className="space-y-8">
       <SearchNav active="queries" params={params} />
       <RangePicker />
+      <GscReconnectBanner needsReconnect={state.needsReconnect} />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

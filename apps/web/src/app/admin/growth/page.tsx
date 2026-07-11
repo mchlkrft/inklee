@@ -28,6 +28,15 @@ export default async function GrowthOverviewPage({
   const context = await getGrowthContext(params);
   const data = await getOverviewData(context);
 
+  // Carry the selected window into the in-body drill links so opening a card
+  // from a non-default range does not silently reset it (the tab strip already
+  // carries it; these body links did not).
+  const rangeQuery = new URLSearchParams();
+  if (params.range) rangeQuery.set("range", params.range);
+  if (params.from) rangeQuery.set("from", params.from);
+  if (params.to) rangeQuery.set("to", params.to);
+  const rangeSuffix = rangeQuery.toString() ? `?${rangeQuery.toString()}` : "";
+
   const currencyLabel = data.period.depositTotals
     .map(
       (row) =>
@@ -143,7 +152,7 @@ export default async function GrowthOverviewPage({
           <div className="flex items-baseline justify-between">
             <SectionHeading>Activation funnel (all time)</SectionHeading>
             <Link
-              href="/admin/growth/activation"
+              href={`/admin/growth/activation${rangeSuffix}`}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
               Open activation →
@@ -194,7 +203,7 @@ export default async function GrowthOverviewPage({
 
       <section className="grid gap-3 sm:grid-cols-2">
         <Link
-          href="/admin/growth/insights"
+          href={`/admin/growth/insights${rangeSuffix}`}
           className="rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
         >
           <p className="text-sm font-medium text-foreground">Insights</p>

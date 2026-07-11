@@ -1,23 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { setInternalCookie } from "@/lib/track";
 
 /** Same marker the collector (public-analytics/collector.ts), the Plausible
- *  helper (lib/track.ts), and the ?internal=1 query flag all share. */
+ *  helper (lib/track.ts), and the ?internal=1 query flag all share. The cookie
+ *  mirror that lets SERVER-recorded conversions skip this browser lives in
+ *  lib/track.ts (setInternalCookie), shared with the ?internal=1 query flag. */
 const INTERNAL_KEY = "inklee_internal";
-
-/** A mirrored first-party cookie so SERVER-recorded conversions (signup,
- *  booking, beta invite) can also skip this browser: the collector's
- *  localStorage marker is invisible to server actions. Cleared alongside it. */
-function setInternalCookie(on: boolean): void {
-  try {
-    document.cookie = on
-      ? "inklee_internal=1; Max-Age=63072000; Path=/; SameSite=Lax"
-      : "inklee_internal=; Max-Age=0; Path=/; SameSite=Lax";
-  } catch {
-    // cookies blocked: localStorage marker still covers client-side sends
-  }
-}
 
 /**
  * Per-browser analytics exclusion control for the growth settings page.

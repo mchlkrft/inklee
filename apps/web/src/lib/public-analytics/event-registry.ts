@@ -46,7 +46,9 @@ export const PUBLIC_EVENTS = {
     category: "acquisition",
     isConversion: false,
     properties: {},
-    clientEmittable: true,
+    // Reserved, no emitter yet: keep it off the public ingest allowlist so a
+    // client cannot POST it as visit noise. Flip to true with the real emitter.
+    clientEmittable: false,
     emitter:
       "RESERVED: no /pricing page exists on master yet; wire when one ships.",
   },
@@ -86,7 +88,9 @@ export const PUBLIC_EVENTS = {
     category: "acquisition",
     isConversion: false,
     properties: {},
-    clientEmittable: true,
+    // Reserved, no emitter yet: keep it off the public ingest allowlist (a real
+    // badge-click emitter is client-side, so flip to true when it ships).
+    clientEmittable: false,
     emitter:
       "RESERVED: /download badges are placeholder links until the app is in stores.",
   },
@@ -95,7 +99,9 @@ export const PUBLIC_EVENTS = {
     category: "acquisition",
     isConversion: false,
     properties: {},
-    clientEmittable: true,
+    // Reserved, no emitter yet: keep it off the public ingest allowlist (a real
+    // badge-click emitter is client-side, so flip to true when it ships).
+    clientEmittable: false,
     emitter:
       "RESERVED: /download badges are placeholder links until the app is in stores.",
   },

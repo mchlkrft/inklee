@@ -21,9 +21,10 @@ const MAX_BATCH = 20;
 // the catalogue (unknown names / invalid props are dropped, never stored) and
 // the CLIENT_INGESTIBLE_EVENTS allowlist (milestone events are server-observed
 // only; a client-asserted milestone would poison the once-only dedupe key).
-// Rate-limited per artist so one account cannot flood analytics_events. The
-// app's client-side track() is still a no-op; this endpoint exists so flipping
-// it on is a pure mobile change (next EAS build).
+// Rate-limited per artist so one account cannot flood analytics_events. The app
+// posts booking_link_copied here (reportBookingLinkCopied); the generic
+// client-side track() stays a deliberate no-op (the rest of the mobile
+// vocabulary is already captured server-side and would double-count).
 export async function POST(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
