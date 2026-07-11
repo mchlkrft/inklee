@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { checkMobileWaitlistRateLimit } from "@/lib/ratelimit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { recordPublicServerEvent } from "@/lib/public-analytics/record-server";
 import {
   MOBILE_WAITLIST_SOURCE_DOWNLOAD,
   parseMobileWaitlistEmail,
@@ -28,7 +29,8 @@ export async function joinMobileWaitlistAction(
   const parsed = parseMobileWaitlistEmail(formData.get("email"));
   if ("error" in parsed) return { error: parsed.error };
 
-  const ip = getClientIp(await headers());
+  const headerStore = await headers();
+  const ip = getClientIp(headerStore);
   const { allowed } = await checkMobileWaitlistRateLimit(ip);
   if (!allowed) {
     return {
@@ -51,6 +53,14 @@ export async function joinMobileWaitlistAction(
     });
     return { error: "Could not save your email. Try again." };
   }
+
+  // Public conversion (first-time joins only; the email itself never enters
+  // analytics). Awaited: a once-per-join conversion must not be lost to
+  // serverless teardown, and the recorder never throws.
+  await recordPublicServerEvent("beta_invite_requested", {
+    headers: headerStore,
+    pathname: "/download",
+  });
 
   return { success: true, alreadyOnList: false };
 }

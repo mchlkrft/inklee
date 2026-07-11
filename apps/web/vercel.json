@@ -25,6 +25,10 @@
     {
       "path": "/api/cron/growth-snapshot",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/gsc-sync",
+      "schedule": "0 6 * * *"
     }
   ],
   "redirects": [

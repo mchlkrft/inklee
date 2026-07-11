@@ -190,3 +190,119 @@ One deliberate divergence from the audit: the web activity touch shipped with an
 in-memory debounce instead of the anticipated debounce cookie, so the
 "strictly-necessary functional cookie" disclosure the audit mentioned is not needed
 (section 6).
+
+## 10. Public web analytics (anonymous visitors)
+
+Added 2026-07-11 with migration `0070_public_web_analytics.sql`, the
+`src/lib/public-analytics/*` modules, the `/api/wa/collect` ingestion route, and the
+Google Search Console sync. This extends the posture above to the one place the cockpit
+now measures public visitors. Everything here is first-party and anonymous by
+construction; the metric semantics live in `docs/metric-definitions.md` ("Public web
+analytics").
+
+### What a `web_analytics_events` row contains
+
+One row per registry-validated event (a pageview or one of the catalogued public events
+in `src/lib/public-analytics/event-registry.ts`; anything else is rejected at
+ingestion):
+
+- Timestamps: `occurred_at` (client clock within a bounded tolerance, else server time)
+  and `received_at`.
+- Event name, hostname, and normalized pathname (query strings and fragments stripped;
+  only public paths: the collector never tracks authenticated product prefixes or the
+  tokened customer portal).
+- Acquisition context: landing path, referrer domain (domain only, never a full URL),
+  the derived channel, and clamped, content-filtered utm labels (values containing "@"
+  or "://" are dropped, the same hygiene as signup attribution).
+- Coarse environment: two-letter country code from the edge header, device type,
+  browser family, OS family, and a screen-width bucket.
+- The daily visitor hash (next subsection), a conversion flag, and allowlisted coarse
+  properties (for example signup method "email" or "google"; free text is impossible by
+  schema).
+
+Deliberately never stored: raw IP addresses, raw user agents, full referrer URLs, page
+titles or DOM text, form content, emails or handles, account ids, and any persistent
+identifier.
+
+### The daily visitor hash
+
+`visitor_day_hash` is an HMAC-SHA256 over (UTC date + hostname + request IP + coarse
+browser/OS/device signal), keyed by a server-only secret and truncated
+(`visitorDayHash` in `src/lib/public-analytics/enrich.ts`).
+
+- The raw IP exists transiently inside the ingestion route (and the server-side
+  conversion recorder, `record-server.ts`) as an HMAC input and for the optional
+  exclusion check. It is never stored and never logged; the enrichment module pins this
+  invariant in code and comments.
+- The key is `WA_VISITOR_HASH_SECRET`, a server-only environment secret. Without it
+  nothing is collected, and the hash cannot be reversed to an IP.
+- The date input rotates the identifier every UTC day, so no cross-day identity exists
+  anywhere in storage. "Visitor" is an approximate daily measure, not a person.
+
+### No cookies
+
+The collector sets no cookies. sessionStorage (`inklee_wa_session`) carries same-session
+acquisition context only (landing path, referrer domain, utm labels) and dies with the
+tab. The pre-existing localStorage first-touch attribution entry (`inklee_attribution`,
+section 6) is unchanged by this layer; no new localStorage is added.
+
+### Consent posture
+
+Stated as design facts, with no legal conclusions attached: no cookies, no persistent
+identifiers, no cross-day identity, no personal data in storage, and the IP used
+transiently server-side only. The cookie banner's published statement (strictly
+necessary session cookies for artist login, no tracking cookies) stays exactly true, and
+the privacy policy already discloses cookie-free analytics ("Aggregated, cookie-free
+analytics", section 3.3). The founder-gated policy-row proposal in section 3 now covers
+Inklee's first-party analytics generally rather than the artist event layer alone; the
+anonymous visitor layer described here stores no personal identifiers, so its disclosure
+burden is lighter than the per-account artist events that proposal was written for.
+Whether any of this needs consent is a counsel question already flagged for the DPIA
+(section 7); this document claims only the design facts above.
+
+### Search Console data
+
+- `gsc_daily_totals` and `gsc_daily_dimensions` hold aggregate search statistics
+  computed by Google: clicks, impressions, CTR, and average position per day, query,
+  page, country, and device. This is aggregate data about search results for Inklee's
+  own property, not data about identifiable visitors; no personal data enters these
+  tables.
+- The OAuth refresh token is stored AES-256-GCM encrypted
+  (`gsc_connections.encrypted_refresh_token`, key
+  `GOOGLE_SEARCH_CONSOLE_TOKEN_ENCRYPTION_SECRET`). It is decrypted server-side only and
+  never leaves the server or reaches any client.
+
+### Retention
+
+- `web_analytics_events` rows older than 24 months are purged by the monthly retention
+  cron (`/api/cron/retention-purge`, by `occurred_at`), the same 24-month convention as
+  the audit log and the artist analytics tables (section 5). The rows are anonymous by
+  construction; the purge bounds storage anyway.
+- Search Console aggregates are kept indefinitely: they contain no personal data and
+  long history is their value.
+- `web_analytics_ingest_stats` holds per-day rejection counters only (counts, never
+  request data) and needs no purge.
+
+### Internal and non-production exclusion
+
+Four mechanisms keep internal usage out of the data:
+
+1. The client self-suppresses when the `inklee_internal` localStorage marker is set
+   (the same marker the Plausible events respect).
+2. The ingestion route rejects any request carrying the `x-inklee-internal: 1` header,
+   the server-side backstop; the rejection is counted, nothing about the request is
+   stored.
+3. `WA_EXCLUDE_IPS` (comma-separated IPs or /8, /16, /24 prefixes) is matched
+   transiently against the request IP; matching requests are rejected and the address is
+   never stored.
+4. Non-production environments never collect: the client is disabled outside production
+   builds, and the ingestion route and the server-side recorder both refuse when
+   `VERCEL_ENV` is not production or the hash secret is missing.
+
+### Access
+
+Same chain as section 8: the 0070 tables are RLS-enabled with intentionally no policies
+(service-role only), the SQL functions revoke EXECUTE from anon and authenticated, reads
+happen exclusively in the server-only query layer
+(`src/lib/public-analytics/queries.ts`) behind `requireAdmin()`, and writes happen only
+in the server-side ingestion route and conversion recorder via the service client.

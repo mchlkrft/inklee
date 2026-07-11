@@ -292,6 +292,183 @@ Shared facts that apply to every metric below:
 
 ---
 
+## Public web analytics
+
+The anonymous acquisition layer: what happens on the public site before anyone signs up or books.
+These metrics measure a different population than everything above (anonymous public visitors, not
+counted artists) and must never be mixed with the artist metrics.
+
+Shared facts for this section:
+
+- **Data layer**: migration `0070_public_web_analytics.sql`: the `web_analytics_events` table, the
+  `wa_visits()` sessionization primitive (the single visit definition every aggregate builds on),
+  and the aggregate functions `wa_kpis`, `wa_timeseries`, `wa_breakdown`, `wa_campaigns`, and
+  `wa_organic_landing`; plus the Search Console tables `gsc_daily_totals` and
+  `gsc_daily_dimensions` with the `gsc_dimension_agg` function. Pages read only through
+  `apps/web/src/lib/public-analytics/queries.ts`.
+- **Two measurement systems, never merged**: first-party visits and Google clicks are different
+  measurements of different things. They are never summed, substituted for each other, or shown as
+  comparable; every Search Console number in the UI is labelled "Search Console (delayed, source
+  dates)".
+- **Exclusions**: bot user agents, internal traffic (the `inklee_internal` localStorage marker,
+  the `x-inklee-internal` header, and the `WA_EXCLUDE_IPS` env list), non-production environments,
+  and non-Inklee hostnames are rejected at ingestion. Authenticated product paths (`/dashboard`,
+  `/admin`, the tokened customer portal, and the rest of the collector's private-prefix list) are
+  never tracked.
+- **Timezone**: first-party buckets are cut in the reporting timezone like the rest of the
+  cockpit; the visitor hash rotates at midnight UTC regardless. Search Console rows keep Google's
+  source dates unconverted.
+- **Refresh**: first-party numbers are computed live at page load. Search Console data is synced
+  once a day at 06:00 UTC (`/api/cron/gsc-sync`), re-fetching a rolling 10-day window because
+  Google finalizes its data late.
+- **Changing a definition**: the protocol at the end of this document applies here too; see the
+  note there for where the executable definitions live.
+
+### Visitor
+
+- **Plain language**: an approximate count of distinct people on the public site.
+- **Calculation**: distinct `visitor_day_hash` values among the visits in the window. The hash is
+  a server-side HMAC of (UTC date + hostname + transient request IP + coarse browser/OS/device
+  signal); it rotates every UTC day and cannot be reversed.
+- **Sources**: `web_analytics_events.visitor_day_hash`, counted through `wa_visits()` and
+  `wa_kpis` (migration 0070).
+- **Inclusions**: non-bot, non-internal traffic on Inklee hostnames.
+- **Exclusions**: the shared exclusions above.
+- **Timezone**: the hash rotates at midnight UTC regardless of the reporting timezone.
+- **Refresh**: live on page load.
+- **Known limitations**: approximate by design. The same person counts once per day per hostname
+  (there is deliberately no cross-day identity); different people behind one IP with the same
+  browser and OS collapse into one visitor; a network change mid-day mints a new one. Not
+  comparable to Google clicks.
+- **Last changed**: 2026-07-11.
+
+### Visit
+
+- **Plain language**: one session on the public site.
+- **Calculation**: the events of one daily visitor hash with no inactivity gap longer than 30
+  minutes form one visit (`wa_visits()`, migration 0070: the single sessionization definition
+  every aggregate builds on). A visit is attributed to its first pageview: landing page, channel,
+  utm values, referrer domain, country, and device all come from that first event.
+- **Sources**: `wa_visits()` over `web_analytics_events` (0070).
+- **Inclusions**: every stored event belongs to exactly one visit.
+- **Exclusions**: the shared exclusions apply at ingestion, so excluded traffic never forms
+  visits.
+- **Timezone**: visits bucket in the reporting timezone by their start. Because the visitor hash
+  rotates at midnight UTC, a visit never spans midnight UTC; a session crossing it counts as two
+  visits.
+- **Refresh**: live on page load.
+- **Known limitations**: the 30-minute gap is a convention, not observed truth, and the midnight
+  UTC split slightly inflates visit counts for sessions that cross it.
+- **Last changed**: 2026-07-11.
+
+### Pageview
+
+- **Plain language**: one public page navigation.
+- **Calculation**: count of `pageview` events in the window. The client emits one per real
+  navigation (initial load or client-side route change) and drops same-path repeats; the ingestion
+  route additionally drops identical events arriving within five seconds.
+- **Sources**: `web_analytics_events` via `wa_kpis` and `wa_timeseries` (0070).
+- **Inclusions**: allowlisted public paths on Inklee hostnames.
+- **Exclusions**: authenticated product prefixes and the tokened customer portal (the collector's
+  private-prefix list), plus the shared exclusions.
+- **Timezone**: bucketed in the reporting timezone.
+- **Refresh**: live on page load.
+- **Known limitations**: ad blockers suppress some collection, so pageviews undercount reality.
+  Not comparable to Google impressions.
+- **Last changed**: 2026-07-11.
+
+### Landing page
+
+- **Plain language**: the page a visit started on.
+- **Calculation**: the pathname of the visit's first pageview. When the first event of a visit is
+  not a pageview, the client's same-session landing hint (`landing_path`, sessionStorage) is the
+  fallback.
+- **Sources**: `wa_visits()`, `wa_breakdown('landing_path')`, and `wa_organic_landing` (0070).
+- **Inclusions**: trackable public paths only.
+- **Exclusions**: the shared exclusions.
+- **Timezone**: follows the visit's bucket in the reporting timezone.
+- **Refresh**: live on page load.
+- **Known limitations**: browsers with sessionStorage blocked produce no landing hint, so a visit
+  whose first event is not a pageview can have no landing page ("(none)" in breakdowns).
+- **Last changed**: 2026-07-11.
+
+### Public conversion
+
+- **Plain language**: a public visitor completed one of the outcomes the event registry marks as a
+  conversion.
+- **Calculation**: events whose registry definition sets `isConversion: true`; today
+  `artist_signup_completed`, `beta_invite_requested`, and `booking_request_completed`. Stored as
+  `is_conversion` on the row and counted per visit.
+- **Sources**: `apps/web/src/lib/public-analytics/event-registry.ts` (the only place a conversion
+  can be declared), `web_analytics_events.is_conversion`, `wa_visits()` (0070).
+- **Inclusions**: registry-validated events only; unknown names and non-allowlisted properties are
+  rejected at ingestion.
+- **Exclusions**: the shared exclusions.
+- **Timezone**: bucketed in the reporting timezone.
+- **Refresh**: live on page load.
+- **Known limitations**: flipping a registry conversion flag changes this metric's meaning for all
+  history; that is a definition change and follows the protocol below.
+- **Last changed**: 2026-07-11.
+
+### Signup conversion rate
+
+- **Plain language**: the share of public visits that ended in a created artist account.
+- **Calculation**: `artist_signup_completed` completions / visits, both within the window
+  (`wa_kpis` over `wa_visits()`, migration 0070). Renders "–" when there are no visits in the
+  window, never a fake 0%.
+- **Sources**: `web_analytics_events` via `wa_kpis` (0070). Completions are recorded server-side
+  at account creation and join the visitor's visit via the same daily hash.
+- **Inclusions**: completions and visits inside the selected window.
+- **Exclusions**: the shared exclusions.
+- **Timezone**: window boundaries in the reporting timezone.
+- **Refresh**: live on page load.
+- **Known limitations**: numerator and denominator are both first-party measurements, so blocked
+  collection (ad blockers, blocked storage) suppresses both, and small windows are noisy. Never
+  computed against Google clicks.
+- **Last changed**: 2026-07-11.
+
+### CTR (Search Console)
+
+- **Plain language**: the share of Google search impressions that became clicks, as measured by
+  Google.
+- **Calculation**: sum of clicks / sum of impressions over the range, recomputed from the summed
+  counts (`gsc_dimension_agg`, migration 0070). Never an average of daily CTR values, which would
+  weight a 3-impression day like a 3,000-impression day.
+- **Sources**: `gsc_daily_totals` and `gsc_daily_dimensions` (0070), filled daily from the Search
+  Console API (search type `web`).
+- **Inclusions**: Google web-search performance for the connected property.
+- **Exclusions**: none applied by Inklee; Google applies its own privacy thresholds and filtering
+  before the data reaches the API.
+- **Timezone**: Google source dates, stored and displayed unconverted, labelled "Search Console
+  (delayed, source dates)". These days do not line up with the reporting-timezone days of the
+  first-party metrics.
+- **Refresh**: daily sync at 06:00 UTC (`/api/cron/gsc-sync`) re-fetching a rolling 10-day window,
+  so recent days self-correct as Google finalizes them.
+- **Known limitations**: Google's data arrives roughly two to three days late and can be revised.
+  Clicks are not visits and impressions are not pageviews; the two systems are never merged or
+  substituted for each other.
+- **Last changed**: 2026-07-11.
+
+### Average position (Search Console)
+
+- **Plain language**: the average ranking of Inklee pages in Google results; lower is better.
+- **Calculation**: impression-weighted mean across the days in the range: sum(average position ×
+  impressions) / sum(impressions) (`gsc_dimension_agg`, migration 0070). A plain average of daily
+  positions would let near-zero-impression days distort the number.
+- **Sources**: `gsc_daily_totals` and `gsc_daily_dimensions` (0070), filled daily from the Search
+  Console API.
+- **Inclusions**: impressions for the connected property, weighted as above.
+- **Exclusions**: none applied by Inklee; ranges with zero impressions render "–".
+- **Timezone**: Google source dates, stored and displayed unconverted, labelled "Search Console
+  (delayed, source dates)".
+- **Refresh**: daily sync at 06:00 UTC with the rolling 10-day self-correction window.
+- **Known limitations**: position is Google's own average of where the page ranked per impression;
+  comparing positions across unrelated queries is not meaningful, and the value is only as final
+  as Google's data for those days.
+- **Last changed**: 2026-07-11.
+
+---
+
 ## Known data-history limitations
 
 These caveats apply across the whole cockpit and are surfaced in the UI where relevant:
@@ -325,5 +502,12 @@ history: every past reading of that metric means something different afterwards.
 3. Call the change out explicitly in the PR description: which readings shift, from when, and
    whether before/after values remain comparable. The Activated change of 2026-07-11 (superseding
    the old onboarding-completed-only definition) is the template for how to record this.
+
+The same protocol applies to the public web analytics definitions above. Their executable homes
+are migration 0070's SQL functions (`wa_visits()` above all: every visit-based number inherits its
+definition), the event registry (`apps/web/src/lib/public-analytics/event-registry.ts`, which pins
+event names and conversion flags), and the channel classifier
+(`apps/web/src/lib/public-analytics/channels.ts`). Changing any of those changes what past
+readings mean and must update `definitions-content.ts` and this document in the same PR.
 
 A definition change that ships without all three parts is a bug.

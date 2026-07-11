@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { checkSignupRateLimit } from "@/lib/ratelimit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { recordPublicServerEvent } from "@/lib/public-analytics/record-server";
 import { validatePassword } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | { sent: true } | null;
@@ -24,14 +25,23 @@ export async function signUpAction(
     return { error: "Passwords do not match." };
   }
 
-  const ip = getClientIp(await headers());
+  const headerStore = await headers();
+  const ip = getClientIp(headerStore);
   const { allowed } = await checkSignupRateLimit(ip);
   if (!allowed) {
     return { error: "Too many sign-up attempts. Please wait a few minutes." };
   }
 
+  // Public acquisition funnel: a validated submission reached the server
+  // (fire-and-forget; analytics must never affect signup).
+  void recordPublicServerEvent("artist_signup_started", {
+    headers: headerStore,
+    pathname: "/signup",
+    props: { method: "email" },
+  });
+
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -44,6 +54,20 @@ export async function signUpAction(
       return { error: "An account with that email already exists." };
     }
     return { error: error.message };
+  }
+
+  // Supabase returns success for an existing email too (enumeration
+  // protection): the tell is an empty identities array. Only record the
+  // conversion for a genuinely new account. Awaited so a once-per-account
+  // conversion cannot be lost to serverless teardown; the recorder never
+  // throws and cannot fail the signup.
+  const isNewAccount = (data.user?.identities?.length ?? 0) > 0;
+  if (isNewAccount) {
+    await recordPublicServerEvent("artist_signup_completed", {
+      headers: headerStore,
+      pathname: "/signup",
+      props: { method: "email" },
+    });
   }
 
   const {

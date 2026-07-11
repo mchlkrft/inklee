@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import AnalyticsBootstrap from "@/components/analytics-bootstrap";
+import PublicAnalytics from "@/components/public-analytics";
 import CookieBanner from "@/components/cookie-banner";
 import JsonLd from "@/components/seo/json-ld";
 import { organizationSchema, websiteSchema } from "@/lib/jsonld";
@@ -83,6 +84,10 @@ export default function RootLayout({
         </Script>
         {children}
         <AnalyticsBootstrap />
+        {/* First-party public analytics (cookie-free, public pages only).
+            Runs beside Plausible during the migration transition; Plausible
+            is removed once parity is confirmed in production. */}
+        <PublicAnalytics />
         <CookieBanner />
         <Script
           defer

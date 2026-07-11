@@ -30,6 +30,7 @@ import {
   todayInTimeZone,
 } from "@/lib/date-utils";
 import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
+import { recordPublicServerEvent } from "@/lib/public-analytics/record-server";
 import {
   parseInterestSelections,
   computeInterestRows,
@@ -594,6 +595,14 @@ export async function submitBookingAction(
     booking_id: bookingId,
     action: "booking_created",
     details: { origin: "public_form", ip },
+  });
+
+  // Public acquisition conversion (anonymous; carries no booking content, no
+  // customer data, only the page path). Awaited: a once-per-booking conversion
+  // must not be lost to serverless teardown, and the recorder never throws.
+  await recordPublicServerEvent("booking_request_completed", {
+    headers: headersList,
+    pathname: `/${artistSlug}`,
   });
 
   // Persist booking_interests last so a goods-side write failure can never

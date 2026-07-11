@@ -4,8 +4,15 @@ import {
   loadGrowthSettings,
   type GrowthSettings,
 } from "@/lib/growth/settings";
+import { getWaDiagnostics } from "@/lib/public-analytics/queries";
 import { SectionHeading } from "@/components/admin/growth/metric-card";
+import InternalExclusionToggle from "@/components/admin/growth/internal-exclusion-toggle";
 import SettingsForm from "./settings-form";
+
+/** ISO timestamp to a compact UTC label (the diagnostics day is a UTC day). */
+function formatUtc(iso: string): string {
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
 
 /** Label + plain-language description per editable setting. Values themselves
  *  come from loadGrowthSettings (stored overrides merged over defaults). */
@@ -83,6 +90,28 @@ const SETTING_ROWS: {
 export default async function GrowthSettingsPage() {
   await requireAdmin();
   const settings = await loadGrowthSettings();
+  const diagnostics = await getWaDiagnostics();
+
+  const rejectionRows = diagnostics.rejectionsToday
+    ? [
+        {
+          label: "Bot filtered",
+          count: diagnostics.rejectionsToday.bot_rejected,
+        },
+        {
+          label: "Invalid payload",
+          count: diagnostics.rejectionsToday.invalid_payload,
+        },
+        {
+          label: "Internal browser",
+          count: diagnostics.rejectionsToday.internal_rejected,
+        },
+        {
+          label: "Unsupported hostname",
+          count: diagnostics.rejectionsToday.unsupported_hostname,
+        },
+      ]
+    : null;
 
   return (
     <div className="space-y-10">
@@ -144,6 +173,81 @@ export default async function GrowthSettingsPage() {
         Threshold changes apply immediately to all cockpit views and do not
         rewrite the daily snapshots.
       </p>
+
+      <section className="space-y-3">
+        <SectionHeading>Public analytics</SectionHeading>
+        <InternalExclusionToggle />
+
+        <div className="rounded-md border border-border p-5 space-y-4">
+          <p className="text-sm font-medium text-foreground">
+            Collector diagnostics
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Collector configured
+              </p>
+              <p className="mt-0.5 text-sm text-foreground">
+                {diagnostics.collectorConfigured
+                  ? "Yes"
+                  : "No (WA_VISITOR_HASH_SECRET is not set)"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Last event received
+              </p>
+              <p className="mt-0.5 text-sm tabular-nums text-foreground">
+                {diagnostics.lastEventAt
+                  ? formatUtc(diagnostics.lastEventAt)
+                  : "No events received yet."}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Events today (UTC day)
+              </p>
+              <p className="mt-0.5 text-sm tabular-nums text-foreground">
+                {diagnostics.eventsToday}
+              </p>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Rejections today (UTC day), by reason
+            </p>
+            {rejectionRows ? (
+              <ul className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+                {rejectionRows.map((row) => (
+                  <li key={row.label} className="text-sm text-muted-foreground">
+                    {row.label}:{" "}
+                    <span className="tabular-nums text-foreground">
+                      {row.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">
+                No rejections recorded today.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-5">
+          <p className="text-sm text-foreground">
+            The collector never stores raw IP addresses, full user agents, full
+            referrer URLs, form content, or persistent identifiers.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Visitors are counted through a daily-rotating anonymous hash,
+            referrers are reduced to their domain, and query strings are
+            stripped from paths. The full behaviour and the public event
+            registry are documented in docs/public-analytics.md.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

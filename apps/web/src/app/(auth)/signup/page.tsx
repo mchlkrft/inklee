@@ -7,6 +7,7 @@ import { signUpAction } from "./actions";
 import GoogleAuthButton from "@/components/google-auth-button";
 import PasswordInput from "@/components/password-input";
 import { trackEvent } from "@/lib/track";
+import { trackPublicEvent } from "@/lib/public-analytics/collector";
 import { PASSWORD_RULES_HINT } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | { sent: true } | null;
@@ -170,7 +171,12 @@ export default function SignupPage() {
 
       <GoogleAuthButton
         label="Sign up with Google"
-        onEngage={() => trackEvent("signup_started", { method: "google" })}
+        onEngage={() => {
+          trackEvent("signup_started", { method: "google" });
+          // First-party acquisition funnel (the email path records its start
+          // server-side; the Google redirect leaves the page, so it fires here).
+          trackPublicEvent("artist_signup_started", { method: "google" });
+        }}
       />
     </div>
   );

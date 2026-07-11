@@ -66,6 +66,7 @@ export const RESERVED_SLUGS = new Set([
   "calendar",
   "clients",
   "waitlist",
+  "unsubscribe",
   "analytics",
   "travel",
 

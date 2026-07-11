@@ -10,6 +10,7 @@ import {
 import { isAdminEmail } from "@/lib/admin-guard";
 import {
   attributionPropsFromForm,
+  sanitizeAttributionValue,
   shouldFireBookingLinkCreated,
 } from "@/lib/analytics-gates";
 import { trackServerEvent } from "@/lib/track-server";
@@ -18,6 +19,29 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 type State = { error: string } | null;
+
+const LAST_TOUCH_KEYS = [
+  "last_entry_path",
+  "last_referrer",
+  "last_source",
+  "last_medium",
+  "last_campaign",
+] as const;
+
+/** Last-touch acquisition fields (same validation as first-touch: expected
+ *  keys only, clamped, content-filtered). */
+function lastTouchPropsFromForm(formData: {
+  get(name: string): unknown;
+}): Record<string, string> {
+  const props: Record<string, string> = {};
+  for (const key of LAST_TOUCH_KEYS) {
+    const raw = formData.get(`attr_${key}`);
+    if (typeof raw !== "string") continue;
+    const value = sanitizeAttributionValue(raw);
+    if (value) props[key] = value;
+  }
+  return props;
+}
 
 export async function checkSlugAvailability(
   slug: string,
@@ -100,13 +124,16 @@ export async function claimSlugAction(
     updated_at: new Date().toISOString(),
     // First-touch attribution, persisted exactly once (the first claim). The
     // values arrive as validated, length-clamped hidden fields (localStorage
-    // capture; cookie-free). Written even when empty so "captured, nothing to
-    // attribute" (direct visit) stays distinguishable from accounts that
-    // predate capture (NULL).
+    // capture; cookie-free). Last-touch keys carry the CURRENT session's
+    // acquisition context (sessionStorage) and are captured at the same
+    // moment, i.e. the last touch as of registration completion. Written even
+    // when empty so "captured, nothing to attribute" (direct visit) stays
+    // distinguishable from accounts that predate capture (NULL).
     ...(isFirstClaim
       ? {
           signup_attribution: {
             ...attributionPropsFromForm(formData),
+            ...lastTouchPropsFromForm(formData),
             platform: "web",
             captured_at: new Date().toISOString(),
           },

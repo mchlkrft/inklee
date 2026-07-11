@@ -4,6 +4,7 @@ import BrandedDateInput from "@/components/public-booking/branded-date-input";
 import { useActionState, useRef, useState, startTransition } from "react";
 import Link from "next/link";
 import { submitBookingAction } from "./actions";
+import { trackPublicEvent } from "@/lib/public-analytics/collector";
 import { SIZES, SIZE_LABELS } from "@/lib/booking-schema";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import CustomFieldInput from "@/components/custom-field-input";
@@ -207,6 +208,9 @@ export default function BookingForm({
       setDemoBlocked(true);
       return;
     }
+    // Public acquisition funnel: a submission was attempted (completion is
+    // recorded server-side on success). Never reads form values.
+    trackPublicEvent("booking_request_started");
     const fd = new FormData(e.currentTarget);
     fd.delete("images");
     fd.set("artist_slug", artistSlug);

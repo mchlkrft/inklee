@@ -91,11 +91,26 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: activityError.message }, { status: 500 });
   }
 
+  // Public web analytics rows are anonymous by construction (daily-rotating
+  // visitor hash) but still follow the same 24-month bound.
+  const { data: purgedWebEvents, error: webEventsError } = await serviceClient
+    .from("web_analytics_events")
+    .delete()
+    .lt("occurred_at", auditCutoff)
+    .select("id");
+  if (webEventsError) {
+    return NextResponse.json(
+      { error: webEventsError.message },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     purged_financial_records: purgedFinancial?.length ?? 0,
     purged_audit_rows: purgedAudit?.length ?? 0,
     purged_admin_rows: purgedAdmin?.length ?? 0,
     purged_analytics_events: purgedEvents?.length ?? 0,
     purged_activity_days: purgedActivity?.length ?? 0,
+    purged_web_analytics_events: purgedWebEvents?.length ?? 0,
   });
 }

@@ -129,6 +129,17 @@ export async function checkMfaRecoverRateLimit(userId: string) {
   return check(mfaRecoverRl, userId);
 }
 
+// Public web analytics ingestion: 120 / IP / minute. Generous so real
+// multi-tab browsing is never throttled, but caps a single client flooding
+// the collector. Keyed on the transient IP (never stored).
+const analyticsIngestRl = makeLimit(
+  Ratelimit.slidingWindow(120, "1 m"),
+  "inklee:wa-ingest",
+);
+export async function checkAnalyticsIngestRateLimit(ip: string) {
+  return check(analyticsIngestRl, ip);
+}
+
 // Growth analytics events: 120 / artist / hour, shared by the mobile batch
 // endpoint and the web link-copy action. Far above real usage, but caps a
 // single account flooding analytics_events (fire-and-forget telemetry writes).

@@ -187,6 +187,11 @@ export function decideHostRouting(
   routing: HostRouting,
   url: { pathname: string; search: string },
 ): HostRoutingDecision {
+  // API routes are host-agnostic app endpoints and must NEVER be prefixed with
+  // a slug (a subdomain rewrite of /api/wa/collect -> /<slug>/api/wa/collect
+  // 404s the analytics beacon and any other same-origin API call).
+  const isApiPath = url.pathname === "/api" || url.pathname.startsWith("/api/");
+
   switch (routing.kind) {
     case "marketing":
     case "preview":
@@ -194,7 +199,7 @@ export function decideHostRouting(
       return { action: "pass" };
 
     case "local":
-      if (routing.slug) {
+      if (routing.slug && !isApiPath) {
         return {
           action: "rewrite-artist",
           slug: routing.slug,
@@ -205,6 +210,7 @@ export function decideHostRouting(
       return { action: "pass" };
 
     case "artist-subdomain":
+      if (isApiPath) return { action: "pass" };
       return {
         action: "rewrite-artist",
         slug: routing.slug,
@@ -213,6 +219,7 @@ export function decideHostRouting(
       };
 
     case "hub-subdomain":
+      if (isApiPath) return { action: "pass" };
       return {
         action: "rewrite-artist",
         slug: routing.slug,

@@ -266,6 +266,142 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
       "Changing the timezone shifts bucket boundaries, so numbers near midnight can move between adjacent days.",
     lastChanged: LAST_CHANGED,
   },
+  {
+    name: "Visitor (public web)",
+    plainLanguage:
+      "A unique anonymous browser seen on the public site on a given day.",
+    calculation:
+      "Distinct daily visitor hashes: an HMAC of the date, hostname, transient request IP, and a coarse user-agent signal, computed server-side at ingest. The hash rotates every day and cannot be reversed, so a visitor is an approximate daily unit, not a persistent person.",
+    sources:
+      "web_analytics_events via the wa_kpis, wa_timeseries, and wa_breakdown SQL functions (migration 0070).",
+    inclusions:
+      "Public surfaces only: marketing pages, artist booking pages, and the link hub.",
+    exclusions:
+      "Authenticated product routes, traffic rejected at ingest (bots, invalid payloads), internal browsers (the inklee_internal marker), and non-production environments.",
+    timezone:
+      "First-party buckets are cut in the reporting timezone; the hash itself rotates at midnight UTC.",
+    refresh: "Live on page load; events arrive seconds after the pageview.",
+    limitations:
+      "The same person counts again on every new day, browser, network, or device, and privacy tooling can split or hide them. Data exists only from the 2026-07 deploy onward.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "Visit (public web)",
+    plainLanguage: "One continuous browsing session on the public site.",
+    calculation:
+      "Events from one daily visitor with no gap over 30 minutes form one visit, attributed to its first pageview (landing page, channel, UTM, referrer, geo, device). Because the visitor hash rotates daily, a visit never spans midnight UTC.",
+    sources:
+      "web_analytics_events via wa_visits, the single sessionization primitive every wa_* aggregate in migration 0070 builds on.",
+    inclusions: "Every visit containing at least one accepted public event.",
+    exclusions: "Excluded traffic never forms visits (see Visitor).",
+    timezone:
+      "First-party buckets are cut in the reporting timezone; the midnight session cut is UTC, a side effect of the hash rotation.",
+    refresh: "Live on page load.",
+    limitations:
+      "A session crossing midnight UTC counts as two visits. First-party visits and Search Console clicks are different measurements; never compare them one to one.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "Pageview (public web)",
+    plainLanguage: "A public page was shown to a visitor.",
+    calculation:
+      "A valid, visible public page navigation (initial load or client-side route change). Query strings are stripped before storage, and repeated route events for the same path are deduplicated per route change.",
+    sources:
+      "web_analytics_events via the wa_* SQL functions (migration 0070).",
+    inclusions: "Trackable public paths on production hostnames.",
+    exclusions:
+      "Authenticated and product route prefixes (the collector's private-prefix list), bots, and internal browsers.",
+    timezone: "First-party buckets are cut in the reporting timezone.",
+    refresh: "Live on page load.",
+    limitations:
+      "Stripping query strings collapses variants of the same path into one row, so campaign parameters are visible only through the UTM fields.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "Landing page (public web)",
+    plainLanguage: "The first page a visit started on.",
+    calculation:
+      "The pathname of the visit's first pageview. When a visit's first event is not a pageview, the event's stored landing hint (captured once per tab session by the collector) stands in.",
+    sources:
+      "web_analytics_events via wa_visits, wa_breakdown (landing_path), and wa_organic_landing (migration 0070).",
+    inclusions: "All visits, grouped by their entry page.",
+    exclusions: "Excluded traffic (see Visitor).",
+    timezone: "First-party buckets are cut in the reporting timezone.",
+    refresh: "Live on page load.",
+    limitations:
+      "When sessionStorage is blocked, the landing hint degrades to the per-event path, which can attribute a visit to a deeper page than its true entry.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "Public conversion",
+    plainLanguage:
+      "A public event the event registry marks as a conversion: artist signup completed, booking request completed, or beta invite requested.",
+    calculation:
+      "Events whose registry definition sets isConversion = true, counted per visit in the aggregates.",
+    sources:
+      "web_analytics_events via the wa_* SQL functions (migration 0070); the registry is src/lib/public-analytics/event-registry.ts.",
+    inclusions:
+      "Registry-validated conversion events, including the server-emitted ones (signup completed, booking request completed).",
+    exclusions:
+      "Everything not in the registry is rejected at ingest and can never count.",
+    timezone: "First-party buckets are cut in the reporting timezone.",
+    refresh: "Live on page load.",
+    limitations:
+      "Which events count is defined only in the registry; changing a definition's conversion flag changes this number from that moment on, with no backfill.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "Signup conversion rate (public web)",
+    plainLanguage:
+      "The share of public visits that end in a completed artist signup.",
+    calculation:
+      "artist_signup_completed events divided by visits, for the selected period or breakdown row.",
+    sources:
+      "web_analytics_events via wa_kpis, wa_timeseries, and wa_breakdown (migration 0070).",
+    inclusions: "All counted visits and all completed signups in the window.",
+    exclusions: "Excluded traffic (see Visitor).",
+    timezone: "First-party buckets are cut in the reporting timezone.",
+    refresh: "Live on page load.",
+    limitations:
+      "Renders as – when the period has no visits. A signup can complete in a later visit than the one that brought the person in, so small windows are noisy. The denominator is first-party visits, never Google clicks.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "CTR (Search Console)",
+    plainLanguage:
+      "How often a Google search impression turned into a click on an Inklee result.",
+    calculation:
+      "Clicks divided by impressions, exactly as returned by Google; aggregates over multiple days divide summed clicks by summed impressions.",
+    sources:
+      "gsc_daily_totals and gsc_daily_dimensions tables and the gsc_dimension_agg SQL function (migration 0070), synced from the Search Console API.",
+    inclusions: "Web search results for the connected property.",
+    exclusions:
+      "Nothing is filtered on our side; Google applies its own privacy filtering before the data reaches the API.",
+    timezone:
+      "Search Console (delayed, source dates): Google's own day boundaries, stored and shown unconverted; first-party buckets use the reporting timezone instead.",
+    refresh:
+      "Updated by the sync engine; Google finalizes a day roughly 2 to 3 days after it ends.",
+    limitations:
+      "Google's measurement on Google's day boundaries. Clicks are not first-party visits; the two never merge or substitute for each other.",
+    lastChanged: LAST_CHANGED,
+  },
+  {
+    name: "Average position (Search Console)",
+    plainLanguage:
+      "Where Inklee results ranked in Google searches, on average (lower is better).",
+    calculation:
+      "Google's position metric as returned by the API; when aggregated across days it is impression-weighted (position times impressions, summed, divided by summed impressions).",
+    sources:
+      "gsc_daily_totals and gsc_daily_dimensions tables and the gsc_dimension_agg SQL function (migration 0070).",
+    inclusions: "Web search results for the connected property.",
+    exclusions: "Rows Google omits from the API never enter the average.",
+    timezone:
+      "Search Console (delayed, source dates): Google's own day boundaries, unconverted.",
+    refresh: "Updated by the sync engine, on Google's reporting delay.",
+    limitations:
+      "Position is defined by Google, not by us. Impression-weighted averages move when impression volume shifts, even if actual rankings are stable.",
+    lastChanged: LAST_CHANGED,
+  },
 ];
 
 /** Data-history caveats that apply across the whole cockpit. */
@@ -278,4 +414,7 @@ export const KNOWN_LIMITATIONS: string[] = [
   "Retention cohort cells only cover the trailing 180 days of activity; checkpoint windows before that render blank.",
   "Audit rows without a booking are purged after 24 months.",
   "Email open counts are inflated by mail-client prefetching, so unique opens are used.",
+  "Public web analytics data exists only from the 2026-07 deploy onward. Plausible history is not imported.",
+  "Search Console totals and the query and page breakdowns can disagree: Google omits low-volume rows from the breakdowns.",
+  "Search Console clicks and first-party visits are different measurements; they are never merged or substituted for each other.",
 ];

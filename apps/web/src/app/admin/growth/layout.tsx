@@ -7,6 +7,7 @@ import GrowthSectionNav from "./growth-section-nav";
 const SECTIONS = [
   { label: "Overview", href: "/admin/growth" },
   { label: "Acquisition", href: "/admin/growth/acquisition" },
+  { label: "Search", href: "/admin/growth/search" },
   { label: "Activation", href: "/admin/growth/activation" },
   { label: "Engagement", href: "/admin/growth/engagement" },
   { label: "Retention", href: "/admin/growth/retention" },
