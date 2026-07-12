@@ -4,12 +4,24 @@
 import type { LifecycleDefinition } from "../types";
 import { definition as def_books_open_live } from "./books_open_live";
 import { definition as def_first_booking_approved } from "./first_booking_approved";
+import { definition as def_inactive_day_14 } from "./inactive_day_14";
 import { definition as def_no_requests_day_14 } from "./no_requests_day_14";
+import { definition as def_no_requests_day_30 } from "./no_requests_day_30";
 import { definition as def_no_requests_day_7 } from "./no_requests_day_7";
+import { definition as def_setup_day_1 } from "./setup_day_1";
+import { definition as def_setup_day_3 } from "./setup_day_3";
+import { definition as def_setup_day_7 } from "./setup_day_7";
+import { definition as def_welcome } from "./welcome";
 
 export const LIFECYCLE_DEFINITIONS: LifecycleDefinition[] = [
   def_books_open_live,
   def_first_booking_approved,
+  def_inactive_day_14,
   def_no_requests_day_14,
+  def_no_requests_day_30,
   def_no_requests_day_7,
+  def_setup_day_1,
+  def_setup_day_3,
+  def_setup_day_7,
+  def_welcome,
 ];
