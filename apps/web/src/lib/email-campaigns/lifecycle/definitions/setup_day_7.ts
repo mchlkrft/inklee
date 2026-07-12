@@ -7,7 +7,7 @@ import type { LifecycleDefinition } from "../types";
 export const definition: LifecycleDefinition = {
   key: "setup_day_7",
   name: "Setup incomplete, day 7",
-  status: "draft",
+  status: "active",
   audienceKey: "setup_incomplete_day_7",
   throttleDays: 1,
   preferenceCategory: "lifecycle",

@@ -7,7 +7,7 @@ import type { LifecycleDefinition } from "../types";
 export const definition: LifecycleDefinition = {
   key: "inactive_day_14",
   name: "Inactive after setup, day 14",
-  status: "draft",
+  status: "active",
   audienceKey: "inactive_day_14",
   throttleDays: 7,
   preferenceCategory: "lifecycle",

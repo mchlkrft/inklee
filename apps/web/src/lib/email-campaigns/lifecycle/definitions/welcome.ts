@@ -7,7 +7,7 @@ import type { LifecycleDefinition } from "../types";
 export const definition: LifecycleDefinition = {
   key: "welcome",
   name: "Welcome to Inklee",
-  status: "draft",
+  status: "active",
   audienceKey: "new_signups",
   throttleDays: 0,
   preferenceCategory: "lifecycle",
