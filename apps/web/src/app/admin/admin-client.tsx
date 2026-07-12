@@ -3,6 +3,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
+import SelectInput from "@/components/select-input";
+import { relativeTime } from "@/lib/format";
 import type {
   getKpis,
   getOnboardingFunnel,
@@ -40,22 +42,14 @@ function delta(current: number, previous: number): string | null {
 
 function deltaColor(current: number, previous: number): string {
   if (previous === 0) return "text-muted-foreground";
-  return current >= previous ? "text-green-500" : "text-red-500";
+  return current >= previous ? "text-brand-green" : "text-brand-red";
 }
 
 function fmtHours(h: number | null): string {
-  if (h === null) return "—";
+  if (h === null) return "–";
   if (h < 1) return `${Math.round(h * 60)}m`;
   if (h < 48) return `${Math.round(h)}h`;
   return `${Math.round(h / 24)}d`;
-}
-
-function relTime(iso: string | null): string {
-  if (!iso) return "never";
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (d === 0) return "today";
-  if (d === 1) return "yesterday";
-  return `${d}d ago`;
 }
 
 export default function AdminClient({
@@ -87,7 +81,8 @@ export default function AdminClient({
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Admin Analytics</h1>
+            <p className="text-xs text-muted-foreground">Admin</p>
+            <h1 className="text-2xl font-semibold">Admin analytics</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Internal. Not artist-facing.
             </p>
@@ -97,7 +92,8 @@ export default function AdminClient({
               <button
                 key={r.value}
                 onClick={() => setRange(r.value)}
-                className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                aria-pressed={range === r.value}
+                className={`rounded-full px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                   range === r.value
                     ? "bg-foreground text-background"
                     : "bg-muted text-muted-foreground hover:text-foreground"
@@ -215,7 +211,7 @@ export default function AdminClient({
             />
             <KpiCard
               label="Cancellation rate"
-              value={kpis.cancelRate !== null ? `${kpis.cancelRate}%` : "—"}
+              value={kpis.cancelRate !== null ? `${kpis.cancelRate}%` : "–"}
             />
             <KpiCard
               label="Median response"
@@ -286,7 +282,7 @@ export default function AdminClient({
                     <span className="text-foreground">{step.label}</span>
                     <div className="flex items-center gap-3">
                       {dropoff !== null && dropoff > 0 && (
-                        <span className="text-xs text-red-500">
+                        <span className="text-xs text-brand-red">
                           −{dropoff}%
                         </span>
                       )}
@@ -335,7 +331,7 @@ export default function AdminClient({
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${
-                        isNegative ? "bg-red-500/40" : "bg-foreground/40"
+                        isNegative ? "bg-brand-red/40" : "bg-foreground/40"
                       }`}
                       style={{ width: `${pct}%` }}
                     />
@@ -390,7 +386,7 @@ export default function AdminClient({
                   label="Approved, no decided_at"
                   count={integrity.approvedNoDecidedAt}
                   severity="medium"
-                  hint="Status mismatch — decided_at is null"
+                  hint="Status mismatch: decided_at is null"
                 />
               )}
               {integrity.depositPendingNoAmount > 0 && (
@@ -420,17 +416,19 @@ export default function AdminClient({
           </p>
           <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
             <li>
-              Booking page views — needs edge middleware or Plausible event
+              Booking page views: needs edge middleware or a Plausible event.
             </li>
-            <li>Form started but abandoned — needs client-side event</li>
-            <li>Email delivery failures — needs Resend webhook → audit_log</li>
+            <li>Form started but abandoned: needs a client-side event.</li>
             <li>
-              Active artists uses booking activity as proxy — add last_seen_at
-              to profiles for accuracy
+              Email delivery failures: needs a Resend webhook feeding audit_log.
             </li>
             <li>
-              Retention cohorts — requires user-level event stream (not yet
-              instrumented)
+              Active artists uses booking activity as a proxy: add last_seen_at
+              to profiles for accuracy.
+            </li>
+            <li>
+              Retention cohorts: requires a user-level event stream (not yet
+              instrumented).
             </li>
           </ul>
         </section>
@@ -440,16 +438,21 @@ export default function AdminClient({
 }
 
 function statusBadge(status: string) {
-  const map: Record<string, string> = {
-    active: "bg-green-500/10 text-green-600",
-    suspended: "bg-orange-400/10 text-orange-500",
-    archived: "bg-muted text-muted-foreground",
+  const map: Record<string, { classes: string; label: string }> = {
+    active: { classes: "bg-brand-green/10 text-brand-green", label: "Active" },
+    suspended: {
+      classes: "bg-brand-mustard/10 text-brand-mustard",
+      label: "Suspended",
+    },
+    archived: { classes: "bg-muted text-muted-foreground", label: "Archived" },
+  };
+  const badge = map[status] ?? {
+    classes: "bg-muted text-muted-foreground",
+    label: status,
   };
   return (
-    <span
-      className={`rounded-full px-1.5 py-0.5 text-xs ${map[status] ?? "bg-muted text-muted-foreground"}`}
-    >
-      {status}
+    <span className={`rounded-full px-1.5 py-0.5 text-xs ${badge.classes}`}>
+      {badge.label}
     </span>
   );
 }
@@ -483,24 +486,27 @@ function ArtistRoster({
           <input
             type="text"
             placeholder="Search name or slug…"
+            aria-label="Search artists"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="rounded-md border border-border bg-transparent px-3 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-44"
           />
-          <select
+          <SelectInput
+            options={[
+              { value: "all", label: "All statuses" },
+              { value: "active", label: "Active" },
+              { value: "suspended", label: "Suspended" },
+              { value: "archived", label: "Archived" },
+            ]}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-            <option value="archived">Archived</option>
-          </select>
+            ariaLabel="Filter by status"
+            className="w-44 rounded-md border border-border bg-background px-3 py-2 text-left text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
         </div>
       </div>
-      <div className="rounded-md border border-border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
               {[
@@ -559,7 +565,7 @@ function ArtistRoster({
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded-full ${
                       a.activated
-                        ? "bg-green-500/10 text-green-600"
+                        ? "bg-brand-green/10 text-brand-green"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
@@ -573,10 +579,10 @@ function ArtistRoster({
                   {a.approvedBookings}
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">
-                  {relTime(a.lastActivity)}
+                  {a.lastActivity ? relativeTime(a.lastActivity) : "never"}
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">
-                  {relTime(a.createdAt)}
+                  {a.createdAt ? relativeTime(a.createdAt) : "never"}
                 </td>
                 <td className="px-4 py-2 text-right">
                   <Link
@@ -629,8 +635,8 @@ function QualityCard({
   hint: string;
 }) {
   const color = {
-    high: "border-red-500/30 bg-red-500/5 text-red-600",
-    medium: "border-orange-400/30 bg-orange-400/5 text-orange-500",
+    high: "border-brand-red/30 bg-brand-red/5 text-brand-red",
+    medium: "border-brand-mustard/40 bg-brand-mustard/10 text-brand-mustard",
     low: "border-muted bg-muted/20 text-muted-foreground",
   }[severity];
 

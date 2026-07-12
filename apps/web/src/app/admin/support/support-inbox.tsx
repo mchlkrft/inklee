@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import SelectInput from "@/components/select-input";
+import { relativeTime } from "@/lib/format";
 import SupportStatusChip from "@/app/(artist)/support/support-status-chip";
 import {
   SUPPORT_CATEGORIES,
@@ -59,13 +60,6 @@ function unansweredOf(t: InboxTicket): boolean {
     last_artist_reply_at: t.lastArtistReplyAt,
     last_admin_reply_at: t.lastAdminReplyAt,
   });
-}
-
-function relTime(iso: string): string {
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (d === 0) return "today";
-  if (d === 1) return "yesterday";
-  return `${d}d ago`;
 }
 
 export default function SupportInbox({
@@ -267,10 +261,10 @@ export default function SupportInbox({
                       <SupportStatusChip status={t.status} />
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {relTime(t.createdAt)}
+                      {relativeTime(t.createdAt)}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {relTime(t.updatedAt)}
+                      {relativeTime(t.updatedAt)}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <Link

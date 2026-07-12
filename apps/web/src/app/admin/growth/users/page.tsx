@@ -99,7 +99,14 @@ export default async function GrowthUsersPage({
 
   return (
     <div className="space-y-6">
-      <FilterBar sourceOptions={data.sourceOptions} />
+      <div className="space-y-2">
+        <FilterBar sourceOptions={data.sourceOptions} />
+        <p className="text-xs text-muted-foreground">
+          This tab filters by claim date (the claimed from and to fields), not
+          by the range picker used on other tabs. The selected range still
+          carries into links.
+        </p>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">

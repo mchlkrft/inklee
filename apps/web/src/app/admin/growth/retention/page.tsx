@@ -4,6 +4,7 @@ import { writeAudit } from "@/lib/audit";
 import { getGrowthContext, getRetentionData } from "@/lib/growth-queries";
 import RangePicker from "@/components/admin/growth/range-picker";
 import {
+  DrillTile,
   EmptyState,
   SectionHeading,
 } from "@/components/admin/growth/metric-card";
@@ -94,19 +95,13 @@ export default async function GrowthRetentionPage({
         <SectionHeading>Retention states</SectionHeading>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {stateCards.map((card) => (
-            <Link
+            <DrillTile
               key={card.state}
+              label={card.label}
+              value={data.stateCounts[card.state]}
+              detail={card.definition}
               href={`/admin/growth/users?retention=${card.state}${rangeSuffix}`}
-              className="rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
-            >
-              <p className="text-xs text-muted-foreground">{card.label}</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-                {data.stateCounts[card.state]}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {card.definition}
-              </p>
-            </Link>
+            />
           ))}
         </div>
       </section>

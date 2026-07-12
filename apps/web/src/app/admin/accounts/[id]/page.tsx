@@ -10,23 +10,8 @@ import AccountEntitlements from "./account-entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicArtistUrl } from "@/lib/public-url";
-
-function relTime(iso: string | null | undefined): string {
-  if (!iso) return "never";
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (d === 0) return "today";
-  if (d === 1) return "yesterday";
-  return `${d}d ago`;
-}
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
+import { formatDate, relativeTime } from "@/lib/format";
+import { humanStatusLabel } from "@/lib/status-labels";
 
 /** Growth cockpit stage labels (classifyStage values, definitions on
  *  /admin/growth/definitions). */
@@ -38,16 +23,23 @@ const GROWTH_STAGE_LABELS: Record<string, string> = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active: "bg-green-500/10 text-green-600",
-    suspended: "bg-orange-400/10 text-orange-500",
-    archived: "bg-muted text-muted-foreground",
+  const map: Record<string, { classes: string; label: string }> = {
+    active: { classes: "bg-brand-green/10 text-brand-green", label: "Active" },
+    suspended: {
+      classes: "bg-brand-mustard/10 text-brand-mustard",
+      label: "Suspended",
+    },
+    archived: { classes: "bg-muted text-muted-foreground", label: "Archived" },
+  };
+  const badge = map[status] ?? {
+    classes: "bg-muted text-muted-foreground",
+    label: status,
   };
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${map[status] ?? "bg-muted text-muted-foreground"}`}
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.classes}`}
     >
-      {status}
+      {badge.label}
     </span>
   );
 }
@@ -174,7 +166,7 @@ export default async function AccountDetailPage({
                 Overview
               </h2>
               <div className="rounded-md border border-border px-4 py-3">
-                <Row label="Email" value={email ?? "—"} />
+                <Row label="Email" value={email ?? "–"} />
                 <Row
                   label="Account status"
                   value={<StatusBadge status={accountStatus} />}
@@ -185,45 +177,61 @@ export default async function AccountDetailPage({
                     <span
                       className={
                         onboardingCompleted
-                          ? "text-green-500"
-                          : "text-orange-400"
+                          ? "text-brand-green"
+                          : "text-brand-mustard"
                       }
                     >
                       {onboardingCompleted ? "Complete" : "Incomplete"}
                     </span>
                   }
                 />
-                <Row label="Joined" value={fmtDate(profile.created_at)} />
-                <Row label="Last activity" value={relTime(lastActivity)} />
-                <Row label="Last sign-in" value={relTime(authLastSignIn)} />
+                <Row
+                  label="Joined"
+                  value={
+                    profile.created_at ? formatDate(profile.created_at) : "–"
+                  }
+                />
+                <Row
+                  label="Last activity"
+                  value={lastActivity ? relativeTime(lastActivity) : "never"}
+                />
+                <Row
+                  label="Last sign-in"
+                  value={
+                    authLastSignIn ? relativeTime(authLastSignIn) : "never"
+                  }
+                />
                 {accountStatus === "suspended" && profile.suspended_at && (
                   <Row
                     label="Suspended"
-                    value={`${fmtDate(profile.suspended_at)}${profile.suspended_reason ? ` — ${profile.suspended_reason}` : ""}`}
+                    value={`${formatDate(profile.suspended_at)}${profile.suspended_reason ? `: ${profile.suspended_reason}` : ""}`}
                   />
                 )}
                 {accountStatus === "archived" && profile.deleted_at && (
-                  <Row label="Archived" value={fmtDate(profile.deleted_at)} />
+                  <Row
+                    label="Archived"
+                    value={formatDate(profile.deleted_at)}
+                  />
                 )}
                 <Row
                   label="Tester account"
                   value={
                     isTester ? (
                       <span className="rounded-full bg-brand-mustard/20 px-2 py-0.5 text-xs font-medium text-brand-charcoal">
-                        Yes — excluded from analytics
+                        Yes, excluded from analytics
                       </span>
                     ) : (
                       "No"
                     )
                   }
                 />
-                <Row label="Location" value={profile.location ?? "—"} />
+                <Row label="Location" value={profile.location ?? "–"} />
                 <Row
                   label="Instagram"
                   value={
                     profile.instagram_handle
                       ? `@${profile.instagram_handle}`
-                      : "—"
+                      : "–"
                   }
                 />
               </div>
@@ -275,7 +283,7 @@ export default async function AccountDetailPage({
                     <span
                       className={
                         booksSettings.books_open
-                          ? "text-green-500"
+                          ? "text-brand-green"
                           : "text-muted-foreground"
                       }
                     >
@@ -310,12 +318,14 @@ export default async function AccountDetailPage({
                 Recent bookings
               </h2>
               {recentBookings.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No bookings yet.
-                </p>
+                <div className="rounded-md border border-dashed border-border px-4 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No bookings yet.
+                  </p>
+                </div>
               ) : (
-                <div className="rounded-md border border-border overflow-hidden">
-                  <table className="w-full text-xs">
+                <div className="overflow-x-auto rounded-md border border-border">
+                  <table className="w-full min-w-[480px] text-xs">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
                         {["Client", "Status", "Created"].map((h) => (
@@ -341,18 +351,18 @@ export default async function AccountDetailPage({
                             <span
                               className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                                 b.status === "approved"
-                                  ? "bg-green-500/10 text-green-600"
+                                  ? "bg-brand-green/10 text-brand-green"
                                   : b.status === "rejected" ||
                                       b.status === "cancelled"
                                     ? "bg-muted text-muted-foreground"
                                     : "bg-muted text-foreground"
                               }`}
                             >
-                              {b.status}
+                              {humanStatusLabel(b.status)}
                             </span>
                           </td>
                           <td className="px-4 py-2 text-muted-foreground">
-                            {relTime(b.created_at)}
+                            {b.created_at ? relativeTime(b.created_at) : "–"}
                           </td>
                         </tr>
                       ))}
@@ -373,9 +383,9 @@ export default async function AccountDetailPage({
                     label="Activated"
                     value={
                       growth.activated ? (
-                        <span className="text-green-500">Yes</span>
+                        <span className="text-brand-green">Yes</span>
                       ) : (
-                        <span className="text-orange-400">No</span>
+                        <span className="text-brand-mustard">No</span>
                       )
                     }
                   />
@@ -385,9 +395,11 @@ export default async function AccountDetailPage({
                   />
                 </div>
                 {growth.timeline.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No growth events recorded yet.
-                  </p>
+                  <div className="rounded-md border border-dashed border-border px-4 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No growth events recorded yet.
+                    </p>
+                  </div>
                 ) : (
                   <div className="rounded-md border border-border divide-y divide-border">
                     {growth.timeline.map((event, index) => (
@@ -406,7 +418,7 @@ export default async function AccountDetailPage({
                           )}
                         </div>
                         <p className="shrink-0 text-xs text-muted-foreground">
-                          {fmtDate(event.at)}
+                          {formatDate(event.at)}
                         </p>
                       </div>
                     ))}
@@ -438,7 +450,7 @@ export default async function AccountDetailPage({
                         )}
                       </div>
                       <p className="shrink-0 text-xs text-muted-foreground">
-                        {relTime(a.created_at)}
+                        {a.created_at ? relativeTime(a.created_at) : "–"}
                       </p>
                     </div>
                   ))}

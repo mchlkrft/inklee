@@ -107,6 +107,31 @@ Every outcome returns 202 so callers get no oracle for probing the filters. In o
 - Pages read exclusively through `src/lib/public-analytics/queries.ts` (server-only,
   service client, behind `requireAdmin()`); no page queries Supabase directly.
 
+### Sessionization rollup (migration 0073)
+
+- Since 0073, `wa_visits()` no longer re-sessionizes the whole window on every call.
+  The pure window-function computation lives in `wa_sessionize()` (body identical to
+  the original `wa_visits`); `wa_rollup_visits()` materializes each completed UTC day
+  into `wa_visits_daily` (+ `wa_visit_rollup_days` coverage bookkeeping), and
+  `wa_visits()` unions rolled days with live sessionization of the un-rolled
+  head/tail of the window.
+- Correctness: the visitor hash rotates at midnight UTC, so a hash's events never
+  span two UTC days and per-day sessionization is equivalent to whole-window
+  sessionization. (The one theoretical exception is client clock skew up to 10
+  minutes around midnight; the sliced computation matches the documented "a session
+  crossing midnight UTC counts as two visits" rule exactly, where the old global
+  computation could produce a midnight-spanning visit.)
+- The rollup runs inside the daily growth-snapshot cron (02:30 UTC) and is
+  idempotent; if it lags or fails, `wa_visits()` transparently computes the missing
+  stretch live, so numbers are never wrong, only slower. The migration backfills all
+  completed days at apply time.
+- Retention: `wa_visits_daily` and `wa_visit_rollup_days` are purged on the same
+  24-month clock as `web_analytics_events` (retention-purge cron), and both are
+  RLS-enabled with no policies (service-role only).
+- Acquisition CSV exports page through the full result set up to the 10,000-row SQL
+  ceiling (`wa_breakdown` / `wa_campaigns`, raised from 500 in 0073) via
+  `waBreakdownAll` / `waCampaignsAll` in the query layer.
+
 ### Channel classification (`src/lib/public-analytics/channels.ts`)
 
 One pure, unit-tested module; nothing else may re-derive channels. Precedence:

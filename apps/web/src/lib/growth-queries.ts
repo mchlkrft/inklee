@@ -291,10 +291,12 @@ export async function getActivityKindCounts(
   });
 }
 
-export async function getLifecycleEngagement(): Promise<
-  LifecycleEngagementRow[]
-> {
-  return rpc<LifecycleEngagementRow>("growth_lifecycle_engagement", {});
+export async function getLifecycleEngagement(
+  context: GrowthContext,
+): Promise<LifecycleEngagementRow[]> {
+  return rpc<LifecycleEngagementRow>("growth_lifecycle_engagement", {
+    p_exclude: context.excludedIds,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1263,7 +1265,7 @@ export async function getEmailData(context: GrowthContext) {
   const [rows, engagement, markers, runsResult, eventHealth] =
     await Promise.all([
       getAllArtistStats(),
-      getLifecycleEngagement(),
+      getLifecycleEngagement(context),
       fetchAllLifecycleMarkers(),
       serviceClient
         .from("email_lifecycle_runs")

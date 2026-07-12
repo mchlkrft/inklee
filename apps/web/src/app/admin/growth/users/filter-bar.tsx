@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import SelectInput from "@/components/select-input";
 
 const STAGE_OPTIONS = [
   { value: "", label: "All stages" },
@@ -64,7 +65,7 @@ const FILTER_KEYS = [
 ] as const;
 
 const inputClass =
-  "rounded border border-border bg-background px-2 py-1 text-xs text-foreground";
+  "rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground";
 
 function FilterSelect({
   label,
@@ -78,20 +79,16 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+    <div className="flex min-w-36 flex-col gap-1 text-xs text-muted-foreground">
       {label}
-      <select
+      <SelectInput
+        options={options}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className={inputClass}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        ariaLabel={label}
+        className="w-full rounded-md border border-border bg-background px-2 py-1 text-left text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+      />
+    </div>
   );
 }
 

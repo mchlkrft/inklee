@@ -148,6 +148,37 @@ export async function waCampaigns(
   });
 }
 
+/** SQL-side ceiling on wa_breakdown/wa_campaigns since migration 0073,
+ *  aligned with the users and organic exports' 10k bound. */
+export const WA_EXPORT_MAX = 10_000;
+
+/** Full breakdown for CSV export: pages past the PostgREST 1000-row cap up to
+ *  the SQL ceiling (both wa_breakdown ORDER BYs are deterministic). */
+export async function waBreakdownAll(
+  context: GrowthContext,
+  dimension: WaDimension,
+): Promise<WaBreakdownRow[]> {
+  return pagedRpc<WaBreakdownRow>("wa_breakdown", {
+    p_from: context.range.from.toISOString(),
+    p_to: context.range.to.toISOString(),
+    p_dimension: dimension,
+    p_limit: WA_EXPORT_MAX,
+    p_offset: 0,
+  });
+}
+
+/** Full campaigns table for CSV export; same paging contract as above. */
+export async function waCampaignsAll(
+  context: GrowthContext,
+): Promise<WaCampaignRow[]> {
+  return pagedRpc<WaCampaignRow>("wa_campaigns", {
+    p_from: context.range.from.toISOString(),
+    p_to: context.range.to.toISOString(),
+    p_limit: WA_EXPORT_MAX,
+    p_offset: 0,
+  });
+}
+
 export type WaOrganicRow = {
   landing_path: string;
   visitors: number;

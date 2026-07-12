@@ -177,10 +177,11 @@ export default function AccountActions({
                 if (result.error) setTester(!newValue);
               });
             }}
-            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+            aria-pressed={tester}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
               tester
                 ? "bg-brand-mustard text-brand-charcoal"
-                : "border border-border text-muted-foreground hover:text-foreground hover:border-foreground"
+                : "bg-muted text-foreground hover:bg-muted/70"
             }`}
           >
             {tester ? "Tester" : "Mark as tester"}
@@ -207,7 +208,7 @@ export default function AccountActions({
             <button
               onClick={() => startConfirm("archive")}
               disabled={pending}
-              className="rounded-full border border-destructive/40 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+              className="rounded-full bg-brand-red px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-red/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               Archive account
             </button>
@@ -228,13 +229,13 @@ export default function AccountActions({
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Removes the account and all associated data from Supabase.
-                Irreversible — cannot be undone.
+                Irreversible. This cannot be undone.
               </p>
             </div>
             <button
               onClick={() => startConfirm("delete")}
               disabled={pending}
-              className="rounded-full bg-destructive/90 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-destructive disabled:opacity-50"
+              className="rounded-full bg-brand-red px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-red/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               Delete permanently
             </button>
@@ -262,7 +263,7 @@ export default function AccountActions({
           className={`rounded-md px-4 py-3 text-sm space-y-2 ${
             state.error
               ? "bg-destructive/10 text-destructive"
-              : "bg-green-500/10 text-green-500"
+              : "bg-brand-green/10 text-brand-green"
           }`}
         >
           {state.error ? (
@@ -271,7 +272,7 @@ export default function AccountActions({
             <>
               <p>{actionDoneLabel(state.action)}</p>
               {state.action === "password_reset" && state.data?.email && (
-                <p className="text-xs text-green-500/80">
+                <p className="text-xs text-brand-green/80">
                   Sent to {String(state.data.email)}.
                 </p>
               )}
@@ -279,7 +280,7 @@ export default function AccountActions({
           )}
           <button
             onClick={() => setState({ phase: "idle" })}
-            className="text-xs underline opacity-70 hover:opacity-100"
+            className="text-xs underline opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             Dismiss
           </button>
@@ -319,10 +320,10 @@ function ActionRow({
       <button
         onClick={onTrigger}
         disabled={disabled}
-        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
           variant === "warning"
-            ? "border border-orange-400/40 text-orange-500 hover:bg-orange-400/10"
-            : "border border-border text-muted-foreground hover:text-foreground hover:border-foreground"
+            ? "border border-brand-mustard/40 bg-brand-mustard/10 text-brand-mustard hover:bg-brand-mustard/20"
+            : "bg-muted text-foreground hover:bg-muted/70"
         }`}
       >
         {buttonLabel}
@@ -404,10 +405,10 @@ function ConfirmPanel({
             (needsReason && action === "archive" && !reason.trim()) ||
             (isDelete && !deleteConfirmed)
           }
-          className={`rounded-full px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
             isDanger
-              ? "bg-destructive text-white"
-              : "bg-foreground text-background"
+              ? "bg-brand-red text-white hover:bg-brand-red/90"
+              : "bg-brand-mustard text-brand-charcoal hover:bg-brand-mustard/90"
           }`}
         >
           {pending ? actionPendingLabel(action) : "Confirm"}
@@ -415,7 +416,7 @@ function ConfirmPanel({
         <button
           onClick={onCancel}
           disabled={pending}
-          className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="rounded-full bg-muted px-5 py-2 text-sm text-foreground transition-colors hover:bg-muted/70 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           Cancel
         </button>

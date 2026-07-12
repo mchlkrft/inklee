@@ -4,6 +4,7 @@ import { writeAudit } from "@/lib/audit";
 import { getGrowthContext, getActivationData } from "@/lib/growth-queries";
 import RangePicker from "@/components/admin/growth/range-picker";
 import {
+  DrillTile,
   EmptyState,
   MetricCard,
   SampleWarning,
@@ -121,42 +122,17 @@ export default async function GrowthActivationPage({
       <section className="space-y-3">
         <SectionHeading>Where artists are stuck</SectionHeading>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {data.segments.map((segment) =>
-            segment.href ? (
-              <Link
-                key={segment.key}
-                href={withRange(segment.href)}
-                className="rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
-              >
-                <p className="text-2xl font-semibold tabular-nums text-foreground">
-                  {segment.count}
-                </p>
-                <p className="mt-0.5 text-sm text-foreground">
-                  {segment.label}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  View these artists →
-                </p>
-              </Link>
-            ) : (
-              <div
-                key={segment.key}
-                className="rounded-md border border-border p-4"
-              >
-                <p className="text-2xl font-semibold tabular-nums text-foreground">
-                  {segment.count}
-                </p>
-                <p className="mt-0.5 text-sm text-foreground">
-                  {segment.label}
-                </p>
-                {segment.description && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {segment.description}
-                  </p>
-                )}
-              </div>
-            ),
-          )}
+          {data.segments.map((segment) => (
+            <DrillTile
+              key={segment.key}
+              label={segment.label}
+              value={segment.count}
+              detail={
+                segment.href ? "View these artists →" : segment.description
+              }
+              href={segment.href ? withRange(segment.href) : undefined}
+            />
+          ))}
         </div>
       </section>
 

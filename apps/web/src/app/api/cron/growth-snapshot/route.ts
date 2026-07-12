@@ -116,5 +116,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ snapshot_date: day, metrics });
+  // Roll up completed UTC days of public-analytics sessionization (migration
+  // 0073). Idempotent; wa_visits falls back to live computation for any day
+  // this has not covered yet, so a failure here degrades performance, never
+  // numbers. Still surfaced as a 500 so cron monitoring sees it (the snapshot
+  // upsert above already succeeded and re-running is idempotent).
+  const { data: rolledDays, error: rollupError } = await serviceClient.rpc(
+    "wa_rollup_visits",
+    {},
+  );
+  if (rollupError) {
+    return NextResponse.json(
+      { snapshot_date: day, metrics, wa_rollup_error: rollupError.message },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    snapshot_date: day,
+    metrics,
+    wa_days_rolled: rolledDays ?? 0,
+  });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import SelectInput from "@/components/select-input";
 import {
   ENTITLEMENT_FEATURES,
   effectivePlanTier,
@@ -41,7 +42,10 @@ function dateInputToIso(d: string): string | null {
 }
 
 const FIELD =
-  "w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
+  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
+
+const SELECT_TRIGGER =
+  "w-full rounded-md border border-border bg-background px-3 py-2 text-left text-sm focus:outline-none focus:ring-1 focus:ring-ring";
 
 export default function AccountEntitlements({
   accountId,
@@ -108,7 +112,7 @@ export default function AccountEntitlements({
 
       {msg && (
         <p
-          className={`text-xs ${msg.startsWith("Error") ? "text-destructive" : "text-green-600"}`}
+          className={`text-xs ${msg.startsWith("Error") ? "text-destructive" : "text-brand-green"}`}
         >
           {msg}
         </p>
@@ -118,26 +122,30 @@ export default function AccountEntitlements({
       <div className="space-y-2">
         <p className="text-xs font-medium text-foreground">Plan</p>
         <div className="grid grid-cols-2 gap-2">
-          <select
+          <SelectInput
+            options={[
+              { value: "free", label: "Free" },
+              { value: "plus", label: "Plus" },
+            ]}
             value={planTier}
             onChange={(e) => setPlanTier(e.target.value as "free" | "plus")}
-            className={FIELD}
-          >
-            <option value="free">Free</option>
-            <option value="plus">Plus</option>
-          </select>
-          <select
+            ariaLabel="Plan tier"
+            className={SELECT_TRIGGER}
+          />
+          <SelectInput
+            options={[
+              { value: "comp", label: "Comp" },
+              { value: "paid", label: "Paid" },
+            ]}
             value={planSource}
             onChange={(e) => setPlanSource(e.target.value as "comp" | "paid")}
             disabled={planTier === "free"}
-            className={FIELD}
-          >
-            <option value="comp">Comp</option>
-            <option value="paid">Paid</option>
-          </select>
+            ariaLabel="Plan source"
+            className={SELECT_TRIGGER}
+          />
         </div>
         <label className="block text-[11px] text-muted-foreground">
-          Expires (optional — leave blank for open-ended)
+          Expires (optional, leave blank for open-ended)
           <input
             type="date"
             value={planExpiry}
@@ -161,7 +169,7 @@ export default function AccountEntitlements({
               "Plan saved.",
             )
           }
-          className="rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           Save plan
         </button>
@@ -182,7 +190,12 @@ export default function AccountEntitlements({
               <span className="text-xs text-foreground">
                 {FEATURE_LABELS[f]}
               </span>
-              <select
+              <SelectInput
+                options={[
+                  { value: "", label: "Plan default" },
+                  { value: "grant", label: "Granted" },
+                  { value: "revoke", label: "Revoked" },
+                ]}
                 defaultValue={current}
                 disabled={pending}
                 onChange={(e) =>
@@ -200,12 +213,9 @@ export default function AccountEntitlements({
                     "Override saved.",
                   )
                 }
-                className={`${FIELD} w-32`}
-              >
-                <option value="">Plan default</option>
-                <option value="grant">Granted</option>
-                <option value="revoke">Revoked</option>
-              </select>
+                ariaLabel={FEATURE_LABELS[f]}
+                className="w-36 rounded-md border border-border bg-background px-3 py-2 text-left text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
             </div>
           );
         })}
@@ -276,7 +286,7 @@ export default function AccountEntitlements({
               "Sponsorship saved.",
             )
           }
-          className="rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
+          className="rounded-full bg-brand-mustard px-4 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           Save sponsorship
         </button>
@@ -309,7 +319,7 @@ export default function AccountEntitlements({
           onClick={() =>
             run(() => saveAdminNotesAction(accountId, notes), "Notes saved.")
           }
-          className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-muted/30 disabled:opacity-50"
+          className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-muted/30 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           Save notes
         </button>

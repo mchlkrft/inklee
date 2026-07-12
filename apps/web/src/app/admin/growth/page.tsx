@@ -201,7 +201,25 @@ export default async function GrowthOverviewPage({
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Link
+          href={`/admin/growth/acquisition${rangeSuffix}`}
+          className="rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
+        >
+          <p className="text-sm font-medium text-foreground">Acquisition</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Public traffic: visitors, landing pages, sources, and conversions.
+          </p>
+        </Link>
+        <Link
+          href={`/admin/growth/search${rangeSuffix}`}
+          className="rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
+        >
+          <p className="text-sm font-medium text-foreground">Search</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Google Search performance: queries, pages, and organic landings.
+          </p>
+        </Link>
         <Link
           href={`/admin/growth/insights${rangeSuffix}`}
           className="rounded-md border border-border p-4 transition-colors hover:bg-muted/30"

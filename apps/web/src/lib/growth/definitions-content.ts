@@ -211,14 +211,16 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
       "A target outcome observed within a window after a lifecycle email went out.",
     calculation:
       "The definition's target outcome observed within email_attribution_window_days (default 7) after the send.",
-    sources: "email_lifecycle_markers, growth_artist_stats.",
+    sources:
+      "email_lifecycle_markers, growth_artist_stats; engagement counts via the growth_lifecycle_engagement RPC.",
     inclusions: "Outcomes observed inside the attribution window.",
-    exclusions: "Outcomes outside the window, even when they follow a send.",
+    exclusions:
+      "Outcomes outside the window, even when they follow a send. Testers and admin-owned accounts are excluded from engagement counts (recipient filter, like every other account-keyed aggregate).",
     timezone: "The window is measured from the send timestamp.",
     refresh: "Live on page load.",
     limitations:
       "An association, never proof of causation; there is no control group.",
-    lastChanged: LAST_CHANGED,
+    lastChanged: "2026-07-12",
   },
   {
     name: "First-request rate",
@@ -291,7 +293,7 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
     calculation:
       "Events from one daily visitor with no gap over 30 minutes form one visit, attributed to its first pageview (landing page, channel, UTM, referrer, geo, device). Because the visitor hash rotates daily, a visit never spans midnight UTC.",
     sources:
-      "web_analytics_events via wa_visits, the single sessionization primitive every wa_* aggregate in migration 0070 builds on.",
+      "web_analytics_events via wa_visits, the single sessionization primitive every wa_* aggregate in migration 0070 builds on. Completed UTC days are served from a precomputed daily rollup (migration 0073); the definition is identical either way.",
     inclusions: "Every visit containing at least one accepted public event.",
     exclusions: "Excluded traffic never forms visits (see Visitor).",
     timezone:
@@ -453,5 +455,5 @@ export const KNOWN_LIMITATIONS: string[] = [
   "Public web analytics data exists only from the 2026-07 deploy onward. Plausible history is not imported.",
   "Search Console totals and the query and page breakdowns can disagree: Google omits low-volume rows from the breakdowns.",
   "Search Console clicks and first-party visits are different measurements; they are never merged or substituted for each other.",
-  "CSV exports of high-cardinality acquisition dimensions (landing pages, referrers, campaigns) are capped at the top 500 rows; the on-screen tables and the users, search, and organic exports page more.",
+  "CSV exports of acquisition dimensions page through the full result set up to a 10,000-row safety ceiling (raised from 500 on 2026-07-12), matching the users and organic exports; the search export is capped at 1,000 rows.",
 ];

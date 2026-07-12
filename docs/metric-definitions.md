@@ -22,9 +22,10 @@ Shared facts that apply to every metric below:
   `ADMIN_EMAILS` env config at query time), and suspended, archived, or soft-deleted accounts are
   excluded from every account-keyed aggregate. The full excluded-id list is passed into every such
   SQL function (`p_exclude`), so these accounts are absent from series and totals, not just filtered
-  in code. The one exception is `growth_lifecycle_engagement` (lifecycle email open/click counts),
-  which is keyed by Resend message id rather than by account and so is not `p_exclude`-filtered;
-  tester exclusion for lifecycle email happens upstream, in the send-audience segmentation.
+  in code. Since migration `0073` (2026-07-12) this includes `growth_lifecycle_engagement`
+  (lifecycle email open/click counts), which filters by the recipient
+  (`email_lifecycle_markers.artist_id`); tester exclusion for lifecycle email additionally happens
+  upstream, in the send-audience segmentation.
 - **Thresholds**: names like `active_days` refer to the growth settings (`growth_settings` table,
   defaults in `apps/web/src/lib/growth/settings.ts`), editable on `/admin/growth/settings`.
 - **Last definition change**: 2026-07-11 (cockpit v1) for all metrics. The Activated definition
@@ -230,7 +231,8 @@ Shared facts that apply to every metric below:
   `email_attribution_window_days` (default 7) after the send
   (`associateLifecycleConversions` in `email-metrics.ts`).
 - **Sources**: `email_lifecycle_markers` (status `sent`), `growth_artist_stats` (0067); engagement
-  counts via the `growth_lifecycle_engagement` RPC.
+  counts via the `growth_lifecycle_engagement` RPC (recipient-filtered with `p_exclude` since
+  `0073`, 2026-07-12).
 - **Inclusions**: outcomes observed inside the attribution window.
 - **Exclusions**: outcomes outside the window, even when they follow a send. Outcomes that predate
   the send never count.
@@ -307,7 +309,10 @@ Shared facts for this section:
   `wa_visits()` sessionization primitive (the single visit definition every aggregate builds on),
   and the aggregate functions `wa_kpis`, `wa_timeseries`, `wa_breakdown`, `wa_campaigns`, and
   `wa_organic_landing`; plus the Search Console tables `gsc_daily_totals` and
-  `gsc_daily_dimensions` with the `gsc_dimension_agg` function. Pages read only through
+  `gsc_daily_dimensions` with the `gsc_dimension_agg` function. Since migration `0073`
+  (2026-07-12), `wa_visits()` serves completed UTC days from a precomputed daily rollup
+  (`wa_visits_daily`, refreshed by the growth-snapshot cron) and computes only the current,
+  not-yet-rolled stretch live; the visit definition is identical either way. Pages read only through
   `apps/web/src/lib/public-analytics/queries.ts`.
 - **Two measurement systems, never merged**: first-party visits and Google clicks are different
   measurements of different things. They are never summed, substituted for each other, or shown as
@@ -529,9 +534,9 @@ These caveats apply across the whole cockpit and are surfaced in the UI where re
   from the breakdowns.
 - Search Console clicks and first-party visits are different measurements; they are never merged or
   substituted for each other.
-- CSV exports of high-cardinality acquisition dimensions (landing pages, referrers, campaigns) are
-  capped at the top 500 rows; the on-screen tables and the users, search, and organic exports page
-  more.
+- CSV exports of acquisition dimensions page through the full result set up to a 10,000-row safety
+  ceiling (raised from 500 in migration `0073`, 2026-07-12), matching the users and organic
+  exports; the search export is capped at 1,000 rows.
 
 ---
 

@@ -92,7 +92,9 @@ export async function GET(request: Request) {
   }
 
   // Public web analytics rows are anonymous by construction (daily-rotating
-  // visitor hash) but still follow the same 24-month bound.
+  // visitor hash) but still follow the same 24-month bound. The sessionized
+  // daily rollup (migration 0073) carries the same visit rows, so it is
+  // purged on the same clock, along with its coverage bookkeeping.
   const { data: purgedWebEvents, error: webEventsError } = await serviceClient
     .from("web_analytics_events")
     .delete()
@@ -105,6 +107,25 @@ export async function GET(request: Request) {
     );
   }
 
+  const { data: purgedWaVisits, error: waVisitsError } = await serviceClient
+    .from("wa_visits_daily")
+    .delete()
+    .lt("day", auditCutoffDay)
+    .select("day");
+  if (waVisitsError) {
+    return NextResponse.json({ error: waVisitsError.message }, { status: 500 });
+  }
+  const { error: waRollupDaysError } = await serviceClient
+    .from("wa_visit_rollup_days")
+    .delete()
+    .lt("day", auditCutoffDay);
+  if (waRollupDaysError) {
+    return NextResponse.json(
+      { error: waRollupDaysError.message },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     purged_financial_records: purgedFinancial?.length ?? 0,
     purged_audit_rows: purgedAudit?.length ?? 0,
@@ -112,5 +133,6 @@ export async function GET(request: Request) {
     purged_analytics_events: purgedEvents?.length ?? 0,
     purged_activity_days: purgedActivity?.length ?? 0,
     purged_web_analytics_events: purgedWebEvents?.length ?? 0,
+    purged_wa_visits: purgedWaVisits?.length ?? 0,
   });
 }

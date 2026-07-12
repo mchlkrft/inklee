@@ -3,8 +3,8 @@ import { getAdminId } from "@/lib/admin-guard";
 import { writeAudit } from "@/lib/audit";
 import {
   getGrowthContext,
-  waBreakdown,
-  waCampaigns,
+  waBreakdownAll,
+  waCampaignsAll,
   type WaDimension,
 } from "@/lib/public-analytics/queries";
 
@@ -18,7 +18,9 @@ export const runtime = "nodejs";
 // instead of failing the request). First-party collector data only: Search
 // Console metrics are a different measurement and never appear here.
 
-const EXPORT_LIMIT = 500;
+// Exports page through the full result set (waBreakdownAll/waCampaignsAll);
+// the SQL functions cap at 10000 rows as a safety ceiling (migration 0073),
+// matching the users and organic exports.
 
 /** Exportable views mapped onto the wa_breakdown dimensions; "campaigns"
  *  goes through waCampaigns instead. */
@@ -64,7 +66,7 @@ export async function GET(request: Request) {
   let header: string[];
   let rows: string[][];
   if (view === "campaigns") {
-    const campaigns = await waCampaigns(context, EXPORT_LIMIT);
+    const campaigns = await waCampaignsAll(context);
     header = [
       "utm_source",
       "utm_medium",
@@ -89,7 +91,7 @@ export async function GET(request: Request) {
     // Non-null here: the guard above rejected every other case, but TS cannot
     // correlate the two variables across the branch.
     const dim = dimension as WaDimension;
-    const breakdown = await waBreakdown(context, dim, EXPORT_LIMIT);
+    const breakdown = await waBreakdownAll(context, dim);
     header = [
       dim,
       "visitors",

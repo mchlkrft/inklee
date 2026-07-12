@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,6 +48,53 @@ export function MetricCard({
         )}
         {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Clickable stat tile that drills into a filtered view. One element order
+ * everywhere (label, value, detail) so drill tiles read like MetricCards;
+ * without an href it renders the same tile without the hover affordance.
+ */
+export function DrillTile({
+  label,
+  value,
+  detail,
+  href,
+  className,
+}: {
+  label: string;
+  value: string | number;
+  detail?: string | null;
+  href?: string;
+  className?: string;
+}) {
+  const body = (
+    <>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+        {value}
+      </p>
+      {detail && <p className="mt-1 text-xs text-muted-foreground">{detail}</p>}
+    </>
+  );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={cn(
+          "block rounded-md border border-border p-4 transition-colors hover:bg-muted/30",
+          className,
+        )}
+      >
+        {body}
+      </Link>
+    );
+  }
+  return (
+    <div className={cn("rounded-md border border-border p-4", className)}>
+      {body}
     </div>
   );
 }
