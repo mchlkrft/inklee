@@ -3,9 +3,12 @@
 Goal: emails sent through Resend from `inklee <noreply@inklee.app>` should show the spiderweb
 avatar in recipients' inboxes, like mail from the founder's Google inklee account does.
 
-Status 2026-07-12: everything on the sending side is already in place; the missing piece is a
-Google-side identity for the `noreply@` address. That is a founder action in the Google Admin
-console (steps below). No code or DNS change is required for the primary path.
+Status: DONE and verified 2026-07-13. `noreply@inklee.app` was added as an email alias on the
+Workspace user Inklee Official (`official@inklee.app`), which carries the animated spiderweb
+profile photo; a Resend test mail from `noreply@inklee.app` shows the avatar ANIMATED in the
+Gmail inbox. `support@inklee.app` and `hello@inklee.app` are aliases on the same account, so
+mail from those addresses gets the same avatar. No code or DNS change was needed; the runbook
+below is kept for reference (for example if the From address ever changes).
 
 ## How inbox avatars actually work
 
