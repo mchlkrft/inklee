@@ -16,12 +16,11 @@ console (steps below). No code or DNS change is required for the primary path.
   SVG logo. Gmail and Apple additionally require a paid Verified Mark Certificate (VMC) or
   Common Mark Certificate (roughly USD 1,000+/year, trademark or prior-use evidence needed)
   and DMARC at enforcement (`p=quarantine` or `p=reject`). Deferred; see below.
-- **Animation is not possible in the avatar slot, anywhere.** Sender avatars render as static
-  images in every client. This is already true today: the Google inklee account's GIF avatar
-  shows a static frame in the Gmail inbox (verified when the avatar was first set up,
-  2026-06-13). The GIF only animates inside email bodies. If motion inside the mails is
-  wanted, the animated spiderweb can be added to the shared email shell
-  (`src/lib/email/layout.ts`); that is a separate, deliberate brand decision.
+- **Animated GIF profile photos DO render animated in the Gmail inbox.** Founder-verified
+  2026-07-13 with the spiderweb GIF on the existing Google inklee account (an earlier note
+  claiming avatars render static was wrong). The animation only reaches clients that resolve
+  Google profiles (Gmail web and apps); Apple Mail and Outlook show no avatar at all without
+  BIMI, and BIMI logos are static SVG by spec.
 
 ## Verified sending-side state (2026-07-12)
 
@@ -49,10 +48,10 @@ Option A, free, try first (alias on the account that already has the avatar):
 Option B, guaranteed (dedicated identity, costs one Workspace seat):
 
 1. Admin console -> Directory -> Users -> Add new user `noreply@inklee.app`.
-2. Sign in as that user once, upload the spiderweb image as the profile photo
-   (`C:\Users\miche\Desktop\inklee-spiderweb-avatar.gif`; Google stores a static frame, which
-   is expected). The generator `.scratch/make-spiderweb-gif.cjs` can re-emit the GIF and a
-   static PNG companion at any size.
+2. Sign in as that user once, upload the spiderweb GIF as the profile photo
+   (`C:\Users\miche\Desktop\inklee-spiderweb-avatar.gif`), the same way it was set on the
+   existing account so the animation survives, and set photo visibility to Anyone. The
+   generator `.scratch/make-spiderweb-gif.cjs` can re-emit the GIF at any size.
 3. Same propagation wait, same test.
 
 If Option A does not surface the photo after 48 hours, fall back to Option B: alias photo
