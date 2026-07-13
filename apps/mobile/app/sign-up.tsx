@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Linking, Pressable, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { BorderedInput } from "@/components/BorderedInput";
 import { PasswordInput } from "@/components/PasswordInput";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { useAuth } from "@/lib/auth";
@@ -104,15 +105,14 @@ export default function SignUp() {
           Set up your Inklee artist account.
         </Text>
 
-        <TextInput
+        <BorderedInput
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
-          placeholderTextColor={colors.shell.mute}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
-          className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
+          className="mb-3"
         />
         <PasswordInput
           value={password}

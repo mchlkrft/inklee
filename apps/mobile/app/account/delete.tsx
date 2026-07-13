@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { apiDelete } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { captureError } from "@/lib/telemetry";
+import { BorderedInput } from "@/components/BorderedInput";
 import { Button } from "@/components/Button";
 import { useColors } from "@/lib/theme";
 import { deriveSignInIdentity } from "@inklee/shared/auth-derivations";
@@ -127,14 +128,12 @@ export default function DeleteAccountScreen() {
         </View>
       ) : hasPassword ? (
         <View className="gap-2">
-          <TextInput
+          <BorderedInput
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
             placeholder="Your password"
-            placeholderTextColor={themed.shell.mute}
-            className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
           />
           <Button
             label="Confirm"
@@ -167,15 +166,13 @@ export default function DeleteAccountScreen() {
       <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-shell-mute">
         Type DELETE to confirm
       </Text>
-      <TextInput
+      <BorderedInput
         value={confirm}
         onChangeText={setConfirm}
         autoCapitalize="characters"
         autoCorrect={false}
         placeholder="DELETE"
-        placeholderTextColor={themed.shell.mute}
         accessibilityLabel="Type DELETE to confirm account deletion"
-        className="h-12 rounded-xl border border-shell-border px-4 text-foreground"
       />
 
       {error ? <Text className="mt-3 text-sm text-danger-fg">{error}</Text> : null}

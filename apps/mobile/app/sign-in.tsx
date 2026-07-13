@@ -1,19 +1,18 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { BorderedInput } from "@/components/BorderedInput";
 import { PasswordInput } from "@/components/PasswordInput";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { useAuth } from "@/lib/auth";
-import { useColors } from "@/lib/theme";
 
 // E1 sign-in: email + password, plus Sign in with Apple (iOS) and Google.
 // Apple is required by App Store review because Google sign-in is offered.
 export default function SignIn() {
   const { signInWithPassword } = useAuth();
   const router = useRouter();
-  const colors = useColors();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,15 +38,14 @@ export default function SignIn() {
           Sign in to your artist account.
         </Text>
 
-        <TextInput
+        <BorderedInput
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
-          placeholderTextColor={colors.shell.mute}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
-          className="mb-3 h-12 rounded-xl border border-shell-border px-4 text-foreground"
+          className="mb-3"
         />
         <PasswordInput
           className="mb-2"

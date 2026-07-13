@@ -11,12 +11,17 @@ type Props = Omit<TextInputProps, "secureTextEntry"> & {
 // Password field with a show/hide eye toggle, shared by sign-in + sign-up so
 // the two auth screens cannot drift. The eye sits inside the field on the
 // right; the input reserves pr-12 so typed text never runs under it.
+// overflow-hidden + rounded-xl on the wrapper clips Android's autofill
+// highlight, which is painted as a SQUARE rect over the input's full bounds
+// and otherwise sticks out of the rounded corners (see BorderedInput).
 export function PasswordInput({ className, ...props }: Props) {
   const colors = useColors();
   const [show, setShow] = useState(false);
 
   return (
-    <View className={`relative justify-center ${className ?? ""}`}>
+    <View
+      className={`relative justify-center overflow-hidden rounded-xl ${className ?? ""}`}
+    >
       <TextInput
         {...props}
         secureTextEntry={!show}

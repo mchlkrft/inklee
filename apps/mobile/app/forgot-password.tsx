@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { BorderedInput } from "@/components/BorderedInput";
 import { useAuth } from "@/lib/auth";
 import { useColors } from "@/lib/theme";
 import { captureError } from "@/lib/telemetry";
@@ -79,15 +80,14 @@ export default function ForgotPassword() {
           Enter your email and we will send you a reset link.
         </Text>
 
-        <TextInput
+        <BorderedInput
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
-          placeholderTextColor={colors.shell.mute}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
-          className="mb-4 h-12 rounded-xl border border-shell-border px-4 text-foreground"
+          className="mb-4"
         />
 
         {error ? (
