@@ -311,8 +311,7 @@ function SolutionSection() {
 
 /* Faux-UI panels. Each approximates an Inklee screen using brand tokens
    so the card actually communicates the feature it names, instead of
-   loaning a brand illustration that doesn't match the surface. Same
-   pattern the /download device-preview uses. */
+   loaning a brand illustration that doesn't match the surface. */
 
 function FauxBookingForm() {
   return (

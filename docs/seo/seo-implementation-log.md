@@ -26,6 +26,24 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 
 ---
 
+### 2026-07-13 — Real app mockups on /download (hero + screens gallery)
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** "Mobile app" (`/download` owns mobile/app-download conversion); "Future product gates → Artist shop" (showcase-only copy).
+
+**Files changed:** `apps/web/public/branding/app/` (new: `app-dashboard.webp`, `app-travel-map.webp`, `app-calendar.webp`, `app-artist-shop.webp`), `apps/web/src/app/download/page.tsx`, `apps/web/src/app/download/device-preview.tsx` (deleted), `apps/web/src/app/dm-chaos/page.tsx` (stale comment only).
+
+**Implementation:** Replaced the CSS faux-phone placeholder in the `/download` hero with the founder's real dashboard mockup (LCP preload added, descriptive keyword-bearing alt text) and added a "Straight from the app" gallery section with the travel map, calendar, and artist shop mockups. Assets are transparent WebP (1080x1607, 50-104KB, quality 82) derived from the founder's PNG exports via flood-fill alpha extraction (exterior white to alpha-0, soft shadow band to black-with-alpha), because the SVG exports carry broken x-offsets on centre-anchored text ("23", "Pending" chips) and are not safe to rasterize. Phones sit directly on the charcoal sections with their baked shadows. Shop caption uses showcase-only language (no checkout/selling claims, goods remain showcase-only per the product gate).
+
+**Validation performed:** `pnpm typecheck` and eslint clean; alpha-extracted renders composited over charcoal and compared against the founder's PNG exports (pixel-correct text, shadows intact); Playwright screenshots of `/download` at 1440px and 390px confirm layout and lazy-loading; copy checked against AGENTS.md rules (no em-dashes in visible strings, sentence case, terminal punctuation).
+
+**Remaining issues:** None. No new indexable pages; no metadata changes.
+
+**Commit:** master, 2026-07-13 — `feat(download): real app screenshot mockups replace the faux CSS phone`.
+
+---
+
 ### 2026-07-06 — Instagram data-deletion status page (noindexed utility URL)
 
 **Implemented by:** Claude Code

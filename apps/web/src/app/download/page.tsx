@@ -4,7 +4,6 @@ import SiteLogo from "@/components/site-logo";
 import JsonLd from "@/components/seo/json-ld";
 import { absoluteUrl } from "@/lib/seo";
 import { webPageSchema } from "@/lib/jsonld";
-import DevicePreview from "./device-preview";
 
 const PAGE_PATH = "/download";
 const PAGE_TITLE = "Inklee app for tattoo artists, on iOS and Android";
@@ -297,6 +296,67 @@ function StepRow({
   );
 }
 
+/* ─── App screens (real mockups) ─────────────────────────────────────────
+   Sourced from the founder's App Mockups set; the hero uses the dashboard
+   shot, this gallery shows the rest. Assets in public/branding/app/. */
+
+const APP_SCREENS: {
+  src: string;
+  alt: string;
+  title: string;
+  body: string;
+}[] = [
+  {
+    src: "/branding/app/app-travel-map.webp",
+    alt: "Travel map in the Inklee app showing a four-stop guest spot trip route through Germany",
+    title: "Trips on a map",
+    body: "Plan guest spots as a route. Each stop keeps its city, dates, and requests together.",
+  },
+  {
+    src: "/branding/app/app-calendar.webp",
+    alt: "Bookings calendar in the Inklee app with appointments and guest spots at two studios",
+    title: "Your month at a glance",
+    body: "Bookings and guest spots side by side. The same calendar as the web, in your pocket.",
+  },
+  {
+    src: "/branding/app/app-artist-shop.webp",
+    alt: "Artist shop screen in the Inklee app showing prints, an oversize t-shirt, and a sticker pack",
+    title: "Your shop, in your pocket",
+    body: "Showcase prints, merch, and flash with prices and sizes on your public page.",
+  },
+];
+
+function AppScreenFigure({
+  src,
+  alt,
+  title,
+  body,
+}: (typeof APP_SCREENS)[number]) {
+  return (
+    <figure className="flex flex-col items-center gap-6 text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        width={1080}
+        height={1607}
+        loading="lazy"
+        decoding="async"
+        className="h-auto w-full max-w-[300px]"
+        draggable={false}
+      />
+      <figcaption>
+        <h3 className="text-xl font-black leading-tight text-shell-fg">
+          {title}
+        </h3>
+        <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-shell-fg-dim">
+          {body}
+        </p>
+      </figcaption>
+    </figure>
+  );
+}
+
 /* ─── FAQ row ───────────────────────────────────────────────────────────── */
 
 const FAQ_ITEMS: { number: string; question: string; answer: string }[] = [
@@ -369,6 +429,15 @@ function FaqRow({
 export default function DownloadPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      {/* LCP preload — the hero app mockup renders above the headline on
+          mobile, so fetch it at high priority. React 19 hoists this <link>
+          into <head> during SSR (same pattern as the homepage hero). */}
+      <link
+        rel="preload"
+        as="image"
+        href="/branding/app/app-dashboard.webp"
+        fetchPriority="high"
+      />
       <JsonLd
         data={webPageSchema({
           name: PAGE_TITLE,
@@ -421,7 +490,21 @@ export default function DownloadPage() {
               </div>
 
               <div className="order-first md:order-last">
-                <DevicePreview />
+                {/* Real app mockup (founder's App Mockups set, transparent
+                    WebP) — replaced the CSS faux phone that stood in before
+                    the app screens existed. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/branding/app/app-dashboard.webp"
+                  alt="Inklee app dashboard with 23 booking requests waiting and a new request ready to accept or pass"
+                  width={1080}
+                  height={1607}
+                  fetchPriority="high"
+                  decoding="async"
+                  loading="eager"
+                  className="mx-auto h-auto w-full max-w-[320px] md:max-w-[420px]"
+                  draggable={false}
+                />
               </div>
             </div>
           </div>
@@ -508,6 +591,28 @@ export default function DownloadPage() {
                 title="Decide between sessions"
                 body="Approve a piece, send a deposit request, or move a request to your waitlist in two taps. The rest of your day stays uninterrupted."
               />
+            </div>
+          </div>
+        </section>
+
+        {/* ── App screens (charcoal) — real mockups, transparent WebP with
+            the baked-in phone shadows sitting directly on the dark section. */}
+        <section className="bg-shell-bg text-shell-fg">
+          <div className="container-marketing py-24 md:py-32">
+            <div className="mb-12 max-w-3xl md:mb-16">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
+                Straight from the app
+              </p>
+              <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
+                The screens you&apos;ll
+                <br />
+                actually live in.
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 gap-12 sm:grid-cols-3 sm:gap-6 md:gap-8">
+              {APP_SCREENS.map((screen) => (
+                <AppScreenFigure key={screen.src} {...screen} />
+              ))}
             </div>
           </div>
         </section>
