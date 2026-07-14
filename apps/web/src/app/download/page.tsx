@@ -237,15 +237,17 @@ function MarketingFooter() {
 /* ─── Feature card — full-color variants on the charcoal section.
    Switched from monochrome dark cards to bone/mustard/rosa fills so the
    charcoal section reads with energy rather than flatness. All cards
-   carry charcoal text for high contrast on every fill colour. */
+   carry charcoal text for high contrast on every fill colour. Corner
+   icons come from the Inklee emoji library (charcoal fill baked into
+   the copies under public/branding/illustrations/emoji/). */
 
 function FeatureCard({
-  number,
+  icon,
   title,
   body,
   variant,
 }: {
-  number: string;
+  icon: string;
   title: string;
   body: string;
   variant: "bone" | "mustard" | "rosa";
@@ -258,9 +260,17 @@ function FeatureCard({
         : "bg-brand-bone";
   return (
     <div className={`flex h-full flex-col gap-6 rounded-3xl p-7 ${bgClass}`}>
-      <span className="text-xs font-black uppercase tracking-[0.18em] text-brand-charcoal/70">
-        {number}
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={icon}
+        alt=""
+        aria-hidden="true"
+        width={48}
+        height={48}
+        loading="lazy"
+        className="h-12 w-12"
+        draggable={false}
+      />
       <div className="space-y-3">
         <h3 className="text-2xl font-black leading-tight text-brand-charcoal">
           {title}
@@ -485,7 +495,7 @@ export default function DownloadPage() {
                 </p>
 
                 <div className="mt-7 md:mt-8">
-                  <StoreButtonRow variant="dark" />
+                  <StoreButtonRow variant="light" />
                 </div>
               </div>
 
@@ -512,7 +522,7 @@ export default function DownloadPage() {
 
         {/* ── Features (charcoal) ──────────────────────────────────────── */}
         <section className="bg-shell-bg text-shell-fg">
-          <div className="container-marketing pb-24 pt-16 md:pb-32 md:pt-20">
+          <div className="container-marketing pb-16 pt-16 md:pb-20 md:pt-20">
             <div className="mb-12 max-w-3xl md:mb-16">
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
                 What ships with the app
@@ -531,19 +541,19 @@ export default function DownloadPage() {
 
             <div className="grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-6">
               <FeatureCard
-                number="01"
+                icon="/branding/illustrations/emoji/inklee-emoji-15.svg"
                 title="Booking control, in your hand"
                 body="See incoming requests with placement, size, and references the moment they land. Accept, pass, or open and close your books with one tap."
                 variant="mustard"
               />
               <FeatureCard
-                number="02"
+                icon="/branding/illustrations/emoji/inklee-emoji-21.svg"
                 title="Trip planner on the road"
                 body="Add a guest spot, set the city and dates, and your booking link updates so clients see where you'll be next."
                 variant="bone"
               />
               <FeatureCard
-                number="03"
+                icon="/branding/illustrations/emoji/inklee-emoji-23.svg"
                 title="Flash booking organizer"
                 body="Snap a flash, add a title and price, and clients can claim it straight from your booking page."
                 variant="rosa"
@@ -554,7 +564,7 @@ export default function DownloadPage() {
 
         {/* ── Steps (bone) ─────────────────────────────────────────────── */}
         <section className="bg-background">
-          <div className="container-marketing py-24 md:py-32">
+          <div className="container-marketing pb-24 pt-16 md:pb-32 md:pt-20">
             <div className="mb-12 text-center md:mb-20">
               {/* Reaper spiderweb key visual — decorative brand moment above
                   the section heading. aria-hidden because it carries no info. */}
