@@ -26,6 +26,24 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 
 ---
 
+### 2026-07-14 — /download founder polish pass (spacing, copy trims, visuals)
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** "Mobile app" (`/download` owns mobile/app-download conversion). No keyword-ownership or metadata changes.
+
+**Files changed:** `apps/web/src/app/download/page.tsx`, `apps/web/public/branding/app/app-artist-shop.webp` (replaced), `apps/web/public/branding/illustrations/reaper-spiderweb-key-visual.svg` (new).
+
+**Implementation:** Founder-requested polish. Desktop hero mockup 10% smaller (420px → 378px) with reduced top padding; desktop hero now hugs content instead of filling the viewport, tightening the gap to the features section (features top padding also reduced). Feature-card bodies shortened (dropped trailing filler sentences; kept the keyword-bearing phrases: booking requests/books, guest spot/booking link, flash/booking page). Steps-section key visual swapped to the reaper spiderweb brand illustration. Step numbers 01/02/03 recolored from charcoal/12 (invisible on the dark rendering) to mustard. Artist-shop gallery mockup replaced with the product-detail shot (silkscreen print with sizes), converted from the founder PNG via the same flood-fill alpha extraction (reusable script now at `.scratch/make-app-mockup-webp.cjs`, 67KB WebP); alt text updated to describe the new screen. "Built by a tattoo artist" eyebrow changed to "Built by an artist" (founder wording).
+
+**Validation performed:** Playwright full-page screenshots at 1440px before/after; new WebP composited over charcoal (transparent background, baked shadow intact, no punched-out UI text); all three gallery phones verified rendering; copy checked against AGENTS.md rules (no em-dashes, sentence case, terminal punctuation). Pre-existing hydration warning confirmed present on the untouched homepage (not introduced here).
+
+**Remaining issues:** None. No new indexable pages; titles, descriptions, canonicals, and sitemap untouched.
+
+**Commit:** _(added on commit; see `feat(download): founder polish pass`)_
+
+---
+
 ### 2026-07-13 — Real app mockups on /download (hero + screens gallery)
 
 **Implemented by:** Claude Code

@@ -285,7 +285,7 @@ function StepRow({
   return (
     <div className="space-y-3">
       <span
-        className="text-7xl font-black leading-none tracking-tight text-brand-charcoal/12"
+        className="text-7xl font-black leading-none tracking-tight text-brand-mustard"
         aria-hidden="true"
       >
         {number}
@@ -320,7 +320,7 @@ const APP_SCREENS: {
   },
   {
     src: "/branding/app/app-artist-shop.webp",
-    alt: "Artist shop screen in the Inklee app showing prints, an oversize t-shirt, and a sticker pack",
+    alt: "Artist shop screen in the Inklee app showing a silkscreen print with size options and prices",
     title: "Your shop, in your pocket",
     body: "Showcase prints, merch, and flash with prices and sizes on your public page.",
   },
@@ -453,10 +453,10 @@ export default function DownloadPage() {
       <main className="flex-1">
         {/* ── Hero (bone) ──────────────────────────────────────────────────
             Bone bg explicit (so the section is unambiguous even if a
-            future global change shifts the default). Vertically centered
-            inside the viewport so content doesn't crowd the nav, with
-            generous top padding to clear the two floating nav pills. */}
-        <section className="relative flex min-h-[calc(100svh-80px)] items-center overflow-hidden bg-background pb-16 pt-24 md:pb-24 md:pt-28">
+            future global change shifts the default). Mobile keeps the
+            viewport-centered layout; desktop hugs the content so the hero
+            sits higher and the features section starts sooner. */}
+        <section className="relative flex min-h-[calc(100svh-80px)] items-center overflow-hidden bg-background pb-16 pt-24 md:min-h-0 md:pb-14 md:pt-20">
           <div className="container-marketing w-full">
             <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[7fr_5fr] md:gap-12">
               <div>
@@ -502,7 +502,7 @@ export default function DownloadPage() {
                   fetchPriority="high"
                   decoding="async"
                   loading="eager"
-                  className="mx-auto h-auto w-full max-w-[320px] md:max-w-[420px]"
+                  className="mx-auto h-auto w-full max-w-[320px] md:max-w-[378px]"
                   draggable={false}
                 />
               </div>
@@ -512,7 +512,7 @@ export default function DownloadPage() {
 
         {/* ── Features (charcoal) ──────────────────────────────────────── */}
         <section className="bg-shell-bg text-shell-fg">
-          <div className="container-marketing py-24 md:py-32">
+          <div className="container-marketing pb-24 pt-16 md:pb-32 md:pt-20">
             <div className="mb-12 max-w-3xl md:mb-16">
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
                 What ships with the app
@@ -533,19 +533,19 @@ export default function DownloadPage() {
               <FeatureCard
                 number="01"
                 title="Booking control, in your hand"
-                body="See incoming requests with placement, size, and references the moment they land. Accept, pass, or open and close your books with one tap. Two of your most-used screens, where your phone is."
+                body="See incoming requests with placement, size, and references the moment they land. Accept, pass, or open and close your books with one tap."
                 variant="mustard"
               />
               <FeatureCard
                 number="02"
                 title="Trip planner on the road"
-                body="Add a guest spot from the studio, set the city and dates, and your booking link updates so the next client sees where you'll be. No spreadsheets, no DMs to rewrite."
+                body="Add a guest spot, set the city and dates, and your booking link updates so clients see where you'll be next."
                 variant="bone"
               />
               <FeatureCard
                 number="03"
                 title="Flash booking organizer"
-                body="Snap a flash on the spot, add a title and price, and clients can claim it from your booking page. No more screenshots, captions, or 'DM to claim'."
+                body="Snap a flash, add a title and price, and clients can claim it straight from your booking page."
                 variant="rosa"
               />
             </div>
@@ -556,11 +556,11 @@ export default function DownloadPage() {
         <section className="bg-background">
           <div className="container-marketing py-24 md:py-32">
             <div className="mb-12 text-center md:mb-20">
-              {/* Inklee key visual — small decorative brand moment above the
-                  section heading. aria-hidden because it carries no info. */}
+              {/* Reaper spiderweb key visual — decorative brand moment above
+                  the section heading. aria-hidden because it carries no info. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/branding/illustrations/key-visual.svg"
+                src="/branding/illustrations/reaper-spiderweb-key-visual.svg"
                 alt=""
                 aria-hidden="true"
                 className="mx-auto mb-8 w-full max-w-[280px] md:max-w-[360px]"
@@ -619,7 +619,7 @@ export default function DownloadPage() {
 
         {/* ── Mustard accent block — the one bold color section.
             Two-column on desktop: artist illustration on the left, the
-            "built by a tattoo artist" claim on the right. */}
+            "built by an artist" claim on the right. */}
         <section className="bg-brand-mustard">
           <div className="container-marketing py-16 md:py-24">
             <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-8 md:grid-cols-[5fr_7fr] md:gap-12">
@@ -632,7 +632,7 @@ export default function DownloadPage() {
               />
               <div className="text-center md:text-left">
                 <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-charcoal/70">
-                  Built by a tattoo artist
+                  Built by an artist
                 </p>
                 <p className="text-2xl font-black leading-tight tracking-tight text-brand-charcoal sm:text-3xl md:text-4xl lg:text-5xl">
                   Inklee was started in a studio, not a startup office. The app
