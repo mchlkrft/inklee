@@ -265,10 +265,10 @@ function FeatureCard({
         src={icon}
         alt=""
         aria-hidden="true"
-        width={48}
-        height={48}
+        width={58}
+        height={58}
         loading="lazy"
-        className="h-12 w-12"
+        className="h-[58px] w-[58px]"
         draggable={false}
       />
       <div className="space-y-3">
