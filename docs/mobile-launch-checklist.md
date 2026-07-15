@@ -52,7 +52,7 @@ pass and the store submission.
 - [ ] **Apple Developer Program** ($99/yr). Needs a D-U-N-S number for the org →
       that path wanted an **Estonian phone number**; resolve that first.
 - [ ] **Google Play Developer** ($25 one-time).
-- [ ] Bundle IDs are already set: `ee.inkl.app` (both platforms, in `app.json`).
+- [x] Bundle IDs are set: `app.inklee` (both platforms, in `app.json`; renamed from `ee.inkl.app` 2026-07-15 before the first Play upload).
 
 ### T3 · EAS push credentials  ← needs T2
 - [ ] Apple: create the **APNs key** in the developer portal, add to EAS.

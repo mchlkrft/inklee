@@ -43,7 +43,7 @@
 ### 1.3 Medium / Low
 
 - **`ADMIN_EMAILS`** (fail-closed: unset = `/admin` reachable by no one).
-- **Apple Developer + Google Play accounts** (`ee.inkl.app`) → unlocks push creds + store submission; fill empty `eas.json` `submit.production`.
+- **Apple Developer + Google Play accounts** (`app.inklee` since the 2026-07-15 package rename; was `ee.inkl.app` at audit time) → unlocks push creds + store submission; fill empty `eas.json` `submit.production`.
 - **`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`** with HTTP-referrer restriction to `inklee.app` (web travel map; also a security note — see §5).
 - **`SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`** (recommended before real-money beta).
 - **Instagram/Meta** (`INSTAGRAM_APP_ID/SECRET`, dedicated `INSTAGRAM_STATE_SECRET`, register callback) — blocked on the new Meta app + Business verification; **non-blocking** for the deposit beta.
