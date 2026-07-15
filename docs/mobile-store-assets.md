@@ -57,10 +57,10 @@ The store icon is pulled from the binary (A1); no separate upload.
 
 ## F. Store listing copy (final, char-limit verified; lift verbatim)
 
-App Store name (max 30) — pick one:
+App Store name (max 30) — **DECIDED 2026-07-15: `Inklee: Tattoo artist bookings`** (founder sign-off; SEO-alignment check preferred it because "artist" matches the owned keyword families and filters out client-intent installs — see `docs/seo/seo-implementation-log.md`). The Play app was created under this name. Original candidates:
 
-- `Inklee: Tattoo bookings` (23 chars, recommended)
-- `Inklee: Tattoo artist bookings` (30 chars, exact fit)
+- `Inklee: Tattoo bookings` (23 chars)
+- `Inklee: Tattoo artist bookings` (30 chars, exact fit) ← picked
 - `Inklee` (6 chars, brand-pure)
 
 App Store subtitle (27/30): `Bookings for tattoo artists`

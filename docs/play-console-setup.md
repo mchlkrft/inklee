@@ -10,7 +10,7 @@ Everything needed to create the Inklee app in the Play Console and clear the "Se
 
 | Field | Value |
 | ----- | ----- |
-| App name | `Inklee: Tattoo bookings` (recommended, 23/30 chars) — alternatives: `Inklee` or `Inklee: Tattoo artist bookings` (30/30) |
+| App name | `Inklee: Tattoo artist bookings` (30/30 chars — founder-picked 2026-07-15; "artist" in the title matches the owned keyword families and filters out client-intent installs) |
 | Default language | English (United States) — en-US |
 | App or game | App |
 | Free or paid | Free |
@@ -120,7 +120,7 @@ Declare **trader** status (the account is the Inklee OÜ organization account; r
 
 Copy lives in `docs/mobile-store-assets.md` §F — lift verbatim. Quick reference:
 
-- **App name:** `Inklee: Tattoo bookings`
+- **App name:** `Inklee: Tattoo artist bookings`
 - **Short description (77/80):** `The booking app for tattoo artists. Requests, deposits, clients. No DM chaos.`
 - **Full description:** the 2,034-char block in §F (starts "Tattoo bookings live in Instagram DMs…")
 
@@ -152,6 +152,6 @@ After internal testing is verified: wire `eas submit -p android` with a Google C
 ## 6. Founder to-dos surfaced by this checklist
 
 - [ ] Create the demo artist account with believable seeded data (per `docs/mobile-store-assets.md` §G: pending requests with references, an accepted booking with a paid deposit, a trip, a flash day) and enter its credentials under App access.
-- [ ] Sign off the app name choice (recommended: `Inklee: Tattoo bookings`).
+- [x] App name signed off 2026-07-15: `Inklee: Tattoo artist bookings`.
 - [ ] Export the Highlight mockup PNGs for the screenshot slots (2 minimum).
 - [ ] Keep the old `ee.inkl.app` Firebase Android app until every sideload tester has migrated (deleting it kills their push).

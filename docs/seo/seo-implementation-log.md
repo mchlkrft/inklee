@@ -26,6 +26,24 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 
 ---
 
+### 2026-07-15 — Play Store app name: SEO alignment check + founder decision
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** "Mobile app" (`/download` owns web app-download conversion; the Play listing is a store surface, not an indexable inklee.app page — no keyword-ownership change). Core positioning guardrail applied: never present Inklee as unrestricted client self-booking.
+
+**Files changed:** `docs/play-console-setup.md`, `docs/mobile-store-assets.md` (name decision recorded; both are docs, not pages).
+
+**Implementation:** Checked the store title candidates from `docs/mobile-store-assets.md` §F against the canonical strategy. `Inklee: Tattoo bookings` (23/30) carried the owned category vocabulary but omitted the audience term; in Play search cards a title without "artist" reads as a client-facing booking app, inviting wrong-audience installs (clients hit the login wall, churn, and rate poorly), which conflicts with the strategy's audience definition and the anti-self-booking guardrail. Recommended `Inklee: Tattoo artist bookings` (30/30, §F option): tokenizes into `tattoo artist` + `bookings`, covering both owned phrase families ("tattoo artist booking app", "tattoo booking app") in the strongest ASO field. Founder signed off same day and created the Play app under that name.
+
+**Validation performed:** Char-limit check (30/30); cross-checked against strategy keyword families, the cannibalization rules (no new indexable URL involved), and Play title policy (no promo/superlative terms).
+
+**Remaining issues:** None for the name. Store listing copy itself lifts verbatim from §F (already char-verified).
+
+**Commit:** (docs committed with the Play Console walkthrough follow-up)
+
+---
+
 ### 2026-07-14 — /download founder polish pass (spacing, copy trims, visuals)
 
 **Implemented by:** Claude Code
