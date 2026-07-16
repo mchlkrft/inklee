@@ -9,6 +9,11 @@ import {
   importInstagramPosts,
   disconnectInstagram,
 } from "@/lib/server/instagram-sync";
+import { isCapabilityDisabled } from "@/lib/server/app-config";
+
+// The instagram_import capability pause (docs/architecture/remote-config-plan.md
+// §8) blocks connect/sync/import here AND on the /api/mobile/instagram/* routes;
+// disconnect stays available (removing the integration is always allowed).
 
 export async function connectInstagramAction(): Promise<void> {
   const supabase = await createClient();
@@ -16,6 +21,9 @@ export async function connectInstagramAction(): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  if (isCapabilityDisabled("instagram_import")) {
+    redirect("/flash/instagram?error=unavailable");
+  }
 
   const state = generateOAuthState(user.id);
   redirect(buildOAuthUrl(state));
@@ -27,6 +35,9 @@ export async function syncInstagramAction(): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  if (isCapabilityDisabled("instagram_import")) {
+    redirect("/flash/instagram?error=unavailable");
+  }
 
   let synced = 0;
   try {
@@ -79,6 +90,11 @@ export async function importPostsAsFlashItemsAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
+  if (isCapabilityDisabled("instagram_import")) {
+    return {
+      error: "Instagram import is temporarily unavailable. Try again later.",
+    };
+  }
 
   const result = await importInstagramPosts(supabase, user.id, postIds);
   if ("error" in result) return { error: result.error };

@@ -56,8 +56,15 @@ function depositStatusLabel(d: NonNullable<BookingDetail["deposit"]>): string {
       return "Paid";
     case "cancelled":
       return "Cancelled";
-    default:
+    case "awaiting":
+    case "overdue":
       return d.hasCardIntent ? "Awaiting card payment" : "Awaiting payment";
+    default: {
+      // Version skew: a NEWER server may send a state this build doesn't know.
+      // Show it humanised rather than mislabeling it as awaiting payment.
+      const raw = String(d.state).replace(/_/g, " ");
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
+    }
   }
 }
 

@@ -274,8 +274,11 @@ export async function PATCH(
     description: String(raw.description ?? ""),
   });
   if ("error" in result) {
-    const status = result.error === "Booking not found." ? 404 : 400;
-    return mobileError(status, result.error);
+    const status =
+      result.errorCode === "not_found" || result.error === "Booking not found."
+        ? 404
+        : 400;
+    return mobileError(status, result.error, result.errorCode ?? "error");
   }
   return mobileOk({ id });
 }

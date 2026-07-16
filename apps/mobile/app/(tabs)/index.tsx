@@ -25,6 +25,7 @@ import {
 import type { LucideIcon } from "@/lib/icon-types";
 import { Screen } from "@/components/Screen";
 import { TopBar, useTopBarHeight } from "@/components/TopBar";
+import { UpdateRecommendedBanner } from "@/components/UpdateRecommendedBanner";
 import { TravelIcon } from "@/components/TravelIcon";
 import { Card } from "@/components/Card";
 import { CardHeader } from "@/components/CardHeader";
@@ -273,6 +274,9 @@ export default function HomeScreen() {
           />
         }
       >
+        {/* Soft-update nudge (server recommendedVersion) — independent of the
+            /home fetch so it shows even when home fails to load. */}
+        <UpdateRecommendedBanner />
         {!data ? (
           loading ? (
             <View className="items-center justify-center py-24">

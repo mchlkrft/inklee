@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
 import { invalidateBookingViews, useApiQuery } from "@/lib/api";
+import { useCapability } from "@/lib/capabilities";
 import { useColors } from "@/lib/theme";
 import { captureError } from "@/lib/telemetry";
 import { track, type AnalyticsEvent } from "@/lib/analytics";
@@ -365,7 +366,11 @@ function DepositRequestForm({
   // enabled, via deriveConnectRouting) — the loose chargesEnabled flag can be
   // true for a restricted account the server would refuse to route, which
   // would show card copy + a fee split for a deposit that lands as manual.
-  const canCollectInApp = !!payouts.data?.routeCharges;
+  // depositsOn is the remote capability pause: while "deposits" is disabled
+  // platform-wide, the server core takes the manual branch, so the form must
+  // show the manual copy too (and not the misleading Connect-Stripe nudge).
+  const depositsOn = useCapability("deposits");
+  const canCollectInApp = depositsOn && !!payouts.data?.routeCharges;
   const currency =
     booking.deposit?.currency ?? artistDepositCurrency(payouts.data?.country);
 
@@ -435,6 +440,12 @@ function DepositRequestForm({
       ) : canCollectInApp ? (
         <Text className="text-xs text-shell-dim">
           The client pays by card via a link in their email.
+        </Text>
+      ) : !depositsOn ? (
+        <Text className="text-xs text-shell-dim">
+          Card payments are temporarily unavailable. You&apos;ll collect this
+          deposit directly (e.g. bank transfer, add details in the note) and
+          mark it received.
         </Text>
       ) : (
         <Text className="text-xs text-shell-dim">

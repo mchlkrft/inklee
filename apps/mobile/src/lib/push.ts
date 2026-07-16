@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { apiDelete, apiPost } from "./api";
+import { APP_VERSION } from "./app-info";
 import { captureError } from "./telemetry";
 
 // Slice 3 — push notification token lifecycle + tap-to-route. The *delivery*
@@ -129,7 +130,7 @@ export async function registerPushTokenAsync(): Promise<string | null> {
     await apiPost("/devices", {
       token,
       platform: Platform.OS,
-      appVersion: Constants.expoConfig?.version ?? null,
+      appVersion: APP_VERSION,
     });
     return token;
   } catch (e) {

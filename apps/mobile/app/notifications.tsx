@@ -221,11 +221,16 @@ function NotificationRow({
         style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}
       >
         <View className="flex-row items-start gap-3">
-          <Text className="mt-0.5 text-base">{CATEGORY_ICON[n.category]}</Text>
+          {/* Fallbacks: a NEWER server may send a category/priority this build
+              doesn't know — render the info icon / muted dot instead of an
+              invisible gap (version-skew tolerance). */}
+          <Text className="mt-0.5 text-base">
+            {CATEGORY_ICON[n.category] ?? CATEGORY_ICON.info}
+          </Text>
           <View className="flex-1">
             <View className="flex-row flex-wrap items-center gap-1.5">
               <View
-                className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[n.priority]}`}
+                className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[n.priority] ?? PRIORITY_DOT.low}`}
               />
               <Text
                 className={`shrink text-base ${

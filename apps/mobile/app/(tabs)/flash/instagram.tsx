@@ -22,6 +22,7 @@ import { DangerButton } from "@/components/DangerButton";
 import { BrandLoader } from "@/components/BrandLoader";
 import { ErrorState } from "@/components/ErrorState";
 import { apiPost, useApiQuery } from "@/lib/api";
+import { useCapability } from "@/lib/capabilities";
 import { openConnectHandoff } from "@/lib/web-handoff";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
@@ -31,6 +32,9 @@ const H_PAD = 40; // Screen's px-5 on both sides.
 
 export default function InstagramScreen() {
   const q = useApiQuery<MobileInstagram>("/instagram");
+  // Remote capability pause: the server refuses sync/import while paused
+  // (capability_disabled), so hide the whole surface behind the same message.
+  const igEnabled = useCapability("instagram_import");
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -133,6 +137,20 @@ export default function InstagramScreen() {
     } finally {
       setImporting(false);
     }
+  }
+
+  // ── Capability paused (remote kill) ───────────────────────────────────────
+  if (!igEnabled) {
+    return (
+      <Screen edges={["left", "right"]}>
+        <View className="flex-1 items-center justify-center px-2">
+          <InfoCard
+            title="Instagram sync is temporarily unavailable"
+            body="Designs you already imported stay in your library. Please try again later."
+          />
+        </View>
+      </Screen>
+    );
   }
 
   // ── Loading / hard error ──────────────────────────────────────────────────

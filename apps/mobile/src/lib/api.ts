@@ -6,10 +6,19 @@ import {
 } from "@tanstack/react-query";
 import { config } from "./config";
 import { supabase } from "./supabase";
+import { APP_PLATFORM, APP_VERSION } from "./app-info";
 
 // Thin client for the Bearer-JWT JSON API at <web>/api/mobile/*. Mirrors the
 // server envelope: success -> { data }, failure -> { error: { code, message } }.
 const BASE = config.apiUrl;
+
+// Version-skew signal on every request. The server treats an absent header as
+// the oldest possible client (0.0.0), so old builds that never sent these stay
+// on the most conservative response shape (see clientAtLeast on the web side).
+const VERSION_HEADERS = {
+  "X-Inklee-App-Version": APP_VERSION,
+  "X-Inklee-Platform": APP_PLATFORM,
+} as const;
 
 export class ApiError extends Error {
   constructor(
@@ -30,7 +39,7 @@ async function authHeader(): Promise<Record<string, string>> {
 
 export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
-    headers: { ...(await authHeader()) },
+    headers: { ...VERSION_HEADERS, ...(await authHeader()) },
     signal,
   });
   const json = await res.json().catch(() => null);
@@ -47,7 +56,11 @@ export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    headers: {
+      "Content-Type": "application/json",
+      ...VERSION_HEADERS,
+      ...(await authHeader()),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => null);
@@ -64,7 +77,11 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    headers: {
+      "Content-Type": "application/json",
+      ...VERSION_HEADERS,
+      ...(await authHeader()),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => null);
@@ -81,7 +98,11 @@ export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    headers: {
+      "Content-Type": "application/json",
+      ...VERSION_HEADERS,
+      ...(await authHeader()),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => null);
@@ -110,7 +131,7 @@ export async function apiUpload<T>(
   } as unknown as Blob);
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     method: "POST",
-    headers: { ...(await authHeader()) },
+    headers: { ...VERSION_HEADERS, ...(await authHeader()) },
     body: form,
   });
   const json = await res.json().catch(() => null);
@@ -127,7 +148,11 @@ export async function apiUpload<T>(
 export async function apiDelete<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    headers: {
+      "Content-Type": "application/json",
+      ...VERSION_HEADERS,
+      ...(await authHeader()),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => null);

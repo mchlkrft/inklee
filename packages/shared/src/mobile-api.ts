@@ -4,6 +4,25 @@
 // matching type here, and each screen types its fetch with the same type, so the
 // two sides cannot drift. These describe ONLY the `data` payload — the route
 // helpers wrap it in the `{ data }` / `{ error }` envelope.
+//
+// ── WIRE POLICY (docs/architecture/remote-config-plan.md §3-4, §12) ─────────
+// There is no OTA for the mobile app: every installed build keeps its compiled
+// copy of these types until the user updates. Therefore:
+//
+//  1. ADDITIVE ONLY. New response data = a new OPTIONAL field (`foo?:`) with a
+//     "version skew" comment. Never rename or remove a non-optional field — a
+//     removed field breaks every installed build that reads it. Deprecate
+//     instead (see `referenceImagePaths`) and keep serving it.
+//  2. EMISSION RULE. Where a response would carry a VALUE an old build cannot
+//     render safely (a new enum/status value, changed money semantics), the
+//     route must gate the emission with `clientAtLeast(req, "x.y.z")`
+//     (@/lib/server/client-version) and collapse or withhold it for older
+//     clients. Status-ish fields are typed `string` here on purpose so new
+//     values don't break decoding — but decoding safely is not the same as
+//     rendering correctly; money-state values (DepositState) are held to the
+//     emission rule strictly.
+//  3. REQUESTS. Never add a REQUIRED field to an existing mutation — old
+//     builds can't send it. New request fields get server-side defaults.
 
 import type { AnalyticsMetrics } from "./analytics";
 import type { BooksSettings } from "./books-settings";

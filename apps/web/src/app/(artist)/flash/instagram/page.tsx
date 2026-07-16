@@ -100,7 +100,9 @@ export default async function FlashInstagramPage({
                 ? "Instagram sync failed - no new posts were imported."
                 : params.error === "disconnect_failed"
                   ? "Disconnecting failed. Please try again."
-                  : "Instagram connection failed - please try again."}
+                  : params.error === "unavailable"
+                    ? "Instagram sync is temporarily unavailable. Please try again later."
+                    : "Instagram connection failed - please try again."}
         </div>
       )}
 

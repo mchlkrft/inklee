@@ -1,9 +1,14 @@
-export type BookingStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "deposit_pending"
-  | "cancelled";
+// The canonical status list. Derive from this everywhere (type, API filters,
+// label maps) — hand-copied sets drift when a status is added.
+export const BOOKING_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+  "deposit_pending",
+  "cancelled",
+] as const;
+
+export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 // Valid status transitions — any transition not listed here is rejected
 const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {

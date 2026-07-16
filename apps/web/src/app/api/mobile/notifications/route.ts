@@ -15,16 +15,22 @@ export async function GET(req: Request) {
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
 
+  // Explicit column list (not select("*")): the wire contract is the shared
+  // Notification type, and a future DB column must be added here deliberately —
+  // never leaked to installed builds by accident.
+  const NOTIFICATION_COLUMNS =
+    "id, artist_id, type, category, priority, title, message, cta_label, cta_href, is_read, is_resolved, metadata, created_at";
+
   const [listRes, unreadRes] = await Promise.all([
     supabase
       .from("notifications")
-      .select("*")
+      .select(NOTIFICATION_COLUMNS)
       .eq("artist_id", userId)
       .order("created_at", { ascending: false })
       .limit(100),
     supabase
       .from("notifications")
-      .select("*", { count: "exact", head: true })
+      .select("id", { count: "exact", head: true })
       .eq("artist_id", userId)
       .eq("is_read", false),
   ]);

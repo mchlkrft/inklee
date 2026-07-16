@@ -18,7 +18,7 @@ import { UpdateRequired } from "@/components/UpdateRequired";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
-import { useMinVersionGate } from "@/lib/min-version";
+import { useAppConfigGate } from "@/lib/capabilities";
 import { usePushResponseObserver } from "@/lib/push";
 import { captureError } from "@/lib/telemetry";
 import { t } from "@/lib/i18n";
@@ -111,10 +111,12 @@ function RootNavigator() {
   const theme = useThemeColors();
   const userId = session?.user?.id;
 
-  // Min-version kill-switch. Fail-open: only an affirmative updateRequired
-  // blocks (see useMinVersionGate). Checked ABOVE the auth/onboarding gates so a
-  // recalled build is blocked even before sign-in.
-  const minVersion = useMinVersionGate();
+  // Min-version kill-switch, now riding the app-config plane (/config carries
+  // the same fields as the legacy /min-version plus the capability kill list).
+  // Fail-open: only an affirmative updateRequired blocks (see useAppConfigGate).
+  // Checked ABOVE the auth/onboarding gates so a recalled build is blocked even
+  // before sign-in.
+  const minVersion = useAppConfigGate();
 
   // Drop the previous session's cached data when the signed-in user changes
   // (sign-out, or switching accounts) so the /me gate can never read a prior

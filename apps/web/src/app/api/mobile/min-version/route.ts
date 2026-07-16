@@ -1,8 +1,6 @@
 import { mobileOk } from "@/lib/server/mobile-auth";
-import {
-  isUpdateRequired,
-  type MobileMinVersion,
-} from "@inklee/shared/app-version";
+import type { MobileMinVersion } from "@inklee/shared/app-version";
+import { buildMobileAppConfig } from "@/lib/server/app-config";
 
 export const runtime = "nodejs";
 
@@ -27,16 +25,14 @@ export async function GET(req: Request) {
     url.searchParams.get("platform") === "ios" ? "ios" : "android";
   const version = url.searchParams.get("version") ?? "0.0.0";
 
-  const perPlatform =
-    platform === "ios"
-      ? process.env.MOBILE_MIN_VERSION_IOS
-      : process.env.MOBILE_MIN_VERSION_ANDROID;
-  const minVersion = perPlatform || process.env.MOBILE_MIN_VERSION || "0.0.0";
-
+  // Single implementation shared with GET /api/mobile/config (0.2.0+ builds);
+  // this legacy endpoint keeps serving pre-0.2.0 builds forever with the
+  // narrower payload they compiled against.
+  const config = buildMobileAppConfig(platform, version);
   const payload: MobileMinVersion = {
-    minVersion,
-    updateRequired: isUpdateRequired(version, minVersion),
-    updateUrl: process.env.MOBILE_UPDATE_URL || null,
+    minVersion: config.minVersion,
+    updateRequired: config.updateRequired,
+    updateUrl: config.updateUrl,
   };
   return mobileOk(payload);
 }

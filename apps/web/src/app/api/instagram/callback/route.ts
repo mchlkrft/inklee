@@ -7,6 +7,7 @@ import {
   fetchInstagramUser,
 } from "@/lib/instagram";
 import { syncInstagramMedia } from "@/lib/server/instagram-sync";
+import { isCapabilityDisabled } from "@/lib/server/app-config";
 import { createClient } from "@/lib/supabase/server";
 
 // Thumbnail download adds ~5–15s to a 50-post sync; default 10s timeout would clip it.
@@ -73,10 +74,14 @@ export async function GET(req: NextRequest) {
     // Cache the artist's recent media (shared with resync + the mobile route).
     // The account is already saved connected, so a sync hiccup must NOT surface
     // as a failed connect: swallow it and let the artist resync from the page.
-    try {
-      await syncInstagramMedia(artistId);
-    } catch (syncErr) {
-      console.error("[instagram/callback] post-connect sync failed", syncErr);
+    // Skipped while the instagram_import capability is paused (an in-flight
+    // OAuth still completes; only the media pull waits for the un-pause).
+    if (!isCapabilityDisabled("instagram_import")) {
+      try {
+        await syncInstagramMedia(artistId);
+      } catch (syncErr) {
+        console.error("[instagram/callback] post-connect sync failed", syncErr);
+      }
     }
 
     return NextResponse.redirect(`${baseRedirect}?connected=1`);

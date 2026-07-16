@@ -9,16 +9,13 @@ import type {
   MobileBookingListItem,
   MobileBookingsPage,
 } from "@inklee/shared/mobile-api";
+import { BOOKING_STATUSES } from "@inklee/shared/booking-fsm";
 
 export const runtime = "nodejs";
 
-const ALLOWED_STATUS = new Set([
-  "pending",
-  "approved",
-  "rejected",
-  "deposit_pending",
-  "cancelled",
-]);
+// Derived from the FSM's canonical list so a future status can't silently be
+// dropped by this filter while the rest of the app knows it.
+const ALLOWED_STATUS = new Set<string>(BOOKING_STATUSES);
 
 // Guard the trip filter so a malformed value degrades to "unfiltered" instead of
 // a Postgres 22P02 (invalid uuid syntax). The artist_id scope still applies, so a

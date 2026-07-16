@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { syncInstagramMedia } from "@/lib/server/instagram-sync";
+import { isCapabilityDisabled } from "@/lib/server/app-config";
 import type { MobileInstagramSyncResult } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -15,6 +16,16 @@ export async function POST(req: Request) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
+
+  // Authoritative half of the instagram_import capability pause — the client
+  // hides the entry point, this refuses the action regardless.
+  if (isCapabilityDisabled("instagram_import")) {
+    return mobileError(
+      503,
+      "Instagram sync is temporarily unavailable. Try again later.",
+      "capability_disabled",
+    );
+  }
 
   const { data: account } = await supabase
     .from("instagram_accounts")

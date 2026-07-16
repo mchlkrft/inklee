@@ -29,13 +29,22 @@ import { platformFeeCents } from "@/lib/platform-fee";
 import { checkDepositRequestRateLimit } from "@/lib/ratelimit";
 import { canAccess, isFeeSponsorshipActive } from "@/lib/entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
+import { isCapabilityDisabled } from "@/lib/server/app-config";
 import {
   parseDepositPolicy,
   renderDepositPolicyText,
 } from "@/lib/deposit-policy";
 import type Stripe from "stripe";
 
-export type BookingMutationResult = { error: string } | { success: true };
+// Machine-readable code for the two ownership/existence failures so the mobile
+// envelope can map status codes without matching the English message text
+// (which must stay free to change). Optional: absent means "validation /
+// state-machine guard" (HTTP 400).
+export type BookingMutationErrorCode = "not_found" | "not_authorised";
+
+export type BookingMutationResult =
+  | { error: string; errorCode?: BookingMutationErrorCode }
+  | { success: true };
 
 export type AuthorisedBooking = {
   status: string;
@@ -58,7 +67,7 @@ export type { InterestDecisionPayload } from "@/lib/booking-interests";
 import type { InterestDecisionPayload } from "@/lib/booking-interests";
 
 type AuthorisedBookingResult =
-  | { error: string }
+  | { error: string; errorCode?: BookingMutationErrorCode }
   | { booking: AuthorisedBooking };
 
 // Fetch the booking and assert the caller owns it. Auth (resolving `userId`)
@@ -78,8 +87,12 @@ async function getAuthorisedBooking(
     .eq("id", bookingId)
     .single();
 
-  if (!booking) return { error: "Booking not found." };
-  if (booking.artist_id !== userId) return { error: "Not authorised." };
+  if (!booking) {
+    return { error: "Booking not found.", errorCode: "not_found" };
+  }
+  if (booking.artist_id !== userId) {
+    return { error: "Not authorised.", errorCode: "not_authorised" };
+  }
 
   return {
     booking: {
@@ -703,7 +716,13 @@ export async function requestDepositCore(
   // the 3% (application_fee 0) and we stamp the foregone fee on the intent so the
   // webhook can track it against the sponsorship budget.
   const overrides = await getAccountOverrides(userId);
-  const depositsEntitled = canAccess(overrides, "deposits");
+  // Platform-wide capability pause (docs/architecture/remote-config-plan.md
+  // §8): with "deposits" in DISABLED_CAPABILITIES, every request takes the
+  // manual branch below — the same degradation path un-entitled artists
+  // already take, so a paused fleet (old installed builds included) stays
+  // coherent without touching Stripe keys or account rows.
+  const depositsEntitled =
+    !isCapabilityDisabled("deposits") && canAccess(overrides, "deposits");
   const feeSponsored = depositsEntitled && isFeeSponsorshipActive(overrides);
   const amountCents = Math.round(amount * 100);
   const standardFeeCents = platformFeeCents(amountCents);
@@ -1361,7 +1380,7 @@ export async function editAppointmentCore(
     .eq("id", id)
     .single();
   if (!booking || booking.artist_id !== userId) {
-    return { error: "Booking not found." };
+    return { error: "Booking not found.", errorCode: "not_found" };
   }
   if (booking.status !== "approved") {
     return { error: "Only accepted appointments can be edited." };
