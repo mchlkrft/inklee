@@ -366,6 +366,8 @@ Onboarding improvements, educational content, booking-form template marketplace,
 ### 6.6 Studios, Guest Spots & Tattoo Map — FUTURE (local prototype only)
 
 > **Future development. Not part of launch. Local prototype only. Feature flags default OFF. Not deployed. Not on `master`.**
+>
+> **2026-07-17: this concept was re-scoped as the Inklee 2.0 track** (artist-facing guest spot map + studio network). Planning SoT: `docs/product/inklee-2-guestspot-map-scope.md` + build plan + collision audit + open questions in `docs/product/`. The worktree below is now a quarry for that track (per-subsystem verdicts in the collision audit), not a branch to merge.
 
 A multi-artist studio **business** layer (organizations / locations / workspaces / role-based memberships / guest-spot request→proposal→stay workflow) + a **tattoo discovery map** + an **artist travel/share map**. Distinct from the existing artist-owned travel feature (`studios`/`trips`/`trip_legs` → "Guest Spots" → `/travel`); the new entities are namespaced `studio_organizations`/`guest_spot_*`/`map_*` to never collide. Built 2026-06-23 as a dormant foundation in an **isolated worktree** (`A:\WORK\inklee-studios-guestspots-map`, branch `feature/local-studios-guestspots-map`, never pushed): **slices 0–14** now complete end-to-end across web **and a native mobile artist flow**, plus **three** quality/UX audits (47-agent S8, 50-agent S13 over slices 9–12, and a 3-agent pre-build + 7-agent post-build pass for the mobile screens), all gate-green (web+mobile tsc, lint 0 errors, **790** tests, full build). The mobile screens live at `apps/mobile/app/studios/*` (outside the 5-tab bar, reached from Settings > Tools, gated by `EXPO_PUBLIC_*` flags default OFF): studios list, studio detail (read-only), discover → request → my-requests, and a list-only tattoo-map boundary (no native map dep). Deferred on mobile: the studio-manager review inbox + request withdrawal (need mobile mutation endpoints), and a native interactive map. Migrations `0054–0058` are **local-only** (never applied to prod). Full plan + audits + resume steps in `docs/features/studios-guest-spots-map/` (in the worktree) and memory `studios-guestspots-map-feature`. Promotion to launch requires a dedicated production-readiness review (Stripe/legal/RLS/mobile parity) — do NOT merge or deploy without it.
 
@@ -463,6 +465,7 @@ Independent: [Phase E: mobile] (after first real artist AND after the Bio Page +
 | SEO strategy, keyword ownership, page map | `docs/seo/inklee-seo-strategy.md` (canonical) + `docs/seo-strategy.md` (analytical companion) + `docs/seo/seo-implementation-log.md` (completed work) |
 | Public template repo cadence                   | Memory: `template-repo-cadence` (replaces lost `project_inklee_template_repo.md`) |
 | Founder follow-ups (low priority)              | Memory: `inklee_followup.md`              |
+| Inklee 2.0 guest spot map + studio network     | `docs/product/inklee-2-guestspot-map-scope.md` (scope) + `inklee-2-build-plan.md` + `inklee-2-collision-audit.md` + `inklee-2-open-questions.md` |
 | Architectural decisions                        | `DECISIONS.md`                            |
 | Operational runbook                            | `RUNBOOK.md`                              |
 | Agent contributor guardrails                   | `AGENTS.md`                               |
