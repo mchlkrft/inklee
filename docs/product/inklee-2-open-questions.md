@@ -108,11 +108,9 @@ The live database already has a `studios` table that means "an artist's own trav
 
 **Resolved 2026-07-17: quarry, confirmed by the founder.** The branch `feature/local-studios-guestspots-map` is source material only: modules are copied and adapted into fresh 2.0 slices on master (migrations renumbered to 0074+), and the branch itself is never merged or rebased. Per-subsystem verdicts in the collision audit section 2. The same founder decision approved all ten Phase 0 architecture calls in collision audit section 13 as working defaults.
 
-### Q13. Anonymous artist count privacy floor
+### Q13. Anonymous artist count privacy floor: RESOLVED
 
-Private artists are counted anonymously per area. Below what count does the number itself become identifying ("1 artist in town" plus an Instagram post equals a person)? A minimum display threshold (for example only show counts of 3 or more) seems needed, but the exact floor and the aggregation area size are undecided.
-
-- Decide by: Phase 2 artist-in-area display build.
+**Resolved 2026-07-18: the floor is 3, decided by the founder.** City counts below 3 render as nothing (the standard small-cell suppression baseline; city-level granularity and consent gating carry the rest of the protection). The constant lives as `MIN_ANON_ARTIST_COUNT` in `packages/shared/src/map-directory.ts`.
 
 ### Q14. Are map reports DSA notices or in-product signals?
 

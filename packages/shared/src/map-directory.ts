@@ -162,6 +162,10 @@ export const MAP_VISIBILITY_LABELS: Record<MapVisibilityMode, string> = {
   listed: "List me in my city",
 };
 
+// Anonymous city counts below this floor render as nothing, so the number
+// itself can never identify someone (Q13, founder decision 2026-07-18).
+export const MIN_ANON_ARTIST_COUNT = 3;
+
 // ---------------------------------------------------------------------------
 // The public pin shape served by the viewport query API. This shaper is THE
 // boundary between the service-role read and the client (the predecessor's
