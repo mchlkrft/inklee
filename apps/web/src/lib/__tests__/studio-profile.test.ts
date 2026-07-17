@@ -97,7 +97,11 @@ describe("computeStudioCompleteness", () => {
 
     const noLogo = computeStudioCompleteness({ ...full, hasLogo: false });
     expect(noLogo.publishReady).toBe(false);
-    expect(noLogo.publishBlockers.join(" ")).toMatch(/Logo/);
+    // Blockers are action-phrased ("Add a logo"), not done-state labels.
+    expect(noLogo.publishBlockers).toContain("Add a logo");
+    expect(noLogo.items.find((i) => i.key === "logo")?.label).toBe(
+      "Logo added",
+    );
   });
 
   it("counts below the photo and category minimums block publishing", () => {

@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   Link2,
   Compass,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import Spiderweb from "@/components/icons/spiderweb";
@@ -83,7 +84,10 @@ export const SIDEBAR_NAV: NavGroup[] = [
       // Inklee 2.0 discovery map, flag-gated (the NEXT_PUBLIC_* read inside
       // the helper is inlined at build time on server and client alike).
       ...(tattooMapEnabled()
-        ? [{ label: "Tattoo map", href: "/map", icon: Compass }]
+        ? [
+            { label: "Tattoo map", href: "/map", icon: Compass },
+            { label: "Studio", href: "/studio", icon: Building2 },
+          ]
         : []),
     ],
   },

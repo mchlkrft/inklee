@@ -134,7 +134,10 @@ export type StudioSnapshot = {
 
 export type CompletenessItem = {
   key: string;
+  /** Done-state phrasing for the checklist ("Logo added"). */
   label: string;
+  /** Action phrasing for the "still to do" list ("Add a logo"). */
+  todoLabel: string;
   done: boolean;
   /** Required items gate publishing; the rest just improve the score. */
   required: boolean;
@@ -144,7 +147,7 @@ export type StudioCompleteness = {
   items: CompletenessItem[];
   /** 0 to 100 across all items. */
   score: number;
-  /** Missing required items block publishing. */
+  /** Action-phrased todo labels for the missing required items. */
   publishBlockers: string[];
   publishReady: boolean;
 };
@@ -153,34 +156,45 @@ export function computeStudioCompleteness(
   snapshot: StudioSnapshot,
 ): StudioCompleteness {
   const items: CompletenessItem[] = [
-    { key: "logo", label: "Logo added", done: snapshot.hasLogo, required: true },
+    {
+      key: "logo",
+      label: "Logo added",
+      todoLabel: "Add a logo",
+      done: snapshot.hasLogo,
+      required: true,
+    },
     {
       key: "photos",
       label: `${MIN_STUDIO_PHOTOS}+ photos added`,
+      todoLabel: `Add ${MIN_STUDIO_PHOTOS} or more photos`,
       done: snapshot.photoCount >= MIN_STUDIO_PHOTOS,
       required: true,
     },
     {
       key: "description",
       label: "Description written",
+      todoLabel: "Write a description",
       done: snapshot.hasDescription,
       required: true,
     },
     {
       key: "address",
       label: "Address or area set",
+      todoLabel: "Set your address or area",
       done: snapshot.hasAddress,
       required: true,
     },
     {
       key: "categories",
       label: `${MIN_STUDIO_CATEGORIES}+ categories chosen`,
+      todoLabel: `Choose ${MIN_STUDIO_CATEGORIES} or more categories`,
       done: snapshot.categoryCount >= MIN_STUDIO_CATEGORIES,
       required: true,
     },
     {
       key: "vibe",
       label: "Vibe section written",
+      todoLabel: "Write a vibe section",
       done: snapshot.hasVibe,
       required: false,
     },
@@ -189,7 +203,7 @@ export function computeStudioCompleteness(
   const score = Math.round((doneCount / items.length) * 100);
   const publishBlockers = items
     .filter((i) => i.required && !i.done)
-    .map((i) => i.label);
+    .map((i) => i.todoLabel);
   return {
     items,
     score,

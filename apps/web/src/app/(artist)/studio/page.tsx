@@ -1,0 +1,141 @@
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { tattooMapEnabled } from "@/lib/map-features";
+import { getOwnedStudio } from "@/lib/server/studios";
+import {
+  GUEST_SPOT_STATUS_LABELS,
+  type GuestSpotStatus,
+} from "@inklee/shared/studio-profile";
+import PublishControls from "./publish-controls";
+
+export const metadata = { title: "Studio" };
+
+export default async function StudioCockpitPage() {
+  if (!tattooMapEnabled()) notFound();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const studio = await getOwnedStudio(user.id);
+
+  // No studio yet: the elevation entry point.
+  if (!studio) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold text-foreground">
+            Run a studio
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Put your studio on the tattoo map, host guest artists, and manage
+            the whole thing from one place. You keep your own artist account;
+            this just adds the studio side.
+          </p>
+        </header>
+        <div className="rounded-2xl border border-border p-5">
+          <p className="text-sm text-foreground">
+            To start you need your studio address and at least one social link.
+            No documents, no fuss.
+          </p>
+          <Link
+            href="/studio/new"
+            className="mt-4 inline-block rounded-md bg-foreground px-4 py-2 text-sm text-background transition-opacity hover:opacity-90"
+          >
+            Start your studio
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const published = studio.publicationStatus === "published";
+  const onMap = published && studio.mapModerationStatus === "approved";
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold text-foreground">
+            {studio.name}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {GUEST_SPOT_STATUS_LABELS[
+              studio.guestSpotStatus as GuestSpotStatus
+            ] ?? studio.guestSpotStatus}
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-xs ${
+            onMap
+              ? "bg-brand-mustard/20 text-brand-mustard"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {onMap
+            ? "Live on the map"
+            : published
+              ? "Published, awaiting map review"
+              : "Draft"}
+        </span>
+      </header>
+
+      {/* Profile completeness: operational clarity, not a scoreboard. */}
+      <section className="space-y-3 rounded-2xl border border-border p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">
+            Profile completeness
+          </h2>
+          <span className="text-sm tabular-nums text-muted-foreground">
+            {studio.completeness.score}%
+          </span>
+        </div>
+        <ul className="space-y-1.5">
+          {studio.completeness.items.map((item) => (
+            <li key={item.key} className="flex items-center gap-2 text-sm">
+              <span
+                aria-hidden
+                className={
+                  item.done ? "text-brand-mustard" : "text-muted-foreground"
+                }
+              >
+                {item.done ? "✓" : "○"}
+              </span>
+              <span
+                className={
+                  item.done ? "text-foreground" : "text-muted-foreground"
+                }
+              >
+                {item.label}
+                {item.required ? "" : " (optional)"}
+              </span>
+              <span className="sr-only">
+                {item.done ? "done" : "not done yet"}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <Link
+          href="/studio/edit"
+          className="inline-block rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+        >
+          Edit studio
+        </Link>
+      </section>
+
+      <PublishControls
+        studioId={studio.id}
+        published={published}
+        publishReady={studio.completeness.publishReady}
+        blockers={studio.completeness.publishBlockers}
+      />
+
+      <p className="text-xs text-muted-foreground">
+        Guest spot requests, guest artists, workspaces and the studio group join
+        this cockpit as those features arrive.
+      </p>
+    </div>
+  );
+}

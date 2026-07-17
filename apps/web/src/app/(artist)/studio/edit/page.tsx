@@ -1,0 +1,51 @@
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
+import { tattooMapEnabled } from "@/lib/map-features";
+import { getOwnedStudio } from "@/lib/server/studios";
+import StudioEditor from "./studio-editor";
+
+export const metadata = { title: "Edit studio" };
+
+export default async function EditStudioPage() {
+  if (!tattooMapEnabled()) notFound();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const studio = await getOwnedStudio(user.id);
+  if (!studio) redirect("/studio");
+
+  const { data: styleData } = await serviceClient
+    .from("styles")
+    .select("key, label")
+    .order("position", { ascending: true });
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
+      <header className="space-y-1">
+        <Link
+          href="/studio"
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          &larr; Studio
+        </Link>
+        <h1 className="text-2xl font-semibold text-foreground">Edit studio</h1>
+        <p className="text-sm text-muted-foreground">
+          Photos come next. For now, fill in the details and pick your
+          categories.
+        </p>
+      </header>
+      <StudioEditor
+        studio={studio}
+        styles={(styleData ?? []).map((s) => ({
+          key: s.key as string,
+          label: s.label as string,
+        }))}
+      />
+    </div>
+  );
+}
