@@ -75,6 +75,26 @@ Each build: mobile tsc + lint + lucide gate; commit per phase; headless iOS subm
 
 ---
 
+## 7. Completion report (Phase 5, 2026-07-17) — the 15 deliverables
+
+1. **Audit summary**: §1–§2 above (20-agent audit, 12 recorded decisions).
+2. **Architecture discovered**: §1.
+3. **Responsive strategy**: §3 (window-class context, canonical caps, adaptive chrome, state-driven master-detail).
+4. **Layout classes**: compact <600 ≤ medium <900 ≤ expanded (+shortest-side ≥600 guard); rationale in D1.
+5. **Screens reviewed**: all 57 routes + 8 layouts (Appendix A).
+6. **Screens materially changed**: ~50 (chrome switch touches every tab screen; caps on ~40; master-detail on requests/clients/calendar; sheets on 10 modal sites).
+7. **New shared primitives**: `layout.tsx` (WindowLayoutProvider, useLayoutClass, useIsExpanded, useWindowClassTransition, useTabBarClearance, useScreenGutter, gridColumns, CAP/PANE/SHEET_MAX), `Screen.column`, `NavRail`, `AdaptiveSheet`, `ListDetailHost`+`DetailPaneContext`, `draft-store`, `nav-items`, `BookingDetailContent`, `ClientDetailContent`.
+8. **Native config changes**: `ios.supportsTablet: true`, `UISupportedInterfaceOrientations~ipad` all four (phones stay portrait), no `UIRequiresFullScreen`; version 0.2.0 → 0.3.0. No new native modules.
+9. **Files changed**: 90+ (commits `d60151f`, `83b4aad`, `f35f526`, `bf28873` on master).
+10. **Tests**: none added — the repo has no RN component/unit harness; `classify`/`gridColumns` are pure and test-ready when one lands (recorded gap).
+11. **Manual scenarios**: §5 matrix; executable on the founder's iPad (Split View drags, rotation mid-edit, deep links at expanded, sheet keyboard flows).
+12. **Known limitations**: settings/flash/travel/support master-detail deferred (caps only); dashboard/insights keep single-column layouts inside the wide cap (no 2-col restructure); SubNav section switches drop the pane selection; hardware-keyboard shortcuts and hover states not implemented; Android tablets untested on hardware; no automated regression net.
+13. **Remaining recommendations**: settings hub master-detail (biggest UX win left), deposits-selects-into-requests-pane, 2-col dashboard at expanded, intrinsic-width waitlist filter tabs, anchored popover for the rail account menu, `md:`/`lg:` NativeWind screens config once cosmetic variants are wanted.
+14. **New native/EAS build required**: YES for everything (no OTA); the config flips are prebuild-level.
+15. **Honest assessment**: **tablet-adaptive, solidly** — intentional nav, readable widths everywhere, real master-detail on the three highest-value workflows, deterministic rotation/resize with lossless drafts. Not yet "fully tablet-optimized": the deferred items in (12) are what separates adaptive from optimized. Not a stretched phone app.
+
+**Adversarial review (Phase 5)**: 70 agents (6 finders, 2 skeptics per finding) over the full diff. 32 findings → 29 confirmed → all fixed or explicitly accepted with rationale in commit `bf28873` (headliners: focus-gating both reconciliation rules, dismissTo vs duplicated navigators, grid column floors on phones, sheet flex-shrink chains, VoiceOver sheet shields).
+
 ## Appendix A — per-screen inventory (deduped, 107 entries)
 
 _Generated from the area readers; risk = tablet risk today; Cap/Cols = needs max-width / benefits from multi-column; proposals are the expanded-class behavior._
