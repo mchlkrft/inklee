@@ -20,7 +20,7 @@ Severity vocabulary: **blocker** = must be resolved before the affected phase ca
 
 ## 2. The predecessor worktree: reuse, adapt, supersede
 
-Worktree `A:\WORK\inklee-studios-guestspots-map`, branch `feature/local-studios-guestspots-map`, never pushed. Measured divergence: merge-base with master is `9aec1c5` (2026-06-23); the branch has 20 commits since, master has 140. Twelve files were touched on both sides, of which six hard-conflict in a merge simulation: `pnpm-lock.yaml`, `next.config.ts`, and all four extracted map files (the rest, including the `app.inklee` package rename in `apps/mobile/app.json`, auto-merge). Recommended verdict, pending founder confirmation (open question Q12): **quarry, do not merge or rebase.** Port modules; treat master as the base everywhere the two overlap.
+Worktree `A:\WORK\inklee-studios-guestspots-map`, branch `feature/local-studios-guestspots-map`, never pushed. Measured divergence: merge-base with master is `9aec1c5` (2026-06-23); the branch has 20 commits since, master has 140. Twelve files were touched on both sides, of which six hard-conflict in a merge simulation: `pnpm-lock.yaml`, `next.config.ts`, and all four extracted map files (the rest, including the `app.inklee` package rename in `apps/mobile/app.json`, auto-merge). Verdict (founder-confirmed 2026-07-17, Q12 resolved): **quarry, do not merge or rebase.** Port modules; treat master as the base everywhere the two overlap.
 
 Per-subsystem verdicts:
 
@@ -150,16 +150,18 @@ The map's report system lands inside an existing legal procedure (`docs/dsa-mode
 
 ## 12. Pre-existing 1.x findings surfaced by this audit
 
-Worth fixing independently of 2.0 (report, not scope):
+Worth fixing independently of 2.0. Status as of 2026-07-17 evening:
 
-1. `resolveBookingGuestSpotStudio` queries a nonexistent `slots.flash_day_id` column; the query errors silently and the function degrades (`apps/web/src/lib/booking-studio.ts` ~line 84).
-2. `map` (and future 2.0 segments) missing from `RESERVED_SLUGS`; an artist claiming slug `map` shadows the live route today.
-3. Profiles own-row UPDATE column-privilege gap (section 5) covering `is_tester`, `account_status`, and Stripe columns.
-4. Cover upload cap is 4 MB but the error copy says "under 5 MB" (`settings/profile/actions.ts`).
-5. Drizzle schema drift: `first_name`/`last_name` missing from the profiles definition; `icon_color`/`icon_bg` missing from trips/studios definitions.
-6. The mobile flash image route knowingly orphans replaced storage objects ("cleanup is a follow-up").
+1. **Fixed.** `resolveBookingGuestSpotStudio` queried a nonexistent `slots.flash_day_id` column (silent error, function degraded); it now reads `flash_day_id` from the booking row directly.
+2. **Fixed.** `map` was missing from `RESERVED_SLUGS`, and a route sweep found five more live segments equally claimable and shadowed: `goods`, `link-hub`, `notifications`, `forgot-password`, `reset-password`. All six added.
+3. **Drafted, not applied.** Profiles own-row UPDATE/INSERT column-privilege gap (section 5): hardening SQL with the exact authenticated-write column enumeration sits at `apps/web/supabase/drafts/0074_profiles_column_privileges.draft.sql`, parked outside the live migrations dir on purpose. Promotion requires local verification plus an explicit founder go.
+4. **Fixed.** Cover upload error copy said "under 5 MB" while the cap is 4 MB.
+5. Open: drizzle schema drift (`first_name`/`last_name` missing from the profiles definition; `icon_color`/`icon_bg` missing from trips/studios definitions). Cosmetic until Drizzle is used against those tables.
+6. Open: the mobile flash image route knowingly orphans replaced storage objects ("cleanup is a follow-up", acknowledged debt).
 
 ## 13. Summary: the ten decisions Phase 0 must make with this audit in hand
+
+**Status: all ten approved by the founder as working defaults on 2026-07-17.** Any of them can still be reopened, but only with an explicit founder decision; implementation tasks build on these.
 
 1. New global studio entity; never touch the `studios` table semantics (section 1).
 2. Quarry the worktree; renumber migrations to 0074+; first-ever live execution on local Supabase (section 2).

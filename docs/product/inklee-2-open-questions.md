@@ -1,6 +1,6 @@
 # Inklee 2.0 open questions
 
-Status: all questions in this file are **postponed on purpose**. They were raised during the 2026-07-17 Inklee 2.0 planning round and deliberately not decided. Do not resolve them silently inside an implementation task. Each one needs either a founder decision, a cost spike, or real usage data first.
+Status: questions in this file are **postponed on purpose** unless their heading says RESOLVED. They were raised during the 2026-07-17 Inklee 2.0 planning round and deliberately not decided. Do not resolve them silently inside an implementation task. Each one needs either a founder decision, a cost spike, or real usage data first.
 
 Companion docs:
 
@@ -104,11 +104,9 @@ The live database already has a `studios` table that means "an artist's own trav
 
 - Decide by: Phase 0 can document the vocabulary rule; an actual rename decision can wait indefinitely.
 
-### Q12. Fate of the predecessor worktree branch
+### Q12. Fate of the predecessor worktree branch: RESOLVED
 
-The local branch `feature/local-studios-guestspots-map` (slices 0 to 14, never pushed) partially matches and partially contradicts the locked 2.0 decisions. Is it treated as a quarry (copy adapted pieces into fresh 2.0 slices) or as a base (rebase and rework)? The audit measured the divergence (20 branch commits vs 140 master commits since the 2026-06-23 merge-base; 12 files touched on both sides, of which 6 hard-conflict: the lockfile, the CSP config, and all four extracted map files) and recommends quarry with per-subsystem verdicts (collision audit section 2). The scope doc and build plan carry quarry as the recommended default; this question is the founder's confirmation of it.
-
-- Decide by: before Phase 1 implementation starts.
+**Resolved 2026-07-17: quarry, confirmed by the founder.** The branch `feature/local-studios-guestspots-map` is source material only: modules are copied and adapted into fresh 2.0 slices on master (migrations renumbered to 0074+), and the branch itself is never merged or rebased. Per-subsystem verdicts in the collision audit section 2. The same founder decision approved all ten Phase 0 architecture calls in collision audit section 13 as working defaults.
 
 ### Q13. Anonymous artist count privacy floor
 

@@ -7,7 +7,7 @@ Status: planning foundation, written 2026-07-17. This is the phased build struct
 - **Small slices on master, behind flags.** The predecessor worktree proved that a long-lived local branch rots against a fast-moving master. 2.0 work lands on master in reviewable slices, gated by fail-closed feature flags (the existing capability-registry discipline applies: registry entry before any new flag). Nothing renders in prod until its flag flips.
 - **1.x keeps shipping.** The 1.0/1.1/1.2 line continues independently. 2.0 slices must never block or destabilize it; the pre-commit full-build gate and existing test suites stay green on every slice.
 - **Web first, mobile follows.** The web map is the proving ground. Mobile picks up each surface after it stabilizes on web, because every native change costs an EAS build and store review (no OTA).
-- **Quarry the predecessor, do not rebase it (recommended default; founder confirmation is Q12, due before Phase 1).** The worktree branch `feature/local-studios-guestspots-map` is source material: copy and adapt what matches the locked decisions, rewrite what does not. Its migrations (local 0054 to 0058) are reference SQL, never applied as-is.
+- **Quarry the predecessor, do not rebase it (founder-confirmed 2026-07-17, Q12 resolved).** The worktree branch `feature/local-studios-guestspots-map` is source material: copy and adapt what matches the locked decisions, rewrite what does not. Its migrations (local 0054 to 0058) are reference SQL, never applied as-is.
 - **Postponed questions stay postponed.** Each phase below names the open questions it eventually forces; an implementation task hitting one earlier stops and escalates rather than deciding silently.
 
 ## Phase 0: product architecture

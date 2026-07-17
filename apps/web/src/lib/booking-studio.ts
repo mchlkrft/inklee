@@ -37,7 +37,7 @@ function toEmailStudio(s: StudioRow): EmailStudio {
  * Resolution order:
  *   1) trip_id → trip_legs.studios for the leg covering preferred_date (the
  *      booking was tagged to a trip — always treat as guest spot).
- *   2) slot_id → slots.flash_day_id → flash_days.studio_id when non-primary.
+ *   2) flash_day_id → flash_days.studio_id when non-primary.
  *   3) booking.studio_id directly when non-primary.
  * Anything else (or the primary studio) → null.
  */
@@ -46,7 +46,7 @@ export async function resolveBookingGuestSpotStudio(
 ): Promise<string | null> {
   const { data: booking } = await serviceClient
     .from("booking_requests")
-    .select("trip_id, slot_id, studio_id, preferred_date")
+    .select("trip_id, flash_day_id, studio_id, preferred_date")
     .eq("id", bookingId)
     .single();
   if (!booking) return null;
@@ -78,26 +78,22 @@ export async function resolveBookingGuestSpotStudio(
     return "the studio for this trip";
   }
 
-  // (2) Slot-based booking — slot → flash_day → studio.
-  if (booking.slot_id) {
-    const { data: slot } = await serviceClient
-      .from("slots")
-      .select("flash_day_id")
-      .eq("id", booking.slot_id)
-      .maybeSingle();
-    if (slot?.flash_day_id) {
-      type FDStudio = { name: string; is_primary: boolean };
-      const { data: flashDay } = (await serviceClient
-        .from("flash_days")
-        .select("studios(name, is_primary)")
-        .eq("id", slot.flash_day_id)
-        .maybeSingle()) as unknown as {
-        data: { studios: FDStudio | FDStudio[] | null } | null;
-      };
-      const studios = flashDay?.studios ?? null;
-      const studio = Array.isArray(studios) ? (studios[0] ?? null) : studios;
-      if (studio && !studio.is_primary) return studio.name;
-    }
+  // (2) Flash-day booking — flash_day → studio. flash_day_id lives on the
+  // booking itself (0018); the old slot → flash_day hop queried a
+  // slots.flash_day_id column that never existed, so this branch silently
+  // returned nothing until 2026-07-17.
+  if (booking.flash_day_id) {
+    type FDStudio = { name: string; is_primary: boolean };
+    const { data: flashDay } = (await serviceClient
+      .from("flash_days")
+      .select("studios(name, is_primary)")
+      .eq("id", booking.flash_day_id)
+      .maybeSingle()) as unknown as {
+      data: { studios: FDStudio | FDStudio[] | null } | null;
+    };
+    const studios = flashDay?.studios ?? null;
+    const studio = Array.isArray(studios) ? (studios[0] ?? null) : studios;
+    if (studio && !studio.is_primary) return studio.name;
   }
 
   // (3) Explicit booking.studio_id — surface it when non-primary.

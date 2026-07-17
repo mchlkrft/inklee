@@ -44,6 +44,8 @@ export const RESERVED_SLUGS = new Set([
   "logout",
   "signup",
   "signin",
+  "forgot-password",
+  "reset-password",
   "onboarding",
   "dashboard",
   "settings",
@@ -69,6 +71,10 @@ export const RESERVED_SLUGS = new Set([
   "unsubscribe",
   "analytics",
   "travel",
+  "map",
+  "goods",
+  "link-hub",
+  "notifications",
 
   // Legal
   "legal",

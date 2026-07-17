@@ -102,7 +102,7 @@ export async function updateProfileAction(
       return { error: "Cover image must be PNG, JPG, or WebP." };
     }
     if (coverFile.size > MAX_COVER_SIZE) {
-      return { error: "Cover image must be under 5 MB." };
+      return { error: "Cover image must be under 4 MB." };
     }
     let resized: Buffer;
     try {
