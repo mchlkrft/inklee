@@ -324,7 +324,7 @@ Research only. Output `docs/payments-strategy.md` v1. NOT implementation. Open q
 | E7    | Flash · E8 Guest spots · E9 Goods (showcase, create-with-photo)                              | ✅ shipped |
 | E10   | Analytics + polish (insights, theme system, accent contrast, button system)                  | ✅ shipped (founder rounds 1–6) |
 | E11   | Settings parity (profile, books, payouts, deposits, emails, templates, KYC handoff, deletion)| ✅ shipped |
-| E12   | Beta release readiness (TestFlight + Play internal)                                          | ◑ Play side in motion (2026-07-15/16, see ME-2 update): app created in Play Console, declarations largely done, production AAB ready; remaining = listing graphics/screenshots, App-access demo account, internal-testing upload. iOS: Apple Developer enrollment ACCEPTED 2026-07-16 — TestFlight track unblocked (needs ASC setup + first iOS build) |
+| E12   | Beta release readiness (TestFlight + Play internal)                                          | ◑ Play side in motion (2026-07-15/16, see ME-2 update): app created in Play Console, declarations largely done, production AAB ready; remaining = listing graphics/screenshots, App-access demo account, internal-testing upload. iOS: **TestFlight LIVE 2026-07-17** (enrollment accepted 07-16 → ASC app 6791675160 → builds 0.2.0(2/3) → **0.3.0(4) iPad-adaptive, founder-verified**; headless build+submit loop wired; native Apple sign-in verified; SoT docs/app-store-connect-setup.md); remaining iOS = App Privacy labels + iPad+iPhone screenshots for the public listing |
 
 **E-track open punch list (pre-store/EAS build, added 2026-06-12):**
 
