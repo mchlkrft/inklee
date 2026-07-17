@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   MAP_LOCATION_CATEGORIES,
+  MAP_VISIBILITY_MODES,
   SEED_BUCKET_TARGET_KM2,
   SEED_CAP_PER_BUCKET,
   STYLE_SEED,
   normalizeInstagramHandle,
+  parseMapBBox,
   seedBucketCellBounds,
   seedRegionBucket,
+  toPublicMapPin,
   validateMapLocationInput,
+  type MapLocationRowForPin,
 } from "@inklee/shared/map-directory";
 
 const EARTH_RADIUS_KM = 6371;
@@ -148,6 +152,95 @@ describe("validateMapLocationInput", () => {
     for (const s of STYLE_SEED) {
       expect(s.label[0]).toBe(s.label[0].toUpperCase());
     }
+  });
+});
+
+describe("toPublicMapPin", () => {
+  const row: MapLocationRowForPin = {
+    id: "x",
+    name: "Vagabond",
+    category: "tattoo_studio",
+    display_latitude: 52.52,
+    display_longitude: 13.4,
+    city: "Berlin",
+    country: "Germany",
+    claim_status: "claimed",
+    moderation_status: "approved",
+  };
+
+  it("shapes an approved row and marks claimed", () => {
+    const pin = toPublicMapPin(row);
+    expect(pin).toMatchObject({
+      id: "x",
+      lat: 52.52,
+      lng: 13.4,
+      claimed: true,
+    });
+  });
+
+  it("unclaimed and pending-claim rows shape with claimed false", () => {
+    for (const claim_status of ["unclaimed", "claim_pending"]) {
+      expect(toPublicMapPin({ ...row, claim_status })?.claimed).toBe(false);
+    }
+  });
+
+  it("fails closed on every non-approved moderation state", () => {
+    for (const status of ["pending", "hidden", "removed", "", "garbage"]) {
+      expect(toPublicMapPin({ ...row, moderation_status: status })).toBeNull();
+    }
+  });
+
+  it("fails closed on unknown categories and broken coordinates", () => {
+    expect(toPublicMapPin({ ...row, category: "spaceship" })).toBeNull();
+    expect(toPublicMapPin({ ...row, display_latitude: Number.NaN })).toBeNull();
+  });
+});
+
+describe("parseMapBBox", () => {
+  it("parses a valid viewport", () => {
+    expect(
+      parseMapBBox({ west: "13", south: "52", east: "14", north: "53" }),
+    ).toEqual({ west: 13, south: 52, east: 14, north: 53 });
+  });
+
+  it("rejects missing, non-numeric, inverted, and out-of-range boxes", () => {
+    expect(parseMapBBox({})).toBeNull();
+    expect(
+      parseMapBBox({ west: "a", south: "52", east: "14", north: "53" }),
+    ).toBeNull();
+    expect(
+      parseMapBBox({ west: "14", south: "52", east: "13", north: "53" }),
+    ).toBeNull();
+    expect(
+      parseMapBBox({ west: "13", south: "53", east: "14", north: "52" }),
+    ).toBeNull();
+    expect(
+      parseMapBBox({ west: "-500", south: "52", east: "14", north: "53" }),
+    ).toBeNull();
+    expect(
+      parseMapBBox({ west: "13", south: "52", east: "14", north: "91" }),
+    ).toBeNull();
+    expect(
+      parseMapBBox({ west: "13", south: "52", east: "181", north: "53" }),
+    ).toBeNull();
+  });
+
+  it("rejects null and empty-string params instead of coercing them to 0", () => {
+    expect(
+      parseMapBBox({ west: null, south: "52", east: "14", north: "53" }),
+    ).toBeNull();
+    expect(
+      parseMapBBox({ west: "", south: "52", east: "14", north: "53" }),
+    ).toBeNull();
+    expect(
+      parseMapBBox({ west: "13", south: "52", east: "14", north: " " }),
+    ).toBeNull();
+  });
+});
+
+describe("map visibility modes", () => {
+  it("matches the 0076 CHECK list with off first", () => {
+    expect(MAP_VISIBILITY_MODES).toEqual(["off", "city_only", "listed"]);
   });
 });
 

@@ -9,9 +9,11 @@ import {
   Users,
   ShoppingBag,
   Link2,
+  Compass,
   type LucideIcon,
 } from "lucide-react";
 import Spiderweb from "@/components/icons/spiderweb";
+import { tattooMapEnabled } from "@/lib/map-features";
 
 export type SubNavItem = {
   label: string;
@@ -78,6 +80,11 @@ export const SIDEBAR_NAV: NavGroup[] = [
         ],
       },
       { label: "Guest Spots", href: "/travel", icon: MapPin },
+      // Inklee 2.0 discovery map, flag-gated (the NEXT_PUBLIC_* read inside
+      // the helper is inlined at build time on server and client alike).
+      ...(tattooMapEnabled()
+        ? [{ label: "Tattoo map", href: "/map", icon: Compass }]
+        : []),
     ],
   },
   {
@@ -95,6 +102,9 @@ export const SIDEBAR_NAV: NavGroup[] = [
         match: ["/settings", "/support"],
         children: [
           { label: "Profile", href: "/settings/profile" },
+          ...(tattooMapEnabled()
+            ? [{ label: "Map presence", href: "/settings/map" }]
+            : []),
           { label: "Emails", href: "/settings/emails" },
           { label: "Calendar", href: "/settings/calendar" },
           { label: "Payouts", href: "/settings/payouts" },

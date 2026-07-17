@@ -149,6 +149,104 @@ export function seedBucketCellBounds(
 }
 
 // ---------------------------------------------------------------------------
+// Artist map presence (profiles columns from migration 0076). Consent-gated
+// by founder decision 2026-07-17: only artists with map_visibility != 'off'
+// are ever counted or listed; 'city_only' counts without being named.
+
+export const MAP_VISIBILITY_MODES = ["off", "city_only", "listed"] as const;
+export type MapVisibilityMode = (typeof MAP_VISIBILITY_MODES)[number];
+
+export const MAP_VISIBILITY_LABELS: Record<MapVisibilityMode, string> = {
+  off: "Off the map",
+  city_only: "Count me, do not name me",
+  listed: "List me in my city",
+};
+
+// ---------------------------------------------------------------------------
+// The public pin shape served by the viewport query API. This shaper is THE
+// boundary between the service-role read and the client (the predecessor's
+// tested toPublicMapLocation pattern): only these fields ever leave the
+// server, and only approved rows may be shaped.
+
+export type PublicMapPin = {
+  id: string;
+  name: string;
+  category: MapLocationCategory;
+  lat: number;
+  lng: number;
+  city: string | null;
+  country: string | null;
+  claimed: boolean;
+};
+
+export type MapLocationRowForPin = {
+  id: string;
+  name: string;
+  category: string;
+  display_latitude: number;
+  display_longitude: number;
+  city: string | null;
+  country: string | null;
+  claim_status: string;
+  moderation_status: string;
+};
+
+/** Returns null for anything not publicly renderable (fail closed). */
+export function toPublicMapPin(row: MapLocationRowForPin): PublicMapPin | null {
+  if (row.moderation_status !== "approved") return null;
+  if (
+    !MAP_LOCATION_CATEGORIES.includes(row.category as MapLocationCategory)
+  )
+    return null;
+  if (
+    !Number.isFinite(row.display_latitude) ||
+    !Number.isFinite(row.display_longitude)
+  )
+    return null;
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category as MapLocationCategory,
+    lat: row.display_latitude,
+    lng: row.display_longitude,
+    city: row.city,
+    country: row.country,
+    claimed: row.claim_status === "claimed",
+  };
+}
+
+export type MapBBox = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
+// Number(null) and Number("") are 0, so missing or empty params must be
+// rejected before coercion.
+function coordParam(value: string | null | undefined): number {
+  if (value == null || value.trim() === "") return Number.NaN;
+  return Number(value);
+}
+
+/** Parse and sanity-check a viewport bbox from query params; null = invalid. */
+export function parseMapBBox(params: {
+  west?: string | null;
+  south?: string | null;
+  east?: string | null;
+  north?: string | null;
+}): MapBBox | null {
+  const west = coordParam(params.west);
+  const south = coordParam(params.south);
+  const east = coordParam(params.east);
+  const north = coordParam(params.north);
+  if (![west, south, east, north].every(Number.isFinite)) return null;
+  if (south < -90 || north > 90 || south >= north) return null;
+  if (west < -180 || east > 180 || west >= east) return null;
+  return { west, south, east, north };
+}
+
+// ---------------------------------------------------------------------------
 // Admin input validation for map locations. Publish gates for claimed studios
 // live in later phases; this validates the directory entry itself.
 

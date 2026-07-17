@@ -44,13 +44,16 @@ GRANT SELECT (
   last_sync_at, connected, created_at, updated_at
 ) ON instagram_accounts TO authenticated;
 
--- Mirror of 0074_profiles_column_privileges.sql:
+-- Mirror of 0074_profiles_column_privileges.sql + the 0076 grant extension:
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;
 REVOKE INSERT ON public.profiles FROM anon, authenticated;
 GRANT UPDATE (
   slug, display_name, first_name, last_name, instagram_handle, bio,
   timezone, location, logo_url, booking_mode, settings,
-  signup_attribution, updated_at
+  signup_attribution, updated_at,
+  map_visibility, looking_for_guest_spots,
+  map_city_label, map_city_place_id, map_city_lat, map_city_lng,
+  travel_map_consent
 ) ON public.profiles TO authenticated;
 GRANT INSERT (
   id, slug, display_name, instagram_handle, location, timezone,

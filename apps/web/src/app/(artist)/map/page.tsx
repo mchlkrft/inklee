@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { tattooMapEnabled } from "@/lib/map-features";
 import { listTravelJourney, hasTravelEntries } from "@/lib/server/travel-map";
 import {
   groupJourneyByTrip,
@@ -62,10 +63,61 @@ function StopRow({ stop, n }: { stop: TravelMapStop; n: number }) {
   );
 }
 
-// The map plots the artist's guest-spot travel (trips -> legs -> studios). Only
-// available once there is something to show: with no trip or studio the artist
-// is sent back to Guest Spots.
+// Discovery mode (Inklee 2.0 Phase 2, flag-gated): the tattoo map of studios
+// and shops with the personal journey as a toggleable overlay. Reachable by
+// every artist, no travel entries required.
+async function DiscoveryMapPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const [journey, { data: watchedData }] = await Promise.all([
+    listTravelJourney(supabase, user.id, todayKey),
+    supabase
+      .from("watched_studios")
+      .select("map_location_id")
+      .eq("artist_user_id", user.id),
+  ]);
+  const watchedIds = (watchedData ?? []).map(
+    (w) => w.map_location_id as string,
+  );
+
+  const { default: DiscoveryMapClient } =
+    await import("./discovery-map-client");
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold text-foreground">Tattoo map</h1>
+        <p className="text-sm text-muted-foreground">
+          Studios and shops, hand-curated. Snoop around, watch the places you
+          like, and plan where to guest spot next. Your own trips can overlay
+          the map with the My trips toggle.
+        </p>
+      </header>
+      <DiscoveryMapClient journey={journey} watchedIds={watchedIds} />
+      <p className="text-xs text-muted-foreground">
+        Something wrong or missing on the map? Studio claiming and reporting
+        arrive in later updates. Your travel planner stays in{" "}
+        <Link href="/travel" className="underline hover:text-foreground">
+          Guest Spots
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
+// The classic journey map (pre-2.0 behavior, active while the map flag is
+// off). Plots the artist's guest-spot travel (trips -> legs -> studios). Only
+// available once there is something to show: with no trip or studio the
+// artist is sent back to Guest Spots.
 export default async function TravelMapPage() {
+  if (tattooMapEnabled()) return DiscoveryMapPage();
+
   const supabase = await createClient();
   const {
     data: { user },
