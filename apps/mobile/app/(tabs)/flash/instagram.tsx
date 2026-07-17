@@ -6,7 +6,6 @@ import {
   RefreshControl,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -29,7 +28,6 @@ import { useColors } from "@/lib/theme";
 import { gridColumns } from "@/lib/layout";
 
 const GAP = 8;
-const H_PAD = 40; // Screen's px-5 on both sides.
 
 export default function InstagramScreen() {
   const q = useApiQuery<MobileInstagram>("/instagram");
@@ -38,16 +36,19 @@ export default function InstagramScreen() {
   const igEnabled = useCapability("instagram_import");
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  // Width-derived import grid (ME-15): 3 columns on phones, more on tablets.
-  // Measured from the list container (not the window) so the expanded-class
-  // nav rail and wider gutters are already excluded; window-width fallback
-  // covers the first pre-measure frame.
+  // Width-derived import grid (ME-15): 3 columns on phones (the min floor
+  // preserves the pre-adaptive baseline on 360-375pt windows), more on
+  // tablets. Measured from the list container (not the window) so the
+  // expanded-class nav rail and wider gutters are already excluded; the
+  // static fallback only covers the first pre-measure frame — deliberately
+  // NOT useWindowDimensions, which would re-render this whole screen every
+  // frame of a Stage Manager drag.
   const [gridWidth, setGridWidth] = useState(0);
   const grid = gridColumns({
-    width: gridWidth || width - H_PAD,
+    width: gridWidth || 325,
     minTile: 110,
     gap: GAP,
+    min: 3,
     max: 6,
   });
   const tileSize = grid.tileWidth;

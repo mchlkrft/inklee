@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import { customerLabel } from "@inklee/shared/booking-domain";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
@@ -82,7 +83,10 @@ export default function ClientsScreen() {
 
   // Rule B: selection + window shrinks out of expanded -> promote to the
   // pushed route so the artist keeps their context (and any notes draft).
+  // Focus-gated for the same reason as the Requests screen (review finding).
+  const isFocused = useIsFocused();
   useWindowClassTransition((prev, next) => {
+    if (!isFocused) return;
     if (prev === "expanded" && next !== "expanded" && selected) {
       router.setParams({ selected: "" });
       router.push(`/clients/${encodeURIComponent(selected)}`);

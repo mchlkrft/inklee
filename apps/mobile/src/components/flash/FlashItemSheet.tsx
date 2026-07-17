@@ -57,7 +57,11 @@ export function FlashItemSheet({
       panelClassName=""
     >
       {item ? (
-        <View style={{ paddingBottom: insets.bottom + 16 }}>
+        // Header + ScrollView stay DIRECT children of the sheet panel: the
+        // panel carries maxHeight, and only a directly-shrinkable ScrollView
+        // scrolls when content exceeds it (review finding — an intermediate
+        // View breaks the flex-shrink chain and clips the actions).
+        <>
           <View className="flex-row items-center justify-between px-5 pb-1 pt-4">
               <Text className="text-sm font-medium uppercase tracking-wider text-shell-mute">
                 Design
@@ -74,7 +78,11 @@ export function FlashItemSheet({
             </View>
 
             <ScrollView
-              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 4 }}
+              contentContainerStyle={{
+                paddingHorizontal: 20,
+                paddingTop: 4,
+                paddingBottom: insets.bottom + 16,
+              }}
               showsVerticalScrollIndicator={false}
             >
               {/* Big picture */}
@@ -157,7 +165,7 @@ export function FlashItemSheet({
                 </Text>
               )}
           </ScrollView>
-        </View>
+        </>
       ) : null}
     </AdaptiveSheet>
   );

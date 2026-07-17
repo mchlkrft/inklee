@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { SubNav } from "@/components/SubNav";
 import { topBarProgress, useTopBarReset } from "@/lib/scroll-hide";
 import { BookingsHeaderInsetContext } from "@/lib/bookings-header";
+import { useScreenGutter } from "@/lib/layout";
 import { useThemeColors } from "@/lib/theme";
 
 // The three Bookings sub-views, each a sibling route under (tabs)/bookings.
@@ -44,6 +45,7 @@ export default function BookingsLayout() {
   const router = useRouter();
   const theme = useThemeColors();
   const topBarHeight = useTopBarHeight();
+  const bandGutter = useScreenGutter();
   const [bandHeight, setBandHeight] = useState(BAND_ESTIMATE);
   // Safety net: the sub-screens reset the bar via useScrollHide, but a future
   // sub-screen without a scroll handler must not strand a hidden bar.
@@ -83,7 +85,13 @@ export default function BookingsLayout() {
         ]}
       >
         <View
-          className="px-5"
+          // Same gutter source as the sub-screens' content (Screen), so the
+          // "Bookings" header + SubNav stay aligned with the lists at every
+          // window class (review finding: px-5 vs 24/32 misaligned them).
+          className={bandGutter === null ? "px-5" : undefined}
+          style={
+            bandGutter === null ? undefined : { paddingHorizontal: bandGutter }
+          }
           onLayout={(e) =>
             setBandHeight(Math.round(e.nativeEvent.layout.height))
           }

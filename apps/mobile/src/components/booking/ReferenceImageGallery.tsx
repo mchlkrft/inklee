@@ -114,12 +114,18 @@ function Lightbox({
     >
       <View className="flex-1 bg-black">
         <FlatList
+          // Keyed by window width: rotating while the lightbox is open resizes
+          // the pages, and the remount realigns the pager to the current index
+          // (stale contentOffset otherwise lands between pages).
+          key={width}
           data={images}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           keyExtractor={(img) => img.url}
-          initialScrollIndex={initialIndex}
+          // The live index, not the tap index: after a rotation remount the
+          // pager must reopen on the image the client was actually viewing.
+          initialScrollIndex={index}
           // Required with initialScrollIndex, or Android silently ignores it.
           getItemLayout={(_, i) => ({
             length: width,

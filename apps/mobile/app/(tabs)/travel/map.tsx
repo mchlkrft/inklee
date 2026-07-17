@@ -279,7 +279,8 @@ export default function TravelMapScreen() {
         onClose={() => setTripsOpen(false)}
         panelClassName=""
       >
-        <View style={{ paddingBottom: insets.bottom + 12 }}>
+        {/* Header + ScrollView as DIRECT panel children so the maxHeight cap
+            keeps the list scrollable (review finding). */}
             <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
               <Text className="text-base font-semibold text-foreground">
                 Your trips
@@ -288,7 +289,13 @@ export default function TravelMapScreen() {
                 <X size={20} color={colors.bone} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }}>
+            <ScrollView
+              contentContainerStyle={{
+                padding: 16,
+                paddingTop: 4,
+                paddingBottom: insets.bottom + 12,
+              }}
+            >
               <Text className="mb-1 text-xs uppercase tracking-wider text-shell-mute">
                 Map key
               </Text>
@@ -348,7 +355,6 @@ export default function TravelMapScreen() {
                 </View>
               ) : null}
             </ScrollView>
-        </View>
       </AdaptiveSheet>
     </Screen>
   );

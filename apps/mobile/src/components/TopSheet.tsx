@@ -99,6 +99,9 @@ export function TopSheet({
         <Animated.View style={panel}>
           <Pressable
             onPress={() => {}}
+            // Touch shield only — not an accessibility element (VoiceOver
+            // would otherwise swallow the whole panel).
+            accessible={false}
             className="px-5"
             style={{
               backgroundColor: colors.charcoal,

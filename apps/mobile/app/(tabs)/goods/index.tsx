@@ -47,9 +47,10 @@ export default function GoodsList() {
   // width (the pre-measure frame is never visible).
   const [gridWidth, setGridWidth] = useState(0);
   const grid = gridColumns({
-    width: gridWidth || 360,
+    width: gridWidth || 325,
     minTile: 160,
     gap: 12,
+    min: 2,
     max: 4,
   });
 

@@ -392,16 +392,30 @@ function DepositRequestForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Read-modify-write against the store (not render closures) so two edits in
+  // the same frame can't clobber each other's fields, and a user edit ends the
+  // prefill window so the settling defaults fetch can't overwrite typed input
+  // (review findings).
+  const writeDraft = (patch: Partial<{ amount: string; dueAt: string; note: string }>) => {
+    const cur =
+      getDraft<{ amount: string; dueAt: string; note: string }>(draftKey) ?? {
+        amount,
+        dueAt,
+        note,
+      };
+    setDraft(draftKey, { ...cur, ...patch });
+    setPrefilled(true);
+  };
   const setAmount = (v: string) => {
-    setDraft(draftKey, { amount: v, dueAt, note });
+    writeDraft({ amount: v });
     setAmountState(v);
   };
   const setDueAt = (v: string) => {
-    setDraft(draftKey, { amount, dueAt: v, note });
+    writeDraft({ dueAt: v });
     setDueAtState(v);
   };
   const setNote = (v: string) => {
-    setDraft(draftKey, { amount, dueAt, note: v });
+    writeDraft({ note: v });
     setNoteState(v);
   };
 
@@ -547,7 +561,12 @@ function DepositRequestForm({
           label="Cancel"
           variant="secondary"
           disabled={submitting}
-          onPress={onCancel}
+          onPress={() => {
+            // Explicit cancel discards the draft (the store's contract);
+            // drafts only survive involuntary remounts like rotation.
+            clearDraft(draftKey);
+            onCancel();
+          }}
         />
       </View>
     </View>

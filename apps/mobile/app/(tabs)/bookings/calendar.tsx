@@ -107,7 +107,9 @@ export default function CalendarScreen() {
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    // column="form": D5 wants the medium-class stacked calendar width-capped
+    // (inert on phones, where the window is narrower than the cap anyway).
+    <Screen edges={["left", "right"]} column="form">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{

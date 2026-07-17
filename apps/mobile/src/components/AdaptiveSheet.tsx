@@ -41,6 +41,9 @@ export function AdaptiveSheet({
   const panel = (
     <Pressable
       onPress={() => {}}
+      // Touch shield only — as an accessibility element it would collapse the
+      // whole sheet into one inert VoiceOver node (review finding).
+      accessible={false}
       className={
         centered
           ? "w-full overflow-hidden rounded-3xl border border-shell-border bg-background " +

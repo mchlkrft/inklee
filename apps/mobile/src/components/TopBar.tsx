@@ -78,9 +78,33 @@ export function TopBar() {
   );
 
   // Expanded class: the NavRail owns the chrome (books status, bell, account
-  // menu live in its bottom cluster); this overlay unmounts entirely. Placed
-  // AFTER every hook so hook order stays stable across class flips.
-  if (layoutClass === "expanded") return null;
+  // menu live in its bottom cluster), but the founder-mandated status LENS
+  // stays — content pads only insets.top+12 here, so without the static lens
+  // the OS readouts would float over scrolled content (review finding; the
+  // lens was built for exactly that complaint). Placed AFTER every hook so
+  // hook order stays stable across class flips.
+  if (layoutClass === "expanded") {
+    return (
+      <>
+        {focused ? <StatusBar style="light" /> : null}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: -lensVisible,
+            left: 0,
+            right: 0,
+            height: lensVisible * 2,
+            zIndex: 39,
+            borderRadius: 999,
+            backgroundColor: chrome.bg,
+            borderWidth: border.hairline,
+            borderColor: chrome.border,
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <>

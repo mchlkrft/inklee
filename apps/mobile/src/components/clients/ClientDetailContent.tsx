@@ -64,12 +64,15 @@ export function ClientDetailContent({ email }: { email: string }) {
   }
 
   async function saveNotes() {
+    // Capture what is being saved: keystrokes typed during the save round-trip
+    // write fresh drafts that must survive the clear below (review finding).
+    const saving = notes;
     setSavingNotes(true);
     setNotesError(null);
     try {
-      await apiPut(`/clients/${encodeURIComponent(email)}`, { notes });
+      await apiPut(`/clients/${encodeURIComponent(email)}`, { notes: saving });
       await invalidateBookingViews(queryClient);
-      clearDraft(draftKey);
+      if (getDraft<string>(draftKey) === saving) clearDraft(draftKey);
       markNotesSaved();
     } catch (e) {
       captureError(e, { op: "saveClientNotes" });

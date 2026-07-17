@@ -129,14 +129,18 @@ export function gridColumns({
   minTile,
   gap,
   max,
+  min = 1,
 }: {
   width: number;
   minTile: number;
   gap: number;
   max: number;
+  /** Phone-baseline floor: never render fewer columns than the pre-adaptive
+      layout did (review finding: 360dp phones fell to 1 goods column). */
+  min?: number;
 }): { numColumns: number; tileWidth: number; key: string } {
   const fit = Math.floor((width + gap) / (minTile + gap));
-  const numColumns = Math.max(1, Math.min(max, fit));
+  const numColumns = Math.max(min, Math.min(max, fit));
   const tileWidth = Math.floor((width - gap * (numColumns - 1)) / numColumns);
   return { numColumns, tileWidth, key: `grid-${numColumns}` };
 }

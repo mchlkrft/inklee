@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import { MapPin, X } from "lucide-react-native";
@@ -168,8 +169,14 @@ export default function RequestsScreen() {
 
   // Rule B: pane selection + window shrinks out of expanded -> the selection
   // becomes a normal pushed detail screen (native back header), so the artist
-  // keeps their context. Fires once per class flip, never mid-drag.
+  // keeps their context. Fires once per class flip, never mid-drag. Focus
+  // guard (review): the imperative router acts on the FOCUSED route, so an
+  // unfocused-but-mounted copy of this screen must not push over whatever the
+  // artist is actually looking at; its stale selection simply reopens the
+  // pane if the window ever grows again.
+  const isFocused = useIsFocused();
   useWindowClassTransition((prev, next) => {
+    if (!isFocused) return;
     if (prev === "expanded" && next !== "expanded" && selected) {
       router.setParams({ selected: "" });
       router.push(`/bookings/${selected}`);

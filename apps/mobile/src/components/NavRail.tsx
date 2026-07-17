@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Menu, LayoutDashboard } from "lucide-react-native";
 import { Spiderweb } from "./icons/Spiderweb";
@@ -48,6 +48,16 @@ export function NavRail({ state, navigation, insets }: BottomTabBarProps) {
           elevation: 10,
         }}
       >
+        {/* Scrollable interior: at short expanded windows (Stage Manager near
+            the 600pt shortest-side floor) the fixed column would otherwise
+            push the bottom cluster off-screen with no other way to reach it
+            (review finding). flexGrow keeps the spacer working when there IS
+            room, so nothing changes visually on tall windows. */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1, alignItems: "center" }}
+          className="self-stretch"
+        >
         <Spiderweb size={28} color={chrome.fg} />
 
         <View className="mt-8 items-center gap-2">
@@ -149,6 +159,7 @@ export function NavRail({ state, navigation, insets }: BottomTabBarProps) {
             color={chrome.fg}
           />
         </View>
+        </ScrollView>
 
         <AccountMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>

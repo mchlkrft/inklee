@@ -40,7 +40,10 @@ export function ListDetailHost({
 }) {
   return (
     <View className="flex-1 flex-row">
-      <View style={{ width: PANE.list }}>{list}</View>
+      {/* overflow hidden: the requests list's full-bleed -20/+20 margin trick
+          is tuned to "container edge = screen edge"; inside a pane it must
+          clip at the pane edge instead of bleeding into the divider. */}
+      <View style={{ width: PANE.list, overflow: "hidden" }}>{list}</View>
       <View className="border-l border-shell-border" />
       <View className="flex-1">
         {detail ? (
