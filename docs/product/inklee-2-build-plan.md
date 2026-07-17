@@ -73,6 +73,8 @@ Exit gate: an artist can explore a seeded city, watch studios, and control their
 
 ## Phase 3: studio owner role
 
+Status 2026-07-18: foundation slice SHIPPED (migration 0078). `studio_profiles` (owner_user_id UNIQUE nullable, one-per-owner, detaches to unclaimed via FK SET NULL + a trigger that suspends the ownerless studio and reverts its map location), `studio_categories` (the three-shape style/standard/custom model with distinct-category uniqueness), `studio_photos`, the `is_studio_owner()` SECURITY DEFINER helper, the private `studio-media` bucket, and the `map_locations.studio_profile_id` link (deferred from 0075). All studio tables are owner-SELECT via the helper with writes through server cores only (verified: direct writes blocked). Shared `@inklee/shared/studio-profile` carries the vocabularies, profile validation, and the completeness score + publish-readiness math (locked minimums: logo, description, address or area, 3+ categories, 3+ photos). Remaining slices: elevation + create/claim + claim conflict, the profile editor + photo upload, and the cockpit shell.
+
 - Upgrade flow: standard account elevates to studio owner (social link + address required, no legal documents)
 - Create or claim a studio (one per account); claim review state in admin
 - Studio profile editor: logo, photos (minimum 3), description, categories (minimum 3, custom allowed), social links, vibe section
