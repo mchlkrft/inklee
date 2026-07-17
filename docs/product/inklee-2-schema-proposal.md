@@ -159,7 +159,7 @@ id uuid pk · studio_profile_id CASCADE · artist_user_id -> profiles CASCADE
 note text · created_at · unique pair
 ```
 
-RLS enabled, zero policies. Owner reads/writes through server cores only; the blacklisted artist can never observe it (requests from blacklisted artists are silently deprioritized or auto-passed per Phase 0 product detail).
+RLS enabled, zero policies. Owner reads/writes through server cores only; the blacklisted artist can never observe it. Behavior (founder decision 2026-07-17): quiet hold. A request from a blacklisted artist lands in a collapsed blocked section of the inbox with no notification; the owner can still open and pass it manually.
 
 **`studio_badges`**
 
@@ -401,13 +401,19 @@ Enforcement layers, in order: route/server-action guards (owner checks through t
 
 `map_locations` ships in Phase 1 without its two profile-link columns; each arrives by ALTER in the phase that creates its target table, so no FK ever points at a table that does not exist yet.
 
-## 5. Open items this proposal leaves for sign-off
+## 5. Open items and their resolutions
+
+Resolved by founder decision 2026-07-17:
+
+- **Anonymous counting is consent-gated.** Only artists with `map_visibility != 'off'` are counted; `city_only` counts without listing; fully-off artists appear nowhere. This consciously narrows the original "private artists are still counted" line (recorded in scope 4.1).
+- **Blacklisted requests get a quiet hold.** They land in a collapsed blocked section of the studio inbox with no notification; the owner can still open and pass manually. Nothing observable distinguishes it from a studio that has not answered.
+- **One shop per owner account in v1** (`shop_profiles.owner_user_id UNIQUE`), mirroring the studio cap; relaxable later by dropping the constraint.
+- **The Studio tier is redefined by 2.0** (recorded in `docs/business-model.md` Phase 4): the studio owner role is the tier's identity, BM-4.x booking multi-tenancy becomes a later expansion. Pricing placement stays open as Q8.
+
+Still open for sign-off:
 
 - Exact bucket function for the seed cap (geohash precision vs a plain grid); Phase 1 picks with a test proving one bucket approximates 300 square km.
-- Whether blacklisted artists' requests are auto-passed or silently deprioritized (product feel decision, Phase 0).
 - Report reason vocabulary final wording (with the DSA doc update, Q14).
 - The Q6 storage cap value and the Q13 count floor (their columns and check points are in place either way).
 - Message transport for groups (Q10): the tables above assume messages-in-Postgres; a hosted service would replace `studio_group_messages` with an external reference and keep everything else.
-- Proposed default, not locked: one shop per owner account (`shop_profiles.owner_user_id UNIQUE`). The locked decisions cap only studios; this mirrors that shape for v1 and needs a founder nod.
-- Deliberate reinterpretation to flag: scope 4.1 says private artists are "still counted anonymously in an area", but this schema counts only artists with `map_visibility != 'off'` (city_only counts without listing). Counting artists who never opted into anything would repurpose data collected for other features, which the consent model forbids (collision audit section 6). If the founder wants truly-every-artist counts, that needs its own consent decision.
 - Thumbs survival semantics on giver account deletion (SET NULL keeps the counter; confirm with GDPR counsel alongside the report retention rules).

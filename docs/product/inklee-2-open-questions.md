@@ -72,7 +72,7 @@ How should temporary map posts be displayed without becoming spam?
 
 ### Q8. Studio owner pricing placement
 
-Does studio owner account pricing belong inside existing Inklee pricing, or as a separate Inklee Studio tier?
+Does studio owner account pricing belong inside existing Inklee pricing, or as a separate Inklee Studio tier? Narrowed 2026-07-17: the founder decided the 2.0 studio owner role REDEFINES the Studio tier (recorded in `docs/business-model.md` Phase 4), so the naming split is resolved; what stays open here is only when studio owners start paying and at what price.
 
 - Why open: the roadmap already carries a Business Model Phase 4 "Studio MVP" track with a planned studio subscription (`docs/roadmap.md` section 6.1, BM-4.7). The audit sharpened this: "Studio" currently names two different products. BM-4.x is multi-artist booking multi-tenancy (central inbox, shared calendar, studio booking page); the 2.0 studio owner is a guest spot host (map page, workspaces, groups, blacklist), with almost zero feature overlap but the same name and price anchor. Whether 2.0 studio owners are the new Studio tier definition, a separate SKU, a lighter tier, or free during map bootstrap is a monetization decision with its own timing (locked: monetization runs mainly through studio owner accounts, and the map is not behind an artist paywall). Also relevant: no subscription billing infrastructure exists yet at all (collision audit section 8), so early studio owners are comped via the existing admin mechanism regardless.
 - What it blocks: nothing technical before Phase 3. The role model must simply not hard-code any plan assumptions.

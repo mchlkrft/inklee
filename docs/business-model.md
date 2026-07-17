@@ -12,7 +12,7 @@
 
 > Copy this section verbatim into ChatGPT prompts to keep planning aligned. Stays short on purpose.
 
-**Positioning.** Inklee is the cleanest way for tattoo artists to turn Instagram attention into organized booking requests. Not an all-in-one studio OS, not a marketplace, not a generic scheduler.
+**Positioning.** Inklee is the cleanest way for tattoo artists to turn Instagram attention into organized booking requests. Not an all-in-one studio OS, not a client-facing marketplace, not a generic scheduler. (Scoped 2026-07-17: the Inklee 2.0 guest spot map is artist-facing discovery of studios and shops, which is a stated competitive stance; the guardrail that clients come from the artist's own audience stays intact.)
 
 **Target users (in order).** Solo freelance tattoo artists. Beginner to 1–3 years professional. Instagram-first. Traveling / guest-spot artists. Small tattoo studios later.
 
@@ -424,6 +424,8 @@ Each phase = a stage gate. Don't enter Phase N+1 until N's checklist is met.
 
 ### Phase 4 — Studio MVP
 
+> **Strategy revision, founder decision 2026-07-17.** The Studio tier's identity is redefined by the Inklee 2.0 track (guest spot map + studio network, planning SoT in `docs/product/`): a studio owner is a guest spot host with a public map page, a guest spot request inbox, workspace management, and a studio group. The multi-artist BOOKING multi-tenancy slices below (4.1 to 4.9) are no longer the Studio tier's definition; they become a possible later expansion of it. The `studios_v2` name is retired in favor of the 2.0 namespacing (`docs/product/inklee-2-schema-proposal.md`). The 2.0 track is planned and built now, ahead of this phase's stability gate; that override applies to the BUILD only. When studio owners start paying, and whether that is this tier or a variant, stays open as 2.0 open question Q8. The phase gate below still governs the booking-multi-tenancy expansion.
+
 **Status:** Not started. Heavy build phase. Gated by Phase 3 stable for ≥ 3 months and at least 5 inbound studio inquiries.
 
 **Goal:** Add multi-tenancy and ship a real Studio tier that delivers genuine value at €25/month.
@@ -463,8 +465,8 @@ Each phase = a stage gate. Don't enter Phase N+1 until N's checklist is met.
 **Slices:**
 
 - **5.1 Studio analytics** — Per-artist performance, peak times, conversion funnels, demand by city
-- **5.2 Guest-artist management** — Time-bounded studio membership for visiting artists
-- **5.3 Demand analytics** — Cross-studio aggregate (anonymized) to help artists pick guest-spot cities
+- **5.2 Guest-artist management** — Time-bounded studio membership for visiting artists. Note 2026-07-17: the 2.0 base studio role already ships a version of this (the 14-day group guest window); if Studio Pro happens, this slice becomes the advanced form, not the first form.
+- **5.3 Demand analytics** — Cross-studio aggregate (anonymized) to help artists pick guest-spot cities. Note 2026-07-17: the 2.0 map's anonymous artist counts are adjacent; keep the Pro version distinct (demand, not presence) or reassign consciously.
 - **5.4 Routing rules** — Light-weight conditional assignment ("blackwork → artist A")
 - **5.5 Payout research** — Document feasibility of Stripe Connect splits. Don't build. Decision only.
 - **5.6 Pricing differentiation** — Maybe Studio at €25 stays the same, Studio Pro at €60–80/month. Or Studio at €25 with add-on "Studio Analytics" at €15/month. Decide based on actual customer feedback.

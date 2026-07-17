@@ -72,7 +72,7 @@ Everything in this section is decided. Implementation tasks should not reopen th
 - No live location pointer, ever. Public location granularity is city or future destination only.
 - Artists can show: current city, future destinations, and a "looking for guest spots" status.
 - Artists can discover other public artists currently in town through a list.
-- Private artists are still counted anonymously in an area (with a minimum-count display floor to avoid deanonymization, see open question Q13).
+- Artists are counted anonymously in an area on a consent-gated basis (founder decision 2026-07-17): only artists with any map visibility on are counted; city_only artists count without being listed; fully-off artists appear nowhere. A minimum-count display floor avoids deanonymization (open question Q13).
 - Artists can have a passport-style history of guest spots and travel, and can keep it private.
 
 Artist profile fields to plan for the map identity layer:
