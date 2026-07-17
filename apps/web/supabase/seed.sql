@@ -28,3 +28,31 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- Re-apply deliberate column-privilege hardenings that the blanket
+-- GRANT ALL above just clobbered. On prod these live ONLY in their
+-- migrations; this block exists because seed.sql runs AFTER migrations
+-- locally. ⚠️ When a new column-privilege migration lands, mirror its
+-- REVOKE/GRANT statements here or local verification will silently
+-- diverge from prod.
+
+-- Mirror of 0062_instagram_token_column_privileges.sql:
+REVOKE SELECT ON instagram_accounts FROM anon, authenticated;
+GRANT SELECT (
+  id, artist_id, instagram_user_id, username, token_expires_at,
+  last_sync_at, connected, created_at, updated_at
+) ON instagram_accounts TO authenticated;
+
+-- Mirror of 0074_profiles_column_privileges.sql:
+REVOKE UPDATE ON public.profiles FROM anon, authenticated;
+REVOKE INSERT ON public.profiles FROM anon, authenticated;
+GRANT UPDATE (
+  slug, display_name, first_name, last_name, instagram_handle, bio,
+  timezone, location, logo_url, booking_mode, settings,
+  signup_attribution, updated_at
+) ON public.profiles TO authenticated;
+GRANT INSERT (
+  id, slug, display_name, instagram_handle, location, timezone,
+  signup_attribution, updated_at
+) ON public.profiles TO authenticated;
