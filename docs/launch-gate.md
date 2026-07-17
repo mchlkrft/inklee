@@ -63,7 +63,7 @@
 | Privacy retention-row vs cleanup-cron wording check | Quick doc-accuracy check before PUBLIC web launch. |
 | Maps API key referrer lock | Cost control, not functionality. |
 | Counsel LO-2 (PSD2/MoR) + LO-5 (DPIA) | Run in parallel; counsel signed off the Custom-Connect process (G-4). |
-| Apple / iOS | Deferred by decision 2026-06-23 (Android-first). Enrollment still in progress with Apple. |
+| Apple / iOS | Deferred by decision 2026-06-23 (Android-first). **Apple Developer Program enrollment ACCEPTED 2026-07-16** — iOS track (ME-7 Apple half, TestFlight, App Store listing) is now unblocked; needs App Store Connect setup + first iOS EAS build. |
 | ME-1 store assets, ME-13 dashboard mockup, Plausible goals registration | Store listing / polish / measurement — not blocking a working product. |
 
 ---

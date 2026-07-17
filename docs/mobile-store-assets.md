@@ -48,7 +48,7 @@ The store icon is pulled from the binary (A1); no separate upload.
 
 - D-U-N-S number for Inklee OÜ: **988010563** (received 2026-06-12).
 - Google Play developer account: **ready**.
-- Apple Developer Program enrollment: **in progress** (was waiting on the D-U-N-S).
+- Apple Developer Program enrollment: **accepted 2026-07-16** (was waiting on the D-U-N-S, then on Apple support).
 - EAS project already bound: `@inklee/inklee`, projectId `daf44d5c-0134-4815-bc4b-c0524dfcb93f`.
 
 ## E. Wiring (engineering)

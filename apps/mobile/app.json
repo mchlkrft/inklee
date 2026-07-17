@@ -13,7 +13,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.inklee",
-      "usesAppleSignIn": true
+      "icon": "./assets/ios-icon.png",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "app.inklee",

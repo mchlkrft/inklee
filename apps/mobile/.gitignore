@@ -19,6 +19,10 @@ expo-env.d.ts
 # GOOGLE_SERVICES_JSON file env var (see app.config.js). Vault: google-services-inklee.
 google-services.json
 
+# App Store Connect API key: SECRET. Referenced by eas.json submit config
+# (ascApiKeyPath); restore from the vault (asc-api-key-inklee) on a fresh clone.
+asc-api-key.p8
+
 # Metro / misc
 *.log
 .DS_Store
