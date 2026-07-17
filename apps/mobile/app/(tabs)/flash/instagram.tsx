@@ -26,6 +26,7 @@ import { useCapability } from "@/lib/capabilities";
 import { openConnectHandoff } from "@/lib/web-handoff";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
+import { gridColumns } from "@/lib/layout";
 
 const GAP = 8;
 const H_PAD = 40; // Screen's px-5 on both sides.
@@ -38,7 +39,18 @@ export default function InstagramScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const tileSize = Math.floor((width - H_PAD - GAP * 2) / 3);
+  // Width-derived import grid (ME-15): 3 columns on phones, more on tablets.
+  // Measured from the list container (not the window) so the expanded-class
+  // nav rail and wider gutters are already excluded; window-width fallback
+  // covers the first pre-measure frame.
+  const [gridWidth, setGridWidth] = useState(0);
+  const grid = gridColumns({
+    width: gridWidth || width - H_PAD,
+    minTile: 110,
+    gap: GAP,
+    max: 6,
+  });
+  const tileSize = grid.tileWidth;
 
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -273,11 +285,16 @@ export default function InstagramScreen() {
 
   return (
     <Screen edges={["left", "right"]}>
+      <View
+        className="flex-1"
+        onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
+      >
       <FlatList
+        key={grid.key}
         data={account ? posts : []}
         keyExtractor={(p) => p.id}
-        numColumns={3}
-        columnWrapperStyle={{ gap: GAP }}
+        numColumns={grid.numColumns}
+        columnWrapperStyle={grid.numColumns > 1 ? { gap: GAP } : undefined}
         ItemSeparatorComponent={() => <View style={{ height: GAP }} />}
         ListHeaderComponent={statusHeader}
         // Leave room for the pinned Import bar so the last row isn't hidden.
@@ -307,6 +324,7 @@ export default function InstagramScreen() {
           />
         )}
       />
+      </View>
 
       {showFooter ? (
         <View

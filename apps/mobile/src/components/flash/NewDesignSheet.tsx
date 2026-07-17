@@ -1,7 +1,8 @@
-import { Modal, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { X } from "lucide-react-native";
-import { themeVars, useColors, useThemePreference } from "@/lib/theme";
+import { AdaptiveSheet } from "@/components/AdaptiveSheet";
+import { useColors } from "@/lib/theme";
 
 // The New design fork (web parity): start a blank draft, or import from
 // Instagram. Opened from the flash library "New design" button.
@@ -17,25 +18,9 @@ export function NewDesignSheet({
   onImport: () => void;
 }) {
   const themed = useColors();
-  const { scheme } = useThemePreference();
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      {/* Re-apply theme vars: a RN Modal portals outside the ThemeProvider. */}
-      <Pressable
-        style={themeVars[scheme]}
-        className="flex-1 justify-end bg-black/50"
-        onPress={onClose}
-      >
-        <Pressable
-          onPress={() => {}}
-          className="rounded-t-3xl border-t border-shell-border bg-background px-4 pb-10 pt-4"
-        >
+    <AdaptiveSheet visible={visible} onClose={onClose}>
           <View className="mb-1 flex-row items-center justify-between">
             <Text className="text-base font-semibold text-foreground">
               New design
@@ -67,9 +52,7 @@ export function NewDesignSheet({
             dim={themed.shell.dim}
             onPress={onImport}
           />
-        </Pressable>
-      </Pressable>
-    </Modal>
+    </AdaptiveSheet>
   );
 }
 

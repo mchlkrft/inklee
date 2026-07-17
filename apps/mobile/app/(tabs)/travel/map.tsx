@@ -23,11 +23,12 @@ import type {
 } from "@inklee/shared/travel-map";
 import { groupJourneyByTrip, safeMapsUrl } from "@inklee/shared/travel-map";
 import { Screen } from "@/components/Screen";
+import { AdaptiveSheet } from "@/components/AdaptiveSheet";
 import { ErrorState } from "@/components/ErrorState";
 import { TravelIcon } from "@/components/TravelIcon";
 import { useApiQuery } from "@/lib/api";
 import { brandMapStyle, mapInk } from "@/lib/map-style";
-import { themeVars, useColors, useThemePreference } from "@/lib/theme";
+import { useColors, useThemePreference } from "@/lib/theme";
 
 // Numbered stop badges stay theme-independent (mustard fill, charcoal number):
 // they read on both the modal card and the brand basemap. The route lines and the
@@ -273,30 +274,12 @@ export default function TravelMapScreen() {
         ) : null}
       </View>
 
-      <Modal
+      <AdaptiveSheet
         visible={tripsOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setTripsOpen(false)}
+        onClose={() => setTripsOpen(false)}
+        panelClassName=""
       >
-        {/* Re-apply theme vars: a Modal portals outside the ThemeProvider wrapper,
-            so without this the className tokens fall back to the dark :root. */}
-        <View style={[themeVars[scheme], { flex: 1 }]} className="justify-end">
-          <Pressable
-            onPress={() => setTripsOpen(false)}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.35)",
-            }}
-          />
-          <View
-            className="rounded-t-3xl border-t border-shell-border bg-background"
-            style={{ maxHeight: "82%", paddingBottom: insets.bottom + 12 }}
-          >
+        <View style={{ paddingBottom: insets.bottom + 12 }}>
             <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
               <Text className="text-base font-semibold text-foreground">
                 Your trips
@@ -365,9 +348,8 @@ export default function TravelMapScreen() {
                 </View>
               ) : null}
             </ScrollView>
-          </View>
         </View>
-      </Modal>
+      </AdaptiveSheet>
     </Screen>
   );
 }

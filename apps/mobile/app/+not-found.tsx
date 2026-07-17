@@ -15,8 +15,8 @@ export default function NotFoundScreen() {
         Screen not available
       </Text>
       <Text className="mt-3 text-center text-sm text-shell-dim">
-        This screen isn't available in this version of the app. Updating to the
-        latest version usually fixes this.
+        This screen isn&apos;t available in this version of the app. Updating
+        to the latest version usually fixes this.
       </Text>
       <View className="mt-6 self-center">
         <Button

@@ -16,12 +16,17 @@ import { AccountMenuSheet } from "./AccountMenuSheet";
 import { border } from "@/lib/tokens";
 import { useThemeColors, chrome } from "@/lib/theme";
 import { topBarProgress } from "@/lib/scroll-hide";
+import { useLayoutClass } from "@/lib/layout";
 
 // Total height the bar occupies (12px band padding + 60px pill + 12px tail).
-// Screens hosting the overlay TopBar pad their content by this.
+// Screens hosting the overlay TopBar pad their content by this. At the
+// expanded class the bar unmounts (the NavRail carries its functions), so the
+// height collapses to just the status inset — every consumer (screen content
+// tops, the bookings pinned band) adapts through this one hook.
 export function useTopBarHeight() {
   const insets = useSafeAreaInsets();
-  return insets.top + 12 + 60 + 12;
+  const cls = useLayoutClass();
+  return cls === "expanded" ? insets.top + 12 : insets.top + 12 + 60 + 12;
 }
 
 // The floating top bar, mounted INSIDE each tab screen as an ABSOLUTE overlay
@@ -32,6 +37,7 @@ export function useTopBarHeight() {
 export function TopBar() {
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
+  const layoutClass = useLayoutClass();
   const [menuOpen, setMenuOpen] = useState(false);
   const barHeight = useTopBarHeight();
 
@@ -70,6 +76,11 @@ export function TopBar() {
       if (cur !== prev) runOnJS(setCollapsed)(cur);
     },
   );
+
+  // Expanded class: the NavRail owns the chrome (books status, bell, account
+  // menu live in its bottom cluster); this overlay unmounts entirely. Placed
+  // AFTER every hook so hook order stays stable across class flips.
+  if (layoutClass === "expanded") return null;
 
   return (
     <>
@@ -110,10 +121,15 @@ export function TopBar() {
         ]}
       >
         {/* h-[60px] matches the bottom nav pill (h-12 items + py-2.5 padding
-            ≈ 60px) — founder round 10: the two pills read as one system. */}
+            ≈ 60px) — founder round 10: the two pills read as one system. At
+            medium the pill caps like the bottom pill so it doesn't stretch
+            across a whole tablet window. */}
         <View
           className="mx-3 mb-2 h-[60px] flex-row items-center justify-between rounded-full px-4"
           style={{
+            maxWidth: layoutClass === "medium" ? 500 : undefined,
+            width: layoutClass === "medium" ? "100%" : undefined,
+            alignSelf: layoutClass === "medium" ? "center" : undefined,
             backgroundColor: chrome.bg,
             borderWidth: border.hairline,
             borderColor: chrome.border,

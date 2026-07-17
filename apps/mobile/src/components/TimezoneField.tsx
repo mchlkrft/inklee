@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CURATED_TIMEZONES } from "@inklee/shared/timezone";
 import { border, radius } from "@/lib/tokens";
 import { themeVars, useColors, useThemePreference } from "@/lib/theme";
+import { SHEET_MAX, useLayoutClass } from "@/lib/layout";
 
 // Curated timezone picker — a pressable field opening a bottom-sheet list of
 // the shared curated zones (the same list behind the web profile form's
@@ -24,6 +25,7 @@ export function TimezoneField({
   const c = useColors();
   const { scheme } = useThemePreference();
   const insets = useSafeAreaInsets();
+  const sheetCapped = useLayoutClass() !== "compact";
   const [open, setOpen] = useState(false);
 
   const options = useMemo(() => {
@@ -69,6 +71,7 @@ export function TimezoneField({
         animationType="slide"
         onRequestClose={() => setOpen(false)}
         statusBarTranslucent
+        supportedOrientations={["portrait", "portrait-upside-down", "landscape"]}
       >
         {/* Re-apply theme vars: the Modal portals outside the ThemeProvider, so
             the className text tokens (text-foreground/-shell-mute) would fall
@@ -91,6 +94,10 @@ export function TimezoneField({
               borderTopLeftRadius: radius.card,
               borderTopRightRadius: radius.card,
               paddingBottom: insets.bottom + 16,
+              // Tablet windows: cap + center instead of spanning full width.
+              width: sheetCapped ? "100%" : undefined,
+              maxWidth: sheetCapped ? SHEET_MAX : undefined,
+              alignSelf: sheetCapped ? "center" : undefined,
             }}
           >
             <Text className="mb-2 text-sm font-semibold text-foreground">

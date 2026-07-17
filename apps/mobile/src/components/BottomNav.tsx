@@ -1,37 +1,18 @@
 import { useEffect, useState } from "react";
 import { Keyboard, Platform, Pressable, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import {
-  Inbox,
-  LayoutDashboard,
-  MapPin,
-  ShoppingBag,
-} from "lucide-react-native";
-import type { LucideIcon } from "@/lib/icon-types";
+import { LayoutDashboard } from "lucide-react-native";
 import { Spiderweb } from "./icons/Spiderweb";
 import { border, colors as brand } from "@/lib/tokens";
 import { chrome } from "@/lib/theme";
+import { NAV_ICONS, NAV_LABELS } from "@/lib/nav-items";
+import { useLayoutClass } from "@/lib/layout";
 
-// Bottom padding scrollable tab content needs so its tail isn't hidden under
-// the floating pill (the nav OVERLAYS content instead of reserving a band).
+// DEPRECATED: use useTabBarClearance() from @/lib/layout — the clearance is
+// class-dependent now (the expanded rail reserves space instead of overlaying).
+// Kept exported so stragglers keep compiling mid-migration; the hook returns
+// this value on compact/medium.
 export const TAB_BAR_CLEARANCE = 120;
-
-// Per-route icon (Flash uses the brand Spiderweb). Mirrors the web
-// MOBILE_BOTTOM_NAV order: Dashboard, Flash, Bookings (center), Guest Spots,
-// Goods. Icons only — no labels (founder direction): larger glyphs carry it.
-const ICONS: Record<string, LucideIcon> = {
-  index: LayoutDashboard,
-  bookings: Inbox,
-  travel: MapPin,
-  goods: ShoppingBag,
-};
-const LABELS: Record<string, string> = {
-  index: "Dashboard",
-  flash: "Flash",
-  bookings: "Bookings",
-  travel: "Guest Spots",
-  goods: "Goods",
-};
 
 // Custom tab bar — a floating dark pill OVERLAYING the content (absolute,
 // transparent band: no bone/charcoal layer behind it). The middle slot
@@ -39,6 +20,9 @@ const LABELS: Record<string, string> = {
 // the pill colour so it cuts cleanly. Icons only, sized up.
 export function BottomNav({ state, navigation }: BottomTabBarProps) {
   const centerIndex = Math.floor(state.routes.length / 2);
+  // Medium windows (portrait tablets, Split View halves) keep the pill but cap
+  // it so the slots don't stretch across the whole window (ME-15).
+  const capped = useLayoutClass() !== "compact";
 
   // Android's resize keyboard mode shrinks the window, which would park the
   // absolutely-positioned pill + FAB right on top of the focused input — hide
@@ -81,14 +65,20 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
         right: 0,
         bottom: 0,
         backgroundColor: "transparent",
-        // Same 16px breathing room as the mx-4 side gaps (founder direction):
-        // the pill hugs the bottom edge instead of floating high above it.
+        // Same 16px breathing room as the side gaps (founder direction): the
+        // pill hugs the bottom edge instead of floating high above it. The
+        // side gap lives on the band (paddingHorizontal) rather than the pill
+        // (mx-4) so the medium-class width cap can center the pill cleanly.
         paddingBottom: 16,
+        paddingHorizontal: 16,
       }}
     >
       <View
-        className="mx-4 flex-row items-end justify-between rounded-full px-3 py-2.5"
+        className="flex-row items-end justify-between rounded-full px-3 py-2.5"
         style={{
+          width: "100%",
+          maxWidth: capped ? 500 : undefined,
+          alignSelf: "center",
           backgroundColor: chrome.bg,
           borderWidth: border.hairline,
           borderColor: chrome.border,
@@ -101,10 +91,10 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
       >
         {state.routes.map((route, idx) => {
           const focused = state.index === idx;
-          const label = LABELS[route.name] ?? route.name;
+          const label = NAV_LABELS[route.name] ?? route.name;
           const isCenter = idx === centerIndex;
           const isFlash = route.name === "flash";
-          const Icon = ICONS[route.name] ?? LayoutDashboard;
+          const Icon = NAV_ICONS[route.name] ?? LayoutDashboard;
 
           const onPress = () => {
             const event = navigation.emit({

@@ -14,7 +14,7 @@ import { useCalendarMonth } from "@/lib/calendar";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
-import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+import { useTabBarClearance } from "@/lib/layout";
 import { useScreenView } from "@/lib/analytics";
 
 // Month grid of confirmed appointments, guest spots and flash days + the
@@ -29,6 +29,7 @@ export default function CalendarScreen() {
   const themed = useColors();
   const onScroll = useScrollHide();
   const headerInset = useBookingsHeaderInset();
+  const tabBarClearance = useTabBarClearance();
 
   return (
     <Screen edges={["left", "right"]}>
@@ -36,7 +37,7 @@ export default function CalendarScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingTop: headerInset,
-          paddingBottom: TAB_BAR_CLEARANCE,
+          paddingBottom: tabBarClearance,
         }}
         onScroll={onScroll}
         scrollEventThrottle={16}

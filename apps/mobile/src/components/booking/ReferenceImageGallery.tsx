@@ -110,6 +110,7 @@ function Lightbox({
       animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent
+      supportedOrientations={["portrait", "portrait-upside-down", "landscape"]}
     >
       <View className="flex-1 bg-black">
         <FlatList

@@ -12,7 +12,7 @@ import { relativeTime } from "@/lib/date";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
-import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+import { useTabBarClearance } from "@/lib/layout";
 import { useScreenView } from "@/lib/analytics";
 
 function ClientRow({
@@ -56,6 +56,7 @@ export default function ClientsScreen() {
   const themed = useColors();
   const onScroll = useScrollHide();
   const headerInset = useBookingsHeaderInset();
+  const tabBarClearance = useTabBarClearance();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<{ items: ClientListItem[] }>("/clients");
   const [query, setQuery] = useState("");
@@ -115,7 +116,7 @@ export default function ClientsScreen() {
         keyboardDismissMode="on-drag"
         contentContainerStyle={{
           paddingTop: headerInset,
-          paddingBottom: TAB_BAR_CLEARANCE,
+          paddingBottom: tabBarClearance,
         }}
         onScroll={onScroll}
         scrollEventThrottle={16}

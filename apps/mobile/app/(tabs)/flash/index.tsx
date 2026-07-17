@@ -43,7 +43,7 @@ import {
 } from "@/lib/flash";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
-import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+import { useTabBarClearance } from "@/lib/layout";
 
 const ListGap = () => <View className="h-3" />;
 
@@ -64,6 +64,7 @@ export default function FlashItemsList() {
   const colors = useColors();
   const onScroll = useScrollHide();
   const topBarHeight = useTopBarHeight();
+  const tabBarClearance = useTabBarClearance();
   const [creating, setCreating] = useState(false);
   const [newSheetOpen, setNewSheetOpen] = useState(false);
   const [folder, setFolder] = useState("all");
@@ -336,7 +337,7 @@ export default function FlashItemsList() {
         scrollEnabled={!dragItem}
         contentContainerStyle={{
           paddingTop: topBarHeight,
-          paddingBottom: TAB_BAR_CLEARANCE,
+          paddingBottom: tabBarClearance,
         }}
         onScroll={onScroll}
         scrollEventThrottle={16}

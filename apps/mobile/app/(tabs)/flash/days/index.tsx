@@ -26,6 +26,7 @@ import { flashLabel, flashStatusTone } from "@/lib/flash";
 import { formatShortDate } from "@/lib/date";
 import { useColors } from "@/lib/theme";
 import { useTimedFlag } from "@/lib/use-timed-flag";
+import { useTabBarClearance } from "@/lib/layout";
 
 const ListGap = () => <View className="h-3" />;
 
@@ -35,6 +36,7 @@ export default function FlashDaysList() {
   const me = useApiQuery<MobileMe>("/me");
   const slug = me.data?.slug ?? null;
   const colors = useColors();
+  const tabBarClearance = useTabBarClearance();
 
   if (!q.data) {
     return (
@@ -66,7 +68,7 @@ export default function FlashDaysList() {
         <FlatList
           data={q.data.items}
           keyExtractor={(d) => d.id}
-          contentContainerStyle={{ paddingBottom: 120 /* tab bar clearance */ }}
+          contentContainerStyle={{ paddingBottom: tabBarClearance }}
           refreshControl={
             <RefreshControl
               refreshing={q.refreshing}

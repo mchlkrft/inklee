@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { ChevronDown, MapPin, Slash, X } from "lucide-react-native";
 import {
   TRAVEL_ICON_COLORS,
@@ -11,7 +11,8 @@ import {
 } from "@inklee/shared/travel-icons";
 import { TravelIcon } from "./TravelIcon";
 import { TravelIconPicker } from "./TravelIconPicker";
-import { themeVars, useColors, useThemePreference } from "@/lib/theme";
+import { AdaptiveSheet } from "./AdaptiveSheet";
+import { useColors } from "@/lib/theme";
 
 // Header control for the studio/trip editors (ME test 2026-06-18): the icon
 // choice lives top-right in the navigation header, not in the form body. The
@@ -38,7 +39,6 @@ export function IconHeaderControl({
   }) => void;
 }) {
   const themed = useColors();
-  const { scheme } = useThemePreference();
   const [open, setOpen] = useState(false);
   const defaultColor =
     kind === "studio" ? DEFAULT_STUDIO_ICON_COLOR : DEFAULT_TRIP_ICON_COLOR;
@@ -70,24 +70,7 @@ export function IconHeaderControl({
         <ChevronDown size={14} color={themed.shell.dim} />
       </Pressable>
 
-      <Modal
-        visible={open}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setOpen(false)}
-      >
-        {/* Re-apply theme vars: a RN Modal portals outside the ThemeProvider, so
-            without this the className tokens fall back to the dark :root. */}
-        <Pressable
-          style={themeVars[scheme]}
-          className="flex-1 justify-end bg-black/50"
-          onPress={() => setOpen(false)}
-        >
-          {/* Stop propagation so taps inside the sheet don't dismiss it. */}
-          <Pressable
-            onPress={() => {}}
-            className="rounded-t-3xl border-t border-shell-border bg-background px-4 pb-10 pt-4"
-          >
+      <AdaptiveSheet visible={open} onClose={() => setOpen(false)}>
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-base font-semibold text-foreground">
                 Icon
@@ -174,9 +157,7 @@ export function IconHeaderControl({
                 ))}
               </View>
             </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </AdaptiveSheet>
     </>
   );
 }

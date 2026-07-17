@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { border, colors, radius } from "@/lib/tokens";
+import { useLayoutClass } from "@/lib/layout";
 
 const DURATION = 220;
 // Slide distance: comfortably exceeds the tallest panel state so the
@@ -34,6 +35,10 @@ export function TopSheet({
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  // Tablet windows: cap the panel instead of spanning the full width, anchored
+  // toward its trigger (top-right burger at medium; the left rail at expanded).
+  const cls = useLayoutClass();
+  const capped = cls !== "compact";
 
   // Keep the Modal mounted while the close animation plays out.
   const [mounted, setMounted] = useState(open);
@@ -75,6 +80,7 @@ export function TopSheet({
       animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
+      supportedOrientations={["portrait", "portrait-upside-down", "landscape"]}
     >
       {/* Backdrop: opacity-only fade (it must NOT slide). Tap closes. */}
       <Animated.View
@@ -102,6 +108,14 @@ export function TopSheet({
               borderBottomRightRadius: radius.card,
               paddingTop: insets.top + 12,
               paddingBottom: 20,
+              width: capped ? "100%" : undefined,
+              maxWidth: capped ? 420 : undefined,
+              alignSelf: capped
+                ? cls === "medium"
+                  ? "flex-end"
+                  : "flex-start"
+                : undefined,
+              marginHorizontal: capped ? 12 : 0,
             }}
           >
             {children}

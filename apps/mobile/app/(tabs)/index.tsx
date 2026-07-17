@@ -35,7 +35,7 @@ import { ActionFeed } from "@/components/home/ActionFeed";
 import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
-import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+import { useTabBarClearance } from "@/lib/layout";
 import { config, displayUrl } from "@/lib/config";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { formatShortDate, formatLongDate, deviceTodayKey } from "@/lib/date";
@@ -235,6 +235,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const onScroll = useScrollHide();
   const topBarHeight = useTopBarHeight();
+  const tabBarClearance = useTabBarClearance();
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<MobileHome>("/home");
 
@@ -261,7 +262,7 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingTop: topBarHeight,
-          paddingBottom: TAB_BAR_CLEARANCE,
+          paddingBottom: tabBarClearance,
         }}
         onScroll={onScroll}
         scrollEventThrottle={16}

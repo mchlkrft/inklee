@@ -24,6 +24,7 @@ import { TravelIcon } from "@/components/TravelIcon";
 import { useApiQuery } from "@/lib/api";
 import { visibilityLabel } from "@/lib/travel";
 import { useColors } from "@/lib/theme";
+import { useTabBarClearance } from "@/lib/layout";
 
 const ListGap = () => <View className="h-3" />;
 
@@ -31,6 +32,7 @@ export default function StudiosList() {
   const router = useRouter();
   const q = useApiQuery<MobileStudiosResponse>("/travel/studios");
   const themed = useColors();
+  const tabBarClearance = useTabBarClearance();
 
   if (!q.data) {
     return (
@@ -62,7 +64,7 @@ export default function StudiosList() {
         <FlatList
           data={q.data.items}
           keyExtractor={(s) => s.id}
-          contentContainerStyle={{ paddingBottom: 120 /* tab bar clearance */ }}
+          contentContainerStyle={{ paddingBottom: tabBarClearance }}
           refreshControl={
             <RefreshControl
               refreshing={q.refreshing}

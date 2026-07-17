@@ -25,7 +25,7 @@ import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
-import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+import { useTabBarClearance } from "@/lib/layout";
 import { config, displayUrl } from "@/lib/config";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { formatShortDate, relativeTime } from "@/lib/date";
@@ -130,6 +130,7 @@ export default function RequestsScreen() {
   const colors = useColors();
   const onScroll = useScrollHide();
   const headerInset = useBookingsHeaderInset();
+  const tabBarClearance = useTabBarClearance();
   const [status, setStatus] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -277,7 +278,7 @@ export default function RequestsScreen() {
         style={{ marginHorizontal: -20 }}
         contentContainerStyle={{
           paddingTop: headerInset,
-          paddingBottom: TAB_BAR_CLEARANCE,
+          paddingBottom: tabBarClearance,
           paddingHorizontal: 20,
         }}
         onScroll={onScroll}

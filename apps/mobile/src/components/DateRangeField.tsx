@@ -8,6 +8,7 @@ import { IconButton } from "@/components/IconButton";
 import { MONTH_LONG, formatDayLabel, formatShortDate, toLocalDate } from "@/lib/date";
 import { themeVars, useColors, useThemePreference } from "@/lib/theme";
 import { border, radius } from "@/lib/tokens";
+import { SHEET_MAX, useLayoutClass } from "@/lib/layout";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -60,6 +61,7 @@ export function DateRangeField({
   const c = useColors();
   const { scheme } = useThemePreference();
   const insets = useSafeAreaInsets();
+  const sheetCapped = useLayoutClass() !== "compact";
   const todayKey = useMemo(() => localDateKey(), []);
 
   const [visible, setVisible] = useState(false);
@@ -142,6 +144,7 @@ export function DateRangeField({
         animationType="slide"
         onRequestClose={() => setVisible(false)}
         statusBarTranslucent
+        supportedOrientations={["portrait", "portrait-upside-down", "landscape"]}
       >
         {/* Re-apply theme vars: a RN Modal portals outside the ThemeProvider, so
             the className `var(--…)` tokens would fall back to the dark :root and
@@ -163,6 +166,10 @@ export function DateRangeField({
               borderTopLeftRadius: radius.card,
               borderTopRightRadius: radius.card,
               paddingBottom: insets.bottom + 16,
+              // Tablet windows: cap + center instead of spanning full width.
+              width: sheetCapped ? "100%" : undefined,
+              maxWidth: sheetCapped ? SHEET_MAX : undefined,
+              alignSelf: sheetCapped ? "center" : undefined,
             }}
           >
             {/* Title + live selection summary + close */}

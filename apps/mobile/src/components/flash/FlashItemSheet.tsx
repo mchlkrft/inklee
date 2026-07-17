@@ -1,23 +1,21 @@
-import { Modal, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ExternalLink, Pencil, Share2, X } from "lucide-react-native";
 import type { MobileFlashItem } from "@inklee/shared/mobile-api";
+import { AdaptiveSheet } from "@/components/AdaptiveSheet";
 import { Button } from "@/components/Button";
 import { config } from "@/lib/config";
 import { flashLabel, flashStatusTone, formatFlashPrice } from "@/lib/flash";
 import { captureError } from "@/lib/telemetry";
-import { themeVars, useColors, useThemePreference } from "@/lib/theme";
+import { useColors } from "@/lib/theme";
 
 // Tapping a flash design in the library opens THIS detail modal (not straight
 // to the editor): a big picture + the item's key facts, with Edit / Share as the
-// quick main actions and a quiet "View public page".
-//
-// Theme-aware: a RN Modal portals OUTSIDE the ThemeProvider wrapper, so the
-// className `var(--…)` tokens fall back to the dark :root unless themeVars[scheme]
-// is re-applied on the modal root — the same fix the travel-map Trips modal uses.
+// quick main actions and a quiet "View public page". The sheet chrome (modal,
+// backdrop, theming, orientation, width cap on tablets) lives in AdaptiveSheet.
 export function FlashItemSheet({
   item,
   artistSlug,
@@ -30,7 +28,6 @@ export function FlashItemSheet({
   onEdit: (id: string) => void;
 }) {
   const colors = useColors();
-  const { scheme } = useThemePreference();
   const insets = useSafeAreaInsets();
 
   // A live public page only exists for a PUBLISHED item (mirrors the editor's
@@ -54,34 +51,14 @@ export function FlashItemSheet({
   }
 
   return (
-    <Modal
+    <AdaptiveSheet
       visible={item !== null}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      panelClassName=""
     >
-      {/* Re-apply theme vars: the Modal portals outside the ThemeProvider, so
-          without this the className tokens fall back to the dark :root. */}
-      <View style={[themeVars[scheme], { flex: 1 }]} className="justify-end">
-        <Pressable
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-          }}
-        />
-        {item ? (
-          <View
-            className="rounded-t-3xl border-t border-shell-border bg-background"
-            style={{ maxHeight: "90%", paddingBottom: insets.bottom + 16 }}
-          >
-            <View className="flex-row items-center justify-between px-5 pb-1 pt-4">
+      {item ? (
+        <View style={{ paddingBottom: insets.bottom + 16 }}>
+          <View className="flex-row items-center justify-between px-5 pb-1 pt-4">
               <Text className="text-sm font-medium uppercase tracking-wider text-shell-mute">
                 Design
               </Text>
@@ -179,10 +156,9 @@ export function FlashItemSheet({
                   Publish this design to share its public page.
                 </Text>
               )}
-            </ScrollView>
-          </View>
-        ) : null}
-      </View>
-    </Modal>
+          </ScrollView>
+        </View>
+      ) : null}
+    </AdaptiveSheet>
   );
 }

@@ -1,10 +1,11 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type {
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from "react-native";
 import { makeMutable, withTiming } from "react-native-reanimated";
 import { useFocusEffect } from "expo-router";
+import { useIsExpanded } from "@/lib/layout";
 
 // Shared top-bar visibility (0 = shown, 1 = hidden), animated on the UI thread.
 // The TopBar collapses off this value; any scrollable screen drives it through
@@ -24,6 +25,15 @@ const TOP_ZONE = 12; // always visible this close to the top
 // scroll-hides) call it directly, or a stale progress=1 from another tab parks
 // their bar off-screen with no scroll handler to ever bring it back.
 export function useTopBarReset() {
+  // At the expanded class the TopBar unmounts (NavRail owns the chrome) and
+  // nothing scroll-hides. Pin progress to 0 so (a) the bookings pinned band
+  // never rises, and (b) a bar hidden mid-scroll when the window crosses into
+  // expanded is not stranded hidden when it shrinks back (ME-15).
+  const expanded = useIsExpanded();
+  useEffect(() => {
+    if (expanded) topBarProgress.value = 0;
+  }, [expanded]);
+
   useFocusEffect(
     useCallback(() => {
       topBarProgress.value = withTiming(0, { duration: 180 });
@@ -34,6 +44,7 @@ export function useTopBarReset() {
 export function useScrollHide() {
   const lastY = useRef(0);
   const accum = useRef(0);
+  const expanded = useIsExpanded();
 
   useTopBarReset();
   useFocusEffect(
@@ -43,6 +54,9 @@ export function useScrollHide() {
   );
 
   return useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Expanded: no bar to hide; keep progress pinned (see useTopBarReset).
+    if (expanded) return;
+
     const y = e.nativeEvent.contentOffset.y;
     const dy = y - lastY.current;
     lastY.current = y;
@@ -62,5 +76,5 @@ export function useScrollHide() {
     } else if (accum.current < -SHOW_AFTER) {
       topBarProgress.value = withTiming(0, { duration: 220 });
     }
-  }, []);
+  }, [expanded]);
 }

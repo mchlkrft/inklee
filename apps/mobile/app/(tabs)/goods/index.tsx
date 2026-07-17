@@ -32,7 +32,7 @@ import {
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
-import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+import { gridColumns, useTabBarClearance } from "@/lib/layout";
 
 export default function GoodsList() {
   const router = useRouter();
@@ -40,6 +40,18 @@ export default function GoodsList() {
   const colors = useColors();
   const onScroll = useScrollHide();
   const topBarHeight = useTopBarHeight();
+  const tabBarClearance = useTabBarClearance();
+  // Width-derived product grid (ME-15): 2 columns on phones, up to 4 on
+  // tablets. Measured from the actual container so gutters/rail/panes are
+  // already excluded; 0 until the first layout pass, so fall back to a phone
+  // width (the pre-measure frame is never visible).
+  const [gridWidth, setGridWidth] = useState(0);
+  const grid = gridColumns({
+    width: gridWidth || 360,
+    minTile: 160,
+    gap: 12,
+    max: 4,
+  });
 
   if (!q.data) {
     return (
@@ -82,16 +94,20 @@ export default function GoodsList() {
 
   return (
     <Screen edges={["left", "right"]} topBar={<TopBar />}>
-      <View className="flex-1">
+      <View
+        className="flex-1"
+        onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
+      >
         <FlatList
+          key={grid.key}
           data={q.data.items}
           keyExtractor={(p) => p.id}
-          numColumns={2}
-          columnWrapperStyle={{ gap: 12 }}
+          numColumns={grid.numColumns}
+          columnWrapperStyle={grid.numColumns > 1 ? { gap: 12 } : undefined}
           ListHeaderComponent={listHeader}
           contentContainerStyle={{
             paddingTop: topBarHeight,
-            paddingBottom: TAB_BAR_CLEARANCE,
+            paddingBottom: tabBarClearance,
             gap: 12,
           }}
           onScroll={onScroll}
@@ -119,6 +135,7 @@ export default function GoodsList() {
           renderItem={({ item }) => (
             <ProductTile
               product={item}
+              tileWidth={grid.tileWidth}
               onPress={() => router.push(`/goods/${item.id}`)}
               onRefresh={q.refresh}
             />
@@ -131,10 +148,12 @@ export default function GoodsList() {
 
 function ProductTile({
   product,
+  tileWidth,
   onPress,
   onRefresh,
 }: {
   product: MobileProduct;
+  tileWidth: number;
   onPress: () => void;
   onRefresh: () => void;
 }) {
@@ -176,13 +195,13 @@ function ProductTile({
       accessibilityRole="button"
       onPress={() => (revealed ? setRevealed(false) : onPress())}
       onLongPress={() => setRevealed(true)}
-      // max-w caps the LAST tile of an odd-count grid: with numColumns={2},
-      // flex-1 alone stretches it to full row width (and aspect-square then
-      // doubles its height). 48.5% ~ half the row minus the 12px column gap.
-      className={`relative aspect-square flex-1 overflow-hidden rounded-2xl border border-shell-border bg-glass ${
+      // Explicit tile width from the grid math (replaces the old 48.5% hack):
+      // a partial last row keeps its tiles the same size as full rows, at any
+      // column count.
+      className={`relative aspect-square overflow-hidden rounded-2xl border border-shell-border bg-glass ${
         dimmed ? "opacity-70" : ""
       }`}
-      style={{ maxWidth: "48.5%" }}
+      style={{ width: tileWidth }}
     >
       {product.imageUrl ? (
         <Image

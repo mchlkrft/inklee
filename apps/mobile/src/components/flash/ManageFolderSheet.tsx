@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 import { X } from "lucide-react-native";
-import { themeVars, useColors, useThemePreference } from "@/lib/theme";
+import { AdaptiveSheet } from "@/components/AdaptiveSheet";
+import { useColors } from "@/lib/theme";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
 import { DangerButton } from "@/components/DangerButton";
@@ -23,7 +24,6 @@ export function ManageFolderSheet({
   onDeleted: () => void;
 }) {
   const themed = useColors();
-  const { scheme } = useThemePreference();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -90,24 +90,7 @@ export function ManageFolderSheet({
   }
 
   return (
-    <Modal
-      visible={folder !== null}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      {/* Re-apply theme vars: a RN Modal portals outside the ThemeProvider, so
-          without this the className `var(--…)` tokens fall back to the dark
-          :root and the sheet renders dark even in light mode. */}
-      <Pressable
-        style={themeVars[scheme]}
-        className="flex-1 justify-end bg-black/50"
-        onPress={onClose}
-      >
-        <Pressable
-          onPress={() => {}}
-          className="rounded-t-3xl border-t border-shell-border bg-background px-4 pb-10 pt-4"
-        >
+    <AdaptiveSheet visible={folder !== null} onClose={onClose} avoidKeyboard>
           <View className="mb-3 flex-row items-center justify-between">
             <Text className="text-base font-semibold text-foreground">
               Manage folder
@@ -146,8 +129,6 @@ export function ManageFolderSheet({
             onPress={confirmDelete}
             disabled={saving || busy}
           />
-        </Pressable>
-      </Pressable>
-    </Modal>
+    </AdaptiveSheet>
   );
 }

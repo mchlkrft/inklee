@@ -16,6 +16,7 @@ import { Button } from "@/components/Button";
 import { SplashOverlay } from "@/components/SplashOverlay";
 import { UpdateRequired } from "@/components/UpdateRequired";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { WindowLayoutProvider } from "@/lib/layout";
 import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
 import { useAppConfigGate } from "@/lib/capabilities";
@@ -273,10 +274,16 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <AuthProvider>
-            <ThemedStatusBar />
-            <RootNavigator />
-          </AuthProvider>
+          {/* Window-class context (ME-15). Its children must stay
+              referentially stable — the provider re-renders on every window
+              resize event, and consumers are spared re-renders only because
+              this element tree is not recreated alongside it. */}
+          <WindowLayoutProvider>
+            <AuthProvider>
+              <ThemedStatusBar />
+              <RootNavigator />
+            </AuthProvider>
+          </WindowLayoutProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>

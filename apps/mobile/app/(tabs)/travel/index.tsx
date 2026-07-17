@@ -24,7 +24,7 @@ import { NavCardRow } from "@/components/NavCardRow";
 import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
-import { TAB_BAR_CLEARANCE } from "@/components/BottomNav";
+import { useTabBarClearance } from "@/lib/layout";
 
 const ListGap = () => <View className="h-3" />;
 
@@ -34,6 +34,7 @@ export default function TripsList() {
   const colors = useColors();
   const onScroll = useScrollHide();
   const topBarHeight = useTopBarHeight();
+  const tabBarClearance = useTabBarClearance();
 
   if (!q.data) {
     return (
@@ -87,7 +88,7 @@ export default function TripsList() {
           ListHeaderComponent={listHeader}
           contentContainerStyle={{
             paddingTop: topBarHeight,
-            paddingBottom: TAB_BAR_CLEARANCE,
+            paddingBottom: tabBarClearance,
           }}
           onScroll={onScroll}
           scrollEventThrottle={16}
