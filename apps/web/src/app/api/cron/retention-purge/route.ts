@@ -126,6 +126,22 @@ export async function GET(request: Request) {
     );
   }
 
+  // Map reports (DSA register, migration 0075): keep 24 months, same clock as
+  // the audit rows. Statements of reasons (moderation_statements) are kept
+  // 5 years and deliberately NOT purged here yet; their purge lands with the
+  // Phase 7 threshold machinery that starts creating them.
+  const { data: purgedMapReports, error: mapReportsError } = await serviceClient
+    .from("map_reports")
+    .delete()
+    .lt("created_at", auditCutoff)
+    .select("id");
+  if (mapReportsError) {
+    return NextResponse.json(
+      { error: mapReportsError.message },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     purged_financial_records: purgedFinancial?.length ?? 0,
     purged_audit_rows: purgedAudit?.length ?? 0,
@@ -134,5 +150,6 @@ export async function GET(request: Request) {
     purged_activity_days: purgedActivity?.length ?? 0,
     purged_web_analytics_events: purgedWebEvents?.length ?? 0,
     purged_wa_visits: purgedWaVisits?.length ?? 0,
+    purged_map_reports: purgedMapReports?.length ?? 0,
   });
 }

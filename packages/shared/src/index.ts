@@ -16,6 +16,7 @@ export * from "./booking-domain";
 export * from "./date-utils";
 export * from "./timezone";
 export * from "./format";
+export * from "./map-directory";
 export * from "./slug";
 export * from "./trip-validation";
 export * from "./studio-validation";

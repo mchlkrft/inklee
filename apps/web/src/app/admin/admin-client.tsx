@@ -105,7 +105,7 @@ export default function AdminClient({
           </div>
         </div>
 
-        {/* Support inbox + Growth cockpit entry points */}
+        {/* Support inbox + Growth cockpit + Map directory entry points */}
         <section className="grid gap-3 sm:grid-cols-2">
           <Link
             href="/admin/support"
@@ -142,6 +142,24 @@ export default function AdminClient({
             </div>
             <span className="text-sm text-muted-foreground">
               Open cockpit →
+            </span>
+          </Link>
+          <Link
+            href="/admin/map"
+            className="flex items-center justify-between rounded-md border border-border p-4 transition-colors hover:bg-muted/30"
+          >
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Map directory</p>
+              <p className="text-sm text-foreground">
+                Studios and shops for the Inklee 2.0 tattoo map
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Hand-curated entries, claim states, moderation and the report
+                queue. Seeds capped at 5 per 300 square km.
+              </p>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              Open directory →
             </span>
           </Link>
         </section>

@@ -1,0 +1,247 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getAdminId } from "@/lib/admin-guard";
+import { writeAudit } from "@/lib/audit";
+import { serviceClient } from "@/lib/supabase/service";
+import {
+  MAP_LOCATION_SOURCES,
+  MAP_MODERATION_STATUSES,
+  SEED_CAP_PER_BUCKET,
+  normalizeInstagramHandle,
+  seedRegionBucket,
+  validateMapLocationInput,
+  type MapLocationSource,
+  type MapModerationStatus,
+} from "@inklee/shared/map-directory";
+
+export type MapLocationFormInput = {
+  name: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  postalCode: string | null;
+  googlePlaceId: string | null;
+  websiteUrl: string | null;
+  instagramHandle: string | null;
+  source: string;
+  moderationStatus: string;
+  isSeed: boolean;
+};
+
+type Result = { error?: string; id?: string };
+
+async function logMapAdminAction(
+  adminUserId: string,
+  action: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  await Promise.all([
+    serviceClient.from("admin_action_log").insert({
+      admin_user_id: adminUserId,
+      target_user_id: null,
+      action,
+      reason: null,
+      metadata,
+    }),
+    writeAudit({
+      action: `admin_${action}`,
+      actor: adminUserId,
+      category: "admin",
+      details: metadata,
+    }),
+  ]);
+}
+
+function validateEnums(input: MapLocationFormInput): string | null {
+  if (!MAP_LOCATION_SOURCES.includes(input.source as MapLocationSource))
+    return "Pick a valid source.";
+  if (
+    !MAP_MODERATION_STATUSES.includes(
+      input.moderationStatus as MapModerationStatus,
+    )
+  )
+    return "Pick a valid moderation status.";
+  return null;
+}
+
+/**
+ * The locked seed density cap: max SEED_CAP_PER_BUCKET seeded entries per
+ * ~300 square km bucket, enforced here in the insert path (not in import
+ * scripts) so no later seeding round can bypass it. `excludeId` skips the row
+ * being edited.
+ */
+async function seedCapError(
+  bucket: string,
+  excludeId?: string,
+): Promise<string | null> {
+  let query = serviceClient
+    .from("map_locations")
+    .select("id", { count: "exact", head: true })
+    .eq("is_seed", true)
+    .eq("seed_region_bucket", bucket)
+    .neq("moderation_status", "removed");
+  if (excludeId) query = query.neq("id", excludeId);
+  const { count, error } = await query;
+  if (error) return `Could not verify the seed cap: ${error.message}`;
+  if ((count ?? 0) >= SEED_CAP_PER_BUCKET)
+    return `Seed cap reached: this area (bucket ${bucket}) already holds ${count} of ${SEED_CAP_PER_BUCKET} seeded entries. Curate, do not crowd.`;
+  return null;
+}
+
+function rowFromInput(input: MapLocationFormInput, bucket: string) {
+  return {
+    source: input.source,
+    category: input.category,
+    name: input.name.trim(),
+    latitude: input.latitude,
+    longitude: input.longitude,
+    // Admin-curated entries render at their true position; the approximate
+    // offset concept arrives with studio profiles in Phase 3.
+    display_latitude: input.latitude,
+    display_longitude: input.longitude,
+    address: input.address?.trim() || null,
+    city: input.city?.trim() || null,
+    country: input.country?.trim() || null,
+    postal_code: input.postalCode?.trim() || null,
+    google_place_id: input.googlePlaceId?.trim() || null,
+    website_url: input.websiteUrl?.trim() || null,
+    instagram_handle: normalizeInstagramHandle(input.instagramHandle),
+    moderation_status: input.moderationStatus,
+    is_seed: input.isSeed,
+    seed_region_bucket: bucket,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export async function createMapLocationAction(
+  input: MapLocationFormInput,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+
+  const invalid = validateMapLocationInput(input) ?? validateEnums(input);
+  if (invalid) return { error: invalid };
+
+  const bucket = seedRegionBucket(input.latitude, input.longitude);
+  if (input.isSeed) {
+    const capError = await seedCapError(bucket);
+    if (capError) return { error: capError };
+  }
+
+  const { data, error } = await serviceClient
+    .from("map_locations")
+    .insert(rowFromInput(input, bucket))
+    .select("id")
+    .single();
+  if (error) {
+    if (error.code === "23505")
+      return {
+        error: "A directory entry with this Google place already exists.",
+      };
+    return { error: error.message };
+  }
+
+  await logMapAdminAction(adminId, "map_location_created", {
+    map_location_id: data.id,
+    name: input.name.trim(),
+    category: input.category,
+    is_seed: input.isSeed,
+    seed_region_bucket: bucket,
+  });
+  revalidatePath("/admin/map");
+  return { id: data.id as string };
+}
+
+export async function updateMapLocationAction(
+  id: string,
+  input: MapLocationFormInput,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+
+  const invalid = validateMapLocationInput(input) ?? validateEnums(input);
+  if (invalid) return { error: invalid };
+
+  const bucket = seedRegionBucket(input.latitude, input.longitude);
+  if (input.isSeed) {
+    const capError = await seedCapError(bucket, id);
+    if (capError) return { error: capError };
+  }
+
+  const { error } = await serviceClient
+    .from("map_locations")
+    .update(rowFromInput(input, bucket))
+    .eq("id", id);
+  if (error) {
+    if (error.code === "23505")
+      return {
+        error: "A directory entry with this Google place already exists.",
+      };
+    return { error: error.message };
+  }
+
+  await logMapAdminAction(adminId, "map_location_updated", {
+    map_location_id: id,
+    name: input.name.trim(),
+    moderation_status: input.moderationStatus,
+    is_seed: input.isSeed,
+    seed_region_bucket: bucket,
+  });
+  revalidatePath("/admin/map");
+  revalidatePath(`/admin/map/${id}`);
+  return { id };
+}
+
+export async function deleteMapLocationAction(id: string): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+
+  const { data: existing } = await serviceClient
+    .from("map_locations")
+    .select("name")
+    .eq("id", id)
+    .maybeSingle();
+  const { error } = await serviceClient
+    .from("map_locations")
+    .delete()
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  await logMapAdminAction(adminId, "map_location_deleted", {
+    map_location_id: id,
+    name: existing?.name ?? null,
+  });
+  revalidatePath("/admin/map");
+  return {};
+}
+
+export async function setReportStatusAction(
+  reportId: string,
+  status: "reviewed" | "dismissed",
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+  if (status !== "reviewed" && status !== "dismissed")
+    return { error: "Pick a valid report status." };
+
+  const { error } = await serviceClient
+    .from("map_reports")
+    .update({
+      status,
+      reviewed_by: adminId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", reportId);
+  if (error) return { error: error.message };
+
+  await logMapAdminAction(adminId, "map_report_status_set", {
+    map_report_id: reportId,
+    status,
+  });
+  revalidatePath("/admin/map/reports");
+  return {};
+}
