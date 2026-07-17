@@ -12,7 +12,11 @@ const DIRECTORY_LIMIT = 500;
 export default async function AdminMapPage() {
   await requireAdmin();
 
-  const [{ data: locationData }, { count: newReports }] = await Promise.all([
+  const [
+    { data: locationData },
+    { count: newReports },
+    { count: openDuplicates },
+  ] = await Promise.all([
     serviceClient
       .from("map_locations")
       .select(
@@ -24,6 +28,10 @@ export default async function AdminMapPage() {
       .from("map_reports")
       .select("id", { count: "exact", head: true })
       .eq("status", "new"),
+    serviceClient
+      .from("map_duplicate_suggestions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "open"),
   ]);
 
   const rows = (locationData ?? []) as DirectoryRow[];
@@ -47,6 +55,12 @@ export default async function AdminMapPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/admin/map/duplicates"
+            className="rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/30"
+          >
+            Duplicates{(openDuplicates ?? 0) > 0 ? ` (${openDuplicates})` : ""}
+          </Link>
           <Link
             href="/admin/map/reports"
             className="rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/30"

@@ -19,6 +19,7 @@ import {
   updateMapLocationAction,
   type MapLocationFormInput,
 } from "./actions";
+import type { DuplicateHit } from "@inklee/shared/map-directory";
 
 export type LocationFormValues = MapLocationFormInput & { id?: string };
 
@@ -64,6 +65,7 @@ export default function LocationForm({
   const router = useRouter();
   const [values, setValues] = useState<LocationFormValues>(initial ?? EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [duplicates, setDuplicates] = useState<DuplicateHit[] | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, startTransition] = useTransition();
   const isEdit = Boolean(initial?.id);
@@ -86,13 +88,18 @@ export default function LocationForm({
     }));
   };
 
-  const submit = () => {
+  const submit = (ignoreDuplicates = false) => {
     setError(null);
+    setDuplicates(null);
     startTransition(async () => {
       const input: MapLocationFormInput = { ...values };
       const result = initial?.id
-        ? await updateMapLocationAction(initial.id, input)
-        : await createMapLocationAction(input);
+        ? await updateMapLocationAction(initial.id, input, ignoreDuplicates)
+        : await createMapLocationAction(input, ignoreDuplicates);
+      if (result.duplicates) {
+        setDuplicates(result.duplicates);
+        return;
+      }
       if (result.error) {
         setError(result.error);
         return;
@@ -270,10 +277,50 @@ export default function LocationForm({
 
       {error ? <p className="text-sm text-brand-red">{error}</p> : null}
 
+      {duplicates ? (
+        <div className="space-y-2 rounded-md border border-brand-mustard/60 bg-brand-mustard/10 p-3">
+          <p className="text-sm font-medium text-foreground">
+            This might already be on the map:
+          </p>
+          <ul className="space-y-1">
+            {duplicates.map((d) => (
+              <li key={d.locationId} className="text-sm text-foreground">
+                <a
+                  href={`/admin/map/${d.locationId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  {d.name}
+                </a>{" "}
+                <span className="text-xs text-muted-foreground">
+                  {[d.city, d.country].filter(Boolean).join(", ")} ·{" "}
+                  {d.confidence} duplicate
+                  {d.signals.distanceM < 100000
+                    ? ` · ${d.signals.distanceM} m away`
+                    : ""}
+                  {d.signals.nameSimilarity >= 0.4
+                    ? ` · name ${Math.round(d.signals.nameSimilarity * 100)}% similar`
+                    : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => submit(true)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50"
+          >
+            Not a duplicate, save anyway
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={submit}
+          onClick={() => submit()}
           disabled={pending}
           className="rounded-md bg-foreground px-4 py-2 text-sm text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >

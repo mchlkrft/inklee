@@ -2,15 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   MAP_LOCATION_CATEGORIES,
   MAP_VISIBILITY_MODES,
+  MIN_ANON_ARTIST_COUNT,
   SEED_BUCKET_TARGET_KM2,
   SEED_CAP_PER_BUCKET,
   STYLE_SEED,
+  aggregateArtistCities,
+  classifyDuplicate,
+  distanceMeters,
+  nameSimilarity,
   normalizeInstagramHandle,
   parseMapBBox,
   seedBucketCellBounds,
   seedRegionBucket,
   toPublicMapPin,
   validateMapLocationInput,
+  type ArtistPresenceRow,
   type MapLocationRowForPin,
 } from "@inklee/shared/map-directory";
 
@@ -250,5 +256,180 @@ describe("normalizeInstagramHandle", () => {
     expect(normalizeInstagramHandle("@@x")).toBe("x");
     expect(normalizeInstagramHandle("  ")).toBeNull();
     expect(normalizeInstagramHandle(undefined)).toBeNull();
+  });
+});
+
+describe("duplicate detection", () => {
+  const base = {
+    name: "Black Needle Tattoo",
+    latitude: 52.52,
+    longitude: 13.4,
+    address: "Torstrasse 12, 10119 Berlin",
+    instagramHandle: "blackneedle",
+    websiteUrl: "https://blackneedle.example",
+  };
+
+  it("name similarity survives filler words and punctuation", () => {
+    expect(nameSimilarity("Black Needle Tattoo", "Black Needle Studio")).toBe(
+      1,
+    );
+    expect(
+      nameSimilarity("Black Needle", "black-needle tattoo!"),
+    ).toBeGreaterThan(0.9);
+    expect(nameSimilarity("Black Needle", "Golden Anchor")).toBeLessThan(0.4);
+  });
+
+  it("fully generic names still compare via the unstripped fallback", () => {
+    expect(nameSimilarity("Tattoo Studio", "Tattoo Studio")).toBe(1);
+    expect(nameSimilarity("Tattoo Studio", "tattoo-studio!")).toBe(1);
+    const near = {
+      name: "Tattoo Studio",
+      latitude: 52.52,
+      longitude: 13.4,
+      address: null,
+      instagramHandle: null,
+      websiteUrl: null,
+    };
+    expect(
+      classifyDuplicate(near, {
+        ...near,
+        latitude: 52.5205,
+        name: "Tattoo Studio",
+      })?.confidence,
+    ).toBe("likely");
+  });
+
+  it("distance math is sane", () => {
+    expect(distanceMeters(52.52, 13.4, 52.52, 13.4)).toBe(0);
+    const d = distanceMeters(52.52, 13.4, 52.521, 13.4);
+    expect(d).toBeGreaterThan(100);
+    expect(d).toBeLessThan(130);
+  });
+
+  it("same instagram, website, or address is a clear duplicate", () => {
+    const far = { ...base, latitude: 48.13, longitude: 11.58 };
+    expect(
+      classifyDuplicate(base, { ...far, name: "Different Name" })?.confidence,
+    ).toBe("clear");
+    expect(
+      classifyDuplicate(
+        {
+          ...base,
+          instagramHandle: null,
+          websiteUrl: "http://www.blackneedle.example/",
+        },
+        { ...far, name: "Other", instagramHandle: null },
+      )?.confidence,
+    ).toBe("clear");
+  });
+
+  it("near and same-named is clear; near alone is likely; far similar name is possible or likely", () => {
+    const near = {
+      ...base,
+      instagramHandle: null,
+      websiteUrl: null,
+      address: null,
+    };
+    expect(
+      classifyDuplicate(near, {
+        ...near,
+        latitude: 52.5201,
+        name: "Black Needle Studio",
+      })?.confidence,
+    ).toBe("clear");
+    expect(
+      classifyDuplicate(near, {
+        ...near,
+        latitude: 52.52005,
+        name: "Golden Anchor",
+      })?.confidence,
+    ).toBe("likely");
+    const verdict = classifyDuplicate(near, {
+      ...near,
+      latitude: 52.53,
+      name: "Black Needle Berlin",
+    });
+    expect(["likely", "possible"]).toContain(verdict?.confidence);
+  });
+
+  it("unrelated studios do not match", () => {
+    const a = {
+      ...base,
+      instagramHandle: null,
+      websiteUrl: null,
+      address: null,
+    };
+    expect(
+      classifyDuplicate(a, {
+        name: "Golden Anchor",
+        latitude: 52.6,
+        longitude: 13.6,
+        address: null,
+        instagramHandle: null,
+        websiteUrl: null,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("aggregateArtistCities", () => {
+  const row = (over: Partial<ArtistPresenceRow>): ArtistPresenceRow => ({
+    id: over.id ?? Math.random().toString(36).slice(2),
+    display_name: "Artist",
+    slug: "artist",
+    map_visibility: "listed",
+    looking_for_guest_spots: false,
+    map_city_label: "Berlin, Germany",
+    map_city_place_id: "berlin",
+    map_city_lat: 52.52,
+    map_city_lng: 13.4,
+    ...over,
+  });
+
+  it("applies the anonymity floor: cities under the floor vanish entirely", () => {
+    const rows = [row({}), row({})];
+    expect(rows.length).toBeLessThan(MIN_ANON_ARTIST_COUNT);
+    expect(
+      aggregateArtistCities(rows, { floor: MIN_ANON_ARTIST_COUNT }),
+    ).toEqual([]);
+  });
+
+  it("city_only rows count without being named; off rows never count", () => {
+    const rows = [
+      row({ id: "a", slug: "a", display_name: "A" }),
+      row({ id: "b", map_visibility: "city_only" }),
+      row({ id: "c", map_visibility: "city_only" }),
+      row({ id: "d", map_visibility: "off" }),
+    ];
+    const cities = aggregateArtistCities(rows, { floor: 3 });
+    expect(cities).toHaveLength(1);
+    expect(cities[0].count).toBe(3);
+    expect(cities[0].artists.map((a) => a.slug)).toEqual(["a"]);
+  });
+
+  it("blocked artists disappear from the named list but still count", () => {
+    const rows = [
+      row({ id: "a", slug: "a", display_name: "A" }),
+      row({ id: "b", slug: "b", display_name: "B" }),
+      row({ id: "c", slug: "c", display_name: "C" }),
+    ];
+    const cities = aggregateArtistCities(rows, {
+      floor: 3,
+      excludedIds: new Set(["b"]),
+    });
+    expect(cities[0].count).toBe(3);
+    expect(cities[0].artists.map((a) => a.slug)).toEqual(["a", "c"]);
+  });
+
+  it("groups by place id and skips rows without coordinates", () => {
+    const rows = [
+      row({ id: "a", map_city_place_id: "berlin" }),
+      row({ id: "b", map_city_place_id: "berlin", map_city_label: "Berlin" }),
+      row({ id: "c", map_city_place_id: "berlin" }),
+      row({ id: "d", map_city_lat: null }),
+    ];
+    const cities = aggregateArtistCities(rows, { floor: 3 });
+    expect(cities).toHaveLength(1);
+    expect(cities[0].count).toBe(3);
   });
 });

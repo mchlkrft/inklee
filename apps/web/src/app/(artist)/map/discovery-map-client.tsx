@@ -8,6 +8,7 @@ import { brandMapStyle, mapInk } from "@inklee/shared/map-style";
 import {
   MAP_LOCATION_CATEGORY_LABELS,
   type MapLocationCategory,
+  type PublicArtistCity,
   type PublicMapPin,
 } from "@inklee/shared/map-directory";
 import type { TravelMapStop } from "@inklee/shared/travel-map";
@@ -72,6 +73,10 @@ export default function DiscoveryMapClient({
   const [filter, setFilter] = useState<Filter>("all");
   const [showJourney, setShowJourney] = useState(false);
   const [selected, setSelected] = useState<PublicMapPin | null>(null);
+  const [artistCities, setArtistCities] = useState<PublicArtistCity[]>([]);
+  const [selectedCity, setSelectedCity] = useState<PublicArtistCity | null>(
+    null,
+  );
   const [styleReady, setStyleReady] = useState(false);
   const [watched, setWatched] = useState<Set<string>>(
     () => new Set(initialWatched),
@@ -84,6 +89,25 @@ export default function DiscoveryMapClient({
   useEffect(() => {
     pinsRef.current = pins;
   }, [pins]);
+  const artistCitiesRef = useRef<PublicArtistCity[]>([]);
+  useEffect(() => {
+    artistCitiesRef.current = artistCities;
+  }, [artistCities]);
+
+  // Artists in town: city-level aggregates, fetched once (few cities, no
+  // viewport dependency). Counts are consent-gated and floored server-side.
+  useEffect(() => {
+    const abort = new AbortController();
+    fetch("/api/map/artists", { signal: abort.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { cities: PublicArtistCity[] } | null) => {
+        if (body) setArtistCities(body.cities);
+      })
+      .catch(() => {
+        // Offline or aborted: the map works without the artist layer.
+      });
+    return () => abort.abort();
+  }, []);
 
   const visiblePins = useMemo(() => {
     if (filter === "all") return pins;
@@ -232,7 +256,71 @@ export default function DiscoveryMapClient({
         },
       });
 
+      // Artists-in-town city badges: rosa circles with the anonymous count,
+      // offset above the studio pin plane visually via stroke + size.
+      map.addSource("artist-cities", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "artist-city-circles",
+        type: "circle",
+        source: "artist-cities",
+        paint: {
+          "circle-color": "#db88b9",
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["get", "count"],
+            3,
+            10,
+            30,
+            18,
+          ],
+          "circle-opacity": 0.85,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": ink.markerBorder,
+        },
+      });
+      map.addLayer({
+        id: "artist-city-counts",
+        type: "symbol",
+        source: "artist-cities",
+        layout: {
+          "text-field": ["get", "count"],
+          "text-font": ["Open Sans Regular"],
+          "text-size": 11,
+          "text-allow-overlap": true,
+        },
+        paint: { "text-color": "#1e1e1e" },
+      });
+      map.on("click", "artist-city-circles", (e) => {
+        const feature = e.features?.[0];
+        if (!feature) return;
+        const key = feature.properties?.cityKey as string | undefined;
+        const city = artistCitiesRef.current.find((c) => c.cityKey === key);
+        if (city) {
+          setSelectedCity(city);
+          setSelected(null);
+          setWatchError(null);
+        }
+      });
+      map.on("mouseenter", "artist-city-circles", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "artist-city-circles", () => {
+        map.getCanvas().style.cursor = "";
+      });
+
+      // The rosa city badges render on top, so they win clicks: cluster and
+      // pin handlers bail when a city badge sits under the cursor.
+      const cityBadgeUnderCursor = (point: maplibregl.PointLike) =>
+        map.queryRenderedFeatures(point, {
+          layers: ["artist-city-circles"],
+        }).length > 0;
+
       map.on("click", "clusters", (e) => {
+        if (cityBadgeUnderCursor(e.point)) return;
         const feature = e.features?.[0];
         if (!feature) return;
         map.easeTo({
@@ -244,12 +332,14 @@ export default function DiscoveryMapClient({
         });
       });
       map.on("click", "pin-points", (e) => {
+        if (cityBadgeUnderCursor(e.point)) return;
         const feature = e.features?.[0];
         if (!feature) return;
         const id = feature.properties?.id as string | undefined;
         const pin = pinsRef.current.find((p) => p.id === id);
         if (pin) {
           setSelected(pin);
+          setSelectedCity(null);
           setWatchError(null);
         }
       });
@@ -285,6 +375,23 @@ export default function DiscoveryMapClient({
       | undefined;
     source?.setData(pinsToGeoJSON(visiblePins));
   }, [visiblePins]);
+
+  // Push the artist city aggregates into their source.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady) return;
+    const source = map.getSource("artist-cities") as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    source?.setData({
+      type: "FeatureCollection",
+      features: artistCities.map((c) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [c.lng, c.lat] },
+        properties: { cityKey: c.cityKey, count: c.count },
+      })),
+    });
+  }, [artistCities, styleReady]);
 
   // Journey overlay: a simple line through the artist's own stops. Gated on
   // styleReady (set in the load handler) so a toggle during the initial
@@ -433,6 +540,52 @@ export default function DiscoveryMapClient({
           className="h-[420px] w-full overflow-hidden rounded-2xl border border-border sm:h-[520px]"
           aria-label="Tattoo map"
         />
+        {selectedCity ? (
+          <div className="absolute bottom-3 left-3 right-3 max-w-sm space-y-2 rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur sm:right-auto">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {selectedCity.cityLabel}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedCity.count}{" "}
+                  {selectedCity.count === 1 ? "artist" : "artists"} in town
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCity(null)}
+                aria-label="Close"
+                className="rounded-md px-1.5 text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            {selectedCity.artists.length > 0 ? (
+              <ul className="max-h-44 space-y-1 overflow-y-auto">
+                {selectedCity.artists.map((a) => (
+                  <li key={a.slug}>
+                    <Link
+                      href={`/${a.slug}`}
+                      className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-sm text-foreground hover:bg-muted/30"
+                    >
+                      <span className="truncate">{a.displayName}</span>
+                      {a.lookingForGuestSpots ? (
+                        <span className="shrink-0 rounded-full bg-brand-mustard/20 px-2 py-0.5 text-xs text-brand-mustard">
+                          Looking for guest spots
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Everyone here is counted anonymously.
+              </p>
+            )}
+          </div>
+        ) : null}
         {selected ? (
           <div className="absolute bottom-3 left-3 right-3 max-w-sm space-y-2 rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur sm:right-auto">
             <div className="flex items-start justify-between gap-2">

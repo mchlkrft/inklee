@@ -14,6 +14,11 @@ import {
   type MapLocationSource,
   type MapModerationStatus,
 } from "@inklee/shared/map-directory";
+import {
+  persistDuplicateSuggestions,
+  scanForDuplicates,
+  type DuplicateHit,
+} from "@/lib/server/map-duplicates";
 
 export type MapLocationFormInput = {
   name: string;
@@ -32,7 +37,19 @@ export type MapLocationFormInput = {
   isSeed: boolean;
 };
 
-type Result = { error?: string; id?: string };
+type Result = { error?: string; id?: string; duplicates?: DuplicateHit[] };
+
+function duplicateEntry(input: MapLocationFormInput) {
+  return {
+    name: input.name.trim(),
+    latitude: input.latitude,
+    longitude: input.longitude,
+    address: input.address,
+    city: input.city,
+    instagramHandle: input.instagramHandle,
+    websiteUrl: input.websiteUrl,
+  };
+}
 
 async function logMapAdminAction(
   adminUserId: string,
@@ -119,6 +136,7 @@ function rowFromInput(input: MapLocationFormInput, bucket: string) {
 
 export async function createMapLocationAction(
   input: MapLocationFormInput,
+  ignoreDuplicates = false,
 ): Promise<Result> {
   const adminId = await getAdminId();
   if (!adminId) return { error: "Not authorized." };
@@ -130,6 +148,16 @@ export async function createMapLocationAction(
   if (input.isSeed) {
     const capError = await seedCapError(bucket);
     if (capError) return { error: capError };
+  }
+
+  // Duplicate detection (Phase 1 follow-on): warn-and-confirm on clear or
+  // likely hits, persist every hit as an admin review suggestion after save.
+  const duplicateHits = await scanForDuplicates(duplicateEntry(input));
+  if (
+    !ignoreDuplicates &&
+    duplicateHits.some((h) => h.confidence !== "possible")
+  ) {
+    return { duplicates: duplicateHits };
   }
 
   const { data, error } = await serviceClient
@@ -145,13 +173,21 @@ export async function createMapLocationAction(
     return { error: error.message };
   }
 
-  await logMapAdminAction(adminId, "map_location_created", {
-    map_location_id: data.id,
-    name: input.name.trim(),
-    category: input.category,
-    is_seed: input.isSeed,
-    seed_region_bucket: bucket,
-  });
+  await Promise.all([
+    logMapAdminAction(adminId, "map_location_created", {
+      map_location_id: data.id,
+      name: input.name.trim(),
+      category: input.category,
+      is_seed: input.isSeed,
+      seed_region_bucket: bucket,
+      duplicate_hits: duplicateHits.length,
+    }),
+    persistDuplicateSuggestions(
+      data.id as string,
+      duplicateHits,
+      ignoreDuplicates ? adminId : undefined,
+    ),
+  ]);
   revalidatePath("/admin/map");
   return { id: data.id as string };
 }
@@ -159,6 +195,7 @@ export async function createMapLocationAction(
 export async function updateMapLocationAction(
   id: string,
   input: MapLocationFormInput,
+  ignoreDuplicates = false,
 ): Promise<Result> {
   const adminId = await getAdminId();
   if (!adminId) return { error: "Not authorized." };
@@ -170,6 +207,14 @@ export async function updateMapLocationAction(
   if (input.isSeed) {
     const capError = await seedCapError(bucket, id);
     if (capError) return { error: capError };
+  }
+
+  const duplicateHits = await scanForDuplicates(duplicateEntry(input), id);
+  if (
+    !ignoreDuplicates &&
+    duplicateHits.some((h) => h.confidence !== "possible")
+  ) {
+    return { duplicates: duplicateHits };
   }
 
   const { error } = await serviceClient
@@ -184,13 +229,21 @@ export async function updateMapLocationAction(
     return { error: error.message };
   }
 
-  await logMapAdminAction(adminId, "map_location_updated", {
-    map_location_id: id,
-    name: input.name.trim(),
-    moderation_status: input.moderationStatus,
-    is_seed: input.isSeed,
-    seed_region_bucket: bucket,
-  });
+  await Promise.all([
+    logMapAdminAction(adminId, "map_location_updated", {
+      map_location_id: id,
+      name: input.name.trim(),
+      moderation_status: input.moderationStatus,
+      is_seed: input.isSeed,
+      seed_region_bucket: bucket,
+      duplicate_hits: duplicateHits.length,
+    }),
+    persistDuplicateSuggestions(
+      id,
+      duplicateHits,
+      ignoreDuplicates ? adminId : undefined,
+    ),
+  ]);
   revalidatePath("/admin/map");
   revalidatePath(`/admin/map/${id}`);
   return { id };
@@ -216,6 +269,29 @@ export async function deleteMapLocationAction(id: string): Promise<Result> {
     name: existing?.name ?? null,
   });
   revalidatePath("/admin/map");
+  return {};
+}
+
+export async function dismissDuplicateSuggestionAction(
+  suggestionId: string,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+
+  const { error } = await serviceClient
+    .from("map_duplicate_suggestions")
+    .update({
+      status: "dismissed",
+      reviewed_by: adminId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", suggestionId);
+  if (error) return { error: error.message };
+
+  await logMapAdminAction(adminId, "map_duplicate_dismissed", {
+    suggestion_id: suggestionId,
+  });
+  revalidatePath("/admin/map/duplicates");
   return {};
 }
 

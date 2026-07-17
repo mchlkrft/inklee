@@ -320,3 +320,292 @@ export function normalizeInstagramHandle(value: string | null | undefined): stri
   const v = (value ?? "").trim().replace(/^@+/, "");
   return v ? v : null;
 }
+
+// ---------------------------------------------------------------------------
+// Duplicate studio detection (Phase 1 follow-on, scope 4.10 extension).
+// Pure math here; the server module feeds it candidate rows. Never
+// auto-merges: output is admin review suggestions with confidence levels.
+
+/** Lowercase, strip diacritics-ish punctuation and filler words, collapse spaces. */
+export function normalizeStudioName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\b(tattoo|tattoos|studio|atelier|ink|shop|parlor|parlour)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function softNormalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Bigram dice similarity in [0, 1] on normalized names. When filler-word
+ * stripping empties a name (the studio is literally called "Tattoo Studio",
+ * the most duplicate-prone name class), fall back to the unstripped form so
+ * two generic names still compare.
+ */
+export function nameSimilarity(a: string, b: string): number {
+  let na = normalizeStudioName(a);
+  let nb = normalizeStudioName(b);
+  if (!na || !nb) {
+    na = softNormalizeName(a);
+    nb = softNormalizeName(b);
+  }
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  const bigrams = (s: string): Map<string, number> => {
+    const m = new Map<string, number>();
+    for (let i = 0; i < s.length - 1; i++) {
+      const g = s.slice(i, i + 2);
+      m.set(g, (m.get(g) ?? 0) + 1);
+    }
+    return m;
+  };
+  const ma = bigrams(na);
+  const mb = bigrams(nb);
+  let overlap = 0;
+  let totalA = 0;
+  let totalB = 0;
+  for (const c of ma.values()) totalA += c;
+  for (const c of mb.values()) totalB += c;
+  if (totalA === 0 || totalB === 0) return 0;
+  for (const [g, c] of ma) overlap += Math.min(c, mb.get(g) ?? 0);
+  return (2 * overlap) / (totalA + totalB);
+}
+
+/** Great-circle distance in meters. */
+export function distanceMeters(
+  latA: number,
+  lngA: number,
+  latB: number,
+  lngB: number,
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(latB - latA);
+  const dLng = toRad(lngB - lngA);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(latA)) * Math.cos(toRad(latB)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function normalizeUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const u = new URL(value);
+    const host = u.host.replace(/^www\./, "").toLowerCase();
+    const path = u.pathname.replace(/\/+$/, "");
+    return `${host}${path}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Host without www, for candidate recall queries; null when unparseable. */
+export function normalizeWebsiteHost(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).host.replace(/^www\./, "").toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAddress(value: string | null | undefined): string | null {
+  const v = (value ?? "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .trim();
+  return v || null;
+}
+
+export type DuplicateCandidateInput = {
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+  instagramHandle?: string | null;
+  websiteUrl?: string | null;
+};
+
+export type DuplicateConfidence = "clear" | "likely" | "possible";
+
+export type DuplicateSignals = {
+  nameSimilarity: number;
+  distanceM: number;
+  sameInstagram: boolean;
+  sameWebsite: boolean;
+  sameAddress: boolean;
+};
+
+export type DuplicateVerdict = {
+  confidence: DuplicateConfidence;
+  signals: DuplicateSignals;
+} | null;
+
+export type DuplicateHit = {
+  locationId: string;
+  name: string;
+  city: string | null;
+  country: string | null;
+  confidence: DuplicateConfidence;
+  signals: DuplicateSignals;
+};
+
+/**
+ * Classify one existing row against a new or edited entry. Thresholds are
+ * deliberately conservative toward "possible": a false suggestion costs one
+ * admin dismissal, a missed duplicate costs map credibility.
+ */
+export function classifyDuplicate(
+  entry: DuplicateCandidateInput,
+  existing: DuplicateCandidateInput,
+): DuplicateVerdict {
+  const signals: DuplicateSignals = {
+    nameSimilarity: Math.round(nameSimilarity(entry.name, existing.name) * 100) / 100,
+    distanceM: Math.round(
+      distanceMeters(
+        entry.latitude,
+        entry.longitude,
+        existing.latitude,
+        existing.longitude,
+      ),
+    ),
+    sameInstagram: Boolean(
+      normalizeInstagramHandle(entry.instagramHandle) &&
+        normalizeInstagramHandle(entry.instagramHandle) ===
+          normalizeInstagramHandle(existing.instagramHandle),
+    ),
+    sameWebsite: Boolean(
+      normalizeUrl(entry.websiteUrl) &&
+        normalizeUrl(entry.websiteUrl) === normalizeUrl(existing.websiteUrl),
+    ),
+    sameAddress: Boolean(
+      normalizeAddress(entry.address) &&
+        normalizeAddress(entry.address) === normalizeAddress(existing.address),
+    ),
+  };
+  const sim = signals.nameSimilarity;
+  const d = signals.distanceM;
+
+  if (
+    signals.sameInstagram ||
+    signals.sameWebsite ||
+    signals.sameAddress ||
+    (d <= 30 && sim >= 0.85)
+  )
+    return { confidence: "clear", signals };
+  if (d <= 30 || (d <= 100 && sim >= 0.6) || sim >= 0.85)
+    return { confidence: "likely", signals };
+  if ((d <= 250 && sim >= 0.4) || sim >= 0.7)
+    return { confidence: "possible", signals };
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Artists in town (Phase 2 slice 2). Consent-gated aggregation: only rows
+// with map_visibility != 'off' ever reach this function, 'city_only' rows
+// count without being named, and cities under the floor disappear entirely.
+
+export type ArtistPresenceRow = {
+  id: string;
+  display_name: string | null;
+  slug: string | null;
+  map_visibility: string;
+  looking_for_guest_spots: boolean;
+  map_city_label: string | null;
+  map_city_place_id: string | null;
+  map_city_lat: number | null;
+  map_city_lng: number | null;
+};
+
+export type PublicCityArtist = {
+  slug: string;
+  displayName: string;
+  lookingForGuestSpots: boolean;
+};
+
+export type PublicArtistCity = {
+  cityKey: string;
+  cityLabel: string;
+  lat: number;
+  lng: number;
+  count: number;
+  artists: PublicCityArtist[];
+};
+
+/**
+ * Aggregate opted-in artists into city buckets, applying the anonymity
+ * floor (Q13: below `floor`, the city is omitted entirely) and the
+ * listed-vs-counted split. `excludedIds` carries viewer-specific block
+ * filtering: excluded artists disappear from the NAMED list but still
+ * count anonymously (counts are aggregates; blocking must not dent them
+ * in an observable way).
+ */
+export function aggregateArtistCities(
+  rows: ArtistPresenceRow[],
+  options: { floor: number; excludedIds?: ReadonlySet<string> },
+): PublicArtistCity[] {
+  const excluded = options.excludedIds ?? new Set<string>();
+  const cities = new Map<
+    string,
+    { label: string; lats: number[]; lngs: number[]; count: number; artists: PublicCityArtist[] }
+  >();
+  for (const row of rows) {
+    if (row.map_visibility !== "city_only" && row.map_visibility !== "listed")
+      continue;
+    if (
+      !Number.isFinite(row.map_city_lat ?? Number.NaN) ||
+      !Number.isFinite(row.map_city_lng ?? Number.NaN) ||
+      !row.map_city_label
+    )
+      continue;
+    const key =
+      row.map_city_place_id?.trim() ||
+      row.map_city_label.trim().toLowerCase();
+    let city = cities.get(key);
+    if (!city) {
+      city = { label: row.map_city_label.trim(), lats: [], lngs: [], count: 0, artists: [] };
+      cities.set(key, city);
+    }
+    city.count += 1;
+    city.lats.push(row.map_city_lat as number);
+    city.lngs.push(row.map_city_lng as number);
+    if (
+      row.map_visibility === "listed" &&
+      row.slug &&
+      !excluded.has(row.id)
+    ) {
+      city.artists.push({
+        slug: row.slug,
+        displayName: row.display_name || row.slug,
+        lookingForGuestSpots: Boolean(row.looking_for_guest_spots),
+      });
+    }
+  }
+  const result: PublicArtistCity[] = [];
+  for (const [key, city] of cities) {
+    if (city.count < options.floor) continue;
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    city.artists.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    result.push({
+      cityKey: key,
+      cityLabel: city.label,
+      lat: avg(city.lats),
+      lng: avg(city.lngs),
+      count: city.count,
+      artists: city.artists,
+    });
+  }
+  result.sort((a, b) => b.count - a.count);
+  return result;
+}
