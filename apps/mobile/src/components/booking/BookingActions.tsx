@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
 import { invalidateBookingViews, useApiQuery } from "@/lib/api";
 import { useCapability } from "@/lib/capabilities";
+import { clearDraft, getDraft, hasDraft, setDraft } from "@/lib/draft-store";
 import { useColors } from "@/lib/theme";
 import { captureError } from "@/lib/telemetry";
 import { track, type AnalyticsEvent } from "@/lib/analytics";
@@ -374,12 +375,35 @@ function DepositRequestForm({
   const currency =
     booking.deposit?.currency ?? artistDepositCurrency(payouts.data?.country);
 
-  const [amount, setAmount] = useState("");
-  const [dueAt, setDueAt] = useState("");
-  const [note, setNote] = useState("");
-  const [prefilled, setPrefilled] = useState(false);
+  // Unsaved inputs ride the draft store keyed per booking (ME-15): a window
+  // resize/rotation can remount this form mid-edit (detail pane <-> pushed
+  // route) and must be lossless. User edits write through; the one-shot
+  // defaults prefill uses the raw state setters so it never fabricates a
+  // draft; the draft clears on successful submit.
+  const draftKey = `deposit-draft:${booking.id}`;
+  const draft = getDraft<{ amount: string; dueAt: string; note: string }>(
+    draftKey,
+  );
+  const [amount, setAmountState] = useState(draft?.amount ?? "");
+  const [dueAt, setDueAtState] = useState(draft?.dueAt ?? "");
+  const [note, setNoteState] = useState(draft?.note ?? "");
+  // A live draft means the fields are already seeded — skip the prefill.
+  const [prefilled, setPrefilled] = useState(() => hasDraft(draftKey));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const setAmount = (v: string) => {
+    setDraft(draftKey, { amount: v, dueAt, note });
+    setAmountState(v);
+  };
+  const setDueAt = (v: string) => {
+    setDraft(draftKey, { amount, dueAt: v, note });
+    setDueAtState(v);
+  };
+  const setNote = (v: string) => {
+    setDraft(draftKey, { amount, dueAt, note: v });
+    setNoteState(v);
+  };
 
   // Prefill once the defaults fetch settles (a single time, so later edits
   // aren't clobbered by a refresh). Falls back to sane defaults if the fetch
@@ -387,9 +411,9 @@ function DepositRequestForm({
   useEffect(() => {
     if (!prefilled && !defaults.loading) {
       const d = defaults.data ?? DEPOSIT_DEFAULTS_FALLBACK;
-      setAmount(d.amount !== null ? String(d.amount) : "");
-      setDueAt(addDaysToDateKey(localDateKey(), d.due_days));
-      setNote(d.note);
+      setAmountState(d.amount !== null ? String(d.amount) : "");
+      setDueAtState(addDaysToDateKey(localDateKey(), d.due_days));
+      setNoteState(d.note);
       setPrefilled(true);
     }
   }, [prefilled, defaults.loading, defaults.data]);
@@ -420,6 +444,7 @@ function DepositRequestForm({
     setSubmitting(true);
     try {
       await requestDeposit(booking.id, value, dueAt, note.trim() || null);
+      clearDraft(draftKey);
       track("deposit_requested");
       onDone();
     } catch (e) {

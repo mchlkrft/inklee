@@ -21,11 +21,17 @@ import { FilterChip } from "@/components/Chip";
 import { FilterToggle } from "@/components/FilterToggle";
 import { PillButton } from "@/components/PillButton";
 import { EmptyState } from "@/components/EmptyState";
+import { BookingDetailContent } from "@/components/booking/BookingDetailContent";
+import { ListDetailHost } from "@/components/layout/ListDetailHost";
 import { useApiQuery, useInfiniteApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
-import { useTabBarClearance } from "@/lib/layout";
+import {
+  useIsExpanded,
+  useTabBarClearance,
+  useWindowClassTransition,
+} from "@/lib/layout";
 import { config, displayUrl } from "@/lib/config";
 import { useTimedFlag } from "@/lib/use-timed-flag";
 import { formatShortDate, relativeTime } from "@/lib/date";
@@ -49,9 +55,12 @@ const FILTERS: (string | null)[] = [
 function RequestCard({
   b,
   onPress,
+  selected = false,
 }: {
   b: MobileBookingListItem;
   onPress: () => void;
+  /** Pane-selection highlight (expanded window class only). */
+  selected?: boolean;
 }) {
   const detail = [
     b.placement,
@@ -61,7 +70,11 @@ function RequestCard({
     .filter(Boolean)
     .join(" · ");
   return (
-    <View className="mb-2">
+    <View
+      className={
+        selected ? "mb-2 rounded-[22px] border-2 border-accent" : "mb-2"
+      }
+    >
       <Card onPress={onPress}>
         <View className="mb-1.5 flex-row items-center justify-between">
           <Text className="flex-1 pr-2 text-base font-semibold text-foreground">
@@ -134,11 +147,34 @@ export default function RequestsScreen() {
   const [status, setStatus] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const expanded = useIsExpanded();
+
   // Trip filter arrives as a route param (the dashboard guest-spot row deep-links
   // here). We read it once into local state and immediately clear the param, so
   // re-opening the Bookings tab later from the nav doesn't resurrect a stale
   // filter — but navigating from a guest spot again re-applies it.
-  const params = useLocalSearchParams<{ tripId?: string; tripTitle?: string }>();
+  //
+  // `selected` (ME-15) is the expanded-class detail-pane selection. Unlike
+  // tripId it is NOT read-and-cleared: it persists on the route so the
+  // shrink-to-compact transition (Rule B below) can promote it to a pushed
+  // route, and so re-renders keep the pane stable. Detail routes redirect here
+  // with it at expanded (Rule A in app/bookings/[id].tsx).
+  const params = useLocalSearchParams<{
+    tripId?: string;
+    tripTitle?: string;
+    selected?: string;
+  }>();
+  const selected = params.selected || null;
+
+  // Rule B: pane selection + window shrinks out of expanded -> the selection
+  // becomes a normal pushed detail screen (native back header), so the artist
+  // keeps their context. Fires once per class flip, never mid-drag.
+  useWindowClassTransition((prev, next) => {
+    if (prev === "expanded" && next !== "expanded" && selected) {
+      router.setParams({ selected: "" });
+      router.push(`/bookings/${selected}`);
+    }
+  });
   // Lazy init covers the fresh-mount deep link (filter applied on first render,
   // no wasted unfiltered fetch); the effect covers re-navigation when the tab is
   // already mounted. Both consume the param so it can't get stuck.
@@ -259,15 +295,19 @@ export default function RequestsScreen() {
     </>
   );
 
-  return (
-    <Screen edges={["left", "right"]}>
+  const list = (
       <FlatList
         data={q.items}
         keyExtractor={(b) => b.id}
         renderItem={({ item }) => (
           <RequestCard
             b={item}
-            onPress={() => router.push(`/bookings/${item.id}`)}
+            selected={expanded && selected === item.id}
+            onPress={() =>
+              expanded
+                ? router.setParams({ selected: item.id })
+                : router.push(`/bookings/${item.id}`)
+            }
           />
         )}
         ListHeaderComponent={listHeader}
@@ -322,6 +362,30 @@ export default function RequestsScreen() {
           )
         }
       />
+  );
+
+  return (
+    <Screen edges={["left", "right"]}>
+      {expanded ? (
+        <ListDetailHost
+          list={list}
+          detail={
+            selected ? (
+              // Keyed by the selection: fresh scroll + local state per request.
+              <BookingDetailContent key={selected} id={selected} />
+            ) : null
+          }
+          empty={
+            <EmptyState
+              title="Select a request"
+              subtitle="Choose a request from the list to see its details."
+            />
+          }
+          onClose={() => router.setParams({ selected: "" })}
+        />
+      ) : (
+        list
+      )}
     </Screen>
   );
 }

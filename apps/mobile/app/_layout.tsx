@@ -16,6 +16,7 @@ import { Button } from "@/components/Button";
 import { SplashOverlay } from "@/components/SplashOverlay";
 import { UpdateRequired } from "@/components/UpdateRequired";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { clearAllDrafts } from "@/lib/draft-store";
 import { WindowLayoutProvider } from "@/lib/layout";
 import { ThemeProvider, useThemeColors, useThemePreference } from "@/lib/theme";
 import { useApiQuery } from "@/lib/api";
@@ -127,6 +128,9 @@ function RootNavigator() {
   useEffect(() => {
     if (prevUserId.current !== undefined && prevUserId.current !== userId) {
       queryClient.clear();
+      // Unsaved-input drafts are user-scoped too (client notes, deposit
+      // forms) — never leak one account's draft into another session.
+      clearAllDrafts();
     }
     prevUserId.current = userId;
   }, [userId, queryClient]);

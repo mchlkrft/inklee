@@ -1,32 +1,45 @@
 import { useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { customerLabel } from "@inklee/shared/booking-domain";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
+import { ClientDetailContent } from "@/components/clients/ClientDetailContent";
+import { ListDetailHost } from "@/components/layout/ListDetailHost";
 import { useApiQuery } from "@/lib/api";
 import type { ClientListItem } from "@/lib/clients";
 import { relativeTime } from "@/lib/date";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
-import { useTabBarClearance } from "@/lib/layout";
+import {
+  useIsExpanded,
+  useTabBarClearance,
+  useWindowClassTransition,
+} from "@/lib/layout";
 import { useScreenView } from "@/lib/analytics";
 
 function ClientRow({
   item,
   onPress,
+  selected = false,
 }: {
   item: ClientListItem;
   onPress: () => void;
+  /** Pane-selection highlight (expanded window class only). */
+  selected?: boolean;
 }) {
   const label = customerLabel(item.handle, item.email);
   // Show the email as a subline only when the primary label is the @handle.
   const showEmail = item.handle.trim().length > 0;
   return (
-    <View className="mb-2">
+    <View
+      className={
+        selected ? "mb-2 rounded-[22px] border-2 border-accent" : "mb-2"
+      }
+    >
       <Card onPress={onPress}>
         {/* Founder round 5: list rows read at a glance — 18/16/14 hierarchy
             (the round-2 readability standard the client list never got). */}
@@ -60,6 +73,21 @@ export default function ClientsScreen() {
   const { data, loading, error, refreshing, refresh } =
     useApiQuery<{ items: ClientListItem[] }>("/clients");
   const [query, setQuery] = useState("");
+  const expanded = useIsExpanded();
+
+  // Detail-pane selection (ME-15): the client email as a persistent search
+  // param, mirroring the Requests pane. Rule A lives in app/clients/[email].tsx.
+  const params = useLocalSearchParams<{ selected?: string }>();
+  const selected = params.selected || null;
+
+  // Rule B: selection + window shrinks out of expanded -> promote to the
+  // pushed route so the artist keeps their context (and any notes draft).
+  useWindowClassTransition((prev, next) => {
+    if (prev === "expanded" && next !== "expanded" && selected) {
+      router.setParams({ selected: "" });
+      router.push(`/clients/${encodeURIComponent(selected)}`);
+    }
+  });
 
   // Memoized so the `?? []` fallback doesn't mint a new array every render
   // and invalidate the filter memo below (react-hooks/exhaustive-deps).
@@ -97,16 +125,18 @@ export default function ClientsScreen() {
     </>
   );
 
-  return (
-    <Screen edges={["left", "right"]}>
+  const list = (
       <FlatList
         data={filtered}
         keyExtractor={(c) => c.email}
         renderItem={({ item }) => (
           <ClientRow
             item={item}
+            selected={expanded && selected === item.email}
             onPress={() =>
-              router.push(`/clients/${encodeURIComponent(item.email)}`)
+              expanded
+                ? router.setParams({ selected: item.email })
+                : router.push(`/clients/${encodeURIComponent(item.email)}`)
             }
           />
         )}
@@ -141,6 +171,31 @@ export default function ClientsScreen() {
           )
         }
       />
+  );
+
+  return (
+    <Screen edges={["left", "right"]}>
+      {expanded ? (
+        <ListDetailHost
+          list={list}
+          detail={
+            selected ? (
+              // Keyed by the selection: the notes editor's one-shot server
+              // seed re-runs per client (stale-notes guard).
+              <ClientDetailContent key={selected} email={selected} />
+            ) : null
+          }
+          empty={
+            <EmptyState
+              title="Select a client"
+              subtitle="Choose a client from the list to see their profile and history."
+            />
+          }
+          onClose={() => router.setParams({ selected: "" })}
+        />
+      ) : (
+        list
+      )}
     </Screen>
   );
 }

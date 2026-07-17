@@ -1,206 +1,31 @@
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { useEffect } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { Card } from "@/components/Card";
-import { StatusPill } from "@/components/StatusPill";
-import { EmptyState } from "@/components/EmptyState";
-import { TextArea } from "@/components/TextArea";
-import { Button } from "@/components/Button";
-import { apiPut, invalidateBookingViews, useApiQuery } from "@/lib/api";
-import type { ClientDetail, ClientHistoryItem } from "@/lib/clients";
-import { formatShortDate, relativeTime } from "@/lib/date";
-import { captureError } from "@/lib/telemetry";
-import { useColors } from "@/lib/theme";
-import { useTimedFlag } from "@/lib/use-timed-flag";
+import { ClientDetailContent } from "@/components/clients/ClientDetailContent";
+import { useLayoutClass } from "@/lib/layout";
 
+// Thin route wrapper (ME-15): the profile CONTENT lives in
+// ClientDetailContent so the Clients list can render it in a side pane at the
+// expanded window class. Reconciliation Rule A: at expanded this ROUTE always
+// yields to the list-with-selection (covers deep links and rotation-grow
+// while the route is on the stack).
 export default function ClientDetailScreen() {
-  // Expo Router decodes the path segment, so `email` is the raw address; we
-  // re-encode it for the API path (the server decodes once).
+  // Expo Router decodes the path segment, so `email` is the raw address; the
+  // content component re-encodes it for the API path (the server decodes once).
   const { email: param } = useLocalSearchParams<{ email: string }>();
   const email = param ?? "";
-  const themed = useColors();
-  const queryClient = useQueryClient();
-  const { data, loading, error, refreshing, refresh } =
-    useApiQuery<ClientDetail>(`/clients/${encodeURIComponent(email)}`);
-
-  const [notes, setNotes] = useState("");
-  const [notesReady, setNotesReady] = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [notesSaved, markNotesSaved] = useTimedFlag();
-  const [notesError, setNotesError] = useState<string | null>(null);
+  const router = useRouter();
+  const expanded = useLayoutClass() === "expanded";
 
   useEffect(() => {
-    if (data && !notesReady) {
-      setNotes(data.notes ?? "");
-      setNotesReady(true);
+    if (expanded && email) {
+      router.replace({
+        pathname: "/(tabs)/bookings/clients",
+        params: { selected: email },
+      });
     }
-  }, [data, notesReady]);
+  }, [expanded, email, router]);
 
-  async function saveNotes() {
-    setSavingNotes(true);
-    setNotesError(null);
-    try {
-      await apiPut(`/clients/${encodeURIComponent(email)}`, { notes });
-      await invalidateBookingViews(queryClient);
-      markNotesSaved();
-    } catch (e) {
-      captureError(e, { op: "saveClientNotes" });
-      setNotesError(e instanceof Error ? e.message : "Couldn't save.");
-    } finally {
-      setSavingNotes(false);
-    }
-  }
+  if (expanded) return null;
 
-  if (!data) {
-    return (
-      <View className="flex-1 items-center justify-center bg-background px-5">
-        {loading ? (
-          <ActivityIndicator color={themed.accent} />
-        ) : (
-          <View className="items-center">
-            <EmptyState
-              title="Couldn't load client"
-              subtitle={error ?? undefined}
-            />
-            <View className="mt-2">
-              <Button
-                label="Try again"
-                variant="secondary"
-                size="sm"
-                onPress={refresh}
-              />
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  }
-
-  const approved = data.history.filter((h) => h.status === "approved").length;
-  // Avoid repeating the email when it's already the display label.
-  const showEmail = data.client !== data.email;
-
-  return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
-      showsVerticalScrollIndicator={false}
-      // The notes editor sits in this scroll: let the Save tap land on the
-      // first press with the keyboard open, and keep the field above it.
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-      automaticallyAdjustKeyboardInsets
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={refresh}
-          tintColor={themed.accent}
-        />
-      }
-    >
-      {/* Profile header: avatar + name at display size + readable contact line
-          + stat chips (founder: main information must be readable at a glance). */}
-      <View className="flex-row items-center gap-4">
-        <View className="h-16 w-16 items-center justify-center rounded-full bg-mustard/20">
-          <Text className="text-2xl font-bold text-accent">
-            {data.client.replace(/^@/, "").charAt(0).toUpperCase() || "·"}
-          </Text>
-        </View>
-        <View className="flex-1">
-          <Text className="text-display font-bold text-foreground" numberOfLines={1}>
-            {data.client}
-          </Text>
-          {showEmail ? (
-            <Text className="mt-0.5 text-base text-shell-dim" numberOfLines={1}>
-              {data.email}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-      <View className="mt-4 flex-row gap-2">
-        <View className="rounded-full bg-glass px-3 py-1.5">
-          <Text className="text-base font-semibold text-foreground">
-            {data.bookingCount} booking{data.bookingCount === 1 ? "" : "s"}
-          </Text>
-        </View>
-        <View className="rounded-full bg-success/15 px-3 py-1.5">
-          <Text className="text-base font-semibold text-success-fg">
-            {approved} approved
-          </Text>
-        </View>
-      </View>
-
-      <View className="mt-6">
-        <Text className="mb-2 text-sm font-semibold uppercase tracking-wide text-shell-mute">
-          Notes (private)
-        </Text>
-        <TextArea
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Private notes about this client (only you can see these)."
-          minHeight={88}
-        />
-        {notesError ? (
-          <Text className="mb-2 text-sm text-danger-fg">{notesError}</Text>
-        ) : null}
-        <View className="flex-row items-center gap-3">
-          <View className="w-32">
-            <Button
-              label="Save notes"
-              variant="secondary"
-              size="sm"
-              onPress={saveNotes}
-              loading={savingNotes}
-            />
-          </View>
-          {notesSaved ? (
-            <Text className="text-sm text-success-fg">Saved.</Text>
-          ) : null}
-        </View>
-      </View>
-
-      <View className="mt-6">
-        <Text className="mb-2 text-sm font-semibold uppercase tracking-wide text-shell-mute">
-          Booking history
-        </Text>
-        <View className="gap-2">
-          {data.history.map((h) => (
-            <HistoryRow key={h.id} item={h} />
-          ))}
-        </View>
-      </View>
-    </ScrollView>
-  );
-}
-
-function HistoryRow({ item }: { item: ClientHistoryItem }) {
-  const router = useRouter();
-  const dateLabel = item.preferredDate
-    ? formatShortDate(item.preferredDate)
-    : "No date";
-
-  return (
-    <Card onPress={() => router.push(`/bookings/${item.id}`)}>
-      {/* Founder round 5: history "table" one notch up — 20/16/16. */}
-      <View className="mb-1 flex-row items-center justify-between gap-2">
-        <Text className="flex-1 text-title font-semibold text-foreground">
-          {item.placement ?? "Tattoo request"}
-        </Text>
-        <StatusPill status={item.status} />
-      </View>
-      {item.size ? (
-        <Text className="text-body text-shell-dim">{item.size}</Text>
-      ) : null}
-      <Text className="mt-1 text-base text-shell-dim">
-        {dateLabel} · submitted {relativeTime(item.createdAt)}
-      </Text>
-    </Card>
-  );
+  return <ClientDetailContent email={email} />;
 }
