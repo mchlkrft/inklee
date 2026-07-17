@@ -37,7 +37,7 @@ Exit gate: founder signs off on the schema proposal, the permission matrix, and 
 
 First code. Admin-only, invisible to users.
 
-- Migrations for the map/directory core: map locations, claims, studio profiles, categories, photos, moderation state, flags and reports tables. Ported worktree SQL is renumbered past the current head (0074+) and executed for the first time against a local Supabase, with live `pg_policies` verification (the prototype SQL has never run on a real database)
+- Migrations for the map/directory core: map locations, claims, the style/category taxonomy, moderation state, and the report + statement-of-reasons tables (the studio and shop profile tables land in Phases 3 and 8 and link back to map locations by ALTER; per-phase landing table in the schema proposal, section 4). Ported worktree SQL is renumbered past the current head (0074+) and executed for the first time against a local Supabase, with live `pg_policies` verification (the prototype SQL has never run on a real database)
 - A spatial index and a server-side geocoding endpoint (server-held key); the existing geocoding path is a browser-keyed web-only picker, and map queries need bbox/radius support that plain lat/lng columns cannot serve
 - Admin moderation status on every publicly renderable object, fail closed
 - Basic admin CRUD for studios, shops, and map locations inside the existing admin area (following the existing requireAdmin + serviceClient + dual audit-logging pattern; the founding-artist applications table is the approval-queue template)

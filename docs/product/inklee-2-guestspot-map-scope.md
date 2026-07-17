@@ -4,9 +4,10 @@ Status: planning foundation, written 2026-07-17. No code, migrations, routes, or
 
 Companion docs:
 
-- Open questions (all postponed): `docs/product/inklee-2-open-questions.md`
+- Open questions: `docs/product/inklee-2-open-questions.md`
 - Phased build plan: `docs/product/inklee-2-build-plan.md`
 - Collision audit against Inklee 1.x: `docs/product/inklee-2-collision-audit.md`
+- Schema proposal + permission matrix (Phase 0 draft): `docs/product/inklee-2-schema-proposal.md`
 
 ## 1. What this is
 

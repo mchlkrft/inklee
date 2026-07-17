@@ -465,7 +465,7 @@ Independent: [Phase E: mobile] (after first real artist AND after the Bio Page +
 | SEO strategy, keyword ownership, page map | `docs/seo/inklee-seo-strategy.md` (canonical) + `docs/seo-strategy.md` (analytical companion) + `docs/seo/seo-implementation-log.md` (completed work) |
 | Public template repo cadence                   | Memory: `template-repo-cadence` (replaces lost `project_inklee_template_repo.md`) |
 | Founder follow-ups (low priority)              | Memory: `inklee_followup.md`              |
-| Inklee 2.0 guest spot map + studio network     | `docs/product/inklee-2-guestspot-map-scope.md` (scope) + `inklee-2-build-plan.md` + `inklee-2-collision-audit.md` + `inklee-2-open-questions.md` |
+| Inklee 2.0 guest spot map + studio network     | `docs/product/inklee-2-guestspot-map-scope.md` (scope) + `inklee-2-build-plan.md` + `inklee-2-collision-audit.md` + `inklee-2-open-questions.md` + `inklee-2-schema-proposal.md` |
 | Architectural decisions                        | `DECISIONS.md`                            |
 | Operational runbook                            | `RUNBOOK.md`                              |
 | Agent contributor guardrails                   | `AGENTS.md`                               |
