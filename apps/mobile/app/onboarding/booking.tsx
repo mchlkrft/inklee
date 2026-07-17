@@ -33,7 +33,7 @@ export default function BookingSetup() {
   const [mode, setMode] = useState<BookingMode>("preferred_date");
 
   return (
-    <Screen>
+    <Screen column="form">
       <ScrollView
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

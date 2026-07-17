@@ -38,7 +38,7 @@ export default function TripsList() {
 
   if (!q.data) {
     return (
-      <Screen edges={["left", "right"]} topBar={<TopBar />}>
+      <Screen edges={["left", "right"]} topBar={<TopBar />} column="feed">
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
             <BrandLoader />
@@ -80,7 +80,7 @@ export default function TripsList() {
   );
 
   return (
-    <Screen edges={["left", "right"]} topBar={<TopBar />}>
+    <Screen edges={["left", "right"]} topBar={<TopBar />} column="feed">
       <View className="flex-1">
         <FlatList
           data={q.data.items}

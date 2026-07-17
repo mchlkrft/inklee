@@ -114,7 +114,7 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets

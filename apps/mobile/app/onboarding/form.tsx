@@ -72,7 +72,7 @@ export default function FormSetup() {
   }
 
   return (
-    <Screen>
+    <Screen column="form">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}

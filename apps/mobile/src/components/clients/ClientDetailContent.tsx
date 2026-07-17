@@ -16,6 +16,7 @@ import { Button } from "@/components/Button";
 import { apiPut, invalidateBookingViews, useApiQuery } from "@/lib/api";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
 import type { ClientDetail, ClientHistoryItem } from "@/lib/clients";
+import { PANE } from "@/lib/layout";
 import { clearDraft, getDraft, hasDraft, setDraft } from "@/lib/draft-store";
 import { formatShortDate, relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
@@ -114,6 +115,11 @@ export function ClientDetailContent({ email }: { email: string }) {
         padding: 20,
         paddingTop: 20 + headerInset,
         paddingBottom: 48,
+        // Medium-class pushed route: readable width on portrait tablets
+        // (inert on phones; the expanded pane is narrower than this anyway).
+        width: "100%",
+        maxWidth: PANE.detailContent + 40,
+        alignSelf: "center",
       }}
       showsVerticalScrollIndicator={false}
       // The notes editor sits in this scroll: let the Save tap land on the

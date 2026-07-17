@@ -238,7 +238,7 @@ export default function BookingFormScreen() {
   };
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}

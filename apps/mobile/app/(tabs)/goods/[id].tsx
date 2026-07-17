@@ -90,7 +90,7 @@ export default function ProductScreen() {
 
   if (!isNew && !q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} column="form">
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
             <ActivityIndicator color={themed.accent} />
@@ -442,7 +442,7 @@ function ProductForm({
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <Stack.Screen options={{ title: isNew ? "New product" : "Product" }} />
       <ScrollView
         keyboardShouldPersistTaps="handled"

@@ -13,6 +13,7 @@ import { Button } from "@/components/Button";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { useApiQuery } from "@/lib/api";
+import { CAP } from "@/lib/layout";
 import { convertWaitlistEntry, setWaitlistStatus } from "@/lib/waitlist";
 import { formatShortDate, relativeTime } from "@/lib/date";
 import { captureError } from "@/lib/telemetry";
@@ -112,7 +113,13 @@ export default function WaitlistEntryScreen() {
   return (
     <ScrollView
       className="flex-1 bg-background"
-      contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+      contentContainerStyle={{
+        padding: 20,
+        paddingBottom: 48,
+        width: "100%",
+        maxWidth: CAP.form + 40,
+        alignSelf: "center",
+      }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl

@@ -132,7 +132,7 @@ export default function SettingsHubScreen() {
   };
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 8, paddingBottom: 40 }}

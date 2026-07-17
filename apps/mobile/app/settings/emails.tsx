@@ -48,7 +48,7 @@ export default function EmailsScreen() {
   // No page-level gate: the two sections load independently, so a failed
   // templates fetch never locks the artist out of the reminder settings.
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}

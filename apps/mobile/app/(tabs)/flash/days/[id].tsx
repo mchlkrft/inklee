@@ -45,7 +45,7 @@ export default function FlashDayForm() {
 
   if (!isNew && !q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} column="form">
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
             <ActivityIndicator color={themed.accent} />
@@ -138,7 +138,7 @@ function DayForm({
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <Stack.Screen
         options={{ title: isNew ? "New flash day" : "Flash day" }}
       />

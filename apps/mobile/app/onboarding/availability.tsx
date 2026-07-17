@@ -60,7 +60,7 @@ export default function AvailabilitySetup() {
   }
 
   return (
-    <Screen>
+    <Screen column="form">
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets

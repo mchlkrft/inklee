@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
+import { CAP } from "@/lib/layout";
 import {
   invalidateNotifications,
   markAllNotificationsRead,
@@ -133,7 +134,13 @@ export default function NotificationsScreen() {
       <FlatList
         data={items}
         keyExtractor={(n) => n.id}
-        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        contentContainerStyle={{
+          padding: 20,
+          paddingBottom: 40,
+          width: "100%",
+          maxWidth: CAP.feed + 40,
+          alignSelf: "center",
+        }}
         renderItem={({ item }) => (
           <NotificationRow
             n={item}

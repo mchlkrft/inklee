@@ -31,7 +31,7 @@ export default function SignIn() {
   }
 
   return (
-    <Screen>
+    <Screen column="authCard">
       <View className="flex-1 justify-center">
         <Text className="text-3xl font-bold text-foreground">Inklee</Text>
         <Text className="mt-1 mb-8 text-base text-shell-dim">

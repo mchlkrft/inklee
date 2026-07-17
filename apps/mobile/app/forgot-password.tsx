@@ -46,7 +46,7 @@ export default function ForgotPassword() {
 
   if (sent) {
     return (
-      <Screen>
+      <Screen column="authCard">
         <View className="flex-1 justify-center">
           <View className="mb-5 h-12 w-12 items-center justify-center rounded-full bg-mustard/15">
             <Mail size={22} color={colors.accent} />
@@ -71,7 +71,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <Screen>
+    <Screen column="authCard">
       <View className="flex-1 justify-center">
         <Text className="text-3xl font-bold text-foreground">
           Reset your password

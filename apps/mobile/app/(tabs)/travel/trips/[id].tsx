@@ -55,7 +55,7 @@ export default function TripScreen() {
 
   if (!isNew && !q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} column="form">
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
             <ActivityIndicator color={themed.accent} />
@@ -127,7 +127,7 @@ function CreateTrip() {
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <Stack.Screen
         options={{
           title: "New trip",
@@ -255,7 +255,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <Stack.Screen
         options={{
           title: initial.title,

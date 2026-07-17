@@ -72,7 +72,7 @@ export default function CalendarExportScreen() {
 
   if (!q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} column="form">
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
             <ActivityIndicator color={themed.accent} />
@@ -91,7 +91,7 @@ export default function CalendarExportScreen() {
   const feedUrl = q.data.feedUrl;
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}

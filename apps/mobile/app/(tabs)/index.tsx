@@ -257,7 +257,7 @@ export default function HomeScreen() {
   const hasPages = !!publicUrl && !!waitlistUrl && !!hubUrl;
 
   return (
-    <Screen edges={["left", "right"]} topBar={<TopBar />}>
+    <Screen edges={["left", "right"]} topBar={<TopBar />} column="wide">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{

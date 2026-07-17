@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { captureError } from "@/lib/telemetry";
 import { BorderedInput } from "@/components/BorderedInput";
 import { Button } from "@/components/Button";
+import { CAP } from "@/lib/layout";
 import { useColors } from "@/lib/theme";
 import { deriveSignInIdentity } from "@inklee/shared/auth-derivations";
 
@@ -105,7 +106,15 @@ export default function DeleteAccountScreen() {
   return (
     <ScrollView
       className="flex-1 bg-background"
-      contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+      contentContainerStyle={{
+        padding: 20,
+        paddingBottom: 48,
+        // ME-15 tablet cap (this screen bypasses Screen's column prop): the
+        // form width plus this container's own 20pt horizontal padding.
+        width: "100%",
+        maxWidth: CAP.form + 40,
+        alignSelf: "center",
+      }}
       keyboardShouldPersistTaps="handled"
     >
       <Text className="text-xl font-bold text-foreground">Delete your account</Text>

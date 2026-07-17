@@ -48,7 +48,7 @@ export default function StudioScreen() {
 
   if (!isNew && !q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} column="form">
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
             <ActivityIndicator color={themed.accent} />
@@ -184,7 +184,7 @@ function StudioForm({
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <Stack.Screen
         options={{
           title: isNew ? "New studio" : "Studio",

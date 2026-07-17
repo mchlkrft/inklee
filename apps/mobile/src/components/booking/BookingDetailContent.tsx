@@ -38,6 +38,7 @@ import type { LucideIcon } from "@/lib/icon-types";
 import { useApiQuery } from "@/lib/api";
 import { formatMoney, type BookingDetail } from "@/lib/bookings";
 import { useBookingsHeaderInset } from "@/lib/bookings-header";
+import { PANE } from "@/lib/layout";
 import { useColors } from "@/lib/theme";
 import { formatShortDate, relativeTime } from "@/lib/date";
 
@@ -131,6 +132,12 @@ export function BookingDetailContent({ id }: { id: string }) {
         padding: 20,
         paddingTop: 20 + headerInset,
         paddingBottom: 48,
+        // Medium-class pushed route: keep the cards readable instead of
+        // spanning a portrait tablet (inert on phones; the expanded pane is
+        // narrower than this anyway).
+        width: "100%",
+        maxWidth: PANE.detailContent + 40,
+        alignSelf: "center",
       }}
       showsVerticalScrollIndicator={false}
       // Deposit-form inputs sit low in this scroll view; let taps on the

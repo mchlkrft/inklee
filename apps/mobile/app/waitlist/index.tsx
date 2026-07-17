@@ -22,6 +22,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
+import { CAP, useIsExpanded } from "@/lib/layout";
 import {
   buildCityDemand,
   cityKey,
@@ -119,7 +120,10 @@ export default function WaitlistScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row gap-2 px-5 pt-4">
+      <View
+        className="flex-row gap-2 px-5 pt-4"
+        style={{ width: "100%", maxWidth: CAP.feed + 40, alignSelf: "center" }}
+      >
         {FILTERS.map((f) => {
           const active = f.key === filter;
           return (
@@ -161,7 +165,13 @@ export default function WaitlistScreen() {
           }}
           // flexShrink 0: see the bookings chip strip — without it the
           // FlatList's flex basis squeezes this strip and clips the chips.
-          style={{ flexGrow: 0, flexShrink: 0 }}
+          style={{
+            flexGrow: 0,
+            flexShrink: 0,
+            width: "100%",
+            maxWidth: CAP.feed + 40,
+            alignSelf: "center",
+          }}
         >
           <FilterChip
             label="All cities"
@@ -185,7 +195,13 @@ export default function WaitlistScreen() {
       <FlatList
         data={items}
         keyExtractor={(e) => e.id}
-        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        contentContainerStyle={{
+          padding: 20,
+          paddingBottom: 40,
+          width: "100%",
+          maxWidth: CAP.feed + 40,
+          alignSelf: "center",
+        }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
@@ -255,6 +271,7 @@ function WaitlistRow({
   onConvert: (id: string, prev: string) => Promise<void>;
 }) {
   const themed = useColors();
+  const expanded = useIsExpanded();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -316,7 +333,10 @@ function WaitlistRow({
           </View>
         ) : null}
         {entry.note ? (
-          <Text className="mt-1 text-sm text-shell-dim" numberOfLines={2}>
+          <Text
+            className="mt-1 text-sm text-shell-dim"
+            numberOfLines={expanded ? undefined : 2}
+          >
             {entry.note}
           </Text>
         ) : null}

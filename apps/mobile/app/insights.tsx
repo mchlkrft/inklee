@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery } from "@/lib/api";
 import { MONTH_LONG } from "@/lib/date";
+import { CAP } from "@/lib/layout";
 import { useColors } from "@/lib/theme";
 import type { MobileAnalytics } from "@inklee/shared/mobile-api";
 
@@ -32,7 +33,13 @@ export default function InsightsScreen() {
   return (
     <ScrollView
       className="flex-1 bg-background"
-      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      contentContainerStyle={{
+        padding: 20,
+        paddingBottom: 40,
+        width: "100%",
+        maxWidth: CAP.wide + 40,
+        alignSelf: "center",
+      }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl

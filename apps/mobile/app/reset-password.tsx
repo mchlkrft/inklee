@@ -77,7 +77,7 @@ export default function ResetPassword() {
 
   if (!code) {
     return (
-      <Screen>
+      <Screen column="authCard">
         <View className="flex-1 items-center justify-center px-2">
           <Text className="text-center text-base font-semibold text-foreground">
             This reset link is invalid or expired
@@ -98,7 +98,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <Screen>
+    <Screen column="authCard">
       <View className="flex-1 justify-center">
         <Text className="text-3xl font-bold text-foreground">
           Set a new password

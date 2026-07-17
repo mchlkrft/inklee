@@ -78,7 +78,7 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <Screen>
+    <Screen column="form">
       <View className="flex-1 pt-2">
         {/* Story progress — one segment per slide. */}
         <View className="mb-5 flex-row gap-1.5">

@@ -40,7 +40,7 @@ export default function FlashDaysList() {
 
   if (!q.data) {
     return (
-      <Screen edges={["left", "right"]}>
+      <Screen edges={["left", "right"]} column="feed">
         <View className="flex-1 items-center justify-center">
           {q.loading ? (
             <ActivityIndicator color={colors.accent} />
@@ -57,7 +57,7 @@ export default function FlashDaysList() {
   }
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="feed">
       <View className="flex-1">
         <View className="py-3">
           <Button

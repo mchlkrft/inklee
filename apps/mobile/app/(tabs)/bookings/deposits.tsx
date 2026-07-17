@@ -165,7 +165,7 @@ export default function DepositsScreen() {
   const openBooking = (id: string) => router.push(`/bookings/${id}`);
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="feed">
       <ScrollView
         showsVerticalScrollIndicator={false}
         onScroll={onScroll}

@@ -80,7 +80,7 @@ export default function DashboardSettingsScreen() {
   };
 
   return (
-    <Screen edges={["left", "right"]}>
+    <Screen edges={["left", "right"]} column="form">
       <View className="flex-1 pt-3">
         <Text className="mb-3 text-sm text-shell-dim">
           Choose which cards show on your Home dashboard.

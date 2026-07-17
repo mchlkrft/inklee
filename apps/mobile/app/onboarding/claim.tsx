@@ -188,7 +188,7 @@ export default function ClaimLink() {
           : null;
 
   return (
-    <Screen>
+    <Screen column="form">
       <ScrollView
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets

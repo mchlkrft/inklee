@@ -91,7 +91,7 @@ export default function YoureLive() {
   // acceptance gate: every screen needs a loading AND an error state).
   if (!me.data) {
     return (
-      <Screen>
+      <Screen column="form">
         <View className="flex-1 items-center justify-center px-4">
           {me.error ? (
             <>
@@ -150,7 +150,7 @@ export default function YoureLive() {
   }
 
   return (
-    <Screen>
+    <Screen column="form">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
