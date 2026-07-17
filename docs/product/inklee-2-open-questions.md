@@ -62,13 +62,13 @@ What is the hard storage limit per studio profile?
 - What it blocks: the Phase 3 photo upload implementation needs a number, even a provisional one. A provisional cap can ship and be raised later; shipping without any cap cannot be undone cheaply.
 - Decide by: Phase 3 photo upload build. Until then, plan for "a cap exists, value TBD".
 
-### Q7. Temporary map post display behavior
+### Q7. Temporary studio signal display behavior
 
-How should temporary map posts be displayed without becoming spam?
+How should temporary studio signals be displayed without becoming spam? (Widened 2026-07-18: temporary map posts became typed temporary studio signals; the question covers the whole signal system.)
 
-- Why open: the 1 post per owner account per month limit is locked, but the display (marker badge, feed entry, map layer, expiry visuals) is deliberately undecided. Wrong display design either buries the feature or turns the map into a billboard.
-- What it blocks: nothing until late. Temporary posts sit at the end of the studio owner track and can ship after the core map.
-- Decide by: the named temporary-map-posts follow-on slice after Phase 3 (see the build plan's Phase 3 deferred item).
+- Why open: the 1 post or signal per owner account per month limit is locked and the signal type vocabulary is now scoped, but the display (marker badge, feed entry, map layer, expiry visuals, contextual feed placement) is deliberately undecided. Wrong display design either buries the feature or turns the map into a billboard.
+- What it blocks: nothing until late. Signals sit in the named follow-on slice after Phase 3, and their contextual-feed appearance waits for the map activity cluster anyway.
+- Decide by: the temporary-studio-signals follow-on slice after Phase 3 (see the build plan's Phase 3 deferred item).
 
 ### Q8. Studio owner pricing placement
 
@@ -114,6 +114,22 @@ The live database already has a `studios` table that means "an artist's own trav
 
 ### Q14. Are map reports DSA notices or in-product signals?
 
-The locked decisions want anonymous reports with threshold logic. The existing DSA moderation procedure requires acknowledging reporters within 24 hours (anonymity is contemplated only for CSAM) and treats visibility restrictions as moderation actions requiring statements of reasons. The likely design is two channels (anonymous in-product map signals plus the formal `/legal/report` path, with escalation between them), but that split and its wording need counsel review, and the DSA procedure document must be extended to cover studio pages, shop entries, and temporary posts either way.
+The locked decisions want anonymous reports with threshold logic. The existing DSA moderation procedure requires acknowledging reporters within 24 hours (anonymity is contemplated only for CSAM) and treats visibility restrictions as moderation actions requiring statements of reasons. The likely design is two channels (anonymous in-product map signals plus the formal `/legal/report` path, with escalation between them), but that split and its wording need counsel review, and the DSA procedure document must be extended to cover studio pages, shop entries, and temporary posts either way. Note 2026-07-18: the categorized report vocabulary now includes conduct categories (harassment, unsafe behavior, payment conflict) that lean further toward the formal channel; the counsel review should cover the category-to-channel mapping.
 
 - Decide by: Phase 0 for the design direction; counsel sign-off before Phase 7 ships reports to users.
+
+## Added 2026-07-18 (extension round)
+
+### Q15. Flash day planner vs the live 1.x flash days feature
+
+Inklee 1.x already ships artist-owned flash days (flash days, flash items, booking forms, calendar rendering, capacity logic). The 2.0 flash day planner organizes a studio-level flash day across multiple artists. Does the planner extend the existing artist-owned entities (each participating artist gets or links a 1.x flash day), or does a studio-level flash day entity exist that references artist flash days, or something else? This is the same class of decision as guest-spot-acceptance-materializes-a-trip-leg, and the one-source-of-truth rule forbids a parallel flash pipeline.
+
+- What it blocks: the flash day planner slice in Phase 6. Nothing before it.
+- Decide by: before the Phase 6 flash day planner slice starts. Needs a short design pass over the 1.x flash schema first.
+
+### Q16. Private artist representation in the guest artist timeline
+
+When a studio's guest artist timeline includes an artist whose profile or travel history is private, what does the entry show by default: an anonymized entry ("a guest artist from Portugal", dates only), a reduced entry, or nothing at all? Artist privacy always caps studio settings; the open part is the default representation and whether the artist chooses per stay or globally.
+
+- What it blocks: the guest artist timeline slice in Phase 4.
+- Decide by: the Phase 4 timeline build.

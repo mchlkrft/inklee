@@ -239,7 +239,9 @@ Edit policy, enforced SERVER-SIDE in the trip/leg cores (web actions and the mob
 ### 2.5 Studio groups
 
 ```
-studio_groups: id pk · studio_profile_id CASCADE UNIQUE (1:1 in v1) · house_rules text · created_at/updated_at
+studio_groups: id pk · studio_profile_id CASCADE UNIQUE (1:1 in v1) · house_rules text  -- SUPERSEDED by the
+  -- 2026-07-18 house rules builder (see addendum 4a): rules are studio-level structured content; do NOT ship this field
+  · created_at/updated_at
 studio_group_members: id pk · studio_group_id CASCADE · user_id -> profiles CASCADE
   source text  -- roster | stay_window · guest_spot_stay_id SET NULL
   window_starts_on / window_ends_on date   -- stay window minus/plus 14 days, cron-managed
@@ -306,6 +308,8 @@ created_at
 ```
 
 RLS on both tables: enabled, zero policies (reports are written through a rate-limited server action; both are read only in admin). Anonymity is toward the target, not toward the platform; whether these are DSA notices or in-product signals is Q14 (counsel). Retention: report rows 24 months, statements 5 years, wired into the existing retention-purge cron.
+
+Shipped subset note (0075, applied 2026-07-17): the live tables deliberately narrow this sketch per the ALTER-later principle. `map_reports.target_type` shipped as artist | location only (studio and shop targets arrive with their tables), the reason list shipped as the pre-extension six values (replaced by the ten categories in Phase 7), and `moderation_statements.action` shipped with `removed` in the CHECK alongside the values above.
 
 **`map_report_scores`** (threshold and decay state; service-role only, NEVER on profiles)
 
@@ -401,6 +405,23 @@ Enforcement layers, in order: route/server-action guards (owner checks through t
 
 `map_locations` ships in Phase 1 without its two profile-link columns; each arrives by ALTER in the phase that creates its target table, so no FK ever points at a table that does not exist yet.
 
+## 4a. Extensions addendum (2026-07-18)
+
+The sixteen founder-selected extensions (scope doc, marked "Extension (2026-07-18)") carry schema implications. DDL for each is written in its build phase, not here; this addendum records what changes against the sections above so nothing ports stale shapes.
+
+- **House rules move off the group row.** Section 2.5 placed `house_rules text` on `studio_groups`. Corrected: house rules become a structured studio-level entity (per-rule rows or a structured jsonb on a `studio_house_rules` table keyed by `studio_profile_id`), consumed by the profile (optional display), the group (auto-available), and the welcome pack. Do not ship the group-level text field.
+- **Welcome pack** is structured owner content keyed by `studio_profile_id`, reusable across stays, delivered per accepted stay (interaction plane; any file attachments live in the Phase 4 private bucket).
+- **Temporary signals** extend `temporary_map_posts` (section 2.1) with a `signal_type` from the typed vocabulary. The per-owner monthly unique stands unchanged.
+- **Report reasons** (section 2.6, shipped as 0075): the CHECK is replaced in Phase 7 by the ten-category vocabulary (no_show, unsafe_behavior, payment_conflict, harassment, fake_profile, wrong_location, spam, scam, hygiene_concern, other), in lockstep with the shared module and the admin queue. `detail` stays as optional admin-only context.
+- **Claim conflict** (section 2.1, shipped as 0075): `location_claims.status` gains a conflict-handling state (or conflict is derived from multiple pending claims plus a location-level flag; decided in the Phase 3 slice). Ownership never changes while contested.
+- **Duplicate detection** wants trigram similarity (pg_trgm) for name matching plus the existing spatial index for proximity; suggestions land in an admin review table with confidence levels.
+- **Stamps** are grant-shaped like thumbs (section 2.6): studio-to-artist, unique per completed stay, rendered in the passport behind `passport_public`. Same survival-semantics counsel item as thumbs.
+- **Story cards** are generated artifacts, not primary data: they read from completed stays, stamps, and consented fields through a shaper, and store only the generated asset reference.
+- **Change tracking** (map activity cluster) introduces a change-event table on map entities and studio profiles with tight retention; design lands with the cluster, and the Phase 9 cost audit covers it.
+- **Cockpit and completeness score** are read models over existing tables; no new storage beyond possibly a cached completeness value.
+- **Timeline** is a read model over stays with artist-privacy caps (Q16); no new storage.
+- **Pinned cards, supply list, flash day planner** land with the group tables in Phase 6; the planner's schema shape depends on Q15 (its relation to the live 1.x flash tables) and is deliberately not sketched here.
+
 ## 5. Open items and their resolutions
 
 Resolved by founder decision 2026-07-17:
@@ -414,6 +435,6 @@ Still open for sign-off:
 
 - Exact bucket function for the seed cap (geohash precision vs a plain grid); Phase 1 picks with a test proving one bucket approximates 300 square km.
 - Report reason vocabulary final wording (with the DSA doc update, Q14).
-- The Q6 storage cap value and the Q13 count floor (their columns and check points are in place either way).
+- The Q6 storage cap value (its check point is in place either way; the Q13 count floor was resolved 2026-07-18 at 3).
 - Message transport for groups (Q10): the tables above assume messages-in-Postgres; a hosted service would replace `studio_group_messages` with an external reference and keep everything else.
 - Thumbs survival semantics on giver account deletion (SET NULL keeps the counter; confirm with GDPR counsel alongside the report retention rules).

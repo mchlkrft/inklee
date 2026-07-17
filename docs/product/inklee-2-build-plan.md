@@ -48,6 +48,7 @@ Status 2026-07-17: core slice SHIPPED. Migration 0075 (map_locations, location_c
 - Seed cap enforcement: maximum 5 studios per 300 square km, enforced in the admin insert path with region bookkeeping, not just in import scripts
 - Seed the first hand-picked cities (distribution per Q4 decision at that time)
 - Reserve every new route segment in `RESERVED_SLUGS` (including the already-missing `map`)
+- Extension (2026-07-18): duplicate studio detector. Runs at import, creation, and claim; matches on similar name, same address, nearby coordinates, same Instagram, same website, same phone where stored; produces admin review suggestions with confidence levels (clear, likely, possible); never auto-merges. Lands as a Phase 1 follow-on slice before any bulk seeding, because seeded public data is exactly where duplicates come from.
 
 Exit gate: admin can curate a city's studios end to end; cap provably enforced; RLS tests on every new table.
 
@@ -66,7 +67,7 @@ Status 2026-07-17 late: slice 1 SHIPPED behind `NEXT_PUBLIC_TATTOO_MAP` (fail-cl
 - Watched studios
 - Artist privacy settings: opt-in map presence, current city, future destinations from the existing travel data, looking-for-guest-spots status
 - Artist map profile shell: the identity surface other artists see (style categories, availability, social links, studio memberships as they come to exist), all fields optional and private by default
-- Public artist-in-area list (opt-in) and anonymous artist-in-area count with a minimum display floor (Q13 decided here)
+- Public artist-in-area list (opt-in) and anonymous artist-in-area count with the minimum display floor (Q13 resolved: floor of 3)
 
 Exit gate: an artist can explore a seeded city, watch studios, and control their own visibility; marker performance measured against a budget.
 
@@ -78,9 +79,11 @@ Exit gate: an artist can explore a seeded city, watch studios, and control their
 - Photo upload on the existing storage patterns with the per-studio cap (Q6 decided here, provisional value acceptable)
 - Address and approximate-location setting (private studios never render at exact position)
 - Guest spot availability state control (the "open guest spot" map signal; the seeded/admin-side default lands in Phase 1 with the ported accepting signal)
-- Owner dashboard shell: profile state, claim state, later inboxes
+- Owner dashboard shell, extended (2026-07-18) into the **studio owner cockpit v1**: the one operational command center for the paid role. Phase 3 ships profile state, claim state, and profile completeness; signal status joins with the signals follow-on slice, and the request inbox, current guests, upcoming stays, workspace overview, overbooking warnings, group activity, and pending votes light up as Phases 4 to 6 deliver their data. Operational clarity only, never a generic analytics dashboard.
+- Extension (2026-07-18): studio profile completeness score, inside the cockpit and the profile editor (logo, 3 photos, address, categories, workspace overview, house rules, availability, vibe, resident artists). Components whose features ship later (workspace overview, house rules, resident artists) stay out of the score until they exist. Never blocks beyond the locked publish minimums.
+- Extension (2026-07-18): claim conflict workflow. Multiple claims on one studio mark it claim conflict, freeze public ownership change, request social proof from all claimants, and route to admin decision. No automatic transfers; the public studio state stays stable until resolved. Needs a conflict state on the shipped claims vocabulary (collision audit section 14).
 - Pricing placement reconciliation with the BM-4.x track (Q8 decided before this phase ships to real users)
-- Deferred to a named follow-on slice after this phase: temporary map posts (1 per owner per month, cap enforced; display behavior decided then, per Q7)
+- Deferred to a named follow-on slice after this phase: temporary studio signals (the 2026-07-18 extension of temporary map posts into a typed vocabulary: guest chair open, flash day planned, looking for guest artist, convention week availability, walk-in day, new resident artist, studio relocation, private room available; the 1 per owner per month cap stands; display behavior per Q7)
 
 Exit gate: a real studio owner can claim a seeded entry, complete the profile, and appear claimed on the map.
 
@@ -96,6 +99,10 @@ The workflow phase. Depends on Phases 2 and 3.
 - Artist calendar integration: acceptance materializes a trip + trip_leg with linkage columns and an edit policy for studio-confirmed legs; pending requests render as a distinct marker through the calendar extension points; client bookings never auto-blocked
 - Studio calendar: first version of the studio-side calendar showing requested and confirmed stays (new read path over the stay entity with two-party RLS; nothing studio-scoped exists today)
 - Artist passport: the read model over completed stays and travel history with its privacy toggle (guest spots completed becomes real data in this phase)
+- Extension (2026-07-18): house rules builder. Structured, reusable studio-level rules (deposit policy, client handling, cleaning, supplies included, setup and breakdown, opening hours, key or access rules, promotion rules, walk-in policy, cancellation expectations). Optional on the studio profile, automatically available to the group when Phase 6 ships, feeds the welcome pack. Ships here because approval is where rules start mattering.
+- Extension (2026-07-18): studio welcome pack, as a follow-on slice after the accept flow. Saved, reusable, structured content sent to the artist on acceptance: house rules, address and access, workspace assignment, wifi, emergency contact, nearby supply shops, promotion assets, group link, local notes. Interaction plane only (accepted artists), no PDF by default; any file attachments wait for the private bucket built in this phase.
+- Extension (2026-07-18): guest artist timeline on studio profiles (past, current, upcoming), fed by confirmed and completed stays, studio-controlled visibility capped by artist privacy (anonymized representation per Q16). Ships once stays exist.
+- The cockpit gains its request inbox and stays sections in this phase.
 - Notification wiring per the Q9 decision (made at this phase): new notification types are additive to the shared enum, and mobile push emission is version-gated so taps never dead-end on installed builds (screens plus extended tap-routing allowlist ship in a store build first)
 
 Exit gate: a full request-to-confirmed loop between a real artist and a real studio, visible in both calendars, with the 1.x booking flow provably untouched.
@@ -109,6 +116,7 @@ Exit gate: a full request-to-confirmed loop between a real artist and a real stu
 - Recurring availability rules for guest chairs
 - Overbooking warning popup with manual override: overlap detection is an application-layer computation that warns and records the override; no blocking constraint anywhere
 - Basic booking situation overview per station
+- The cockpit gains its workspace overview and overbooking warning sections in this phase.
 
 Exit gate: a studio can run a convention-week overbook on purpose and the system warns without ever refusing.
 
@@ -120,9 +128,13 @@ The heaviest infrastructure phase. Chat build-vs-buy (Q10) decided before it sta
 - Membership: roster members plus guest artists tied to guest spot dates; auto-add 14 days before the stay, auto-remove 14 days after the final day (the predecessor's date-bounded membership helper is the mechanism; daily crons with at-most-once markers cover the window boundaries)
 - Real-time chat. The locked baseline is that the group ships with real-time chat; Q10 only decides custom-built vs a hosted service. Grounding: the product has zero realtime usage today (no Supabase Realtime channels anywhere, mobile is bearer-REST only with no direct client-to-database path), so Supabase Realtime adoption is first-time infrastructure with client-facing RLS design. A pull-based thread on the existing support-ticket model would be zero new infrastructure but is NOT live chat; if the Q10 spike makes that trade tempting, it is a scope reduction that needs its own founder decision, not a default. Chat traffic bypasses the notification feed either way (its own push path plus per-thread unread counts), or it buries booking-critical notifications
 - Owner announcements and owner-only documents
-- House rules
+- House rules display in the group (the studio-level rules from the Phase 4 builder, not a group-owned copy)
 - Votes: owner-created, member-proposed, multiple choice, rendered in chat, explicitly non-binding
 - Linked guest spot calendar subpage
+- Extension (2026-07-18): pinned group cards. Owner-controlled functional cards pinned above the chat (house rules, current guests, upcoming guest spots, active vote, flash day plan, supply list, announcement, workspace schedule); cards backed by existing data are generated, not retyped.
+- Extension (2026-07-18): shared supply list. A simple add-and-tick list for the group; no procurement features, no shop involvement.
+- Extension (2026-07-18): flash day planner, as a follow-on slice once votes, workspace planning, and group basics all exist. Date vote, participating artists, theme, time slots, promotion checklist, booking link, client request routing, assigned workstations. The Q15 decision (how it connects to the 1.x flash days feature) is made before this slice starts; studio-organized flash days only, never an event platform.
+- The cockpit gains its group activity and pending votes sections in this phase.
 
 Exit gate: a guest artist flows in and out of a group automatically around a real stay; retention and GDPR handling for messages documented.
 
@@ -132,9 +144,12 @@ Exit gate: a guest artist flows in and out of a group automatically around a rea
 - Public thumbs-up counters on studio, artist, and shop profiles
 - Badges: great for guest spots, beginner friendly, private room, fast communication
 - Artist and studio flags; anonymous reports for wrong locations, fake studios, spam, scam accounts, bad behavior
+- Extension (2026-07-18): report context categories ship with the user-facing report flow. The full vocabulary (no-show, unsafe behavior, payment conflict, harassment, fake profile, wrong location, spam, scam, hygiene concern, other) replaces the narrower shipped 0075 reason list in a lockstep change: database CHECK, shared module, admin queue labels together. Free text stays out of the reporter flow; the optional detail field is admin context only. Designed early (the vocabulary is settled now) because it shapes the admin queue.
 - Report decay logic as designed in Phase 0 (artist: minus 1 per 3 clean guest spots; studio: minus 1 per 5 thumbs up)
 - Warning thresholds (artist at 5 shown to artist and next requested studio; studio at 10 shown to artists)
 - Admin report queue with moderation actions, reconciled with the DSA procedure (Q14 counsel sign-off required before this phase ships to users)
+- Extension (2026-07-18): studio stamps. A studio grants a visual stamp after a completed stay; it appears in the artist passport if the artist allows it. Verified stays only, tattoo-native object, no NFTs or blockchains ever.
+- Extension (2026-07-18): guest spot story cards, as a follow-on slice after stamps. Optional shareable card (artist, studio, city, dates, optional photos, studio logo, Inklee branding), completed stays only, consent from both sides where needed, never exposing private addresses or private travel data.
 
 Exit gate: threshold and decay behavior verified against fixture histories; admin queue handles a report end to end.
 
@@ -150,13 +165,23 @@ Exit gate: threshold and decay behavior verified against fixture histories; admi
 
 Exit gate: an approved shop is discoverable and contactable without any commerce flowing through Inklee.
 
+## Map activity cluster (added 2026-07-18)
+
+Two extensions form a later map activity cluster. They depend on data from Phases 3 to 6 being alive, can run parallel to Phases 7 and 8, and both feed on the same new change-tracking foundation, so they ship together or in close sequence:
+
+- Change tracking prerequisite: lightweight change events on map entities and studio profiles (created, profile changed, signal posted, badge earned), with tight retention. Designed once, consumed by both features below. This is the cluster's real cost; the surfaces are thin.
+- Extension: contextual map feed. Strictly contextual sources (watched studios, planned destinations, own groups, interacted studios, current city), map-related content only (signals, changed profiles, guest spot activity, group updates, map changes). Pull-only: the feed never rides the notification pipeline, so it cannot add to notification overload. No global feed, no infinite scroll, no algorithmic ranking.
+- Extension: what changed here. The returning-artist view of a city or area (new studios, shops, signals, artists in town within the consent rules, changed profiles, new badges), scoped to watched studios, planned destinations, and recently viewed areas.
+
+Exit gate: an artist returning to a watched city sees an accurate, quiet summary of what changed, and the feed contains nothing outside their own context.
+
 ## Phase 9: audit and merge plan
 
 The consolidation phase before 2.0 is considered part of the main product line.
 
-- Database cost audit (row growth, index sizes, realtime throughput)
+- Database cost audit (row growth, index sizes, realtime throughput, change-event retention from the map activity cluster)
 - RLS and security audit across every 2.0 table (same rigor as the 1.x pre-launch audits)
-- Privacy audit against the three-plane model, including the anonymous-count floor
+- Privacy audit against the three-plane model, including the anonymous-count floor, the guest artist timeline's artist-privacy caps, welcome pack access scoping, and story cards as the first outward-facing artifact
 - Image storage audit (per-studio caps holding, orphan cleanup)
 - Map API cost audit: confirm the Phase 2 provider decision (Q1) still holds at real scale
 - Moderation flow audit: queue volume vs founder capacity, DSA compliance
@@ -193,4 +218,4 @@ Phase 0 (paper)
                                 -> Phase 9 (audit + merge)
 ```
 
-Phase 8 can run parallel to Phases 4 to 7 if capacity allows; everything funnels into Phase 9.
+Phase 8 can run parallel to Phases 4 to 7 if capacity allows; the map activity cluster (feed + what changed here) hangs off Phases 3 to 6 and can run parallel to Phases 7 and 8; everything funnels into Phase 9.

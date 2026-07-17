@@ -104,7 +104,7 @@ Consequences of that decision:
 - **[High] No style taxonomy exists anywhere** (the only style field in the schema is free text on a marketing table). Map style filters and studio categories need a canonical vocabulary plus junction tables, indexed, not jsonb.
 - **[Medium]** `profiles.location` is free text, unusable for city + radius or counts; structured geocoded city columns are new work.
 - Deletion cascades: all profile FKs cascade. Reputation, thumbs given, and reports authored by a deleted account need explicit survival semantics (the `deleted_account_records` precedent, 0047) decided with GDPR counsel before schema design; avoid ON DELETE CASCADE on reputation tables (medium).
-- The anonymous artist count needs a minimum display floor to avoid deanonymization (open question Q13).
+- The anonymous artist count needs a minimum display floor to avoid deanonymization (Q13, resolved 2026-07-18: floor of 3).
 
 ## 7. Storage
 
@@ -173,3 +173,18 @@ Worth fixing independently of 2.0. Status as of 2026-07-17 evening:
 8. New `studio-media` bucket with studioId paths; private bucket built once for groups + pricing + FU-20 (section 7).
 9. Record the strategy override and the Studio naming reconciliation in the business-model doc (section 8).
 10. Two-channel report design reconciled with the DSA procedure, statements of reasons wired into thresholds (section 9).
+
+## 14. Extension risks (added 2026-07-18)
+
+New risks introduced by the sixteen founder-selected extensions. Same severity vocabulary as the rest of this audit.
+
+- **[High] Flash day planner vs the live 1.x flash days feature.** Inklee 1.x already ships artist-owned flash days: `flash_days` (with `studio_id` into the private studios table), `flash_items`, `flash_day_items`, flash booking forms, calendar rendering on both platforms, and capacity RPCs. A studio-organized flash day spans multiple artists and lives on the studio side. Building it as a parallel entity would duplicate the flash pipeline and violate the one-source-of-truth rule; bolting studio semantics onto the artist-owned tables collides with their RLS and ownership. This is the same class of decision as guest-spot-materializes-a-trip-leg, and it is open question Q15, decided before the Phase 6 planner slice starts.
+- **[Medium] Shipped 0075 vocabularies need lockstep extension.** Two CHECK constraints already live on prod: `map_reports.reason` (wrong_location, fake_studio, spam, scam, behavior, other) and `location_claims.status` (pending, approved, rejected, revoked). The report context categories replace the first with the ten-value vocabulary, and the claim conflict workflow needs a conflict state in the second. Both are mechanical ALTERs, but each must move in lockstep with the shared module and the admin queue labels in one change, or the admin surface renders raw strings and inserts start failing.
+- **[Medium] House rules move from the group to the studio.** The schema proposal placed `house_rules` as text on the group row. The builder makes rules structured, studio-level, and reused by the profile, the group, and the welcome pack. The schema proposal carries the correction (extensions addendum); anyone porting the group tables before Phase 4 should not ship the group-level text field.
+- **[Medium] Welcome pack is interaction-plane data with a shop-adjacent field.** Address, access info, wifi, and emergency contact must only ever reach artists with an accepted stay (private storage for any attachments, the Phase 4 bucket). The "nearby supply shops" field stays owner-curated free content; it must not become a shop advertising surface, which would bypass the shop layer's own rules.
+- **[Medium] Change tracking is a new unbounded table family.** The contextual feed and what-changed-here need change events on map entities and studio profiles. Without tight retention and contextual scoping this becomes the map's biggest table. The map activity cluster carries the mitigation (pull-only, retention, scoped queries) and the Phase 9 cost audit covers it.
+- **[Medium] Story cards leave the platform.** The first 2.0 artifact designed for sharing outside Inklee. The shaper discipline must apply to card content exactly as it does to API responses: no true addresses of approximate studios, no private travel data, consent from both sides where needed. Covered explicitly in the Phase 9 privacy audit.
+- **[Low] Stamps inherit the reputation survival questions.** A stamp is a studio-to-artist grant tied to a completed stay, so the same GDPR survival semantics as thumbs (schema proposal section 5, counsel item) apply: what happens on studio deletion, what on artist deletion. Decide alongside the thumbs answer, not separately.
+- **[Low] Cockpit scope creep.** The cockpit aggregates data from five phases and will attract dashboard-itis. The guardrail is written into scope 4.2: operational clarity only, no generic analytics. The growth cockpit already owns analytics; the studio cockpit owns action.
+- **[Low] Duplicate detector needs fuzzy matching infrastructure.** Similar-name matching wants trigram similarity (pg_trgm) or equivalent; nearby-coordinate matching rides the existing spatial index. An implementation dependency to settle in the detector slice, not a product risk.
+- **[Low] Signals stay inside the existing cap.** Temporary studio signals reuse the temporary-post limit (1 per owner per month) and the Q7 open display question. The only new surface is the typed vocabulary; no new abuse surface as long as the cap holds.

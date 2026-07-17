@@ -1,6 +1,6 @@
 # Inklee 2.0: guest spot map and studio network
 
-Status: planning foundation, written 2026-07-17. No code, migrations, routes, or UI exist for this scope yet. This document is the product source of truth for the Inklee 2.0 track until superseded.
+Status: planning foundation, written 2026-07-17; extended 2026-07-18 with sixteen founder-selected feature extensions (marked "Extension (2026-07-18)" in their sections). Build status lives in the build plan: Phase 1 core and Phase 2 slice 1 are shipped behind the flag; everything else including all extensions is planning only. This document is the product source of truth for the Inklee 2.0 track until superseded.
 
 Companion docs:
 
@@ -72,7 +72,7 @@ Everything in this section is decided. Implementation tasks should not reopen th
 - No live location pointer, ever. Public location granularity is city or future destination only.
 - Artists can show: current city, future destinations, and a "looking for guest spots" status.
 - Artists can discover other public artists currently in town through a list.
-- Artists are counted anonymously in an area on a consent-gated basis (founder decision 2026-07-17): only artists with any map visibility on are counted; city_only artists count without being listed; fully-off artists appear nowhere. A minimum-count display floor avoids deanonymization (open question Q13).
+- Artists are counted anonymously in an area on a consent-gated basis (founder decision 2026-07-17): only artists with any map visibility on are counted; city_only artists count without being listed; fully-off artists appear nowhere. A minimum-count display floor of 3 avoids deanonymization (Q13, resolved 2026-07-18).
 - Artists can have a passport-style history of guest spots and travel, and can keep it private.
 
 Artist profile fields to plan for the map identity layer:
@@ -111,6 +111,14 @@ Studio owner capabilities:
 - Manage group access, documents, announcements, votes, and house rules
 - Privately blacklist artists
 - Create one temporary map post per month
+
+**Extension (2026-07-18): studio owner cockpit.** The studio owner role gets one operational command center, and it is the thing that makes the paid role feel worth paying for. The cockpit shows: guest spot requests, current guest artists, upcoming stays, the workspace overview, overbooking warnings, studio group activity, pending votes, temporary signal status, profile completeness, and report or admin status where relevant. It is deliberately NOT a generic analytics dashboard: no charts for their own sake, just what needs the owner's attention today. It grows with the phases that feed it (the Phase 3 shell shows profile and claim state; requests, stays, workspaces, and group activity light up as their phases ship).
+
+**Extension (2026-07-18): studio profile completeness score.** A score inside the cockpit and the profile editor showing what is missing (logo, minimum 3 photos, address, categories, workspace overview, house rules, guest spot availability, vibe, resident artists). Useful, not childishly gamified: it improves map quality without manual nagging. It never blocks usage beyond the already-locked publish minimums (logo, 3 photos, address or approximate location, description, minimum 3 categories).
+
+**Extension (2026-07-18): house rules builder.** House rules become structured, reusable studio-level content instead of one free-text field: deposit policy, client handling, cleaning rules, supplies included, setup and breakdown expectations, opening hours, key or access rules, guest artist promotion rules, walk-in policy, cancellation expectations. Owners choose whether rules show on the studio profile; they are automatically available in the studio group and can be included in the welcome pack. This is communication support, never contract management, and Inklee is never responsible for enforcing them.
+
+**Extension (2026-07-18): studio welcome pack.** After a guest spot is accepted, the studio can send a saved, reusable welcome pack to the artist: house rules, address and access information, workspace assignment, wifi, emergency contact, nearby supply shops, promotion assets, the group chat link, local notes. Structured content inside Inklee, no PDF by default, connected to the confirmed stay, updatable and reusable across guest artists. Address, access, and contact details are interaction-plane data: they only ever reach an artist with an accepted stay.
 
 ### 4.3 Studio profiles
 
@@ -165,6 +173,8 @@ Category and address rules:
 - Studios have a public thumbs-up reputation and a public hosted artist list.
 - Studios can earn badges such as: great for guest spots, beginner friendly, private room, fast communication.
 
+**Extension (2026-07-18): guest artist timeline.** Studio profiles gain a timeline of past, current, and upcoming guest artists, fed by confirmed and completed guest spot entries. It shows studio activity and credibility without text reviews. Visibility is studio-controlled (public or semi-public) and always capped by each artist's own privacy: an artist with a private profile or private travel history is never exposed by name; the studio may show an anonymized or reduced entry instead (exact representation is open question Q16).
+
 ### 4.4 Initial map seeding
 
 - The map is global in concept.
@@ -192,6 +202,7 @@ Rules:
 - Artists can request any date. No open slots and no direct booking in the first version. An "open guest spot" state can exist as a signal on the map, but booking remains request-based.
 - Inklee does not handle guest spot payments and does not become a contract partner. Inklee only supports communication and organization.
 - Guest spots are saved as entries inside Inklee. Confirmations are saved as lightweight text or structured entries. No PDF or formal file is generated.
+- Extension note (2026-07-18): acceptance is also the trigger for the studio welcome pack (see 4.2) and feeds the guest artist timeline (see 4.3); completed stays feed studio stamps and story cards (see 4.9).
 - The artist calendar must reflect requested and booked guest spots.
 - The studio calendar must reflect requested and booked guest spots.
 - Clients can still book artists through Inklee according to each artist's normal booking settings. A guest spot never overrides or locks the artist's own booking configuration.
@@ -250,6 +261,12 @@ Votes:
 - Not legally or operationally binding. A communication tool only.
 - Vote types: flash day date, guest artist approval, studio event, supply purchase, travel plans, house decision, custom.
 
+**Extension (2026-07-18): pinned group cards.** The chat gets owner-controlled pinned functional cards so the important operational stuff stays findable: house rules, current guest artists, upcoming guest spots, an active vote, the flash day plan, the supply list, a studio announcement, the workspace schedule. Cards are functional, not decorative, and where the data already exists (house rules, upcoming stays) the card is generated from it rather than retyped. The group keeps its feeling between a Telegram group with friends and Airbnb host chat.
+
+**Extension (2026-07-18): shared supply list.** A simple operational list inside the group: ink running low, need more cartridges, second skin, printer paper, gloves, cleaning supplies. Anyone in the group can add and tick off. It is a list, not procurement software. Shops stay entirely out of the first version of the supply list; any future shop suggestion around supply needs is its own carefully-scoped decision because the spam risk is obvious.
+
+**Extension (2026-07-18): flash day planner.** The concrete operational use case that makes studio groups feel tattoo-native: plan a studio flash day from inside the group. Builds on what already exists: the date vote (vote types above), participating artists (group members), flash theme, time slots, a promotion checklist, the booking link, client request routing, and assigned workstations (workspace planning). It stays focused on studio-organized flash days; it is not an event platform. How it connects to the existing 1.x flash days feature is a real architecture decision (open question Q15) that gets made before this ships.
+
 ### 4.8 Shops
 
 Shop listings are secondary to the studio and guest spot layer.
@@ -273,10 +290,20 @@ The only public reputation signal is thumbs up. Deliberately excluded: star rati
 - Public reputation is a thumbs-up counter. More thumbs up means more legitimacy from colleagues.
 - Studios can earn badges (great for guest spots, beginner friendly, private room, fast communication).
 
+**Extension (2026-07-18): studio stamps.** After a completed guest spot, the studio can give the artist a visual stamp: "Worked at Black Needle Studio, Berlin, October 2027". A beautiful internal Inklee object in the artist passport, shown only if the artist allows it (passport privacy applies). Connected to verified completed stays only, so it cannot be faked. This is a tattoo-native memory and reputation object, not a generic achievement badge, and it has nothing to do with NFTs or blockchains. Shareable visuals can come later; the first focus is the internal passport.
+
+**Extension (2026-07-18): guest spot story cards.** An optional shareable card after a completed guest spot: artist, studio, city, dates, optional photos, studio logo, Inklee branding. Generated only after completion, only with privacy-safe consent from both sides where needed, and it never exposes a private studio's true address or private artist travel data. Connects to stamps and the passport. This is the organic marketing loop: artists and studios showing real guest spots is how the map spreads.
+
 ### 4.10 Reports and moderation
 
 - Anonymous reports are possible. Artists can flag studios; studios can flag artists; artists can flag shops, wrong locations, fake studios, spam, scam accounts, and bad behavior.
 - Reports are collected in Inklee admin. Inklee does not promise to resolve every report. Tone: "We try to keep the map as clean as possible."
+
+**Extension (2026-07-18): report context categories.** Every report is categorized first; the categories are the report. The vocabulary: no-show, unsafe behavior, payment conflict, harassment, fake profile, wrong location, spam, scam, hygiene concern, other. Free text stays out of the reporter flow; a short optional detail field exists only as admin context, never shown to anyone else. Categories apply to reports on artists, studios, shops, fake entries, and wrong locations. This reduces drama, improves admin review quality, and removes the free-text abuse surface. Anonymity toward the target stays exactly as scoped. Note for implementation: the already-shipped report storage carries a narrower reason list, so the vocabulary extension is a lockstep change across the database CHECK, the shared module, and the admin queue (collision audit section 14).
+
+**Extension (2026-07-18): duplicate studio detector.** Data quality is a moderation concern from day one because seeding may use public sources. The detector runs at import, studio creation, and studio claim, matching on similar name, same address, nearby coordinates, same Instagram link, same website, and same phone number where stored. It never auto-merges; it creates admin review suggestions with confidence levels (clear duplicate, likely duplicate, possible duplicate). Part of map health and the admin moderation surface.
+
+**Extension (2026-07-18): claim conflict workflow.** When multiple accounts claim the same studio: mark the location as claim conflict, freeze any public ownership change, ask both claimants for social proof (resident artists, studio social links, a matching official website, other community validation), and let admin decide. The current public studio state stays stable until resolved; ownership never transfers automatically during a conflict. Legal documents stay not-required, and community proof remains the future-friendly direction without being a built dependency now.
 
 Threshold logic:
 
@@ -339,11 +366,16 @@ Artist actions on the map:
 
 No saved cities in this version. Watched or marked studios are enough.
 
-Temporary map posts:
+**Extension (2026-07-18): temporary studio signals.** Temporary map posts grow into a typed signal system:
 
-- Studios can push temporary posts such as "guest chair open next week".
-- Limit: 1 temporary map post per owner account per month.
-- Exact display behavior is deliberately undecided (open question Q7).
+- Studios can push one short-lived signal from a typed vocabulary: guest chair open, flash day planned, looking for guest artist, convention week availability, walk-in day, new resident artist, studio relocation, private room available.
+- The limit stays exactly as locked: 1 temporary map post or signal per owner account per month.
+- Signals are lightweight and temporary, appear contextually on the map and possibly in the contextual feed, and this never becomes a general social posting system.
+- Exact display behavior is deliberately undecided (open question Q7, which now covers signals).
+
+**Extension (2026-07-18): contextual map feed.** The map feels alive without becoming Instagram. The feed is strictly contextual, never global: updates near watched studios, updates in a planned destination, updates from the artist's studio groups, updates from studios the artist interacted with, updates in the current city. Content is map-related and operational: temporary signals, changed studio profiles, new guest spot activity, relevant group updates, map changes. No infinite scroll, no global timeline, no algorithmic social behavior; it exists to support guest spot planning and discovery, nothing else.
+
+**Extension (2026-07-18): what changed here.** For returning artists: what changed in a city or area since the last visit, without scrolling anything. Sourced from watched studios, planned destinations, and recently viewed areas: new studios, new shops, new signals, new artists in town (consent-gated counts and lists only), changed studio profiles, new badges. Requires change tracking on map entities and studio profiles, which is why it sits in the later map activity work, not the first map shell.
 
 ### 4.14 Monetization
 
@@ -358,7 +390,7 @@ Temporary map posts:
 Named here so implementation tasks do not drift into them:
 
 - Client-facing map or any logged-out consumer surface
-- Events, conventions, flash days, and walk-in days on the map (the object model must leave room for an event type later, but no event features ship in the first build)
+- Events, conventions, flash days, and walk-in days as map event OBJECTS (the object model must leave room for an event type later, but no event entities ship in the first build; temporary studio signals may reference them as short-lived text, and the Phase 6 flash day planner is group-scoped, not map-scoped)
 - Saved cities
 - Direct booking of guest spot slots (request-based only)
 - Guest spot payments, deposits, contracts, or generated documents
@@ -367,6 +399,11 @@ Named here so implementation tasks do not drift into them:
 - Legal-document verification of studios
 - Automated seeding pipelines that publish without admin curation
 - Renaming or migrating the existing artist-travel tables (vocabulary rule instead, see collision audit)
+- A global or algorithmic social feed, infinite scrolling, or anything competing with Instagram (the feed is contextual and map-bound only)
+- Procurement software (the supply list is a list) and shop involvement in supply lists
+- A full event platform (the flash day planner covers studio-organized flash days only)
+- NFTs, blockchains, or any tokenized version of stamps and passports
+- Auto-merging duplicate studios or auto-transferring contested claims
 
 ## 6. Product architecture
 
@@ -481,7 +518,7 @@ Challenged and ranked, not just listed. Every one of these gets an explicit owne
 
 **Privacy and safety risks**
 
-8. Privacy mistakes: artist location data is genuinely sensitive (stalking risk is real in this scene). Mitigation: the three-plane privacy model, no live location, city-only granularity, anonymous count floor (Q13), opt-in defaults everywhere.
+8. Privacy mistakes: artist location data is genuinely sensitive (stalking risk is real in this scene). Mitigation: the three-plane privacy model, no live location, city-only granularity, the anonymous count floor of 3 (Q13, resolved), opt-in defaults everywhere.
 9. Role escalation mistakes: self-service studio owner elevation is an attack surface (fake claims on real studios). Mitigation: claims reviewed by admin, social-link requirement, community verification direction later; RLS review is a named Phase 9 audit.
 
 **Product integration risks**
@@ -495,6 +532,8 @@ Challenged and ranked, not just listed. Every one of these gets an explicit owne
 
 14. Mobile app map performance: hundreds of markers plus clustering on mid-range Android is a real risk; the native app also has no OTA updates, so every map iteration costs a store build. Mitigation: marker budget + clustering from day one, list-view fallback, mobile follows web once the web map stabilizes.
 15. Map tile dependency: both platforms currently ride CARTO's free keyless tile endpoints with no contract. Fine for the personal journey page, unpriced for a flagship surface that studio subscriptions depend on. Mitigation: tile budget decision folded into the map provider question (Q1), decided by end of Phase 2.
+15a. Feed and change-tracking volume (added 2026-07-18): the contextual feed and what-changed-here need change events on map entities and studio profiles, which is a new unbounded-growth table family. Mitigation: pull-only delivery (the feed never rides the notification pipeline), tight retention on change events, and contextual scoping so no query ever spans the whole map.
+15b. Outward-facing story cards (added 2026-07-18): story cards are the first 2.0 artifact designed to leave Inklee. Mitigation: completed stays only, consent from both sides where needed, the shaper discipline applied to the card content (no true addresses of approximate studios, no private travel data), and the privacy audit in Phase 9 covers them explicitly.
 
 **Business risks**
 
