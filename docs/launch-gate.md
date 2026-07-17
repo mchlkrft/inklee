@@ -39,7 +39,7 @@
 
 ### App path (iPad/tablet) — added 2026-07-17, founder decision: last biggie before launch
 
-10. **ME-15: iPad/tablet adaptive optimization.** 🔨 IN PROGRESS (audit phase running 2026-07-17). The app went live on TestFlight 2026-07-17 (iOS 0.2.0, Apple org enrollment accepted 07-16) and the founder tests on an iPad; the launch build must be genuinely tablet-adaptive, not a stretched or letterboxed phone UI. Scope: window-width layout classes, adaptive nav (rail on expanded), master-detail for requests/clients/waitlist/calendar, width-capped forms and sheets, `ios.supportsTablet=true`, fresh iOS+Android EAS builds. Spec + tracker: roadmap §6.4 ME-15 + memory `me15-ipad-adaptive` + `docs/app-store-connect-setup.md` (iPad screenshots become mandatory in ASC once supportsTablet ships).
+10. **ME-15: iPad/tablet adaptive optimization.** ✅ DONE 2026-07-17 — audited (20-agent), built in 5 phases (window-class layout system, expanded-class nav rail, master-detail for requests/clients/calendar, adaptive sheets, width caps on all 57 screens, `ios.supportsTablet=true` + iPad rotation/Split View/Stage Manager), adversarially reviewed (70 agents, 29 confirmed findings fixed), shipped as **0.3.0 (TestFlight build 4 + Android preview)** and **founder-verified on the iPad same day: everything works**. SoT: `docs/me15-tablet-audit.md` (decisions + §7 completion report; deferred post-launch polish in §7.12/13). Follow-up rider for the PUBLIC App Store release (not beta-blocking): iPad screenshots are now mandatory in the ASC listing.
 
 ### Standing process gates (not tasks, but do not skip)
 
