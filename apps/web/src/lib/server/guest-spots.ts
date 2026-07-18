@@ -10,6 +10,7 @@ import {
   type GuestSpotRequestInput,
   type GuestSpotRequestStatus,
 } from "@inklee/shared/guest-spots";
+import { sortHouseRules } from "@inklee/shared/studio-profile";
 import { checkGuestSpotRequestRateLimit } from "@/lib/ratelimit";
 
 // Guest spot request server core (Inklee 2.0 Phase 4). All writes run
@@ -381,6 +382,33 @@ async function finishAcceptance(
   startsOn: string,
   endsOn: string,
 ): Promise<{ error?: string }> {
+  // What was agreed, captured once at confirmation: the dates plus the house
+  // rules as they stood. Later rule edits never rewrite history; the insert
+  // path of the upsert below gives first-write-wins for free.
+  const [{ data: studio }, { data: ruleRows }] = await Promise.all([
+    serviceClient
+      .from("studio_profiles")
+      .select("name, city")
+      .eq("id", request.studio_profile_id)
+      .maybeSingle(),
+    serviceClient
+      .from("studio_house_rules")
+      .select("rule_key, content")
+      .eq("studio_profile_id", request.studio_profile_id),
+  ]);
+  const termsSnapshot = {
+    captured_at: new Date().toISOString(),
+    starts_on: startsOn,
+    ends_on: endsOn,
+    studio_name: (studio?.name as string | null) ?? null,
+    house_rules: sortHouseRules(
+      (ruleRows ?? []).map((r) => ({
+        key: r.rule_key as string,
+        content: r.content as string,
+      })),
+    ),
+  };
+
   // 1. The stay (insert-or-fetch; UNIQUE on request id).
   const { data: insertedStay, error: stayErr } = await serviceClient
     .from("guest_spot_stays")
@@ -391,6 +419,7 @@ async function finishAcceptance(
         studio_profile_id: request.studio_profile_id,
         starts_on: startsOn,
         ends_on: endsOn,
+        terms_snapshot: termsSnapshot,
       },
       { onConflict: "guest_spot_request_id", ignoreDuplicates: true },
     )
@@ -417,11 +446,6 @@ async function finishAcceptance(
 
   // 2. Materialize the trip + leg once.
   if (!stay.trip_leg_id) {
-    const { data: studio } = await serviceClient
-      .from("studio_profiles")
-      .select("name, city")
-      .eq("id", request.studio_profile_id)
-      .maybeSingle();
     const title = studio
       ? [studio.name, studio.city].filter(Boolean).join(", ")
       : "Guest spot";
@@ -647,6 +671,12 @@ export type RequestDetail = {
     startsOn: string;
     endsOn: string;
     status: string;
+    // What was agreed at confirmation (dates + house rules then), immune to
+    // later edits. Null on stays confirmed before the snapshot shipped.
+    termsSnapshot: {
+      capturedAt: string | null;
+      houseRules: Array<{ key: string; content: string }>;
+    } | null;
   } | null;
   notes: Array<{
     id: string;
@@ -684,7 +714,7 @@ async function shapeRequestDetail(row: RequestRow): Promise<RequestDetail> {
       .maybeSingle(),
     serviceClient
       .from("guest_spot_stays")
-      .select("id, starts_on, ends_on, status")
+      .select("id, starts_on, ends_on, status, terms_snapshot")
       .eq("guest_spot_request_id", row.id)
       .maybeSingle(),
     serviceClient
@@ -727,6 +757,29 @@ async function shapeRequestDetail(row: RequestRow): Promise<RequestDetail> {
           startsOn: stay.starts_on as string,
           endsOn: stay.ends_on as string,
           status: stay.status as string,
+          termsSnapshot: (() => {
+            const raw = stay.terms_snapshot as {
+              captured_at?: unknown;
+              house_rules?: unknown;
+            } | null;
+            if (!raw || typeof raw !== "object") return null;
+            const rules = Array.isArray(raw.house_rules)
+              ? raw.house_rules.filter(
+                  (r): r is { key: string; content: string } =>
+                    Boolean(
+                      r &&
+                      typeof (r as { key?: unknown }).key === "string" &&
+                      typeof (r as { content?: unknown }).content === "string",
+                    ),
+                )
+              : [];
+            return {
+              capturedAt:
+                typeof raw.captured_at === "string" ? raw.captured_at : null,
+              // Canonical order at parse too, healing early snapshots.
+              houseRules: sortHouseRules(rules),
+            };
+          })(),
         }
       : null,
     notes: (notes ?? []).map((n) => ({

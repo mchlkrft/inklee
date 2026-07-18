@@ -170,6 +170,40 @@ export default async function ArtistRequestDetailPage({
         </section>
       ) : null}
 
+      {detail.stay?.termsSnapshot ? (
+        <section className="space-y-2 rounded-2xl border border-border p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            Agreed at confirmation
+          </h2>
+          <p className="text-sm text-foreground">
+            {range(detail.stay.startsOn, detail.stay.endsOn)}
+            {detail.stay.termsSnapshot.capturedAt
+              ? ` · confirmed ${formatDateKey(detail.stay.termsSnapshot.capturedAt.slice(0, 10))}`
+              : ""}
+          </p>
+          {detail.stay.termsSnapshot.houseRules.length > 0 ? (
+            <details>
+              <summary className="cursor-pointer text-xs text-muted-foreground">
+                House rules as agreed (
+                {detail.stay.termsSnapshot.houseRules.length})
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {detail.stay.termsSnapshot.houseRules.map((rule) => (
+                  <li key={rule.key} className="text-sm">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {HOUSE_RULE_LABELS[rule.key as HouseRuleKey] ?? rule.key}
+                    </p>
+                    <p className="whitespace-pre-wrap text-foreground">
+                      {rule.content}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </section>
+      ) : null}
+
       {houseRules.length > 0 ? (
         <section className="space-y-3 rounded-2xl border border-border p-4">
           <h2 className="text-sm font-semibold text-foreground">

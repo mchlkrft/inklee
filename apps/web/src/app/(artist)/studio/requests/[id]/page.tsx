@@ -208,6 +208,27 @@ export default async function StudioRequestDetailPage({
         </section>
       ) : null}
 
+      {detail.stay?.termsSnapshot ? (
+        <section className="space-y-2 rounded-2xl border border-border p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            Agreed at confirmation
+          </h2>
+          <p className="text-sm text-foreground">
+            {range(detail.stay.startsOn, detail.stay.endsOn)}
+            {detail.stay.termsSnapshot.capturedAt
+              ? ` · confirmed ${formatDateKey(detail.stay.termsSnapshot.capturedAt.slice(0, 10))}`
+              : ""}
+          </p>
+          {detail.stay.termsSnapshot.houseRules.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Your house rules were captured with the confirmation (
+              {detail.stay.termsSnapshot.houseRules.length}); later edits do not
+              change what was agreed.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       {detail.notes.length > 0 ? (
         <section className="space-y-2 rounded-2xl border border-border p-4">
           <h2 className="text-sm font-semibold text-foreground">
