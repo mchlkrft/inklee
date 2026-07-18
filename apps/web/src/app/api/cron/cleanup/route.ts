@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
 import { ORDER_MONEY_STATES } from "@/lib/server/account-deletion-logic";
+import { runStayLifecycleSweep } from "@/lib/server/guest-spots";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,12 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
+  // ── Guest spot stay lifecycle (Inklee 2.0 Phase 4) ─────────────────────────
+  // Runs FIRST: the stale-bookings early return below must never skip it.
+  // Date-driven, idempotent: confirmed stays activate on their start date,
+  // active stays complete after their end date, requests follow.
+  const stayLifecycle = await runStayLifecycleSweep();
 
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -24,7 +31,12 @@ export async function GET(request: Request) {
   }
 
   if (!stale || stale.length === 0) {
-    return NextResponse.json({ deleted: 0 });
+    return NextResponse.json({
+      deleted: 0,
+      stays_activated: stayLifecycle.activated,
+      stays_completed: stayLifecycle.completed,
+      stay_requests_completed: stayLifecycle.requestsCompleted,
+    });
   }
 
   const staleIds = stale.map((r) => r.id);
@@ -118,5 +130,8 @@ export async function GET(request: Request) {
     deleted: deletableIds.length,
     retained_with_financial_record: moneyBookingIds.size,
     flagged_unreconciled: flagged,
+    stays_activated: stayLifecycle.activated,
+    stays_completed: stayLifecycle.completed,
+    stay_requests_completed: stayLifecycle.requestsCompleted,
   });
 }

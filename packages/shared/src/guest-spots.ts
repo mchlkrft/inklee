@@ -182,6 +182,24 @@ export function isStayTerminal(status: string): boolean {
   return allowed !== undefined && allowed.length === 0;
 }
 
+/**
+ * The date-driven lifecycle step a stay is due for on `todayKey`, or null.
+ * Single-step semantics: a confirmed stay whose whole window already passed
+ * activates first and completes on the next pass (the server sweep runs both
+ * steps in one invocation, in order, so it converges in a single run). The
+ * SQL WHERE clauses in the sweep mirror this helper; keep them in lockstep.
+ */
+export function dueStayTransition(
+  status: string,
+  startsOn: string,
+  endsOn: string,
+  todayKey: string,
+): "activate" | "complete" | null {
+  if (status === "confirmed" && startsOn <= todayKey) return "activate";
+  if (status === "active" && endsOn < todayKey) return "complete";
+  return null;
+}
+
 export const GUEST_SPOT_STAY_STATUSES = Object.keys(
   STAY_TRANSITIONS,
 ) as GuestSpotStayStatus[];

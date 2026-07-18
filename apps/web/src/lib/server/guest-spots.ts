@@ -840,6 +840,76 @@ export async function listStudioInbox(
   };
 }
 
+/**
+ * Date-driven stay lifecycle (cron-invoked, idempotent): confirmed stays
+ * activate on their start date, active stays complete after their end date,
+ * and the completed stay's request follows (confirmed -> completed). Runs
+ * regardless of the UI flag: it is data hygiene, and empty tables make it a
+ * no-op. WHERE clauses mirror dueStayTransition in the shared module.
+ */
+export async function runStayLifecycleSweep(): Promise<{
+  activated: number;
+  completed: number;
+  requestsCompleted: number;
+}> {
+  const today = todayKey();
+  const nowIso = new Date().toISOString();
+
+  const { data: activated, error: activateErr } = await serviceClient
+    .from("guest_spot_stays")
+    .update({ status: "active", updated_at: nowIso })
+    .eq("status", "confirmed")
+    .lte("starts_on", today)
+    .select("id");
+  if (activateErr)
+    console.error("[guest-spots] stay activation failed:", activateErr.message);
+
+  const { data: completed, error: completeErr } = await serviceClient
+    .from("guest_spot_stays")
+    .update({ status: "completed", completed_at: nowIso, updated_at: nowIso })
+    .eq("status", "active")
+    .lt("ends_on", today)
+    .select("id");
+  if (completeErr)
+    console.error("[guest-spots] stay completion failed:", completeErr.message);
+
+  // State-driven, not delta-driven: derive the request follow-up from every
+  // completed stay (recent first), so a crash between the two steps self-heals
+  // on the next run instead of stranding a request in confirmed forever. The
+  // .eq status guard keeps re-runs cheap no-ops.
+  let requestsCompleted = 0;
+  const { data: completedStays } = await serviceClient
+    .from("guest_spot_stays")
+    .select("guest_spot_request_id")
+    .eq("status", "completed")
+    .not("guest_spot_request_id", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(1000);
+  const requestIds = (completedStays ?? [])
+    .map((s) => s.guest_spot_request_id as string | null)
+    .filter((id): id is string => Boolean(id));
+  if (requestIds.length) {
+    const { data: movedRequests, error: requestErr } = await serviceClient
+      .from("guest_spot_requests")
+      .update({ status: "completed", updated_at: nowIso })
+      .in("id", requestIds)
+      .eq("status", "confirmed")
+      .select("id");
+    if (requestErr)
+      console.error(
+        "[guest-spots] request completion failed:",
+        requestErr.message,
+      );
+    requestsCompleted = movedRequests?.length ?? 0;
+  }
+
+  return {
+    activated: activated?.length ?? 0,
+    completed: completed?.length ?? 0,
+    requestsCompleted,
+  };
+}
+
 export type StudioStay = {
   id: string;
   artistName: string;

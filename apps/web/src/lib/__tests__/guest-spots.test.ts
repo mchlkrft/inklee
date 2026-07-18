@@ -9,6 +9,7 @@ import {
   GS_SOCIAL_LINK_MAX,
   canTransitionGuestSpotRequest,
   canTransitionStay,
+  dueStayTransition,
   guestSpotRequestStatusLabel,
   isGuestSpotRequestTerminal,
   isStayTerminal,
@@ -152,6 +153,45 @@ describe("stay FSM", () => {
         expect(canTransitionStay(s, to).ok).toBe(false);
       }
     }
+  });
+});
+
+describe("dueStayTransition", () => {
+  it("activates confirmed stays from their start date", () => {
+    expect(
+      dueStayTransition("confirmed", "2026-07-18", "2026-07-20", "2026-07-18"),
+    ).toBe("activate");
+    expect(
+      dueStayTransition("confirmed", "2026-07-10", "2026-07-12", "2026-07-18"),
+    ).toBe("activate");
+    expect(
+      dueStayTransition("confirmed", "2026-07-19", "2026-07-20", "2026-07-18"),
+    ).toBeNull();
+  });
+
+  it("completes active stays only after the end date passes", () => {
+    expect(
+      dueStayTransition("active", "2026-07-10", "2026-07-17", "2026-07-18"),
+    ).toBe("complete");
+    expect(
+      dueStayTransition("active", "2026-07-10", "2026-07-18", "2026-07-18"),
+    ).toBeNull();
+  });
+
+  it("never touches terminal or cancelled stays", () => {
+    for (const s of ["completed", "cancelled", "no_show"]) {
+      expect(
+        dueStayTransition(s, "2026-07-01", "2026-07-02", "2026-07-18"),
+      ).toBeNull();
+    }
+  });
+
+  it("matches the FSM: every due transition is legal", () => {
+    expect(canTransitionStay("confirmed", "active").ok).toBe(true);
+    expect(canTransitionStay("active", "completed").ok).toBe(true);
+    expect(canTransitionGuestSpotRequest("confirmed", "completed").ok).toBe(
+      true,
+    );
   });
 });
 
