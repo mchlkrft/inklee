@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { GUEST_SPOT_LEG_LOCKED_MESSAGE } from "@inklee/shared/guest-spots";
+import { deleteTripCore, deleteTripLegCore } from "@/lib/server/guest-spots";
 import {
   validateTripLeg,
   validateTripLegsPayload,
@@ -404,24 +404,10 @@ export async function deleteTripAction(id: string): Promise<State> {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Guest-spot-managed legs lock their trip against direct deletion
-  // (Inklee 2.0 Phase 4: those dates move only through the request flow).
-  const { data: lockedLeg } = await supabase
-    .from("trip_legs")
-    .select("id")
-    .eq("trip_id", id)
-    .eq("origin", "guest_spot")
-    .limit(1)
-    .maybeSingle();
-  if (lockedLeg) return { error: GUEST_SPOT_LEG_LOCKED_MESSAGE };
-
-  const { error } = await supabase
-    .from("trips")
-    .delete()
-    .eq("id", id)
-    .eq("artist_id", user.id);
-
-  if (error) return { error: error.message };
+  // The core enforces the guest spot lock: live stays block deletion, but a
+  // trip whose stays are all done or cancelled may be cleaned up.
+  const result = await deleteTripCore(user.id, id);
+  if (result.error) return { error: result.error };
   revalidatePath("/travel");
   return { success: true };
 }
@@ -497,20 +483,8 @@ export async function deleteTripLegAction(id: string): Promise<State> {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: leg } = await supabase
-    .from("trip_legs")
-    .select("id, origin, trips!inner(artist_id)")
-    .eq("id", id)
-    .eq("trips.artist_id", user.id)
-    .single();
-
-  if (!leg) return { error: "Trip stop not found." };
-  if ((leg.origin as string) === "guest_spot")
-    return { error: GUEST_SPOT_LEG_LOCKED_MESSAGE };
-
-  const { error } = await supabase.from("trip_legs").delete().eq("id", id);
-
-  if (error) return { error: error.message };
+  const result = await deleteTripLegCore(user.id, id);
+  if (result.error) return { error: result.error };
   revalidatePath("/travel");
   return { success: true };
 }

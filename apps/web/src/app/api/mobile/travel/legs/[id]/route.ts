@@ -3,34 +3,28 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
-import { GUEST_SPOT_LEG_LOCKED_MESSAGE } from "@inklee/shared/guest-spots";
+import { deleteTripLegCore } from "@/lib/server/guest-spots";
 
 export const runtime = "nodejs";
 
-// DELETE /api/mobile/travel/legs/:id — remove a trip leg. Ownership is enforced
-// via the parent trip (trip_legs RLS = EXISTS own trip); the explicit join gives
-// a clean 404 rather than a silent no-op.
+// DELETE /api/mobile/travel/legs/:id — remove a trip leg. The shared core
+// enforces ownership plus the guest spot lock: legs of live stays stay
+// locked behind the cancel flow; terminal ones allow calendar cleanup.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await requireMobileUser(req);
   if (!auth.ok) return mobileError(auth.status, auth.error);
-  const { userId, supabase } = auth;
+  const { userId } = auth;
   const { id } = await params;
 
-  const { data: leg } = await supabase
-    .from("trip_legs")
-    .select("id, origin, trips!inner(artist_id)")
-    .eq("id", id)
-    .eq("trips.artist_id", userId)
-    .maybeSingle();
-  if (!leg) return mobileError(404, "Trip stop not found.", "not_found");
-  if ((leg.origin as string) === "guest_spot")
-    return mobileError(409, GUEST_SPOT_LEG_LOCKED_MESSAGE, "locked");
-
-  const { error } = await supabase.from("trip_legs").delete().eq("id", id);
-  if (error) return mobileError(500, error.message);
+  const result = await deleteTripLegCore(userId, id);
+  if (result.error) {
+    if (result.error === "Trip stop not found.")
+      return mobileError(404, result.error, "not_found");
+    return mobileError(409, result.error, "locked");
+  }
 
   return mobileOk({ ok: true });
 }

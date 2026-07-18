@@ -41,7 +41,7 @@ export default async function ArtistRequestsPage() {
           href="/travel"
           className="text-xs text-muted-foreground hover:text-foreground"
         >
-          &larr; Travel
+          &larr; Guest Spots
         </Link>
         <h1 className="text-2xl font-semibold text-foreground">
           Guest spot requests

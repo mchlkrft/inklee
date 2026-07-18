@@ -775,6 +775,7 @@ function EditTripModal({
   const [show, setShow] = useState(trip.showOnBookingForm);
   const [deletingLeg, setDeletingLeg] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [editState, editAction, editPending] = useActionState<State, FormData>(
     updateTripAction,
@@ -794,9 +795,11 @@ function EditTripModal({
 
   function handleDeleteLeg(id: string) {
     setDeletingLeg(id);
+    setDeleteError(null);
     startTransition(async () => {
-      await deleteTripLegAction(id);
+      const result = await deleteTripLegAction(id);
       setDeletingLeg(null);
+      if (result && "error" in result) setDeleteError(result.error);
     });
   }
 
@@ -804,8 +807,14 @@ function EditTripModal({
     if (!confirm("Delete this trip and all its dates? This cannot be undone."))
       return;
     setDeleting(true);
+    setDeleteError(null);
     startTransition(async () => {
-      await deleteTripAction(trip.id);
+      const result = await deleteTripAction(trip.id);
+      if (result && "error" in result) {
+        setDeleting(false);
+        setDeleteError(result.error);
+        return;
+      }
       onClose();
     });
   }
@@ -959,6 +968,9 @@ function EditTripModal({
         <p className="text-sm text-destructive">{editState.error}</p>
       )}
 
+      {deleteError ? (
+        <p className="text-sm text-destructive">{deleteError}</p>
+      ) : null}
       <div className="pt-2 border-t border-border flex items-center justify-between">
         <button
           type="button"

@@ -3,7 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
-import { GUEST_SPOT_LEG_LOCKED_MESSAGE } from "@inklee/shared/guest-spots";
+import { deleteTripCore } from "@/lib/server/guest-spots";
 import { normalizeTripInput } from "@/lib/mobile-travel";
 import type {
   MobileTripDetail,
@@ -153,24 +153,10 @@ export async function DELETE(
   const { userId, supabase } = auth;
   const { id } = await params;
 
-  // Guest-spot-managed legs lock their trip against direct deletion
-  // (Inklee 2.0 Phase 4: those dates move only through the request flow).
-  const { data: lockedLeg } = await supabase
-    .from("trip_legs")
-    .select("id")
-    .eq("trip_id", id)
-    .eq("origin", "guest_spot")
-    .limit(1)
-    .maybeSingle();
-  if (lockedLeg)
-    return mobileError(409, GUEST_SPOT_LEG_LOCKED_MESSAGE, "locked");
-
-  const { error } = await supabase
-    .from("trips")
-    .delete()
-    .eq("id", id)
-    .eq("artist_id", userId);
-  if (error) return mobileError(500, error.message);
+  // The shared core enforces the guest spot lock: live stays block deletion,
+  // terminal ones allow calendar cleanup.
+  const result = await deleteTripCore(userId, id);
+  if (result.error) return mobileError(409, result.error, "locked");
 
   return mobileOk({ ok: true });
 }

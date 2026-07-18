@@ -3,6 +3,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { sanitizeBioLinkUrl } from "@inklee/shared/bio-page";
 import { randomTravelIconKey } from "@inklee/shared/travel-icons";
 import {
+  GUEST_SPOT_LEG_LOCKED_MESSAGE,
   GUEST_SPOT_OPEN_STATUSES,
   GS_NOTE_MAX,
   canTransitionGuestSpotRequest,
@@ -103,6 +104,19 @@ export async function submitGuestSpotRequestCore(
     return { error: "This studio is not taking guest spot requests." };
   if (studio.owner_user_id === artistId)
     return { error: "This is your own studio." };
+
+  // Pre-check the one-open-request constraint BEFORE the rate limiter so a
+  // duplicate submission never burns one of the 5 daily slots on a 23505.
+  const { data: openExisting } = await serviceClient
+    .from("guest_spot_requests")
+    .select("id")
+    .eq("artist_user_id", artistId)
+    .eq("studio_profile_id", studioProfileId)
+    .in("status", GUEST_SPOT_OPEN_STATUSES)
+    .limit(1)
+    .maybeSingle();
+  if (openExisting)
+    return { error: "You already have an open request with this studio." };
 
   const { allowed } = await checkGuestSpotRequestRateLimit(artistId);
   if (!allowed)
@@ -236,11 +250,14 @@ export async function acceptRequestCore(
     );
     if (!moved) return { error: "This request already moved on." };
   } else {
+    // Include 'proposed': a crash between the artist's request hop and the
+    // proposal's own status flip leaves the taken proposal still 'proposed'
+    // (integration sweep finding); its dates are the agreed ones either way.
     const { data: acceptedProposal } = await serviceClient
       .from("guest_spot_proposals")
       .select("start_date, end_date")
       .eq("guest_spot_request_id", requestId)
-      .eq("status", "accepted")
+      .in("status", ["accepted", "proposed"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -423,13 +440,13 @@ async function finishAcceptance(
       },
       { onConflict: "guest_spot_request_id", ignoreDuplicates: true },
     )
-    .select("id, trip_leg_id, starts_on, ends_on")
+    .select("id, trip_leg_id, starts_on, ends_on, status")
     .maybeSingle();
   let stay = insertedStay;
   if (!stay) {
     const { data: existingStay } = await serviceClient
       .from("guest_spot_stays")
-      .select("id, trip_leg_id, starts_on, ends_on")
+      .select("id, trip_leg_id, starts_on, ends_on, status")
       .eq("guest_spot_request_id", request.id)
       .maybeSingle();
     stay = existingStay ?? null;
@@ -438,6 +455,22 @@ async function finishAcceptance(
     return { error: "Could not record the stay. Try accepting again." };
   if (!stay)
     return { error: "Could not record the stay. Try accepting again." };
+
+  // A dead stay must never be resurrected: a cancelled stay has trip_leg_id
+  // null (the leg was removed), so without this gate a retry-accept would
+  // materialize a phantom locked trip for a stay nobody is taking. Heal the
+  // request to match and stop.
+  if (["cancelled", "no_show"].includes(stay.status as string)) {
+    await transitionRequest(
+      request.id,
+      ["accepted", "awaiting_confirmation", "confirmed"],
+      "cancelled",
+    );
+    return {
+      error:
+        "This guest spot was cancelled. The artist can send a new request.",
+    };
+  }
 
   // A pre-existing stay is the source of truth for the agreed dates: a retry
   // must never re-date a half-materialized acceptance.
@@ -567,9 +600,13 @@ export async function cancelStayCore(
     }
   }
   if (stay.guest_spot_request_id) {
+    // The request follows the stay from EVERY state that can hold a live
+    // stay: accepted and awaiting_confirmation are the retryable
+    // materialization intermediates, and leaving them open would occupy the
+    // one-open-request slot forever (integration sweep finding).
     await transitionRequest(
       stay.guest_spot_request_id as string,
-      ["confirmed"],
+      ["accepted", "awaiting_confirmation", "confirmed"],
       "cancelled",
     );
   }
@@ -894,6 +931,94 @@ export async function listStudioInbox(
 }
 
 // ---------------------------------------------------------------------------
+// Trip deletion with the guest spot lock (integration sweep fix): a trip or
+// leg tied to a LIVE stay (confirmed/active) stays locked behind the cancel
+// flow, but once the stay is terminal (completed/cancelled/no_show) or gone,
+// the artist may clean up their calendar. Terminal-state deletes must run
+// service-role because the DB trigger blocks client writes on guest_spot
+// legs unconditionally.
+
+async function guestLegsLive(
+  legIds: Array<{ id: string; stayId: string | null }>,
+): Promise<boolean> {
+  const stayIds = legIds
+    .map((l) => l.stayId)
+    .filter((id): id is string => Boolean(id));
+  if (!stayIds.length) return false;
+  const { data, error } = await serviceClient
+    .from("guest_spot_stays")
+    .select("id")
+    .in("id", stayIds)
+    .in("status", ["confirmed", "active"])
+    .limit(1);
+  // Fail closed: if the lock cannot be read, keep the trip locked.
+  if (error) return true;
+  return Boolean(data?.length);
+}
+
+export async function deleteTripCore(
+  userId: string,
+  tripId: string,
+): Promise<{ error?: string }> {
+  const { data: trip } = await serviceClient
+    .from("trips")
+    .select("id")
+    .eq("id", tripId)
+    .eq("artist_id", userId)
+    .maybeSingle();
+  if (!trip) return { error: "Trip not found." };
+  const { data: legs } = await serviceClient
+    .from("trip_legs")
+    .select("id, origin, guest_spot_stay_id")
+    .eq("trip_id", tripId);
+  const guestLegs = (legs ?? []).filter((l) => l.origin === "guest_spot");
+  if (guestLegs.length) {
+    const live = await guestLegsLive(
+      guestLegs.map((l) => ({
+        id: l.id as string,
+        stayId: (l.guest_spot_stay_id as string | null) ?? null,
+      })),
+    );
+    if (live) return { error: GUEST_SPOT_LEG_LOCKED_MESSAGE };
+  }
+  const { error } = await serviceClient
+    .from("trips")
+    .delete()
+    .eq("id", tripId)
+    .eq("artist_id", userId);
+  if (error) return { error: "Could not remove the trip. Try again." };
+  return {};
+}
+
+export async function deleteTripLegCore(
+  userId: string,
+  legId: string,
+): Promise<{ error?: string }> {
+  const { data: leg } = await serviceClient
+    .from("trip_legs")
+    .select("id, origin, guest_spot_stay_id, trips!inner(artist_id)")
+    .eq("id", legId)
+    .eq("trips.artist_id", userId)
+    .maybeSingle();
+  if (!leg) return { error: "Trip stop not found." };
+  if ((leg.origin as string) === "guest_spot") {
+    const live = await guestLegsLive([
+      {
+        id: leg.id as string,
+        stayId: (leg.guest_spot_stay_id as string | null) ?? null,
+      },
+    ]);
+    if (live) return { error: GUEST_SPOT_LEG_LOCKED_MESSAGE };
+  }
+  const { error } = await serviceClient
+    .from("trip_legs")
+    .delete()
+    .eq("id", legId);
+  if (error) return { error: "Could not remove the stop. Try again." };
+  return {};
+}
+
+// ---------------------------------------------------------------------------
 // Guest artist timeline (Phase 4, Q16 resolved 2026-07-18): a read model over
 // stays for a studio's map page. Studio opts in (show_guest_timeline);
 // artist privacy caps every entry: only passport_public artists render
@@ -1107,6 +1232,29 @@ export async function runStayLifecycleSweep(): Promise<{
     .select("id");
   if (completeErr)
     console.error("[guest-spots] stay completion failed:", completeErr.message);
+
+  // Heal requests stranded in 'accepted' whose stay is alive or done (a
+  // crash between materialization and the confirm hop): accepted -> confirmed
+  // is FSM-legal, and the completed follow-up below then catches them.
+  const { data: liveStays } = await serviceClient
+    .from("guest_spot_stays")
+    .select("guest_spot_request_id")
+    .in("status", ["confirmed", "active", "completed"])
+    .not("guest_spot_request_id", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(1000);
+  const liveRequestIds = (liveStays ?? [])
+    .map((s) => s.guest_spot_request_id as string | null)
+    .filter((id): id is string => Boolean(id));
+  if (liveRequestIds.length) {
+    const { error: healErr } = await serviceClient
+      .from("guest_spot_requests")
+      .update({ status: "confirmed", updated_at: nowIso })
+      .in("id", liveRequestIds)
+      .eq("status", "accepted");
+    if (healErr)
+      console.error("[guest-spots] accepted-heal failed:", healErr.message);
+  }
 
   // State-driven, not delta-driven: derive the request follow-up from every
   // completed stay (recent first), so a crash between the two steps self-heals
