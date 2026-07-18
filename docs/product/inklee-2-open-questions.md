@@ -130,10 +130,9 @@ Inklee 1.x already ships artist-owned flash days (flash days, flash items, booki
 
 ### Q16. Private artist representation in the guest artist timeline
 
-When a studio's guest artist timeline includes an artist whose profile or travel history is private, what does the entry show by default: an anonymized entry ("a guest artist from Portugal", dates only), a reduced entry, or nothing at all? Artist privacy always caps studio settings; the open part is the default representation and whether the artist chooses per stay or globally.
+**RESOLVED by the founder 2026-07-18: anonymized entry.** A privacy-protected artist appears as "a guest artist" with dates only: no name, no link, no origin. The timeline stays visually complete without exposing anyone, and artists can opt in to full display. Artist privacy always caps studio settings.
 
-- What it blocks: the guest artist timeline slice in Phase 4.
-- Decide by: the Phase 4 timeline build.
+Original question kept for context: when a studio's guest artist timeline includes an artist whose profile or travel history is private, what does the entry show by default: an anonymized entry, a reduced entry, or nothing at all?
 
 ## Added 2026-07-18 (seeding tool)
 
