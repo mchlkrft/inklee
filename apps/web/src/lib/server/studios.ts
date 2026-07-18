@@ -16,15 +16,19 @@ import {
   isOwnedStudioMediaPath,
   studioLogoStoragePath,
   studioPhotoStoragePath,
+  WELCOME_PACK_FIELDS,
   sortHouseRules,
   validateCustomCategory,
   validateHouseRules,
   validateStudioProfileInput,
+  validateWelcomePackInput,
   type ClaimantRole,
   type HouseRuleInput,
   type StudioCompleteness,
   type StudioProfileInput,
   type StudioStandardCategory,
+  type WelcomePackField,
+  type WelcomePackInput,
 } from "@inklee/shared/studio-profile";
 import { checkClaimRateLimit } from "@/lib/ratelimit";
 import {
@@ -593,6 +597,101 @@ export async function setHouseRulesCore(
     if (error) return { error: "Could not save your house rules." };
   }
   return {};
+}
+
+// ---------------------------------------------------------------------------
+// Welcome pack (Phase 4 extension): reusable content for confirmed guests.
+// The artist-side read is gated on a confirmed or active stay; the pack is
+// interaction-plane content, never profile content.
+
+export type WelcomePack = {
+  includeHouseRules: boolean;
+} & Record<WelcomePackField, string | null>;
+
+function shapeWelcomePack(row: Record<string, unknown>): WelcomePack {
+  const pack = {
+    includeHouseRules: Boolean(row.include_house_rules),
+  } as WelcomePack;
+  for (const field of WELCOME_PACK_FIELDS) {
+    pack[field] = (row[field] as string | null) ?? null;
+  }
+  return pack;
+}
+
+export async function getWelcomePackForOwner(
+  userId: string,
+  studioId: string,
+): Promise<WelcomePack | null> {
+  if (!(await ownedStudioId(userId, studioId))) return null;
+  const { data } = await serviceClient
+    .from("studio_welcome_packs")
+    .select("*")
+    .eq("studio_profile_id", studioId)
+    .maybeSingle();
+  if (!data)
+    return {
+      includeHouseRules: true,
+      access_details: null,
+      wifi: null,
+      emergency_contact: null,
+      supply_shops: null,
+      promotion_notes: null,
+      local_notes: null,
+    };
+  return shapeWelcomePack(data);
+}
+
+export async function setWelcomePackCore(
+  userId: string,
+  studioId: string,
+  input: WelcomePackInput,
+): Promise<{ error?: string }> {
+  if (!(await ownedStudioId(userId, studioId)))
+    return { error: "Not your studio." };
+  const invalid = validateWelcomePackInput(input);
+  if (invalid) return { error: invalid };
+
+  const row: Record<string, unknown> = {
+    studio_profile_id: studioId,
+    include_house_rules: Boolean(input.includeHouseRules),
+    updated_at: new Date().toISOString(),
+  };
+  for (const field of WELCOME_PACK_FIELDS) {
+    row[field] = input[field]?.trim() || null;
+  }
+  const { error } = await serviceClient
+    .from("studio_welcome_packs")
+    .upsert(row, { onConflict: "studio_profile_id" });
+  if (error) return { error: "Could not save the welcome pack." };
+  return {};
+}
+
+/**
+ * The guest-side read: only an artist with a confirmed or active stay at the
+ * studio sees the pack (interaction plane). Returns null otherwise.
+ */
+export async function getWelcomePackForGuest(
+  artistId: string,
+  studioProfileId: string,
+): Promise<WelcomePack | null> {
+  const { data: stay } = await serviceClient
+    .from("guest_spot_stays")
+    .select("id")
+    .eq("artist_user_id", artistId)
+    .eq("studio_profile_id", studioProfileId)
+    .in("status", ["confirmed", "active"])
+    .limit(1)
+    .maybeSingle();
+  if (!stay) return null;
+  const { data } = await serviceClient
+    .from("studio_welcome_packs")
+    .select("*")
+    .eq("studio_profile_id", studioProfileId)
+    .maybeSingle();
+  if (!data) return null;
+  const pack = shapeWelcomePack(data);
+  const hasContent = WELCOME_PACK_FIELDS.some((f) => pack[f]);
+  return hasContent ? pack : null;
 }
 
 // ---------------------------------------------------------------------------

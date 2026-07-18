@@ -7,10 +7,12 @@ import {
   getHouseRulesForOwner,
   getOwnedStudio,
   getStudioMediaForOwner,
+  getWelcomePackForOwner,
 } from "@/lib/server/studios";
 import StudioEditor from "./studio-editor";
 import StudioMediaSection from "./studio-media-section";
 import HouseRulesSection from "./house-rules-section";
+import WelcomePackSection from "./welcome-pack-section";
 
 export const metadata = { title: "Edit studio" };
 
@@ -25,14 +27,16 @@ export default async function EditStudioPage() {
   const studio = await getOwnedStudio(user.id);
   if (!studio) redirect("/studio");
 
-  const [{ data: styleData }, media, houseRules] = await Promise.all([
-    serviceClient
-      .from("styles")
-      .select("key, label")
-      .order("position", { ascending: true }),
-    getStudioMediaForOwner(user.id, studio.id),
-    getHouseRulesForOwner(user.id, studio.id),
-  ]);
+  const [{ data: styleData }, media, houseRules, welcomePack] =
+    await Promise.all([
+      serviceClient
+        .from("styles")
+        .select("key, label")
+        .order("position", { ascending: true }),
+      getStudioMediaForOwner(user.id, studio.id),
+      getHouseRulesForOwner(user.id, studio.id),
+      getWelcomePackForOwner(user.id, studio.id),
+    ]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
@@ -58,6 +62,9 @@ export default async function EditStudioPage() {
         }))}
       />
       <HouseRulesSection studioId={studio.id} initialRules={houseRules ?? []} />
+      {welcomePack ? (
+        <WelcomePackSection studioId={studio.id} initial={welcomePack} />
+      ) : null}
     </div>
   );
 }

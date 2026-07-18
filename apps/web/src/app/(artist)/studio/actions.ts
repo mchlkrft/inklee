@@ -9,6 +9,7 @@ import {
   setHouseRulesCore,
   setPublicationCore,
   setStudioCategoriesCore,
+  setWelcomePackCore,
   submitClaimCore,
   updateStudioProfileCore,
   uploadStudioLogoCore,
@@ -18,7 +19,10 @@ import {
   type CreateStudioResult,
   type StudioCategoryInput,
 } from "@/lib/server/studios";
-import type { HouseRuleInput } from "@inklee/shared/studio-profile";
+import type {
+  HouseRuleInput,
+  WelcomePackInput,
+} from "@inklee/shared/studio-profile";
 import {
   acceptRequestCore,
   addPrivateNoteCore,
@@ -92,6 +96,18 @@ export async function setHouseRulesAction(
     revalidatePath("/studio");
     revalidatePath("/studio/edit");
   }
+  return result;
+}
+
+export async function setWelcomePackAction(
+  studioId: string,
+  input: WelcomePackInput,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await setWelcomePackCore(user.id, studioId, input);
+  if (!result.error) revalidatePath("/studio/edit");
   return result;
 }
 

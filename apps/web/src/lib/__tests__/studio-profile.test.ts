@@ -11,6 +11,10 @@ import {
   HOUSE_RULE_CONTENT_MAX,
   HOUSE_RULE_KEYS,
   HOUSE_RULE_LABELS,
+  WELCOME_PACK_FIELDS,
+  WELCOME_PACK_FIELD_LABELS,
+  WELCOME_PACK_FIELD_MAX,
+  validateWelcomePackInput,
   computeStudioCompleteness,
   isOwnedStudioMediaPath,
   sortHouseRules,
@@ -192,6 +196,40 @@ describe("house rules", () => {
       "opening_hours",
       "walk_in_policy",
     ]);
+  });
+});
+
+describe("welcome pack", () => {
+  it("every field has a label", () => {
+    for (const field of WELCOME_PACK_FIELDS) {
+      expect(WELCOME_PACK_FIELD_LABELS[field]).toBeTruthy();
+    }
+  });
+
+  it("accepts empty, partial, and full packs", () => {
+    expect(validateWelcomePackInput({ includeHouseRules: true })).toBeNull();
+    expect(
+      validateWelcomePackInput({
+        includeHouseRules: false,
+        wifi: "StudioNet / inkforever",
+        access_details: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects oversized and non-string fields", () => {
+    expect(
+      validateWelcomePackInput({
+        includeHouseRules: true,
+        wifi: "a".repeat(WELCOME_PACK_FIELD_MAX + 1),
+      }),
+    ).toMatch(/under/);
+    expect(
+      validateWelcomePackInput({
+        includeHouseRules: true,
+        wifi: 42 as unknown as string,
+      }),
+    ).toMatch(/text/);
   });
 });
 

@@ -213,6 +213,53 @@ export function sortHouseRules<T extends { key: string }>(rules: T[]): T[] {
 }
 
 // ---------------------------------------------------------------------------
+// Welcome pack (Phase 4 extension): saved, reusable, structured content a
+// confirmed guest artist sees. Interaction plane only: unlike house rules
+// (profile content, any logged-in artist), the pack is visible solely to
+// artists with a confirmed stay at the studio. No PDF, no notification until
+// Q9 is decided; the pack appears on the artist's request page after
+// confirmation. Attachments wait for the private bucket.
+
+export const WELCOME_PACK_FIELDS = [
+  "access_details",
+  "wifi",
+  "emergency_contact",
+  "supply_shops",
+  "promotion_notes",
+  "local_notes",
+] as const;
+export type WelcomePackField = (typeof WELCOME_PACK_FIELDS)[number];
+
+export const WELCOME_PACK_FIELD_LABELS: Record<WelcomePackField, string> = {
+  access_details: "Address and access",
+  wifi: "Wifi",
+  emergency_contact: "Emergency contact",
+  supply_shops: "Nearby supply shops",
+  promotion_notes: "Promotion",
+  local_notes: "Local notes",
+};
+
+export const WELCOME_PACK_FIELD_MAX = 1000;
+
+export type WelcomePackInput = {
+  includeHouseRules: boolean;
+} & Partial<Record<WelcomePackField, string | null>>;
+
+/** Returns an error message, or null when the pack fields are valid. */
+export function validateWelcomePackInput(
+  input: WelcomePackInput,
+): string | null {
+  for (const field of WELCOME_PACK_FIELDS) {
+    const value = input[field];
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string") return "Fill the fields with text.";
+    if (value.length > WELCOME_PACK_FIELD_MAX)
+      return `Keep each section under ${WELCOME_PACK_FIELD_MAX} characters.`;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Studio media paths (the private studio-media bucket, keyed by STUDIO id so
 // media survives owner changes and is never touched by the per-user purge).
 

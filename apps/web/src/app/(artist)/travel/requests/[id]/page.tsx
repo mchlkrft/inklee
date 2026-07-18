@@ -4,9 +4,14 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { tattooMapEnabled } from "@/lib/map-features";
 import { getArtistRequestDetail } from "@/lib/server/guest-spots";
-import { getPublishedHouseRules } from "@/lib/server/studios";
+import {
+  getPublishedHouseRules,
+  getWelcomePackForGuest,
+} from "@/lib/server/studios";
 import {
   HOUSE_RULE_LABELS,
+  WELCOME_PACK_FIELDS,
+  WELCOME_PACK_FIELD_LABELS,
   type HouseRuleKey,
 } from "@inklee/shared/studio-profile";
 import {
@@ -52,6 +57,11 @@ export default async function ArtistRequestDetailPage({
   if (!detail) notFound();
 
   const houseRules = await getPublishedHouseRules(detail.studioProfileId);
+  // Interaction plane: only a confirmed or active stay unlocks the pack.
+  const welcomePack =
+    detail.stay && ["confirmed", "active"].includes(detail.stay.status)
+      ? await getWelcomePackForGuest(user.id, detail.studioProfileId)
+      : null;
 
   // Confirmed requests can be cancelled through their stay.
   const stayId =
@@ -139,6 +149,26 @@ export default async function ArtistRequestDetailPage({
           </div>
         ) : null}
       </section>
+
+      {welcomePack ? (
+        <section className="space-y-3 rounded-2xl border border-brand-mustard/60 p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            Welcome pack from {detail.studioName}
+          </h2>
+          <ul className="space-y-2">
+            {WELCOME_PACK_FIELDS.filter((f) => welcomePack[f]).map((field) => (
+              <li key={field} className="text-sm">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {WELCOME_PACK_FIELD_LABELS[field]}
+                </p>
+                <p className="whitespace-pre-wrap text-foreground">
+                  {welcomePack[field]}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {houseRules.length > 0 ? (
         <section className="space-y-3 rounded-2xl border border-border p-4">
