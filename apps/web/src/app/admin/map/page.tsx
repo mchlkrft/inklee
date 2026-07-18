@@ -79,6 +79,12 @@ export default async function AdminMapPage() {
             Reports{(newReports ?? 0) > 0 ? ` (${newReports} new)` : ""}
           </Link>
           <Link
+            href="/admin/map/seeding"
+            className="rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/30"
+          >
+            Seeding
+          </Link>
+          <Link
             href="/admin/map/new"
             className="rounded-md bg-foreground px-3 py-2 text-sm text-background transition-colors hover:opacity-90"
           >

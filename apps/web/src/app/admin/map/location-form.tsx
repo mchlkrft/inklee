@@ -19,6 +19,7 @@ import {
   updateMapLocationAction,
   type MapLocationFormInput,
 } from "./actions";
+import { convertCandidateAction } from "./seeding/actions";
 import type { DuplicateHit } from "@inklee/shared/map-directory";
 
 export type LocationFormValues = MapLocationFormInput & { id?: string };
@@ -58,9 +59,13 @@ const EMPTY: LocationFormValues = {
 export default function LocationForm({
   initial,
   placesApiKey,
+  convertCandidateId,
 }: {
   initial?: LocationFormValues;
   placesApiKey: string | null;
+  // Seeding-tool conversion: same form, same pipeline, plus marking the
+  // candidate converted on success.
+  convertCandidateId?: string;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<LocationFormValues>(initial ?? EMPTY);
@@ -93,9 +98,15 @@ export default function LocationForm({
     setDuplicates(null);
     startTransition(async () => {
       const input: MapLocationFormInput = { ...values };
-      const result = initial?.id
-        ? await updateMapLocationAction(initial.id, input, ignoreDuplicates)
-        : await createMapLocationAction(input, ignoreDuplicates);
+      const result = convertCandidateId
+        ? await convertCandidateAction(
+            convertCandidateId,
+            input,
+            ignoreDuplicates,
+          )
+        : initial?.id
+          ? await updateMapLocationAction(initial.id, input, ignoreDuplicates)
+          : await createMapLocationAction(input, ignoreDuplicates);
       if (result.duplicates) {
         setDuplicates(result.duplicates);
         return;
@@ -104,7 +115,7 @@ export default function LocationForm({
         setError(result.error);
         return;
       }
-      router.push("/admin/map");
+      router.push(convertCandidateId ? "/admin/map/seeding" : "/admin/map");
       router.refresh();
     });
   };

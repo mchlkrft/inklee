@@ -29,6 +29,7 @@ What public data source is legally safe enough for first studio seeding?
 - Why open: OpenStreetMap data is ODbL-licensed (attribution plus share-alike concerns for derived databases), Google Places data cannot be stored long term under its terms, and scraping business sites has its own risk. This needs a real legal read, not an engineering guess.
 - What it blocks: Phase 1 seeding imports. Admin CRUD and the data model do not depend on it; hand-entered admin curation can start without any bulk source.
 - Decide by: before the first bulk import in Phase 1. Until then, seed by hand through admin CRUD only.
+- **Provisionally answered by the founder 2026-07-18** (see `inklee-2-map-seeding-tool.md`): the seeding source stack is locked as Overture Maps (CDLA-Permissive-2.0, the automated source), Brave Search leads (URL and title only), manual Instagram discovery, and artist suggestions, all through mandatory admin review; no scraping, no Google Places, no bulk publish. What stays open from Q2: formal legal review of the whole seeding posture before public launch, plus Q17 to Q20 below.
 
 ### Q3. Indexability of seeded unclaimed studio pages
 
@@ -133,3 +134,35 @@ When a studio's guest artist timeline includes an artist whose profile or travel
 
 - What it blocks: the guest artist timeline slice in Phase 4.
 - Decide by: the Phase 4 timeline build.
+
+## Added 2026-07-18 (seeding tool)
+
+Background and the 2026 search API landscape live in `inklee-2-map-seeding-tool.md`.
+
+### Q17. Long-term storage of Brave result titles
+
+Brave's data rights around storing search results are written mostly for LLM training. The tool stores only the result URL and title as a lead. Can titles stay long term, or must they be dropped after review (the URL alone would remain)?
+
+- What it blocks: nothing operationally; the conservative fallback (drop titles post-review) is a small migration.
+- Decide by: the legal review pass before public launch.
+
+### Q18. Instagram URLs as durable source references
+
+Manual candidates carry the Instagram URL the admin found. Is a bare profile URL acceptable as a durable stored reference without additional policy review?
+
+- What it blocks: nothing; URLs are references, no content is copied.
+- Decide by: the legal review pass before public launch.
+
+### Q19. Google Maps reference links in artist suggestions
+
+The planned artist suggestion form may accept an optional Google Maps link as a review reference only. Can such links be stored long term?
+
+- What it blocks: the artist suggestion slice ships without the field until decided.
+- Decide by: before the artist suggestion slice adds the field.
+
+### Q20. Overture-derived fields on public pages
+
+Converted entries carry name and coordinates that originated in Overture data (CDLA-Permissive-2.0, Foursquare-sourced rows Apache 2.0). Fine on the logged-in map; does anything change if map pages ever become public (Q3)?
+
+- What it blocks: nothing while the map stays logged-in only.
+- Decide by: together with Q3, if indexability is ever reconsidered.

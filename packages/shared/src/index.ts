@@ -18,6 +18,7 @@ export * from "./timezone";
 export * from "./format";
 export * from "./guest-spots";
 export * from "./map-directory";
+export * from "./map-seeding";
 export * from "./studio-profile";
 export * from "./slug";
 export * from "./trip-validation";
