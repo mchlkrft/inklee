@@ -3,9 +3,14 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { tattooMapEnabled } from "@/lib/map-features";
-import { getOwnedStudio, getStudioMediaForOwner } from "@/lib/server/studios";
+import {
+  getHouseRulesForOwner,
+  getOwnedStudio,
+  getStudioMediaForOwner,
+} from "@/lib/server/studios";
 import StudioEditor from "./studio-editor";
 import StudioMediaSection from "./studio-media-section";
+import HouseRulesSection from "./house-rules-section";
 
 export const metadata = { title: "Edit studio" };
 
@@ -20,12 +25,13 @@ export default async function EditStudioPage() {
   const studio = await getOwnedStudio(user.id);
   if (!studio) redirect("/studio");
 
-  const [{ data: styleData }, media] = await Promise.all([
+  const [{ data: styleData }, media, houseRules] = await Promise.all([
     serviceClient
       .from("styles")
       .select("key, label")
       .order("position", { ascending: true }),
     getStudioMediaForOwner(user.id, studio.id),
+    getHouseRulesForOwner(user.id, studio.id),
   ]);
 
   return (
@@ -51,6 +57,7 @@ export default async function EditStudioPage() {
           label: s.label as string,
         }))}
       />
+      <HouseRulesSection studioId={studio.id} initialRules={houseRules ?? []} />
     </div>
   );
 }

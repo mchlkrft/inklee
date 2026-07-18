@@ -4,6 +4,11 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { tattooMapEnabled } from "@/lib/map-features";
 import { getArtistRequestDetail } from "@/lib/server/guest-spots";
+import { getPublishedHouseRules } from "@/lib/server/studios";
+import {
+  HOUSE_RULE_LABELS,
+  type HouseRuleKey,
+} from "@inklee/shared/studio-profile";
 import {
   DATE_FLEXIBILITY_LABELS,
   guestSpotRequestStatusLabel,
@@ -45,6 +50,8 @@ export default async function ArtistRequestDetailPage({
 
   const detail = await getArtistRequestDetail(user.id, id);
   if (!detail) notFound();
+
+  const houseRules = await getPublishedHouseRules(detail.studioProfileId);
 
   // Confirmed requests can be cancelled through their stay.
   const stayId =
@@ -132,6 +139,26 @@ export default async function ArtistRequestDetailPage({
           </div>
         ) : null}
       </section>
+
+      {houseRules.length > 0 ? (
+        <section className="space-y-3 rounded-2xl border border-border p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            House rules at {detail.studioName}
+          </h2>
+          <ul className="space-y-2">
+            {houseRules.map((rule) => (
+              <li key={rule.key} className="text-sm">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {HOUSE_RULE_LABELS[rule.key as HouseRuleKey] ?? rule.key}
+                </p>
+                <p className="whitespace-pre-wrap text-foreground">
+                  {rule.content}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {detail.notes.length > 0 ? (
         <section className="space-y-2 rounded-2xl border border-border p-4">

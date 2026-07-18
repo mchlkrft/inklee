@@ -16,9 +16,12 @@ import {
   isOwnedStudioMediaPath,
   studioLogoStoragePath,
   studioPhotoStoragePath,
+  sortHouseRules,
   validateCustomCategory,
+  validateHouseRules,
   validateStudioProfileInput,
   type ClaimantRole,
+  type HouseRuleInput,
   type StudioCompleteness,
   type StudioProfileInput,
   type StudioStandardCategory,
@@ -89,22 +92,30 @@ export async function getOwnedStudio(
     .maybeSingle();
   if (!studio) return null;
 
-  const [{ data: cats }, { count: photoCount }, { data: mapLoc }] =
-    await Promise.all([
-      serviceClient
-        .from("studio_categories")
-        .select("id, kind, style_key, standard_key, custom_label")
-        .eq("studio_profile_id", studio.id as string),
-      serviceClient
-        .from("studio_photos")
-        .select("id", { count: "exact", head: true })
-        .eq("studio_profile_id", studio.id as string),
-      serviceClient
-        .from("map_locations")
-        .select("id, moderation_status")
-        .eq("studio_profile_id", studio.id as string)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: cats },
+    { count: photoCount },
+    { data: mapLoc },
+    { count: houseRuleCount },
+  ] = await Promise.all([
+    serviceClient
+      .from("studio_categories")
+      .select("id, kind, style_key, standard_key, custom_label")
+      .eq("studio_profile_id", studio.id as string),
+    serviceClient
+      .from("studio_photos")
+      .select("id", { count: "exact", head: true })
+      .eq("studio_profile_id", studio.id as string),
+    serviceClient
+      .from("map_locations")
+      .select("id, moderation_status")
+      .eq("studio_profile_id", studio.id as string)
+      .maybeSingle(),
+    serviceClient
+      .from("studio_house_rules")
+      .select("id", { count: "exact", head: true })
+      .eq("studio_profile_id", studio.id as string),
+  ]);
 
   const categories = (cats ?? []).map((c) => ({
     id: c.id as string,
@@ -120,6 +131,7 @@ export async function getOwnedStudio(
     hasAddress: Boolean((studio.address as string | null)?.trim()),
     categoryCount: categories.length,
     hasVibe: Boolean((studio.vibe as string | null)?.trim()),
+    houseRuleCount: houseRuleCount ?? 0,
   });
 
   return {
@@ -464,6 +476,122 @@ export async function setStudioCategoriesCore(
     .from("studio_profiles")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", studioId);
+  return {};
+}
+
+// ---------------------------------------------------------------------------
+// House rules (Phase 4 extension): typed, reusable studio-level rules shown
+// to requesting artists and reused by the welcome pack later.
+
+export type HouseRule = { key: string; content: string };
+
+/** The owner's rules, in canonical vocabulary order. */
+export async function getHouseRulesForOwner(
+  userId: string,
+  studioId: string,
+): Promise<HouseRule[] | null> {
+  if (!(await ownedStudioId(userId, studioId))) return null;
+  const { data } = await serviceClient
+    .from("studio_house_rules")
+    .select("rule_key, content")
+    .eq("studio_profile_id", studioId);
+  return sortHouseRules(
+    (data ?? []).map((r) => ({
+      key: r.rule_key as string,
+      content: r.content as string,
+    })),
+  );
+}
+
+/**
+ * A published studio's rules for artist-facing display (map detail, request
+ * pages). Returns [] for unpublished studios so drafts never leak.
+ */
+export async function getPublishedHouseRules(
+  studioProfileId: string,
+): Promise<HouseRule[]> {
+  const { data: studio } = await serviceClient
+    .from("studio_profiles")
+    .select("publication_status")
+    .eq("id", studioProfileId)
+    .maybeSingle();
+  if (studio?.publication_status !== "published") return [];
+  const { data } = await serviceClient
+    .from("studio_house_rules")
+    .select("rule_key, content")
+    .eq("studio_profile_id", studioProfileId);
+  return sortHouseRules(
+    (data ?? []).map((r) => ({
+      key: r.rule_key as string,
+      content: r.content as string,
+    })),
+  );
+}
+
+/** Replace the rule set as a diff (the categories pattern: never empties). */
+export async function setHouseRulesCore(
+  userId: string,
+  studioId: string,
+  rules: HouseRuleInput[],
+): Promise<{ error?: string }> {
+  if (!(await ownedStudioId(userId, studioId)))
+    return { error: "Not your studio." };
+  const invalid = validateHouseRules(rules);
+  if (invalid) return { error: invalid };
+
+  const desired = new Map(rules.map((r) => [r.key, r.content.trim()]));
+  const { data: existing, error: exErr } = await serviceClient
+    .from("studio_house_rules")
+    .select("id, rule_key, content")
+    .eq("studio_profile_id", studioId);
+  if (exErr) return { error: "Could not save your house rules." };
+
+  const existingByKey = new Map(
+    (existing ?? []).map((r) => [
+      r.rule_key as string,
+      { id: r.id as string, content: r.content as string },
+    ]),
+  );
+  const toInsert = [...desired.entries()]
+    .filter(([key]) => !existingByKey.has(key))
+    .map(([key, content]) => ({
+      studio_profile_id: studioId,
+      rule_key: key,
+      content,
+    }));
+  const toUpdate = [...desired.entries()]
+    .filter(([key, content]) => {
+      const current = existingByKey.get(key);
+      return current !== undefined && current.content !== content;
+    })
+    .map(([key, content]) => ({
+      id: existingByKey.get(key)!.id,
+      content,
+    }));
+  const toDelete = [...existingByKey.entries()]
+    .filter(([key]) => !desired.has(key))
+    .map(([, row]) => row.id);
+
+  if (toInsert.length) {
+    const { error } = await serviceClient
+      .from("studio_house_rules")
+      .insert(toInsert);
+    if (error) return { error: "Could not save your house rules." };
+  }
+  for (const row of toUpdate) {
+    const { error } = await serviceClient
+      .from("studio_house_rules")
+      .update({ content: row.content, updated_at: new Date().toISOString() })
+      .eq("id", row.id);
+    if (error) return { error: "Could not save your house rules." };
+  }
+  if (toDelete.length) {
+    const { error } = await serviceClient
+      .from("studio_house_rules")
+      .delete()
+      .in("id", toDelete);
+    if (error) return { error: "Could not save your house rules." };
+  }
   return {};
 }
 

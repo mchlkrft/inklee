@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { tattooMapEnabled } from "@/lib/map-features";
 import { MAP_LOCATION_CATEGORY_LABELS } from "@inklee/shared/map-directory";
+import {
+  HOUSE_RULE_LABELS,
+  type HouseRuleKey,
+} from "@inklee/shared/studio-profile";
+import { getPublishedHouseRules } from "@/lib/server/studios";
 import WatchButton from "./watch-button";
 
 // Logged-in only and noindex by default (open question Q3 keeps seeded pages
@@ -62,6 +67,7 @@ export default async function MapLocationPage({
     .maybeSingle();
   let requestable = false;
   let ownStudio = false;
+  let houseRules: Array<{ key: string; content: string }> = [];
   if (studioLink?.studio_profile_id) {
     const { data: studio } = await serviceClient
       .from("studio_profiles")
@@ -74,6 +80,11 @@ export default async function MapLocationPage({
       studio?.publication_status === "published" &&
       studio.guest_spot_status === "accepting";
     ownStudio = studio?.owner_user_id === user.id;
+    if (studio?.publication_status === "published") {
+      houseRules = await getPublishedHouseRules(
+        studioLink.studio_profile_id as string,
+      );
+    }
   }
 
   const categoryLabel =
@@ -146,6 +157,24 @@ export default async function MapLocationPage({
           <WatchButton mapLocationId={id} initialWatched={Boolean(watch)} />
         </div>
       </section>
+
+      {claimed && houseRules.length > 0 ? (
+        <section className="space-y-3 rounded-2xl border border-border p-4">
+          <h2 className="text-sm font-semibold text-foreground">House rules</h2>
+          <ul className="space-y-2">
+            {houseRules.map((rule) => (
+              <li key={rule.key} className="text-sm">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {HOUSE_RULE_LABELS[rule.key as HouseRuleKey] ?? rule.key}
+                </p>
+                <p className="whitespace-pre-wrap text-foreground">
+                  {rule.content}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {claimed ? (
         requestable && !ownStudio ? (

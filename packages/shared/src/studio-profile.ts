@@ -148,6 +148,71 @@ export function validateCustomCategory(label: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// House rules (Phase 4 extension): structured, reusable studio-level rules.
+// Optional on the studio profile, shown to requesting artists (approval is
+// where rules start mattering), reused by the welcome pack and, later, the
+// group. Typed keys only in v1; content is short free text per rule.
+
+export const HOUSE_RULE_KEYS = [
+  "deposit_policy",
+  "client_handling",
+  "cleaning",
+  "supplies_included",
+  "setup_breakdown",
+  "opening_hours",
+  "key_access",
+  "promotion_rules",
+  "walk_in_policy",
+  "cancellation_expectations",
+] as const;
+export type HouseRuleKey = (typeof HOUSE_RULE_KEYS)[number];
+
+export const HOUSE_RULE_LABELS: Record<HouseRuleKey, string> = {
+  deposit_policy: "Deposit policy",
+  client_handling: "Client handling",
+  cleaning: "Cleaning",
+  supplies_included: "Supplies included",
+  setup_breakdown: "Setup and breakdown",
+  opening_hours: "Opening hours",
+  key_access: "Keys and access",
+  promotion_rules: "Promotion",
+  walk_in_policy: "Walk-ins",
+  cancellation_expectations: "Cancellations",
+};
+
+export const HOUSE_RULE_CONTENT_MAX = 500;
+
+export type HouseRuleInput = { key: string; content: string };
+
+/** Returns an error message, or null when the rule set is valid. */
+export function validateHouseRules(rules: HouseRuleInput[]): string | null {
+  const seen = new Set<string>();
+  for (const rule of rules) {
+    if (typeof rule?.key !== "string" || typeof rule?.content !== "string")
+      return "Pick rules from the list.";
+    if (!HOUSE_RULE_KEYS.includes(rule.key as HouseRuleKey))
+      return "Pick rules from the list.";
+    if (seen.has(rule.key)) return "Each rule can only appear once.";
+    seen.add(rule.key);
+    if (!rule.content?.trim())
+      return `Write the ${HOUSE_RULE_LABELS[rule.key as HouseRuleKey].toLowerCase()} rule or remove it.`;
+    if (rule.content.length > HOUSE_RULE_CONTENT_MAX)
+      return `Keep each rule under ${HOUSE_RULE_CONTENT_MAX} characters.`;
+  }
+  return null;
+}
+
+/** Canonical display order: the vocabulary order, unknown keys last. */
+export function sortHouseRules<T extends { key: string }>(rules: T[]): T[] {
+  const order = new Map(HOUSE_RULE_KEYS.map((k, i) => [k as string, i]));
+  return [...rules].sort(
+    (a, b) =>
+      (order.get(a.key) ?? HOUSE_RULE_KEYS.length) -
+      (order.get(b.key) ?? HOUSE_RULE_KEYS.length),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Studio media paths (the private studio-media bucket, keyed by STUDIO id so
 // media survives owner changes and is never touched by the per-user purge).
 
@@ -199,6 +264,7 @@ export type StudioSnapshot = {
   hasAddress: boolean;
   categoryCount: number;
   hasVibe: boolean;
+  houseRuleCount: number;
 };
 
 export type CompletenessItem = {
@@ -265,6 +331,13 @@ export function computeStudioCompleteness(
       label: "Vibe section written",
       todoLabel: "Write a vibe section",
       done: snapshot.hasVibe,
+      required: false,
+    },
+    {
+      key: "house-rules",
+      label: "House rules set",
+      todoLabel: "Set your house rules",
+      done: snapshot.houseRuleCount > 0,
       required: false,
     },
   ];

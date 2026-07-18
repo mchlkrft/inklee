@@ -6,6 +6,7 @@ import { tattooMapEnabled } from "@/lib/map-features";
 import {
   createStudioCore,
   deleteStudioPhotoCore,
+  setHouseRulesCore,
   setPublicationCore,
   setStudioCategoriesCore,
   submitClaimCore,
@@ -17,6 +18,7 @@ import {
   type CreateStudioResult,
   type StudioCategoryInput,
 } from "@/lib/server/studios";
+import type { HouseRuleInput } from "@inklee/shared/studio-profile";
 import {
   acceptRequestCore,
   addPrivateNoteCore,
@@ -71,6 +73,21 @@ export async function setStudioCategoriesAction(
   const user = await requireUser();
   if (!user) return { error: "Not signed in." };
   const result = await setStudioCategoriesCore(user.id, studioId, categories);
+  if (!result.error) {
+    revalidatePath("/studio");
+    revalidatePath("/studio/edit");
+  }
+  return result;
+}
+
+export async function setHouseRulesAction(
+  studioId: string,
+  rules: HouseRuleInput[],
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await setHouseRulesCore(user.id, studioId, rules);
   if (!result.error) {
     revalidatePath("/studio");
     revalidatePath("/studio/edit");

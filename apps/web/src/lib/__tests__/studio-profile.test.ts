@@ -8,11 +8,16 @@ import {
   MIN_STUDIO_CATEGORIES,
   MIN_STUDIO_PHOTOS,
   STUDIO_STANDARD_CATEGORIES,
+  HOUSE_RULE_CONTENT_MAX,
+  HOUSE_RULE_KEYS,
+  HOUSE_RULE_LABELS,
   computeStudioCompleteness,
   isOwnedStudioMediaPath,
+  sortHouseRules,
   studioLogoStoragePath,
   studioPhotoStoragePath,
   validateCustomCategory,
+  validateHouseRules,
   validateStudioProfileInput,
   type StudioProfileInput,
   type StudioSnapshot,
@@ -139,6 +144,57 @@ describe("studio media paths", () => {
   });
 });
 
+describe("house rules", () => {
+  it("every key has a label", () => {
+    for (const key of HOUSE_RULE_KEYS) {
+      expect(HOUSE_RULE_LABELS[key]).toBeTruthy();
+    }
+  });
+
+  it("accepts a valid rule set and an empty set", () => {
+    expect(validateHouseRules([])).toBeNull();
+    expect(
+      validateHouseRules([
+        { key: "deposit_policy", content: "50 percent up front." },
+        { key: "cleaning", content: "Leave the station as you found it." },
+      ]),
+    ).toBeNull();
+  });
+
+  it("rejects unknown keys, duplicates, empty and oversized content", () => {
+    expect(validateHouseRules([{ key: "made_up", content: "x" }])).toMatch(
+      /list/,
+    );
+    expect(
+      validateHouseRules([
+        { key: "cleaning", content: "a" },
+        { key: "cleaning", content: "b" },
+      ]),
+    ).toMatch(/once/);
+    expect(validateHouseRules([{ key: "cleaning", content: "   " }])).toMatch(
+      /remove/,
+    );
+    expect(
+      validateHouseRules([
+        { key: "cleaning", content: "a".repeat(HOUSE_RULE_CONTENT_MAX + 1) },
+      ]),
+    ).toMatch(/under/);
+  });
+
+  it("sorts rules into vocabulary order", () => {
+    const sorted = sortHouseRules([
+      { key: "walk_in_policy" },
+      { key: "deposit_policy" },
+      { key: "opening_hours" },
+    ]);
+    expect(sorted.map((r) => r.key)).toEqual([
+      "deposit_policy",
+      "opening_hours",
+      "walk_in_policy",
+    ]);
+  });
+});
+
 describe("computeStudioCompleteness", () => {
   const full: StudioSnapshot = {
     hasLogo: true,
@@ -147,6 +203,7 @@ describe("computeStudioCompleteness", () => {
     hasAddress: true,
     categoryCount: MIN_STUDIO_CATEGORIES,
     hasVibe: true,
+    houseRuleCount: 1,
   };
 
   it("a fully complete studio scores 100 and is publish-ready", () => {
@@ -188,6 +245,7 @@ describe("computeStudioCompleteness", () => {
       hasAddress: false,
       categoryCount: 0,
       hasVibe: false,
+      houseRuleCount: 0,
     });
     expect(empty.score).toBe(0);
     expect(empty.publishBlockers).toHaveLength(5);
