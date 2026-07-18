@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tattooMapEnabled } from "@/lib/map-features";
 import { getOwnClaims, getOwnedStudio } from "@/lib/server/studios";
+import { listStudioInbox, listStudioStays } from "@/lib/server/guest-spots";
+import { formatDateKey } from "@inklee/shared/date-utils";
 import {
   CLAIM_STATUS_LABELS,
   GUEST_SPOT_STATUS_LABELS,
@@ -28,6 +30,61 @@ async function OwnerClaimsNote({ userId }: { userId: string }) {
         studio per account).
       </p>
     </div>
+  );
+}
+
+// Requests waiting + the next confirmed guests, straight from the inbox data.
+// The quiet hold applies here too: blocked requests never count.
+async function GuestSpotSection({ userId }: { userId: string }) {
+  const [inbox, stays] = await Promise.all([
+    listStudioInbox(userId),
+    listStudioStays(userId),
+  ]);
+  if (!inbox) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = (stays ?? [])
+    .filter(
+      (s) =>
+        (s.status === "confirmed" || s.status === "active") &&
+        s.endsOn >= today,
+    )
+    .slice(0, 3);
+  return (
+    <section className="space-y-3 rounded-2xl border border-border p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">Guest spots</h2>
+        <Link
+          href="/studio/requests"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+        >
+          Open requests
+        </Link>
+      </div>
+      <p className="text-sm text-foreground">
+        {inbox.open.length === 0
+          ? "No requests waiting."
+          : inbox.open.length === 1
+            ? "1 request waiting."
+            : `${inbox.open.length} requests waiting.`}
+      </p>
+      {upcoming.length > 0 ? (
+        <ul className="space-y-1.5">
+          {upcoming.map((s) => (
+            <li
+              key={s.id}
+              className="flex items-center justify-between gap-2 text-sm"
+            >
+              <span className="truncate text-foreground">{s.artistName}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {s.startsOn === s.endsOn
+                  ? formatDateKey(s.startsOn)
+                  : `${formatDateKey(s.startsOn)} – ${formatDateKey(s.endsOn)}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 
@@ -190,9 +247,11 @@ export default async function StudioCockpitPage() {
 
       <OwnerClaimsNote userId={user.id} />
 
+      <GuestSpotSection userId={user.id} />
+
       <p className="text-xs text-muted-foreground">
-        Guest spot requests, guest artists, workspaces and the studio group join
-        this cockpit as those features arrive.
+        Guest artists, workspaces and the studio group join this cockpit as
+        those features arrive.
       </p>
     </div>
   );

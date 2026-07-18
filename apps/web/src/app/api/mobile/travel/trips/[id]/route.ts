@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import { GUEST_SPOT_LEG_LOCKED_MESSAGE } from "@inklee/shared/guest-spots";
 import { normalizeTripInput } from "@/lib/mobile-travel";
 import type {
   MobileTripDetail,
@@ -151,6 +152,18 @@ export async function DELETE(
   if (!auth.ok) return mobileError(auth.status, auth.error);
   const { userId, supabase } = auth;
   const { id } = await params;
+
+  // Guest-spot-managed legs lock their trip against direct deletion
+  // (Inklee 2.0 Phase 4: those dates move only through the request flow).
+  const { data: lockedLeg } = await supabase
+    .from("trip_legs")
+    .select("id")
+    .eq("trip_id", id)
+    .eq("origin", "guest_spot")
+    .limit(1)
+    .maybeSingle();
+  if (lockedLeg)
+    return mobileError(409, GUEST_SPOT_LEG_LOCKED_MESSAGE, "locked");
 
   const { error } = await supabase
     .from("trips")

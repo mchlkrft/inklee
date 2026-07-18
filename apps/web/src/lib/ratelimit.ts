@@ -169,3 +169,13 @@ const claimRl = makeLimit(Ratelimit.slidingWindow(3, "24 h"), "inklee:claim");
 export async function checkClaimRateLimit(userId: string) {
   return check(claimRl, userId);
 }
+
+// Guest spot requests: 5 submissions / artist / day. Each is a studio-inbox
+// item; the ceiling covers a real multi-city planning session.
+const guestSpotRl = makeLimit(
+  Ratelimit.slidingWindow(5, "24 h"),
+  "inklee:guest-spot",
+);
+export async function checkGuestSpotRequestRateLimit(userId: string) {
+  return check(guestSpotRl, userId);
+}

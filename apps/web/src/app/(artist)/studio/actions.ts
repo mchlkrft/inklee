@@ -17,6 +17,13 @@ import {
   type CreateStudioResult,
   type StudioCategoryInput,
 } from "@/lib/server/studios";
+import {
+  acceptRequestCore,
+  addPrivateNoteCore,
+  cancelStayCore,
+  passRequestCore,
+  proposeDatesCore,
+} from "@/lib/server/guest-spots";
 import type { StudioProfileInput } from "@inklee/shared/studio-profile";
 
 async function requireUser() {
@@ -133,6 +140,84 @@ export async function deleteStudioPhotoAction(
   if (!result.error) {
     revalidatePath("/studio");
     revalidatePath("/studio/edit");
+  }
+  return result;
+}
+
+export async function acceptGuestSpotAction(
+  requestId: string,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await acceptRequestCore(user.id, requestId);
+  if (!result.error) {
+    revalidatePath("/studio");
+    revalidatePath("/studio/requests");
+    revalidatePath(`/studio/requests/${requestId}`);
+  }
+  return result;
+}
+
+export async function passGuestSpotAction(
+  requestId: string,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await passRequestCore(user.id, requestId);
+  if (!result.error) {
+    revalidatePath("/studio/requests");
+    revalidatePath(`/studio/requests/${requestId}`);
+  }
+  return result;
+}
+
+export async function proposeDatesAction(
+  requestId: string,
+  startDate: string,
+  endDate: string,
+  message: string | null,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await proposeDatesCore(
+    user.id,
+    requestId,
+    startDate,
+    endDate,
+    message,
+  );
+  if (!result.error) {
+    revalidatePath("/studio/requests");
+    revalidatePath(`/studio/requests/${requestId}`);
+  }
+  return result;
+}
+
+export async function addPrivateNoteAction(
+  requestId: string,
+  body: string,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await addPrivateNoteCore(user.id, requestId, body);
+  if (!result.error) revalidatePath(`/studio/requests/${requestId}`);
+  return result;
+}
+
+export async function studioCancelStayAction(
+  stayId: string,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await cancelStayCore(user.id, stayId);
+  if (!result.error) {
+    revalidatePath("/studio");
+    revalidatePath("/studio/requests");
   }
   return result;
 }

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { GUEST_SPOT_LEG_LOCKED_MESSAGE } from "@inklee/shared/guest-spots";
 import {
   validateTripLeg,
   validateTripLegsPayload,
@@ -403,6 +404,17 @@ export async function deleteTripAction(id: string): Promise<State> {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
+  // Guest-spot-managed legs lock their trip against direct deletion
+  // (Inklee 2.0 Phase 4: those dates move only through the request flow).
+  const { data: lockedLeg } = await supabase
+    .from("trip_legs")
+    .select("id")
+    .eq("trip_id", id)
+    .eq("origin", "guest_spot")
+    .limit(1)
+    .maybeSingle();
+  if (lockedLeg) return { error: GUEST_SPOT_LEG_LOCKED_MESSAGE };
+
   const { error } = await supabase
     .from("trips")
     .delete()
@@ -487,12 +499,14 @@ export async function deleteTripLegAction(id: string): Promise<State> {
 
   const { data: leg } = await supabase
     .from("trip_legs")
-    .select("id, trips!inner(artist_id)")
+    .select("id, origin, trips!inner(artist_id)")
     .eq("id", id)
     .eq("trips.artist_id", user.id)
     .single();
 
   if (!leg) return { error: "Trip stop not found." };
+  if ((leg.origin as string) === "guest_spot")
+    return { error: GUEST_SPOT_LEG_LOCKED_MESSAGE };
 
   const { error } = await supabase.from("trip_legs").delete().eq("id", id);
 

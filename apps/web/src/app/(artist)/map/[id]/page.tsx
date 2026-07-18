@@ -54,6 +54,28 @@ export default async function MapLocationPage({
     .eq("artist_user_id", user.id)
     .maybeSingle();
 
+  // Claimed + published studios can receive guest spot requests.
+  const { data: studioLink } = await serviceClient
+    .from("map_locations")
+    .select("studio_profile_id")
+    .eq("id", id)
+    .maybeSingle();
+  let requestable = false;
+  let ownStudio = false;
+  if (studioLink?.studio_profile_id) {
+    const { data: studio } = await serviceClient
+      .from("studio_profiles")
+      .select("owner_user_id, publication_status, guest_spot_status")
+      .eq("id", studioLink.studio_profile_id as string)
+      .maybeSingle();
+    // invitation_only stays un-requestable: the setting exists to stop
+    // unsolicited requests.
+    requestable =
+      studio?.publication_status === "published" &&
+      studio.guest_spot_status === "accepting";
+    ownStudio = studio?.owner_user_id === user.id;
+  }
+
   const categoryLabel =
     MAP_LOCATION_CATEGORY_LABELS[
       data.category as keyof typeof MAP_LOCATION_CATEGORY_LABELS
@@ -126,9 +148,23 @@ export default async function MapLocationPage({
       </section>
 
       {claimed ? (
-        <p className="text-xs text-muted-foreground">
-          This place manages its own page.
-        </p>
+        requestable && !ownStudio ? (
+          <div className="space-y-2 rounded-2xl border border-border p-4">
+            <p className="text-sm text-foreground">
+              This studio takes guest spot requests.
+            </p>
+            <Link
+              href={`/map/${id}/request`}
+              className="inline-block rounded-md bg-foreground px-4 py-2 text-sm text-background transition-opacity hover:opacity-90"
+            >
+              Request a guest spot
+            </Link>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            This place manages its own page.
+          </p>
+        )
       ) : data.category === "supply_shop" ? (
         <p className="text-xs text-muted-foreground">
           Nobody runs this page yet.
@@ -136,8 +172,8 @@ export default async function MapLocationPage({
       ) : (
         <div className="space-y-2 rounded-2xl border border-border p-4">
           <p className="text-sm text-foreground">
-            Your studio? Claim the page and run it yourself. Guest spot requests
-            follow in a later update.
+            Your studio? Claim the page and run it yourself, including guest
+            spot requests from travelling artists.
           </p>
           <Link
             href={`/studio/claim/${id}`}

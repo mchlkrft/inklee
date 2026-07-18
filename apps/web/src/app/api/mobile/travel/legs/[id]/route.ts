@@ -3,6 +3,7 @@ import {
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
+import { GUEST_SPOT_LEG_LOCKED_MESSAGE } from "@inklee/shared/guest-spots";
 
 export const runtime = "nodejs";
 
@@ -20,11 +21,13 @@ export async function DELETE(
 
   const { data: leg } = await supabase
     .from("trip_legs")
-    .select("id, trips!inner(artist_id)")
+    .select("id, origin, trips!inner(artist_id)")
     .eq("id", id)
     .eq("trips.artist_id", userId)
     .maybeSingle();
   if (!leg) return mobileError(404, "Trip stop not found.", "not_found");
+  if ((leg.origin as string) === "guest_spot")
+    return mobileError(409, GUEST_SPOT_LEG_LOCKED_MESSAGE, "locked");
 
   const { error } = await supabase.from("trip_legs").delete().eq("id", id);
   if (error) return mobileError(500, error.message);

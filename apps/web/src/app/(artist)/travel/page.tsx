@@ -4,6 +4,7 @@ import TripManager from "./trip-manager";
 import StudioList from "./studio-list";
 import FeatureIntroModal from "@/components/feature-intro-modal";
 import { publicArtistUrl } from "@/lib/public-url";
+import { tattooMapEnabled } from "@/lib/map-features";
 
 export default async function TravelPage() {
   const supabase = await createClient();
@@ -122,6 +123,14 @@ export default async function TravelPage() {
               className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               Show on map &rarr;
+            </Link>
+          )}
+          {tattooMapEnabled() && (
+            <Link
+              href="/travel/requests"
+              className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Your guest spot requests &rarr;
             </Link>
           )}
         </div>
