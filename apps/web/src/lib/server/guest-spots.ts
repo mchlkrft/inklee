@@ -841,6 +841,115 @@ export async function listStudioInbox(
 }
 
 // ---------------------------------------------------------------------------
+// Guest artist timeline (Phase 4, Q16 resolved 2026-07-18): a read model over
+// stays for a studio's map page. Studio opts in (show_guest_timeline);
+// artist privacy caps every entry: only passport_public artists render
+// named + linked, everyone else appears as "A guest artist" with dates only.
+
+export type TimelineEntry = {
+  // null name = anonymized entry (the Q16 default).
+  name: string | null;
+  slug: string | null;
+  startsOn: string;
+  endsOn: string;
+};
+
+export type StudioTimeline = {
+  current: TimelineEntry[];
+  upcoming: TimelineEntry[];
+  past: TimelineEntry[];
+};
+
+/**
+ * Returns the timeline, or null when the studio has not opted in or is not
+ * published. Callers pass the studio profile id from an approved map page.
+ */
+export async function getStudioGuestTimeline(
+  studioProfileId: string,
+): Promise<StudioTimeline | null> {
+  const { data: studio } = await serviceClient
+    .from("studio_profiles")
+    .select("publication_status, show_guest_timeline")
+    .eq("id", studioProfileId)
+    .maybeSingle();
+  if (studio?.publication_status !== "published" || !studio.show_guest_timeline)
+    return null;
+
+  // Per-status queries so no group can starve another out of a shared limit.
+  const base = () =>
+    serviceClient
+      .from("guest_spot_stays")
+      .select("artist_user_id, starts_on, ends_on")
+      .eq("studio_profile_id", studioProfileId);
+  const [{ data: current }, { data: upcoming }, { data: past }] =
+    await Promise.all([
+      base()
+        .eq("status", "active")
+        .order("starts_on", { ascending: true })
+        .limit(10),
+      base()
+        .eq("status", "confirmed")
+        .order("starts_on", { ascending: true })
+        .limit(10),
+      base()
+        .eq("status", "completed")
+        .order("ends_on", { ascending: false })
+        .limit(8),
+    ]);
+
+  // Naming consent: passport_public covers the artist's completed guest spot
+  // HISTORY, so only PAST entries carry a name and link. Current and upcoming
+  // stays render anonymized for everyone in v1: naming future whereabouts is
+  // a bigger consent than the passport toggle promises, and bundling it in
+  // silently is not this slice's call (founder decision pending).
+  const pastArtistIds = [
+    ...new Set((past ?? []).map((s) => s.artist_user_id as string)),
+  ];
+  const { data: artists } = pastArtistIds.length
+    ? await serviceClient
+        .from("profiles")
+        .select("id, display_name, slug, passport_public")
+        .in("id", pastArtistIds)
+    : { data: [] };
+  const byId = new Map(
+    (artists ?? []).map((a) => [
+      a.id as string,
+      {
+        name: a.passport_public
+          ? (((a.display_name as string | null) || (a.slug as string | null)) ??
+            null)
+          : null,
+        slug: a.passport_public ? ((a.slug as string | null) ?? null) : null,
+      },
+    ]),
+  );
+
+  const anonymized = (s: {
+    starts_on: unknown;
+    ends_on: unknown;
+  }): TimelineEntry => ({
+    name: null,
+    slug: null,
+    startsOn: s.starts_on as string,
+    endsOn: s.ends_on as string,
+  });
+
+  return {
+    current: (current ?? []).map(anonymized),
+    upcoming: (upcoming ?? []).map(anonymized),
+    past: (past ?? []).map((s) => {
+      const artist = byId.get(s.artist_user_id as string);
+      return {
+        name: artist?.name ?? null,
+        slug: artist?.slug ?? null,
+        startsOn: s.starts_on as string,
+        endsOn: s.ends_on as string,
+      };
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Artist passport (Phase 4): a read model over completed stays. Private by
 // default; profiles.passport_public (toggle on /settings/map, grant 0084)
 // opts the artist in. Shown to studios reviewing that artist's request.

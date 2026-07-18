@@ -10,6 +10,12 @@ import {
   type HouseRuleKey,
 } from "@inklee/shared/studio-profile";
 import { getPublishedHouseRules } from "@/lib/server/studios";
+import {
+  getStudioGuestTimeline,
+  type StudioTimeline,
+  type TimelineEntry,
+} from "@/lib/server/guest-spots";
+import { formatDateKey } from "@inklee/shared/date-utils";
 import WatchButton from "./watch-button";
 
 // Logged-in only and noindex by default (open question Q3 keeps seeded pages
@@ -68,6 +74,7 @@ export default async function MapLocationPage({
   let requestable = false;
   let ownStudio = false;
   let houseRules: Array<{ key: string; content: string }> = [];
+  let timeline: StudioTimeline | null = null;
   if (studioLink?.studio_profile_id) {
     const { data: studio } = await serviceClient
       .from("studio_profiles")
@@ -81,9 +88,10 @@ export default async function MapLocationPage({
       studio.guest_spot_status === "accepting";
     ownStudio = studio?.owner_user_id === user.id;
     if (studio?.publication_status === "published") {
-      houseRules = await getPublishedHouseRules(
-        studioLink.studio_profile_id as string,
-      );
+      [houseRules, timeline] = await Promise.all([
+        getPublishedHouseRules(studioLink.studio_profile_id as string),
+        getStudioGuestTimeline(studioLink.studio_profile_id as string),
+      ]);
     }
   }
 
@@ -157,6 +165,61 @@ export default async function MapLocationPage({
           <WatchButton mapLocationId={id} initialWatched={Boolean(watch)} />
         </div>
       </section>
+
+      {claimed &&
+      timeline &&
+      (timeline.current.length > 0 ||
+        timeline.upcoming.length > 0 ||
+        timeline.past.length > 0) ? (
+        <section className="space-y-3 rounded-2xl border border-border p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            Guest artists
+          </h2>
+          {(
+            [
+              ["Now", timeline.current],
+              ["Coming up", timeline.upcoming],
+              ["Past", timeline.past],
+            ] as Array<[string, TimelineEntry[]]>
+          )
+            .filter(([, entries]) => entries.length > 0)
+            .map(([heading, entries]) => (
+              <div key={heading} className="space-y-1">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {heading}
+                </p>
+                <ul className="space-y-1">
+                  {entries.map((entry, i) => (
+                    <li
+                      key={`${heading}-${i}`}
+                      className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                    >
+                      {entry.name && entry.slug ? (
+                        <a
+                          href={`/${entry.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-foreground underline-offset-2 hover:underline"
+                        >
+                          {entry.name}
+                        </a>
+                      ) : (
+                        <span className="text-foreground">
+                          {entry.name ?? "A guest artist"}
+                        </span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {entry.startsOn === entry.endsOn
+                          ? formatDateKey(entry.startsOn)
+                          : `${formatDateKey(entry.startsOn)} – ${formatDateKey(entry.endsOn)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+        </section>
+      ) : null}
 
       {claimed && houseRules.length > 0 ? (
         <section className="space-y-3 rounded-2xl border border-border p-4">

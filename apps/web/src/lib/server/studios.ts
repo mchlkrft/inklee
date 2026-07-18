@@ -61,6 +61,7 @@ export type OwnedStudio = {
   addressVisibility: string;
   guestSpotStatus: string;
   publicationStatus: string;
+  showGuestTimeline: boolean;
   socialLinks: string[];
   mapLocationId: string | null;
   mapModerationStatus: string | null;
@@ -90,7 +91,7 @@ export async function getOwnedStudio(
   const { data: studio } = await serviceClient
     .from("studio_profiles")
     .select(
-      "id, name, description, vibe, logo_path, address, city, country, postal_code, address_visibility, guest_spot_status, publication_status, settings",
+      "id, name, description, vibe, logo_path, address, city, country, postal_code, address_visibility, guest_spot_status, publication_status, show_guest_timeline, settings",
     )
     .eq("owner_user_id", userId)
     .maybeSingle();
@@ -151,6 +152,7 @@ export async function getOwnedStudio(
     addressVisibility: studio.address_visibility as string,
     guestSpotStatus: studio.guest_spot_status as string,
     publicationStatus: studio.publication_status as string,
+    showGuestTimeline: Boolean(studio.show_guest_timeline),
     socialLinks: readSocialLinks(studio.settings),
     mapLocationId: (mapLoc?.id as string | null) ?? null,
     mapModerationStatus: (mapLoc?.moderation_status as string | null) ?? null,
@@ -335,6 +337,9 @@ export async function updateStudioProfileCore(
       postal_code: input.postalCode?.trim() || null,
       address_visibility: input.addressVisibility,
       guest_spot_status: input.guestSpotStatus,
+      ...(input.showGuestTimeline !== undefined
+        ? { show_guest_timeline: Boolean(input.showGuestTimeline) }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", studioId);

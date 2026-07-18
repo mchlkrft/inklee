@@ -104,6 +104,9 @@ export type StudioProfileInput = {
   postalCode?: string | null;
   addressVisibility: string;
   guestSpotStatus: string;
+  // Guest artist timeline on the studio's map page (Q16: artist privacy caps
+  // it; non-consenting artists render anonymized). Optional and additive.
+  showGuestTimeline?: boolean;
 };
 
 /** Returns an error message, or null when the profile fields are valid. */

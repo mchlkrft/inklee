@@ -50,6 +50,9 @@ export default function StudioEditor({
   const [guestSpotStatus, setGuestSpotStatus] = useState(
     studio.guestSpotStatus,
   );
+  const [showGuestTimeline, setShowGuestTimeline] = useState(
+    studio.showGuestTimeline,
+  );
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profilePending, startProfile] = useTransition();
@@ -127,6 +130,7 @@ export default function StudioEditor({
         postalCode: studio.postalCode,
         addressVisibility,
         guestSpotStatus,
+        showGuestTimeline,
       });
       if (result.error) {
         setProfileError(result.error);
@@ -241,6 +245,22 @@ export default function StudioEditor({
             />
           </div>
         </div>
+        <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={showGuestTimeline}
+            onChange={(e) => {
+              setProfileSaved(false);
+              setShowGuestTimeline(e.target.checked);
+            }}
+          />
+          Show guest artists on your map page
+        </label>
+        <p className="text-xs text-muted-foreground">
+          Past, current and upcoming guest artists. Current and upcoming guests
+          always show without a name; past guests are named only when they share
+          their guest spot history.
+        </p>
         {profileError ? (
           <p className="text-sm text-brand-red">{profileError}</p>
         ) : null}

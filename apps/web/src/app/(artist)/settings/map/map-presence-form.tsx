@@ -198,7 +198,8 @@ export default function MapPresenceForm({
         </label>
         <p className="text-xs text-muted-foreground">
           The passport is your completed guest spots. Studios reviewing your
-          requests see it; nothing shows while it is off.
+          requests see it, and studios you guested at can name you in the past
+          section of their guest list. Nothing shows while it is off.
         </p>
         <p className="text-xs text-muted-foreground">
           Trip cities come from your Guest Spots planner and appear at city
