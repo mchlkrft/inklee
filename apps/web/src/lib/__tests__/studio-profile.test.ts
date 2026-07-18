@@ -14,7 +14,9 @@ import {
   WELCOME_PACK_FIELDS,
   WELCOME_PACK_FIELD_LABELS,
   WELCOME_PACK_FIELD_MAX,
+  isOwnedWelcomePackFilePath,
   validateWelcomePackInput,
+  welcomePackFileStoragePath,
   computeStudioCompleteness,
   isOwnedStudioMediaPath,
   sortHouseRules,
@@ -196,6 +198,37 @@ describe("house rules", () => {
       "opening_hours",
       "walk_in_policy",
     ]);
+  });
+});
+
+describe("welcome pack file paths", () => {
+  const studioId = "99999999-0000-0000-0000-000000000001";
+
+  it("builds the expected path", () => {
+    expect(welcomePackFileStoragePath(studioId, "abc", "pdf")).toBe(
+      `${studioId}/abc.pdf`,
+    );
+  });
+
+  it("the guard accepts only the studio's own well-formed paths", () => {
+    expect(isOwnedWelcomePackFilePath(studioId, `${studioId}/abc.pdf`)).toBe(
+      true,
+    );
+    expect(isOwnedWelcomePackFilePath(studioId, "other/abc.pdf")).toBe(false);
+    expect(isOwnedWelcomePackFilePath(studioId, `${studioId}/../x.pdf`)).toBe(
+      false,
+    );
+    expect(isOwnedWelcomePackFilePath(studioId, `${studioId}\\abc.pdf`)).toBe(
+      false,
+    );
+    expect(isOwnedWelcomePackFilePath(studioId, `${studioId}/a/b.pdf`)).toBe(
+      false,
+    );
+    expect(isOwnedWelcomePackFilePath(studioId, `${studioId}/noext`)).toBe(
+      false,
+    );
+    expect(isOwnedWelcomePackFilePath(studioId, "")).toBe(false);
+    expect(isOwnedWelcomePackFilePath("", `${studioId}/abc.pdf`)).toBe(false);
   });
 });
 

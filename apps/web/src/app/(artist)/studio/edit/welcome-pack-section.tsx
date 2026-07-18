@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
+  MAX_WELCOME_PACK_FILES,
   WELCOME_PACK_FIELDS,
   WELCOME_PACK_FIELD_LABELS,
   WELCOME_PACK_FIELD_MAX,
   type WelcomePackField,
   type WelcomePackInput,
 } from "@inklee/shared/studio-profile";
-import { setWelcomePackAction } from "../actions";
+import type { WelcomePackFile } from "@/lib/server/studios";
+import {
+  deleteWelcomePackFileAction,
+  setWelcomePackAction,
+  uploadWelcomePackFileAction,
+} from "../actions";
 
 const INPUT_CLS =
   "w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring";
@@ -25,14 +32,49 @@ const PLACEHOLDERS: Record<WelcomePackField, string> = {
 export default function WelcomePackSection({
   studioId,
   initial,
+  files,
 }: {
   studioId: string;
   initial: WelcomePackInput;
+  files: WelcomePackFile[];
 }) {
+  const router = useRouter();
+  const fileInput = useRef<HTMLInputElement>(null);
   const [values, setValues] = useState<WelcomePackInput>(initial);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [filePending, startFile] = useTransition();
+
+  const upload = (file: File) => {
+    setFileError(null);
+    // Clear immediately so re-picking the same file after a failure fires
+    // a fresh change event.
+    if (fileInput.current) fileInput.current.value = "";
+    startFile(async () => {
+      const fd = new FormData();
+      fd.set("file", file);
+      const result = await uploadWelcomePackFileAction(studioId, fd);
+      if (result.error) {
+        setFileError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const removeFile = (fileId: string) => {
+    setFileError(null);
+    startFile(async () => {
+      const result = await deleteWelcomePackFileAction(studioId, fileId);
+      if (result.error) {
+        setFileError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
 
   const setField = (field: WelcomePackField, value: string) => {
     setSaved(false);
@@ -85,6 +127,67 @@ export default function WelcomePackSection({
         Your house rules already show alongside the pack on the guest&apos;s
         request page.
       </p>
+
+      <div className="space-y-2 border-t border-border pt-3">
+        <p className="text-sm text-foreground">Files</p>
+        <p className="text-xs text-muted-foreground">
+          Access maps, forms, anything a guest needs on paper. PDF or image, up
+          to {MAX_WELCOME_PACK_FILES} files, 4 MB each. Only confirmed guests
+          can open them.
+        </p>
+        {files.length > 0 ? (
+          <ul className="space-y-1.5">
+            {files.map((f) => (
+              <li
+                key={f.id}
+                className="flex flex-wrap items-center justify-between gap-2 text-sm"
+              >
+                {f.url ? (
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-w-0 truncate text-foreground underline-offset-2 hover:underline"
+                  >
+                    {f.fileName}
+                  </a>
+                ) : (
+                  <span className="min-w-0 truncate text-foreground">
+                    {f.fileName}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeFile(f.id)}
+                  disabled={filePending}
+                  className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {files.length < MAX_WELCOME_PACK_FILES ? (
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/pdf,image/png,image/jpeg,image/webp"
+            disabled={filePending}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) upload(file);
+            }}
+            className="block text-xs text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-1.5 file:text-xs file:text-foreground"
+          />
+        ) : null}
+        {filePending ? (
+          <p className="text-xs text-muted-foreground">Working…</p>
+        ) : null}
+        {fileError ? (
+          <p className="text-xs text-brand-red">{fileError}</p>
+        ) : null}
+      </div>
 
       <div className="flex items-center gap-3">
         <button

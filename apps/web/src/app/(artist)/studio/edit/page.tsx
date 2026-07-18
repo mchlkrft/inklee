@@ -7,6 +7,7 @@ import {
   getHouseRulesForOwner,
   getOwnedStudio,
   getStudioMediaForOwner,
+  getWelcomePackFilesForOwner,
   getWelcomePackForOwner,
 } from "@/lib/server/studios";
 import StudioEditor from "./studio-editor";
@@ -27,7 +28,7 @@ export default async function EditStudioPage() {
   const studio = await getOwnedStudio(user.id);
   if (!studio) redirect("/studio");
 
-  const [{ data: styleData }, media, houseRules, welcomePack] =
+  const [{ data: styleData }, media, houseRules, welcomePack, packFiles] =
     await Promise.all([
       serviceClient
         .from("styles")
@@ -36,6 +37,7 @@ export default async function EditStudioPage() {
       getStudioMediaForOwner(user.id, studio.id),
       getHouseRulesForOwner(user.id, studio.id),
       getWelcomePackForOwner(user.id, studio.id),
+      getWelcomePackFilesForOwner(user.id, studio.id),
     ]);
 
   return (
@@ -63,7 +65,11 @@ export default async function EditStudioPage() {
       />
       <HouseRulesSection studioId={studio.id} initialRules={houseRules ?? []} />
       {welcomePack ? (
-        <WelcomePackSection studioId={studio.id} initial={welcomePack} />
+        <WelcomePackSection
+          studioId={studio.id}
+          initial={welcomePack}
+          files={packFiles ?? []}
+        />
       ) : null}
     </div>
   );

@@ -11,6 +11,8 @@ import {
   setStudioCategoriesCore,
   setWelcomePackCore,
   submitClaimCore,
+  uploadWelcomePackFileCore,
+  deleteWelcomePackFileCore,
   updateStudioProfileCore,
   uploadStudioLogoCore,
   uploadStudioPhotoCore,
@@ -107,6 +109,33 @@ export async function setWelcomePackAction(
   const user = await requireUser();
   if (!user) return { error: "Not signed in." };
   const result = await setWelcomePackCore(user.id, studioId, input);
+  if (!result.error) revalidatePath("/studio/edit");
+  return result;
+}
+
+export async function uploadWelcomePackFileAction(
+  studioId: string,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0)
+    return { error: "Pick a file first." };
+  const result = await uploadWelcomePackFileCore(user.id, studioId, file);
+  if (!result.error) revalidatePath("/studio/edit");
+  return result;
+}
+
+export async function deleteWelcomePackFileAction(
+  studioId: string,
+  fileId: string,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await deleteWelcomePackFileCore(user.id, studioId, fileId);
   if (!result.error) revalidatePath("/studio/edit");
   return result;
 }

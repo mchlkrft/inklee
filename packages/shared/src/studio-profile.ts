@@ -248,6 +248,36 @@ export type WelcomePackInput = {
   includeHouseRules: boolean;
 } & Partial<Record<WelcomePackField, string | null>>;
 
+// Attachments (the Phase 4 private bucket): a few practical documents, not a
+// gallery. PDFs and images only; bytes live in the private welcome-pack-files
+// bucket keyed by studio id.
+export const MAX_WELCOME_PACK_FILES = 5;
+export const WELCOME_PACK_FILE_NAME_MAX = 120;
+
+export function welcomePackFileStoragePath(
+  studioProfileId: string,
+  fileId: string,
+  extension: string,
+): string {
+  return `${studioProfileId}/${fileId}.${extension}`;
+}
+
+/** Delete guard: exactly {studioId}/{name}.{ext}, no traversal. */
+export function isOwnedWelcomePackFilePath(
+  studioProfileId: string,
+  path: string,
+): boolean {
+  if (!studioProfileId || !path) return false;
+  if (path.includes("..") || path.includes("\\")) return false;
+  const parts = path.split("/");
+  return (
+    parts.length === 2 &&
+    parts[0] === studioProfileId &&
+    parts[1].length > 1 &&
+    parts[1].includes(".")
+  );
+}
+
 /** Returns an error message, or null when the pack fields are valid. */
 export function validateWelcomePackInput(
   input: WelcomePackInput,

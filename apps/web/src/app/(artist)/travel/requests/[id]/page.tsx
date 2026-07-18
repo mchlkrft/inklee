@@ -167,6 +167,33 @@ export default async function ArtistRequestDetailPage({
               </li>
             ))}
           </ul>
+          {welcomePack.files.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Files
+              </p>
+              <ul className="space-y-1">
+                {welcomePack.files.map((f) => (
+                  <li key={f.id} className="text-sm">
+                    {f.url ? (
+                      <a
+                        href={f.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-foreground underline-offset-2 hover:underline"
+                      >
+                        {f.fileName}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {f.fileName} (unavailable right now)
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

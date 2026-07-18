@@ -16,8 +16,12 @@ import {
   isOwnedStudioMediaPath,
   studioLogoStoragePath,
   studioPhotoStoragePath,
+  MAX_WELCOME_PACK_FILES,
   WELCOME_PACK_FIELDS,
+  WELCOME_PACK_FILE_NAME_MAX,
+  isOwnedWelcomePackFilePath,
   sortHouseRules,
+  welcomePackFileStoragePath,
   validateCustomCategory,
   validateHouseRules,
   validateStudioProfileInput,
@@ -673,12 +677,13 @@ export async function setWelcomePackCore(
 
 /**
  * The guest-side read: only an artist with a confirmed or active stay at the
- * studio sees the pack (interaction plane). Returns null otherwise.
+ * studio sees the pack (interaction plane). Returns null otherwise. Files
+ * ride the same gate; their signed URLs are short-lived.
  */
 export async function getWelcomePackForGuest(
   artistId: string,
   studioProfileId: string,
-): Promise<WelcomePack | null> {
+): Promise<(WelcomePack & { files: WelcomePackFile[] }) | null> {
   const { data: stay } = await serviceClient
     .from("guest_spot_stays")
     .select("id")
@@ -688,15 +693,191 @@ export async function getWelcomePackForGuest(
     .limit(1)
     .maybeSingle();
   if (!stay) return null;
+  const [{ data }, files] = await Promise.all([
+    serviceClient
+      .from("studio_welcome_packs")
+      .select("*")
+      .eq("studio_profile_id", studioProfileId)
+      .maybeSingle(),
+    shapeWelcomePackFiles(studioProfileId),
+  ]);
+  const pack = data
+    ? shapeWelcomePack(data)
+    : ({
+        includeHouseRules: true,
+        access_details: null,
+        wifi: null,
+        emergency_contact: null,
+        supply_shops: null,
+        promotion_notes: null,
+        local_notes: null,
+      } as WelcomePack);
+  const hasContent =
+    WELCOME_PACK_FIELDS.some((f) => pack[f]) || files.length > 0;
+  return hasContent ? { ...pack, files } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Welcome pack attachments (the Phase 4 private bucket). Same posture as
+// studio-media: service-role writes, short signed URLs, studio-keyed paths.
+// Guests reach files only through getWelcomePackForGuest's stay gate.
+
+const WELCOME_PACK_BUCKET = "welcome-pack-files";
+const WELCOME_PACK_FILE_MAX_BYTES = 4 * 1024 * 1024; // Vercel body-cap headroom
+const WELCOME_PACK_FILE_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+export type WelcomePackFile = {
+  id: string;
+  fileName: string;
+  mimeType: string | null;
+  fileSize: number | null;
+  /** Signed URL, or null when signing failed (renders as a plain name). */
+  url: string | null;
+};
+
+async function signWelcomePackPaths(
+  paths: string[],
+): Promise<Map<string, string>> {
+  if (paths.length === 0) return new Map();
+  const { data, error } = await serviceClient.storage
+    .from(WELCOME_PACK_BUCKET)
+    .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+  if (error) {
+    console.error("[studios] welcome pack signing failed:", error.message);
+    return new Map();
+  }
+  const urls = new Map<string, string>();
+  for (const entry of data ?? []) {
+    if (entry.path && entry.signedUrl) urls.set(entry.path, entry.signedUrl);
+  }
+  return urls;
+}
+
+async function listWelcomePackFileRows(studioId: string): Promise<
+  Array<{
+    id: string;
+    storage_path: string;
+    file_name: string;
+    mime_type: string | null;
+    file_size: number | null;
+  }>
+> {
   const { data } = await serviceClient
-    .from("studio_welcome_packs")
-    .select("*")
-    .eq("studio_profile_id", studioProfileId)
+    .from("welcome_pack_files")
+    .select("id, storage_path, file_name, mime_type, file_size")
+    .eq("studio_profile_id", studioId)
+    .order("created_at", { ascending: true })
+    .limit(MAX_WELCOME_PACK_FILES * 2);
+  return (data ?? []) as Array<{
+    id: string;
+    storage_path: string;
+    file_name: string;
+    mime_type: string | null;
+    file_size: number | null;
+  }>;
+}
+
+async function shapeWelcomePackFiles(
+  studioId: string,
+): Promise<WelcomePackFile[]> {
+  const rows = await listWelcomePackFileRows(studioId);
+  const signed = await signWelcomePackPaths(rows.map((r) => r.storage_path));
+  return rows.map((r) => ({
+    id: r.id,
+    fileName: r.file_name,
+    mimeType: r.mime_type,
+    fileSize: r.file_size,
+    url: signed.get(r.storage_path) ?? null,
+  }));
+}
+
+export async function getWelcomePackFilesForOwner(
+  userId: string,
+  studioId: string,
+): Promise<WelcomePackFile[] | null> {
+  if (!(await ownedStudioId(userId, studioId))) return null;
+  return shapeWelcomePackFiles(studioId);
+}
+
+export async function uploadWelcomePackFileCore(
+  userId: string,
+  studioId: string,
+  file: File,
+): Promise<{ error?: string }> {
+  if (!(await ownedStudioId(userId, studioId)))
+    return { error: "Not your studio." };
+  const extension = WELCOME_PACK_FILE_TYPES[file.type];
+  if (!extension) return { error: "Use a PDF, PNG, JPG, or WebP file." };
+  if (file.size > WELCOME_PACK_FILE_MAX_BYTES)
+    return { error: "Files must be under 4 MB." };
+  // Unlimited exact count for the cap (the list helper's display limit must
+  // never hide overflow from this check).
+  const { count } = await serviceClient
+    .from("welcome_pack_files")
+    .select("id", { count: "exact", head: true })
+    .eq("studio_profile_id", studioId);
+  if ((count ?? 0) >= MAX_WELCOME_PACK_FILES)
+    return {
+      error: `The pack holds at most ${MAX_WELCOME_PACK_FILES} files. Remove one first.`,
+    };
+
+  const fileId = randomUUID();
+  const path = welcomePackFileStoragePath(studioId, fileId, extension);
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const { error: uploadErr } = await serviceClient.storage
+    .from(WELCOME_PACK_BUCKET)
+    .upload(path, bytes, { contentType: file.type, upsert: false });
+  if (uploadErr) return { error: "Could not upload the file. Try again." };
+
+  const cleanName =
+    file.name?.trim().slice(0, WELCOME_PACK_FILE_NAME_MAX) ||
+    `file.${extension}`;
+  const { error: insertErr } = await serviceClient
+    .from("welcome_pack_files")
+    .insert({
+      studio_profile_id: studioId,
+      storage_path: path,
+      file_name: cleanName,
+      mime_type: file.type,
+      file_size: file.size,
+    });
+  if (insertErr) {
+    await serviceClient.storage.from(WELCOME_PACK_BUCKET).remove([path]);
+    return { error: "Could not save the file. Try again." };
+  }
+  return {};
+}
+
+export async function deleteWelcomePackFileCore(
+  userId: string,
+  studioId: string,
+  fileId: string,
+): Promise<{ error?: string }> {
+  if (!(await ownedStudioId(userId, studioId)))
+    return { error: "Not your studio." };
+  const { data: row } = await serviceClient
+    .from("welcome_pack_files")
+    .select("id, storage_path")
+    .eq("id", fileId)
+    .eq("studio_profile_id", studioId)
     .maybeSingle();
-  if (!data) return null;
-  const pack = shapeWelcomePack(data);
-  const hasContent = WELCOME_PACK_FIELDS.some((f) => pack[f]);
-  return hasContent ? pack : null;
+  if (!row) return { error: "File not found." };
+  const { error: deleteErr } = await serviceClient
+    .from("welcome_pack_files")
+    .delete()
+    .eq("id", fileId)
+    .eq("studio_profile_id", studioId);
+  if (deleteErr) return { error: "Could not remove the file. Try again." };
+  const path = row.storage_path as string;
+  if (isOwnedWelcomePackFilePath(studioId, path)) {
+    await serviceClient.storage.from(WELCOME_PACK_BUCKET).remove([path]);
+  }
+  return {};
 }
 
 // ---------------------------------------------------------------------------
