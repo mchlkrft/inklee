@@ -4,7 +4,10 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { tattooMapEnabled } from "@/lib/map-features";
-import { getStudioRequestDetail } from "@/lib/server/guest-spots";
+import {
+  getArtistPassport,
+  getStudioRequestDetail,
+} from "@/lib/server/guest-spots";
 import {
   DATE_FLEXIBILITY_LABELS,
   GUEST_SPOT_OPEN_STATUSES,
@@ -80,6 +83,8 @@ export default async function StudioRequestDetailPage({
 
   const social = safeHttpUrl(detail.socialLink);
   const open = (GUEST_SPOT_OPEN_STATUSES as string[]).includes(detail.status);
+  // Only opted-in passports render (private by default).
+  const passport = await getArtistPassport(detail.artistUserId);
   const startDate = detail.stay?.startsOn ?? detail.startDate;
   const endDate = detail.stay?.endsOn ?? detail.endDate;
 
@@ -140,6 +145,27 @@ export default async function StudioRequestDetailPage({
               Equipment needs
             </p>
             <p className="text-sm text-foreground">{detail.equipmentNeeds}</p>
+          </div>
+        ) : null}
+        {passport && passport.completedCount > 0 ? (
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Guest spot passport
+            </p>
+            <p className="text-sm text-foreground">
+              {passport.completedCount === 1
+                ? "1 completed guest spot"
+                : `${passport.completedCount} completed guest spots`}
+              {passport.recent.length > 0
+                ? `, most recently ${passport.recent
+                    .slice(0, 2)
+                    .map((s) =>
+                      s.city ? `${s.studioName} (${s.city})` : s.studioName,
+                    )
+                    .join(" and ")}`
+                : ""}
+              .
+            </p>
           </div>
         ) : null}
         <div className="flex flex-wrap gap-2">

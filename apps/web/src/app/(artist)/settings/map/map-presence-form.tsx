@@ -19,6 +19,7 @@ export type MapPresenceValues = {
   cityLat: number | null;
   cityLng: number | null;
   travelMapConsent: boolean;
+  passportPublic: boolean;
   styleKeys: string[];
 };
 
@@ -187,6 +188,18 @@ export default function MapPresenceForm({
           />
           Show my upcoming trip cities on the map
         </label>
+        <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={values.passportPublic}
+            onChange={(e) => set("passportPublic", e.target.checked)}
+          />
+          Show my guest spot passport
+        </label>
+        <p className="text-xs text-muted-foreground">
+          The passport is your completed guest spots. Studios reviewing your
+          requests see it; nothing shows while it is off.
+        </p>
         <p className="text-xs text-muted-foreground">
           Trip cities come from your Guest Spots planner and appear at city
           level only. This is separate from showing trips on your booking form.

@@ -19,7 +19,7 @@ export default async function MapPresenceSettingsPage() {
       supabase
         .from("profiles")
         .select(
-          "map_visibility, looking_for_guest_spots, map_city_label, map_city_place_id, map_city_lat, map_city_lng, travel_map_consent",
+          "map_visibility, looking_for_guest_spots, map_city_label, map_city_place_id, map_city_lat, map_city_lng, travel_map_consent, passport_public",
         )
         .eq("id", user.id)
         .single(),
@@ -42,6 +42,7 @@ export default async function MapPresenceSettingsPage() {
     cityLat: (profile.map_city_lat as number | null) ?? null,
     cityLng: (profile.map_city_lng as number | null) ?? null,
     travelMapConsent: Boolean(profile.travel_map_consent),
+    passportPublic: Boolean(profile.passport_public),
     styleKeys: (ownStyles ?? []).map((s) => s.style_key as string),
   };
 

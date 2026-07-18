@@ -840,6 +840,79 @@ export async function listStudioInbox(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Artist passport (Phase 4): a read model over completed stays. Private by
+// default; profiles.passport_public (toggle on /settings/map, grant 0084)
+// opts the artist in. Shown to studios reviewing that artist's request.
+
+export type ArtistPassport = {
+  completedCount: number;
+  recent: Array<{ studioName: string; city: string | null; endedOn: string }>;
+};
+
+/**
+ * Returns the passport, or null when the artist has not opted in (callers
+ * showing an artist their OWN passport pass includePrivate: true).
+ */
+export async function getArtistPassport(
+  artistUserId: string,
+  options?: { includePrivate?: boolean },
+): Promise<ArtistPassport | null> {
+  if (!options?.includePrivate) {
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("passport_public")
+      .eq("id", artistUserId)
+      .maybeSingle();
+    if (!profile?.passport_public) return null;
+  }
+  const [{ count }, { data: stays }] = await Promise.all([
+    serviceClient
+      .from("guest_spot_stays")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_user_id", artistUserId)
+      .eq("status", "completed"),
+    serviceClient
+      .from("guest_spot_stays")
+      .select("studio_profile_id, ends_on")
+      .eq("artist_user_id", artistUserId)
+      .eq("status", "completed")
+      .order("ends_on", { ascending: false })
+      .limit(5),
+  ]);
+  const studioIds = [
+    ...new Set((stays ?? []).map((s) => s.studio_profile_id as string)),
+  ];
+  const { data: studios } = studioIds.length
+    ? await serviceClient
+        .from("studio_profiles")
+        .select("id, name, city")
+        .in("id", studioIds)
+    : { data: [] };
+  const byId = new Map(
+    (studios ?? []).map((s) => [
+      s.id as string,
+      { name: s.name as string, city: (s.city as string | null) ?? null },
+    ]),
+  );
+  // Deduped by studio: repeat visits are the normal guest spot pattern, and
+  // "Black Lotus and Black Lotus" reads as a bug.
+  const seenStudios = new Set<string>();
+  const recent: ArtistPassport["recent"] = [];
+  for (const s of stays ?? []) {
+    const studioId = s.studio_profile_id as string;
+    if (seenStudios.has(studioId)) continue;
+    seenStudios.add(studioId);
+    const studio = byId.get(studioId);
+    recent.push({
+      studioName: studio?.name ?? "A studio",
+      city: studio?.city ?? null,
+      endedOn: s.ends_on as string,
+    });
+  }
+  return { completedCount: count ?? 0, recent };
+}
+
 /**
  * Date-driven stay lifecycle (cron-invoked, idempotent): confirmed stays
  * activate on their start date, active stays complete after their end date,

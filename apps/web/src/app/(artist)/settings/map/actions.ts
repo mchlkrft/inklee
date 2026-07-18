@@ -17,6 +17,7 @@ export type MapPresenceInput = {
   cityLat: number | null;
   cityLng: number | null;
   travelMapConsent: boolean;
+  passportPublic: boolean;
   styleKeys: string[];
 };
 
@@ -79,6 +80,7 @@ export async function updateMapPresenceAction(
       map_city_lat: hasCity ? input.cityLat : null,
       map_city_lng: hasCity ? input.cityLng : null,
       travel_map_consent: input.travelMapConsent,
+      passport_public: input.passportPublic,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);
