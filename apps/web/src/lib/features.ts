@@ -91,3 +91,13 @@ export function canUseBioModules(settings: unknown): boolean {
 export function isGoodsCommerceEnabled(): boolean {
   return process.env.GOODS_COMMERCE_ENABLED === "true";
 }
+
+/**
+ * Inklee 2.0 automated seed import (the second lane of the map seeding tool).
+ * Default OFF: with the flag unset, the automated lane refuses to run and the
+ * admin panel hides its trigger; the manual seeding workflow is unaffected
+ * either way. One flag gates the whole lane (run trigger, API route, CLI).
+ */
+export function isAutomatedSeedImportEnabled(): boolean {
+  return process.env.AUTOMATED_SEED_IMPORT_ENABLED === "true";
+}

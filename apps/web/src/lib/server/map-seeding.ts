@@ -231,7 +231,7 @@ export async function areaBucketCapacity(
 // classifier against existing map locations, plus exact URL and name checks
 // against the candidate pool. Nothing auto-merges; annotations only.
 
-type ExistingLocation = {
+export type ExistingLocation = {
   id: string;
   name: string;
   latitude: number;
@@ -239,14 +239,21 @@ type ExistingLocation = {
   address: string | null;
   instagramHandle: string | null;
   websiteUrl: string | null;
+  /** Set when the entry belongs to a claimed studio (never auto-touched). */
+  studioProfileId: string | null;
 };
 
-type ExistingCandidate = {
+export type ExistingCandidate = {
   id: string;
   name: string;
   sourceUrl: string | null;
   socialUrl: string | null;
   websiteUrl: string | null;
+};
+
+export type SeedAnnotationContext = {
+  locations: ExistingLocation[];
+  candidates: ExistingCandidate[];
 };
 
 export type DuplicateAnnotation = {
@@ -265,16 +272,15 @@ function lowerUrl(value: string | null | undefined): string | null {
   return value ? value.trim().toLowerCase().replace(/\/+$/, "") : null;
 }
 
-async function loadAnnotationContext(area: SeedAreaRow | null): Promise<{
-  locations: ExistingLocation[];
-  candidates: ExistingCandidate[];
-}> {
+export async function loadAnnotationContext(
+  area: SeedAreaRow | null,
+): Promise<SeedAnnotationContext> {
   const [locations, candidates] = await Promise.all([
     pageAll<Record<string, unknown>>((from, to) => {
       const q = serviceClient
         .from("map_locations")
         .select(
-          "id, name, latitude, longitude, address, instagram_handle, website_url",
+          "id, name, latitude, longitude, address, instagram_handle, website_url, studio_profile_id",
         )
         .neq("moderation_status", "removed")
         .order("id", { ascending: true })
@@ -307,6 +313,7 @@ async function loadAnnotationContext(area: SeedAreaRow | null): Promise<{
       address: (l.address as string | null) ?? null,
       instagramHandle: (l.instagram_handle as string | null) ?? null,
       websiteUrl: (l.website_url as string | null) ?? null,
+      studioProfileId: (l.studio_profile_id as string | null) ?? null,
     })),
     candidates: (candidates ?? []).map((c) => ({
       id: c.id as string,
@@ -318,7 +325,7 @@ async function loadAnnotationContext(area: SeedAreaRow | null): Promise<{
   };
 }
 
-function annotateOne(
+export function annotateOne(
   entry: {
     name: string;
     latitude?: number | null;
@@ -327,7 +334,7 @@ function annotateOne(
     websiteUrl?: string | null;
     sourceUrl?: string | null;
   },
-  ctx: { locations: ExistingLocation[]; candidates: ExistingCandidate[] },
+  ctx: SeedAnnotationContext,
 ): DuplicateAnnotation {
   // Exact URL hits against the candidate pool first (the same lead found
   // twice), then the geo classifier against real map entries.
@@ -855,6 +862,11 @@ export type SeedCandidateRow = {
   convertedLocationId: string | null;
   adminNotes: string | null;
   createdAt: string;
+  /** Automated-lane decision fields (null on purely manual candidates). */
+  decision: string | null;
+  decisionConfidence: number | null;
+  decisionEvidence: Record<string, unknown> | null;
+  countryRunId: string | null;
 };
 
 function shapeCandidate(row: Record<string, unknown>): SeedCandidateRow {
@@ -883,6 +895,14 @@ function shapeCandidate(row: Record<string, unknown>): SeedCandidateRow {
     convertedLocationId: (row.converted_location_id as string | null) ?? null,
     adminNotes: (row.admin_notes as string | null) ?? null,
     createdAt: row.created_at as string,
+    decision: (row.decision as string | null) ?? null,
+    decisionConfidence:
+      row.decision_confidence === null || row.decision_confidence === undefined
+        ? null
+        : Number(row.decision_confidence),
+    decisionEvidence:
+      (row.decision_evidence as Record<string, unknown> | null) ?? null,
+    countryRunId: (row.country_run_id as string | null) ?? null,
   };
 }
 

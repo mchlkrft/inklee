@@ -17,8 +17,8 @@ import {
   createMapLocationAction,
   deleteMapLocationAction,
   updateMapLocationAction,
-  type MapLocationFormInput,
 } from "./actions";
+import type { MapLocationFormInput } from "@/lib/server/map-locations";
 import { convertCandidateAction } from "./seeding/actions";
 import type { DuplicateHit } from "@inklee/shared/map-directory";
 

@@ -11,6 +11,10 @@ import {
   type SeedCandidateStatus,
   type SeedCandidateType,
 } from "@inklee/shared/map-seeding";
+import {
+  SEED_DECISION_LABELS,
+  type SeedDecision,
+} from "@inklee/shared/seed-filtering";
 import type { SeedCandidateRow } from "@/lib/server/map-seeding";
 import { reviewCandidateAction } from "../actions";
 
@@ -94,6 +98,20 @@ function CandidateCard({
               ? " of another candidate"
               : ""}
           .
+        </p>
+      ) : null}
+      {candidate.decision ? (
+        <p className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {SEED_DECISION_LABELS[candidate.decision as SeedDecision] ??
+              candidate.decision}
+          </span>
+          {candidate.decisionConfidence !== null
+            ? ` (${candidate.decisionConfidence}%)`
+            : ""}
+          {typeof candidate.decisionEvidence?.explanation === "string"
+            ? ` · ${candidate.decisionEvidence.explanation}`
+            : ""}
         </p>
       ) : null}
       {candidate.provenanceNotes ? (

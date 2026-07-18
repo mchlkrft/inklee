@@ -5,14 +5,8 @@ import { getAdminId } from "@/lib/admin-guard";
 import { writeAudit } from "@/lib/audit";
 import { serviceClient } from "@/lib/supabase/service";
 import {
-  MAP_LOCATION_SOURCES,
-  MAP_MODERATION_STATUSES,
-  SEED_CAP_PER_BUCKET,
-  normalizeInstagramHandle,
   seedRegionBucket,
   validateMapLocationInput,
-  type MapLocationSource,
-  type MapModerationStatus,
 } from "@inklee/shared/map-directory";
 import { approximateDisplayPosition } from "@inklee/shared/studio-profile";
 import {
@@ -20,24 +14,14 @@ import {
   scanForDuplicates,
   type DuplicateHit,
 } from "@/lib/server/map-duplicates";
+import {
+  createMapLocationCore,
+  locationRowFromInput,
+  seedCapError,
+  validateLocationEnums,
+  type MapLocationFormInput,
+} from "@/lib/server/map-locations";
 import { approveClaimCore, rejectClaimCore } from "@/lib/server/studios";
-
-export type MapLocationFormInput = {
-  name: string;
-  category: string;
-  latitude: number;
-  longitude: number;
-  address: string | null;
-  city: string | null;
-  country: string | null;
-  postalCode: string | null;
-  googlePlaceId: string | null;
-  websiteUrl: string | null;
-  instagramHandle: string | null;
-  source: string;
-  moderationStatus: string;
-  isSeed: boolean;
-};
 
 type Result = { error?: string; id?: string; duplicates?: DuplicateHit[] };
 
@@ -75,67 +59,6 @@ async function logMapAdminAction(
   ]);
 }
 
-function validateEnums(input: MapLocationFormInput): string | null {
-  if (!MAP_LOCATION_SOURCES.includes(input.source as MapLocationSource))
-    return "Pick a valid source.";
-  if (
-    !MAP_MODERATION_STATUSES.includes(
-      input.moderationStatus as MapModerationStatus,
-    )
-  )
-    return "Pick a valid moderation status.";
-  return null;
-}
-
-/**
- * The locked seed density cap: max SEED_CAP_PER_BUCKET seeded entries per
- * ~300 square km bucket, enforced here in the insert path (not in import
- * scripts) so no later seeding round can bypass it. `excludeId` skips the row
- * being edited.
- */
-async function seedCapError(
-  bucket: string,
-  excludeId?: string,
-): Promise<string | null> {
-  let query = serviceClient
-    .from("map_locations")
-    .select("id", { count: "exact", head: true })
-    .eq("is_seed", true)
-    .eq("seed_region_bucket", bucket)
-    .neq("moderation_status", "removed");
-  if (excludeId) query = query.neq("id", excludeId);
-  const { count, error } = await query;
-  if (error) return `Could not verify the seed cap: ${error.message}`;
-  if ((count ?? 0) >= SEED_CAP_PER_BUCKET)
-    return `Seed cap reached: this area (bucket ${bucket}) already holds ${count} of ${SEED_CAP_PER_BUCKET} seeded entries. Curate, do not crowd.`;
-  return null;
-}
-
-function rowFromInput(input: MapLocationFormInput, bucket: string) {
-  return {
-    source: input.source,
-    category: input.category,
-    name: input.name.trim(),
-    latitude: input.latitude,
-    longitude: input.longitude,
-    // Admin-curated entries render at their true position; the approximate
-    // offset concept arrives with studio profiles in Phase 3.
-    display_latitude: input.latitude,
-    display_longitude: input.longitude,
-    address: input.address?.trim() || null,
-    city: input.city?.trim() || null,
-    country: input.country?.trim() || null,
-    postal_code: input.postalCode?.trim() || null,
-    google_place_id: input.googlePlaceId?.trim() || null,
-    website_url: input.websiteUrl?.trim() || null,
-    instagram_handle: normalizeInstagramHandle(input.instagramHandle),
-    moderation_status: input.moderationStatus,
-    is_seed: input.isSeed,
-    seed_region_bucket: bucket,
-    updated_at: new Date().toISOString(),
-  };
-}
-
 export async function createMapLocationAction(
   input: MapLocationFormInput,
   ignoreDuplicates = false,
@@ -143,55 +66,16 @@ export async function createMapLocationAction(
   const adminId = await getAdminId();
   if (!adminId) return { error: "Not authorized." };
 
-  const invalid = validateMapLocationInput(input) ?? validateEnums(input);
-  if (invalid) return { error: invalid };
-
-  const bucket = seedRegionBucket(input.latitude, input.longitude);
-  if (input.isSeed) {
-    const capError = await seedCapError(bucket);
-    if (capError) return { error: capError };
-  }
-
-  // Duplicate detection (Phase 1 follow-on): warn-and-confirm on clear or
-  // likely hits, persist every hit as an admin review suggestion after save.
-  const duplicateHits = await scanForDuplicates(duplicateEntry(input));
-  if (
-    !ignoreDuplicates &&
-    duplicateHits.some((h) => h.confidence !== "possible")
-  ) {
-    return { duplicates: duplicateHits };
-  }
-
-  const { data, error } = await serviceClient
-    .from("map_locations")
-    .insert(rowFromInput(input, bucket))
-    .select("id")
-    .single();
-  if (error) {
-    if (error.code === "23505")
-      return {
-        error: "A directory entry with this Google place already exists.",
-      };
-    return { error: error.message };
-  }
-
-  await Promise.all([
-    logMapAdminAction(adminId, "map_location_created", {
-      map_location_id: data.id,
-      name: input.name.trim(),
-      category: input.category,
-      is_seed: input.isSeed,
-      seed_region_bucket: bucket,
-      duplicate_hits: duplicateHits.length,
-    }),
-    persistDuplicateSuggestions(
-      data.id as string,
-      duplicateHits,
-      ignoreDuplicates ? adminId : undefined,
-    ),
-  ]);
-  revalidatePath("/admin/map");
-  return { id: data.id as string };
+  // The shared conversion core (validation, density cap, duplicate
+  // warn-and-confirm, insert, audit) — identical semantics for the manual
+  // admin lane and the automated seed lane.
+  const result = await createMapLocationCore(
+    { kind: "admin", adminId },
+    input,
+    ignoreDuplicates,
+  );
+  if (result.id) revalidatePath("/admin/map");
+  return result;
 }
 
 export async function updateMapLocationAction(
@@ -202,7 +86,8 @@ export async function updateMapLocationAction(
   const adminId = await getAdminId();
   if (!adminId) return { error: "Not authorized." };
 
-  const invalid = validateMapLocationInput(input) ?? validateEnums(input);
+  const invalid =
+    validateMapLocationInput(input) ?? validateLocationEnums(input);
   if (invalid) return { error: invalid };
 
   const bucket = seedRegionBucket(input.latitude, input.longitude);
@@ -222,7 +107,7 @@ export async function updateMapLocationAction(
   // Studio-linked rows re-derive their public display from the OWNER'S
   // address visibility, so an admin save can never overwrite the approximate
   // offset with the true position (integration sweep follow-up).
-  const row = rowFromInput(input, bucket);
+  const row = locationRowFromInput(input, bucket);
   const { data: linkedRow } = await serviceClient
     .from("map_locations")
     .select("studio_profile_id")

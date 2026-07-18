@@ -23,7 +23,12 @@ import {
   type ManualCandidateInput,
   type SeedAreaInput,
 } from "@inklee/shared/map-seeding";
-import { createMapLocationAction, type MapLocationFormInput } from "../actions";
+import { createMapLocationAction } from "../actions";
+import type { MapLocationFormInput } from "@/lib/server/map-locations";
+import {
+  runCountrySeed,
+  type CountrySeedSummary,
+} from "@/lib/server/seed-automation";
 import type { DuplicateHit } from "@inklee/shared/map-directory";
 
 async function audit(
@@ -109,6 +114,30 @@ export async function storeBraveSelectionAction(
     revalidatePath(`/admin/map/seeding/${areaId}`);
   }
   return result;
+}
+
+export async function runAutomatedSeedAction(
+  areaId: string,
+  countryCode: string,
+  mode: "dry_run" | "import",
+  raw: string,
+  label: string | null,
+  maxImport?: number,
+): Promise<{ error?: string; summary?: CountrySeedSummary; runId?: string }> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+  const result = await runCountrySeed({
+    adminId,
+    countryCode,
+    areaId,
+    raw,
+    inputLabel: label,
+    mode,
+    maxImport,
+  });
+  revalidatePath(`/admin/map/seeding/${areaId}`);
+  if ("error" in result) return { error: result.error, runId: result.runId };
+  return { summary: result.summary };
 }
 
 export async function previewOvertureImportAction(

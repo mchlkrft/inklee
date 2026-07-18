@@ -8,9 +8,16 @@ import {
   listAreaCandidates,
 } from "@/lib/server/map-seeding";
 import { SEED_CAP_PER_BUCKET } from "@inklee/shared/map-directory";
+import {
+  SEED_COUNTRY_CODES,
+  getSeedCountry,
+} from "@inklee/shared/seed-countries";
+import { isAutomatedSeedImportEnabled } from "@/lib/features";
+import { listCountryRuns } from "@/lib/server/seed-automation";
 import SeedLanes from "./seed-lanes";
 import CandidateQueue from "./candidate-queue";
 import AreaStatus from "./area-status";
+import AutomatedLane from "./automated-lane";
 
 export const metadata = { title: "Admin · Seed area" };
 
@@ -24,10 +31,12 @@ export default async function AdminSeedAreaPage({
   const area = await getSeedArea(areaId);
   if (!area) notFound();
 
-  const [capacity, candidates, usage] = await Promise.all([
+  const automatedEnabled = isAutomatedSeedImportEnabled();
+  const [capacity, candidates, usage, countryRuns] = await Promise.all([
     areaBucketCapacity(area, SEED_CAP_PER_BUCKET),
     listAreaCandidates(areaId),
     braveUsageSummary(),
+    automatedEnabled ? listCountryRuns(areaId) : Promise.resolve([]),
   ]);
 
   const fullBuckets = capacity.buckets.filter(
@@ -94,6 +103,17 @@ export default async function AdminSeedAreaPage({
         braveUsedThisMonth={usage.usedThisMonth}
         braveMonthlyCap={usage.monthlyCap}
       />
+
+      {automatedEnabled ? (
+        <AutomatedLane
+          areaId={areaId}
+          countries={SEED_COUNTRY_CODES.map((code) => {
+            const c = getSeedCountry(code);
+            return { code, name: c?.name ?? code };
+          })}
+          runs={countryRuns}
+        />
+      ) : null}
 
       <CandidateQueue areaId={areaId} candidates={candidates} />
     </main>
