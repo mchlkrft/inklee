@@ -71,6 +71,14 @@ export type CountrySeedOptions = {
   mode: CountrySeedMode;
   /** Hard ceiling on automated imports per run (gate, not truncation). */
   maxImport?: number;
+  /**
+   * Honest provenance for coverage batches that did not come from an
+   * Overture extract. Defaults to the Overture lane's stamp.
+   */
+  source?: {
+    type: "overture_maps" | "osm" | "brave_search";
+    attribution: string | null;
+  };
 };
 
 export type DecisionCounts = Record<SeedDecision, number>;
@@ -149,6 +157,7 @@ export function evaluateForCountry(
       extraText: [
         { field: "website_url", text: c.websiteUrl },
         { field: "social_url", text: c.socialUrl },
+        { field: "description", text: c.description },
       ],
     },
     {
@@ -291,6 +300,7 @@ async function persistEvaluated(
   intakeRunId: string,
   area: SeedAreaRow,
   adminId: string | null,
+  source: NonNullable<CountrySeedOptions["source"]>,
 ): Promise<void> {
   const c = e.input;
   const evidence = {
@@ -321,7 +331,7 @@ async function persistEvaluated(
     .insert({
       seed_run_id: intakeRunId,
       seed_area_id: area.id,
-      source_type: "overture_maps",
+      source_type: source.type,
       source_provider_id: c.id,
       source_url: c.websiteUrl,
       source_payload_minimal: c.category ? { category: c.category } : null,
@@ -333,7 +343,7 @@ async function persistEvaluated(
       longitude: c.longitude,
       social_url: c.socialUrl,
       website_url: c.websiteUrl,
-      attribution: "Overture Maps (CDLA-Permissive-2.0)",
+      attribution: source.attribution,
       status: statusForSeedDecision(e.decision),
       duplicate_confidence: e.annotation?.confidence ?? null,
       duplicate_of_candidate_id: e.annotation?.candidateId ?? null,
@@ -372,7 +382,7 @@ async function persistEvaluated(
     const { data: byProvider } = await serviceClient
       .from("map_seed_candidates")
       .select("id, status, reviewed_at")
-      .eq("source_type", "overture_maps")
+      .eq("source_type", source.type)
       .eq("source_provider_id", c.id)
       .maybeSingle();
     existing = (byProvider as ExistingRow | null) ?? null;
@@ -534,7 +544,7 @@ async function execute(
     .from("map_seed_runs")
     .insert({
       seed_area_id: area.id,
-      provider: "overture_maps",
+      provider: options.source?.type ?? "overture_maps",
       query: options.inputLabel?.slice(0, SEED_QUERY_MAX) ?? null,
       result_count: candidates.length,
       run_mode: "automated",
@@ -588,6 +598,10 @@ async function execute(
       claimedHit,
     });
   }
+  const source = options.source ?? {
+    type: "overture_maps" as const,
+    attribution: "Overture Maps (CDLA-Permissive-2.0)",
+  };
   for (const e of evaluated) {
     await persistEvaluated(
       e,
@@ -595,6 +609,7 @@ async function execute(
       intake.id as string,
       area,
       options.adminId,
+      source,
     );
   }
 
@@ -692,7 +707,14 @@ async function execute(
     gateFailures.push(
       `${accepted.length} accepted candidates exceed the run ceiling of ${maxImport}. Raise maxImport deliberately or split the input.`,
     );
-  if (accepted.length > 0 && accepted.length === candidates.length)
+  // Pre-filtered structured batches (coverage lane: OSM shop=tattoo,
+  // category-filtered Overture) legitimately accept at ~100%; the
+  // implausibility gate applies to raw pastes only.
+  if (
+    !options.source &&
+    accepted.length > 0 &&
+    accepted.length === candidates.length
+  )
     gateFailures.push(
       "Every single candidate was accepted; a 100% acceptance rate on a raw discovery batch is implausible and needs a human look.",
     );

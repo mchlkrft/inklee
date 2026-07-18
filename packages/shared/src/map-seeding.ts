@@ -261,6 +261,12 @@ export type OvertureImportCandidate = {
   country?: string | null;
   websiteUrl?: string | null;
   socialUrl?: string | null;
+  /**
+   * Optional free-text evidence (bounded website metadata gathered by the
+   * coverage lane's enrichment; schema v2). Feeds the relevance filter as an
+   * extra field, never rendered as trusted content.
+   */
+  description?: string | null;
 };
 
 export type OvertureParseResult =
@@ -326,6 +332,7 @@ export function parseOvertureImport(raw: string): OvertureParseResult {
       country: text(row.country)?.slice(0, SEED_TEXT_MAX) ?? null,
       websiteUrl: httpsOnly(row.websiteUrl),
       socialUrl: httpsOnly(row.socialUrl),
+      description: text(row.description)?.slice(0, 500) ?? null,
     });
   }
   return { candidates: out };

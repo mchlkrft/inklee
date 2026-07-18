@@ -21,6 +21,7 @@ export * from "./map-directory";
 export * from "./map-seeding";
 export * from "./seed-filtering";
 export * from "./seed-countries";
+export * from "./seed-coverage";
 export * from "./studio-profile";
 export * from "./slug";
 export * from "./trip-validation";

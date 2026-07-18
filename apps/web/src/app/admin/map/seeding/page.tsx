@@ -35,6 +35,17 @@ export default async function AdminSeedingPage() {
           review and conversion create map entries. The 5 per 300 square km cap
           fires at conversion.
         </p>
+        <p className="mt-1 text-sm">
+          <Link
+            href="/admin/map/seeding/coverage"
+            className="text-foreground underline"
+          >
+            Country coverage
+          </Link>{" "}
+          <span className="text-muted-foreground">
+            runs whole-country discovery automatically.
+          </span>
+        </p>
       </div>
 
       <section className="rounded-2xl border border-border p-4">

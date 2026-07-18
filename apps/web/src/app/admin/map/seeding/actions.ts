@@ -29,6 +29,14 @@ import {
   runCountrySeed,
   type CountrySeedSummary,
 } from "@/lib/server/seed-automation";
+import {
+  cancelCoverageRun,
+  coverageWorkerTick,
+  createCoverageRun,
+  pauseCoverageRun,
+  resumeCoverageRun,
+  retryCoverageFailures,
+} from "@/lib/server/seed-coverage";
 import type { DuplicateHit } from "@inklee/shared/map-directory";
 
 async function audit(
@@ -138,6 +146,46 @@ export async function runAutomatedSeedAction(
   revalidatePath(`/admin/map/seeding/${areaId}`);
   if ("error" in result) return { error: result.error, runId: result.runId };
   return { summary: result.summary };
+}
+
+export async function createCoverageRunAction(
+  countryCode: string,
+  scope: "pilot" | "regional" | "nationwide" | "gap_fill",
+  mode: "planning" | "discovery" | "import",
+  regionFilter: string | null,
+): Promise<{ error?: string; runId?: string }> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+  const result = await createCoverageRun({
+    countryCode,
+    scope,
+    mode,
+    regionFilter,
+    createdBy: adminId,
+  });
+  revalidatePath("/admin/map/seeding/coverage");
+  return { error: result.error, runId: result.runId };
+}
+
+export async function coverageControlAction(
+  runId: string,
+  control: "pause" | "resume" | "cancel" | "retry" | "tick",
+): Promise<{ error?: string }> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+  const result =
+    control === "pause"
+      ? await pauseCoverageRun(runId)
+      : control === "resume"
+        ? await resumeCoverageRun(runId)
+        : control === "cancel"
+          ? await cancelCoverageRun(runId)
+          : control === "retry"
+            ? await retryCoverageFailures(runId)
+            : await coverageWorkerTick(`admin-${adminId.slice(0, 8)}`);
+  await audit(adminId, "map_coverage_control", { run_id: runId, control });
+  revalidatePath("/admin/map/seeding/coverage");
+  return { error: "error" in result ? result.error : undefined };
 }
 
 export async function previewOvertureImportAction(

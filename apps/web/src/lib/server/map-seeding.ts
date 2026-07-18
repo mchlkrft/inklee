@@ -117,7 +117,7 @@ export async function getSeedArea(areaId: string): Promise<SeedAreaRow | null> {
  * config.toml max_rows gotcha); page in windows like the resolve-segment
  * helper does. `max` is a hard ceiling against runaway tables.
  */
-async function pageAll<T>(
+export async function pageAll<T>(
   build: (
     from: number,
     to: number,
@@ -462,13 +462,20 @@ export async function braveUsageSummary(): Promise<BraveUsage> {
   };
 }
 
+export type LedgerContext = {
+  createdBy: string | null;
+  coverageRunId?: string | null;
+  coverageUnitId?: string | null;
+};
+
 /**
  * Ledger write. Returns the new row id, or null when the insert failed; a
  * failed write must abort the request (the ledger is the only wall between
  * this lane and the card on file).
  */
 async function recordUsage(
-  adminId: string,
+  context: LedgerContext,
+  provider: "brave_search" | "osm_overpass",
   query: string,
   blocked: boolean,
   blockReason: string | null,
@@ -477,18 +484,71 @@ async function recordUsage(
   const { data, error } = await serviceClient
     .from("map_seed_provider_usage")
     .insert({
-      provider: "brave_search",
+      provider,
       query,
       day_key: usageDayKey(now),
       month_key: usageMonthKey(now),
       blocked,
       block_reason: blockReason,
-      created_by: adminId,
+      created_by: context.createdBy,
+      // Conditional: pre-0088 schemas (deploy-order safety) must keep
+      // accepting manual-lane writes.
+      ...(context.coverageRunId
+        ? { coverage_run_id: context.coverageRunId }
+        : {}),
+      ...(context.coverageUnitId
+        ? { coverage_unit_id: context.coverageUnitId }
+        : {}),
     })
     .select("id")
     .single();
   if (error || !data) return null;
   return data.id as string;
+}
+
+/**
+ * Remaining global Brave headroom across BOTH lanes (manual + coverage).
+ * Null on ledger read failure (callers must fail closed).
+ */
+export async function braveGlobalHeadroom(): Promise<{
+  dayRemaining: number;
+  monthRemaining: number;
+} | null> {
+  const now = new Date();
+  const [today, month, trailing] = await Promise.all([
+    usageCount("day_key", usageDayKey(now)),
+    usageCount("month_key", usageMonthKey(now)),
+    usageCountTrailing30(),
+  ]);
+  if (today === null || month === null || trailing === null) return null;
+  return {
+    dayRemaining: Math.max(0, BRAVE_SEARCH_DAILY_CAP - today),
+    monthRemaining: Math.max(
+      0,
+      BRAVE_SEARCH_MONTHLY_CAP - Math.max(month, trailing),
+    ),
+  };
+}
+
+/** Record an externally executed extraction (e.g. one bounded Overpass query). */
+export async function recordExternalExtraction(
+  context: LedgerContext,
+  provider: "osm_overpass",
+  label: string,
+): Promise<void> {
+  await recordUsage(context, provider, label, false, null);
+}
+
+/** Stamp result yield onto a ledger row after the response was processed. */
+export async function stampUsageYield(
+  usageId: string,
+  resultCount: number,
+  novelCount: number,
+): Promise<void> {
+  await serviceClient
+    .from("map_seed_provider_usage")
+    .update({ result_count: resultCount, novel_count: novelCount })
+    .eq("id", usageId);
 }
 
 async function blockUsageRow(id: string, reason: string): Promise<void> {
@@ -511,15 +571,34 @@ async function usageCountTrailing30(): Promise<number | null> {
   return count ?? 0;
 }
 
-export async function braveSearchCore(
-  adminId: string,
+export type BraveSearchOutcome = {
+  error?: string;
+  /** Coverage-orchestrator error classification for retry decisions. */
+  errorClass?:
+    | "rate_limited"
+    | "budget_exhausted"
+    | "transient_provider_error"
+    | "authentication_error"
+    | "invalid_provider_response";
+  leads?: BraveLead[];
+  usageId?: string;
+};
+
+/**
+ * The ONE Brave request path (manual lane and coverage worker both ride it):
+ * ledger insert-then-count kills the TOCTOU race, caps fail closed, every
+ * outcome stays attributable via the returned usage row id.
+ */
+export async function braveLedgerSearch(
+  context: LedgerContext,
   query: string,
-): Promise<{ error?: string; leads?: BraveLead[] }> {
+): Promise<BraveSearchOutcome> {
   const key = process.env.MAP_SEED_BRAVE_SEARCH_KEY;
   if (!key)
     return {
       error:
         "Brave search is not configured. Set MAP_SEED_BRAVE_SEARCH_KEY to enable the lane.",
+      errorClass: "authentication_error",
     };
   const q = query.trim();
   if (!q) return { error: "Type a search first." };
@@ -528,9 +607,12 @@ export async function braveSearchCore(
   // Insert first, then count INCLUDING the own row: concurrent searches
   // cannot all pass the same pre-check, and a failed ledger write aborts
   // before any billable request. This lane fails closed by design.
-  const usageId = await recordUsage(adminId, q, false, null);
+  const usageId = await recordUsage(context, "brave_search", q, false, null);
   if (!usageId)
-    return { error: "Could not write the usage ledger. No request was made." };
+    return {
+      error: "Could not write the usage ledger. No request was made.",
+      errorClass: "transient_provider_error",
+    };
 
   const now = new Date();
   const [today, month, trailing] = await Promise.all([
@@ -540,19 +622,30 @@ export async function braveSearchCore(
   ]);
   if (today === null || month === null || trailing === null) {
     await blockUsageRow(usageId, "Ledger unreadable after write.");
-    return { error: "Could not read the usage ledger. No request was made." };
+    return {
+      error: "Could not read the usage ledger. No request was made.",
+      errorClass: "transient_provider_error",
+    };
   }
   // The trailing window guards Brave's billing cycle: two calendar months
   // can straddle one cycle, so the monthly cap alone is not enough.
   if (month > BRAVE_SEARCH_MONTHLY_CAP || trailing > BRAVE_SEARCH_MONTHLY_CAP) {
     const reason = `Monthly cap reached (${Math.max(month, trailing)}/${BRAVE_SEARCH_MONTHLY_CAP}).`;
     await blockUsageRow(usageId, reason);
-    return { error: `${reason} The lane reopens as usage rolls off.` };
+    return {
+      error: `${reason} The lane reopens as usage rolls off.`,
+      errorClass: "budget_exhausted",
+      usageId,
+    };
   }
   if (today > BRAVE_SEARCH_DAILY_CAP) {
     const reason = `Daily cap reached (${today}/${BRAVE_SEARCH_DAILY_CAP}).`;
     await blockUsageRow(usageId, reason);
-    return { error: `${reason} The lane reopens tomorrow.` };
+    return {
+      error: `${reason} The lane reopens tomorrow.`,
+      errorClass: "budget_exhausted",
+      usageId,
+    };
   }
 
   let response: Response;
@@ -568,19 +661,44 @@ export async function braveSearchCore(
       },
     );
   } catch {
-    return { error: "The search request failed. The query still counted." };
+    return {
+      error: "The search request failed. The query still counted.",
+      errorClass: "transient_provider_error",
+      usageId,
+    };
   }
   if (!response.ok)
     return {
       error: `Brave returned ${response.status}. The query still counted.`,
+      errorClass:
+        response.status === 429
+          ? "rate_limited"
+          : response.status === 401 || response.status === 403
+            ? "authentication_error"
+            : "transient_provider_error",
+      usageId,
     };
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    return { error: "Brave returned an unreadable response." };
+    return {
+      error: "Brave returned an unreadable response.",
+      errorClass: "invalid_provider_response",
+      usageId,
+    };
   }
-  return { leads: shapeBraveResults(payload) };
+  return { leads: shapeBraveResults(payload), usageId };
+}
+
+export async function braveSearchCore(
+  adminId: string,
+  query: string,
+): Promise<{ error?: string; leads?: BraveLead[] }> {
+  const outcome = await braveLedgerSearch({ createdBy: adminId }, query);
+  return outcome.error
+    ? { error: outcome.error }
+    : { leads: outcome.leads ?? [] };
 }
 
 export async function storeBraveSelectionCore(
