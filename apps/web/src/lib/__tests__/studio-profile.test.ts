@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   ADDRESS_VISIBILITY_MODES,
   GUEST_SPOT_STATUSES,
+  MAX_STUDIO_PHOTOS,
   MIN_STUDIO_CATEGORIES,
   MIN_STUDIO_PHOTOS,
   STUDIO_STANDARD_CATEGORIES,
   computeStudioCompleteness,
+  isOwnedStudioMediaPath,
+  studioLogoStoragePath,
+  studioPhotoStoragePath,
   validateCustomCategory,
   validateStudioProfileInput,
   type StudioProfileInput,
@@ -70,6 +74,54 @@ describe("validateCustomCategory", () => {
     expect(validateCustomCategory("  ")).toMatch(/needs a name/);
     expect(validateCustomCategory("x".repeat(41))).toMatch(/at most/);
     expect(validateCustomCategory("Left-handed friendly")).toBeNull();
+  });
+});
+
+describe("studio media paths", () => {
+  const studioId = "88888888-0000-0000-0000-000000000001";
+
+  it("builds the expected paths", () => {
+    expect(studioLogoStoragePath(studioId)).toBe(`${studioId}/logo.webp`);
+    expect(studioPhotoStoragePath(studioId, "abc")).toBe(
+      `${studioId}/photos/abc.webp`,
+    );
+  });
+
+  it("the ownership guard accepts only the studio's own well-formed paths", () => {
+    expect(isOwnedStudioMediaPath(studioId, `${studioId}/logo.webp`)).toBe(
+      true,
+    );
+    expect(
+      isOwnedStudioMediaPath(studioId, `${studioId}/photos/abc.webp`),
+    ).toBe(true);
+  });
+
+  it("the ownership guard rejects traversal, foreign, and malformed paths", () => {
+    expect(isOwnedStudioMediaPath(studioId, "other-studio/logo.webp")).toBe(
+      false,
+    );
+    expect(
+      isOwnedStudioMediaPath(studioId, `${studioId}/photos/../../x.webp`),
+    ).toBe(false);
+    expect(
+      isOwnedStudioMediaPath(studioId, `${studioId}/photos/a/b.webp`),
+    ).toBe(false);
+    expect(isOwnedStudioMediaPath(studioId, `${studioId}/photos/`)).toBe(false);
+    expect(isOwnedStudioMediaPath(studioId, `${studioId}/photos/evil`)).toBe(
+      false,
+    );
+    expect(isOwnedStudioMediaPath(studioId, `${studioId}/photos/.webp`)).toBe(
+      false,
+    );
+    expect(isOwnedStudioMediaPath(studioId, `${studioId}\\photos\\a`)).toBe(
+      false,
+    );
+    expect(isOwnedStudioMediaPath(studioId, "")).toBe(false);
+    expect(isOwnedStudioMediaPath("", `${studioId}/logo.webp`)).toBe(false);
+  });
+
+  it("the photo cap sits above the publish minimum", () => {
+    expect(MAX_STUDIO_PHOTOS).toBeGreaterThan(MIN_STUDIO_PHOTOS);
   });
 });
 

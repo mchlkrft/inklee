@@ -73,12 +73,6 @@ export default function PublishControls({
               <li key={b}>{b}</li>
             ))}
           </ul>
-          {blockers.some((b) => /logo|photo/i.test(b)) ? (
-            <p className="text-xs text-muted-foreground">
-              Photo and logo upload arrive in the next update. You can fill in
-              everything else now and publish as soon as it lands.
-            </p>
-          ) : null}
         </>
       )}
       {error ? <p className="text-sm text-brand-red">{error}</p> : null}

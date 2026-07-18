@@ -57,6 +57,10 @@ export const STUDIO_STANDARD_CATEGORY_LABELS: Record<
 
 export const MIN_STUDIO_CATEGORIES = 3;
 export const MIN_STUDIO_PHOTOS = 3;
+// Provisional per-studio photo cap (open question Q6: the provisional value
+// is explicitly allowed to ship and be raised later; shipping without any
+// cap is what cannot be undone). Founder-adjustable.
+export const MAX_STUDIO_PHOTOS = 12;
 export const STUDIO_NAME_MAX = 120;
 export const STUDIO_DESCRIPTION_MAX = 2000;
 export const STUDIO_VIBE_MAX = 500;
@@ -114,6 +118,44 @@ export function validateCustomCategory(label: string): string | null {
   if (v.length > STUDIO_CUSTOM_CATEGORY_MAX)
     return `Custom category must be at most ${STUDIO_CUSTOM_CATEGORY_MAX} characters.`;
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Studio media paths (the private studio-media bucket, keyed by STUDIO id so
+// media survives owner changes and is never touched by the per-user purge).
+
+export function studioLogoStoragePath(studioProfileId: string): string {
+  return `${studioProfileId}/logo.webp`;
+}
+
+export function studioPhotoStoragePath(
+  studioProfileId: string,
+  photoId: string,
+): string {
+  return `${studioProfileId}/photos/${photoId}.webp`;
+}
+
+/**
+ * Path-ownership guard for deletes (the goods-storage lesson): a storage
+ * path may only be removed when it sits exactly under the studio's own
+ * prefix and contains no traversal.
+ */
+export function isOwnedStudioMediaPath(
+  studioProfileId: string,
+  path: string,
+): boolean {
+  if (!studioProfileId || !path) return false;
+  if (path.includes("..") || path.includes("\\")) return false;
+  if (path === studioLogoStoragePath(studioProfileId)) return true;
+  // Photos must match the builder's shape exactly: {id}/photos/{name}.webp
+  const parts = path.split("/");
+  return (
+    parts.length === 3 &&
+    parts[0] === studioProfileId &&
+    parts[1] === "photos" &&
+    parts[2].length > ".webp".length &&
+    parts[2].endsWith(".webp")
+  );
 }
 
 // ---------------------------------------------------------------------------

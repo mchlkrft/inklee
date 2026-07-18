@@ -1,10 +1,17 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { serviceClient } from "@/lib/supabase/service";
+import { guardedSharp } from "@/lib/image-guard";
+import { processImage } from "@/lib/image-processing";
 import { sanitizeBioLinkUrl } from "@inklee/shared/bio-page";
 import {
+  MAX_STUDIO_PHOTOS,
   MIN_STUDIO_CATEGORIES,
   STUDIO_STANDARD_CATEGORIES,
   computeStudioCompleteness,
+  isOwnedStudioMediaPath,
+  studioLogoStoragePath,
+  studioPhotoStoragePath,
   validateCustomCategory,
   validateStudioProfileInput,
   type StudioCompleteness,
@@ -451,6 +458,219 @@ export async function setStudioCategoriesCore(
     .from("studio_profiles")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", studioId);
+  return {};
+}
+
+// ---------------------------------------------------------------------------
+// Studio media (the private studio-media bucket). Writes are service-role
+// only; reads happen through short-lived signed URLs so draft, hidden, or
+// suspended studios never leak media at stable public URLs.
+
+const STUDIO_MEDIA_BUCKET = "studio-media";
+const SIGNED_URL_TTL_SECONDS = 3600;
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // Vercel body-cap headroom
+const ALLOWED_UPLOAD_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function validateUploadFile(file: File): string | null {
+  if (!ALLOWED_UPLOAD_TYPES.has(file.type))
+    return "Use a PNG, JPG, or WebP image.";
+  if (file.size > MAX_UPLOAD_BYTES) return "Images must be under 4 MB.";
+  return null;
+}
+
+/** Batch-sign media paths for owner or shaper rendering (order-preserving). */
+export async function signStudioMediaPaths(
+  paths: string[],
+): Promise<Map<string, string>> {
+  if (paths.length === 0) return new Map();
+  const { data, error } = await serviceClient.storage
+    .from(STUDIO_MEDIA_BUCKET)
+    .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+  if (error) {
+    // Callers render unsigned entries as placeholders; log so a batch
+    // signing outage is visible rather than silently degrading.
+    console.error("[studios] media signing failed:", error.message);
+    return new Map();
+  }
+  const urls = new Map<string, string>();
+  for (const entry of data ?? []) {
+    if (entry.signedUrl && entry.path) urls.set(entry.path, entry.signedUrl);
+  }
+  return urls;
+}
+
+export type StudioMedia = {
+  logoUrl: string | null;
+  // url is null when signing failed or the object is missing; the row still
+  // counts toward the cap and the publish gate, so the UI must render it (as
+  // a placeholder with its delete button), never hide it.
+  photos: Array<{ id: string; url: string | null; position: number }>;
+};
+
+/** Owner view of the studio's media, with fresh signed URLs. */
+export async function getStudioMediaForOwner(
+  userId: string,
+  studioId: string,
+): Promise<StudioMedia | null> {
+  if (!(await ownedStudioId(userId, studioId))) return null;
+  const [{ data: studio }, { data: photoRows }] = await Promise.all([
+    serviceClient
+      .from("studio_profiles")
+      .select("logo_path")
+      .eq("id", studioId)
+      .maybeSingle(),
+    serviceClient
+      .from("studio_photos")
+      .select("id, storage_path, position")
+      .eq("studio_profile_id", studioId)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
+  ]);
+  const logoPath = (studio?.logo_path as string | null) ?? null;
+  const photoPaths = (photoRows ?? []).map((p) => p.storage_path as string);
+  const urls = await signStudioMediaPaths([
+    ...(logoPath ? [logoPath] : []),
+    ...photoPaths,
+  ]);
+  return {
+    logoUrl: logoPath ? (urls.get(logoPath) ?? null) : null,
+    photos: (photoRows ?? []).map((p) => ({
+      id: p.id as string,
+      url: urls.get(p.storage_path as string) ?? null,
+      position: p.position as number,
+    })),
+  };
+}
+
+export async function uploadStudioLogoCore(
+  userId: string,
+  studioId: string,
+  file: File,
+): Promise<{ error?: string }> {
+  if (!(await ownedStudioId(userId, studioId)))
+    return { error: "Not your studio." };
+  const invalid = validateUploadFile(file);
+  if (invalid) return { error: invalid };
+
+  let processed: Buffer;
+  try {
+    processed = await guardedSharp(Buffer.from(await file.arrayBuffer()))
+      .rotate()
+      .resize(512, 512, { fit: "cover", position: "centre" })
+      .webp({ quality: 85 })
+      .toBuffer();
+  } catch {
+    return { error: "Could not process that image. Try a different file." };
+  }
+
+  const path = studioLogoStoragePath(studioId);
+  const { error: uploadErr } = await serviceClient.storage
+    .from(STUDIO_MEDIA_BUCKET)
+    .upload(path, processed, { contentType: "image/webp", upsert: true });
+  if (uploadErr) return { error: "Upload failed. Try again." };
+
+  const { error: dbErr } = await serviceClient
+    .from("studio_profiles")
+    .update({ logo_path: path, updated_at: new Date().toISOString() })
+    .eq("id", studioId);
+  if (dbErr) return { error: "Could not save your logo. Try again." };
+  return {};
+}
+
+export async function uploadStudioPhotoCore(
+  userId: string,
+  studioId: string,
+  file: File,
+): Promise<{ error?: string }> {
+  if (!(await ownedStudioId(userId, studioId)))
+    return { error: "Not your studio." };
+  const invalid = validateUploadFile(file);
+  if (invalid) return { error: invalid };
+
+  const { count, error: countErr } = await serviceClient
+    .from("studio_photos")
+    .select("id", { count: "exact", head: true })
+    .eq("studio_profile_id", studioId);
+  // A failed count must not bypass the cap.
+  if (countErr || count === null)
+    return { error: "Could not save that photo. Try again." };
+  if (count >= MAX_STUDIO_PHOTOS)
+    return { error: `A studio can have up to ${MAX_STUDIO_PHOTOS} photos.` };
+
+  // Next position from the current MAX, not the count: count+1 collides with
+  // surviving rows after a delete.
+  const { data: last } = await serviceClient
+    .from("studio_photos")
+    .select("position")
+    .eq("studio_profile_id", studioId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPosition = ((last?.position as number | undefined) ?? 0) + 1;
+
+  let processed;
+  try {
+    processed = await processImage(file);
+  } catch {
+    return { error: "Could not process that image. Try a different file." };
+  }
+
+  // Upload first, insert the metadata row second, clean up the object if the
+  // insert fails: the DB rows are the source of truth for what exists.
+  const photoId = randomUUID();
+  const path = studioPhotoStoragePath(studioId, photoId);
+  const { error: uploadErr } = await serviceClient.storage
+    .from(STUDIO_MEDIA_BUCKET)
+    .upload(path, processed.buffer, {
+      contentType: processed.mimeType,
+      upsert: false,
+    });
+  if (uploadErr) return { error: "Upload failed. Try again." };
+
+  const { error: dbErr } = await serviceClient.from("studio_photos").insert({
+    id: photoId,
+    studio_profile_id: studioId,
+    storage_path: path,
+    position: nextPosition,
+    width: processed.width,
+    height: processed.height,
+    file_size: processed.fileSize,
+    mime_type: processed.mimeType,
+  });
+  if (dbErr) {
+    await serviceClient.storage.from(STUDIO_MEDIA_BUCKET).remove([path]);
+    return { error: "Could not save that photo. Try again." };
+  }
+  return {};
+}
+
+export async function deleteStudioPhotoCore(
+  userId: string,
+  studioId: string,
+  photoId: string,
+): Promise<{ error?: string }> {
+  if (!(await ownedStudioId(userId, studioId)))
+    return { error: "Not your studio." };
+
+  const { data: photo } = await serviceClient
+    .from("studio_photos")
+    .select("id, storage_path")
+    .eq("id", photoId)
+    .eq("studio_profile_id", studioId)
+    .maybeSingle();
+  if (!photo) return { error: "That photo is already gone." };
+
+  // Delete the row first (source of truth), then the object; a failed object
+  // removal leaves a sweepable orphan, never a ghost row.
+  const { error: dbErr } = await serviceClient
+    .from("studio_photos")
+    .delete()
+    .eq("id", photoId);
+  if (dbErr) return { error: "Could not delete that photo. Try again." };
+  const path = photo.storage_path as string;
+  if (isOwnedStudioMediaPath(studioId, path)) {
+    await serviceClient.storage.from(STUDIO_MEDIA_BUCKET).remove([path]);
+  }
   return {};
 }
 

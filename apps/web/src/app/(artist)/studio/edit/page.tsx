@@ -3,8 +3,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { tattooMapEnabled } from "@/lib/map-features";
-import { getOwnedStudio } from "@/lib/server/studios";
+import { getOwnedStudio, getStudioMediaForOwner } from "@/lib/server/studios";
 import StudioEditor from "./studio-editor";
+import StudioMediaSection from "./studio-media-section";
 
 export const metadata = { title: "Edit studio" };
 
@@ -19,10 +20,13 @@ export default async function EditStudioPage() {
   const studio = await getOwnedStudio(user.id);
   if (!studio) redirect("/studio");
 
-  const { data: styleData } = await serviceClient
-    .from("styles")
-    .select("key, label")
-    .order("position", { ascending: true });
+  const [{ data: styleData }, media] = await Promise.all([
+    serviceClient
+      .from("styles")
+      .select("key, label")
+      .order("position", { ascending: true }),
+    getStudioMediaForOwner(user.id, studio.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
@@ -35,10 +39,11 @@ export default async function EditStudioPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-foreground">Edit studio</h1>
         <p className="text-sm text-muted-foreground">
-          Photos come next. For now, fill in the details and pick your
-          categories.
+          Details, categories, logo and photos. Everything a visiting artist
+          sees.
         </p>
       </header>
+      {media ? <StudioMediaSection studioId={studio.id} media={media} /> : null}
       <StudioEditor
         studio={studio}
         styles={(styleData ?? []).map((s) => ({
