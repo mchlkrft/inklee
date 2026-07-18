@@ -184,8 +184,12 @@ describe("toPublicMapPin", () => {
     });
   });
 
-  it("unclaimed and pending-claim rows shape with claimed false", () => {
-    for (const claim_status of ["unclaimed", "claim_pending"]) {
+  it("unclaimed, pending, and contested rows shape with claimed false", () => {
+    for (const claim_status of [
+      "unclaimed",
+      "claim_pending",
+      "claim_conflict",
+    ]) {
       expect(toPublicMapPin({ ...row, claim_status })?.claimed).toBe(false);
     }
   });

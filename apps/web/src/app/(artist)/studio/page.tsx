@@ -2,14 +2,34 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { tattooMapEnabled } from "@/lib/map-features";
-import { getOwnedStudio } from "@/lib/server/studios";
+import { getOwnClaims, getOwnedStudio } from "@/lib/server/studios";
 import {
+  CLAIM_STATUS_LABELS,
   GUEST_SPOT_STATUS_LABELS,
   type GuestSpotStatus,
 } from "@inklee/shared/studio-profile";
 import PublishControls from "./publish-controls";
 
 export const metadata = { title: "Studio" };
+
+// Owners with claims still in flight (filed before they created a studio)
+// keep sight of them; an owner claim gets declined, never silently lost.
+async function OwnerClaimsNote({ userId }: { userId: string }) {
+  const claims = (await getOwnClaims(userId)).filter(
+    (c) => c.status === "pending",
+  );
+  if (claims.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-border p-4">
+      <p className="text-sm text-foreground">
+        You still have {claims.length === 1 ? "a claim" : "claims"} waiting on{" "}
+        {claims.map((c) => c.locationName).join(", ")}. Since you now run a
+        studio, {claims.length === 1 ? "it" : "they"} will be declined (one
+        studio per account).
+      </p>
+    </div>
+  );
+}
 
 export default async function StudioCockpitPage() {
   if (!tattooMapEnabled()) notFound();
@@ -21,8 +41,9 @@ export default async function StudioCockpitPage() {
 
   const studio = await getOwnedStudio(user.id);
 
-  // No studio yet: the elevation entry point.
+  // No studio yet: the elevation entry point, plus any claims in flight.
   if (!studio) {
+    const claims = await getOwnClaims(user.id);
     return (
       <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
         <header className="space-y-1">
@@ -35,10 +56,45 @@ export default async function StudioCockpitPage() {
             this just adds the studio side.
           </p>
         </header>
+        {claims.length > 0 ? (
+          <div className="space-y-2 rounded-2xl border border-border p-5">
+            <h2 className="text-sm font-semibold text-foreground">
+              Your claims
+            </h2>
+            <ul className="space-y-1.5">
+              {claims.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span className="text-foreground">
+                    {c.locationName}
+                    {c.locationCity ? (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {c.locationCity}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      c.status === "pending" || c.status === "approved"
+                        ? "bg-brand-mustard/20 text-brand-mustard"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {CLAIM_STATUS_LABELS[c.status] ?? "Decided"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="rounded-2xl border border-border p-5">
           <p className="text-sm text-foreground">
             To start you need your studio address and at least one social link.
-            No documents, no fuss.
+            No documents, no fuss. Already on the map? Claim your studio from
+            its map page instead.
           </p>
           <Link
             href="/studio/new"
@@ -131,6 +187,8 @@ export default async function StudioCockpitPage() {
         publishReady={studio.completeness.publishReady}
         blockers={studio.completeness.publishBlockers}
       />
+
+      <OwnerClaimsNote userId={user.id} />
 
       <p className="text-xs text-muted-foreground">
         Guest spot requests, guest artists, workspaces and the studio group join

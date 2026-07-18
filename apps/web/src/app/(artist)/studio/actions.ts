@@ -8,9 +8,11 @@ import {
   deleteStudioPhotoCore,
   setPublicationCore,
   setStudioCategoriesCore,
+  submitClaimCore,
   updateStudioProfileCore,
   uploadStudioLogoCore,
   uploadStudioPhotoCore,
+  type ClaimInput,
   type CreateStudioInput,
   type CreateStudioResult,
   type StudioCategoryInput,
@@ -65,6 +67,21 @@ export async function setStudioCategoriesAction(
   if (!result.error) {
     revalidatePath("/studio");
     revalidatePath("/studio/edit");
+  }
+  return result;
+}
+
+export async function submitClaimAction(
+  mapLocationId: string,
+  input: ClaimInput,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await submitClaimCore(user.id, mapLocationId, input);
+  if (!result.error) {
+    revalidatePath("/studio");
+    revalidatePath(`/map/${mapLocationId}`);
   }
   return result;
 }

@@ -19,6 +19,7 @@ import {
   scanForDuplicates,
   type DuplicateHit,
 } from "@/lib/server/map-duplicates";
+import { approveClaimCore, rejectClaimCore } from "@/lib/server/studios";
 
 export type MapLocationFormInput = {
   name: string;
@@ -268,6 +269,31 @@ export async function deleteMapLocationAction(id: string): Promise<Result> {
     map_location_id: id,
     name: existing?.name ?? null,
   });
+  revalidatePath("/admin/map");
+  return {};
+}
+
+export async function decideClaimAction(
+  claimId: string,
+  decision: "approve" | "reject",
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+  if (decision !== "approve" && decision !== "reject")
+    return { error: "Pick a valid decision." };
+
+  const result =
+    decision === "approve"
+      ? await approveClaimCore(claimId, adminId)
+      : await rejectClaimCore(claimId, adminId);
+  if (result.error) return { error: result.error };
+
+  await logMapAdminAction(
+    adminId,
+    decision === "approve" ? "map_claim_approved" : "map_claim_rejected",
+    { claim_id: claimId },
+  );
+  revalidatePath("/admin/map/claims");
   revalidatePath("/admin/map");
   return {};
 }

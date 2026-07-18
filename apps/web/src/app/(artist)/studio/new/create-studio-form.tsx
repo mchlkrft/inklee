@@ -188,13 +188,23 @@ export default function CreateStudioForm({
           </p>
           <ul className="space-y-1 text-sm text-foreground">
             {duplicates.map((d) => (
-              <li key={d.locationId}>
-                {d.name}
-                <span className="text-xs text-muted-foreground">
-                  {[d.city, d.country].filter(Boolean).join(", ")
-                    ? ` · ${[d.city, d.country].filter(Boolean).join(", ")}`
-                    : ""}
+              <li key={d.locationId} className="flex items-center gap-2">
+                <span>
+                  {d.name}
+                  <span className="text-xs text-muted-foreground">
+                    {[d.city, d.country].filter(Boolean).join(", ")
+                      ? ` · ${[d.city, d.country].filter(Boolean).join(", ")}`
+                      : ""}
+                  </span>
                 </span>
+                <a
+                  href={`/studio/claim/${d.locationId}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="shrink-0 text-xs underline hover:text-foreground"
+                >
+                  Claim it
+                </a>
               </li>
             ))}
           </ul>

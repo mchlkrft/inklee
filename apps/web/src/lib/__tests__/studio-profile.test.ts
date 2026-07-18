@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ADDRESS_VISIBILITY_MODES,
+  CLAIMANT_ROLES,
+  CLAIMANT_ROLE_LABELS,
   GUEST_SPOT_STATUSES,
   MAX_STUDIO_PHOTOS,
   MIN_STUDIO_CATEGORIES,
@@ -66,6 +68,18 @@ describe("validateStudioProfileInput", () => {
     ]);
     expect(STUDIO_STANDARD_CATEGORIES).toContain("private_studio");
     expect(STUDIO_STANDARD_CATEGORIES).not.toContain("blackwork");
+  });
+
+  it("claimant roles pin the 0075 CHECK values with labels for each", () => {
+    expect(CLAIMANT_ROLES).toEqual([
+      "artist",
+      "receptionist",
+      "manager",
+      "business_owner",
+    ]);
+    for (const role of CLAIMANT_ROLES) {
+      expect(CLAIMANT_ROLE_LABELS[role].length).toBeGreaterThan(0);
+    }
   });
 });
 

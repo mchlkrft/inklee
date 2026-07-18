@@ -44,6 +44,13 @@ GRANT SELECT (
   last_sync_at, connected, created_at, updated_at
 ) ON instagram_accounts TO authenticated;
 
+-- Mirror of 0079_claim_flow.sql column privileges:
+REVOKE SELECT ON location_claims FROM anon, authenticated;
+GRANT SELECT (
+  id, map_location_id, claimant_user_id, claimant_role, social_link,
+  address_confirmation, status, evidence_note, created_at
+) ON location_claims TO authenticated;
+
 -- Mirror of 0074_profiles_column_privileges.sql + the 0076 grant extension:
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;
 REVOKE INSERT ON public.profiles FROM anon, authenticated;

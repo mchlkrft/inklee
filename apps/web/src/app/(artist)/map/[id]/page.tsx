@@ -125,15 +125,28 @@ export default async function MapLocationPage({
         </div>
       </section>
 
-      <p className="text-xs text-muted-foreground">
-        {claimed
-          ? "This place manages its own page."
-          : `Nobody runs this page yet. Claiming arrives in a later update${
-              data.category === "supply_shop"
-                ? "."
-                : "; guest spot requests follow after that."
-            }`}
-      </p>
+      {claimed ? (
+        <p className="text-xs text-muted-foreground">
+          This place manages its own page.
+        </p>
+      ) : data.category === "supply_shop" ? (
+        <p className="text-xs text-muted-foreground">
+          Nobody runs this page yet.
+        </p>
+      ) : (
+        <div className="space-y-2 rounded-2xl border border-border p-4">
+          <p className="text-sm text-foreground">
+            Your studio? Claim the page and run it yourself. Guest spot requests
+            follow in a later update.
+          </p>
+          <Link
+            href={`/studio/claim/${id}`}
+            className="inline-block rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+          >
+            Claim this studio
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

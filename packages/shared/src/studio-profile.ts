@@ -27,6 +27,33 @@ export const GUEST_SPOT_STATUS_LABELS: Record<GuestSpotStatus, string> = {
 export const PUBLICATION_STATUSES = ["draft", "published", "suspended"] as const;
 export type PublicationStatus = (typeof PUBLICATION_STATUSES)[number];
 
+// Who is claiming (mirrors the location_claims CHECK from 0075).
+export const CLAIMANT_ROLES = [
+  "artist",
+  "receptionist",
+  "manager",
+  "business_owner",
+] as const;
+export type ClaimantRole = (typeof CLAIMANT_ROLES)[number];
+
+export const CLAIMANT_ROLE_LABELS: Record<ClaimantRole, string> = {
+  artist: "Tattoo artist",
+  receptionist: "Receptionist",
+  manager: "Manager",
+  business_owner: "Business owner",
+};
+
+export const CLAIM_EVIDENCE_MAX = 500;
+export const CLAIM_ADDRESS_MAX = 200;
+export const CLAIM_SOCIAL_LINK_MAX = 300;
+
+export const CLAIM_STATUS_LABELS: Record<string, string> = {
+  pending: "Being checked",
+  approved: "Approved",
+  rejected: "Rejected",
+  revoked: "Revoked",
+};
+
 // Non-style standard categories (scope 4.3). The style-type standards
 // (blackwork, fine_line, traditional, ...) are their own rows referencing the
 // styles table, so they are not repeated here.

@@ -162,3 +162,10 @@ const mobileWaitlistRl = makeLimit(
 export async function checkMobileWaitlistRateLimit(ip: string) {
   return check(mobileWaitlistRl, ip);
 }
+
+// Studio claims: 3 submissions / user / day. A claim is a moderation-queue
+// item; nobody legitimate files more than a handful.
+const claimRl = makeLimit(Ratelimit.slidingWindow(3, "24 h"), "inklee:claim");
+export async function checkClaimRateLimit(userId: string) {
+  return check(claimRl, userId);
+}

@@ -5,6 +5,10 @@ import { guardedSharp } from "@/lib/image-guard";
 import { processImage } from "@/lib/image-processing";
 import { sanitizeBioLinkUrl } from "@inklee/shared/bio-page";
 import {
+  CLAIMANT_ROLES,
+  CLAIM_ADDRESS_MAX,
+  CLAIM_EVIDENCE_MAX,
+  CLAIM_SOCIAL_LINK_MAX,
   MAX_STUDIO_PHOTOS,
   MIN_STUDIO_CATEGORIES,
   STUDIO_STANDARD_CATEGORIES,
@@ -14,10 +18,12 @@ import {
   studioPhotoStoragePath,
   validateCustomCategory,
   validateStudioProfileInput,
+  type ClaimantRole,
   type StudioCompleteness,
   type StudioProfileInput,
   type StudioStandardCategory,
 } from "@inklee/shared/studio-profile";
+import { checkClaimRateLimit } from "@/lib/ratelimit";
 import {
   scanForDuplicates,
   persistDuplicateSuggestions,
@@ -700,5 +706,329 @@ export async function setPublicationCore(
     .eq("id", studioId)
     .eq("owner_user_id", userId);
   if (error) return { error: "Could not update your studio." };
+  return {};
+}
+
+// ---------------------------------------------------------------------------
+// Studio claims (Phase 3 claim flow + claim conflict, migration 0079).
+// A claim is a moderation-queue item: submitted through the rate-limited
+// action here, decided in admin. Ownership NEVER changes while a location is
+// contested; approval is the only transition that assigns an owner, and it
+// rejects the sibling claims in the same action.
+
+export type ClaimInput = {
+  claimantRole: string;
+  socialLink: string;
+  addressConfirmation: string;
+  evidenceNote: string | null;
+};
+
+export type OwnClaim = {
+  id: string;
+  locationName: string;
+  locationCity: string | null;
+  status: string;
+  createdAt: string;
+};
+
+export async function submitClaimCore(
+  userId: string,
+  mapLocationId: string,
+  input: ClaimInput,
+): Promise<{ error?: string }> {
+  if (!CLAIMANT_ROLES.includes(input.claimantRole as ClaimantRole))
+    return { error: "Pick your role at the studio." };
+  if (input.socialLink.length > CLAIM_SOCIAL_LINK_MAX)
+    return { error: "That link is too long." };
+  const sanitized = sanitizeBioLinkUrl(input.socialLink);
+  const social =
+    sanitized && /^https?:\/\//i.test(sanitized) ? sanitized : null;
+  if (!social)
+    return { error: "Add a social media link so we can see it is really you." };
+  if (!input.addressConfirmation?.trim())
+    return { error: "Confirm the studio address." };
+  if (input.addressConfirmation.length > CLAIM_ADDRESS_MAX)
+    return {
+      error: `Address confirmation must be at most ${CLAIM_ADDRESS_MAX} characters.`,
+    };
+  if ((input.evidenceNote ?? "").length > CLAIM_EVIDENCE_MAX)
+    return {
+      error: `The note must be at most ${CLAIM_EVIDENCE_MAX} characters.`,
+    };
+
+  // One studio per owner: an existing owner cannot claim a second one.
+  const { data: ownedStudio } = await serviceClient
+    .from("studio_profiles")
+    .select("id")
+    .eq("owner_user_id", userId)
+    .maybeSingle();
+  if (ownedStudio) return { error: "You already run a studio." };
+
+  const { data: location } = await serviceClient
+    .from("map_locations")
+    .select("id, claim_status, moderation_status, category")
+    .eq("id", mapLocationId)
+    .maybeSingle();
+  // Mirror the artist-facing gates exactly (the map and claim pages are
+  // approved-only, and shops are not claimable studios), so a direct action
+  // call cannot claim what the UI never offers.
+  if (
+    !location ||
+    location.moderation_status !== "approved" ||
+    location.category === "supply_shop"
+  )
+    return { error: "This place is not on the map." };
+  if (location.claim_status === "claimed")
+    return { error: "This studio is already claimed." };
+
+  const { allowed } = await checkClaimRateLimit(userId);
+  if (!allowed) return { error: "Too many claims today. Try again tomorrow." };
+
+  const { error: insertErr } = await serviceClient
+    .from("location_claims")
+    .insert({
+      map_location_id: mapLocationId,
+      claimant_user_id: userId,
+      claimant_role: input.claimantRole,
+      social_link: social,
+      address_confirmation: input.addressConfirmation.trim(),
+      evidence_note: input.evidenceNote?.trim() || null,
+    });
+  if (insertErr) {
+    if (insertErr.code === "23505")
+      return { error: "You already have a claim waiting for this studio." };
+    return { error: "Could not submit your claim. Try again." };
+  }
+
+  // Location state: first pending claim marks it claim_pending; a second
+  // claimant marks the location contested. Ownership stays frozen either way.
+  // Known benign race: two simultaneous submits can briefly settle on
+  // claim_pending despite two pending rows; only the directory badge is
+  // affected (the admin queue derives contested from claim_conflict AND the
+  // actual rows), and any later transition re-settles it.
+  const { count: pendingCount } = await serviceClient
+    .from("location_claims")
+    .select("id", { count: "exact", head: true })
+    .eq("map_location_id", mapLocationId)
+    .eq("status", "pending");
+  await serviceClient
+    .from("map_locations")
+    .update({
+      claim_status:
+        (pendingCount ?? 1) >= 2 ? "claim_conflict" : "claim_pending",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", mapLocationId)
+    .neq("claim_status", "claimed");
+  return {};
+}
+
+/** The cockpit view of the caller's own claims. */
+export async function getOwnClaims(userId: string): Promise<OwnClaim[]> {
+  const { data: claims } = await serviceClient
+    .from("location_claims")
+    .select("id, map_location_id, status, created_at")
+    .eq("claimant_user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (!claims?.length) return [];
+  const locationIds = [
+    ...new Set(claims.map((c) => c.map_location_id as string)),
+  ];
+  const { data: locations } = await serviceClient
+    .from("map_locations")
+    .select("id, name, city")
+    .in("id", locationIds);
+  const byId = new Map(
+    (locations ?? []).map((l) => [
+      l.id as string,
+      { name: l.name as string, city: (l.city as string | null) ?? null },
+    ]),
+  );
+  return claims.map((c) => {
+    const loc = byId.get(c.map_location_id as string);
+    return {
+      id: c.id as string,
+      locationName: loc?.name ?? "Removed entry",
+      locationCity: loc?.city ?? null,
+      status: c.status as string,
+      createdAt: c.created_at as string,
+    };
+  });
+}
+
+/**
+ * Admin approval: the claimant becomes the studio owner. Ordering is
+ * compensated so a partial failure is always retryable: (1) create the
+ * studio (the unique owner constraint catches doubles), (2) link + mark the
+ * location claimed (failure deletes the studio), (3) approve the claim,
+ * (4) reject sibling pending claims. A retry after (2) detects the existing
+ * claimant-owned studio linked to this location and finishes (3) and (4).
+ */
+export async function approveClaimCore(
+  claimId: string,
+  reviewerId: string,
+): Promise<{ error?: string }> {
+  const { data: claim } = await serviceClient
+    .from("location_claims")
+    .select("id, map_location_id, claimant_user_id, social_link, status")
+    .eq("id", claimId)
+    .maybeSingle();
+  if (!claim) return { error: "Claim not found." };
+  if (claim.status !== "pending")
+    return { error: "This claim was already decided." };
+
+  const locationId = claim.map_location_id as string;
+  const claimantId = claim.claimant_user_id as string;
+  const { data: location } = await serviceClient
+    .from("map_locations")
+    .select(
+      "id, name, address, city, country, postal_code, claim_status, studio_profile_id",
+    )
+    .eq("id", locationId)
+    .maybeSingle();
+  if (!location) return { error: "This location no longer exists." };
+
+  const { data: claimantStudio } = await serviceClient
+    .from("studio_profiles")
+    .select("id")
+    .eq("owner_user_id", claimantId)
+    .maybeSingle();
+
+  let studioId: string;
+  if (claimantStudio) {
+    // Retry path only: the claimant's studio must be the one already linked
+    // to THIS location; anything else means they own a different studio.
+    if (location.studio_profile_id !== claimantStudio.id)
+      return { error: "The claimant already runs a studio." };
+    studioId = claimantStudio.id as string;
+  } else {
+    if (location.claim_status === "claimed")
+      return { error: "This location is already claimed." };
+    const { data: studio, error: studioErr } = await serviceClient
+      .from("studio_profiles")
+      .insert({
+        owner_user_id: claimantId,
+        name: location.name as string,
+        address: (location.address as string | null) ?? null,
+        city: (location.city as string | null) ?? null,
+        country: (location.country as string | null) ?? null,
+        postal_code: (location.postal_code as string | null) ?? null,
+        settings: { social_links: [claim.social_link] },
+      })
+      .select("id")
+      .single();
+    if (studioErr || !studio)
+      return { error: "Could not set up the claimant studio. Try again." };
+    studioId = studio.id as string;
+
+    // Conditional + verified: a concurrent approval of a sibling claim loses
+    // this race cleanly instead of double-claiming the location.
+    const { data: linked, error: linkErr } = await serviceClient
+      .from("map_locations")
+      .update({
+        studio_profile_id: studioId,
+        claim_status: "claimed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", locationId)
+      .neq("claim_status", "claimed")
+      .select("id");
+    if (linkErr || !linked?.length) {
+      await serviceClient.from("studio_profiles").delete().eq("id", studioId);
+      return {
+        error: linkErr
+          ? "Could not link the studio. Try again."
+          : "This location is already claimed.",
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const { error: approveErr } = await serviceClient
+    .from("location_claims")
+    .update({ status: "approved", reviewed_by: reviewerId, reviewed_at: now })
+    .eq("id", claimId);
+  if (approveErr) return { error: "Could not record the approval. Retry." };
+  const { error: siblingErr } = await serviceClient
+    .from("location_claims")
+    .update({ status: "rejected", reviewed_by: reviewerId, reviewed_at: now })
+    .eq("map_location_id", locationId)
+    .eq("status", "pending");
+  if (siblingErr)
+    return {
+      error:
+        "Approved, but the other claims on this location could not be auto-rejected. Reject them from the queue.",
+    };
+  return {};
+}
+
+export async function rejectClaimCore(
+  claimId: string,
+  reviewerId: string,
+): Promise<{ error?: string }> {
+  const { data: claim } = await serviceClient
+    .from("location_claims")
+    .select("id, map_location_id, claimant_user_id, status")
+    .eq("id", claimId)
+    .maybeSingle();
+  if (!claim) return { error: "Claim not found." };
+  if (claim.status !== "pending")
+    return { error: "This claim was already decided." };
+
+  // Guard against rejecting a HALF-APPROVED claim (approveClaimCore failed
+  // after the studio was created and linked): rejecting here would record a
+  // denial while the claimant silently keeps ownership. Finish with Approve.
+  const [{ data: claimantStudio }, { data: claimLocation }] = await Promise.all(
+    [
+      serviceClient
+        .from("studio_profiles")
+        .select("id")
+        .eq("owner_user_id", claim.claimant_user_id as string)
+        .maybeSingle(),
+      serviceClient
+        .from("map_locations")
+        .select("studio_profile_id")
+        .eq("id", claim.map_location_id as string)
+        .maybeSingle(),
+    ],
+  );
+  if (claimantStudio && claimLocation?.studio_profile_id === claimantStudio.id)
+    return {
+      error:
+        "This claim is half approved (the claimant already owns the linked studio). Use approve to finish it.",
+    };
+
+  const { error } = await serviceClient
+    .from("location_claims")
+    .update({
+      status: "rejected",
+      reviewed_by: reviewerId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", claimId);
+  if (error) return { error: "Could not record the rejection. Retry." };
+
+  // Settle the location state from the remaining pending claims.
+  const locationId = claim.map_location_id as string;
+  const { count } = await serviceClient
+    .from("location_claims")
+    .select("id", { count: "exact", head: true })
+    .eq("map_location_id", locationId)
+    .eq("status", "pending");
+  const remaining = count ?? 0;
+  await serviceClient
+    .from("map_locations")
+    .update({
+      claim_status:
+        remaining >= 2
+          ? "claim_conflict"
+          : remaining === 1
+            ? "claim_pending"
+            : "unclaimed",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", locationId)
+    .neq("claim_status", "claimed");
   return {};
 }

@@ -31,6 +31,7 @@ export type MapLocationSource = (typeof MAP_LOCATION_SOURCES)[number];
 export const MAP_CLAIM_STATUSES = [
   "unclaimed",
   "claim_pending",
+  "claim_conflict",
   "claimed",
 ] as const;
 export type MapClaimStatus = (typeof MAP_CLAIM_STATUSES)[number];
