@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import CalendarView from "./calendar-view";
+import { tattooMapEnabled } from "@/lib/map-features";
+import { listArtistRequests } from "@/lib/server/guest-spots";
+import { GUEST_SPOT_OPEN_STATUSES } from "@inklee/shared/guest-spots";
+import CalendarView, { type CalendarPendingRange } from "./calendar-view";
 import type { CalendarEvent } from "./appointment-drawer";
 
 export default async function CalendarPage() {
@@ -75,6 +78,22 @@ export default async function CalendarPage() {
     (rawFlash ?? []) as { id: string; title: string; scheduled_on: string }[]
   ).map((f) => ({ id: f.id, date: f.scheduled_on, title: f.title }));
 
+  // Pending guest spot requests as markers (Inklee 2.0 Phase 4): the asked
+  // date shows dashed, links to the request, and never blocks bookings.
+  // Confirmed guest spots already render via their materialized trip legs.
+  let pendingRanges: CalendarPendingRange[] = [];
+  if (tattooMapEnabled()) {
+    const openSet = new Set<string>(GUEST_SPOT_OPEN_STATUSES);
+    pendingRanges = (await listArtistRequests(user!.id))
+      .filter((r) => openSet.has(r.status))
+      .map((r) => ({
+        id: r.id,
+        startsOn: r.startDate,
+        endsOn: r.endDate,
+        label: `${r.studioName}?`,
+      }));
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -85,7 +104,12 @@ export default async function CalendarPage() {
           Approved bookings, appointments, guest spots, and flash days.
         </p>
       </div>
-      <CalendarView events={events} tripLegs={tripLegs} flashDays={flashDays} />
+      <CalendarView
+        events={events}
+        tripLegs={tripLegs}
+        flashDays={flashDays}
+        pendingRanges={pendingRanges}
+      />
     </div>
   );
 }

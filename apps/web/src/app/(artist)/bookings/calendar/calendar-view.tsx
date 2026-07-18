@@ -60,10 +60,18 @@ export type CalendarTripLeg = {
   icon?: string | null;
 };
 export type CalendarFlashDay = { id: string; date: string; title: string };
+/** A pending guest spot request's asked-for range (marker only, never blocks). */
+export type CalendarPendingRange = {
+  id: string;
+  startsOn: string;
+  endsOn: string;
+  label: string;
+};
 
 type CellMarker =
   | { k: "booking"; ev: CalendarEvent }
-  | { k: "flash"; id: string; title: string };
+  | { k: "flash"; id: string; title: string }
+  | { k: "pending"; id: string; title: string };
 
 // Inclusive list of YYYY-MM-DD keys between two dates (capped for safety).
 function eachDayKey(startKey: string, endKey: string): string[] {
@@ -84,10 +92,12 @@ export default function CalendarView({
   events,
   tripLegs = [],
   flashDays = [],
+  pendingRanges = [],
 }: {
   events: CalendarEvent[];
   tripLegs?: CalendarTripLeg[];
   flashDays?: CalendarFlashDay[];
+  pendingRanges?: CalendarPendingRange[];
 }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -137,6 +147,16 @@ export default function CalendarView({
       tripLabelsByDay.set(k, labels);
       if (leg.icon && !tripIconByDay.has(k)) tripIconByDay.set(k, leg.icon);
     }
+  }
+
+  // Pending guest spot requests: one marker on the range's first day (a chip
+  // on every day would drown real bookings), deduped per request per day.
+  const pendingByDay = new Map<string, CalendarPendingRange[]>();
+  for (const range of pendingRanges) {
+    if (!range.startsOn) continue;
+    const list = pendingByDay.get(range.startsOn) ?? [];
+    list.push(range);
+    pendingByDay.set(range.startsOn, list);
   }
 
   const grid = buildMonthGrid(year, month);
@@ -211,12 +231,18 @@ export default function CalendarView({
               const dayFlash = flashByDate[key] ?? [];
               const isTripDay = tripDays.has(key);
               const dayTripLabels = tripLabelsByDay.get(key) ?? [];
+              const dayPending = pendingByDay.get(key) ?? [];
               const markers: CellMarker[] = [
                 ...dayEvents.map((ev) => ({ k: "booking" as const, ev })),
                 ...dayFlash.map((f) => ({
                   k: "flash" as const,
                   id: f.id,
                   title: f.title,
+                })),
+                ...dayPending.map((p) => ({
+                  k: "pending" as const,
+                  id: p.id,
+                  title: p.label,
                 })),
               ];
               const shownMarkers = markers.slice(0, 3);
@@ -295,12 +321,26 @@ export default function CalendarView({
                           </button>
                         );
                       }
+                      if (m.k === "flash") {
+                        return (
+                          <Link
+                            key={`f-${m.id}`}
+                            href={`/flash/days/${m.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="block truncate rounded-md bg-[color:var(--color-tint-green)] px-1.5 py-0.5 text-xs font-medium text-brand-charcoal transition-opacity hover:opacity-80"
+                          >
+                            {m.title}
+                          </Link>
+                        );
+                      }
+                      // Pending guest spot request: dashed outline, never a
+                      // block; clicking opens the request.
                       return (
                         <Link
-                          key={`f-${m.id}`}
-                          href={`/flash/days/${m.id}`}
+                          key={`p-${m.id}`}
+                          href={`/travel/requests/${m.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="block truncate rounded-md bg-[color:var(--color-tint-green)] px-1.5 py-0.5 text-xs font-medium text-brand-charcoal transition-opacity hover:opacity-80"
+                          className="block truncate rounded-md border border-dashed border-brand-cobalt/70 px-1.5 py-0.5 text-xs font-medium text-brand-cobalt transition-opacity hover:opacity-80"
                         >
                           {m.title}
                         </Link>
@@ -349,6 +389,12 @@ export default function CalendarView({
             <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-mustard)]" />
             Added by you
           </span>
+          {pendingRanges.length > 0 ? (
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full border border-dashed border-brand-cobalt/70" />
+              Guest spot asked
+            </span>
+          ) : null}
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-tint-cobalt)]" />
             Guest spot
@@ -387,6 +433,7 @@ export default function CalendarView({
           const detailDate = new Date(dyy, dmm - 1, ddd);
           const dayBookings = byDate[dayDetail] ?? [];
           const dayFlashList = flashByDate[dayDetail] ?? [];
+          const dayPendingList = pendingByDay.get(dayDetail) ?? [];
           const dayLabels = tripLabelsByDay.get(dayDetail) ?? [];
           return (
             <div
@@ -450,6 +497,16 @@ export default function CalendarView({
                       className="block truncate rounded-md bg-[color:var(--color-tint-green)] px-3 py-2 text-sm font-medium text-brand-charcoal transition-opacity hover:opacity-80"
                     >
                       {f.title}
+                    </Link>
+                  ))}
+                  {dayPendingList.map((p) => (
+                    <Link
+                      key={p.id}
+                      href={`/travel/requests/${p.id}`}
+                      onClick={() => setDayDetail(null)}
+                      className="block truncate rounded-md border border-dashed border-brand-cobalt/70 px-3 py-2 text-sm font-medium text-brand-cobalt transition-opacity hover:opacity-80"
+                    >
+                      {p.label}
                     </Link>
                   ))}
                 </div>
