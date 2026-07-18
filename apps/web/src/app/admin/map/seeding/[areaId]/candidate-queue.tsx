@@ -153,7 +153,9 @@ function CandidateCard({
               Reject
             </button>
           </>
-        ) : candidate.status === "rejected" ? (
+        ) : candidate.status === "rejected" ||
+          (candidate.status === "converted" &&
+            !candidate.convertedLocationId) ? (
           <button
             type="button"
             onClick={() => review("reopen")}

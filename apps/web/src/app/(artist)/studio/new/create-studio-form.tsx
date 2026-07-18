@@ -197,14 +197,16 @@ export default function CreateStudioForm({
                       : ""}
                   </span>
                 </span>
-                <a
-                  href={`/studio/claim/${d.locationId}`}
-                  target="_blank"
-                  rel="noopener"
-                  className="shrink-0 text-xs underline hover:text-foreground"
-                >
-                  Claim it
-                </a>
+                {d.moderationStatus === "approved" ? (
+                  <a
+                    href={`/studio/claim/${d.locationId}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="shrink-0 text-xs underline hover:text-foreground"
+                  >
+                    Claim it
+                  </a>
+                ) : null}
               </li>
             ))}
           </ul>

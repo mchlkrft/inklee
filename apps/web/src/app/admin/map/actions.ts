@@ -14,6 +14,7 @@ import {
   type MapLocationSource,
   type MapModerationStatus,
 } from "@inklee/shared/map-directory";
+import { approximateDisplayPosition } from "@inklee/shared/studio-profile";
 import {
   persistDuplicateSuggestions,
   scanForDuplicates,
@@ -218,9 +219,36 @@ export async function updateMapLocationAction(
     return { duplicates: duplicateHits };
   }
 
+  // Studio-linked rows re-derive their public display from the OWNER'S
+  // address visibility, so an admin save can never overwrite the approximate
+  // offset with the true position (integration sweep follow-up).
+  const row = rowFromInput(input, bucket);
+  const { data: linkedRow } = await serviceClient
+    .from("map_locations")
+    .select("studio_profile_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (linkedRow?.studio_profile_id) {
+    const { data: linkedStudio } = await serviceClient
+      .from("studio_profiles")
+      .select("address_visibility")
+      .eq("id", linkedRow.studio_profile_id as string)
+      .maybeSingle();
+    if (linkedStudio?.address_visibility === "approximate") {
+      const display = approximateDisplayPosition(
+        id,
+        input.latitude,
+        input.longitude,
+      );
+      row.display_latitude = display.latitude;
+      row.display_longitude = display.longitude;
+      row.address = null;
+      row.postal_code = null;
+    }
+  }
   const { error } = await serviceClient
     .from("map_locations")
-    .update(rowFromInput(input, bucket))
+    .update(row)
     .eq("id", id);
   if (error) {
     if (error.code === "23505")
@@ -256,9 +284,17 @@ export async function deleteMapLocationAction(id: string): Promise<Result> {
 
   const { data: existing } = await serviceClient
     .from("map_locations")
-    .select("name")
+    .select("name, studio_profile_id")
     .eq("id", id)
     .maybeSingle();
+  // A studio-linked location must never be hard-deleted (integration sweep
+  // finding): the cascade would erase the approved claim record and strand
+  // the published studio with a false "awaiting map review" state.
+  if (existing?.studio_profile_id)
+    return {
+      error:
+        "This entry belongs to a claimed studio. Hide it with moderation instead of deleting.",
+    };
   const { error } = await serviceClient
     .from("map_locations")
     .delete()

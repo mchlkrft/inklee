@@ -19,6 +19,7 @@ import {
   MAX_WELCOME_PACK_FILES,
   WELCOME_PACK_FIELDS,
   WELCOME_PACK_FILE_NAME_MAX,
+  approximateDisplayPosition,
   isOwnedWelcomePackFilePath,
   sortHouseRules,
   welcomePackFileStoragePath,
@@ -288,9 +289,25 @@ export async function createStudioCore(
   // Link step: if it fails, compensate by removing both rows so the owner is
   // not left with an unlinked studio (which the one-per-owner constraint would
   // then block them from re-creating) plus an orphaned "claimed" map location.
+  // Approximate visibility is enforced here too (integration sweep finding:
+  // the setting was stored but never consumed): the public position gets a
+  // deterministic coarse offset and the street address stays off the map.
+  const approximate = input.addressVisibility === "approximate";
+  const display = approximate
+    ? approximateDisplayPosition(
+        mapLoc.id as string,
+        input.latitude,
+        input.longitude,
+      )
+    : { latitude: input.latitude, longitude: input.longitude };
   const { error: linkErr } = await serviceClient
     .from("map_locations")
-    .update({ studio_profile_id: studio.id })
+    .update({
+      studio_profile_id: studio.id,
+      display_latitude: display.latitude,
+      display_longitude: display.longitude,
+      ...(approximate ? { address: null, postal_code: null } : {}),
+    })
     .eq("id", mapLoc.id);
   if (linkErr) {
     await serviceClient.from("studio_profiles").delete().eq("id", studio.id);
@@ -349,19 +366,41 @@ export async function updateStudioProfileCore(
     .eq("id", studioId);
   if (error) return { error: "Could not save your studio." };
 
-  // Keep the linked map entry's name and address fields in step with the
-  // profile so the public map never renders a stale name after a rename.
-  await serviceClient
+  // Keep the linked map entry in step with the profile, ENFORCING address
+  // visibility: approximate studios publish an offset position and no street
+  // address or postal code (integration sweep finding). The true coordinates
+  // stay on the location's latitude/longitude columns.
+  const { data: linkedLoc } = await serviceClient
     .from("map_locations")
-    .update({
-      name: input.name.trim(),
-      address: input.address?.trim() || null,
-      city: input.city?.trim() || null,
-      country: input.country?.trim() || null,
-      postal_code: input.postalCode?.trim() || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("studio_profile_id", studioId);
+    .select("id, latitude, longitude")
+    .eq("studio_profile_id", studioId)
+    .maybeSingle();
+  if (linkedLoc) {
+    const approximate = input.addressVisibility === "approximate";
+    const display = approximate
+      ? approximateDisplayPosition(
+          linkedLoc.id as string,
+          Number(linkedLoc.latitude),
+          Number(linkedLoc.longitude),
+        )
+      : {
+          latitude: Number(linkedLoc.latitude),
+          longitude: Number(linkedLoc.longitude),
+        };
+    await serviceClient
+      .from("map_locations")
+      .update({
+        name: input.name.trim(),
+        address: approximate ? null : input.address?.trim() || null,
+        city: input.city?.trim() || null,
+        country: input.country?.trim() || null,
+        postal_code: approximate ? null : input.postalCode?.trim() || null,
+        display_latitude: display.latitude,
+        display_longitude: display.longitude,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", linkedLoc.id);
+  }
   return {};
 }
 
@@ -1119,6 +1158,29 @@ export async function setPublicationCore(
     .eq("id", studioId)
     .eq("owner_user_id", userId);
   if (error) return { error: "Could not update your studio." };
+
+  // "Unpublish to take it off the map" must be true (integration sweep
+  // finding): unpublishing hides the linked map entry; republishing sends it
+  // back through admin review (the cockpit already renders that state).
+  if (!publish) {
+    await serviceClient
+      .from("map_locations")
+      .update({
+        moderation_status: "hidden",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("studio_profile_id", studioId)
+      .eq("moderation_status", "approved");
+  } else {
+    await serviceClient
+      .from("map_locations")
+      .update({
+        moderation_status: "pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("studio_profile_id", studioId)
+      .eq("moderation_status", "hidden");
+  }
   return {};
 }
 

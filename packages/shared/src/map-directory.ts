@@ -460,6 +460,8 @@ export type DuplicateHit = {
   country: string | null;
   confidence: DuplicateConfidence;
   signals: DuplicateSignals;
+  /** Lets surfaces gate claim links: the claim page accepts approved only. */
+  moderationStatus?: string;
 };
 
 /**

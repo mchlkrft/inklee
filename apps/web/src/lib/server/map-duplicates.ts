@@ -119,6 +119,7 @@ export async function scanForDuplicates(
       country: row.country,
       confidence: verdict.confidence,
       signals: verdict.signals,
+      moderationStatus: row.moderation_status,
     });
   }
   hits.sort((a, b) => order[a.confidence] - order[b.confidence]);
@@ -157,10 +158,8 @@ export async function persistDuplicateSuggestions(
       reviewed_at: dismissedInForm ? now : null,
     };
   });
-  await serviceClient
-    .from("map_duplicate_suggestions")
-    .upsert(rows, {
-      onConflict: "location_a,location_b",
-      ignoreDuplicates: true,
-    });
+  await serviceClient.from("map_duplicate_suggestions").upsert(rows, {
+    onConflict: "location_a,location_b",
+    ignoreDuplicates: true,
+  });
 }

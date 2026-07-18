@@ -14,6 +14,7 @@ import {
   WELCOME_PACK_FIELDS,
   WELCOME_PACK_FIELD_LABELS,
   WELCOME_PACK_FIELD_MAX,
+  approximateDisplayPosition,
   isOwnedWelcomePackFilePath,
   validateWelcomePackInput,
   welcomePackFileStoragePath,
@@ -198,6 +199,28 @@ describe("house rules", () => {
       "opening_hours",
       "walk_in_policy",
     ]);
+  });
+});
+
+describe("approximateDisplayPosition", () => {
+  it("is deterministic and offsets 250 to 450 meters", () => {
+    const a = approximateDisplayPosition("seed-1", 52.52, 13.405);
+    const b = approximateDisplayPosition("seed-1", 52.52, 13.405);
+    expect(a).toEqual(b);
+    const latMeters = Math.abs(a.latitude - 52.52) * 111320;
+    const lngMeters =
+      Math.abs(a.longitude - 13.405) *
+      111320 *
+      Math.cos((52.52 * Math.PI) / 180);
+    const distance = Math.hypot(latMeters, lngMeters);
+    expect(distance).toBeGreaterThanOrEqual(240);
+    expect(distance).toBeLessThanOrEqual(460);
+  });
+
+  it("different seeds land differently", () => {
+    const a = approximateDisplayPosition("seed-1", 52.52, 13.405);
+    const c = approximateDisplayPosition("seed-2", 52.52, 13.405);
+    expect(a).not.toEqual(c);
   });
 });
 

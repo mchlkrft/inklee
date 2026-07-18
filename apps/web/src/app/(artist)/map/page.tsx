@@ -100,8 +100,8 @@ async function DiscoveryMapPage() {
       </header>
       <DiscoveryMapClient journey={journey} watchedIds={watchedIds} />
       <p className="text-xs text-muted-foreground">
-        Something wrong or missing on the map? Studio claiming and reporting
-        arrive in later updates. Your travel planner stays in{" "}
+        Your studio? Claim it from its map page. Reporting something wrong
+        arrives in a later update. Your travel planner stays in{" "}
         <Link href="/travel" className="underline hover:text-foreground">
           Guest Spots
         </Link>

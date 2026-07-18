@@ -27,6 +27,33 @@ function toEmailStudio(s: StudioRow): EmailStudio {
   return { name: s.name, address, mapsUrl: s.google_maps_url };
 }
 
+/** The 2.0 host studio behind a guest spot stay, shaped for emails. */
+async function guestSpotHostStudio(
+  stayId: string,
+): Promise<EmailStudio | null> {
+  const { data: stay } = await serviceClient
+    .from("guest_spot_stays")
+    .select("studio_profile_id")
+    .eq("id", stayId)
+    .maybeSingle();
+  if (!stay?.studio_profile_id) return null;
+  const { data: studio } = await serviceClient
+    .from("studio_profiles")
+    .select("name, address, city, country, postal_code")
+    .eq("id", stay.studio_profile_id as string)
+    .maybeSingle();
+  if (!studio) return null;
+  const address =
+    [
+      studio.address as string | null,
+      [studio.postal_code, studio.city].filter(Boolean).join(" "),
+      studio.country as string | null,
+    ]
+      .filter((part) => Boolean(part && String(part).trim()))
+      .join(", ") || null;
+  return { name: studio.name as string, address, mapsUrl: null };
+}
+
 /**
  * Returns the GUEST-SPOT studio name for a booking, or null when the booking
  * is at the artist's default (primary) studio. Used to decide whether the
@@ -58,11 +85,12 @@ export async function resolveBookingGuestSpotStudio(
     if (date) {
       const { data: legs } = await serviceClient
         .from("trip_legs")
-        .select("starts_on, ends_on, studios(name)")
+        .select("starts_on, ends_on, guest_spot_stay_id, studios(name)")
         .eq("trip_id", booking.trip_id);
       type LegRow = {
         starts_on: string;
         ends_on: string;
+        guest_spot_stay_id: string | null;
         studios: { name: string } | { name: string }[] | null;
       };
       const leg = ((legs ?? []) as unknown as LegRow[]).find(
@@ -74,6 +102,11 @@ export async function resolveBookingGuestSpotStudio(
           : leg.studios
         : null;
       if (studio) return studio.name;
+      // 2.0 guest spot legs carry the host studio through their stay.
+      if (leg?.guest_spot_stay_id) {
+        const host = await guestSpotHostStudio(leg.guest_spot_stay_id);
+        if (host) return host.name;
+      }
     }
     return "the studio for this trip";
   }
@@ -131,11 +164,15 @@ export async function resolveStudioForBooking(
     const date = booking.preferred_date as string;
     const { data: legs } = await serviceClient
       .from("trip_legs")
-      .select(`starts_on, ends_on, studios(${STUDIO_COLS})`)
+      .select(
+        `starts_on, ends_on, origin, guest_spot_stay_id, studios(${STUDIO_COLS})`,
+      )
       .eq("trip_id", booking.trip_id);
     type LegRow = {
       starts_on: string;
       ends_on: string;
+      origin: string | null;
+      guest_spot_stay_id: string | null;
       studios: StudioRow | StudioRow[] | null;
     };
     const leg = ((legs ?? []) as unknown as LegRow[]).find(
@@ -147,6 +184,17 @@ export async function resolveStudioForBooking(
         : leg.studios
       : null;
     if (studio) return toEmailStudio(studio);
+    // 2.0 guest spot legs: NEVER fall through to the artist's home studio
+    // (the integration sweep caught confirmed clients being mailed the wrong
+    // city). Keyed on origin so a deleted stay row cannot silently restore
+    // the fallback; the host studio's full address is right for a confirmed
+    // client, mirroring the 1.x regardless-of-visibility rule.
+    if (leg?.origin === "guest_spot") {
+      const host = leg.guest_spot_stay_id
+        ? await guestSpotHostStudio(leg.guest_spot_stay_id)
+        : null;
+      return host;
+    }
   }
 
   // Fallback: the artist's primary (home) studio.

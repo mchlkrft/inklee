@@ -11,6 +11,34 @@ export const ADDRESS_VISIBILITY_LABELS: Record<AddressVisibility, string> = {
   approximate: "Show the area only",
 };
 
+/**
+ * Deterministic coarse offset (roughly 250 to 450 meters) for approximate
+ * studios: the public pin lands near, never on, the true position, and stays
+ * put across re-syncs because the seed is the map location id. Determinism
+ * matters: a wandering pin would let observers triangulate the true point.
+ */
+export function approximateDisplayPosition(
+  seed: string,
+  latitude: number,
+  longitude: number,
+): { latitude: number; longitude: number } {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const angle = ((h >>> 8) % 3600) * (Math.PI / 1800);
+  const meters = 250 + ((h >>> 20) % 200);
+  const latOffset = (meters * Math.cos(angle)) / 111320;
+  const lngOffset =
+    (meters * Math.sin(angle)) /
+    (111320 * Math.max(0.05, Math.cos((latitude * Math.PI) / 180)));
+  return {
+    latitude: Math.max(-90, Math.min(90, latitude + latOffset)),
+    longitude: Math.max(-180, Math.min(180, longitude + lngOffset)),
+  };
+}
+
 export const GUEST_SPOT_STATUSES = [
   "not_accepting",
   "accepting",

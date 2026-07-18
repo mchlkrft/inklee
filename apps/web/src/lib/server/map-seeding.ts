@@ -619,11 +619,16 @@ export async function storeBraveSelectionCore(
       { name: title, sourceUrl: url, socialUrl: url },
       ctx,
     );
+    // Keep the lead usable at conversion: Instagram URLs prefill the handle,
+    // anything else prefills the website (integration sweep finding).
+    const isInstagram = /instagram\.com\//i.test(url);
     const { error } = await serviceClient.from("map_seed_candidates").insert({
       seed_run_id: run.id,
       seed_area_id: areaId,
       source_type: "brave_search",
       source_url: url,
+      social_url: isInstagram ? url : null,
+      website_url: isInstagram ? null : url,
       source_payload_minimal: { query: query.slice(0, SEED_QUERY_MAX) },
       name: title,
       city: area.city,
@@ -921,7 +926,17 @@ export async function reviewCandidateCore(
   if (!target) return { error: "Pick a valid review action." };
   const candidate = await getSeedCandidate(candidateId);
   if (!candidate) return { error: "Candidate not found." };
-  if (!canTransitionSeedCandidate(candidate.status, target))
+  // Converted is terminal ONLY while the map entry exists; if an admin later
+  // deleted the entry (the FK nulls converted_location_id), the lead may be
+  // revived instead of rotting in a dead terminal state.
+  const orphanedConversion =
+    action === "reopen" &&
+    candidate.status === "converted" &&
+    !candidate.convertedLocationId;
+  if (
+    !orphanedConversion &&
+    !canTransitionSeedCandidate(candidate.status, target)
+  )
     return { error: "This candidate already moved on." };
   if (
     extras?.confidenceScore !== null &&
