@@ -56,6 +56,7 @@ GRANT SELECT (
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;
 REVOKE INSERT ON public.profiles FROM anon, authenticated;
 GRANT UPDATE (
+  id,
   slug, display_name, first_name, last_name, instagram_handle, bio,
   timezone, location, logo_url, booking_mode, settings,
   signup_attribution, updated_at,

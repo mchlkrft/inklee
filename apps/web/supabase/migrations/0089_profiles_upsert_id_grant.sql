@@ -1,0 +1,23 @@
+-- 0089: profiles upsert needs UPDATE on the conflict target column
+--
+-- 0074 revoked table-level UPDATE/INSERT on profiles and re-granted only the
+-- columns the app writes. It missed a PostgREST upsert mechanic: PostgREST
+-- puts EVERY payload column into the ON CONFLICT DO UPDATE SET list,
+-- including the primary key (SET id = excluded.id), and PostgreSQL checks
+-- privileges at PLAN time regardless of whether the conflict path executes.
+-- Result: every claim-slug upsert (web onboarding action + mobile
+-- onboarding/profile route) failed with 42501 "permission denied for table
+-- profiles" since 0074 went live 2026-07-17 - onboarding was broken for any
+-- new signup. Caught by the CI e2e suite (signup-onboarding spec, red since
+-- exactly that commit) and reproduced against prod with role-switched
+-- rolled-back probes: id in SET -> 42501, without id -> ok.
+--
+-- Granting UPDATE (id) is safe: the own-row RLS policies (USING and WITH
+-- CHECK auth.uid() = id) make any actual id change fail the check; the
+-- upsert only ever sets id = excluded.id = the row's own id.
+--
+-- ⚠️ Mirrored in supabase/seed.sql (the 0074 local-dev mirror block); keep
+-- both in sync. Lesson recorded for future column-privilege migrations:
+-- authenticated UPSERT paths need UPDATE on the conflict target column too.
+
+GRANT UPDATE (id) ON public.profiles TO authenticated;
