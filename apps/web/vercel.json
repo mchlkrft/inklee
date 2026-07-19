@@ -29,6 +29,10 @@
     {
       "path": "/api/cron/gsc-sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/coverage-worker",
+      "schedule": "*/30 * * * *"
     }
   ],
   "redirects": [
