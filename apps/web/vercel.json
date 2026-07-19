@@ -32,7 +32,7 @@
     },
     {
       "path": "/api/cron/coverage-worker",
-      "schedule": "*/30 * * * *"
+      "schedule": "45 3 * * *"
     }
   ],
   "redirects": [
