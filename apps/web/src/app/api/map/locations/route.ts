@@ -10,6 +10,7 @@ import {
   type MapLocationRowForPin,
   type PublicMapPin,
 } from "@inklee/shared/map-directory";
+import { activeSignalsByLocation } from "@/lib/server/studio-signals";
 
 export const runtime = "nodejs";
 
@@ -74,8 +75,10 @@ export async function GET(request: Request) {
   }
 
   const rows = (data ?? []) as MapLocationRowForPin[];
+  // Active temporary signals decorate their pins (the zoomed-in ring, Q7).
+  const signals = await activeSignalsByLocation(rows.map((r) => r.id));
   const pins = rows
-    .map(toPublicMapPin)
+    .map((row) => toPublicMapPin(row, signals.get(row.id) ?? null))
     .filter((p): p is PublicMapPin => p !== null);
   const body: MapLocationsResponse = {
     pins,

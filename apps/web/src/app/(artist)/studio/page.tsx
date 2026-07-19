@@ -11,6 +11,8 @@ import {
   type GuestSpotStatus,
 } from "@inklee/shared/studio-profile";
 import PublishControls from "./publish-controls";
+import SignalCard from "./signal-card";
+import { activeSignalForStudio } from "@/lib/server/studio-signals";
 
 export const metadata = { title: "Studio" };
 
@@ -165,6 +167,7 @@ export default async function StudioCockpitPage() {
   }
 
   const published = studio.publicationStatus === "published";
+  const activeSignal = await activeSignalForStudio(studio.id);
   const onMap = published && studio.mapModerationStatus === "approved";
 
   return (
@@ -244,6 +247,8 @@ export default async function StudioCockpitPage() {
         publishReady={studio.completeness.publishReady}
         blockers={studio.completeness.publishBlockers}
       />
+
+      <SignalCard active={activeSignal} published={published} />
 
       <OwnerClaimsNote userId={user.id} />
 

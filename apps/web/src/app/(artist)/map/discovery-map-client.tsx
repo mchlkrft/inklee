@@ -12,6 +12,10 @@ import {
   type PublicMapPin,
 } from "@inklee/shared/map-directory";
 import type { TravelMapStop } from "@inklee/shared/travel-map";
+import {
+  STUDIO_SIGNAL_LABELS,
+  isStudioSignalType,
+} from "@inklee/shared/studio-signals";
 import { toggleWatchAction } from "./actions";
 
 // Category ink on the branded base (dark: mustard/rosa/bone; light: charcoal
@@ -51,12 +55,13 @@ function pinsToGeoJSON(pins: PublicMapPin[]) {
         name: p.name,
         category: p.category,
         claimed: p.claimed,
+        hasSignal: p.signal !== null,
       },
     })),
   };
 }
 
-type Filter = "all" | MapLocationCategory | "watched";
+type Filter = "all" | MapLocationCategory | "watched" | "signals";
 
 export default function DiscoveryMapClient({
   journey,
@@ -112,6 +117,7 @@ export default function DiscoveryMapClient({
   const visiblePins = useMemo(() => {
     if (filter === "all") return pins;
     if (filter === "watched") return pins.filter((p) => watched.has(p.id));
+    if (filter === "signals") return pins.filter((p) => p.signal !== null);
     return pins.filter((p) => p.category === filter);
   }, [pins, filter, watched]);
 
@@ -215,6 +221,34 @@ export default function DiscoveryMapClient({
           "text-size": 12,
         },
         paint: { "text-color": ink.onActive },
+      });
+      // Temporary-signal ring (Q7): a rosa halo behind the pin, zoomed-in
+      // only, silently gone once the signal expires out of the API data.
+      map.addLayer({
+        id: "signal-rings",
+        type: "circle",
+        source: "pins",
+        filter: [
+          "all",
+          ["!", ["has", "point_count"]],
+          ["==", ["get", "hasSignal"], true],
+        ],
+        minzoom: 10,
+        paint: {
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            10,
+            10,
+            14,
+            14,
+          ],
+          "circle-stroke-width": 2.5,
+          "circle-stroke-color": "#db88b9",
+          "circle-stroke-opacity": 0.95,
+        },
       });
       map.addLayer({
         id: "pin-points",
@@ -522,6 +556,13 @@ export default function DiscoveryMapClient({
         >
           Watched
         </button>
+        <button
+          type="button"
+          className={chip(filter === "signals")}
+          onClick={() => setFilter("signals")}
+        >
+          Signals
+        </button>
         {journey.length > 0 ? (
           <button
             type="button"
@@ -598,6 +639,11 @@ export default function DiscoveryMapClient({
                   {selected.city ? ` · ${selected.city}` : ""}
                   {selected.claimed ? " · claimed" : ""}
                 </p>
+                {selected.signal && isStudioSignalType(selected.signal) ? (
+                  <p className="mt-1 inline-block rounded-full bg-brand-rosa/20 px-2 py-0.5 text-xs text-brand-rosa">
+                    {STUDIO_SIGNAL_LABELS[selected.signal]}
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"

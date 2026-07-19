@@ -185,6 +185,8 @@ export type PublicMapPin = {
   city: string | null;
   country: string | null;
   claimed: boolean;
+  /** Active temporary signal type, when the studio has one (Q7). */
+  signal: string | null;
 };
 
 export type MapLocationRowForPin = {
@@ -200,7 +202,10 @@ export type MapLocationRowForPin = {
 };
 
 /** Returns null for anything not publicly renderable (fail closed). */
-export function toPublicMapPin(row: MapLocationRowForPin): PublicMapPin | null {
+export function toPublicMapPin(
+  row: MapLocationRowForPin,
+  signal?: string | null,
+): PublicMapPin | null {
   if (row.moderation_status !== "approved") return null;
   if (
     !MAP_LOCATION_CATEGORIES.includes(row.category as MapLocationCategory)
@@ -220,6 +225,7 @@ export function toPublicMapPin(row: MapLocationRowForPin): PublicMapPin | null {
     city: row.city,
     country: row.country,
     claimed: row.claim_status === "claimed",
+    signal: signal ?? null,
   };
 }
 

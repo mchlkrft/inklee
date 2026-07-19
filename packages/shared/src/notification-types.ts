@@ -14,6 +14,7 @@ export type NotificationType =
   | "booking_cancelled_by_artist"
   | "deposit_received"
   | "support_reply"
+  | "studio_signal"
   | "system_warning"
   | "info";
 

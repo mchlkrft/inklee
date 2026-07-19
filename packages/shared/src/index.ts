@@ -23,6 +23,7 @@ export * from "./seed-filtering";
 export * from "./seed-countries";
 export * from "./seed-coverage";
 export * from "./studio-profile";
+export * from "./studio-signals";
 export * from "./slug";
 export * from "./trip-validation";
 export * from "./studio-validation";

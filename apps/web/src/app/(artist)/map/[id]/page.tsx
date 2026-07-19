@@ -15,6 +15,11 @@ import {
   type StudioTimeline,
   type TimelineEntry,
 } from "@/lib/server/guest-spots";
+import { activeSignalsByLocation } from "@/lib/server/studio-signals";
+import {
+  STUDIO_SIGNAL_LABELS,
+  isStudioSignalType,
+} from "@inklee/shared/studio-signals";
 import { formatDateKey } from "@inklee/shared/date-utils";
 import WatchButton from "./watch-button";
 
@@ -95,6 +100,9 @@ export default async function MapLocationPage({
     }
   }
 
+  const signals = await activeSignalsByLocation([id]);
+  const activeSignal = signals.get(id) ?? null;
+
   const categoryLabel =
     MAP_LOCATION_CATEGORY_LABELS[
       data.category as keyof typeof MAP_LOCATION_CATEGORY_LABELS
@@ -131,6 +139,17 @@ export default async function MapLocationPage({
         </div>
         <p className="text-sm text-muted-foreground">{categoryLabel}</p>
       </header>
+
+      {activeSignal && isStudioSignalType(activeSignal) ? (
+        <section className="rounded-2xl border border-brand-rosa/40 bg-brand-rosa/10 p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Right now
+          </p>
+          <p className="text-sm font-medium text-foreground">
+            {STUDIO_SIGNAL_LABELS[activeSignal]}
+          </p>
+        </section>
+      ) : null}
 
       <section className="space-y-3 rounded-2xl border border-border p-4">
         {place ? (

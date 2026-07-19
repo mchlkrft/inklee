@@ -71,7 +71,16 @@ What is the hard storage limit per studio profile?
 
 ### Q7. Temporary studio signal display behavior
 
-How should temporary studio signals be displayed without becoming spam? (Widened 2026-07-18: temporary map posts became typed temporary studio signals; the question covers the whole signal system.)
+**RESOLVED 2026-07-19 (founder, all four display calls):** (1) a ring
+around the studio's map marker, (2) visible only when zoomed in
+(minzoom 10), (3) signals expire silently (no countdown on public
+surfaces; the owner sees the end date in their cockpit), (4) watchers get
+an IN-APP notification only, no email and no push. Plus the recommended
+map filter toggle ("Signals") and a detail page section. Shipped as the
+temporary-signals slice (migration 0092): 8-type vocabulary, 14-day
+duration, the locked 1 per owner per month cap counted against creation.
+
+Original question: how should temporary studio signals be displayed without becoming spam? (Widened 2026-07-18: temporary map posts became typed temporary studio signals; the question covers the whole signal system.)
 
 - Why open: the 1 post or signal per owner account per month limit is locked and the signal type vocabulary is now scoped, but the display (marker badge, feed entry, map layer, expiry visuals, contextual feed placement) is deliberately undecided. Wrong display design either buries the feature or turns the map into a billboard.
 - What it blocks: nothing until late. Signals sit in the named follow-on slice after Phase 3, and their contextual-feed appearance waits for the map activity cluster anyway.

@@ -32,6 +32,10 @@ import {
   passRequestCore,
   proposeDatesCore,
 } from "@/lib/server/guest-spots";
+import {
+  postStudioSignalCore,
+  withdrawStudioSignalCore,
+} from "@/lib/server/studio-signals";
 import type { StudioProfileInput } from "@inklee/shared/studio-profile";
 
 async function requireUser() {
@@ -40,6 +44,28 @@ async function requireUser() {
     data: { user },
   } = await supabase.auth.getUser();
   return user;
+}
+
+export async function postStudioSignalAction(
+  signalType: string,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await postStudioSignalCore(user.id, signalType);
+  if (!result.error) revalidatePath("/studio");
+  return { error: result.error };
+}
+
+export async function withdrawStudioSignalAction(
+  signalId: string,
+): Promise<{ error?: string }> {
+  if (!tattooMapEnabled()) return { error: "Studios are not available." };
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  const result = await withdrawStudioSignalCore(user.id, signalId);
+  if (!result.error) revalidatePath("/studio");
+  return result;
 }
 
 export async function createStudioAction(
