@@ -7,13 +7,13 @@ import {
   getSeedArea,
   listAreaCandidates,
 } from "@/lib/server/map-seeding";
-import { SEED_CAP_PER_BUCKET } from "@inklee/shared/map-directory";
 import {
   SEED_COUNTRY_CODES,
   getSeedCountry,
 } from "@inklee/shared/seed-countries";
 import { isAutomatedSeedImportEnabled } from "@/lib/features";
 import { listCountryRuns } from "@/lib/server/seed-automation";
+import { getSeedCapPerBucket } from "@/lib/server/map-settings";
 import SeedLanes from "./seed-lanes";
 import CandidateQueue from "./candidate-queue";
 import AreaStatus from "./area-status";
@@ -32,16 +32,18 @@ export default async function AdminSeedAreaPage({
   if (!area) notFound();
 
   const automatedEnabled = isAutomatedSeedImportEnabled();
+  const seedCap = await getSeedCapPerBucket();
   const [capacity, candidates, usage, countryRuns] = await Promise.all([
-    areaBucketCapacity(area, SEED_CAP_PER_BUCKET),
+    areaBucketCapacity(area, seedCap),
     listAreaCandidates(areaId),
     braveUsageSummary(),
     automatedEnabled ? listCountryRuns(areaId) : Promise.resolve([]),
   ]);
 
-  const fullBuckets = capacity.buckets.filter(
-    (b) => b.seeded >= SEED_CAP_PER_BUCKET,
-  ).length;
+  const fullBuckets =
+    seedCap === null
+      ? 0
+      : capacity.buckets.filter((b) => b.seeded >= seedCap).length;
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -73,9 +75,11 @@ export default async function AdminSeedAreaPage({
         <p className="mt-1 text-sm text-muted-foreground">
           {capacity.totalSeeded} seeded entries inside this area.{" "}
           {capacity.buckets.length > 0
-            ? `${capacity.buckets.length} bucket${capacity.buckets.length === 1 ? "" : "s"} in use, ${fullBuckets} full (cap ${SEED_CAP_PER_BUCKET} per bucket).`
-            : `No seeded entries yet; every bucket has ${SEED_CAP_PER_BUCKET} slots.`}{" "}
-          The cap is enforced at conversion, never here.
+            ? `${capacity.buckets.length} bucket${capacity.buckets.length === 1 ? "" : "s"} in use${seedCap !== null ? `, ${fullBuckets} full (cap ${seedCap} per bucket)` : ""}.`
+            : "No seeded entries yet."}{" "}
+          {seedCap !== null
+            ? "The cap is enforced at conversion, never here."
+            : "No density cap is set; configure one on the seeding overview if needed."}
         </p>
         {capacity.buckets.length > 0 ? (
           <ul className="mt-2 flex flex-wrap gap-2">
@@ -83,12 +87,13 @@ export default async function AdminSeedAreaPage({
               <li
                 key={b.bucket}
                 className={`rounded-full px-2 py-0.5 text-xs ${
-                  b.seeded >= b.cap
+                  b.cap !== null && b.seeded >= b.cap
                     ? "bg-brand-red/15 text-brand-red"
                     : "bg-muted text-muted-foreground"
                 }`}
               >
-                {b.bucket}: {b.seeded}/{b.cap}
+                {b.bucket}: {b.seeded}
+                {b.cap !== null ? `/${b.cap}` : ""}
               </li>
             ))}
           </ul>

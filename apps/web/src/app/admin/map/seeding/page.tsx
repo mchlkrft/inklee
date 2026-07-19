@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin-guard";
 import { braveUsageSummary, listSeedAreas } from "@/lib/server/map-seeding";
+import { getSeedCapPerBucket } from "@/lib/server/map-settings";
 import {
   SEED_AREA_STATUS_LABELS,
   type SeedAreaStatus,
 } from "@inklee/shared/map-seeding";
 import AreaForm from "./area-form";
+import SeedCapForm from "./seed-cap-form";
 
 export const metadata = { title: "Admin · Map seeding" };
 
 export default async function AdminSeedingPage() {
   await requireAdmin();
-  const [areas, usage] = await Promise.all([
+  const [areas, usage, seedCap] = await Promise.all([
     listSeedAreas(),
     braveUsageSummary(),
+    getSeedCapPerBucket(),
   ]);
 
   return (
@@ -32,8 +35,7 @@ export default async function AdminSeedingPage() {
         <h1 className="text-xl font-semibold text-foreground">Map seeding</h1>
         <p className="text-sm text-muted-foreground">
           Lead collector for the first map seed. Sources create candidates; only
-          review and conversion create map entries. The 5 per 300 square km cap
-          fires at conversion.
+          review and conversion create map entries.
         </p>
         <p className="mt-1 text-sm">
           <Link
@@ -120,6 +122,8 @@ export default async function AdminSeedingPage() {
           No seed areas yet. Create one per city you want to work.
         </p>
       )}
+
+      <SeedCapForm initialCap={seedCap} />
 
       <AreaForm />
     </main>

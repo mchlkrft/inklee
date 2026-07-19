@@ -188,7 +188,8 @@ function areaBbox(area: SeedAreaRow): {
 export type BucketCapacity = {
   bucket: string;
   seeded: number;
-  cap: number;
+  /** Null while the density cap is lifted (0091). */
+  cap: number | null;
 };
 
 /**
@@ -197,7 +198,7 @@ export type BucketCapacity = {
  */
 export async function areaBucketCapacity(
   area: SeedAreaRow,
-  cap: number,
+  cap: number | null,
 ): Promise<{ buckets: BucketCapacity[]; totalSeeded: number }> {
   const box = areaBbox(area);
   const rows = await pageAll<{ seed_region_bucket: string | null }>(

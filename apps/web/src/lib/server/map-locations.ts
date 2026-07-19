@@ -4,13 +4,13 @@ import { writeAudit } from "@/lib/audit";
 import {
   MAP_LOCATION_SOURCES,
   MAP_MODERATION_STATUSES,
-  SEED_CAP_PER_BUCKET,
   normalizeInstagramHandle,
   seedRegionBucket,
   validateMapLocationInput,
   type MapLocationSource,
   type MapModerationStatus,
 } from "@inklee/shared/map-directory";
+import { getSeedCapPerBucket } from "@/lib/server/map-settings";
 import {
   persistDuplicateSuggestions,
   scanForDuplicates,
@@ -72,15 +72,17 @@ export function validateLocationEnums(
 }
 
 /**
- * The locked seed density cap: max SEED_CAP_PER_BUCKET seeded entries per
- * ~300 square km bucket, enforced in this insert path (not in import
- * scripts) so no seeding round can bypass it. `excludeId` skips the row
- * being edited.
+ * The seed density cap, now founder-configurable (0091): lifted by default
+ * (null = unlimited), instantly re-armable by typing a per-bucket number in
+ * the seeding admin. Still enforced ONLY in this insert path so no seeding
+ * round can bypass it when set. `excludeId` skips the row being edited.
  */
 export async function seedCapError(
   bucket: string,
   excludeId?: string,
 ): Promise<string | null> {
+  const cap = await getSeedCapPerBucket();
+  if (cap === null) return null;
   let query = serviceClient
     .from("map_locations")
     .select("id", { count: "exact", head: true })
@@ -90,8 +92,8 @@ export async function seedCapError(
   if (excludeId) query = query.neq("id", excludeId);
   const { count, error } = await query;
   if (error) return `Could not verify the seed cap: ${error.message}`;
-  if ((count ?? 0) >= SEED_CAP_PER_BUCKET)
-    return `Seed cap reached: this area (bucket ${bucket}) already holds ${count} of ${SEED_CAP_PER_BUCKET} seeded entries. Curate, do not crowd.`;
+  if ((count ?? 0) >= cap)
+    return `Seed cap reached: this area (bucket ${bucket}) already holds ${count} of ${cap} seeded entries.`;
   return null;
 }
 

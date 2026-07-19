@@ -37,6 +37,7 @@ import {
   resumeCoverageRun,
   retryCoverageFailures,
 } from "@/lib/server/seed-coverage";
+import { setSeedCapPerBucketCore } from "@/lib/server/map-settings";
 import type { DuplicateHit } from "@inklee/shared/map-directory";
 
 async function audit(
@@ -146,6 +147,18 @@ export async function runAutomatedSeedAction(
   revalidatePath(`/admin/map/seeding/${areaId}`);
   if ("error" in result) return { error: result.error, runId: result.runId };
   return { summary: result.summary };
+}
+
+export async function setSeedCapAction(
+  cap: number | null,
+): Promise<{ error?: string }> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+  const result = await setSeedCapPerBucketCore(adminId, cap);
+  if (!result.error) {
+    revalidatePath("/admin/map/seeding");
+  }
+  return result;
 }
 
 export async function createCoverageRunAction(

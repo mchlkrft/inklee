@@ -307,7 +307,7 @@ export default function LocationForm({
               checked={values.isSeed}
               onChange={(e) => set("isSeed", e.target.checked)}
             />
-            Counts toward the 5 per 300 square km cap
+            Counts toward the seed density cap when one is configured
           </label>
         </div>
       </div>

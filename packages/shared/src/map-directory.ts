@@ -89,7 +89,10 @@ export const STYLE_SEED: ReadonlyArray<{ key: string; label: string }> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Seed density cap: max SEED_CAP_PER_BUCKET seeded studios per grid bucket of
+// HISTORICAL default only (0091 lifted the cap; the live value is the
+// founder-configurable map_settings.seed_cap_per_bucket, null = no cap).
+// The bucket grid itself stays load-bearing for capacity display.
+// Original rule: max SEED_CAP_PER_BUCKET seeded studios per grid bucket of
 // approximately SEED_BUCKET_TARGET_KM2. Locked product rule (scope 4.4).
 
 export const SEED_CAP_PER_BUCKET = 5;
