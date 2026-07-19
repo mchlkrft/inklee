@@ -53,3 +53,8 @@ next-env.d.ts
 
 # local one-off scratch tooling (asset generators, etc.)
 .scratch/
+
+# Local seeding extraction outputs (openly licensed, but not repo content)
+germany-units.json
+osm-tattoo-*.json
+overture-*.json
