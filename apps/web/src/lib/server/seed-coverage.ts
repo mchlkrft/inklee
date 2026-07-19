@@ -137,6 +137,10 @@ export async function importCoverageDataset(input: {
 
   const { units, clusters } = planCoverage(input.units, policy);
 
+  // IMPORTANT: both row shapes carry the SAME key set. PostgREST unifies
+  // columns across an upsert payload and fills missing keys with NULL
+  // (bypassing column defaults), so a mixed municipality+cluster chunk
+  // would otherwise violate the member_external_ids NOT NULL constraint.
   const municipalityRows = units.map((u) => ({
     country_code: input.countryCode,
     level: "municipality",
@@ -157,6 +161,7 @@ export async function importCoverageDataset(input: {
     strategy: u.strategy,
     priority_score: u.priorityScore,
     cluster_external_id: u.clusterExternalId,
+    member_external_ids: [] as string[],
     source_version: input.sourceVersion,
     updated_at: new Date().toISOString(),
   }));
@@ -166,15 +171,20 @@ export async function importCoverageDataset(input: {
     external_id: c.externalId,
     parent_external_id: null,
     name: c.name,
-    aliases: [],
+    aliases: [] as string[],
     state_code: c.stateCode,
     state_name: c.stateName,
+    district_code: null,
+    district_name: null,
     population: c.population,
     area_km2: c.areaKm2,
     centroid_lat: c.centroid.latitude,
     centroid_lng: c.centroid.longitude,
+    postal_code: null,
+    settlement_class: null,
     strategy: c.strategy,
     priority_score: c.priorityScore,
+    cluster_external_id: null,
     member_external_ids: c.memberExternalIds,
     source_version: input.sourceVersion,
     updated_at: new Date().toISOString(),
