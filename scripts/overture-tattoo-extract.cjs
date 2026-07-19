@@ -36,6 +36,9 @@ const radiusKm = Number(arg("radius-km", "15"));
 const release = arg("release");
 const out = arg("out", "overture-candidates.json");
 const maxRows = Number(arg("max", "200"));
+// Country-scale bboxes scan a lot of remote parquet; 10 minutes is fine for
+// a city, not for Germany. Tune with --timeout-min.
+const timeoutMin = Number(arg("timeout-min", "45"));
 
 if (!Number.isFinite(lat) || !Number.isFinite(lng) || !release) {
   console.error(
@@ -94,8 +97,8 @@ LIMIT ${maxRows};
 function runDuck(query) {
   return execFileSync("duckdb", ["-json", "-c", query], {
     encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-    timeout: 10 * 60 * 1000,
+    maxBuffer: 256 * 1024 * 1024,
+    timeout: timeoutMin * 60 * 1000,
   });
 }
 
@@ -104,8 +107,12 @@ try {
   try {
     rows = JSON.parse(runDuck(sql("categories.primary")) || "[]");
   } catch (err) {
-    // The categories column is being replaced by basic_category; retry with
-    // the new shape before giving up.
+    // Only a SCHEMA error justifies the basic_category fallback; a timeout
+    // or network failure would just burn another full scan.
+    const schemaError = /categories|Binder Error|not found in FROM/i.test(
+      String(err.stderr ?? err.message ?? ""),
+    );
+    if (!schemaError) throw err;
     console.error("categories.primary failed, retrying with basic_category…");
     rows = JSON.parse(runDuck(sql("basic_category")) || "[]");
   }
@@ -113,6 +120,10 @@ try {
   if (err.code === "ENOENT") {
     console.error(
       "The DuckDB CLI is not installed or not on PATH. Install it first (winget install DuckDB.cli).",
+    );
+  } else if (err.code === "ETIMEDOUT") {
+    console.error(
+      `Extraction timed out after ${timeoutMin} minutes. Re-run with a larger --timeout-min (the scan is resumable only from scratch, but S3 reads often go faster on a retry).`,
     );
   } else {
     console.error("Extraction failed:", err.message);
