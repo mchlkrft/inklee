@@ -33,7 +33,13 @@ What public data source is legally safe enough for first studio seeding?
 
 ### Q3. Indexability of seeded unclaimed studio pages
 
-Should seeded unclaimed studio pages be indexable, or live strictly inside the logged-in artist map?
+**RESOLVED 2026-07-19 (founder): the map stays logged-in only.** Seeded
+pages remain noindex, behind auth, out of the sitemap. This also closes the
+attribution follow-up below in its favor (nothing changes while pages are
+private). Reversal remains possible later; it would need the SEO strategy
+owner per the CLAUDE.md split plus the licensing re-check.
+
+Original question: should seeded unclaimed studio pages be indexable, or live strictly inside the logged-in artist map?
 
 - Why open: indexable pages could become an SEO asset, but they also raise the legal and reputational stakes of showing businesses that never asked to be listed. SEO strategy ownership sits with ChatGPT per the SEO split in `CLAUDE.md`, so this is also a strategy question, not just an implementation one.
 - What it blocks: Phase 2 page rendering decisions (public route vs authed route). Default until decided: logged-in only, noindex, no sitemap entries. That default is reversible; the opposite is not.
@@ -81,7 +87,14 @@ Does studio owner account pricing belong inside existing Inklee pricing, or as a
 
 ### Q9. Guest spot notification channels
 
-Should guest spot requests trigger email notifications, in-app notifications, or both?
+**RESOLVED 2026-07-19 (founder): both email AND push** (which per the
+booking-pattern default also means the in-app feed row that push taps
+resolve to). Implementation mirrors the booking flow: feed + push +
+transactional email at request/decision state changes, nothing chattier;
+push emission version-gated because installed builds' tap routing only
+extends with a store build.
+
+Original question: should guest spot requests trigger email notifications, in-app notifications, or both?
 
 - Why open: notification overload is a named risk, email sending has rate limits, and the mobile app has no OTA updates (new push types mean new store builds; push taps dead-end on installed builds until a store build extends the tap-routing allowlist). The right mix depends on how the request workflow actually gets used.
 - What it blocks: Phase 4 notification wiring. The workflow itself (request, approve, deny, alternate dates) does not depend on the channel choice.
