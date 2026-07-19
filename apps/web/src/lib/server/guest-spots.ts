@@ -13,6 +13,7 @@ import {
 } from "@inklee/shared/guest-spots";
 import { sortHouseRules } from "@inklee/shared/studio-profile";
 import { checkGuestSpotRequestRateLimit } from "@/lib/ratelimit";
+import { notifyGuestSpotEvent } from "@/lib/server/guest-spot-notifications";
 
 // Guest spot request server core (Inklee 2.0 Phase 4). All writes run
 // service-role after explicit party checks with conditional status-gated
@@ -142,6 +143,17 @@ export async function submitGuestSpotRequestCore(
       return { error: "You already have an open request with this studio." };
     return { error: "Could not send your request. Try again." };
   }
+  // Q9 wiring: feed + push + email to the owner (quiet-held requests send
+  // nothing; the notifier checks the blacklist itself). Never fails the
+  // submission.
+  await notifyGuestSpotEvent({
+    kind: "request_submitted",
+    requestId: created.id as string,
+    artistId,
+    studioProfileId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+  });
   return { requestId: created.id as string };
 }
 
@@ -212,11 +224,25 @@ export async function acceptProposalCore(
     .update({ status: "accepted" })
     .eq("id", proposal.id);
 
-  return finishAcceptance(
+  const wasFreshTransition = request.status !== "accepted";
+  const result = await finishAcceptance(
     request as RequestRow,
     proposal.start_date as string,
     proposal.end_date as string,
   );
+  // Notify only on the FRESH confirmation (a materialization retry must
+  // never re-notify the owner).
+  if (!result.error && wasFreshTransition) {
+    await notifyGuestSpotEvent({
+      kind: "proposal_accepted",
+      requestId,
+      artistId,
+      studioProfileId: (request as RequestRow).studio_profile_id,
+      startDate: proposal.start_date as string,
+      endDate: proposal.end_date as string,
+    });
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +292,24 @@ export async function acceptRequestCore(
       endsOn = acceptedProposal.end_date as string;
     }
   }
-  return finishAcceptance(request as RequestRow, startsOn, endsOn);
+  const wasFreshTransition = request.status !== "accepted";
+  const result = await finishAcceptance(
+    request as RequestRow,
+    startsOn,
+    endsOn,
+  );
+  // Fresh acceptance only: a materialization retry never re-notifies.
+  if (!result.error && wasFreshTransition) {
+    await notifyGuestSpotEvent({
+      kind: "request_accepted",
+      requestId,
+      artistId: (request as RequestRow).artist_user_id,
+      studioProfileId: studio.id,
+      startDate: startsOn,
+      endDate: endsOn,
+    });
+  }
+  return result;
 }
 
 export async function passRequestCore(
@@ -277,7 +320,7 @@ export async function passRequestCore(
   if (!studio) return { error: "Not your studio." };
   const { data: request } = await serviceClient
     .from("guest_spot_requests")
-    .select("id")
+    .select("id, artist_user_id")
     .eq("id", requestId)
     .eq("studio_profile_id", studio.id)
     .maybeSingle();
@@ -294,6 +337,12 @@ export async function passRequestCore(
     "declined",
   );
   if (!moved) return { error: "This request already moved on." };
+  await notifyGuestSpotEvent({
+    kind: "request_passed",
+    requestId,
+    artistId: request.artist_user_id as string,
+    studioProfileId: studio.id,
+  });
   return {};
 }
 
@@ -357,6 +406,14 @@ export async function proposeDatesCore(
       message: message?.trim() || null,
     });
   if (insertErr) return { error: "Could not send the suggestion. Try again." };
+  await notifyGuestSpotEvent({
+    kind: "dates_suggested",
+    requestId,
+    artistId: request.artist_user_id as string,
+    studioProfileId: studio.id,
+    startDate,
+    endDate,
+  });
   return {};
 }
 
@@ -610,6 +667,14 @@ export async function cancelStayCore(
       "cancelled",
     );
   }
+  // The other party learns about the cancellation (feed + push + email).
+  await notifyGuestSpotEvent({
+    kind: "stay_cancelled",
+    requestId: (stay.guest_spot_request_id as string | null) ?? null,
+    artistId: stay.artist_user_id as string,
+    studioProfileId: stay.studio_profile_id as string,
+    cancelledBy: isArtist ? "artist" : "studio",
+  });
   return {};
 }
 

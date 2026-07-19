@@ -15,6 +15,11 @@ export type NotificationType =
   | "deposit_received"
   | "support_reply"
   | "studio_signal"
+  | "guest_spot_request"
+  | "guest_spot_accepted"
+  | "guest_spot_passed"
+  | "guest_spot_dates"
+  | "guest_spot_cancelled"
   | "system_warning"
   | "info";
 
