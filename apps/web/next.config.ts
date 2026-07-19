@@ -17,15 +17,17 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       // Travel map: MapLibre GL is bundled (no CDN script). The CARTO basemap
-      // style is on basemaps.cartocdn.com; its tiles/glyphs/sprites are on
-      // tiles.basemaps.cartocdn.com (img + connect below); it runs a blob worker.
+      // style is on basemaps.cartocdn.com; the tiles.json there hands back
+      // SHARDED tile hosts (tiles-a..d.basemaps.cartocdn.com), so the tile
+      // grant must be the wildcard - the exact-host form silently blocked
+      // every vector tile and the map rendered as a bare background.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://plausible.io https://js.stripe.com https://maps.googleapis.com",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.supabase.co https://basemaps.cartocdn.com https://tiles.basemaps.cartocdn.com",
+      "img-src 'self' data: blob: https://*.supabase.co https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com",
       // *.ingest.*.sentry.io covers the region-scoped Sentry ingest hosts so the
       // browser Sentry client (instrumentation-client.ts) can actually upload
       // captured errors; without it the fetch is CSP-blocked and fails silently.
-      "connect-src 'self' https://*.supabase.co https://plausible.io https://api.stripe.com https://maps.googleapis.com https://places.googleapis.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io https://basemaps.cartocdn.com https://tiles.basemaps.cartocdn.com",
+      "connect-src 'self' https://*.supabase.co https://plausible.io https://api.stripe.com https://maps.googleapis.com https://places.googleapis.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com",
       "font-src 'self'",
       "frame-src https://js.stripe.com",
       // MapLibre GL runs its renderer in a blob: web worker.
