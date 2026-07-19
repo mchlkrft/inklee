@@ -51,7 +51,7 @@ export default async function MapLocationPage({
   const { data } = await serviceClient
     .from("map_locations")
     .select(
-      "id, name, category, address, city, country, website_url, instagram_handle, claim_status, moderation_status, last_confirmed_at",
+      "id, name, category, address, city, country, website_url, instagram_handle, phone, opening_hours, claim_status, moderation_status, last_confirmed_at",
     )
     .eq("id", id)
     .eq("moderation_status", "approved")
@@ -139,6 +139,29 @@ export default async function MapLocationPage({
               Where
             </p>
             <p className="text-sm text-foreground">{place}</p>
+          </div>
+        ) : null}
+        {(data.opening_hours as string | null) ? (
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Opening hours
+            </p>
+            <p className="text-sm text-foreground">
+              {data.opening_hours as string}
+            </p>
+          </div>
+        ) : null}
+        {(data.phone as string | null) ? (
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Phone
+            </p>
+            <a
+              href={`tel:${(data.phone as string).replace(/[^\d+]/g, "")}`}
+              className="text-sm text-foreground underline-offset-2 hover:underline"
+            >
+              {data.phone as string}
+            </a>
           </div>
         ) : null}
         <div className="flex flex-wrap gap-2">

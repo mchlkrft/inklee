@@ -267,6 +267,8 @@ export type MapLocationInput = {
   googlePlaceId?: string | null;
   websiteUrl?: string | null;
   instagramHandle?: string | null;
+  phone?: string | null;
+  openingHours?: string | null;
 };
 
 const NAME_MAX = 120;
@@ -313,6 +315,11 @@ export function validateMapLocationInput(input: MapLocationInput): string | null
     return "Website must be an http(s) URL.";
   if (input.instagramHandle && input.instagramHandle.replace(/^@+/, "").length > 30)
     return "Instagram handle must be at most 30 characters.";
+  if (input.phone && input.phone.length > 40)
+    return "Phone must be at most 40 characters.";
+  // OSM opening_hours syntax; multi-rule strings are long but bounded.
+  if (input.openingHours && input.openingHours.length > 300)
+    return "Opening hours must be at most 300 characters.";
   return null;
 }
 

@@ -17,7 +17,7 @@ export default async function AdminMapEditPage({
   const { data } = await serviceClient
     .from("map_locations")
     .select(
-      "id, source, category, name, latitude, longitude, address, city, country, postal_code, google_place_id, website_url, instagram_handle, claim_status, moderation_status, is_seed, seed_region_bucket, created_at, updated_at",
+      "id, source, category, name, latitude, longitude, address, city, country, postal_code, google_place_id, website_url, instagram_handle, phone, opening_hours, claim_status, moderation_status, is_seed, seed_region_bucket, created_at, updated_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -36,6 +36,8 @@ export default async function AdminMapEditPage({
     googlePlaceId: (data.google_place_id as string | null) ?? null,
     websiteUrl: (data.website_url as string | null) ?? null,
     instagramHandle: (data.instagram_handle as string | null) ?? null,
+    phone: (data.phone as string | null) ?? null,
+    openingHours: (data.opening_hours as string | null) ?? null,
     source: data.source as string,
     moderationStatus: data.moderation_status as string,
     isSeed: data.is_seed as boolean,

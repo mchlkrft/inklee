@@ -161,6 +161,37 @@ describe("parseOvertureImport", () => {
     expect("candidates" in b && b.candidates).toHaveLength(1);
   });
 
+  it("passes through the schema v3 contact fields and bounds the extra envelope", () => {
+    const enriched = {
+      ...row,
+      address: "Ragang Rd 14",
+      postalCode: "50100",
+      phone: "+66 894 299 363",
+      openingHours: "Mo-Su 11:00-20:00",
+      extra: {
+        email: "hi@studio.example",
+        junk: 42,
+        "": "dropped",
+        long: "x".repeat(900),
+      },
+    };
+    const parsed = parseOvertureImport(JSON.stringify([enriched]));
+    if (!("candidates" in parsed)) throw new Error("expected candidates");
+    const c = parsed.candidates[0];
+    expect(c.address).toBe("Ragang Rd 14");
+    expect(c.postalCode).toBe("50100");
+    expect(c.phone).toBe("+66 894 299 363");
+    expect(c.openingHours).toBe("Mo-Su 11:00-20:00");
+    expect(c.extra?.email).toBe("hi@studio.example");
+    expect(c.extra?.junk).toBeUndefined();
+    expect(c.extra?.long?.length).toBe(500);
+    // Old files without the fields still parse (backward compatible).
+    const plain = parseOvertureImport(JSON.stringify([row]));
+    if (!("candidates" in plain)) throw new Error("expected candidates");
+    expect(plain.candidates[0].address).toBeNull();
+    expect(plain.candidates[0].extra).toBeNull();
+  });
+
   it("fails closed on malformed rows and bad JSON", () => {
     expect("error" in parseOvertureImport("not json")).toBe(true);
     expect("error" in parseOvertureImport("{}")).toBe(true);

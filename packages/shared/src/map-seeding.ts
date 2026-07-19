@@ -267,6 +267,18 @@ export type OvertureImportCandidate = {
    * extra field, never rendered as trusted content.
    */
   description?: string | null;
+  // Contact enrichment from structured open data (schema v3).
+  address?: string | null;
+  postalCode?: string | null;
+  phone?: string | null;
+  openingHours?: string | null;
+  /**
+   * Future-proofing envelope: any additional structured facts a future
+   * extractor version carries (bounded string map, validated at parse).
+   * Flows into the candidate's extra_metadata and the map entry's
+   * seed_metadata without schema changes.
+   */
+  extra?: Record<string, string> | null;
 };
 
 export type OvertureParseResult =
@@ -333,9 +345,33 @@ export function parseOvertureImport(raw: string): OvertureParseResult {
       websiteUrl: httpsOnly(row.websiteUrl),
       socialUrl: httpsOnly(row.socialUrl),
       description: text(row.description)?.slice(0, 500) ?? null,
+      address: text(row.address)?.slice(0, SEED_TEXT_MAX) ?? null,
+      postalCode: text(row.postalCode)?.slice(0, 20) ?? null,
+      phone: text(row.phone)?.slice(0, 40) ?? null,
+      openingHours: text(row.openingHours)?.slice(0, 300) ?? null,
+      extra: boundedExtra(row.extra),
     });
   }
   return { candidates: out };
+}
+
+/**
+ * The schema v3 extension envelope: at most 10 short string facts. Anything
+ * malformed is dropped silently (enrichment is optional, never fatal).
+ */
+function boundedExtra(value: unknown): Record<string, string> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out: Record<string, string> = {};
+  let count = 0;
+  for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    if (count >= 10) break;
+    if (typeof v !== "string" || !v.trim()) continue;
+    const k = key.trim().slice(0, 40);
+    if (!k) continue;
+    out[k] = v.trim().slice(0, 500);
+    count += 1;
+  }
+  return count > 0 ? out : null;
 }
 
 // ---------------------------------------------------------------------------

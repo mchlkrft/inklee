@@ -985,6 +985,12 @@ export type SeedCandidateRow = {
   decisionConfidence: number | null;
   decisionEvidence: Record<string, unknown> | null;
   countryRunId: string | null;
+  /** Contact enrichment from structured sources (0090). */
+  address: string | null;
+  postalCode: string | null;
+  phone: string | null;
+  openingHours: string | null;
+  extraMetadata: Record<string, string> | null;
 };
 
 function shapeCandidate(row: Record<string, unknown>): SeedCandidateRow {
@@ -1021,6 +1027,12 @@ function shapeCandidate(row: Record<string, unknown>): SeedCandidateRow {
     decisionEvidence:
       (row.decision_evidence as Record<string, unknown> | null) ?? null,
     countryRunId: (row.country_run_id as string | null) ?? null,
+    address: (row.address as string | null) ?? null,
+    postalCode: (row.postal_code as string | null) ?? null,
+    phone: (row.phone as string | null) ?? null,
+    openingHours: (row.opening_hours as string | null) ?? null,
+    extraMetadata:
+      (row.extra_metadata as Record<string, string> | null) ?? null,
   };
 }
 

@@ -80,6 +80,9 @@ SELECT
   ${categoryExpr} AS category,
   addresses[1].locality AS city,
   addresses[1].country AS country,
+  addresses[1].freeform AS address,
+  addresses[1].postcode AS postalCode,
+  phones[1] AS phone,
   websites[1] AS websiteUrl,
   socials[1] AS socialUrl
 FROM ${source}
@@ -141,6 +144,9 @@ const candidates = rows
     category: r.category ? String(r.category) : null,
     city: r.city ? String(r.city) : null,
     country: r.country ? String(r.country) : null,
+    address: r.address ? String(r.address) : null,
+    postalCode: r.postalCode ? String(r.postalCode) : null,
+    phone: r.phone ? String(r.phone) : null,
     websiteUrl: r.websiteUrl ? String(r.websiteUrl) : null,
     socialUrl: r.socialUrl ? String(r.socialUrl) : null,
   }));

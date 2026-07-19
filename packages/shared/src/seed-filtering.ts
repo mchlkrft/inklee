@@ -7,7 +7,7 @@
 
 export const SEED_RULESET_VERSION = "2026-07-19.1";
 export const SEED_PIPELINE_VERSION = "1.0.0";
-export const SEED_SCHEMA_VERSION = "2"; // overture-extract shape + optional description (coverage enrichment)
+export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 
 /** Minimum confidence for automatic import; below it, accept downgrades to review. */
 export const MIN_AUTOMATED_CONFIDENCE = 70;

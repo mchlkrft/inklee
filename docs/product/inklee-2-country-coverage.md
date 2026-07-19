@@ -173,6 +173,19 @@ Provider: implement discovery → `RawDiscovery[]`, ingest via the route (bulk
 extractions) or wire into the worker (per-unit queries), extend the ledger
 provider CHECK, declare a retention class.
 
+## Contact enrichment (schema v3, 0090)
+
+Structured open-data facts flow end to end onto public map entries where the
+source has them: full street address, postal code, phone, and opening hours
+(OSM `opening_hours`; Overture has address/phone). Email deliberately stays
+in the internal `seed_metadata` envelope, never a public column
+(spam-harvesting surface); the same envelope (`extra` on the candidate
+schema, `extra_metadata` on candidates, `seed_metadata` on map entries) is
+the future-proofing path: new extractor fields ride it end to end with no
+further migrations, bounded to 10 short string facts per record. Candidate
+adoption backfills contact fields on re-runs, so re-ingesting enriched
+extracts into a fresh run upgrades existing candidates in place.
+
 ## Licensing and retention
 
 - Overture places: CDLA-Permissive-2.0 (attribution stamped on candidates).

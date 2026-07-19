@@ -34,6 +34,14 @@ export type MapLocationFormInput = {
   googlePlaceId: string | null;
   websiteUrl: string | null;
   instagramHandle: string | null;
+  phone?: string | null;
+  openingHours?: string | null;
+  /**
+   * Seed provenance extras (email, future structured facts). Never rendered
+   * as a form field; undefined = leave the stored value untouched (admin
+   * edits must not wipe pipeline-written metadata).
+   */
+  seedMetadata?: Record<string, string> | null;
   source: string;
   moderationStatus: string;
   isSeed: boolean;
@@ -108,6 +116,12 @@ export function locationRowFromInput(
     google_place_id: input.googlePlaceId?.trim() || null,
     website_url: input.websiteUrl?.trim() || null,
     instagram_handle: normalizeInstagramHandle(input.instagramHandle),
+    phone: input.phone?.trim() || null,
+    opening_hours: input.openingHours?.trim() || null,
+    // undefined = key omitted entirely, so updates keep the stored value.
+    ...(input.seedMetadata !== undefined
+      ? { seed_metadata: input.seedMetadata }
+      : {}),
     moderation_status: input.moderationStatus,
     is_seed: input.isSeed,
     seed_region_bucket: bucket,

@@ -86,6 +86,7 @@ async function main() {
       socialUrl,
       phone: pick(tags, "phone", "contact:phone"),
       email: pick(tags, "email", "contact:email"),
+      openingHours: pick(tags, "opening_hours"),
       sourceUrl: `https://www.openstreetmap.org/${el.type}/${el.id}`,
     });
   }

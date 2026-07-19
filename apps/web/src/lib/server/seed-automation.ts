@@ -218,13 +218,18 @@ export function conversionInputFor(
     category: "tattoo_studio",
     latitude: c.latitude as number,
     longitude: c.longitude as number,
-    address: null,
+    address: c.address ?? null,
     city: c.city ?? area.city,
     country: c.country ?? countryName,
-    postalCode: null,
+    postalCode: c.postalCode ?? null,
     googlePlaceId: null,
     websiteUrl: c.websiteUrl ?? null,
     instagramHandle: handle ? normalizeInstagramHandle(handle) : null,
+    phone: c.phone ?? null,
+    openingHours: c.openingHours ?? null,
+    // The extras envelope lands as seed metadata (internal; email lives
+    // here on purpose, never in a public column).
+    seedMetadata: c.extra && Object.keys(c.extra).length ? c.extra : null,
     source: "inklee_seed",
     moderationStatus: "approved",
     isSeed: true,
@@ -343,6 +348,11 @@ async function persistEvaluated(
       longitude: c.longitude,
       social_url: c.socialUrl,
       website_url: c.websiteUrl,
+      address: c.address ?? null,
+      postal_code: c.postalCode ?? null,
+      phone: c.phone ?? null,
+      opening_hours: c.openingHours ?? null,
+      extra_metadata: c.extra ?? null,
       attribution: source.attribution,
       status: statusForSeedDecision(e.decision),
       duplicate_confidence: e.annotation?.confidence ?? null,
@@ -415,6 +425,13 @@ async function persistEvaluated(
     .update({
       ...decisionColumns,
       status: statusForSeedDecision(e.decision),
+      // Contact enrichment backfills on re-runs: these fields are
+      // pipeline-owned (no human edit surface), so fresher extraction wins.
+      ...(c.address ? { address: c.address } : {}),
+      ...(c.postalCode ? { postal_code: c.postalCode } : {}),
+      ...(c.phone ? { phone: c.phone } : {}),
+      ...(c.openingHours ? { opening_hours: c.openingHours } : {}),
+      ...(c.extra ? { extra_metadata: c.extra } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", existing.id)

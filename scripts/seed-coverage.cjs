@@ -121,9 +121,14 @@ async function main() {
           latitude: r.latitude,
           longitude: r.longitude,
           city: r.city ?? null,
+          address: r.address ?? null,
+          postalCode: r.postalCode ?? null,
+          phone: r.phone ?? null,
+          openingHours: r.openingHours ?? null,
           websiteUrl: r.websiteUrl ?? null,
           socialUrl: r.socialUrl ?? null,
           sourceUrl: r.websiteUrl ?? null,
+          extra: r.extra ?? null,
         }));
     }
     console.log(`→ ingesting ${rows.length} ${provider} rows…`);

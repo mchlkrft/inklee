@@ -262,6 +262,16 @@ describe("discovery identity and merge", () => {
     expect(merged[0].phone).toBe("+49 89 123456");
   });
 
+  it("carries opening hours and the extra envelope across a merge", () => {
+    const merged = mergeDiscoveries([
+      { ...overture, extra: { email: "a@b.de" } },
+      { ...osm, openingHours: "Mo-Fr 11:00-19:00", extra: { floor: "2" } },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].openingHours).toBe("Mo-Fr 11:00-19:00");
+    expect(merged[0].extra).toEqual({ email: "a@b.de", floor: "2" });
+  });
+
   it("merges search leads onto structured records via Instagram identity", () => {
     const brave: RawDiscovery = {
       provider: "brave_search",

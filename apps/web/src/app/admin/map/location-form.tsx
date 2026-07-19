@@ -51,6 +51,8 @@ const EMPTY: LocationFormValues = {
   googlePlaceId: null,
   websiteUrl: null,
   instagramHandle: null,
+  phone: null,
+  openingHours: null,
   source: "inklee_seed",
   moderationStatus: "pending",
   isSeed: true,
@@ -263,6 +265,30 @@ export default function LocationForm({
             value={values.instagramHandle ?? ""}
             onChange={(e) => set("instagramHandle", e.target.value || null)}
             placeholder="handle without @"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={label} htmlFor="loc-phone">
+            Phone
+          </label>
+          <input
+            id="loc-phone"
+            className={field}
+            value={values.phone ?? ""}
+            onChange={(e) => set("phone", e.target.value || null)}
+            placeholder="+49 30 1234567"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={label} htmlFor="loc-hours">
+            Opening hours
+          </label>
+          <input
+            id="loc-hours"
+            className={field}
+            value={values.openingHours ?? ""}
+            onChange={(e) => set("openingHours", e.target.value || null)}
+            placeholder="Mo-Fr 11:00-19:00; Sa 12:00-18:00"
           />
         </div>
         <div className="space-y-1">

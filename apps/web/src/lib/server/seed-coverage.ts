@@ -587,6 +587,8 @@ export async function ingestStructuredDiscoveries(input: {
         social_url: d.socialUrl ?? null,
         phone: d.phone?.slice(0, 40) ?? null,
         email: d.email?.slice(0, 200) ?? null,
+        opening_hours: d.openingHours?.slice(0, 300) ?? null,
+        payload_minimal: d.extra ? { extra: d.extra } : null,
         source_url: d.sourceUrl ?? null,
         identity_key: d.identityKey,
         discovered_by: d.discoveredBy,
@@ -1372,22 +1374,36 @@ async function handOffBatches(
         break outer;
       }
       const chunk = rows.slice(i, i + chunkSize);
-      const candidates = chunk.map((d) => ({
-        id:
-          (d.provider_result_id as string | null) ??
-          `${provider}:${d.id as string}`,
-        name: d.name as string,
-        latitude: Number(d.latitude),
-        longitude: Number(d.longitude),
-        category: (d.category as string | null) ?? null,
-        city: (d.city as string | null) ?? null,
-        country: run.country_code,
-        websiteUrl: (d.website_url as string | null) ?? null,
-        socialUrl: (d.social_url as string | null) ?? null,
-        description:
-          ((d.payload_minimal as Record<string, unknown> | null)
-            ?.description as string | undefined) ?? null,
-      }));
+      const candidates = chunk.map((d) => {
+        const payload =
+          (d.payload_minimal as Record<string, unknown> | null) ?? {};
+        const email = (d.email as string | null) ?? null;
+        // Email and future facts travel in the extras envelope (internal
+        // metadata on the map entry, never a public column).
+        const extra = {
+          ...((payload.extra as Record<string, string> | undefined) ?? {}),
+          ...(email ? { email } : {}),
+        };
+        return {
+          id:
+            (d.provider_result_id as string | null) ??
+            `${provider}:${d.id as string}`,
+          name: d.name as string,
+          latitude: Number(d.latitude),
+          longitude: Number(d.longitude),
+          category: (d.category as string | null) ?? null,
+          city: (d.city as string | null) ?? null,
+          country: run.country_code,
+          websiteUrl: (d.website_url as string | null) ?? null,
+          socialUrl: (d.social_url as string | null) ?? null,
+          description: (payload.description as string | undefined) ?? null,
+          address: (d.address as string | null) ?? null,
+          postalCode: (d.postal_code as string | null) ?? null,
+          phone: (d.phone as string | null) ?? null,
+          openingHours: (d.opening_hours as string | null) ?? null,
+          extra: Object.keys(extra).length ? extra : null,
+        };
+      });
       const outcome = await runCountrySeed({
         adminId: run.created_by,
         countryCode: run.country_code,

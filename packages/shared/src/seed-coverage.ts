@@ -408,7 +408,10 @@ export type RawDiscovery = {
   socialUrl?: string | null;
   phone?: string | null;
   email?: string | null;
+  openingHours?: string | null;
   sourceUrl?: string | null;
+  /** Future-proofing: extra structured facts, carried verbatim (bounded). */
+  extra?: Record<string, string> | null;
 };
 
 export function normalizedDomain(url: string | null | undefined): string | null {
@@ -490,6 +493,7 @@ function fillMissing(target: MergedDiscovery, source: RawDiscovery): void {
     "socialUrl",
     "phone",
     "email",
+    "openingHours",
   ] as const;
   for (const f of fields) {
     if (
@@ -500,6 +504,8 @@ function fillMissing(target: MergedDiscovery, source: RawDiscovery): void {
       (target as Record<string, unknown>)[f] = source[f];
     }
   }
+  // Extra facts union across sources; the first source wins on key clashes.
+  if (source.extra) target.extra = { ...source.extra, ...(target.extra ?? {}) };
 }
 
 /**
