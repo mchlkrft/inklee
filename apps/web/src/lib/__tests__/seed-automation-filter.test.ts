@@ -135,6 +135,30 @@ describe("layer 2: beauty and PMU exclusion", () => {
     expect(["reject_beauty", "review_mixed_business"]).toContain(r.decision);
   });
 
+  it("rejects tattoo removal clinics: they are not studios", () => {
+    // "tattoo" inside "tattoo removal" names the thing being removed, so it
+    // is not independent evidence of a studio (US rollout, 132 clinics).
+    for (const name of [
+      "Dallas Laser Tattoo Removal",
+      "Fade Out Tattoo Removal",
+      "Tattooentfernung München",
+    ]) {
+      const r = evalDE({ name });
+      expect(r.decision).toBe("reject_not_tattoo");
+    }
+    // A category claiming tattoo does not rescue it either.
+    expect(
+      evalDE({
+        name: "MEDermis Tattoo Removal",
+        category: "tattoo_and_piercing",
+      }).decision,
+    ).toBe("reject_not_tattoo");
+    // A real studio that also removes is genuinely mixed: humans decide.
+    expect(
+      evalDE({ name: "Anker Tattoo Studio and Laser Tattoo Removal" }).decision,
+    ).toBe("review_mixed_business");
+  });
+
   it("rejects a PMU name even when the provider category says tattoo", () => {
     // Overture routinely files PMU studios under the tattoo category; the
     // name identity wins over the machine-derived category.

@@ -5,7 +5,7 @@
 // the decision but never replaces the rules. SoT:
 // docs/product/inklee-2-seed-automation.md.
 
-export const SEED_RULESET_VERSION = "2026-07-20.1";
+export const SEED_RULESET_VERSION = "2026-07-20.2";
 export const SEED_PIPELINE_VERSION = "1.0.0";
 export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 
@@ -118,6 +118,20 @@ const POSITIVE_RAW: Array<[string, "strong" | "weak"]> = [
 ];
 
 const NEGATIVE_RAW: Array<[string, "strong" | "weak", string]> = [
+  // Tattoo REMOVAL is tattoo-adjacent but is not a studio: a travelling
+  // artist looking for a guest spot must never be sent to a laser clinic.
+  ["tattoo removal", "strong", "removal"],
+  ["tattoo removals", "strong", "removal"],
+  ["tattooremoval", "strong", "removal"],
+  ["laser tattoo removal", "strong", "removal"],
+  ["tattoo laser removal", "strong", "removal"],
+  ["tattooentfernung", "strong", "removal"],
+  ["tattoo entfernung", "strong", "removal"],
+  ["laserentfernung", "strong", "removal"],
+  ["detatouage", "strong", "removal"],
+  ["eliminacion de tatuajes", "strong", "removal"],
+  ["borrado de tatuajes", "strong", "removal"],
+  ["rimozione tatuaggi", "strong", "removal"],
   // Permanent makeup.
   ["permanent makeup", "strong", "pmu"],
   ["permanent make up", "strong", "pmu"],
@@ -434,10 +448,32 @@ export function evaluateSeedCandidate(
     });
   }
 
-  const strongPos = positiveSignals.filter((s) => s.strength === "strong");
+  // A positive that is only a FRAGMENT of a matched negative in the same
+  // field is not independent evidence: the "tattoo" inside "tattoo removal"
+  // names the thing being removed, not a studio. Without this, every laser
+  // clinic in the country reads as a tattoo studio (observed at scale in
+  // the 2026-07-20 US rollout).
+  const negPhrasesByField = new Map<string, string[]>();
+  for (const n of negativeSignals) {
+    negPhrasesByField.set(n.field, [
+      ...(negPhrasesByField.get(n.field) ?? []),
+      n.phrase,
+    ]);
+  }
+  const subsumed = (s: SeedSignal) =>
+    (negPhrasesByField.get(s.field) ?? []).some(
+      (neg) => neg !== s.phrase && neg.includes(s.phrase),
+    );
+  const effectivePos = positiveSignals.filter((s) => !subsumed(s));
+
+  const strongPos = effectivePos.filter((s) => s.strength === "strong");
   const strongNeg = negativeSignals.filter((s) => s.strength === "strong");
-  const weakPos = positiveSignals.filter((s) => s.strength === "weak");
+  const weakPos = effectivePos.filter((s) => s.strength === "weak");
   const weakNeg = negativeSignals.filter((s) => s.strength === "weak");
+  // Removal clinics are tattoo-adjacent but are not studios, so they get
+  // their own honest decision label rather than the beauty one.
+  const removalOnly =
+    strongNeg.length > 0 && strongNeg.every((s) => s.group === "removal");
   // Strong negatives found in the NAME weigh double: "PMU Academy Berlin" is
   // the business identity, not a service mention.
   const strongNegInName = strongNeg.filter((s) => s.field === "name");
@@ -470,10 +506,12 @@ export function evaluateSeedCandidate(
   const textualStrongPos = strongPos.filter((s) => s.field !== "category");
   if (strongNegInName.length > 0 && textualStrongPos.length === 0) {
     return decide(
-      "reject_beauty",
+      removalOnly ? "reject_not_tattoo" : "reject_beauty",
       85,
-      "R-NAME-BEAUTY-OVER-CATEGORY",
-      `The business identity is beauty/PMU (${strongNegInName.map((s) => s.phrase).join(", ")} in the name); the only tattoo evidence is the provider category.`,
+      removalOnly ? "R-NAME-REMOVAL" : "R-NAME-BEAUTY-OVER-CATEGORY",
+      removalOnly
+        ? `This is a tattoo removal business (${strongNegInName.map((s) => s.phrase).join(", ")}), not a studio.`
+        : `The business identity is beauty/PMU (${strongNegInName.map((s) => s.phrase).join(", ")} in the name); the only tattoo evidence is the provider category.`,
     );
   }
   if (strongPos.length > 0 && strongNeg.length > 0) {
