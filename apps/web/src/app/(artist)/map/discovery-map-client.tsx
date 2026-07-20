@@ -145,10 +145,16 @@ export default function DiscoveryMapClient({
 
     let abort: AbortController | null = null;
     let debounce: ReturnType<typeof setTimeout> | null = null;
+    let detailTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const fetchViewport = () => {
+    // Two passes per viewport: a coarse grid paints an even spread across
+    // the whole map immediately, then a finer grid fills the detail in.
+    // The fine pass is a superset of the coarse one (each coarse cell splits
+    // into sub-cells and its winner still wins its own), so pins only ever
+    // appear, never jump or disappear.
+    const fetchViewport = (detail = false) => {
       const b = map.getBounds();
-      abort?.abort();
+      if (!detail) abort?.abort();
       abort = new AbortController();
       // Always fetch every category in the viewport and slice client-side:
       // filter chips then never need a refetch, and a category switch can
@@ -173,8 +179,9 @@ export default function DiscoveryMapClient({
         north: String(Math.min(90, b.getNorth())),
         // The server samples one studio per grid cell and sizes the grid
         // from the zoom, so the spread stays even instead of clipping to
-        // whatever the index returned first.
-        zoom: String(map.getZoom()),
+        // whatever the index returned first. The detail pass asks for a
+        // finer grid than the view actually needs.
+        zoom: String(map.getZoom() + (detail ? 2.5 : 0)),
       });
       fetch(`/api/map/locations?${params.toString()}`, {
         signal: abort.signal,
@@ -192,6 +199,10 @@ export default function DiscoveryMapClient({
             setPins(body.pins);
             setCapped(body.capped);
             setTotalInView(body.total ?? body.pins.length);
+            // Something is still hidden: quietly fill in the detail.
+            if (!detail && body.capped) {
+              detailTimer = setTimeout(() => fetchViewport(true), 120);
+            }
           },
         )
         .catch(() => {
@@ -199,6 +210,8 @@ export default function DiscoveryMapClient({
         });
     };
     const scheduleFetch = () => {
+      // A new viewport supersedes any pending detail pass for the old one.
+      if (detailTimer) clearTimeout(detailTimer);
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(fetchViewport, 300);
     };
@@ -406,6 +419,7 @@ export default function DiscoveryMapClient({
     return () => {
       abort?.abort();
       if (debounce) clearTimeout(debounce);
+      if (detailTimer) clearTimeout(detailTimer);
       map.remove();
       mapRef.current = null;
     };
