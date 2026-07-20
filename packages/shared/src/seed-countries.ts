@@ -218,6 +218,60 @@ const CH: SeedCountryConfig = {
   ],
 };
 
+const GB: SeedCountryConfig = {
+  code: "GB",
+  name: "United Kingdom",
+  languages: ["en"],
+  // English is the base vocabulary; the UK pass adds British spellings and
+  // market-specific salon vocabulary.
+  extraPositive: compileSeedVocabulary(
+    [
+      ["tattoo parlour", "strong"],
+      ["tattoo parlor", "strong"],
+      ["tattoo lounge", "strong"],
+      ["tattooers", "strong"],
+    ],
+    "uk_tattoo",
+  ),
+  extraNegative: compileSeedVocabulary(
+    [
+      ["beauty parlour", "strong"],
+      ["beauty parlor", "strong"],
+      ["nail bar", "strong"],
+      ["brow boutique", "strong"],
+      ["aesthetics studio", "strong"],
+      ["semi permanent brows", "strong"],
+      ["spray tan", "weak"],
+      ["dermal filler clinic", "weak"],
+    ],
+    "uk_beauty",
+  ),
+  postalCodePattern: /^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/,
+  qualityFixtures: [
+    { name: "Frith Street Tattoo", expect: "accept" },
+    { name: "Black Garden Tattoo Parlour", expect: "accept" },
+    {
+      name: "Northside Ink",
+      extraText: "Custom tattoo studio in Newcastle, walk ins welcome.",
+      expect: "accept",
+    },
+    { name: "The Permanent Makeup Clinic London", expect: "reject_beauty" },
+    { name: "Brow Bar Leeds", expect: "reject_beauty" },
+    { name: "Glow Beauty Parlour", expect: "reject_beauty" },
+    {
+      name: "Define Aesthetics Studio",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "SMP Clinic Manchester", expect: "reject_beauty" },
+    {
+      name: "Ink and Brows Studio",
+      extraText: "Tattoo studio and microblading in one place.",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const TH: SeedCountryConfig = {
   code: "TH",
   name: "Thailand",
@@ -261,7 +315,7 @@ const TH: SeedCountryConfig = {
   ],
 };
 
-const REGISTRY: Record<string, SeedCountryConfig> = { DE, AT, CH, TH };
+const REGISTRY: Record<string, SeedCountryConfig> = { DE, AT, CH, GB, TH };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
   return REGISTRY[code.toUpperCase()] ?? null;

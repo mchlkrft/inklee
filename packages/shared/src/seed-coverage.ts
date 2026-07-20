@@ -239,10 +239,35 @@ export const CH_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 600 },
 };
 
+// United Kingdom: ~360 local authority districts (much coarser than DACH
+// municipalities), so thresholds sit higher and clusters barely fire.
+export const GB_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 450_000,
+    cityPopulation: 150_000,
+    townPopulation: 50_000,
+    clusterRadiusKm: 25,
+    clusterMaxMembers: 8,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "tattoo shop {location}",
+      "tattoo artist {location}",
+      "walk in tattoo {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "tattoo shop {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 900 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
   CH: CH_COVERAGE_POLICY,
+  GB: GB_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

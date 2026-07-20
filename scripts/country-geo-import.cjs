@@ -232,7 +232,69 @@ async function adapterCH() {
   };
 }
 
-const ADAPTERS = { DE: adapterDE, AT: adapterAT, CH: adapterCH };
+async function adapterGB() {
+  const url = `${ODS}/georef-united-kingdom-local-authority-district/exports/json?select=year,lad_code,lad_name,ctry_name,rgn_code,rgn_name,ctyua_name,geo_point_2d`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 300)
+    fail(`Implausible GB export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  console.log("→ Wikidata population by GSS code (P836)…");
+  const wd = new Map();
+  for (const b of await sparql(
+    `SELECT ?gss ?pop WHERE { ?x wdt:P836 ?gss . ?x wdt:P1082 ?pop . FILTER(STRLEN(?gss) = 9) }`,
+  )) {
+    const gss = String(b.gss?.value ?? "");
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    if (gss && pop && (!wd.has(gss) || pop > wd.get(gss))) wd.set(gss, pop);
+  }
+
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const lad = String(m.lad_code ?? "").trim();
+    const name = String(m.lad_name ?? "").trim();
+    if (!lad || !name || seen.has(lad)) continue;
+    seen.add(lad);
+    // Region exists in England only; Scotland/Wales/NI use the country as
+    // the first-level grouping.
+    const stateName = String(m.rgn_name ?? m.ctry_name ?? "");
+    units.push({
+      externalId: lad,
+      name,
+      aliases: [],
+      stateCode: String(m.rgn_code ?? m.ctry_name ?? ""),
+      stateName,
+      districtCode: null,
+      districtName: m.ctyua_name ? String(m.ctyua_name) : null,
+      population: wd.get(lad) ?? null,
+      areaKm2: null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef+wikidata",
+    sourceVersion: `georef-${latestYear}+wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution:
+      "UK local authority districts: ONS/OS via OpenDataSoft (OGL v3). Population: Wikidata (CC0).",
+    units,
+  };
+}
+
+const ADAPTERS = { DE: adapterDE, AT: adapterAT, CH: adapterCH, GB: adapterGB };
 
 function readSecret() {
   if (process.env.CRON_SECRET) return process.env.CRON_SECRET;
