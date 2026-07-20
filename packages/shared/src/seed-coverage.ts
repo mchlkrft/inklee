@@ -180,10 +180,11 @@ export const DE_COVERAGE_POLICY: CoveragePolicy = {
     gap_recheck: ["tattoo studio {location}"],
   },
   budgets: {
-    // The 0082 ledger enforces 60/day + 900/month for Brave; coverage keeps
-    // its own share BELOW that so the manual lane always retains headroom.
-    maxDailySearchRequests: 40,
-    maxRunSearchRequests: 800,
+    // The 0082 ledger enforces 120/day + 2,400/month for Brave; coverage
+    // keeps its own share BELOW that so the manual lane always retains
+    // headroom (raised 2026-07-20 with the founder's budget decision).
+    maxDailySearchRequests: 100,
+    maxRunSearchRequests: 3000,
     maxEnrichmentsPerDay: 25,
     maxTasksPerTick: 5,
     maxAttempts: 3,
@@ -211,7 +212,7 @@ export const AT_COVERAGE_POLICY: CoveragePolicy = {
     clusterRadiusKm: 12,
     clusterMaxMembers: 12,
   },
-  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 400 },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 600 },
 };
 
 // Switzerland: ~2,100 municipalities across three language regions, so the
@@ -235,7 +236,7 @@ export const CH_COVERAGE_POLICY: CoveragePolicy = {
     ],
     city_standard: ["tattoo studio {location}", "tatouage {location}"],
   },
-  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 400 },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 600 },
 };
 
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {

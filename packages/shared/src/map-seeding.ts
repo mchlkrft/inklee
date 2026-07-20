@@ -107,8 +107,12 @@ export const CONVERTIBLE_CANDIDATE_TYPES: SeedCandidateType[] = [
 // these are not env vars). Brave caps sit far inside the $5 monthly credit:
 // worst case 1000 queries at $0.005 each, hard stop at 900.
 
-export const BRAVE_SEARCH_DAILY_CAP = 60;
-export const BRAVE_SEARCH_MONTHLY_CAP = 900;
+// Raised 2026-07-20 (founder decision, real pricing observed: ~$5.1/1k):
+// the ~€5 monthly free credit covers ~1,050 requests and the founder's €10
+// out-of-pocket ceiling ~3,100 total; 2,400/month worst-cases at ~€6.2 out
+// of pocket, comfortably inside both walls.
+export const BRAVE_SEARCH_DAILY_CAP = 120;
+export const BRAVE_SEARCH_MONTHLY_CAP = 2400;
 export const MAX_CANDIDATES_PER_RUN = 200;
 
 export const SEED_NOTE_MAX = 1000;

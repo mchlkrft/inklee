@@ -40,10 +40,13 @@ describe("vocabularies", () => {
     expect(CONVERTIBLE_CANDIDATE_TYPES).not.toContain("uncertain");
   });
 
-  it("brave caps sit inside the monthly credit", () => {
-    // Worst case 1000 queries burn the $5 credit at $0.005 each; the hard
-    // stop must leave real headroom.
-    expect(BRAVE_SEARCH_MONTHLY_CAP).toBeLessThanOrEqual(900);
+  it("brave caps sit inside the founder's budget wall", () => {
+    // Founder budget 2026-07-20: ~EUR 5 free credit (~1,050 requests at the
+    // observed ~$0.0051 each) plus a EUR 10 out-of-pocket ceiling. The hard
+    // stop must keep worst-case out-of-pocket clearly under that ceiling:
+    // cap * $0.0051 - $5.40 free <= ~$8 (EUR ~7.3) leaves real margin.
+    const worstCaseUsd = BRAVE_SEARCH_MONTHLY_CAP * 0.0051;
+    expect(worstCaseUsd - 5.4).toBeLessThanOrEqual(8);
     expect(BRAVE_SEARCH_DAILY_CAP).toBeLessThanOrEqual(
       BRAVE_SEARCH_MONTHLY_CAP,
     );
