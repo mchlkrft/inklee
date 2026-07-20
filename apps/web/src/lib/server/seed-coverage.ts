@@ -539,12 +539,19 @@ export async function ingestStructuredDiscoveries(input: {
     .eq("id", input.runId)
     .maybeSingle();
   if (!run) return { error: "Run not found." };
+  // Paused runs still accept structured ingest: a pause is about the paid
+  // search budget, and ingesting costs nothing. Only terminal runs refuse.
   if (
-    !["created", "discovering", "processing_candidates"].includes(
-      run.status as string,
-    )
+    ![
+      "created",
+      "discovering",
+      "processing_candidates",
+      "paused",
+      "paused_budget",
+      "paused_rate_limit",
+    ].includes(run.status as string)
   )
-    return { error: `Run is ${run.status}; ingest needs an active run.` };
+    return { error: `Run is ${run.status}; ingest needs an open run.` };
   if (input.rows.length > 20000)
     return { error: "Extraction too large; split it." };
 
