@@ -36,25 +36,46 @@ const radiusKm = Number(arg("radius-km", "15"));
 const release = arg("release");
 const out = arg("out", "overture-candidates.json");
 const maxRows = Number(arg("max", "200"));
+// Explicit box: --bbox west,south,east,north. Continent-scale extractions
+// need tall or wide boxes that a centre-plus-radius square cannot express,
+// and splitting one huge scan into bands is what keeps each run inside its
+// timeout.
+const bboxArg = arg("bbox");
 // Country-scale bboxes scan a lot of remote parquet; 10 minutes is fine for
 // a city, not for Germany. Tune with --timeout-min.
 const timeoutMin = Number(arg("timeout-min", "45"));
 
-if (!Number.isFinite(lat) || !Number.isFinite(lng) || !release) {
+if (!release || (!bboxArg && (!Number.isFinite(lat) || !Number.isFinite(lng)))) {
   console.error(
-    "Usage: node scripts/overture-tattoo-extract.cjs --lat <lat> --lng <lng> [--radius-km 15] --release <YYYY-MM-DD.n> [--out file.json] [--max 200]",
+    "Usage: node scripts/overture-tattoo-extract.cjs (--lat <lat> --lng <lng> [--radius-km 15] | --bbox west,south,east,north) --release <YYYY-MM-DD.n> [--out file.json] [--max 200] [--timeout-min 45]",
   );
   process.exit(1);
 }
 
-const latDelta = radiusKm / 111.32;
-const lngDelta = radiusKm / (111.32 * Math.max(0.05, Math.cos((lat * Math.PI) / 180)));
-const box = {
-  latMin: lat - latDelta,
-  latMax: lat + latDelta,
-  lngMin: lng - lngDelta,
-  lngMax: lng + lngDelta,
-};
+let box;
+if (bboxArg) {
+  const parts = bboxArg.split(",").map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+    console.error("--bbox needs four numbers: west,south,east,north");
+    process.exit(1);
+  }
+  const [west, south, east, north] = parts;
+  if (west >= east || south >= north) {
+    console.error("--bbox must satisfy west < east and south < north");
+    process.exit(1);
+  }
+  box = { latMin: south, latMax: north, lngMin: west, lngMax: east };
+} else {
+  const latDelta = radiusKm / 111.32;
+  const lngDelta =
+    radiusKm / (111.32 * Math.max(0.05, Math.cos((lat * Math.PI) / 180)));
+  box = {
+    latMin: lat - latDelta,
+    latMax: lat + latDelta,
+    lngMin: lng - lngDelta,
+    lngMax: lng + lngDelta,
+  };
+}
 
 const source = `read_parquet('s3://overturemaps-us-west-2/release/${release}/theme=places/type=place/*', filename=true, hive_partitioning=1)`;
 
