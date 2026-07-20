@@ -86,6 +86,7 @@ const POSITIVE_RAW: Array<[string, "strong" | "weak"]> = [
   ["tattoo artist", "strong"],
   ["tattooer", "strong"],
   ["tattooist", "strong"],
+  ["tattooing", "strong"],
   ["tattoo studio", "strong"],
   ["tattoo shop", "strong"],
   ["tattooshop", "strong"],

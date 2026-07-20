@@ -269,6 +269,13 @@ const GB: SeedCountryConfig = {
       extraText: "Tattoo studio and microblading in one place.",
       expect: "not_accept",
     },
+    {
+      // A real artist mislabeled beauty_salon by the provider must not be
+      // rejected outright; the name evidence forces a human look.
+      name: "Jesse Rodriguez Tattooing",
+      category: "beauty_salon",
+      expect: "not_accept",
+    },
   ],
 };
 
