@@ -146,12 +146,15 @@ export default function DiscoveryMapClient({
     let abort: AbortController | null = null;
     let debounce: ReturnType<typeof setTimeout> | null = null;
     let detailTimer: ReturnType<typeof setTimeout> | null = null;
+    // The coarse result for the current viewport, kept so the detail pass can
+    // union with it rather than replace it.
+    let coarsePins: PublicMapPin[] = [];
 
     // Two passes per viewport: a coarse grid paints an even spread across
     // the whole map immediately, then a finer grid fills the detail in.
-    // The fine pass is a superset of the coarse one (each coarse cell splits
-    // into sub-cells and its winner still wins its own), so pins only ever
-    // appear, never jump or disappear.
+    // The detail result is unioned with the coarse one, so a pin that is
+    // already drawn can never be taken away by the second pass, even where
+    // the finer grid produces more cells than the server cap can return.
     const fetchViewport = (detail = false) => {
       const b = map.getBounds();
       if (!detail) abort?.abort();
@@ -196,9 +199,16 @@ export default function DiscoveryMapClient({
             } | null,
           ) => {
             if (!body) return;
-            setPins(body.pins);
-            setCapped(body.capped);
-            setTotalInView(body.total ?? body.pins.length);
+            if (!detail) coarsePins = body.pins;
+            // Union by id: the coarse pass owns the even country-wide spread,
+            // the detail pass adds local density on top of it.
+            const byId = new Map(coarsePins.map((p) => [p.id, p]));
+            if (detail) for (const p of body.pins) byId.set(p.id, p);
+            const merged = detail ? [...byId.values()] : body.pins;
+            const total = body.total ?? merged.length;
+            setPins(merged);
+            setCapped(total > merged.length);
+            setTotalInView(total);
             // Something is still hidden: quietly fill in the detail.
             if (!detail && body.capped) {
               detailTimer = setTimeout(() => fetchViewport(true), 120);
