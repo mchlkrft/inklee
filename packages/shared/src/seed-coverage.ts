@@ -201,8 +201,47 @@ export const DE_COVERAGE_POLICY: CoveragePolicy = {
   },
 };
 
+// Austria: ~2,100 municipalities; Vienna and Graz are the only true metros.
+export const AT_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 250_000,
+    cityPopulation: 50_000,
+    townPopulation: 10_000,
+    clusterRadiusKm: 12,
+    clusterMaxMembers: 12,
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 400 },
+};
+
+// Switzerland: ~2,100 municipalities across three language regions, so the
+// deep bundles carry French and Italian query forms alongside German.
+export const CH_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 150_000,
+    cityPopulation: 50_000,
+    townPopulation: 10_000,
+    clusterRadiusKm: 12,
+    clusterMaxMembers: 12,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "tätowierer {location}",
+      "salon de tatouage {location}",
+      "studio di tatuaggi {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "tatouage {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 400 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
+  AT: AT_COVERAGE_POLICY,
+  CH: CH_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {
