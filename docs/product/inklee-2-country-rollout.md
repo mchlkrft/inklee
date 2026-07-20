@@ -42,8 +42,8 @@ the import run.
 | # | Country | Code | Status |
 |---|---|---|---|
 | — | Germany | DE | ✅ imported 2026-07-19 (6,679 studios), gap verification running |
-| — | Austria | AT | onboarding (DACH wave) |
-| — | Switzerland | CH | onboarding (DACH wave) |
+| — | Austria | AT | ✅ imported 2026-07-20 (659 studios), gap tail queued |
+| — | Switzerland | CH | ✅ imported 2026-07-20 (993 studios, de/fr/it vocabulary proven), gap tail queued |
 | — | Thailand | TH | filter config + Chiang Mai manual seed exist; full coverage waits for its list position (#10) |
 
 ## Priority order (founder, 2026-07-20; DACH excluded)
