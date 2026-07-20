@@ -111,7 +111,10 @@ async function loadUnits(countryCode: string): Promise<CoverageUnitRow[]> {
         .eq("country_code", countryCode)
         .order("id", { ascending: true })
         .range(from, to),
-    20000,
+    // Headroom for the largest unit models in the rollout: France has
+    // ~35,000 communes, and a silent truncation here would make the worker
+    // believe whole regions do not exist.
+    80000,
   );
   return rows.map(shapeUnit);
 }

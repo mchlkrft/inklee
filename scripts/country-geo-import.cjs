@@ -482,26 +482,58 @@ async function main() {
     const base = (arg("base", "http://localhost:3000") || "").replace(/\/+$/, "");
     const secret = readSecret();
     if (!secret) fail("CRON_SECRET not found (env or apps/web/.env.local).");
-    console.log(`→ importing into ${base}…`);
-    const res = await fetch(`${base}/api/admin/seed-coverage`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify({
-        action: "import-dataset",
-        countryCode: country,
-        source: dataset.source,
-        sourceVersion: dataset.sourceVersion,
-        attribution: dataset.attribution,
-        units: dataset.units,
-      }),
-    });
-    const payload = await res.json().catch(() => null);
-    if (!res.ok) fail(`Import failed HTTP ${res.status}: ${payload?.error}`);
+
+    // Large countries import state by state: it keeps every request inside
+    // the payload cap, and rural clusters are computed per state anyway
+    // (they never cross a state line), so chunking changes nothing about
+    // the result.
+    const CHUNK_ABOVE = 12000;
+    const groups =
+      dataset.units.length > CHUNK_ABOVE
+        ? [
+            ...dataset.units
+              .reduce((m, u) => {
+                const k = u.stateCode || "?";
+                m.set(k, [...(m.get(k) ?? []), u]);
+                return m;
+              }, new Map())
+              .entries(),
+          ].map(([k, units]) => ({ label: `state ${k}`, units }))
+        : [{ label: "all", units: dataset.units }];
+
     console.log(
-      `✓ imported: ${payload.unitCount} municipalities, ${payload.clusterCount} rural clusters.`,
+      `→ importing into ${base}${groups.length > 1 ? ` in ${groups.length} state chunks` : ""}…`,
+    );
+    let unitCount = 0;
+    let clusterCount = 0;
+    for (const group of groups) {
+      const res = await fetch(`${base}/api/admin/seed-coverage`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${secret}`,
+        },
+        body: JSON.stringify({
+          action: "import-dataset",
+          countryCode: country,
+          source: dataset.source,
+          sourceVersion: dataset.sourceVersion,
+          attribution: dataset.attribution,
+          units: group.units,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok)
+        fail(`Import failed (${group.label}) HTTP ${res.status}: ${payload?.error}`);
+      unitCount += payload.unitCount ?? 0;
+      clusterCount += payload.clusterCount ?? 0;
+      if (groups.length > 1)
+        console.log(
+          `  ${group.label}: ${payload.unitCount} units, ${payload.clusterCount} clusters`,
+        );
+    }
+    console.log(
+      `✓ imported: ${unitCount} municipalities, ${clusterCount} rural clusters.`,
     );
   }
 }
