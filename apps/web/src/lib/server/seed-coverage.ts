@@ -767,7 +767,10 @@ export async function coverageWorkerTick(
       "paused_rate_limit",
     ])
     .order("created_at", { ascending: true })
-    .limit(3);
+    // High enough that budget-paused older runs can never cut newer runs
+    // out of the tick (observed with 3 paused DACH tails starving the GB
+    // onboarding at limit 3).
+    .limit(12);
   if (!activeRuns?.length) return { summary: { idle: true } };
 
   // Oldest first, but a budget-paused head run must not starve newer runs:
