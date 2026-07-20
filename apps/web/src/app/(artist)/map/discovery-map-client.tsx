@@ -228,40 +228,16 @@ export default function DiscoveryMapClient({
 
     map.on("load", () => {
       setStyleReady(true);
+      // Founder call 2026-07-20: no client-side clustering. The server
+      // already samples one representative studio per grid cell (grid sized
+      // by zoom), so the viewport is thinned and evenly spread before it
+      // arrives. Cluster bubbles on top only reheaped that even spread into
+      // heavy blobs at world view. Individual light markers read cleaner and
+      // are enough on their own.
       map.addSource("pins", {
         type: "geojson",
         data: pinsToGeoJSON([]),
-        cluster: true,
-        // Founder-tuned 2026-07-20: clustering is a world-view convenience
-        // only. Above zoom 4 every studio stands on its own, and even there
-        // it takes ten pins in a tight 10px group to collapse into a bubble.
-        clusterRadius: 10,
-        clusterMaxZoom: 4,
-        clusterMinPoints: 10,
-      });
-      map.addLayer({
-        id: "clusters",
-        type: "circle",
-        source: "pins",
-        filter: ["has", "point_count"],
-        paint: {
-          "circle-color": ink.planned,
-          "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 50, 24],
-          "circle-stroke-width": 2,
-          "circle-stroke-color": ink.markerBorder,
-        },
-      });
-      map.addLayer({
-        id: "cluster-count",
-        type: "symbol",
-        source: "pins",
-        filter: ["has", "point_count"],
-        layout: {
-          "text-field": ["get", "point_count_abbreviated"],
-          "text-font": ["Open Sans Regular"],
-          "text-size": 12,
-        },
-        paint: { "text-color": ink.onActive },
+        cluster: false,
       });
       // Temporary-signal ring (Q7): a rosa halo behind the pin, zoomed-in
       // only, silently gone once the signal expires out of the API data.
@@ -389,18 +365,6 @@ export default function DiscoveryMapClient({
           layers: ["artist-city-circles"],
         }).length > 0;
 
-      map.on("click", "clusters", (e) => {
-        if (cityBadgeUnderCursor(e.point)) return;
-        const feature = e.features?.[0];
-        if (!feature) return;
-        map.easeTo({
-          center: (feature.geometry as GeoJSON.Point).coordinates as [
-            number,
-            number,
-          ],
-          zoom: map.getZoom() + 2,
-        });
-      });
       map.on("click", "pin-points", (e) => {
         if (cityBadgeUnderCursor(e.point)) return;
         const feature = e.features?.[0];
@@ -413,14 +377,12 @@ export default function DiscoveryMapClient({
           setWatchError(null);
         }
       });
-      for (const layer of ["clusters", "pin-points"]) {
-        map.on("mouseenter", layer, () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-        map.on("mouseleave", layer, () => {
-          map.getCanvas().style.cursor = "";
-        });
-      }
+      map.on("mouseenter", "pin-points", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "pin-points", () => {
+        map.getCanvas().style.cursor = "";
+      });
 
       map.on("moveend", scheduleFetch);
       fetchViewport();
