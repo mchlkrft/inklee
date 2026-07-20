@@ -145,19 +145,16 @@ export default function DiscoveryMapClient({
 
     let abort: AbortController | null = null;
     let debounce: ReturnType<typeof setTimeout> | null = null;
-    let detailTimer: ReturnType<typeof setTimeout> | null = null;
-    // The coarse result for the current viewport, kept so the detail pass can
-    // union with it rather than replace it.
-    let coarsePins: PublicMapPin[] = [];
 
-    // Two passes per viewport: a coarse grid paints an even spread across
-    // the whole map immediately, then a finer grid fills the detail in.
-    // The detail result is unioned with the coarse one, so a pin that is
-    // already drawn can never be taken away by the second pass, even where
-    // the finer grid produces more cells than the server cap can return.
-    const fetchViewport = (detail = false) => {
+    // One pass per viewport. The server samples one representative studio per
+    // grid cell and sizes the grid from the current zoom, so a single fetch
+    // already returns an even spread at exactly the density the zoom warrants.
+    // (An earlier second "detail" pass over-fetched at zoom+2.5, a much finer
+    // grid, and piled that extra density on top of the clean layer - the
+    // clutter the founder saw load in after each zoom.)
+    const fetchViewport = () => {
       const b = map.getBounds();
-      if (!detail) abort?.abort();
+      abort?.abort();
       abort = new AbortController();
       // Always fetch every category in the viewport and slice client-side:
       // filter chips then never need a refetch, and a category switch can
@@ -180,11 +177,7 @@ export default function DiscoveryMapClient({
         south: String(Math.max(-90, b.getSouth())),
         east: String(east),
         north: String(Math.min(90, b.getNorth())),
-        // The server samples one studio per grid cell and sizes the grid
-        // from the zoom, so the spread stays even instead of clipping to
-        // whatever the index returned first. The detail pass asks for a
-        // finer grid than the view actually needs.
-        zoom: String(map.getZoom() + (detail ? 2.5 : 0)),
+        zoom: String(map.getZoom()),
       });
       fetch(`/api/map/locations?${params.toString()}`, {
         signal: abort.signal,
@@ -199,20 +192,9 @@ export default function DiscoveryMapClient({
             } | null,
           ) => {
             if (!body) return;
-            if (!detail) coarsePins = body.pins;
-            // Union by id: the coarse pass owns the even country-wide spread,
-            // the detail pass adds local density on top of it.
-            const byId = new Map(coarsePins.map((p) => [p.id, p]));
-            if (detail) for (const p of body.pins) byId.set(p.id, p);
-            const merged = detail ? [...byId.values()] : body.pins;
-            const total = body.total ?? merged.length;
-            setPins(merged);
-            setCapped(total > merged.length);
-            setTotalInView(total);
-            // Something is still hidden: quietly fill in the detail.
-            if (!detail && body.capped) {
-              detailTimer = setTimeout(() => fetchViewport(true), 120);
-            }
+            setPins(body.pins);
+            setCapped(body.capped);
+            setTotalInView(body.total ?? body.pins.length);
           },
         )
         .catch(() => {
@@ -220,8 +202,6 @@ export default function DiscoveryMapClient({
         });
     };
     const scheduleFetch = () => {
-      // A new viewport supersedes any pending detail pass for the old one.
-      if (detailTimer) clearTimeout(detailTimer);
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(fetchViewport, 300);
     };
@@ -391,7 +371,6 @@ export default function DiscoveryMapClient({
     return () => {
       abort?.abort();
       if (debounce) clearTimeout(debounce);
-      if (detailTimer) clearTimeout(detailTimer);
       map.remove();
       mapRef.current = null;
     };
