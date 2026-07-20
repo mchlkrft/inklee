@@ -349,6 +349,76 @@ const US: SeedCountryConfig = {
   ],
 };
 
+const ES: SeedCountryConfig = {
+  code: "ES",
+  name: "Spain",
+  // Castilian leads; Catalan matters for Barcelona, one of the country's
+  // biggest tattoo markets. English is common in studio names too.
+  languages: ["es", "ca", "en"],
+  extraPositive: compileSeedVocabulary(
+    [
+      ["estudio de tatuajes", "strong"],
+      ["estudio de tatuaje", "strong"],
+      ["tatuajes", "strong"],
+      ["tatuaje", "strong"],
+      ["tatuador", "strong"],
+      ["tatuadora", "strong"],
+      // Catalan
+      ["tatuatge", "strong"],
+      ["tatuatges", "strong"],
+      ["estudi de tatuatges", "strong"],
+    ],
+    "spanish_tattoo",
+  ),
+  extraNegative: compileSeedVocabulary(
+    [
+      ["salon de belleza", "strong"],
+      ["centro de estetica", "strong"],
+      ["centro estetico", "strong"],
+      ["clinica estetica", "strong"],
+      ["micropigmentacion", "strong"],
+      ["dermopigmentacion", "strong"],
+      ["maquillaje permanente", "strong"],
+      ["maquillaje semipermanente", "strong"],
+      ["cejas y pestanas", "strong"],
+      ["salon de unas", "strong"],
+      ["peluqueria", "strong"],
+      ["esteticista", "strong"],
+      ["depilacion laser", "weak"],
+      ["lifting de pestanas", "weak"],
+      ["extensiones de pestanas", "weak"],
+      // Catalan
+      ["centre d estetica", "strong"],
+      ["perruqueria", "strong"],
+    ],
+    "spanish_beauty",
+  ),
+  postalCodePattern: /^\d{5}$/,
+  qualityFixtures: [
+    { name: "Estudio de Tatuajes Madrid Centro", expect: "accept" },
+    { name: "La Aguja Dorada Tatuajes", expect: "accept" },
+    { name: "Estudi de Tatuatges Gràcia", expect: "accept" },
+    {
+      name: "Nomada Ink",
+      extraText: "Tatuador especializado en blackwork en Valencia.",
+      expect: "accept",
+    },
+    { name: "Salón de Belleza Marisol", expect: "reject_beauty" },
+    { name: "Centro de Estética Bella Piel", expect: "reject_beauty" },
+    {
+      name: "Micropigmentación Sevilla",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Cejas y Pestañas Studio", expect: "reject_beauty" },
+    { name: "Perruqueria i Estètica Núria", expect: "reject_beauty" },
+    {
+      name: "Tattoo y Micropigmentación Alicante",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const TH: SeedCountryConfig = {
   code: "TH",
   name: "Thailand",
@@ -392,7 +462,15 @@ const TH: SeedCountryConfig = {
   ],
 };
 
-const REGISTRY: Record<string, SeedCountryConfig> = { DE, AT, CH, GB, US, TH };
+const REGISTRY: Record<string, SeedCountryConfig> = {
+  DE,
+  AT,
+  CH,
+  GB,
+  US,
+  ES,
+  TH,
+};
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
   return REGISTRY[code.toUpperCase()] ?? null;

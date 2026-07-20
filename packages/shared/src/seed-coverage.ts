@@ -295,12 +295,36 @@ export const US_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 4000 },
 };
 
+// Spain: ~8,200 municipalities, population heavily concentrated in a few
+// metros, so the German tier shape fits with Spanish query bundles.
+export const ES_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "estudio de tatuajes {location}",
+      "tatuador {location}",
+      "tattoo studio {location}",
+      "tatuajes {location}",
+    ],
+    city_standard: [
+      "estudio de tatuajes {location}",
+      "tattoo studio {location}",
+    ],
+    town_light: ["estudio de tatuajes {location}"],
+    rural_cluster: ["estudio de tatuajes {location}"],
+    gap_recheck: ["estudio de tatuajes {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 2500 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
   CH: CH_COVERAGE_POLICY,
   GB: GB_COVERAGE_POLICY,
   US: US_COVERAGE_POLICY,
+  ES: ES_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

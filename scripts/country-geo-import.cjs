@@ -370,12 +370,82 @@ async function adapterUS() {
   };
 }
 
+async function adapterES() {
+  const url = `${ODS}/georef-spain-municipio/exports/json?select=year,acom_code,acom_name,prov_code,prov_name,mun_code,mun_name,geo_point_2d`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 7000)
+    fail(`Implausible ES export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  console.log("→ Wikidata population + area by INE code (P772)…");
+  const wd = new Map();
+  for (const b of await sparql(
+    `SELECT ?ine ?pop ?area WHERE { ?x wdt:P772 ?ine . OPTIONAL { ?x wdt:P1082 ?pop } OPTIONAL { ?x wdt:P2046 ?area } }`,
+  )) {
+    const ine = String(b.ine?.value ?? "").padStart(5, "0");
+    if (!/^\d{5}$/.test(ine)) continue;
+    const cur = wd.get(ine) ?? {};
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    const area =
+      b.area && Number.isFinite(Number(b.area.value))
+        ? Number(b.area.value)
+        : null;
+    if (pop && (!cur.population || pop > cur.population)) cur.population = pop;
+    if (area && !cur.areaKm2) cur.areaKm2 = area;
+    wd.set(ine, cur);
+  }
+
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const ine = String(first(m.mun_code) ?? "").trim();
+    const name = String(first(m.mun_name) ?? "").trim();
+    if (!/^\d{5}$/.test(ine) || !name || seen.has(ine)) continue;
+    seen.add(ine);
+    units.push({
+      externalId: ine,
+      name,
+      aliases: [],
+      // Autonomous community is the first level; province is the district.
+      stateCode: String(first(m.acom_code) ?? ""),
+      stateName: String(first(m.acom_name) ?? ""),
+      districtCode: first(m.prov_code) ? String(first(m.prov_code)) : null,
+      districtName: first(m.prov_name) ? String(first(m.prov_name)) : null,
+      population: wd.get(ine)?.population ?? null,
+      areaKm2: wd.get(ine)?.areaKm2 ?? null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef+wikidata",
+    sourceVersion: `georef-${latestYear}+wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution:
+      "Spanish municipalities: IGN/INE via OpenDataSoft. Population: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
   CH: adapterCH,
   GB: adapterGB,
   US: adapterUS,
+  ES: adapterES,
 };
 
 function readSecret() {
