@@ -67,7 +67,7 @@ async function adapterDE() {
     const ags = b.ags?.value;
     if (!ags) continue;
     const cur = wd.get(ags) ?? {};
-    const pop = b.pop ? Number(b.pop.value) : null;
+    const pop = b.pop && Number.isFinite(Number(b.pop.value)) ? Math.round(Number(b.pop.value)) : null;
     if (pop && (!cur.population || pop > cur.population)) cur.population = pop;
     if (b.area && !cur.areaKm2) cur.areaKm2 = Number(b.area.value);
     wd.set(ags, cur);
@@ -143,7 +143,7 @@ async function adapterAT() {
     const name = String(b.mLabel?.value ?? "").trim();
     if (!/^\d{5}$/.test(code) || !name || name === code) continue;
     const cur = byCode.get(code);
-    const pop = b.pop ? Number(b.pop.value) : null;
+    const pop = b.pop && Number.isFinite(Number(b.pop.value)) ? Math.round(Number(b.pop.value)) : null;
     const next = {
       externalId: code,
       name,
@@ -190,7 +190,7 @@ async function adapterCH() {
   )) {
     const key = String(parseInt(String(b.bfs?.value ?? ""), 10));
     if (!key || key === "NaN") continue;
-    const pop = b.pop ? Number(b.pop.value) : null;
+    const pop = b.pop && Number.isFinite(Number(b.pop.value)) ? Math.round(Number(b.pop.value)) : null;
     if (pop && (!wd.has(key) || pop > wd.get(key))) wd.set(key, pop);
   }
 
