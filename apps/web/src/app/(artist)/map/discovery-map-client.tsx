@@ -17,6 +17,7 @@ import {
   isStudioSignalType,
 } from "@inklee/shared/studio-signals";
 import { toggleWatchAction } from "./actions";
+import MapSearchBox from "./map-search-box";
 
 // Category ink on the branded base (dark: mustard/rosa/bone; light: charcoal
 // family). Claimed studios get the accent stroke.
@@ -496,6 +497,22 @@ export default function DiscoveryMapClient({
     });
   };
 
+  // A search hit may sit outside the current viewport, so fly there and open
+  // its detail straight from the result (the pin carries everything the panel
+  // needs). The viewport fetch that follows the move just confirms it on the
+  // map. Reset the category filter so the target is never hidden by a chip.
+  const handleSearchSelect = (pin: PublicMapPin) => {
+    setSelectedCity(null);
+    setWatchError(null);
+    setFilter("all");
+    setSelected(pin);
+    mapRef.current?.easeTo({
+      center: [pin.lng, pin.lat],
+      zoom: Math.max(mapRef.current.getZoom(), 14),
+      duration: 800,
+    });
+  };
+
   const chip = (active: boolean) =>
     `rounded-full px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
       active
@@ -559,6 +576,7 @@ export default function DiscoveryMapClient({
           className="h-[420px] w-full overflow-hidden rounded-2xl border border-border sm:h-[520px]"
           aria-label="Tattoo map"
         />
+        <MapSearchBox onSelect={handleSearchSelect} />
         {selectedCity ? (
           <div className="absolute bottom-3 left-3 right-3 max-w-sm space-y-2 rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur sm:right-auto">
             <div className="flex items-start justify-between gap-2">

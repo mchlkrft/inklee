@@ -376,20 +376,39 @@ const ES: SeedCountryConfig = {
       ["centro de estetica", "strong"],
       ["centro estetico", "strong"],
       ["clinica estetica", "strong"],
+      // Bare identity words: the ES rollout dry run (2026-07-20) surfaced
+      // pure beauty salons filed under the tattoo category ("Estética Carmen",
+      // "Centro de Belleza Duo's", "Casanova Style Peluqueros") that the
+      // multi-word phrases above never caught. Whole-word matching means these
+      // fire only as standalone words, and a real tattoo positive alongside
+      // routes to review, not reject.
+      ["estetica", "strong"],
+      ["estetico", "strong"],
+      ["belleza", "strong"],
       ["micropigmentacion", "strong"],
       ["dermopigmentacion", "strong"],
       ["maquillaje permanente", "strong"],
       ["maquillaje semipermanente", "strong"],
       ["cejas y pestanas", "strong"],
       ["salon de unas", "strong"],
+      ["uñas", "strong"],
+      ["manicura", "strong"],
       ["peluqueria", "strong"],
+      ["peluquero", "strong"],
+      ["peluqueros", "strong"],
       ["esteticista", "strong"],
       ["depilacion laser", "weak"],
       ["lifting de pestanas", "weak"],
       ["extensiones de pestanas", "weak"],
-      // Catalan
+      ["solarium", "weak"],
+      ["bronceado", "weak"],
+      // Catalan (estètica normalizes to the estetica entry above)
       ["centre d estetica", "strong"],
+      ["bellesa", "strong"],
+      ["micropigmentacio", "strong"],
+      ["ungles", "strong"],
       ["perruqueria", "strong"],
+      ["perruquers", "strong"],
     ],
     "spanish_beauty",
   ),
@@ -412,8 +431,32 @@ const ES: SeedCountryConfig = {
     },
     { name: "Cejas y Pestañas Studio", expect: "reject_beauty" },
     { name: "Perruqueria i Estètica Núria", expect: "reject_beauty" },
+    // Real dry-run false-accepts (2026-07-20): pure beauty filed under the
+    // tattoo category. Bare "estética" / "peluqueros" / Catalan
+    // "micropigmentació" must reject even when the machine category says tattoo.
+    {
+      name: "Estética Carmen",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    {
+      name: "Casanova Style Peluqueros",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    {
+      name: "Gemma Micropigmentació",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
     {
       name: "Tattoo y Micropigmentación Alicante",
+      expect: "not_accept",
+    },
+    // Mixed tattoo + beauty identity: a real tattoo positive alongside a
+    // strong beauty word goes to review, never auto-import.
+    {
+      name: "Estética y Tatuaje B. Barbera",
       expect: "not_accept",
     },
   ],
