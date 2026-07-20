@@ -44,6 +44,7 @@ the import run.
 | — | Germany | DE | ✅ imported 2026-07-19 (6,679 studios), gap verification running |
 | — | Austria | AT | ✅ imported 2026-07-20 (659 studios), gap tail queued |
 | — | Switzerland | CH | ✅ imported 2026-07-20 (993 studios, de/fr/it vocabulary proven), gap tail queued |
+| 2 | United Kingdom | GB | ✅ imported 2026-07-20 (6,753 studios; "tattooing" vocab fix; worker run-window fix), gap tail queued |
 | — | Thailand | TH | filter config + Chiang Mai manual seed exist; full coverage waits for its list position (#10) |
 
 ## Priority order (founder, 2026-07-20; DACH excluded)
