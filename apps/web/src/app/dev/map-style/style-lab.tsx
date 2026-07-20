@@ -3,16 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import {
-  brandMapStyle,
-  mapInk,
-  type MapScheme,
-} from "@inklee/shared/map-style";
+import { brandMapStyle, type MapScheme } from "@inklee/shared/map-style";
 
-// Map style lab (admin/dev only): tune the branded basemap for BOTH schemes
-// side by side against real tiles and real pin shapes, then copy the exact
-// token block into packages/shared/src/map-style.ts. Nothing here writes to
-// the app; it is a design surface, not a setting.
+// Map style lab (admin/dev only): tune the branded basemap AND the marker
+// geometry for both schemes side by side against real tiles, then copy the
+// printed blocks into the source. Nothing here writes to the app; it is a
+// design surface, not a setting.
 
 type Ink = {
   bg: string;
@@ -37,6 +33,23 @@ type Pins = {
   signalRing: string;
 };
 
+// Marker geometry is scheme-independent (production uses one set of radii
+// for light and dark), so it lives outside the per-scheme palettes.
+type Geom = {
+  pinRadiusFar: number; // radius at zoom 4
+  pinRadiusNear: number; // radius at zoom 12
+  pinStroke: number; // border width, unclaimed
+  pinStrokeClaimed: number; // border width, claimed studios
+  ringGap: number; // clear space between pin edge and signal ring
+  ringStroke: number; // signal ring thickness
+  ringMinzoom: number; // zoom at which the ring appears
+  clusterRadiusSmall: number;
+  clusterRadiusMedium: number;
+  clusterRadiusLarge: number;
+  clusterStroke: number;
+  clusterTextSize: number;
+};
+
 type Preset = {
   name: string;
   note: string;
@@ -46,8 +59,6 @@ type Preset = {
   darkPins: Pins;
 };
 
-// The ink token -> (layer, paint property) map, so a picker can repaint the
-// live map without rebuilding the style.
 const INK_TARGETS: Record<keyof Ink, Array<[string, string]>> = {
   bg: [["background", "background-color"]],
   land: [
@@ -84,6 +95,128 @@ const PIN_LABELS: Record<keyof Pins, string> = {
   clusterText: "Cluster number",
   markerBorder: "Pin border",
   signalRing: "Signal ring",
+};
+
+const GEOM_FIELDS: Array<{
+  key: keyof Geom;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  group: "pin" | "ring" | "cluster";
+}> = [
+  {
+    key: "pinRadiusFar",
+    label: "Size, zoomed out",
+    min: 2,
+    max: 12,
+    step: 0.5,
+    group: "pin",
+  },
+  {
+    key: "pinRadiusNear",
+    label: "Size, zoomed in",
+    min: 3,
+    max: 20,
+    step: 0.5,
+    group: "pin",
+  },
+  {
+    key: "pinStroke",
+    label: "Border",
+    min: 0,
+    max: 6,
+    step: 0.25,
+    group: "pin",
+  },
+  {
+    key: "pinStrokeClaimed",
+    label: "Border, claimed",
+    min: 0,
+    max: 8,
+    step: 0.25,
+    group: "pin",
+  },
+  {
+    key: "ringGap",
+    label: "Gap from pin",
+    min: 0,
+    max: 16,
+    step: 0.5,
+    group: "ring",
+  },
+  {
+    key: "ringStroke",
+    label: "Ring thickness",
+    min: 0.5,
+    max: 8,
+    step: 0.25,
+    group: "ring",
+  },
+  {
+    key: "ringMinzoom",
+    label: "Appears at zoom",
+    min: 0,
+    max: 16,
+    step: 1,
+    group: "ring",
+  },
+  {
+    key: "clusterRadiusSmall",
+    label: "Small",
+    min: 8,
+    max: 30,
+    step: 1,
+    group: "cluster",
+  },
+  {
+    key: "clusterRadiusMedium",
+    label: "Medium (10+)",
+    min: 10,
+    max: 40,
+    step: 1,
+    group: "cluster",
+  },
+  {
+    key: "clusterRadiusLarge",
+    label: "Large (50+)",
+    min: 12,
+    max: 50,
+    step: 1,
+    group: "cluster",
+  },
+  {
+    key: "clusterStroke",
+    label: "Border",
+    min: 0,
+    max: 6,
+    step: 0.25,
+    group: "cluster",
+  },
+  {
+    key: "clusterTextSize",
+    label: "Number size",
+    min: 8,
+    max: 20,
+    step: 1,
+    group: "cluster",
+  },
+];
+
+// Production values as shipped, so the lab always opens on the real thing.
+const DEFAULT_GEOM: Geom = {
+  pinRadiusFar: 4,
+  pinRadiusNear: 8,
+  pinStroke: 1,
+  pinStrokeClaimed: 2.5,
+  ringGap: 4,
+  ringStroke: 2.5,
+  ringMinzoom: 10,
+  clusterRadiusSmall: 14,
+  clusterRadiusMedium: 18,
+  clusterRadiusLarge: 24,
+  clusterStroke: 2,
+  clusterTextSize: 12,
 };
 
 const CURRENT: Preset = {
@@ -133,8 +266,6 @@ const CURRENT: Preset = {
   },
 };
 
-// Softer: the brand still leads, but the base stops shouting so pins and
-// labels carry the attention.
 const MUTED: Preset = {
   name: "Muted brand",
   note: "Mustard becomes a tint instead of a flood; pins gain contrast.",
@@ -164,7 +295,6 @@ const MUTED: Preset = {
   darkPins: { ...CURRENT.darkPins },
 };
 
-// Quietest: a near-neutral canvas. Brand lives entirely in the markers.
 const PAPER: Preset = {
   name: "Paper",
   note: "Near-neutral canvas; every colored thing on screen is data.",
@@ -196,18 +326,73 @@ const PAPER: Preset = {
 
 const PRESETS = [CURRENT, MUTED, PAPER];
 
-// Synthetic pins around the initial view so contrast can be judged without
-// hitting the live API.
+// Zoom-interpolated radii, exactly like production. The ring is derived from
+// the pin so "gap" stays the honest control at every zoom level.
+function pinRadiusExpr(g: Geom) {
+  return [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    4,
+    g.pinRadiusFar,
+    12,
+    g.pinRadiusNear,
+  ];
+}
+function ringRadiusExpr(g: Geom) {
+  return [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    4,
+    g.pinRadiusFar + g.ringGap,
+    12,
+    g.pinRadiusNear + g.ringGap,
+  ];
+}
+function clusterRadiusExpr(g: Geom) {
+  return [
+    "step",
+    ["get", "point_count"],
+    g.clusterRadiusSmall,
+    10,
+    g.clusterRadiusMedium,
+    50,
+    g.clusterRadiusLarge,
+  ];
+}
+function pinColorExpr(p: Pins) {
+  return [
+    "match",
+    ["get", "category"],
+    "tattoo_studio",
+    p.tattooStudio,
+    "private_studio",
+    p.privateStudio,
+    "piercing_studio",
+    p.piercingStudio,
+    "supply_shop",
+    p.supplyShop,
+    p.tattooStudio,
+  ];
+}
+
+// Enough synthetic pins to also produce a cluster, so cluster geometry is
+// judgeable without hitting the live API.
 function samplePins(center: [number, number]) {
   const [lng, lat] = center;
-  const spread = [
+  const spread: Array<[number, number, string, boolean, boolean]> = [
     [0.012, 0.006, "tattoo_studio", true, true],
     [-0.014, 0.004, "tattoo_studio", false, false],
     [0.006, -0.011, "private_studio", true, false],
     [-0.008, -0.008, "piercing_studio", false, false],
     [0.02, -0.004, "supply_shop", false, false],
     [-0.02, 0.012, "tattoo_studio", false, true],
-  ] as const;
+    [0.0305, 0.0182, "tattoo_studio", false, false],
+    [0.0312, 0.0175, "tattoo_studio", false, false],
+    [0.0299, 0.0189, "private_studio", false, false],
+    [0.0308, 0.0193, "tattoo_studio", true, false],
+  ];
   return {
     type: "FeatureCollection" as const,
     features: spread.map(([dx, dy, category, claimed, hasSignal], i) => ({
@@ -223,12 +408,14 @@ function LabMap({
   scheme,
   ink,
   pins,
+  geom,
   center,
   onMove,
 }: {
   scheme: MapScheme;
   ink: Ink;
   pins: Pins;
+  geom: Geom;
   center: { lng: number; lat: number; zoom: number };
   onMove: (v: { lng: number; lat: number; zoom: number }) => void;
 }) {
@@ -236,6 +423,13 @@ function LabMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const moving = useRef(false);
+  // Latest values for the load handler, which is bound once. Kept fresh in
+  // an effect (never written during render) and declared before the map
+  // effect so the initial value is already current when "load" fires.
+  const live = useRef({ pins, geom });
+  useEffect(() => {
+    live.current = { pins, geom };
+  }, [pins, geom]);
 
   useEffect(() => {
     if (!holder.current) return;
@@ -248,13 +442,14 @@ function LabMap({
     });
     mapRef.current = map;
     map.on("load", () => {
-      ready.current = true;
+      const p = live.current.pins;
+      const g = live.current.geom;
       map.addSource("sample", {
         type: "geojson",
         data: samplePins([center.lng, center.lat]),
         cluster: true,
         clusterRadius: 44,
-        clusterMaxZoom: 11,
+        clusterMaxZoom: 13,
       });
       map.addLayer({
         id: "s-signal",
@@ -265,11 +460,14 @@ function LabMap({
           ["!", ["has", "point_count"]],
           ["==", ["get", "hasSignal"], true],
         ],
+        minzoom: g.ringMinzoom,
         paint: {
           "circle-color": "rgba(0,0,0,0)",
-          "circle-radius": 13,
-          "circle-stroke-width": 2.5,
-          "circle-stroke-color": pins.signalRing,
+          "circle-radius": ringRadiusExpr(
+            g,
+          ) as unknown as maplibregl.DataDrivenPropertyValueSpecification<number>,
+          "circle-stroke-width": g.ringStroke,
+          "circle-stroke-color": p.signalRing,
         },
       });
       map.addLayer({
@@ -278,10 +476,12 @@ function LabMap({
         source: "sample",
         filter: ["has", "point_count"],
         paint: {
-          "circle-color": pins.cluster,
-          "circle-radius": 16,
-          "circle-stroke-width": 2,
-          "circle-stroke-color": pins.markerBorder,
+          "circle-color": p.cluster,
+          "circle-radius": clusterRadiusExpr(
+            g,
+          ) as unknown as maplibregl.DataDrivenPropertyValueSpecification<number>,
+          "circle-stroke-width": g.clusterStroke,
+          "circle-stroke-color": p.markerBorder,
         },
       });
       map.addLayer({
@@ -292,9 +492,9 @@ function LabMap({
         layout: {
           "text-field": ["get", "point_count_abbreviated"],
           "text-font": ["Open Sans Regular"],
-          "text-size": 12,
+          "text-size": g.clusterTextSize,
         },
-        paint: { "text-color": pins.clusterText },
+        paint: { "text-color": p.clusterText },
       });
       map.addLayer({
         id: "s-pins",
@@ -302,24 +502,22 @@ function LabMap({
         source: "sample",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-color": [
-            "match",
-            ["get", "category"],
-            "tattoo_studio",
-            pins.tattooStudio,
-            "private_studio",
-            pins.privateStudio,
-            "piercing_studio",
-            pins.piercingStudio,
-            "supply_shop",
-            pins.supplyShop,
-            pins.tattooStudio,
-          ] as unknown as maplibregl.DataDrivenPropertyValueSpecification<string>,
-          "circle-radius": 8,
-          "circle-stroke-width": ["case", ["get", "claimed"], 2.5, 1],
-          "circle-stroke-color": pins.markerBorder,
+          "circle-color": pinColorExpr(
+            p,
+          ) as unknown as maplibregl.DataDrivenPropertyValueSpecification<string>,
+          "circle-radius": pinRadiusExpr(
+            g,
+          ) as unknown as maplibregl.DataDrivenPropertyValueSpecification<number>,
+          "circle-stroke-width": [
+            "case",
+            ["get", "claimed"],
+            g.pinStrokeClaimed,
+            g.pinStroke,
+          ] as unknown as maplibregl.DataDrivenPropertyValueSpecification<number>,
+          "circle-stroke-color": p.markerBorder,
         },
       });
+      ready.current = true;
     });
     map.on("moveend", () => {
       if (moving.current) return;
@@ -331,10 +529,9 @@ function LabMap({
       map.remove();
       mapRef.current = null;
     };
-    // One instance per scheme; colors flow in through the effects below.
+    // One instance per scheme; all styling flows in through the effects.
   }, []);
 
-  // Live repaint: basemap tokens.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready.current) return;
@@ -346,7 +543,6 @@ function LabMap({
     }
   }, [ink]);
 
-  // Live repaint: marker tokens.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready.current || !map.getLayer("s-pins")) return;
@@ -359,22 +555,35 @@ function LabMap({
     );
     map.setPaintProperty("s-cluster-count", "text-color", pins.clusterText);
     map.setPaintProperty("s-pins", "circle-stroke-color", pins.markerBorder);
-    map.setPaintProperty("s-pins", "circle-color", [
-      "match",
-      ["get", "category"],
-      "tattoo_studio",
-      pins.tattooStudio,
-      "private_studio",
-      pins.privateStudio,
-      "piercing_studio",
-      pins.piercingStudio,
-      "supply_shop",
-      pins.supplyShop,
-      pins.tattooStudio,
-    ] as unknown as maplibregl.DataDrivenPropertyValueSpecification<string>);
+    map.setPaintProperty("s-pins", "circle-color", pinColorExpr(pins));
   }, [pins]);
 
-  // Keep both maps looking at the same place.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready.current || !map.getLayer("s-pins")) return;
+    map.setPaintProperty("s-pins", "circle-radius", pinRadiusExpr(geom));
+    map.setPaintProperty("s-pins", "circle-stroke-width", [
+      "case",
+      ["get", "claimed"],
+      geom.pinStrokeClaimed,
+      geom.pinStroke,
+    ]);
+    map.setPaintProperty("s-signal", "circle-radius", ringRadiusExpr(geom));
+    map.setPaintProperty("s-signal", "circle-stroke-width", geom.ringStroke);
+    map.setLayerZoomRange("s-signal", geom.ringMinzoom, 24);
+    map.setPaintProperty(
+      "s-clusters",
+      "circle-radius",
+      clusterRadiusExpr(geom),
+    );
+    map.setPaintProperty(
+      "s-clusters",
+      "circle-stroke-width",
+      geom.clusterStroke,
+    );
+    map.setLayoutProperty("s-cluster-count", "text-size", geom.clusterTextSize);
+  }, [geom]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -435,11 +644,52 @@ function ColorRow({
   );
 }
 
+function SliderRow({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-xs">
+      <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-7 w-full cursor-pointer accent-brand-mustard"
+      />
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-14 shrink-0 rounded-md border border-border bg-background px-1.5 py-1 text-right font-mono text-[11px] text-foreground"
+      />
+    </label>
+  );
+}
+
 export default function StyleLab() {
   const [light, setLight] = useState<Ink>({ ...CURRENT.light });
   const [dark, setDark] = useState<Ink>({ ...CURRENT.dark });
   const [lightPins, setLightPins] = useState<Pins>({ ...CURRENT.lightPins });
   const [darkPins, setDarkPins] = useState<Pins>({ ...CURRENT.darkPins });
+  const [geom, setGeom] = useState<Geom>({ ...DEFAULT_GEOM });
   const [editing, setEditing] = useState<MapScheme>("light");
   const [center, setCenter] = useState({ lng: 13.405, lat: 52.52, zoom: 12 });
 
@@ -454,6 +704,19 @@ export default function StyleLab() {
     setLightPins({ ...p.lightPins });
     setDarkPins({ ...p.darkPins });
   };
+
+  const geomGroup = (group: "pin" | "ring" | "cluster") =>
+    GEOM_FIELDS.filter((f) => f.group === group).map((f) => (
+      <SliderRow
+        key={f.key}
+        label={f.label}
+        value={geom[f.key]}
+        min={f.min}
+        max={f.max}
+        step={f.step}
+        onChange={(v) => setGeom({ ...geom, [f.key]: v })}
+      />
+    ));
 
   const snippet = useMemo(() => {
     const fmt = (o: Record<string, string>) =>
@@ -484,20 +747,35 @@ const CATEGORY_COLOR_LIGHT = {
   supply_shop: "${lightPins.supplyShop}",
   other: "${lightPins.supplyShop}",
 };
-// signal ring: light ${lightPins.signalRing} / dark ${darkPins.signalRing}
+
+// pin-points
+"circle-radius": ["interpolate", ["linear"], ["zoom"], 4, ${geom.pinRadiusFar}, 12, ${geom.pinRadiusNear}],
+"circle-stroke-width": ["case", ["get", "claimed"], ${geom.pinStrokeClaimed}, ${geom.pinStroke}],
+
+// signal-rings (minzoom ${geom.ringMinzoom}; radius = pin + ${geom.ringGap} gap)
+minzoom: ${geom.ringMinzoom},
+"circle-radius": ["interpolate", ["linear"], ["zoom"], 4, ${geom.pinRadiusFar + geom.ringGap}, 12, ${geom.pinRadiusNear + geom.ringGap}],
+"circle-stroke-width": ${geom.ringStroke},
+"circle-stroke-color": "${lightPins.signalRing}" / dark "${darkPins.signalRing}",
+
+// clusters
+"circle-radius": ["step", ["get", "point_count"], ${geom.clusterRadiusSmall}, 10, ${geom.clusterRadiusMedium}, 50, ${geom.clusterRadiusLarge}],
+"circle-stroke-width": ${geom.clusterStroke},
+"text-size": ${geom.clusterTextSize},
 
 // mapInk(): dark planned ${darkPins.cluster}, onActive ${darkPins.clusterText}, markerBorder ${darkPins.markerBorder}
 //           light planned ${lightPins.cluster}, onActive ${lightPins.clusterText}, markerBorder ${lightPins.markerBorder}`;
-  }, [light, dark, lightPins, darkPins]);
+  }, [light, dark, lightPins, darkPins, geom]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">Map style lab</h1>
         <p className="text-sm text-muted-foreground">
-          Both schemes, live, on real tiles. Pan either map and they stay in
-          sync. Nothing here changes the app: when a look is right, copy the
-          block at the bottom into the source.
+          Both schemes, live, on real tiles. Pan or zoom either map and they
+          stay in sync. Marker sizes are zoom-dependent, so judge them at the
+          zoom you care about. Nothing here changes the app: when a look is
+          right, copy the block at the bottom.
         </p>
       </header>
 
@@ -513,6 +791,16 @@ const CATEGORY_COLOR_LIGHT = {
             {p.name}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setGeom({ ...DEFAULT_GEOM })}
+          className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Reset geometry
+        </button>
+        <span className="ml-auto font-mono text-xs text-muted-foreground">
+          zoom {center.zoom.toFixed(1)}
+        </span>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -520,6 +808,7 @@ const CATEGORY_COLOR_LIGHT = {
           scheme="light"
           ink={light}
           pins={lightPins}
+          geom={geom}
           center={center}
           onMove={setCenter}
         />
@@ -527,6 +816,7 @@ const CATEGORY_COLOR_LIGHT = {
           scheme="dark"
           ink={dark}
           pins={darkPins}
+          geom={geom}
           center={center}
           onMove={setCenter}
         />
@@ -534,7 +824,32 @@ const CATEGORY_COLOR_LIGHT = {
 
       <section className="space-y-3 rounded-2xl border border-border p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">Editing</span>
+          <span className="text-sm font-semibold text-foreground">
+            Marker geometry
+          </span>
+          <span className="text-xs text-muted-foreground">
+            shared by both schemes
+          </span>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-foreground">Pin</p>
+            {geomGroup("pin")}
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-foreground">Signal ring</p>
+            {geomGroup("ring")}
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-foreground">Cluster</p>
+            {geomGroup("cluster")}
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-border p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">Colors</span>
           {(["light", "dark"] as MapScheme[]).map((s) => (
             <button
               key={s}
