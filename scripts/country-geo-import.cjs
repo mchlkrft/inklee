@@ -303,17 +303,28 @@ async function adapterUS() {
     fail(`Implausible US export (${rows?.length ?? 0} rows).`);
   const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
 
-  console.log("→ Wikidata population by county FIPS (P882)…");
+  // Area matters here: the spatial assigner derives its match radius from
+  // it, and a county without area falls back to a 4 km radius on a
+  // ~2,900 km² unit (17% of discoveries went unassigned without this).
+  console.log("→ Wikidata population + area by county FIPS (P882)…");
   const wd = new Map();
   for (const b of await sparql(
-    `SELECT ?fips ?pop WHERE { ?x wdt:P882 ?fips . ?x wdt:P1082 ?pop }`,
+    `SELECT ?fips ?pop ?area WHERE { ?x wdt:P882 ?fips . OPTIONAL { ?x wdt:P1082 ?pop } OPTIONAL { ?x wdt:P2046 ?area } }`,
   )) {
     const fips = String(b.fips?.value ?? "").padStart(5, "0");
+    if (!fips) continue;
+    const cur = wd.get(fips) ?? {};
     const pop =
       b.pop && Number.isFinite(Number(b.pop.value))
         ? Math.round(Number(b.pop.value))
         : null;
-    if (fips && pop && (!wd.has(fips) || pop > wd.get(fips))) wd.set(fips, pop);
+    const area =
+      b.area && Number.isFinite(Number(b.area.value))
+        ? Number(b.area.value)
+        : null;
+    if (pop && (!cur.population || pop > cur.population)) cur.population = pop;
+    if (area && !cur.areaKm2) cur.areaKm2 = area;
+    wd.set(fips, cur);
   }
 
   const first = (v) => (Array.isArray(v) ? v[0] : v);
@@ -338,8 +349,8 @@ async function adapterUS() {
       stateName: String(first(m.ste_name) ?? ""),
       districtCode: null,
       districtName: null,
-      population: wd.get(fips) ?? null,
-      areaKm2: null,
+      population: wd.get(fips)?.population ?? null,
+      areaKm2: wd.get(fips)?.areaKm2 ?? null,
       centroid:
         m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
           ? {
