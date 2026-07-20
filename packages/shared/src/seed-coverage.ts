@@ -263,11 +263,44 @@ export const GB_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 900 },
 };
 
+// United States: counties (~3,200) are the coverage unit, not the 32,000
+// incorporated places. Structured sources carry discovery nationwide; the
+// paid layer only gap-fills units where they found nothing, which is rural
+// by definition, and a county name is a fine query there. County names
+// repeat across states, so the planner's duplicate-name detection turns on
+// state disambiguation automatically.
+export const US_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 1_000_000,
+    cityPopulation: 250_000,
+    townPopulation: 75_000,
+    // Counties are large; clusters group genuinely remote ones.
+    clusterRadiusKm: 60,
+    clusterMaxMembers: 10,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "tattoo shop {location}",
+      "tattoo parlor {location}",
+      "tattoo artist {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "tattoo shop {location}"],
+    town_light: ["tattoo shop {location}"],
+    rural_cluster: ["tattoo shop {location}"],
+    gap_recheck: ["tattoo shop {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 4000 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
   CH: CH_COVERAGE_POLICY,
   GB: GB_COVERAGE_POLICY,
+  US: US_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

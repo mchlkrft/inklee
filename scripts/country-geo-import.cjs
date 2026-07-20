@@ -294,7 +294,78 @@ async function adapterGB() {
   };
 }
 
-const ADAPTERS = { DE: adapterDE, AT: adapterAT, CH: adapterCH, GB: adapterGB };
+async function adapterUS() {
+  const url = `${ODS}/georef-united-states-of-america-county/exports/json?select=year,ste_code,ste_name,coty_code,coty_name,coty_name_long,coty_type,geo_point_2d`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 3000)
+    fail(`Implausible US export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  console.log("→ Wikidata population by county FIPS (P882)…");
+  const wd = new Map();
+  for (const b of await sparql(
+    `SELECT ?fips ?pop WHERE { ?x wdt:P882 ?fips . ?x wdt:P1082 ?pop }`,
+  )) {
+    const fips = String(b.fips?.value ?? "").padStart(5, "0");
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    if (fips && pop && (!wd.has(fips) || pop > wd.get(fips))) wd.set(fips, pop);
+  }
+
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const fips = String(first(m.coty_code) ?? "").trim();
+    // coty_name_long carries the "... County" / "... Parish" suffix, which
+    // makes a far better search term than the bare name.
+    const name = String(
+      first(m.coty_name_long) ?? first(m.coty_name) ?? "",
+    ).trim();
+    if (!/^\d{5}$/.test(fips) || !name || seen.has(fips)) continue;
+    seen.add(fips);
+    const shortName = String(first(m.coty_name) ?? "").trim();
+    units.push({
+      externalId: fips,
+      name,
+      aliases: shortName && shortName !== name ? [shortName] : [],
+      stateCode: String(first(m.ste_code) ?? ""),
+      stateName: String(first(m.ste_name) ?? ""),
+      districtCode: null,
+      districtName: null,
+      population: wd.get(fips) ?? null,
+      areaKm2: null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: first(m.coty_type) ? String(first(m.coty_type)) : null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef+wikidata",
+    sourceVersion: `georef-${latestYear}+wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution:
+      "US counties: US Census Bureau TIGER via OpenDataSoft (public domain). Population: Wikidata (CC0).",
+    units,
+  };
+}
+
+const ADAPTERS = {
+  DE: adapterDE,
+  AT: adapterAT,
+  CH: adapterCH,
+  GB: adapterGB,
+  US: adapterUS,
+};
 
 function readSecret() {
   if (process.env.CRON_SECRET) return process.env.CRON_SECRET;

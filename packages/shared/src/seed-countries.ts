@@ -279,6 +279,76 @@ const GB: SeedCountryConfig = {
   ],
 };
 
+const US: SeedCountryConfig = {
+  code: "US",
+  name: "United States",
+  languages: ["en", "es"],
+  extraPositive: compileSeedVocabulary(
+    [
+      ["tattoo parlor", "strong"],
+      ["tattoo company", "strong"],
+      ["tattoo collective", "strong"],
+      ["body art studio", "strong"],
+      ["tattoo emporium", "strong"],
+      // Spanish-language studios (large market in the southwest).
+      ["estudio de tatuajes", "strong"],
+      ["tatuajes", "strong"],
+      ["tatuador", "strong"],
+    ],
+    "us_tattoo",
+  ),
+  extraNegative: compileSeedVocabulary(
+    [
+      // The American beauty market's own vocabulary.
+      ["med spa", "strong"],
+      ["medspa", "strong"],
+      ["medical spa", "strong"],
+      ["day spa", "strong"],
+      ["wellness spa", "strong"],
+      ["beauty bar", "strong"],
+      ["blow dry bar", "strong"],
+      ["waxing studio", "strong"],
+      ["salon and spa", "strong"],
+      ["nails and spa", "strong"],
+      ["permanent cosmetics studio", "strong"],
+      ["microblading studio", "strong"],
+      ["body contouring", "weak"],
+      ["teeth whitening", "weak"],
+      ["botox bar", "weak"],
+      // Spanish beauty vocabulary.
+      ["salon de belleza", "strong"],
+      ["maquillaje permanente", "strong"],
+      ["micropigmentacion", "strong"],
+      ["cejas y pestanas", "strong"],
+    ],
+    "us_beauty",
+  ),
+  postalCodePattern: /^\d{5}(-\d{4})?$/,
+  qualityFixtures: [
+    { name: "Ink Master Tattoo Studio Austin", expect: "accept" },
+    { name: "Sailor's Grave Tattoo Parlor", expect: "accept" },
+    {
+      name: "Black Anchor",
+      extraText: "Custom tattoo shop in Portland, walk ins welcome.",
+      expect: "accept",
+    },
+    { name: "Estudio de Tatuajes San Antonio", expect: "accept" },
+    { name: "Radiance Med Spa", expect: "reject_beauty" },
+    { name: "Brow Bar Beverly Hills", expect: "reject_beauty" },
+    {
+      name: "Lumina Permanent Makeup",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Glam Beauty Bar and Day Spa", expect: "reject_beauty" },
+    { name: "Salon de Belleza Maria", expect: "reject_beauty" },
+    {
+      name: "Steel and Rose Tattoo and Permanent Makeup",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const TH: SeedCountryConfig = {
   code: "TH",
   name: "Thailand",
@@ -322,7 +392,7 @@ const TH: SeedCountryConfig = {
   ],
 };
 
-const REGISTRY: Record<string, SeedCountryConfig> = { DE, AT, CH, GB, TH };
+const REGISTRY: Record<string, SeedCountryConfig> = { DE, AT, CH, GB, US, TH };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
   return REGISTRY[code.toUpperCase()] ?? null;
