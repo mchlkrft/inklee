@@ -23,14 +23,14 @@ import { toggleWatchAction } from "./actions";
 const CATEGORY_COLOR_DARK: Record<MapLocationCategory, string> = {
   tattoo_studio: "#e9b22b",
   private_studio: "#db88b9",
-  piercing_studio: "#e5e1d5",
+  piercing_studio: "#8a8a8a",
   supply_shop: "#8a8a8a",
   other: "#8a8a8a",
 };
 const CATEGORY_COLOR_LIGHT: Record<MapLocationCategory, string> = {
   tattoo_studio: "#1e1e1e",
   private_studio: "#db88b9",
-  piercing_studio: "#5b4a12",
+  piercing_studio: "#6b6b6b",
   supply_shop: "#6b6b6b",
   other: "#6b6b6b",
 };
@@ -195,8 +195,12 @@ export default function DiscoveryMapClient({
         type: "geojson",
         data: pinsToGeoJSON([]),
         cluster: true,
-        clusterRadius: 44,
-        clusterMaxZoom: 13,
+        // Founder-tuned 2026-07-20: clustering is a world-view convenience
+        // only. Above zoom 4 every studio stands on its own, and even there
+        // it takes ten pins in a tight 10px group to collapse into a bubble.
+        clusterRadius: 10,
+        clusterMaxZoom: 4,
+        clusterMinPoints: 10,
       });
       map.addLayer({
         id: "clusters",
@@ -233,21 +237,14 @@ export default function DiscoveryMapClient({
           ["!", ["has", "point_count"]],
           ["==", ["get", "hasSignal"], true],
         ],
-        minzoom: 10,
+        minzoom: 12,
         paint: {
           "circle-color": "rgba(0,0,0,0)",
-          "circle-radius": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            10,
-            10,
-            14,
-            14,
-          ],
-          "circle-stroke-width": 2.5,
-          "circle-stroke-color": "#db88b9",
-          "circle-stroke-opacity": 0.95,
+          // Founder-tuned 2026-07-20: the ring hugs the pin (no gap) and
+          // reads as a thick halo rather than an orbit.
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 6, 12, 7],
+          "circle-stroke-width": 4,
+          "circle-stroke-color": "rgba(219,136,185,0.8)",
         },
       });
       map.addLayer({
@@ -264,8 +261,10 @@ export default function DiscoveryMapClient({
             ...Object.entries(categoryColors).flat(),
             ink.planned,
           ] as unknown as maplibregl.DataDrivenPropertyValueSpecification<string>,
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 12, 8],
-          "circle-stroke-width": ["case", ["get", "claimed"], 2.5, 1],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 6, 12, 7],
+          // Borders off: the fill carries the pin, and the claimed state
+          // reads from the detail panel rather than a ring.
+          "circle-stroke-width": 0,
           "circle-stroke-color": ink.markerBorder,
         },
       });

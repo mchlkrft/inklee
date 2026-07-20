@@ -28,13 +28,16 @@ type Ink = {
   labelHalo: string;
 };
 
+// Founder-tuned 2026-07-20 in the style lab (/dev/map-style). Both schemes
+// pull the basemap back so the markers carry the attention: water merges
+// into the dark base, and roads read as a faint grid rather than structure.
 const DARK: Ink = {
   bg: "#1e1e1e", // charcoal base
-  water: "#151515",
-  land: "#242424",
+  water: "#1e1e1e",
+  land: "#2e2e2e",
   building: "#2c2c2c",
-  road: "#e9b22b", // mustard structures
-  roadMinor: "rgba(233,178,43,0.45)",
+  road: "rgba(233,178,43,0.2)",
+  roadMinor: "rgba(233,178,43,0.4)",
   boundary: "#db88b9", // rosa borders
   label: "#e5e1d5",
   labelHalo: "#1e1e1e",
@@ -43,11 +46,11 @@ const DARK: Ink = {
 const LIGHT: Ink = {
   bg: "#e9b22b", // mustard base
   water: "#e7cf83",
-  land: "#e6c352",
-  building: "rgba(30,30,30,0.14)",
-  road: "#1e1e1e", // charcoal structures
-  roadMinor: "rgba(30,30,30,0.4)",
-  boundary: "#1e1e1e",
+  land: "#fee490",
+  building: "rgba(30,30,30,0.2)",
+  road: "rgba(30,30,30,0.4)",
+  roadMinor: "rgba(30,30,30,0.2)",
+  boundary: "#9f6587",
   label: "#1e1e1e",
   labelHalo: "rgba(233,178,43,0.85)",
 };
@@ -169,6 +172,9 @@ export type MapInk = {
   markerBorder: string;
 };
 
+// Founder-tuned 2026-07-20: marker borders go transparent (the pins carry
+// their own weight now), and the light "planned" ink softens to 50% so the
+// route line and cluster fill stop competing with the mustard base.
 export function mapInk(scheme: Scheme): MapInk {
   if (scheme === "dark") {
     return {
@@ -176,14 +182,14 @@ export function mapInk(scheme: Scheme): MapInk {
       traveled: "#8a8a8a",
       onActive: "#1e1e1e",
       onPast: "#1e1e1e",
-      markerBorder: "#1e1e1e",
+      markerBorder: "rgba(233,178,43,0)",
     };
   }
   return {
-    planned: "#1e1e1e",
+    planned: "rgba(30,30,30,0.5)",
     traveled: "rgba(30,30,30,0.5)",
     onActive: "#e5e1d5",
     onPast: "#e5e1d5",
-    markerBorder: "#e5e1d5",
+    markerBorder: "rgba(30,30,30,0)",
   };
 }
