@@ -95,7 +95,9 @@ describe("layer 2: beauty and PMU exclusion", () => {
   it("rejects a PMU academy by name", () => {
     const r = evalDE({ name: "PMU Academy Berlin" });
     expect(r.decision).toBe("reject_beauty");
-    expect(r.firedRules).toContain("R-NAME-BEAUTY");
+    expect(r.firedRules.some((rule) => rule.startsWith("R-NAME-BEAUTY"))).toBe(
+      true,
+    );
     expect(r.confidence).toBeGreaterThanOrEqual(85);
   });
 
@@ -131,6 +133,23 @@ describe("layer 2: beauty and PMU exclusion", () => {
     const r = evalDE({ name: "Cosmetic Tattoo Lounge" });
     expect(r.decision).not.toBe("accept_automated");
     expect(["reject_beauty", "review_mixed_business"]).toContain(r.decision);
+  });
+
+  it("rejects a PMU name even when the provider category says tattoo", () => {
+    // Overture routinely files PMU studios under the tattoo category; the
+    // name identity wins over the machine-derived category.
+    const r = evalDE({
+      name: "Permanent Make-up by Petra",
+      category: "tattoo_and_piercing",
+    });
+    expect(r.decision).toBe("reject_beauty");
+    expect(r.firedRules).toContain("R-NAME-BEAUTY-OVER-CATEGORY");
+    // Textual tattoo evidence still means genuinely mixed -> review.
+    const mixed = evalDE({
+      name: "Stay Gold Tattoo & Permanent Makeup",
+      category: "tattoo_and_piercing",
+    });
+    expect(mixed.decision).toBe("review_mixed_business");
   });
 });
 

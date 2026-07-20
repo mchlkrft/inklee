@@ -20,6 +20,8 @@ export type SeedQualityFixture = {
   name: string;
   /** Optional bio/description evidence line. */
   extraText?: string;
+  /** Optional provider category (tests the category-vs-name precedence). */
+  category?: string;
   /**
    * accept = must be auto-accepted; reject_beauty = must be rejected as a
    * beauty/PMU business; not_accept = anything except automatic import
@@ -126,6 +128,13 @@ const AT: SeedCountryConfig = {
       expect: "reject_beauty",
     },
     { name: "Beauty Lounge Klagenfurt", expect: "reject_beauty" },
+    {
+      // Observed at scale in the 2026-07-20 rollout: Overture files pure
+      // PMU studios under the tattoo category; the name must win.
+      name: "I LINE Permanent Make Up Studio",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
     { name: "Kosmetik Tattoo Atelier", expect: "not_accept" },
   ],
 };

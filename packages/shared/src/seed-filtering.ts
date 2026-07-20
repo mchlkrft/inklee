@@ -5,7 +5,7 @@
 // the decision but never replaces the rules. SoT:
 // docs/product/inklee-2-seed-automation.md.
 
-export const SEED_RULESET_VERSION = "2026-07-19.1";
+export const SEED_RULESET_VERSION = "2026-07-20.1";
 export const SEED_PIPELINE_VERSION = "1.0.0";
 export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 
@@ -460,6 +460,19 @@ export function evaluateSeedCandidate(
   };
 
   // Hard rules, most decisive first.
+  // A beauty/PMU identity in the NAME with no textual tattoo evidence is a
+  // rejection even when the provider category says tattoo: categories are
+  // machine-derived and routinely file PMU studios under tattoo (observed
+  // at scale in the 2026-07-20 Austria rollout).
+  const textualStrongPos = strongPos.filter((s) => s.field !== "category");
+  if (strongNegInName.length > 0 && textualStrongPos.length === 0) {
+    return decide(
+      "reject_beauty",
+      85,
+      "R-NAME-BEAUTY-OVER-CATEGORY",
+      `The business identity is beauty/PMU (${strongNegInName.map((s) => s.phrase).join(", ")} in the name); the only tattoo evidence is the provider category.`,
+    );
+  }
   if (strongPos.length > 0 && strongNeg.length > 0) {
     return decide(
       "review_mixed_business",

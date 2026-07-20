@@ -39,6 +39,7 @@ describe("per-country quality gate", () => {
           const result = evaluateSeedCandidate(
             {
               name: fixture.name,
+              category: fixture.category ?? null,
               extraText: fixture.extraText
                 ? [{ field: "bio", text: fixture.extraText }]
                 : undefined,
