@@ -149,6 +149,38 @@ async function main() {
     return;
   }
 
+  if (command === "retention") {
+    const apply = process.argv.includes("--apply");
+    const r = await post({ action: "retention", apply });
+    const fmt = (p) =>
+      p
+        ? `db ${(p.databaseBytes / 1048576).toFixed(0)} MB (discoveries ${(p.discoveriesBytes / 1048576).toFixed(0)} MB, candidates ${(p.candidatesBytes / 1048576).toFixed(0)} MB)`
+        : "n/a";
+    console.log(apply ? "APPLIED" : "DRY RUN (nothing removed)");
+    console.log("  before:", fmt(r.before));
+    if (r.before) {
+      console.log(
+        `  prunable: ${r.before.discoveriesPrunable} discoveries from ${r.before.terminalRuns} finished runs`,
+      );
+      console.log(
+        `  compactable: ${r.before.evidenceCompactable} candidate evidence blobs`,
+      );
+      console.log(
+        `  protected: ${r.before.discoveriesProtected} discoveries in ${r.before.openRuns} open runs, ${r.before.mapLocations} map entries, ${r.before.coverageTasks} coverage tasks`,
+      );
+    }
+    if (apply) {
+      console.log(
+        `  removed: ${r.discoveriesDeleted} discoveries, compacted ${r.evidenceCompacted} evidence blobs`,
+      );
+      console.log("  after:", fmt(r.after));
+      console.log(
+        "  note: Postgres reuses freed space for new rows; run VACUUM FULL on the two tables to hand it back to the plan quota.",
+      );
+    }
+    return;
+  }
+
   if (command === "tick") {
     const r = await post({ action: "tick" });
     console.log(JSON.stringify(r, null, 2));

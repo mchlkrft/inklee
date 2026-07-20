@@ -12,6 +12,7 @@ import {
   resumeCoverageRun,
   retryCoverageFailures,
 } from "@/lib/server/seed-coverage";
+import { runRetention } from "@/lib/server/seed-retention";
 import type { RawDiscovery } from "@inklee/shared/seed-coverage";
 import type { CoverageUnitInput } from "@inklee/shared/seed-coverage";
 
@@ -115,6 +116,16 @@ export async function POST(request: Request) {
       extractionLabel: body.label,
       rows: body.rows as RawDiscovery[],
       createdBy: null,
+    });
+    return NextResponse.json(result, { status: result.error ? 422 : 200 });
+  }
+
+  if (action === "retention") {
+    // Dry run unless the caller explicitly asks to apply: this is the only
+    // action in the lane that removes anything.
+    const result = await runRetention({
+      apply: body.apply === true,
+      actor: null,
     });
     return NextResponse.json(result, { status: result.error ? 422 : 200 });
   }

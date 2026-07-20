@@ -75,6 +75,7 @@ export default function DiscoveryMapClient({
   const pinsRef = useRef<PublicMapPin[]>([]);
   const [pins, setPins] = useState<PublicMapPin[]>([]);
   const [capped, setCapped] = useState(false);
+  const [totalInView, setTotalInView] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
   const [showJourney, setShowJourney] = useState(false);
   const [selected, setSelected] = useState<PublicMapPin | null>(null);
@@ -170,16 +171,29 @@ export default function DiscoveryMapClient({
         south: String(Math.max(-90, b.getSouth())),
         east: String(east),
         north: String(Math.min(90, b.getNorth())),
+        // The server samples one studio per grid cell and sizes the grid
+        // from the zoom, so the spread stays even instead of clipping to
+        // whatever the index returned first.
+        zoom: String(map.getZoom()),
       });
       fetch(`/api/map/locations?${params.toString()}`, {
         signal: abort.signal,
       })
         .then((r) => (r.ok ? r.json() : null))
-        .then((body: { pins: PublicMapPin[]; capped: boolean } | null) => {
-          if (!body) return;
-          setPins(body.pins);
-          setCapped(body.capped);
-        })
+        .then(
+          (
+            body: {
+              pins: PublicMapPin[];
+              capped: boolean;
+              total?: number;
+            } | null,
+          ) => {
+            if (!body) return;
+            setPins(body.pins);
+            setCapped(body.capped);
+            setTotalInView(body.total ?? body.pins.length);
+          },
+        )
         .catch(() => {
           // Aborted or offline: keep the last data on screen.
         });
@@ -680,9 +694,9 @@ export default function DiscoveryMapClient({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {visiblePins.length} {visiblePins.length === 1 ? "place" : "places"} in
-        view
-        {capped ? " (dense area, zoom in to see everything)" : ""}
+        {capped && filter === "all"
+          ? `${visiblePins.length} of ${totalInView} places in view, zoom in for the rest`
+          : `${visiblePins.length} ${visiblePins.length === 1 ? "place" : "places"} in view`}
         {filter === "watched" && visiblePins.length === 0
           ? " · watch studios from their pins to collect them here"
           : ""}
