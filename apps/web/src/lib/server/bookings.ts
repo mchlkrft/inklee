@@ -812,7 +812,23 @@ export async function requestDepositCore(
   // deposit (no PaymentIntent). When fee sponsorship is active, Inklee waives
   // the 3% (application_fee 0) and we stamp the foregone fee on the intent so the
   // webhook can track it against the sponsorship budget.
-  const overrides = await getAccountOverrides(userId);
+  // A failed entitlement read must not read as "free plan": that would send an
+  // entitled artist's client a manual deposit with no card payment, and the FSM
+  // blocks a second deposit_pending transition so there is no clean retry.
+  // Fail the request instead and let the artist try again.
+  let overrides;
+  try {
+    overrides = await getAccountOverrides(userId);
+  } catch (overridesErr) {
+    Sentry.captureException(overridesErr, {
+      tags: { action: "deposit_entitlement_lookup" },
+      extra: { bookingId: id, artistId: userId },
+    });
+    return {
+      error:
+        "Couldn't check this account's plan, so no deposit was requested. Please try again in a moment.",
+    };
+  }
   // Platform-wide capability pause (docs/architecture/remote-config-plan.md
   // §8): with "deposits" in DISABLED_CAPABILITIES, every request takes the
   // manual branch below — the same degradation path un-entitled artists

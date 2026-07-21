@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import {
   DEFAULT_OVERRIDES,
@@ -11,11 +12,19 @@ import {
 // can be imported by client components without pulling the service client (and
 // the service-role key) into the browser bundle.
 
-/** Load an artist's overrides (defaults when no row exists). Service-role read. */
+/** Load an artist's overrides (defaults when no row exists). Service-role read.
+ *
+ *  THROWS when the read itself fails. A failed query is NOT the same thing as
+ *  "this artist has no overrides row": swallowing it would resolve a comped
+ *  Plus artist to the free plan, and `requestDeposit` would then quietly issue
+ *  a MANUAL deposit to their client with no card payment and no trace of why.
+ *  Callers that only display state may let this reach their error boundary
+ *  (every one of those pages does other service-role reads that would fail on
+ *  the same blip); the money path catches it and asks the artist to retry. */
 export async function getAccountOverrides(
   artistId: string,
 ): Promise<AccountOverrides> {
-  const { data } = await serviceClient
+  const { data, error } = await serviceClient
     .from("account_overrides")
     .select(
       "plan_tier, plan_source, plan_expires_at, entitlement_overrides, fee_sponsored, fee_sponsor_expires_at, fee_sponsor_cap_cents, fee_sponsored_used_cents, admin_notes",
@@ -23,6 +32,16 @@ export async function getAccountOverrides(
     .eq("artist_id", artistId)
     .maybeSingle();
 
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "get_account_overrides" },
+      extra: { artistId },
+    });
+    throw new Error(`Failed to read account overrides: ${error.message}`);
+  }
+
+  // maybeSingle() returns data:null with error:null for a genuinely absent
+  // row, which is the real "no overrides yet, free plan" case.
   if (!data) return { ...DEFAULT_OVERRIDES };
 
   return {
