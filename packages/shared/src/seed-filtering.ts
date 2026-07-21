@@ -5,7 +5,7 @@
 // the decision but never replaces the rules. SoT:
 // docs/product/inklee-2-seed-automation.md.
 
-export const SEED_RULESET_VERSION = "2026-07-21.3";
+export const SEED_RULESET_VERSION = "2026-07-21.4";
 export const SEED_PIPELINE_VERSION = "1.0.0";
 export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 
@@ -192,10 +192,30 @@ const NEGATIVE_RAW: Array<[string, "strong" | "weak", string]> = [
   ["brow pigmentation", "strong", "brows"],
   ["brow embroidery", "strong", "brows"],
   ["eyebrow embroidery", "strong", "brows"],
-  ["eyebrows", "weak", "brows"],
-  ["brows", "weak", "brows"],
+  // Bare brow/lash words are a strong PMU signal, not weak: eyebrow/brow shops
+  // brand in English worldwide and were being ACCEPTED when the provider
+  // category said tattoo (observed at scale on the 2026-07-21 Thailand run,
+  // ~40 "X Eyebrows" shops). A real tattoo studio that also lists brows still
+  // goes to R-MIXED review via its tattoo positive, not a reject.
+  ["eyebrows", "strong", "brows"],
+  ["eyebrow", "strong", "brows"],
+  ["brows", "strong", "brows"],
+  ["brow", "strong", "brows"],
+  ["eyelash", "strong", "brows"],
+  ["eyelashes", "strong", "brows"],
+  ["lash extensions", "strong", "brows"],
+  ["lash lift", "strong", "brows"],
+  ["lash bar", "strong", "brows"],
   ["brow mapping", "weak", "brows"],
   ["brow correction", "weak", "brows"],
+  // Nail salons (often bundled with brow/PMU shops).
+  ["nail salon", "strong", "nails"],
+  ["nail studio", "strong", "nails"],
+  ["nail art", "strong", "nails"],
+  ["nail bar", "strong", "nails"],
+  ["nails", "strong", "nails"],
+  ["manicure", "strong", "nails"],
+  ["pedicure", "strong", "nails"],
   // Lips and eyeliner.
   ["lip blush", "strong", "lips"],
   ["lip blushing", "strong", "lips"],
