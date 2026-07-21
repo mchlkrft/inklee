@@ -19,8 +19,16 @@
  *
  * Auth: SUPABASE_ACCESS_TOKEN in env (Supabase management API).
  */
+const os = require("node:os");
+const fs = require("node:fs");
+const path = require("node:path");
+
 const PROJECT = "llmzzsmppaqwecbrowlp";
 const API = `https://api.supabase.com/v1/projects/${PROJECT}/database/query`;
+// Records every id already checked (alive or dead) so a re-run resumes
+// instead of re-checking the live majority, which never get flagged and so
+// never drop out of the candidate query on their own.
+const CHECKPOINT = path.join(os.tmpdir(), "inklee-ghost-checkpoint.txt");
 
 function arg(name, fallback = null) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -77,7 +85,7 @@ async function checkSite(url) {
   }
   for (let attempt = 0; attempt < 2; attempt++) {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 9000);
+    const t = setTimeout(() => ctrl.abort(), 6500);
     try {
       await fetch(parsed.href, {
         method: "GET",
@@ -138,42 +146,17 @@ async function main() {
      order by l.id
      limit ${Math.max(1, LIMIT)}`,
   );
-  console.log(`→ checking ${rows.length} websites…`);
-
-  let dead = 0;
-  let ok = 0;
-  let skipped = 0;
-  const flags = [];
-  await mapPool(
-    rows,
-    async (r) => {
-      const verdict = await checkSite(r.website_url);
-      if (verdict === "dead") {
-        dead++;
-        flags.push(r);
-        console.log(`  DEAD  ${r.name} — ${r.website_url}`);
-      } else if (verdict === "skip") skipped++;
-      else ok++;
-    },
-    CONCURRENCY,
+  const checkedIds = new Set(
+    fs.existsSync(CHECKPOINT)
+      ? fs.readFileSync(CHECKPOINT, "utf8").split("\n").filter(Boolean)
+      : [],
   );
-
+  const todo = rows.filter((r) => !checkedIds.has(r.id));
   console.log(
-    `\n${rows.length} checked: ${ok} live, ${dead} dead-domain, ${skipped} unparseable.`,
+    `→ ${rows.length} candidates, ${rows.length - todo.length} already checked; checking ${todo.length}…`,
   );
 
-  if (!APPLY) {
-    console.log(
-      `DRY RUN: ${dead} would be flagged 'closed' for admin review. Re-run with --apply to write them.`,
-    );
-    return;
-  }
-  if (flags.length === 0) {
-    console.log("Nothing to flag.");
-    return;
-  }
-  for (let i = 0; i < flags.length; i += 200) {
-    const chunk = flags.slice(i, i + 200);
+  async function writeFlags(chunk) {
     const values = chunk
       .map(
         (r) =>
@@ -186,7 +169,47 @@ async function main() {
       `insert into map_reports (reporter_user_id, target_type, target_map_location_id, reason, detail, status) values ${values}`,
     );
   }
-  console.log(`✓ flagged ${flags.length} listings 'closed' for admin review.`);
+
+  let dead = 0;
+  let ok = 0;
+  let skipped = 0;
+  let checked = 0;
+  // Flags are written in small batches AS they are found, not all at the end,
+  // so a killed run keeps its progress and a re-run (which skips already-
+  // flagged pins) resumes cleanly.
+  let pending = [];
+  await mapPool(
+    todo,
+    async (r) => {
+      const verdict = await checkSite(r.website_url);
+      if (verdict === "dead") {
+        dead++;
+        pending.push(r);
+        if (APPLY && pending.length >= 25) {
+          const batch = pending;
+          pending = [];
+          await writeFlags(batch);
+        }
+      } else if (verdict === "skip") skipped++;
+      else ok++;
+      // Mark checked so a resumed run skips it (alive sites never get a flag).
+      fs.appendFileSync(CHECKPOINT, `${r.id}\n`);
+      checked++;
+      if (checked % 500 === 0)
+        console.log(`  …${checked}/${todo.length} checked (${dead} dead so far)`);
+    },
+    CONCURRENCY,
+  );
+  if (APPLY && pending.length > 0) await writeFlags(pending);
+
+  console.log(
+    `\n${checked} checked this run: ${ok} live, ${dead} dead-domain, ${skipped} unparseable.`,
+  );
+  console.log(
+    APPLY
+      ? `✓ flagged ${dead} listings 'closed' for admin review.`
+      : `DRY RUN: ${dead} would be flagged 'closed'. Re-run with --apply to write them.`,
+  );
 }
 
 main().catch((e) => fail(e.message ?? String(e)));
