@@ -308,6 +308,121 @@ export async function updateConnectKyc(
   };
 }
 
+/** Stripe rejects identity documents outside these types, and caps uploads at
+ *  10 MB. Both are enforced before the bytes leave the server so the artist
+ *  gets a clear message instead of a raw Stripe error. */
+export const VERIFICATION_DOCUMENT_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+export const VERIFICATION_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Which requirement a document satisfies. `identity` is the ID photo Stripe
+ *  asks for as `individual.verification.document`; `additional` is the second
+ *  document (usually proof of address) it asks for as
+ *  `individual.verification.additional_document`. */
+export type VerificationDocumentKind = "identity" | "additional";
+
+export type VerificationDocumentFile = {
+  bytes: Uint8Array;
+  filename: string;
+  mimeType: string;
+};
+
+/**
+ * Upload an identity document to Stripe and attach it to the artist's Connect
+ * account (Slice 79 follow-up).
+ *
+ * WHY THIS EXISTS: Inklee runs Custom Connect with
+ * `requirement_collection: application`, so the artist never sees Stripe and
+ * can only satisfy a requirement through Inklee. Everything except a document
+ * was collectable in-app; when Stripe risk-flagged an account and asked for
+ * `individual.verification.document`, the payouts page could name the
+ * requirement but offered no way to supply it, leaving the artist hard-blocked
+ * on payouts with no route forward.
+ *
+ * PRIVACY (matches updateConnectKyc's H-1/H-2 handling): the image bytes go
+ * STRAIGHT to Stripe from memory. They are never written to a database, never
+ * put in Supabase storage, never logged, and never echoed back. Only the Stripe
+ * file id (an opaque handle) is passed onward, and only the derived account
+ * status is persisted. Errors surface Stripe's own message, never the payload.
+ */
+export async function uploadConnectVerificationDocument(args: {
+  userId: string;
+  accountId: string;
+  kind: VerificationDocumentKind;
+  front: VerificationDocumentFile;
+  back?: VerificationDocumentFile | null;
+}): Promise<
+  { status: ConnectStatus; requirementsDue: string[] } | { error: string }
+> {
+  if (!stripe) return { error: "Stripe is not configured on this deployment." };
+
+  // Files are uploaded in the CONNECTED account's context so the document is
+  // owned by the account it verifies, not by the platform.
+  const uploadOne = async (
+    file: VerificationDocumentFile,
+  ): Promise<{ id: string } | { error: string }> => {
+    try {
+      const uploaded = await stripe!.files.create(
+        {
+          purpose: "identity_document",
+          file: {
+            data: Buffer.from(file.bytes),
+            name: file.filename,
+            type: file.mimeType,
+          },
+        },
+        { stripeAccount: args.accountId },
+      );
+      return { id: uploaded.id };
+    } catch (e) {
+      return { error: stripeMessage(e, "Could not upload that document.") };
+    }
+  };
+
+  const frontResult = await uploadOne(args.front);
+  if ("error" in frontResult) return frontResult;
+
+  let backId: string | null = null;
+  if (args.back) {
+    const backResult = await uploadOne(args.back);
+    if ("error" in backResult) return backResult;
+    backId = backResult.id;
+  }
+
+  const document: Stripe.AccountUpdateParams.Individual.Verification.Document =
+    {
+      front: frontResult.id,
+      ...(backId ? { back: backId } : {}),
+    };
+
+  let account: Stripe.Account;
+  try {
+    account = await stripe.accounts.update(args.accountId, {
+      individual: {
+        verification:
+          args.kind === "identity"
+            ? { document }
+            : { additional_document: document },
+      },
+    });
+  } catch (e) {
+    return { error: stripeMessage(e, "Could not attach that document.") };
+  }
+
+  const persisted = await persistConnectAccount({
+    userId: args.userId,
+    account,
+  });
+  if ("error" in persisted) return { error: persisted.error };
+  return {
+    status: persisted.status,
+    requirementsDue: account.requirements?.currently_due ?? [],
+  };
+}
+
 /**
  * Read-only fetch of the account's outstanding `currently_due` requirements
  * (Slice 80 P0-3). Used by the payouts page to show a not-yet-active artist

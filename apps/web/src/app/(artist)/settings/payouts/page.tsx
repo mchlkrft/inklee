@@ -7,6 +7,7 @@ import {
 import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
 import PayoutsControls from "./payouts-controls";
 import ConnectKycForm from "./connect-kyc-form";
+import VerificationDocumentForm from "./verification-document-form";
 
 const STATUS_LABEL: Record<ConnectStatus, string> = {
   unset: "Not connected",
@@ -57,6 +58,16 @@ export default async function PayoutsSettingsPage() {
     accountId && (status === "pending" || status === "restricted")
       ? await getConnectRequirements(accountId)
       : [];
+
+  // Document requirements are the one thing the KYC form cannot satisfy, and
+  // Custom Connect gives the artist no Stripe-hosted route to satisfy them
+  // either. Surface an uploader for exactly the documents Stripe is asking for.
+  const needsIdentityDocument = requirementsDue.includes(
+    "individual.verification.document",
+  );
+  const needsAdditionalDocument = requirementsDue.includes(
+    "individual.verification.additional_document",
+  );
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -129,6 +140,42 @@ export default async function PayoutsSettingsPage() {
             email={user?.email ?? ""}
             requirementsDue={requirementsDue}
           />
+        </div>
+      )}
+
+      {(needsIdentityDocument || needsAdditionalDocument) && (
+        <div className="space-y-6 rounded-[20px] border border-brand-mustard/50 bg-brand-mustard/5 p-5">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              Stripe needs a document from you
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Stripe verifies some accounts by hand. Upload what it asks for
+              below and payouts continue once it clears.
+            </p>
+          </div>
+
+          {needsIdentityDocument && (
+            <VerificationDocumentForm
+              kind="identity"
+              heading="Photo ID"
+              hint="A passport, national ID card, or driving licence. The name and date of birth must match the details you entered above."
+            />
+          )}
+
+          {needsAdditionalDocument && (
+            <div
+              className={
+                needsIdentityDocument ? "border-t border-border pt-6" : ""
+              }
+            >
+              <VerificationDocumentForm
+                kind="additional"
+                heading="Additional document"
+                hint="Usually proof of address, for example a utility bill or bank statement from the last three months showing the address you entered above."
+              />
+            </div>
+          )}
         </div>
       )}
 
