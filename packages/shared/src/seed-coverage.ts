@@ -432,6 +432,37 @@ export const KR_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 800 },
 };
 
+// Italy: ~7,900 comuni, population spread across many mid-size cities plus the
+// big metros (Rome, Milan, Naples, Turin). DACH-style municipal tiers with
+// Italian query bundles.
+export const IT_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 200_000,
+    cityPopulation: 60_000,
+    townPopulation: 20_000,
+    clusterRadiusKm: 12,
+    clusterMaxMembers: 12,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "studio di tatuaggi {location}",
+      "tatuatore {location}",
+      "tattoo studio {location}",
+      "tatuaggi {location}",
+    ],
+    city_standard: [
+      "studio di tatuaggi {location}",
+      "tattoo studio {location}",
+    ],
+    town_light: ["studio di tatuaggi {location}"],
+    rural_cluster: ["studio di tatuaggi {location}"],
+    gap_recheck: ["studio di tatuaggi {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 2500 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -443,6 +474,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   JP: JP_COVERAGE_POLICY,
   NL: NL_COVERAGE_POLICY,
   KR: KR_COVERAGE_POLICY,
+  IT: IT_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

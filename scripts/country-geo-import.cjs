@@ -701,6 +701,79 @@ async function adapterKR() {
   };
 }
 
+// Italy: ~7,900 comuni. ISTAT code (6 digits) is the stable identity; region
+// (reg) is the state level and province (prov) the district. Population from
+// Wikidata by ISTAT municipality code (P635).
+async function adapterIT() {
+  const url = `${ODS}/georef-italy-comune/exports/json?select=year,reg_code,reg_name,prov_code,prov_name,com_code,com_name,geo_point_2d`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 6000)
+    fail(`Implausible IT export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  console.log("→ Wikidata population + area by ISTAT code (P635)…");
+  const wd = new Map();
+  for (const b of await sparql(
+    `SELECT ?code ?pop ?area WHERE { ?x wdt:P635 ?code . OPTIONAL { ?x wdt:P1082 ?pop } OPTIONAL { ?x wdt:P2046 ?area } }`,
+  )) {
+    const code = String(b.code?.value ?? "").replace(/\D/g, "").padStart(6, "0");
+    if (!/^\d{6}$/.test(code)) continue;
+    const cur = wd.get(code) ?? {};
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    const area =
+      b.area && Number.isFinite(Number(b.area.value))
+        ? Number(b.area.value)
+        : null;
+    if (pop && (!cur.population || pop > cur.population)) cur.population = pop;
+    if (area && !cur.areaKm2) cur.areaKm2 = area;
+    wd.set(code, cur);
+  }
+
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const code = String(first(m.com_code) ?? "")
+      .replace(/\D/g, "")
+      .padStart(6, "0");
+    const name = String(first(m.com_name) ?? "").trim();
+    if (!/^\d{6}$/.test(code) || !name || seen.has(code)) continue;
+    seen.add(code);
+    units.push({
+      externalId: code,
+      name,
+      aliases: [],
+      stateCode: String(first(m.reg_code) ?? ""),
+      stateName: String(first(m.reg_name) ?? ""),
+      districtCode: first(m.prov_code) ? String(first(m.prov_code)) : null,
+      districtName: first(m.prov_name) ? String(first(m.prov_name)) : null,
+      population: wd.get(code)?.population ?? null,
+      areaKm2: wd.get(code)?.areaKm2 ?? null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef+wikidata",
+    sourceVersion: `georef-${latestYear}+wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution:
+      "Italian comuni: ISTAT via OpenDataSoft. Population: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -712,6 +785,7 @@ const ADAPTERS = {
   JP: adapterJP,
   NL: adapterNL,
   KR: adapterKR,
+  IT: adapterIT,
 };
 
 function readSecret() {

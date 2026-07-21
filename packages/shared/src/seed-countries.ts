@@ -801,6 +801,79 @@ const KR: SeedCountryConfig = {
   ],
 };
 
+const IT: SeedCountryConfig = {
+  code: "IT",
+  name: "Italy",
+  languages: ["it", "en"],
+  extraPositive: compileSeedVocabulary(
+    [
+      ["tatuaggio", "strong"],
+      ["tatuaggi", "strong"],
+      ["studio di tatuaggi", "strong"],
+      ["tatuatore", "strong"],
+      ["tatuatrice", "strong"],
+    ],
+    "italian_tattoo",
+  ),
+  // Bare identity words from the start (Spain lesson): estetica/bellezza,
+  // unghie nails, parrucchiere hairdresser, ciglia/sopracciglia lashes/brows.
+  // trucco permanente = permanent makeup, micropigmentazione the PMU term.
+  extraNegative: compileSeedVocabulary(
+    [
+      ["salone di bellezza", "strong"],
+      ["centro estetico", "strong"],
+      ["estetista", "strong"],
+      ["estetica", "strong"],
+      ["bellezza", "strong"],
+      ["micropigmentazione", "strong"],
+      ["dermopigmentazione", "strong"],
+      ["trucco permanente", "strong"],
+      ["trucco semipermanente", "strong"],
+      ["microblading", "strong"],
+      ["unghie", "strong"],
+      ["manicure", "strong"],
+      ["pedicure", "strong"],
+      ["parrucchiere", "strong"],
+      ["parrucchiera", "strong"],
+      ["ciglia", "strong"],
+      ["sopracciglia", "strong"],
+      ["ceretta", "strong"],
+      ["epilazione", "weak"],
+      ["solarium", "weak"],
+      ["abbronzatura", "weak"],
+    ],
+    "italian_beauty",
+  ),
+  postalCodePattern: /^\d{5}$/,
+  qualityFixtures: [
+    { name: "Studio di Tatuaggi Milano", expect: "accept" },
+    { name: "Inchiostro Nero Tatuaggi Roma", expect: "accept" },
+    { name: "Black Rose Tattoo Napoli", expect: "accept" },
+    {
+      name: "Ago e Colore",
+      extraText: "Tatuatore specializzato in blackwork a Torino.",
+      expect: "accept",
+    },
+    { name: "Salone di Bellezza Sofia", expect: "reject_beauty" },
+    {
+      name: "Centro Estetico Bella Pelle",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    {
+      name: "Micropigmentazione Milano",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Ricostruzione Unghie Glam", expect: "reject_beauty" },
+    { name: "Parrucchiere & Estetica Anna", expect: "reject_beauty" },
+    {
+      name: "Tatuaggi & Trucco Permanente Torino",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -813,6 +886,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   JP,
   NL,
   KR,
+  IT,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
