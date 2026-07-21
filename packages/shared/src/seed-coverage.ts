@@ -351,6 +351,37 @@ export const FR_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 4000 },
 };
 
+// Japan: ~1,700 municipalities (city/town/village + Tokyo's 23 special wards),
+// population very concentrated in the metros. Japanese query bundles; the
+// tattoo scene is dense and urban, so structured sources carry most of it.
+export const JP_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 300_000,
+    cityPopulation: 100_000,
+    townPopulation: 30_000,
+    clusterRadiusKm: 12,
+    clusterMaxMembers: 12,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "タトゥースタジオ {location}",
+      "刺青 {location}",
+      "tattoo studio {location}",
+      "タトゥー {location}",
+    ],
+    city_standard: [
+      "タトゥースタジオ {location}",
+      "tattoo studio {location}",
+    ],
+    town_light: ["タトゥースタジオ {location}"],
+    rural_cluster: ["タトゥースタジオ {location}"],
+    gap_recheck: ["タトゥースタジオ {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 1200 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -359,6 +390,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   US: US_COVERAGE_POLICY,
   ES: ES_COVERAGE_POLICY,
   FR: FR_COVERAGE_POLICY,
+  JP: JP_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

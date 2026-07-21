@@ -587,6 +587,77 @@ const FR: SeedCountryConfig = {
   ],
 };
 
+const JP: SeedCountryConfig = {
+  code: "JP",
+  name: "Japan",
+  languages: ["ja", "en"],
+  // Japanese has no word spacing, so these match as substrings (the filter's
+  // NO_WORD_BOUNDARY path). タトゥー is the katakana loanword; 刺青/入れ墨 the
+  // traditional terms; 彫師 the artist; 和彫り the traditional Japanese style.
+  extraPositive: compileSeedVocabulary(
+    [
+      ["タトゥー", "strong"],
+      ["タトゥースタジオ", "strong"],
+      ["タトゥーアーティスト", "strong"],
+      ["刺青", "strong"],
+      ["入れ墨", "strong"],
+      ["入墨", "strong"],
+      ["彫師", "strong"],
+      ["和彫り", "strong"],
+    ],
+    "japanese_tattoo",
+  ),
+  // アートメイク (art make) is the Japanese term for permanent makeup / cosmetic
+  // tattooing and is the single most important exclusion; 美容 is beauty,
+  // ネイル nails, まつげ eyelashes, エステ esthetic salon, 理容 barber. 眉毛/アイブロウ
+  // catch eyebrow-PMU businesses that brand themselves with タトゥー.
+  extraNegative: compileSeedVocabulary(
+    [
+      ["アートメイク", "strong"],
+      ["美容", "strong"],
+      ["美容室", "strong"],
+      ["美容院", "strong"],
+      ["美容整形", "strong"],
+      ["ネイル", "strong"],
+      ["ネイルサロン", "strong"],
+      ["エステ", "strong"],
+      ["エステティック", "strong"],
+      ["まつげエクステ", "strong"],
+      ["まつエク", "strong"],
+      ["まつげ", "strong"],
+      ["脱毛", "strong"],
+      ["理容", "strong"],
+      ["眉毛", "strong"],
+      ["アイブロウ", "strong"],
+      ["日焼け", "weak"],
+    ],
+    "japanese_beauty",
+  ),
+  postalCodePattern: /^\d{3}-?\d{4}$/,
+  qualityFixtures: [
+    { name: "東京タトゥースタジオ", expect: "accept" },
+    { name: "刺青 彫政", expect: "accept" },
+    { name: "Yokohama Ink Tattoo", expect: "accept" },
+    {
+      name: "和彫り 龍",
+      extraText: "彫師による本格的な和彫り。",
+      expect: "accept",
+    },
+    { name: "美容室 ハナ", expect: "reject_beauty" },
+    {
+      name: "アートメイク銀座",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "ネイルサロン キラキラ", expect: "reject_beauty" },
+    { name: "まつげエクステ専門店 ルミエール", expect: "reject_beauty" },
+    {
+      name: "眉毛アートメイク＆タトゥー 表参道",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -596,6 +667,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   ES,
   TH,
   FR,
+  JP,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
