@@ -438,6 +438,45 @@ export async function setFeeSponsorshipAction(
   return {};
 }
 
+/** Zero the sponsorship spend counter, starting a fresh budget period against
+ *  the same cap. Without this there was no way back once a cap was reached:
+ *  the counter only ever grows (the webhook increments it at settlement), so a
+ *  spent budget permanently disabled sponsorship for that artist unless someone
+ *  edited the row by hand. The previous total goes into the audit log. */
+export async function resetFeeSponsorshipUsageAction(
+  targetUserId: string,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "unauthorized" };
+
+  const { data: row } = await serviceClient
+    .from("account_overrides")
+    .select("fee_sponsored_used_cents")
+    .eq("artist_id", targetUserId)
+    .maybeSingle();
+  const previous = (row?.fee_sponsored_used_cents as number | null) ?? 0;
+
+  const { error } = await serviceClient.from("account_overrides").upsert(
+    {
+      artist_id: targetUserId,
+      fee_sponsored_used_cents: 0,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "artist_id" },
+  );
+  if (error) return { error: error.message };
+
+  await logAdminAction(
+    adminId,
+    targetUserId,
+    "reset_fee_sponsorship_usage",
+    undefined,
+    { previous_used_cents: previous },
+  );
+  revalidateAccountViews(targetUserId);
+  return {};
+}
+
 export async function saveAdminNotesAction(
   targetUserId: string,
   notes: string,

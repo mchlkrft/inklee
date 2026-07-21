@@ -5,7 +5,9 @@ import SelectInput from "@/components/select-input";
 import {
   ENTITLEMENT_FEATURES,
   canAccess,
+  daysUntilPlanExpiry,
   effectivePlanTier,
+  sponsorshipOverspentCents,
   sponsorshipRemainingCents,
   type AccountOverrides,
   type EntitlementFeature,
@@ -14,6 +16,7 @@ import {
   setPlanOverrideAction,
   setEntitlementOverrideAction,
   setFeeSponsorshipAction,
+  resetFeeSponsorshipUsageAction,
   saveAdminNotesAction,
 } from "./actions";
 
@@ -107,6 +110,10 @@ export default function AccountEntitlements({
 
   const effective = effectivePlanTier(overrides);
   const remaining = sponsorshipRemainingCents(overrides);
+  const overspent = sponsorshipOverspentCents(overrides);
+  // Nothing sweeps plan_expires_at, so a lapsed comp just silently stops
+  // granting features. Say so on the screen where it was granted.
+  const expiryDays = daysUntilPlanExpiry(overrides);
 
   return (
     <section className="rounded-md border border-border p-5 space-y-5">
@@ -132,6 +139,24 @@ export default function AccountEntitlements({
           className={`text-xs ${msg.startsWith("Error") ? "text-destructive" : "text-brand-green"}`}
         >
           {msg}
+        </p>
+      )}
+
+      {expiryDays !== null && (
+        <p
+          className={`text-[11px] leading-snug ${
+            expiryDays < 0
+              ? "text-destructive"
+              : expiryDays <= 14
+                ? "text-brand-mustard"
+                : "text-muted-foreground"
+          }`}
+        >
+          {expiryDays < 0
+            ? `This comp expired ${Math.abs(expiryDays)} day${Math.abs(expiryDays) === 1 ? "" : "s"} ago, so the account is back on Free and card deposits have stopped.`
+            : expiryDays === 0
+              ? "This comp expires today. Card deposits stop when it lapses."
+              : `This comp expires in ${expiryDays} day${expiryDays === 1 ? "" : "s"}. Nothing renews it automatically.`}
         </p>
       )}
 
@@ -270,6 +295,32 @@ export default function AccountEntitlements({
             : " (no cap)"}
           .
         </p>
+        {overspent > 0 && (
+          // Each waiver is checked against the full fee, but the counter only
+          // moves at settlement, so deposits outstanding at the same time can
+          // still land past the cap. Report it instead of clamping the number.
+          <p className="text-[11px] leading-snug text-brand-mustard">
+            This budget settled {eur(overspent)} over its cap. Deposits that
+            were already awaiting payment when the cap was reached still settled
+            sponsored. New deposits are charged the standard fee until the cap
+            is raised or the usage is reset.
+          </p>
+        )}
+        {overrides.feeSponsoredUsedCents > 0 && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => resetFeeSponsorshipUsageAction(accountId),
+                "Sponsorship usage reset.",
+              )
+            }
+            className="rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            Reset usage to zero
+          </button>
+        )}
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input
             type="checkbox"

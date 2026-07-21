@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useState } from "react";
 import SelectInput from "@/components/select-input";
 import { relativeTime } from "@/lib/format";
+import {
+  DEFAULT_OVERRIDES,
+  daysUntilPlanExpiry,
+  effectivePlanTier,
+  type AccountOverrides,
+} from "@/lib/entitlements";
 import type {
   getKpis,
   getOnboardingFunnel,
@@ -475,6 +481,55 @@ function statusBadge(status: string) {
   );
 }
 
+// Plan state at a glance. An expired comp still has plan_tier "plus" in the
+// database (nothing sweeps plan_expires_at), so effectivePlanTier decides what
+// is actually in force and the roster reports it the same way the account page
+// does. Comps expiring within a fortnight are tinted so they get renewed
+// before the artist's card deposits stop.
+function planBadge(a: {
+  planTier: string;
+  planSource: string | null;
+  planExpiresAt: string | null;
+}) {
+  const overrides: AccountOverrides = {
+    ...DEFAULT_OVERRIDES,
+    planTier: a.planTier === "plus" ? "plus" : "free",
+    planSource: (a.planSource as "comp" | "paid" | null) ?? null,
+    planExpiresAt: a.planExpiresAt,
+  };
+  const effective = effectivePlanTier(overrides);
+  const days = daysUntilPlanExpiry(overrides);
+
+  if (effective === "free") {
+    const lapsed = a.planTier === "plus" && days !== null && days < 0;
+    return (
+      <span
+        className={`rounded-full px-1.5 py-0.5 text-xs ${
+          lapsed
+            ? "bg-destructive/10 text-destructive"
+            : "bg-muted text-muted-foreground"
+        }`}
+      >
+        {lapsed ? "Comp expired" : "Free"}
+      </span>
+    );
+  }
+
+  const expiringSoon = days !== null && days <= 14;
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-xs ${
+        expiringSoon
+          ? "bg-brand-mustard/20 text-brand-mustard"
+          : "bg-brand-mustard/10 text-brand-charcoal dark:text-brand-mustard"
+      }`}
+    >
+      Plus{a.planSource ? ` · ${a.planSource}` : ""}
+      {days !== null ? `, ${days}d left` : ""}
+    </span>
+  );
+}
+
 function ArtistRoster({
   artists,
 }: {
@@ -531,6 +586,7 @@ function ArtistRoster({
                 "Artist",
                 "Slug",
                 "Status",
+                "Plan",
                 "Onboarded",
                 "Bookings",
                 "Confirmed",
@@ -551,7 +607,7 @@ function ArtistRoster({
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   className="px-4 py-8 text-center text-xs text-muted-foreground"
                 >
                   No accounts match the current filter.
@@ -579,6 +635,7 @@ function ArtistRoster({
                   {a.slug}
                 </td>
                 <td className="px-4 py-2">{statusBadge(a.accountStatus)}</td>
+                <td className="px-4 py-2">{planBadge(a)}</td>
                 <td className="px-4 py-2">
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded-full ${
