@@ -5,7 +5,7 @@
 // the decision but never replaces the rules. SoT:
 // docs/product/inklee-2-seed-automation.md.
 
-export const SEED_RULESET_VERSION = "2026-07-21.2";
+export const SEED_RULESET_VERSION = "2026-07-21.3";
 export const SEED_PIPELINE_VERSION = "1.0.0";
 export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 

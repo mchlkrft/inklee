@@ -823,18 +823,28 @@ const IT: SeedCountryConfig = {
       ["salone di bellezza", "strong"],
       ["centro estetico", "strong"],
       ["estetista", "strong"],
+      // Masculine and plural forms the IT dry run (2026-07-21) surfaced:
+      // "Studio Estetico" and plural "parrucchieri"/"estetiste" were sailing
+      // through because only the feminine/singular forms were listed.
       ["estetica", "strong"],
+      ["estetico", "strong"],
+      ["estetiste", "strong"],
       ["bellezza", "strong"],
       ["micropigmentazione", "strong"],
       ["dermopigmentazione", "strong"],
       ["trucco permanente", "strong"],
       ["trucco semipermanente", "strong"],
+      ["truccopermanente", "strong"],
+      ["trucco", "strong"],
       ["microblading", "strong"],
       ["unghie", "strong"],
       ["manicure", "strong"],
       ["pedicure", "strong"],
       ["parrucchiere", "strong"],
       ["parrucchiera", "strong"],
+      ["parrucchieri", "strong"],
+      ["acconciatore", "strong"],
+      ["acconciatori", "strong"],
       ["ciglia", "strong"],
       ["sopracciglia", "strong"],
       ["ceretta", "strong"],
@@ -867,10 +877,28 @@ const IT: SeedCountryConfig = {
     },
     { name: "Ricostruzione Unghie Glam", expect: "reject_beauty" },
     { name: "Parrucchiere & Estetica Anna", expect: "reject_beauty" },
+    // Real dry-run false-accepts: masculine "estetico", plural "parrucchieri",
+    // bare "trucco" (makeup) under a tattoo category.
+    {
+      name: "Studio Estetico Monnalisa",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    {
+      name: "Art mood parrucchieri",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    {
+      name: "Il trucco di Roby",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
     {
       name: "Tatuaggi & Trucco Permanente Torino",
       expect: "not_accept",
     },
+    { name: "Trucco e Tattoo", expect: "not_accept" },
   ],
 };
 
