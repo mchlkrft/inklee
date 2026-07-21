@@ -16,6 +16,7 @@ import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { isAllowedBookingOrigin } from "@/lib/host";
+import { apexHref } from "@/lib/public-url";
 import { parseFormSettings } from "@/lib/form-settings";
 import { processImage } from "@/lib/image-processing";
 import {
@@ -697,8 +698,14 @@ export async function submitBookingAction(
     });
   }
 
+  // apexHref: /request/* lives on the app origin only. A relative redirect
+  // here on <slug>.inkl.ee gets slug-prefixed by the proxy and 404s after
+  // the booking is already committed (push + emails sent) — the customer
+  // must never end a successful submit on an error screen.
   redirect(
-    `/request/submitted?id=${bookingId}&slug=${artistSlug}&email=${data.email ? "1" : "0"}`,
+    await apexHref(
+      `/request/submitted?id=${bookingId}&slug=${artistSlug}&email=${data.email ? "1" : "0"}`,
+    ),
   );
 }
 

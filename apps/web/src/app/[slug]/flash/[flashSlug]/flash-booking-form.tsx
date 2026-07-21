@@ -19,12 +19,19 @@ export default function FlashBookingForm({
   flashItemId,
   flashDayId,
   placementHint,
+  termsHref,
+  privacyHref,
 }: {
   artistSlug: string;
   artistFirstName: string;
   flashItemId: string;
   flashDayId: string | null;
   placementHint: string | null;
+  /** Host-aware apex-namespace hrefs, resolved by the server parent via
+   *  apexHref — this is a client component and cannot read headers()
+   *  itself. Relative legal links would 404 on artist subdomains. */
+  termsHref: string;
+  privacyHref: string;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitFlashBookingAction,
@@ -215,11 +222,11 @@ export default function FlashBookingForm({
 
       <p className="text-center text-xs text-muted-foreground">
         By submitting, you agree to our{" "}
-        <Link href="/terms" className="underline underline-offset-4">
+        <Link href={termsHref} className="underline underline-offset-4">
           Terms
         </Link>{" "}
         and{" "}
-        <Link href="/privacy" className="underline underline-offset-4">
+        <Link href={privacyHref} className="underline underline-offset-4">
           Privacy Policy
         </Link>
         .

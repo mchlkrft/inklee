@@ -96,6 +96,9 @@ export default function BookingForm({
   trips = [],
   isDemoAccount = false,
   studioId = null,
+  termsHref,
+  privacyHref,
+  acceptableUseHref,
 }: {
   artistSlug: string;
   artistFirstName: string;
@@ -107,6 +110,12 @@ export default function BookingForm({
   trips?: TripOption[];
   isDemoAccount?: boolean;
   studioId?: string | null;
+  /** Host-aware apex-namespace hrefs, resolved by the server parent via
+   *  apexHref — this is a client component and cannot read headers()
+   *  itself. Relative legal links would 404 on artist subdomains. */
+  termsHref: string;
+  privacyHref: string;
+  acceptableUseHref: string;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitBookingAction,
@@ -811,21 +820,21 @@ export default function BookingForm({
         <p className="text-center text-xs text-muted-foreground">
           By submitting, you agree to our{" "}
           <Link
-            href="/terms"
+            href={termsHref}
             className="hover:underline hover:underline-offset-4"
           >
             Terms
           </Link>
           ,{" "}
           <Link
-            href="/privacy"
+            href={privacyHref}
             className="hover:underline hover:underline-offset-4"
           >
             Privacy Policy
           </Link>
           , and{" "}
           <Link
-            href="/acceptable-use"
+            href={acceptableUseHref}
             className="hover:underline hover:underline-offset-4"
           >
             Acceptable Use Policy
@@ -842,7 +851,9 @@ export default function BookingForm({
           </button>
         </p>
 
-        {legalExpanded && <PublicBookingLegalNotice />}
+        {legalExpanded && (
+          <PublicBookingLegalNotice privacyHref={privacyHref} />
+        )}
       </form>
 
       {/* Annotation modal — rendered outside the form to avoid nested form issues */}

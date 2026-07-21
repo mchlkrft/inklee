@@ -97,6 +97,27 @@ export async function artistHref(slug: string, subpath = ""): Promise<string> {
   return `/${slug}${subpath}`;
 }
 
+/** Host-aware href for a navigation OUT of a public artist page into an
+ *  apex-only namespace (currently /request/*, the customer request portal).
+ *  Those routes exist only on the app origin: on `<slug>.inkl.ee` a relative
+ *  `/request/...` is rewritten by the proxy to `/<slug>/request/...`, which
+ *  has no route and 404s — the post-submit black-screen bug. On the apex
+ *  (and in path-mode dev) the bare subpath is correct as-is, so only
+ *  subdomain-served requests get the absolute form. `decideHostRouting`
+ *  carries a matching safety net that bounces any stray subdomain
+ *  /request/* hit to the canonical host.
+ *
+ *  Server-only (reads `headers()`), same contract as artistHref. `subpath`
+ *  must start with "/". In dev the absolute form points at
+ *  NEXT_PUBLIC_APP_URL, so `name.localhost` flows land on the configured
+ *  dev origin. */
+export async function apexHref(subpath: string): Promise<string> {
+  const { headers } = await import("next/headers");
+  const isSubdomain = (await headers()).get("x-host-routing") === "subdomain";
+  if (!isSubdomain) return subpath;
+  return `${getAppOrigin()}${subpath}`;
+}
+
 /** The artist's Link Hub URL ("Linklee"). Subdomain mode emits
  *  `https://<slug>.l.<bio domain>` (e.g. ouch370.l.inkl.ee) — reusing the same
  *  NEXT_PUBLIC_PUBLIC_BIO_DOMAIN as the booking subdomain, so it needs only the

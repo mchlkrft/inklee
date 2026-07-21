@@ -6,7 +6,7 @@ import { CalendarCheck, ExternalLink } from "lucide-react";
 import { serviceClient } from "@/lib/supabase/service";
 import { parseBioPageSettings, BIO_SOCIAL_META } from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
-import { publicArtistUrl, publicHubUrl } from "@/lib/public-url";
+import { apexHref, publicArtistUrl, publicHubUrl } from "@/lib/public-url";
 import { clampDescription } from "@/lib/seo";
 import { SocialIcon } from "./social-icon";
 
@@ -80,6 +80,14 @@ export default async function ArtistHubPage({
     : coverColor
       ? { backgroundColor: coverColor }
       : {};
+
+  // Footer links leave the artist namespace for apex-only routes, so they
+  // must be host-aware. The hub renders on THREE hosts (apex path,
+  // <slug>.inkl.ee/hub, <slug>.l.inkl.ee) — a relative /terms would be
+  // rewritten under /<slug>/ or /<slug>/hub/ on the subdomains and 404.
+  const termsHref = await apexHref("/terms");
+  const privacyHref = await apexHref("/privacy");
+  const homeHref = await apexHref("/");
 
   return (
     <div
@@ -196,17 +204,23 @@ export default async function ArtistHubPage({
       </main>
 
       <footer className="relative z-10 flex flex-wrap justify-center gap-x-4 gap-y-2 px-6 py-6 text-xs text-brand-bone/45">
-        <Link href="/terms" className="transition-colors hover:text-brand-bone">
+        <Link
+          href={termsHref}
+          className="transition-colors hover:text-brand-bone"
+        >
           Terms
         </Link>
         <Link
-          href="/privacy"
+          href={privacyHref}
           className="transition-colors hover:text-brand-bone"
         >
           Privacy
         </Link>
         <span aria-hidden>·</span>
-        <Link href="/" className="transition-colors hover:text-brand-bone">
+        <Link
+          href={homeHref}
+          className="transition-colors hover:text-brand-bone"
+        >
           Powered by inklee
         </Link>
       </footer>

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
-import { artistHref } from "@/lib/public-url";
+import { apexHref, artistHref } from "@/lib/public-url";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
@@ -33,9 +33,13 @@ export default async function PublicFlashOverviewPage({
   if (!profile) notFound();
 
   // Host-aware links: bare subpaths on the artist subdomain, slug-prefixed on
-  // the apex (see artistHref).
+  // the apex (see artistHref). Footer links leave the artist namespace, so
+  // they go through apexHref instead (absolute app-origin URLs on subdomains).
   const bookingHref = await artistHref(slug, "");
   const flashHref = await artistHref(slug, "/flash");
+  const termsHref = await apexHref("/terms");
+  const privacyHref = await apexHref("/privacy");
+  const homeHref = await apexHref("/");
 
   const { data: items } = await serviceClient
     .from("flash_items")
@@ -153,17 +157,23 @@ export default async function PublicFlashOverviewPage({
       </main>
 
       <footer className="flex justify-center gap-6 px-6 py-6 text-xs text-muted-foreground">
-        <Link href="/terms" className="hover:text-foreground transition-colors">
+        <Link
+          href={termsHref}
+          className="hover:text-foreground transition-colors"
+        >
           Terms
         </Link>
         <Link
-          href="/privacy"
+          href={privacyHref}
           className="hover:text-foreground transition-colors"
         >
           Privacy
         </Link>
         <span>·</span>
-        <Link href="/" className="hover:text-foreground transition-colors">
+        <Link
+          href={homeHref}
+          className="hover:text-foreground transition-colors"
+        >
           Powered by inklee
         </Link>
       </footer>

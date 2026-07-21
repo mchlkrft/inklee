@@ -8,7 +8,7 @@ import {
   FLASH_ACTIVE_REQUEST_STATUSES,
 } from "@/lib/flash";
 import { formatDateKey } from "@/lib/date-utils";
-import { artistHref } from "@/lib/public-url";
+import { apexHref, artistHref } from "@/lib/public-url";
 import FlashDayGrid, { type FlashDayGridItem } from "./flash-day-grid";
 
 // Public flash-day pages are hidden from search, matching the 2026-06-16
@@ -45,6 +45,12 @@ export default async function PublicFlashDayPage({
   // Private, cancelled, or non-existent days are indistinguishable to clients;
   // a cancelled day must stop soliciting bookings.
   if (!day || !day.is_public || day.status === "cancelled") notFound();
+
+  // Footer + consent links leave the artist namespace for apex-only routes,
+  // so they go through apexHref (absolute app-origin URLs on subdomains).
+  const termsHref = await apexHref("/terms");
+  const privacyHref = await apexHref("/privacy");
+  const homeHref = await apexHref("/");
 
   const studio = (
     Array.isArray(day.studios) ? day.studios[0] : day.studios
@@ -178,22 +184,30 @@ export default async function PublicFlashDayPage({
             artistSlug={slug}
             artistFirstName={profile.display_name.split(" ")[0]}
             dayId={dayId}
+            termsHref={termsHref}
+            privacyHref={privacyHref}
           />
         )}
       </main>
 
       <footer className="flex justify-center gap-6 px-6 py-6 text-xs text-muted-foreground">
-        <Link href="/terms" className="hover:text-foreground transition-colors">
+        <Link
+          href={termsHref}
+          className="hover:text-foreground transition-colors"
+        >
           Terms
         </Link>
         <Link
-          href="/privacy"
+          href={privacyHref}
           className="hover:text-foreground transition-colors"
         >
           Privacy
         </Link>
         <span>·</span>
-        <Link href="/" className="hover:text-foreground transition-colors">
+        <Link
+          href={homeHref}
+          className="hover:text-foreground transition-colors"
+        >
           Powered by inklee
         </Link>
       </footer>
