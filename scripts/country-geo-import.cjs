@@ -774,6 +774,58 @@ async function adapterIT() {
   };
 }
 
+// Thailand: no ODS dataset, Wikidata-only. The district (อำเภอ / amphoe,
+// Q475061) is the coverage unit - the municipal-equivalent level, ~928 of
+// them (878 carry coordinates). Province (P131) drives clustering; QID is the
+// stable identity; Thai labels feed the Thai query bundles.
+async function adapterTH() {
+  console.log("→ Wikidata Thai districts (อำเภอ / amphoe)…");
+  const rows = await sparql(`SELECT ?m ?mLabel ?coord ?pop ?area ?prov ?provLabel WHERE {
+    ?m wdt:P31 wd:Q475061 .
+    ?m wdt:P625 ?coord .
+    FILTER NOT EXISTS { ?m wdt:P576 ?dissolved }
+    OPTIONAL { ?m wdt:P1082 ?pop }
+    OPTIONAL { ?m wdt:P2046 ?area }
+    OPTIONAL { ?m wdt:P131 ?prov }
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "th,en". }
+  }`);
+  const byQid = new Map();
+  for (const b of rows) {
+    const qid = String(b.m?.value ?? "").split("/").pop();
+    const name = String(b.mLabel?.value ?? "").trim();
+    if (!/^Q\d+$/.test(qid) || !name || name === qid) continue;
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    const provQid = b.prov?.value ? String(b.prov.value).split("/").pop() : null;
+    const cur = byQid.get(qid);
+    const next = {
+      externalId: qid,
+      name,
+      aliases: [],
+      stateCode: provQid ?? "TH",
+      stateName: b.provLabel?.value ?? "",
+      districtCode: provQid,
+      districtName: b.provLabel?.value ?? null,
+      population: pop,
+      areaKm2: b.area ? Number(b.area.value) : null,
+      centroid: parsePoint(b.coord?.value),
+      settlementClass: null,
+    };
+    if (!cur || (pop && (!cur.population || pop > cur.population)))
+      byQid.set(qid, { ...cur, ...next });
+  }
+  const units = [...byQid.values()];
+  if (units.length < 600) fail(`Implausible TH dataset (${units.length}).`);
+  return {
+    source: "wikidata-th-amphoe",
+    sourceVersion: `wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution: "Thai districts: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -786,6 +838,7 @@ const ADAPTERS = {
   NL: adapterNL,
   KR: adapterKR,
   IT: adapterIT,
+  TH: adapterTH,
 };
 
 function readSecret() {

@@ -463,6 +463,35 @@ export const IT_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 2500 },
 };
 
+// Thailand: ~880 districts (อำเภอ / amphoe) as coverage units, coarser than a
+// municipality so thresholds sit higher and clusters group remote ones. The
+// tattoo scene concentrates in Bangkok and the tourist hubs (Chiang Mai,
+// Phuket, Pattaya). Thai query bundles built on ร้านสักลาย (tattoo shop).
+export const TH_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 150_000,
+    cityPopulation: 60_000,
+    townPopulation: 25_000,
+    clusterRadiusKm: 25,
+    clusterMaxMembers: 10,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "ร้านสักลาย {location}",
+      "สักลาย {location}",
+      "tattoo studio {location}",
+      "tattoo {location}",
+    ],
+    city_standard: ["ร้านสักลาย {location}", "tattoo studio {location}"],
+    town_light: ["ร้านสักลาย {location}"],
+    rural_cluster: ["ร้านสักลาย {location}"],
+    gap_recheck: ["ร้านสักลาย {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 900 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -475,6 +504,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   NL: NL_COVERAGE_POLICY,
   KR: KR_COVERAGE_POLICY,
   IT: IT_COVERAGE_POLICY,
+  TH: TH_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

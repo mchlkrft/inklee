@@ -477,16 +477,30 @@ const TH: SeedCountryConfig = {
       ["สักลาย", "strong"],
       ["รับสักลาย", "strong"],
       ["ลายสัก", "strong"],
+      ["รอยสัก", "strong"],
+      ["สักยันต์", "strong"],
+      ["ช่างสัก", "strong"],
       ["bamboo tattoo", "strong"],
     ],
     "thai_tattoo",
   ),
+  // Expanded for the nationwide run (the eyebrow/eyelash-only set would let
+  // nail and beauty salons through). สักปาก (lip tattoo) is PMU and, like
+  // สักคิ้ว, its สัก positive is subsumed so a pure PMU shop rejects.
   extraNegative: compileSeedVocabulary(
     [
       ["คิ้ว", "strong"],
       ["สักคิ้ว", "strong"],
+      ["สักปาก", "strong"],
       ["อายบราว", "strong"],
       ["ต่อขนตา", "strong"],
+      ["ขนตา", "strong"],
+      ["เสริมสวย", "strong"],
+      ["ทำเล็บ", "strong"],
+      ["ความงาม", "strong"],
+      ["แว็กซ์", "strong"],
+      ["สปา", "weak"],
+      ["นวด", "weak"],
     ],
     "thai_beauty",
   ),
@@ -505,6 +519,14 @@ const TH: SeedCountryConfig = {
     {
       name: "Lash and Brow House",
       extraText: "Eyelash extensions, microblading and lash lift.",
+      expect: "reject_beauty",
+    },
+    // Space-less Thai (the real case): nail salon, beauty salon, lip PMU.
+    { name: "ร้านทำเล็บสวยงาม", expect: "reject_beauty" },
+    { name: "ร้านเสริมสวยสมหญิง", expect: "reject_beauty" },
+    {
+      name: "สักปากสักคิ้วบิวตี้",
+      category: "tattoo_and_piercing",
       expect: "reject_beauty",
     },
   ],
