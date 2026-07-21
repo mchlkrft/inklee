@@ -407,6 +407,31 @@ export const NL_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 700 },
 };
 
+// South Korea: ~210 municipalities (시군구), population very concentrated in
+// Seoul (25 districts) and the other metros. Korean query bundles; the tattoo
+// scene is large and urban despite tattooing's contested legal status.
+export const KR_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 400_000,
+    cityPopulation: 100_000,
+    townPopulation: 30_000,
+    clusterRadiusKm: 15,
+    clusterMaxMembers: 10,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "타투 {location}",
+      "타투샵 {location}",
+      "tattoo studio {location}",
+      "문신 {location}",
+    ],
+    city_standard: ["타투 {location}", "tattoo studio {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 800 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -417,6 +442,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   FR: FR_COVERAGE_POLICY,
   JP: JP_COVERAGE_POLICY,
   NL: NL_COVERAGE_POLICY,
+  KR: KR_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

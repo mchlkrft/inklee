@@ -647,6 +647,60 @@ async function adapterNL() {
   };
 }
 
+// South Korea: no ODS dataset, so Wikidata-only like Japan. Basic municipal
+// level (시군구) = cities + counties + autonomous districts of the metros
+// (Seoul's 25 districts are their own type). Wikidata typing is fragmented,
+// so four explicit types rather than a P279* net (which times out). QID is
+// the stable identity; province/metro (P131) drives clustering.
+async function adapterKR() {
+  console.log("→ Wikidata Korean municipalities (city/county/district)…");
+  const rows = await sparql(`SELECT ?m ?mLabel ?coord ?pop ?area ?pref ?prefLabel WHERE {
+    VALUES ?type { wd:Q29045252 wd:Q17143371 wd:Q15901936 wd:Q15634846 }
+    ?m wdt:P31 ?type .
+    ?m wdt:P625 ?coord .
+    FILTER NOT EXISTS { ?m wdt:P576 ?dissolved }
+    OPTIONAL { ?m wdt:P1082 ?pop }
+    OPTIONAL { ?m wdt:P2046 ?area }
+    OPTIONAL { ?m wdt:P131 ?pref }
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "ko,en". }
+  }`);
+  const byQid = new Map();
+  for (const b of rows) {
+    const qid = String(b.m?.value ?? "").split("/").pop();
+    const name = String(b.mLabel?.value ?? "").trim();
+    if (!/^Q\d+$/.test(qid) || !name || name === qid) continue;
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    const prefQid = b.pref?.value ? String(b.pref.value).split("/").pop() : null;
+    const cur = byQid.get(qid);
+    const next = {
+      externalId: qid,
+      name,
+      aliases: [],
+      stateCode: prefQid ?? "KR",
+      stateName: b.prefLabel?.value ?? "",
+      districtCode: prefQid,
+      districtName: b.prefLabel?.value ?? null,
+      population: pop,
+      areaKm2: b.area ? Number(b.area.value) : null,
+      centroid: parsePoint(b.coord?.value),
+      settlementClass: null,
+    };
+    if (!cur || (pop && (!cur.population || pop > cur.population)))
+      byQid.set(qid, { ...cur, ...next });
+  }
+  const units = [...byQid.values()];
+  if (units.length < 150) fail(`Implausible KR dataset (${units.length}).`);
+  return {
+    source: "wikidata-kr-municipalities",
+    sourceVersion: `wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution: "Korean municipalities: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -657,6 +711,7 @@ const ADAPTERS = {
   FR: adapterFR,
   JP: adapterJP,
   NL: adapterNL,
+  KR: adapterKR,
 };
 
 function readSecret() {

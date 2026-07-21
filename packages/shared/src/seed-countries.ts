@@ -730,6 +730,68 @@ const NL: SeedCountryConfig = {
   ],
 };
 
+const KR: SeedCountryConfig = {
+  code: "KR",
+  name: "South Korea",
+  languages: ["ko", "en"],
+  // Hangul has no word spacing, so these substring-match (the CJK path).
+  // 타투 is the modern loanword; 문신 the traditional term; 타투이스트 the artist.
+  extraPositive: compileSeedVocabulary(
+    [
+      ["타투", "strong"],
+      ["타투이스트", "strong"],
+      ["타투샵", "strong"],
+      ["문신", "strong"],
+      ["문신사", "strong"],
+    ],
+    "korean_tattoo",
+  ),
+  // 반영구화장 (semi-permanent makeup) is the Korean PMU term; 반영구 alone
+  // often means it too. 눈썹문신 (eyebrow "tattoo") is eyebrow PMU and, because
+  // it contains 문신, the subsumption rule strips that false positive so a
+  // pure PMU shop rejects while a 타투-branded one goes to review. 미용 beauty,
+  // 네일 nails, 속눈썹 eyelashes, 왁싱 waxing, 에스테틱 esthetic, 피부관리 skincare.
+  extraNegative: compileSeedVocabulary(
+    [
+      ["반영구화장", "strong"],
+      ["반영구", "strong"],
+      ["눈썹문신", "strong"],
+      ["눈썹", "strong"],
+      ["아이라인", "strong"],
+      ["미용실", "strong"],
+      ["미용", "strong"],
+      ["네일", "strong"],
+      ["네일샵", "strong"],
+      ["속눈썹", "strong"],
+      ["왁싱", "strong"],
+      ["에스테틱", "strong"],
+      ["피부관리", "strong"],
+      ["태닝", "weak"],
+    ],
+    "korean_beauty",
+  ),
+  postalCodePattern: /^\d{5}$/,
+  qualityFixtures: [
+    { name: "서울 타투 스튜디오", expect: "accept" },
+    { name: "문신 장인 홍대", expect: "accept" },
+    { name: "Busan Ink Tattoo", expect: "accept" },
+    {
+      name: "블랙로즈 타투",
+      extraText: "홍대의 타투이스트, 블랙워크 전문.",
+      expect: "accept",
+    },
+    { name: "미용실 코코", expect: "reject_beauty" },
+    {
+      name: "반영구화장 전문 강남",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "네일샵 뷰티", expect: "reject_beauty" },
+    { name: "속눈썹 연장 전문", expect: "reject_beauty" },
+    { name: "눈썹문신 타투 스튜디오", expect: "not_accept" },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -741,6 +803,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   FR,
   JP,
   NL,
+  KR,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
