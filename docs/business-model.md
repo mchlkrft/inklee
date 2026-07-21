@@ -123,11 +123,20 @@ Source: as of prod commit `7c9d470` (2026-05-16), migrations 0000–0031, with r
 
 The product is **feature-complete as a solo-artist MVP**. What's missing for monetization:
 
-1. **No plan/tier model in the schema.** Adding it is a Phase 2 task.
-2. **No subscription billing.** Stripe exists for per-booking deposits only.
+> **Partly superseded (2026-07-21).** Points 1 and 4 shipped in Slice 81 and are
+> in production: `account_overrides` holds a `free`/`plus` tier plus per-feature
+> overrides, expiry, and fee sponsorship, and `canAccess(overrides, feature)` is
+> the gating primitive. The `deposits` feature is genuinely gated by it today,
+> and the beta runs entirely on admin-granted comps. Stripe went live
+> 2026-07-04. What is still missing is point 2, **subscription billing** — no
+> artist can pay for a plan; a tier is granted by an admin. Descriptions of the
+> account model live in `docs/artist-account-and-payouts.md`.
+
+1. ~~**No plan/tier model in the schema.**~~ Shipped (Slice 81, `account_overrides`).
+2. **No subscription billing.** Stripe exists for per-booking deposits only. Plans are granted by an admin, never purchased. This is the real remaining gap.
 3. **No multi-tenancy.** Studios are not a concept the data model supports.
-4. **No feature gating primitive.** Right now every feature is on for every artist.
-5. **Public launch checklist is not closed.** Slices 60 + 61, OT-02 (Stripe live), OT-03c (board confirmation), OT-06 (legal review) all pending per `project_inklee_roadmap.md`.
+4. ~~**No feature gating primitive.**~~ Shipped: `canAccess` + `ENTITLEMENT_FEATURES`.
+5. **Public launch checklist is not closed.** Tracked in `docs/launch-gate.md`, which supersedes the older list here (OT-02 Stripe live is done).
 
 **Pricing should not ship before launch. The free tier IS the launch.**
 

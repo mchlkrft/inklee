@@ -13,9 +13,24 @@ Once Connect is fully wired the gate will also require the artist's connected ac
 
 ---
 
-## Account type: Express
+## Account type: Express — ⚠️ SUPERSEDED, this plan is historical
 
-Stripe-hosted onboarding + dashboard; Inklee controls the in-app flow and the connection point. The artist's identity / banking / KYC is handled inside Stripe — Inklee never sees the bank account number, ID document, or tax form. Simpler than Custom (which would require Inklee to host all of that), more in-app than Standard (which puts the artist on stripe.com).
+> **This section no longer describes production (note added 2026-07-21).** The
+> model moved to **Custom** in Slice 79 and the Express path does not exist in
+> the codebase: there is no `stripe.accountLinks` call and no return/refresh
+> route anywhere. The statements below are the inverse of what ships. For the
+> current description read `docs/artist-account-and-payouts.md`; for the
+> commercial and legal framing read `docs/payment-flow-for-counsel.md`.
+>
+> What actually ships: **Custom** accounts with `requirement_collection:
+> application`, so the artist **never visits Stripe and has no Stripe
+> dashboard**, and Inklee **does** handle the KYC, the IBAN, and (since
+> 2026-07-21) identity document uploads. Inklee also pays Stripe's processing
+> fee (`fees.payer: application`, which is why the application fee is the full
+> 3%, not 3% minus Stripe's cut) and carries payment-loss liability
+> (`losses.payments: application`).
+
+*(Historical, as originally written:)* Stripe-hosted onboarding + dashboard; Inklee controls the in-app flow and the connection point. The artist's identity / banking / KYC is handled inside Stripe — Inklee never sees the bank account number, ID document, or tax form. Simpler than Custom (which would require Inklee to host all of that), more in-app than Standard (which puts the artist on stripe.com).
 
 ## Charge model: Direct charges
 

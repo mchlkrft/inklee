@@ -6,6 +6,17 @@ The deposit feature's code is complete (Slice 79/79d + Slice 80 audit fixes) but
 
 Tick each box as it passes. If a step fails, stop and capture the symptom — don't push past a money bug.
 
+> **⚠️ Read before trusting a green G-2 (added 2026-07-21).** This checklist
+> proves the **test-mode rail** only. It cannot catch the failure that actually
+> broke the first live deposit: a Connect account created in one key mode is
+> invisible to the other, so accounts onboarded here in test mode 403 under the
+> live key while the local `profiles.stripe_*` columns still say `active`. A
+> fully green G-2 therefore does **not** mean live deposits work. The live rail
+> is proven only by G-5, and each artist must onboard **again** under live keys
+> (their test-mode account cannot be carried over and must be cleared first, see
+> `docs/artist-account-and-payouts.md` §4). Everything below stays valid for
+> what it does cover.
+
 ---
 
 ## Phase 0 — Preflight (environment ready)
@@ -53,7 +64,7 @@ Tick each box as it passes. If a step fails, stop and capture the symptom — do
 - [ ] **5.1 Un-connected artist** requests a deposit → **no** PaymentIntent created; portal shows the manual "deposit requested" panel (no card form); artist marks it received manually → booking approved.
 - [ ] **5.2 F7 race** → in-app deposit, artist marks received manually while the intent is live → intent canceled, client can't be double-charged.
 - [ ] **5.3 payment_failed** → pay with declined card `4000…0002` → `deposit_payment_failed` audit row; booking stays `deposit_pending`.
-- [ ] **5.4 Reuse / disconnect (P1-6)** → request a card deposit, then deauthorize the Connect account in Stripe, then re-request the deposit → the dead intent is canceled and the booking converts to a **manual** deposit (no broken card form).
+- [ ] **5.4 Reuse / disconnect (P1-6)** → request a card deposit, then deauthorize the Connect account in Stripe, then re-request the deposit → the dead intent is canceled and the booking converts to a **manual** deposit (no broken card form). **Timing matters (2026-07-21):** this is only the expected result once the `account.application.deauthorized` webhook has cleared the local Connect columns, which is what makes the artist genuinely un-connected. Re-requesting *before* that lands is now expected to show the artist an **error** instead, because a card deposit may no longer degrade to a manual one behind their back. Both outcomes are correct; a silent manual deposit while the profile still reads `active` is the bug.
 
 ---
 
