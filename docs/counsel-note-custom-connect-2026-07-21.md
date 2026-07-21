@@ -2,35 +2,49 @@
 
 **Prepared:** 2026-07-21 · **For:** legal counsel (Estonia/EU commercial + payments)
 **Companion brief:** `docs/payment-flow-for-counsel.md` (the full money-flow description, revised the same day)
-**Status:** no live deposit has been processed yet. We are asking for review **before** the first real money moves.
+**Roadmap item:** LO-10 (§3.6) · **For:** the final counseling round
+**Status:** **the Custom model is a settled product decision and is not being
+reconsidered.** This note exists so the round covers a detail that was never
+accurately in front of you, not to re-open the choice.
 
 > This note is written by the engineering team, not by a lawyer. It states facts
 > about how the system is configured and asks questions. Nothing in it is a legal
 > conclusion.
 
+**What we are and are not asking.** We are **not** asking whether to use Stripe
+Connect Custom. That was decided on 2026-06-04, re-examined on 2026-07-21, and
+re-affirmed: it stays. We are asking what that choice obliges us to **disclose,
+document and put in our terms**, and whether it changes any position previously
+taken — so that the final round closes it rather than leaving it implicit.
+
 ---
 
 ## 0. Why you are receiving this
 
-On 2026-06-02 you cleared item **LO-2**: that under our Stripe setup each
-**artist** is the merchant of record for a deposit, and Inklee is not the
-merchant/seller of record and does not hold artists' funds.
+Two things were cleared previously:
 
-We are writing because **the description you were given at that time no longer
-matches what we run**, in ways that go beyond the point you were asked about.
-The brief you read described Stripe **Express** connected accounts. Production
-uses Stripe **Custom** connected accounts, configured so that Inklee takes on
-two things the earlier description explicitly placed elsewhere: **Stripe's
-processing costs** and **liability for payment losses**.
+- **2026-06-02 (LO-2):** that under our Stripe setup each **artist** is the
+  merchant of record for a deposit, and Inklee is not the merchant/seller of
+  record and does not hold artists' funds.
+- **2026-06-05 (G-4):** the Custom Connect deposit **process**, at which point
+  our published `/subprocessors` page was corrected from Express to Custom.
 
-We discovered the mismatch on 2026-07-21 while preparing the first live deposit,
-and we corrected our own documentation the same day. We are flagging it rather
-than assuming the earlier clearance still covers us.
+So the model itself has been before you. What has **not** been accurately before
+you is the commercial and liability detail underneath it, for a specific and
+avoidable reason: the money-flow brief you read
+(`payment-flow-for-counsel.md`) still described **Express** economics until we
+corrected it on 2026-07-21. It stated that the **artist's** account bore
+Stripe's processing fee, and that Inklee "never fronts the money". Both are
+wrong for the model we actually run, and both were wrong in the direction that
+understates Inklee's exposure.
 
-**Nothing is urgent in the sense of ongoing exposure**: no live deposit has ever
-been processed, and there are currently zero live connected accounts. It becomes
-urgent at the moment we onboard the first paying beta artist, which is the next
-step we intend to take.
+We found this while preparing the first live deposit and corrected our
+documentation the same day. We are raising it rather than assuming the earlier
+clearances reached a detail the brief misdescribed.
+
+**There is no ongoing exposure to remediate**: no live deposit has ever been
+processed and there are currently zero live connected accounts. The point at
+which it starts to matter is the first beta artist taking a real deposit.
 
 ---
 
@@ -169,40 +183,44 @@ the two documents stay in step.
 
 ---
 
-## 5. One internal inconsistency you should know about
+## 5. How our own records read, for transparency
 
-Our own records disagree about whether you have already signed off this model.
-One document records that counsel signed off the Custom Connect process; another
-records that LO-2 was cleared for the **Express** framing and that the Custom
-model "is not formally signed".
+Our internal records were briefly inconsistent on this and we would rather you
+heard it from us. Two documents record the Custom process as cleared on
+2026-06-05 (G-4); a third, written the same day, listed it as an open gate and
+said the Custom model was "not formally signed". Read together, the most likely
+reading is that the third was written earlier that day and never updated, and
+that G-4 genuinely was cleared. The corrected `/subprocessors` page from the
+same date supports that.
 
-We are treating it as **not signed**, for a reason that holds either way: the
-brief describing the money flow said the artist bore Stripe's processing fee and
-that Inklee never fronts money, and both statements were wrong for the model we
-run. So even if a sign-off was given, it was given against a description that
-did not match the code. That is the gap this note exists to close.
+We have aligned the records on "cleared". The reason this note still exists is
+narrower and unaffected by which reading is right: the **money-flow brief itself
+carried Express economics until 2026-07-21**, so the fee-payer and
+loss-backstop detail was not something any sign-off could have covered
+accurately. That specific detail is what we are bringing to the final round.
 
 ---
 
-## 6. What we are doing meanwhile
+## 6. Where this sits
 
-- No live deposit will be taken from a real client until you have responded,
-  beyond a founder-run test of a few euros against the founder's own account.
-- Our internal documentation has been corrected (`payment-flow-for-counsel.md`
-  §4, §5, §6, §9 and a new `artist-account-and-payouts.md`).
-- **If you advise against this arrangement, reversing it is not a small
-  change.** We originally wrote that it was, and that was wrong; we are
-  correcting it here rather than let you rely on it. Stripe does not allow the
-  fee-payer or the loss backstop to sit with the connected account under
-  platform-collected onboarding, and it offers no option at all to place the
-  loss backstop on the artist. Moving either one back means switching to
-  Stripe-collected onboarding (the Express-style model), which would mean:
-  - every artist is redirected to Stripe's own branded signup, which is the
-    friction the product deliberately removed;
-  - existing connected accounts cannot be converted, so every artist would have
-    to onboard again from scratch;
-  - the artist's headline cost changes from a flat 3% to a variable one,
-    because Stripe's processing fee would once more come off their side.
-
-  So this is a product-shape decision, not a settings toggle. That is precisely
-  why we would rather hear your view before onboarding beta artists than after.
+- **The model is settled.** Inklee has re-examined the choice with the fee and
+  liability consequences fully explicit and is keeping Custom. The record of
+  that decision, including what is being knowingly accepted, is in Inklee's
+  internal `DECISIONS.md` and can be shared.
+- **We would rather you knew why reversing is not on the table.** Stripe does
+  not permit the fee-payer or the loss backstop to sit with the connected
+  account under platform-collected onboarding, and offers no option at all to
+  place the loss backstop on the artist. Moving either back means switching to
+  Stripe-collected onboarding, which would mean every artist redirected to
+  Stripe's own branded signup (the friction the product exists to remove), every
+  existing account re-onboarded from scratch, and the artist's flat 3% becoming
+  a variable rate. It is a product-shape change, not a settings toggle. (An
+  earlier draft of this note said the opposite; that was our error and it is
+  corrected here.)
+- **So the useful output of this round is not a verdict on the model** but the
+  concrete consequences: what goes in the artist terms, what the client is told,
+  whether our privacy documentation needs to change for identity documents, and
+  whether anything about our regulatory position moves.
+- Inklee's own documentation has been corrected to match the code
+  (`payment-flow-for-counsel.md` §4, §5, §6, §9, and a new
+  `artist-account-and-payouts.md` describing the account model end to end).
