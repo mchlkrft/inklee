@@ -22,6 +22,7 @@ import {
 } from "@inklee/shared/studio-signals";
 import { formatDateKey } from "@inklee/shared/date-utils";
 import WatchButton from "./watch-button";
+import ReportIssue from "./report-issue";
 
 // Logged-in only and noindex by default (open question Q3 keeps seeded pages
 // out of search until decided otherwise).
@@ -56,7 +57,7 @@ export default async function MapLocationPage({
   const { data } = await serviceClient
     .from("map_locations")
     .select(
-      "id, name, category, address, city, country, website_url, instagram_handle, phone, opening_hours, claim_status, moderation_status, last_confirmed_at",
+      "id, name, category, address, city, country, website_url, instagram_handle, phone, opening_hours, claim_status, moderation_status, last_confirmed_at, is_seed",
     )
     .eq("id", id)
     .eq("moderation_status", "approved")
@@ -110,6 +111,10 @@ export default async function MapLocationPage({
   const website = safeHttpUrl(data.website_url as string | null);
   const instagram = data.instagram_handle as string | null;
   const claimed = (data.claim_status as string) === "claimed";
+  // Unverified = a directory-compiled seed pin nobody has claimed. Its
+  // details are a snapshot and can be stale, so we say so rather than
+  // presenting it as confirmed.
+  const unverified = Boolean(data.is_seed) && !claimed;
   const place = [data.address, data.city, data.country]
     .filter(Boolean)
     .join(", ");
@@ -139,6 +144,19 @@ export default async function MapLocationPage({
         </div>
         <p className="text-sm text-muted-foreground">{categoryLabel}</p>
       </header>
+
+      {unverified ? (
+        <section className="rounded-2xl border border-border bg-muted/20 p-4">
+          <p className="text-sm text-foreground">
+            Unverified listing. We compiled this from public map data, so the
+            address and details may be out of date.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            If it is your studio, claim it below to keep it accurate. Otherwise
+            you can report an issue at the bottom.
+          </p>
+        </section>
+      ) : null}
 
       {activeSignal && isStudioSignalType(activeSignal) ? (
         <section className="rounded-2xl border border-brand-rosa/40 bg-brand-rosa/10 p-4">
@@ -315,6 +333,12 @@ export default async function MapLocationPage({
           >
             Claim this studio
           </Link>
+        </div>
+      )}
+
+      {claimed ? null : (
+        <div className="pt-1">
+          <ReportIssue mapLocationId={id} />
         </div>
       )}
     </div>

@@ -57,9 +57,32 @@ export const MAP_REPORT_REASONS = [
   "spam",
   "scam",
   "behavior",
+  "closed",
+  "outdated_details",
   "other",
 ] as const;
 export type MapReportReason = (typeof MAP_REPORT_REASONS)[number];
+
+// Reasons an artist can pick when correcting a listing (the abuse reasons
+// spam/scam/behavior are handled elsewhere and stay out of this set). Order
+// is the display order in the correction form.
+export const MAP_CORRECTION_REASONS = [
+  "wrong_location",
+  "closed",
+  "outdated_details",
+  "fake_studio",
+  "other",
+] as const;
+export type MapCorrectionReason = (typeof MAP_CORRECTION_REASONS)[number];
+
+export const MAP_CORRECTION_REASON_LABELS: Record<MapCorrectionReason, string> =
+  {
+    wrong_location: "Wrong location or moved",
+    closed: "Permanently closed",
+    outdated_details: "Details are out of date",
+    fake_studio: "Not a real tattoo studio",
+    other: "Something else",
+  };
 
 export const MAP_REPORT_STATUSES = [
   "new",

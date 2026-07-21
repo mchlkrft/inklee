@@ -69,6 +69,10 @@ const DE: SeedCountryConfig = {
       ["dauerhafte haarentfernung", "weak"],
       ["fusspflege", "weak"],
       ["podologie", "weak"],
+      // Abbreviated PMU spelling found in the wild ("Perm.make-up" normalizes
+      // to "perm make up") that the base "permanent make up" phrase misses.
+      ["perm make up", "strong"],
+      ["perm makeup", "strong"],
     ],
     "german_beauty",
   ),
@@ -86,6 +90,7 @@ const DE: SeedCountryConfig = {
     },
     { name: "Beauty Lounge Mitte", expect: "reject_beauty" },
     { name: "Cosmetic Tattoo Studio Köln", expect: "not_accept" },
+    { name: "Studio Perm.make-up & Tattoos", expect: "not_accept" },
   ],
 };
 
