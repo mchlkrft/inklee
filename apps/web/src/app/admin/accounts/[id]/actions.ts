@@ -466,6 +466,20 @@ export async function resetFeeSponsorshipUsageAction(
   );
   if (error) return { error: error.message };
 
+  // Zeroing the counter starts a NEW budget period, so bookings from the old
+  // one must not be able to draw against it. Without this, refunding a deposit
+  // that settled before the reset would release its old waiver out of the new
+  // period's usage and hand the artist budget twice.
+  const { error: ledgerError } = await serviceClient
+    .from("booking_requests")
+    .update({
+      deposit_fee_sponsorship_booked_cents: 0,
+      deposit_fee_sponsorship_released_cents: 0,
+    })
+    .eq("artist_id", targetUserId)
+    .gt("deposit_fee_sponsorship_booked_cents", 0);
+  if (ledgerError) return { error: ledgerError.message };
+
   await logAdminAction(
     adminId,
     targetUserId,

@@ -136,6 +136,24 @@ export const bookingRequests = pgTable("booking_requests", {
   depositPaymentIntentId: text("deposit_payment_intent_id"),
   depositClientSecret: text("deposit_client_secret"),
   depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
+  // Migration 0099 — cumulative sponsored fee already credited back to the
+  // artist's budget for this booking. Written only by
+  // release_fee_sponsored_used, which converges to a target so redelivered
+  // refund events and multiple partial refunds cannot double-release.
+  depositFeeSponsorshipReleasedCents: integer(
+    "deposit_fee_sponsorship_released_cents",
+  )
+    .notNull()
+    .default(0),
+  // Migration 0100 — what the settlement increment ACTUALLY added to the
+  // artist's counter for this booking. 0 means nothing was booked, so a refund
+  // must release nothing: the counter is artist-global, and releasing against
+  // an unbooked waiver would erase other bookings' real usage.
+  depositFeeSponsorshipBookedCents: integer(
+    "deposit_fee_sponsorship_booked_cents",
+  )
+    .notNull()
+    .default(0),
   // Q9 — deposit-policy snapshot, frozen at payment time (migration 0043).
   // Editable source is profiles.settings.deposit_policy.
   depositPolicy: jsonb("deposit_policy"),
