@@ -107,7 +107,7 @@ admin roster has a Plan column showing comps and their expiry. Nothing sweeps
 | Stripe non-EUR / declined-card / reuse-after-deauthorize edges | EUR-only beta; smoke-test before the first non-EUR artist. |
 | Privacy retention-row vs cleanup-cron wording check | Quick doc-accuracy check before PUBLIC web launch. |
 | Maps API key referrer lock | Cost control, not functionality. |
-| Counsel LO-2 (PSD2/MoR) + LO-5 (DPIA) | Run in parallel; counsel signed off the Custom-Connect process (G-4). |
+| Counsel LO-2 (PSD2/MoR) + LO-5 (DPIA) + **LO-10** | Run in parallel. LO-2 cleared 2026-06-02; the Custom-Connect **process** cleared 2026-06-05 (G-4). **Custom is a settled decision, re-affirmed 2026-07-21** (`DECISIONS.md`). What remains is confirmatory and goes to the final counseling round as **LO-10**: the money-flow brief described **Express** economics until 2026-07-21, so the fee-payer (`fees.payer: application`, Inklee pays Stripe's fee) and loss-backstop (`losses.payments: application`, Inklee covers negative balances an artist cannot repay) detail was never accurately in front of counsel. Brief: `docs/counsel-note-custom-connect-2026-07-21.md`. Not a blocker for a founder-run test deposit; close it before beta artists take real client money. |
 | Apple / iOS | Deferred by decision 2026-06-23 (Android-first). **Apple Developer Program enrollment ACCEPTED 2026-07-16** — iOS track (ME-7 Apple half, TestFlight, App Store listing) is now unblocked; needs App Store Connect setup + first iOS EAS build. |
 | ME-1 store assets, ME-13 dashboard mockup, Plausible goals registration | Store listing / polish / measurement — not blocking a working product. |
 
