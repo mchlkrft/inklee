@@ -658,6 +658,73 @@ const JP: SeedCountryConfig = {
   ],
 };
 
+const NL: SeedCountryConfig = {
+  code: "NL",
+  name: "Netherlands",
+  languages: ["nl", "en"],
+  extraPositive: compileSeedVocabulary(
+    [
+      ["tatoeage", "strong"],
+      ["tatoeages", "strong"],
+      ["tattooshop", "strong"],
+      ["tattoo studio", "strong"],
+      ["tatoeeerder", "strong"],
+    ],
+    "dutch_tattoo",
+  ),
+  // Bare identity words included from the start (Spain lesson). "permanente
+  // make-up" normalizes to "permanente make up"; schoonheid = beauty, nagels
+  // = nails, kapper/kapsalon = hairdresser, wenkbrauwen = eyebrows (PMU).
+  extraNegative: compileSeedVocabulary(
+    [
+      ["schoonheidssalon", "strong"],
+      ["schoonheidsspecialist", "strong"],
+      ["schoonheid", "strong"],
+      ["beautysalon", "strong"],
+      ["nagelstudio", "strong"],
+      ["nagels", "strong"],
+      ["manicure", "strong"],
+      ["pedicure", "strong"],
+      ["kapper", "strong"],
+      ["kapsalon", "strong"],
+      ["permanente make up", "strong"],
+      ["permanente makeup", "strong"],
+      ["microblading", "strong"],
+      ["micropigmentatie", "strong"],
+      ["wenkbrauwen", "strong"],
+      ["wimperextensions", "strong"],
+      ["wimpers", "strong"],
+      ["ontharing", "weak"],
+      ["huidverzorging", "weak"],
+      ["zonnebank", "weak"],
+    ],
+    "dutch_beauty",
+  ),
+  postalCodePattern: /^\d{4}\s?[A-Za-z]{2}$/,
+  qualityFixtures: [
+    { name: "Tattoo Shop Amsterdam", expect: "accept" },
+    { name: "Inktvis Tatoeage Rotterdam", expect: "accept" },
+    { name: "Black Rose Tattoo Studio", expect: "accept" },
+    {
+      name: "De Naald",
+      extraText: "Tatoeage studio in Utrecht, gespecialiseerd in fine line.",
+      expect: "accept",
+    },
+    { name: "Schoonheidssalon Bella", expect: "reject_beauty" },
+    {
+      name: "Permanente Make-up Studio Den Haag",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Nagelstudio Chique", expect: "reject_beauty" },
+    { name: "Kapsalon Knip & Zo", expect: "reject_beauty" },
+    {
+      name: "Tattoo & Permanente Make-up Eindhoven",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -668,6 +735,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   TH,
   FR,
   JP,
+  NL,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {

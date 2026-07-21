@@ -574,6 +574,79 @@ async function adapterJP() {
   };
 }
 
+// Netherlands: ~345 municipalities (gemeenten), coarse like the UK. CBS code
+// is the stable identity; province (prov_code) is the state level. Population
+// from Wikidata by CBS municipality code (P382).
+async function adapterNL() {
+  const url = `${ODS}/georef-netherlands-gemeente/exports/json?select=year,prov_code,prov_name,gem_code,gem_name,geo_point_2d`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 250)
+    fail(`Implausible NL export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  console.log("→ Wikidata population + area by CBS code (P382)…");
+  const wd = new Map();
+  for (const b of await sparql(
+    `SELECT ?code ?pop ?area WHERE { ?x wdt:P382 ?code . OPTIONAL { ?x wdt:P1082 ?pop } OPTIONAL { ?x wdt:P2046 ?area } }`,
+  )) {
+    const code = String(b.code?.value ?? "").replace(/\D/g, "").padStart(4, "0");
+    if (!/^\d{4}$/.test(code)) continue;
+    const cur = wd.get(code) ?? {};
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    const area =
+      b.area && Number.isFinite(Number(b.area.value))
+        ? Number(b.area.value)
+        : null;
+    if (pop && (!cur.population || pop > cur.population)) cur.population = pop;
+    if (area && !cur.areaKm2) cur.areaKm2 = area;
+    wd.set(code, cur);
+  }
+
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const code = String(first(m.gem_code) ?? "")
+      .replace(/\D/g, "")
+      .padStart(4, "0");
+    const name = String(first(m.gem_name) ?? "").trim();
+    if (!/^\d{4}$/.test(code) || !name || seen.has(code)) continue;
+    seen.add(code);
+    units.push({
+      externalId: code,
+      name,
+      aliases: [],
+      stateCode: String(first(m.prov_code) ?? ""),
+      stateName: String(first(m.prov_name) ?? ""),
+      districtCode: null,
+      districtName: null,
+      population: wd.get(code)?.population ?? null,
+      areaKm2: wd.get(code)?.areaKm2 ?? null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef+wikidata",
+    sourceVersion: `georef-${latestYear}+wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution:
+      "Dutch municipalities: CBS/Kadaster via OpenDataSoft. Population: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -583,6 +656,7 @@ const ADAPTERS = {
   ES: adapterES,
   FR: adapterFR,
   JP: adapterJP,
+  NL: adapterNL,
 };
 
 function readSecret() {

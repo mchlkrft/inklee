@@ -382,6 +382,31 @@ export const JP_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 1200 },
 };
 
+// Netherlands: ~350 municipalities, densely populated Randstad (Amsterdam,
+// Rotterdam, The Hague, Utrecht). Coarse units like the UK, Dutch query
+// bundles (tattoo terms are largely English loanwords here).
+export const NL_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 200_000,
+    cityPopulation: 80_000,
+    townPopulation: 30_000,
+    clusterRadiusKm: 15,
+    clusterMaxMembers: 10,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "tattoo shop {location}",
+      "tatoeage {location}",
+      "tattoo {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "tatoeage {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 700 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -391,6 +416,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   ES: ES_COVERAGE_POLICY,
   FR: FR_COVERAGE_POLICY,
   JP: JP_COVERAGE_POLICY,
+  NL: NL_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {
