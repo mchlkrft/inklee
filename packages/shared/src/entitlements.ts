@@ -127,9 +127,12 @@ export function sponsorshipOverspentCents(o: AccountOverrides): number {
   return Math.max(0, o.feeSponsoredUsedCents - o.feeSponsorCapCents);
 }
 
-/** Whole days until a comped plan lapses: negative once expired, null when the
- *  comp is open-ended or the account is not on a comped plan. Drives the admin
- *  expiry warnings, so the roster and the account page agree on one rule. */
+/** Whole days until a plan with an expiry lapses: negative once expired, null
+ *  when the plan is open-ended or the account is not on Plus. Source-agnostic
+ *  on purpose (an expiry lapses a plan whatever paid for it), so callers must
+ *  word their copy from `planSource` rather than assuming a comp. Drives the
+ *  admin expiry warnings, so the roster and the account page agree on one
+ *  rule. */
 export function daysUntilPlanExpiry(o: AccountOverrides): number | null {
   if (o.planTier !== "plus" || !o.planExpiresAt) return null;
   const ms = new Date(o.planExpiresAt).getTime() - Date.now();

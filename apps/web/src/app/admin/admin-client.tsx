@@ -510,7 +510,9 @@ function planBadge(a: {
             : "bg-muted text-muted-foreground"
         }`}
       >
-        {lapsed ? "Comp expired" : "Free"}
+        {lapsed
+          ? `${a.planSource === "paid" ? "Paid" : "Comp"} expired`
+          : "Free"}
       </span>
     );
   }

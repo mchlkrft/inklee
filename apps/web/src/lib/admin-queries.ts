@@ -434,10 +434,17 @@ export async function getArtistRoster() {
 
   // Plan state for the roster. Nothing sweeps plan_expires_at, so without a
   // column here a founder cannot see who is comped or whose comp is about to
-  // lapse without opening every account page in turn.
+  // lapse without opening every account page in turn. Scoped to the profiles
+  // actually being rendered: an unfiltered select would hit PostgREST's 1000
+  // row ceiling once enough override rows exist and silently render comped
+  // artists as Free.
   const { data: overrideRows } = await serviceClient
     .from("account_overrides")
-    .select("artist_id, plan_tier, plan_source, plan_expires_at");
+    .select("artist_id, plan_tier, plan_source, plan_expires_at")
+    .in(
+      "artist_id",
+      (profiles ?? []).map((p) => p.id),
+    );
   const overridesByArtist = new Map(
     (overrideRows ?? []).map((r) => [r.artist_id as string, r]),
   );
