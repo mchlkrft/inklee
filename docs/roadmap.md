@@ -474,6 +474,7 @@ Independent: [Phase E: mobile] (after first real artist AND after the Bio Page +
 | Business model + pricing                       | `docs/business-model.md`                  |
 | Artist account, entitlements, comps, payouts   | `docs/artist-account-and-payouts.md`      |
 | Payment flow + platform model (counsel-facing) | `docs/payment-flow-for-counsel.md`        |
+| Express → Custom Connect change (counsel note)  | `docs/counsel-note-custom-connect-2026-07-21.md` |
 | Bio Page + Goods + Add-ons plan (Slices 72–76) | `docs/bio-page-goods-plan.md`             |
 | Mobile app strategy (Phase E)                  | `docs/mobile-strategy.md`                 |
 | Analytics state + A/B test plan                | `docs/analytics-audit-2026-05-14.md`      |

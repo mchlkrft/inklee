@@ -6,6 +6,10 @@ disclosure, refund policy, payment-intermediary/PSD2 status, and the artist
 terms. It is self-contained; no code reading required. Open questions for
 counsel are collected in §10.
 
+> **Companion note:** `docs/counsel-note-custom-connect-2026-07-21.md` sets out
+> the Express → Custom model change and the questions arising from it. Read that
+> alongside §4, §5 and §6 here.
+>
 > **What changed on 2026-07-21** (first live money test): in-app card deposits
 > require the deposit **entitlement** as well as an active Stripe account (§3),
 > Inklee can **waive its own fee** for an artist up to a capped budget (§4), the
