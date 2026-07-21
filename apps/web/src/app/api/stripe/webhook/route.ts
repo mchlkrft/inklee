@@ -24,6 +24,86 @@ import {
 
 export const runtime = "nodejs";
 
+/**
+ * Credit a refunded deposit's sponsored platform fee back to the artist's
+ * sponsorship budget.
+ *
+ * The amount is read from the PaymentIntent's `sponsored_fee_cents` metadata,
+ * which `requestDeposit` stamps at creation time and is the authoritative
+ * record of what Inklee actually waived. The Charge does not carry it.
+ *
+ * Prorated by the CUMULATIVE `amount_refunded`, then handed to a converge-to-
+ * target RPC (migration 0099) that releases only the difference against what
+ * this booking has already released. That makes the whole thing idempotent
+ * under Stripe redelivery and correct across several partial refunds, without
+ * this function needing to know which refund it is looking at.
+ *
+ * Best-effort: a failure here must never 500 the webhook and cause Stripe to
+ * retry a delivery whose real work (the refund audit row) already succeeded.
+ */
+async function releaseSponsoredFeeForRefund(args: {
+  stripe: Stripe;
+  bookingId: string;
+  artistId: string;
+  intentId: string;
+  charge: Stripe.Charge;
+}): Promise<void> {
+  try {
+    const intent = await args.stripe.paymentIntents.retrieve(args.intentId);
+    const sponsoredCents = parseInt(
+      intent.metadata?.sponsored_fee_cents ?? "",
+      10,
+    );
+    if (!Number.isFinite(sponsoredCents) || sponsoredCents <= 0) return;
+
+    const chargedCents = args.charge.amount ?? 0;
+    const refundedCents = args.charge.amount_refunded ?? 0;
+    if (chargedCents <= 0 || refundedCents <= 0) return;
+
+    // Cap the ratio at 1: a refund can never exceed the charge, but clamping
+    // keeps a surprising payload from releasing more than was ever sponsored.
+    const ratio = Math.min(1, refundedCents / chargedCents);
+    const targetCents = Math.round(sponsoredCents * ratio);
+    if (targetCents <= 0) return;
+
+    const { data: released, error } = await serviceClient.rpc(
+      "release_fee_sponsored_used",
+      {
+        p_booking_id: args.bookingId,
+        p_artist_id: args.artistId,
+        p_target_cents: targetCents,
+      },
+    );
+    if (error) {
+      Sentry.captureException(error, {
+        tags: { action: "fee_sponsorship_release" },
+        extra: { bookingId: args.bookingId, targetCents },
+      });
+      return;
+    }
+
+    // Only log when something actually moved, so redeliveries stay quiet.
+    if (typeof released === "number" && released > 0) {
+      await serviceClient.from("audit_log").insert({
+        booking_id: args.bookingId,
+        action: "fee_sponsorship_released",
+        details: {
+          released_cents: released,
+          sponsored_cents: sponsoredCents,
+          refunded_cents: refundedCents,
+          charged_cents: chargedCents,
+          via: "stripe_webhook",
+        },
+      });
+    }
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "fee_sponsorship_release" },
+      extra: { bookingId: args.bookingId },
+    });
+  }
+}
+
 export async function POST(request: Request) {
   const secret = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -97,10 +177,28 @@ export async function POST(request: Request) {
 
     const { data: booking } = await serviceClient
       .from("booking_requests")
-      .select("id")
+      .select("id, artist_id")
       .eq("deposit_payment_intent_id", intentId)
       .single();
     if (!booking) return NextResponse.json({ received: true });
+
+    // Give back any sponsored platform fee. The refund returns the application
+    // fee too (`refund_application_fee: true`), so a sponsored deposit that is
+    // refunded ends up costing Inklee nothing — leaving it booked against the
+    // artist's cap would deny them sponsorship they never actually spent.
+    //
+    // Runs OUTSIDE the deposit_refunded audit gate below: the in-app refund
+    // writes that row first, so gating on it would skip every in-app refund.
+    // The RPC is idempotent on its own (it converges this booking's released
+    // total to a target), which is what makes redelivery and multiple partial
+    // refunds safe.
+    await releaseSponsoredFeeForRefund({
+      stripe,
+      bookingId: booking.id,
+      artistId: booking.artist_id as string,
+      intentId,
+      charge,
+    });
 
     // Idempotent: the in-app refund already logs this row, and a single refund
     // can deliver more than once. Log at most one deposit_refunded per booking.
