@@ -44,12 +44,21 @@ account it owns. We moved from a lighter model to a heavier one.
 | Who collects the artist's identity/bank details | Stripe, on Stripe's own pages | **Inklee**, inside our app |
 | Does the artist have a Stripe dashboard | Yes | **No** |
 | Who pays Stripe's card-processing fee | The artist's account | **Inklee's account** |
-| Who bears chargebacks / disputes | The artist's account | **Inklee's account** |
+| Who backstops unrecoverable losses | Stripe | **Inklee** |
 
 In Stripe's configuration these are the properties `requirement_collection:
 application`, `stripe_dashboard: none`, `fees.payer: application`, and
 `losses.payments: application`. We can supply the exact account configuration on
 request.
+
+**These were not four independent choices.** Only the first was a product
+decision (collect the artist's details ourselves rather than send them to
+Stripe). The other three follow from it: Stripe does not permit
+platform-collected onboarding while leaving fees or loss-backstopping
+elsewhere. Our own sandbox testing on 2026-06-04 confirmed that Stripe rejects
+`fees.payer: account` in this configuration. So the commercial and liability
+consequences described below are a **package** that comes with not sending the
+artist to Stripe, not a set of terms we selected individually.
 
 ---
 
@@ -81,10 +90,22 @@ receives the deposit minus a flat 3%. What changed is where Stripe's cost sits:
   **Inklee makes a loss on that transaction**. There is no floor. This is a
   deliberate accepted cost, not an oversight.
 
-**c) Inklee bears payment losses.** If a client disputes a deposit, the loss
-falls on Inklee's balance rather than the artist's. Inklee still never holds the
-deposit itself, which is what makes this worth raising: we do not custody the
-money, but we do carry its downside.
+**c) Inklee backstops unrecoverable losses.** The precise mechanic matters, and
+we want to state it accurately rather than dramatically. If a client disputes a
+deposit, the amount is debited from the **artist's** Stripe balance first. The
+setting we carry (`losses.payments: application`) determines who is liable when
+**the artist's account cannot repay a resulting negative balance**. Under the
+previous model that fell to Stripe; under ours it falls to **Inklee**.
+
+In practice the realistic exposure is: an artist takes a deposit, withdraws it
+to their bank, the client later disputes the charge, and the artist has no
+balance left and does not repay. Inklee absorbs that. It is not "Inklee pays all
+chargebacks", but it is a real uncapped downside that Inklee did not carry
+before, and Inklee still never custodies the deposit itself.
+
+Note that Stripe offers no option to place this liability on the connected
+account: the only permitted values are the platform or Stripe. Putting it back
+on Stripe means abandoning platform-collected onboarding (see §6).
 
 **d) A refund is a net loss to Inklee.** Inklee returns its 3% fee in full, and
 Stripe does not return its processing fee on a refund. Since that fee was billed
@@ -169,7 +190,19 @@ did not match the code. That is the gap this note exists to close.
   beyond a founder-run test of a few euros against the founder's own account.
 - Our internal documentation has been corrected (`payment-flow-for-counsel.md`
   §4, §5, §6, §9 and a new `artist-account-and-payouts.md`).
-- We can change the Stripe configuration if you advise it. Moving processing
-  costs or loss liability back to the artist's account is a configuration
-  change, not a rebuild — though it would change the artist's headline cost from
-  a flat 3% to a variable one, which has its own disclosure consequences.
+- **If you advise against this arrangement, reversing it is not a small
+  change.** We originally wrote that it was, and that was wrong; we are
+  correcting it here rather than let you rely on it. Stripe does not allow the
+  fee-payer or the loss backstop to sit with the connected account under
+  platform-collected onboarding, and it offers no option at all to place the
+  loss backstop on the artist. Moving either one back means switching to
+  Stripe-collected onboarding (the Express-style model), which would mean:
+  - every artist is redirected to Stripe's own branded signup, which is the
+    friction the product deliberately removed;
+  - existing connected accounts cannot be converted, so every artist would have
+    to onboard again from scratch;
+  - the artist's headline cost changes from a flat 3% to a variable one,
+    because Stripe's processing fee would once more come off their side.
+
+  So this is a product-shape decision, not a settings toggle. That is precisely
+  why we would rather hear your view before onboarding beta artists than after.

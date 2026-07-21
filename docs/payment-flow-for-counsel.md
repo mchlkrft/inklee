@@ -197,9 +197,12 @@ accounts. Production now uses **Custom** connected accounts, configured so that:
   supply identity information or see their payout status.
 - **Inklee pays Stripe's processing fee** (`fees.payer: application`), as set
   out in §4.
-- **Inklee is liable for payment losses** (`losses.payments: application`).
-  Chargebacks and disputes on a deposit fall on **Inklee's** balance, not the
-  artist's.
+- **Inklee backstops unrecoverable payment losses**
+  (`losses.payments: application`). A disputed deposit is debited from the
+  **artist's** balance first; this setting decides who is liable when the
+  artist's account cannot repay the resulting negative balance. Previously that
+  fell to Stripe; now it falls to Inklee. Stripe offers no option to place it on
+  the connected account.
 
 The last point is the one Inklee most wants reviewed. It sits uneasily beside
 "the artist is merchant of record and Inklee never holds or fronts the funds":
@@ -387,10 +390,11 @@ subscription. That is not implemented yet and is out of scope here.)
 
 11. **Payment-loss liability under the Custom model (new, please review).** As
     set out in §5, the connected accounts are configured with
-    `losses.payments: application`, so **Inklee bears chargeback and dispute
-    losses** on deposits, and with `fees.payer: application`, so Inklee pays
-    Stripe's processing fees. Inklee still never holds the deposit and the
-    artist remains merchant of record. Does accepting loss liability change the
+    `losses.payments: application`, so **Inklee backstops negative balances an
+    artist cannot repay** after a dispute, and with `fees.payer: application`,
+    so Inklee pays Stripe's processing fees. Inklee still never holds the
+    deposit and the artist remains merchant of record. Does accepting that
+    backstop change the
     merchant-of-record or payment-intermediary analysis previously cleared under
     the Express model, does it create any licensing/regulatory exposure, and
     what must be disclosed to artists (who are shielded from those losses) and
