@@ -1,10 +1,18 @@
 # Inklee — payment flow & platform model (for legal counsel)
 
-**Prepared 2026-06-03.** This document describes, in plain terms, how money
-moves through Inklee so counsel can advise on VAT, consumer disclosure, refund
-policy, payment-intermediary/PSD2 status, and the artist terms. It is
-self-contained; no code reading required. Open questions for counsel are
-collected in §10.
+**Prepared 2026-06-03. Revised 2026-07-21.** This document describes, in plain
+terms, how money moves through Inklee so counsel can advise on VAT, consumer
+disclosure, refund policy, payment-intermediary/PSD2 status, and the artist
+terms. It is self-contained; no code reading required. Open questions for
+counsel are collected in §10.
+
+> **What changed on 2026-07-21** (first live money test): in-app card deposits
+> require the deposit **entitlement** as well as an active Stripe account (§3),
+> Inklee can **waive its own fee** for an artist up to a capped budget (§4), the
+> refund asymmetry is now actually implemented rather than in progress (§6), and
+> artist identity documents can now be supplied in-app (§9). Nothing about who
+> holds the money, who is merchant of record, or what the client pays has
+> changed.
 
 ---
 
@@ -43,7 +51,21 @@ account. Inklee only ever receives its own platform fee.
 ## 3. The two deposit modes
 
 When an artist accepts a booking request, they can optionally request a deposit.
-There are two modes, depending on whether the artist has connected Stripe:
+There are two modes. An in-app card deposit requires **both** of the following;
+if either is missing the request becomes a manual deposit instead:
+
+1. the artist has an **active Stripe Connect account** (finished onboarding and
+   Stripe reports charges enabled), and
+2. the artist's account carries the **deposit entitlement** (the paid tier, or a
+   comp granted by Inklee — see `docs/artist-account-and-payouts.md`).
+
+Which mode applies is decided **before** any payment is attempted, and the
+artist is told plainly which one they are about to use: the request screen
+either says the client pays by card via a link in their booking email, or that
+the artist will collect directly and mark it received. **A failure while setting
+up the card payment never silently converts the request into a manual deposit**
+(fixed 2026-07-21 after it did exactly that in production): the artist gets an
+error and the booking is left untouched, with nothing sent to the client.
 
 ### 3a. In-app card deposit (artist has connected Stripe) — money flows via Inklee's platform
 
@@ -54,7 +76,7 @@ There are two modes, depending on whether the artist has connected Stripe:
   software + facilitating the payment.
 - Inklee never holds the deposit. It is the artist's money throughout.
 
-### 3b. Manual deposit (artist has NOT connected Stripe) — no Inklee money rails
+### 3b. Manual deposit (artist not connected, or not entitled) — no Inklee money rails
 
 - No card payment runs through Inklee. The artist tells the client how to pay
   them directly (e.g. bank transfer, in person), the client pays the artist
@@ -122,6 +144,15 @@ the artist's account and routes only Inklee's fee to Inklee.
 - **Very small deposits (under ~€17)**: Stripe's fixed component already exceeds
   the entire 3%, so Inklee's fee is floored at €0 (Inklee keeps nothing) and the
   artist covers the small processing shortfall.
+- **Sponsored fees.** Inklee can waive its own 3% for a given artist, typically
+  a beta artist, for a period and up to a spending cap. The client still pays
+  exactly the deposit and the artist still receives it in full; the only
+  difference is that Inklee's `application_fee_amount` is set to zero, so Inklee
+  earns nothing on that deposit and still bears Stripe's processing cost. The
+  waiver is decided per deposit against the remaining budget, so a single
+  deposit can never take the total past the cap. Because the fee is fixed when
+  the payment is created and cannot be partially waived afterwards, a waiver is
+  all-or-nothing per deposit.
 
 ---
 
@@ -174,11 +205,17 @@ Because the artist is merchant of record and holds the funds, the artist can
 also refund directly from their own Stripe dashboard; the in-app flow is a
 convenience.
 
-**The implementation of this asymmetry is still being finalised** (the current
-build has a discretionary manual refund button; wiring it to cancellation
-direction + the client-forfeit warning is in progress). The legal question below
-(Q9) drives how strict the "non-refundable on client cancellation" default can
-be.
+**The asymmetry is implemented as described** (verified 2026-07-21). An artist
+cancelling a booking with a paid deposit triggers the refund automatically, and
+a client cancelling from their portal is shown, before they confirm, that their
+deposit is non-refundable and the artist keeps it. The legal question below (Q9)
+still drives how strict that default may be.
+
+**Sponsored deposits and refunds.** When Inklee had waived its fee on a deposit
+that is later refunded, Inklee returns nothing (there was nothing to return) and
+the waiver is credited back to that artist's sponsorship budget, so a refunded
+deposit does not consume their allowance. This is internal accounting between
+Inklee and the artist and does not change what the client receives.
 
 ---
 
@@ -212,6 +249,14 @@ subscription. That is not implemented yet and is out of scope here.)
 
 - **Card data** is entered directly into Stripe's hosted fields; Inklee never
   sees or stores card numbers.
+- **Artist identity data for payouts** (name, date of birth, address, phone,
+  IBAN, and any identity document Stripe asks for) is collected inside Inklee,
+  because Inklee runs Stripe Connect in the mode where the platform collects
+  verification rather than sending the artist to Stripe. It is forwarded
+  straight to Stripe from memory and is **never written to an Inklee database,
+  never placed in Inklee's file storage, and never logged**. Only the resulting
+  account status is stored. Identity documents were previously impossible to
+  supply in-app at all; that was closed on 2026-07-21.
 - Inklee stores booking metadata (the client's handle/email, the request
   details, the deposit amount/status, and Stripe identifiers such as the
   payment-intent ID and refund ID) to run the booking workflow.
