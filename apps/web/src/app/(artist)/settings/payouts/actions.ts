@@ -174,7 +174,7 @@ async function readDocumentFile(
       entry.type,
     )
   ) {
-    return { error: `${label} must be a JPG, PNG, or WEBP image.` };
+    return { error: `${label} must be a JPG, PNG, or PDF file.` };
   }
   if (entry.size > VERIFICATION_DOCUMENT_MAX_BYTES) {
     return { error: `${label} must be smaller than 10 MB.` };
@@ -235,11 +235,11 @@ export async function uploadVerificationDocumentAction(
   const kind: VerificationDocumentKind =
     rawKind === "additional" ? "additional" : "identity";
 
-  const front = await readDocumentFile(formData, "front", "The front image");
+  const front = await readDocumentFile(formData, "front", "The front file");
   if ("error" in front) return { error: front.error };
   if ("missing" in front) return { error: "Please choose a document image." };
 
-  const back = await readDocumentFile(formData, "back", "The back image");
+  const back = await readDocumentFile(formData, "back", "The back file");
   if ("error" in back) return { error: back.error };
 
   const result = await uploadConnectVerificationDocument({

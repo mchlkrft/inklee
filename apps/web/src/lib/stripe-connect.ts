@@ -308,13 +308,17 @@ export async function updateConnectKyc(
   };
 }
 
-/** Stripe rejects identity documents outside these types, and caps uploads at
- *  10 MB. Both are enforced before the bytes leave the server so the artist
- *  gets a clear message instead of a raw Stripe error. */
+/** Stripe accepts verification documents as JPG, PNG, or PDF only (per the
+ *  Accounts API docs for individual.verification.document and
+ *  additional_document), and caps uploads at 10 MB. Both are enforced before
+ *  the bytes leave the server, because a format Stripe dislikes otherwise
+ *  uploads cleanly and then fails review asynchronously, which the artist would
+ *  experience as an unexplained rejection days later. PDF matters for the
+ *  additional document: banks and utilities issue proof of address as PDF. */
 export const VERIFICATION_DOCUMENT_MIME_TYPES = [
   "image/jpeg",
   "image/png",
-  "image/webp",
+  "application/pdf",
 ] as const;
 export const VERIFICATION_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -438,6 +442,45 @@ export async function getConnectRequirements(
     return account.requirements?.currently_due ?? [];
   } catch {
     return [];
+  }
+}
+
+/** What Stripe currently wants from an account, including WHY it rejected
+ *  anything already submitted.
+ *
+ *  `currently_due` alone is not enough for documents: when Stripe reviews an
+ *  uploaded ID and refuses it, the requirement simply reappears with no visible
+ *  reason, so the artist re-uploads the same unusable photo forever. The
+ *  `requirements.errors` entries carry Stripe's own human-readable reason
+ *  ("The image supplied is not readable", "The document is expired"), which is
+ *  the only thing that lets them fix it. Never persists, never throws. */
+export type ConnectRequirementState = {
+  currentlyDue: string[];
+  pendingVerification: string[];
+  errors: { requirement: string; reason: string }[];
+};
+
+export async function getConnectRequirementState(
+  accountId: string,
+): Promise<ConnectRequirementState> {
+  const empty: ConnectRequirementState = {
+    currentlyDue: [],
+    pendingVerification: [],
+    errors: [],
+  };
+  if (!stripe) return empty;
+  try {
+    const account = await stripe.accounts.retrieve(accountId);
+    return {
+      currentlyDue: account.requirements?.currently_due ?? [],
+      pendingVerification: account.requirements?.pending_verification ?? [],
+      errors: (account.requirements?.errors ?? []).map((e) => ({
+        requirement: e.requirement,
+        reason: e.reason,
+      })),
+    };
+  } catch {
+    return empty;
   }
 }
 

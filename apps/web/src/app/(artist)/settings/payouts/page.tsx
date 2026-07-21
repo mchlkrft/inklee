@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import {
   isConnectStatus,
-  getConnectRequirements,
+  getConnectRequirementState,
   type ConnectStatus,
 } from "@/lib/stripe-connect";
 import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
@@ -52,22 +52,42 @@ export default async function PayoutsSettingsPage() {
   const country = profile?.stripe_account_country as string | null;
   const updatedAt = profile?.stripe_account_updated_at as string | null;
 
-  // P0-3: for a not-yet-active account, fetch what Stripe still needs so the
-  // form can show it on load (the artist can only self-resolve if we tell them).
-  const requirementsDue =
-    accountId && (status === "pending" || status === "restricted")
-      ? await getConnectRequirements(accountId)
-      : [];
+  // P0-3: fetch what Stripe still needs so the form can show it on load (the
+  // artist can only self-resolve if we tell them). Fetched for every live
+  // account, not just pending/restricted ones: Stripe routinely asks an ACTIVE
+  // account for a document with a future deadline, and that window is exactly
+  // when the artist can still fix it without losing payouts. Gating this on
+  // pending/restricted hid the request until the deadline passed and the
+  // account had already been downgraded.
+  const requirementState =
+    accountId && status !== "unset"
+      ? await getConnectRequirementState(accountId)
+      : { currentlyDue: [], pendingVerification: [], errors: [] };
+  const requirementsDue = requirementState.currentlyDue;
 
   // Document requirements are the one thing the KYC form cannot satisfy, and
   // Custom Connect gives the artist no Stripe-hosted route to satisfy them
-  // either. Surface an uploader for exactly the documents Stripe is asking for.
-  const needsIdentityDocument = requirementsDue.includes(
+  // either.
+  const DOCUMENT_CODES = [
     "individual.verification.document",
-  );
-  const needsAdditionalDocument = requirementsDue.includes(
     "individual.verification.additional_document",
+  ];
+  const needsIdentityDocument = requirementsDue.includes(DOCUMENT_CODES[0]);
+  const needsAdditionalDocument = requirementsDue.includes(DOCUMENT_CODES[1]);
+  const documentPending = requirementState.pendingVerification.some((c) =>
+    DOCUMENT_CODES.includes(c),
   );
+  // Stripe's own words for why a submitted document was refused. Without these
+  // a rejected artist re-uploads the same unusable photo indefinitely.
+  const documentErrors = requirementState.errors.filter((e) =>
+    DOCUMENT_CODES.includes(e.requirement),
+  );
+  // Keep the uploader mounted for any live account so a successful upload's
+  // confirmation is not torn off the screen the moment the requirement clears,
+  // and so an artist can supply a document before Stripe blocks them.
+  const canUploadDocuments =
+    accountId !== null && status !== "unset" && status !== "disabled";
+  const documentsRequired = needsIdentityDocument || needsAdditionalDocument;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -143,39 +163,65 @@ export default async function PayoutsSettingsPage() {
         </div>
       )}
 
-      {(needsIdentityDocument || needsAdditionalDocument) && (
-        <div className="space-y-6 rounded-[20px] border border-brand-mustard/50 bg-brand-mustard/5 p-5">
+      {canUploadDocuments && (
+        <div
+          className={`space-y-6 rounded-[20px] border p-5 ${
+            documentsRequired
+              ? "border-brand-mustard/50 bg-brand-mustard/5"
+              : "border-border"
+          }`}
+        >
           <div>
             <h2 className="text-sm font-semibold text-foreground">
-              Stripe needs a document from you
+              {documentsRequired
+                ? "Stripe needs a document from you"
+                : "Verification documents"}
             </h2>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Stripe verifies some accounts by hand. Upload what it asks for
-              below and payouts continue once it clears.
+              {documentsRequired
+                ? "Stripe verifies some accounts by hand. Send what it asks for below, and it usually reviews within a few minutes."
+                : "Stripe is not asking for a document right now. If it does, or if it refuses one you sent, you can upload a new copy here."}
             </p>
           </div>
 
-          {needsIdentityDocument && (
-            <VerificationDocumentForm
-              kind="identity"
-              heading="Photo ID"
-              hint="A passport, national ID card, or driving licence. The name and date of birth must match the details you entered above."
-            />
-          )}
-
-          {needsAdditionalDocument && (
-            <div
-              className={
-                needsIdentityDocument ? "border-t border-border pt-6" : ""
-              }
-            >
-              <VerificationDocumentForm
-                kind="additional"
-                heading="Additional document"
-                hint="Usually proof of address, for example a utility bill or bank statement from the last three months showing the address you entered above."
-              />
+          {documentErrors.length > 0 && (
+            <div className="space-y-1.5 rounded-md border border-destructive/50 bg-destructive/5 px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">
+                Stripe could not use what you sent:
+              </p>
+              <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                {documentErrors.map((e) => (
+                  <li key={`${e.requirement}-${e.reason}`}>{e.reason}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Send a new copy below.
+              </p>
             </div>
           )}
+
+          {documentPending && documentErrors.length === 0 && (
+            <p className="rounded-md border border-border bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
+              Stripe is reviewing a document you sent. Use Refresh status to
+              check.
+            </p>
+          )}
+
+          <VerificationDocumentForm
+            kind="identity"
+            heading="Photo ID"
+            hint="A passport, national ID card, or driving licence. The name and date of birth must match the details you entered above."
+            required={needsIdentityDocument}
+          />
+
+          <div className="border-t border-border pt-6">
+            <VerificationDocumentForm
+              kind="additional"
+              heading="Additional document"
+              hint="Usually proof of address, for example a utility bill or bank statement from the last three months showing the address you entered above."
+              required={needsAdditionalDocument}
+            />
+          </div>
         </div>
       )}
 
