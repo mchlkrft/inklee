@@ -2,7 +2,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { artistHref } from "@/lib/public-url";
+import { apexHref, artistHref } from "@/lib/public-url";
 import {
   computeFlashAvailability,
   formatFlashAvailabilityLabel,
@@ -52,7 +52,11 @@ export default async function PublicFlashItemPage({
   const availability = computeFlashAvailability(item, activeRequestCount ?? 0);
 
   // Host-aware so the breadcrumb works on the artist subdomain AND the apex.
+  // Footer + consent links leave the artist namespace, so they use apexHref.
   const flashHref = await artistHref(slug, "/flash");
+  const termsHref = await apexHref("/terms");
+  const privacyHref = await apexHref("/privacy");
+  const homeHref = await apexHref("/");
 
   // Fetch flash day details if linked
   let flashDay: {
@@ -176,6 +180,8 @@ export default async function PublicFlashItemPage({
               flashItemId={item.id}
               flashDayId={item.flash_day_id}
               placementHint={item.placement_notes}
+              termsHref={termsHref}
+              privacyHref={privacyHref}
             />
           </div>
         ) : (
@@ -197,17 +203,23 @@ export default async function PublicFlashItemPage({
       </main>
 
       <footer className="flex justify-center gap-6 px-6 py-6 text-xs text-muted-foreground">
-        <Link href="/terms" className="hover:text-foreground transition-colors">
+        <Link
+          href={termsHref}
+          className="hover:text-foreground transition-colors"
+        >
           Terms
         </Link>
         <Link
-          href="/privacy"
+          href={privacyHref}
           className="hover:text-foreground transition-colors"
         >
           Privacy
         </Link>
         <span>·</span>
-        <Link href="/" className="hover:text-foreground transition-colors">
+        <Link
+          href={homeHref}
+          className="hover:text-foreground transition-colors"
+        >
           Powered by inklee
         </Link>
       </footer>

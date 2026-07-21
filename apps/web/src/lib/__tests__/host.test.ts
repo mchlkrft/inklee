@@ -400,6 +400,152 @@ describe("decideHostRouting", () => {
     });
   });
 
+  it("redirects an apex-only path on an artist subdomain to inklee.app, preserving search", () => {
+    const r: HostRouting = {
+      kind: "artist-subdomain",
+      host: "ouch370.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(
+      decideHostRouting(r, url("/request/submitted", "?id=abc&slug=ouch370")),
+    ).toEqual({
+      action: "redirect",
+      url: "https://inklee.app/request/submitted?id=abc&slug=ouch370",
+      permanent: false,
+    });
+  });
+
+  it("redirects the bare /request namespace root on an artist subdomain", () => {
+    const r: HostRouting = {
+      kind: "artist-subdomain",
+      host: "ouch370.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/request"))).toEqual({
+      action: "redirect",
+      url: "https://inklee.app/request",
+      permanent: false,
+    });
+  });
+
+  it("does NOT treat a lookalike path (/requests) as apex-only", () => {
+    const r: HostRouting = {
+      kind: "artist-subdomain",
+      host: "ouch370.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/requests"))).toEqual({
+      action: "rewrite-artist",
+      slug: "ouch370",
+      pathname: "/ouch370/requests",
+      search: "",
+    });
+  });
+
+  it("redirects an apex-only path on a hub subdomain to inklee.app", () => {
+    const r: HostRouting = {
+      kind: "hub-subdomain",
+      host: "ouch370.l.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/request/abc-token"))).toEqual({
+      action: "redirect",
+      url: "https://inklee.app/request/abc-token",
+      permanent: false,
+    });
+  });
+
+  it("passes an apex-only path through on a local slug host (dev serves it same-origin)", () => {
+    const r: HostRouting = {
+      kind: "local",
+      host: "ouch370.localhost",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/request/submitted"))).toEqual({
+      action: "pass",
+    });
+  });
+
+  it("redirects legal routes on an artist subdomain to inklee.app", () => {
+    const r: HostRouting = {
+      kind: "artist-subdomain",
+      host: "ouch370.inkl.ee",
+      slug: "ouch370",
+    };
+    for (const path of [
+      "/terms",
+      "/privacy",
+      "/imprint",
+      "/acceptable-use",
+      "/cookies",
+      "/dpa",
+      "/subprocessors",
+    ]) {
+      expect(decideHostRouting(r, url(path))).toEqual({
+        action: "redirect",
+        url: `https://inklee.app${path}`,
+        permanent: false,
+      });
+    }
+  });
+
+  it("redirects legal routes on a hub subdomain to inklee.app", () => {
+    const r: HostRouting = {
+      kind: "hub-subdomain",
+      host: "ouch370.l.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/privacy"))).toEqual({
+      action: "redirect",
+      url: "https://inklee.app/privacy",
+      permanent: false,
+    });
+  });
+
+  it("passes robots.txt through on artist and hub subdomains", () => {
+    const artist: HostRouting = {
+      kind: "artist-subdomain",
+      host: "ouch370.inkl.ee",
+      slug: "ouch370",
+    };
+    const hub: HostRouting = {
+      kind: "hub-subdomain",
+      host: "ouch370.l.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(artist, url("/robots.txt"))).toEqual({
+      action: "pass",
+    });
+    expect(decideHostRouting(hub, url("/robots.txt"))).toEqual({
+      action: "pass",
+    });
+  });
+
+  it("passes robots.txt through on a local slug host", () => {
+    const r: HostRouting = {
+      kind: "local",
+      host: "ouch370.localhost",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/robots.txt"))).toEqual({
+      action: "pass",
+    });
+  });
+
+  it("still rewrites sitemap.xml on an artist subdomain (apex sitemap is canonical)", () => {
+    const r: HostRouting = {
+      kind: "artist-subdomain",
+      host: "ouch370.inkl.ee",
+      slug: "ouch370",
+    };
+    expect(decideHostRouting(r, url("/sitemap.xml"))).toEqual({
+      action: "rewrite-artist",
+      slug: "ouch370",
+      pathname: "/ouch370/sitemap.xml",
+      search: "",
+    });
+  });
+
   it("redirects shortlink apex to inklee.app, preserving path + search", () => {
     const r: HostRouting = { kind: "shortlink-apex", host: "inkl.ee" };
     expect(decideHostRouting(r, url("/pricing", "?utm=x"))).toEqual({

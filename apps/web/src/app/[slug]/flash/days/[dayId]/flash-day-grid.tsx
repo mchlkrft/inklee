@@ -31,11 +31,17 @@ export default function FlashDayGrid({
   artistSlug,
   artistFirstName,
   dayId,
+  termsHref,
+  privacyHref,
 }: {
   items: FlashDayGridItem[];
   artistSlug: string;
   artistFirstName: string;
   dayId: string;
+  /** Host-aware apex-namespace hrefs from the server parent (apexHref),
+   *  threaded through to FlashBookingForm's consent links. */
+  termsHref: string;
+  privacyHref: string;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const active = items.find((i) => i.id === openId) ?? null;
@@ -191,6 +197,8 @@ export default function FlashDayGrid({
                     flashItemId={active.id}
                     flashDayId={dayId}
                     placementHint={active.placementNotes}
+                    termsHref={termsHref}
+                    privacyHref={privacyHref}
                   />
                 </div>
               </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 
 export default function CookieBanner() {
   const [visible, setVisible] = useState<boolean | null>(null);
@@ -24,12 +23,18 @@ export default function CookieBanner() {
         <p className="text-xs leading-relaxed text-muted-foreground">
           Inklee uses strictly necessary session cookies for artist login. No
           tracking cookies.{" "}
-          <Link
+          {/* Plain <a>, not <Link>: the banner mounts in the root layout and
+              renders on artist subdomains, where /privacy only resolves via
+              the proxy's apex-only redirect (host.ts APEX_ONLY_PREFIXES). A
+              document navigation follows that redirect cleanly; a client-side
+              RSC navigation would not. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a
             href="/privacy"
             className="text-foreground underline underline-offset-4"
           >
             Privacy policy
-          </Link>
+          </a>
         </p>
         <button
           onClick={dismiss}

@@ -20,7 +20,7 @@ import {
   todayInTimeZone,
 } from "@/lib/date-utils";
 import { clampDescription } from "@/lib/seo";
-import { publicArtistUrl } from "@/lib/public-url";
+import { apexHref, publicArtistUrl } from "@/lib/public-url";
 import { parseBioPageSettings, isModuleVisible } from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import {
@@ -461,6 +461,15 @@ export default async function ArtistPublicPage({
   // is a cover image (or no color set).
   const goodsItemBg = !coverImage && coverColor ? coverColor : null;
 
+  // Footer + consent links leave the artist namespace for apex-only routes
+  // (legal pages, marketing home), so they must be host-aware: a relative
+  // /terms on <slug>.inkl.ee would be slug-prefixed by the proxy and 404.
+  const termsHref = await apexHref("/terms");
+  const privacyHref = await apexHref("/privacy");
+  const imprintHref = await apexHref("/imprint");
+  const acceptableUseHref = await apexHref("/acceptable-use");
+  const homeHref = await apexHref("/");
+
   return (
     <InterestSelectionsProvider>
       <div className="flex min-h-screen flex-col bg-brand-charcoal text-brand-bone">
@@ -588,6 +597,9 @@ export default async function ArtistPublicPage({
                   trips={futureTrips}
                   isDemoAccount={slug === "bert-grimm"}
                   studioId={primaryStudio?.id ?? null}
+                  termsHref={termsHref}
+                  privacyHref={privacyHref}
+                  acceptableUseHref={acceptableUseHref}
                 />
               )}
             </div>
@@ -602,25 +614,28 @@ export default async function ArtistPublicPage({
 
         <footer className="flex flex-wrap justify-center gap-x-4 gap-y-2 bg-brand-charcoal px-6 py-6 text-xs text-brand-bone/40">
           <Link
-            href="/terms"
+            href={termsHref}
             className="transition-colors hover:text-brand-bone"
           >
             Terms
           </Link>
           <Link
-            href="/privacy"
+            href={privacyHref}
             className="transition-colors hover:text-brand-bone"
           >
             Privacy
           </Link>
           <Link
-            href="/imprint"
+            href={imprintHref}
             className="transition-colors hover:text-brand-bone"
           >
             Imprint
           </Link>
           <span aria-hidden>·</span>
-          <Link href="/" className="transition-colors hover:text-brand-bone">
+          <Link
+            href={homeHref}
+            className="transition-colors hover:text-brand-bone"
+          >
             Powered by inklee
           </Link>
         </footer>

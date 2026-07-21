@@ -12,8 +12,16 @@ import Link from "next/link";
  *
  * Not a standalone route — embedded only. If a `/data-requests` route ships
  * later, §3 should gain a `/data-requests` link per implementation notes §17.2.
+ *
+ * `privacyHref` comes from the server parent via apexHref: the notice renders
+ * on artist subdomains, where a relative /privacy would be slug-prefixed by
+ * the proxy and 404.
  */
-export function PublicBookingLegalNotice() {
+export function PublicBookingLegalNotice({
+  privacyHref,
+}: {
+  privacyHref: string;
+}) {
   return (
     <section
       id="public-booking-legal-notice"
@@ -85,7 +93,7 @@ export function PublicBookingLegalNotice() {
             that the artist can read, respond to, and manage your request
             through the Service. This is described in our{" "}
             <Link
-              href="/privacy"
+              href={privacyHref}
               className="text-foreground underline underline-offset-4"
             >
               Privacy Policy

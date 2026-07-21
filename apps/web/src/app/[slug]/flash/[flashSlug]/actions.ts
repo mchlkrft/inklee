@@ -14,6 +14,7 @@ import {
 } from "@/lib/flash";
 import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
 import { isAllowedBookingOrigin } from "@/lib/host";
+import { apexHref } from "@/lib/public-url";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -251,7 +252,12 @@ export async function submitFlashBookingAction(
     }
   }
 
+  // apexHref: /request/* lives on the app origin only — a relative redirect
+  // on <slug>.inkl.ee would be slug-prefixed by the proxy and 404. See the
+  // matching comment in [slug]/actions.ts.
   redirect(
-    `/request/submitted?id=${bookingId}&slug=${artistSlug}&email=${data.email ? "1" : "0"}`,
+    await apexHref(
+      `/request/submitted?id=${bookingId}&slug=${artistSlug}&email=${data.email ? "1" : "0"}`,
+    ),
   );
 }

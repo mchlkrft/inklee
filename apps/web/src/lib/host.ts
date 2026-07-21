@@ -180,6 +180,38 @@ export type HostRoutingDecision =
  *  env vars for the bio domain — that one IS variable. */
 const APP_REDIRECT_TARGET = "https://inklee.app";
 
+/** Path namespaces that exist ONLY on the canonical app host:
+ *
+ *  - /request — the customer portal (/request/[token], /request/submitted),
+ *    linked from magic-link emails and the post-submit redirect on the
+ *    booking and flash forms.
+ *  - the (legal) route group — linked from every public footer, the booking
+ *    and flash consent blocks, and the cookie banner.
+ *
+ *  Well-behaved emitters use apexHref (server components) or a plain <a>
+ *  (client leaves like the cookie banner); this list is the safety net
+ *  behind them: a stray relative emission on an artist or hub subdomain
+ *  would otherwise be rewritten to /<slug>/... and 404. Keep in sync with
+ *  the apexHref call sites and the app/(legal) directory. */
+const APEX_ONLY_PREFIXES = [
+  "/request",
+  "/terms",
+  "/privacy",
+  "/imprint",
+  "/acceptable-use",
+  "/cookies",
+  "/dpa",
+  "/subprocessors",
+];
+
+/** True when the pathname is inside an apex-only namespace. Segment-exact:
+ *  "/request" and "/request/x" match, "/requests" does not. */
+function isApexOnlyPath(pathname: string): boolean {
+  return APEX_ONLY_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
 /** Decide what to do with a parsed host given the request URL. Pure —
  *  no side effects, no DB calls. The caller passes a URL (request.nextUrl
  *  in middleware) and the function reads only pathname + search. */
@@ -192,6 +224,14 @@ export function decideHostRouting(
   // 404s the analytics beacon and any other same-origin API call).
   const isApiPath = url.pathname === "/api" || url.pathname.startsWith("/api/");
 
+  // robots.txt is host-scoped by definition: crawlers request it on every
+  // host they visit, and in subdomain mode the artist subdomain is the
+  // canonical booking URL. Rewriting it to /<slug>/robots.txt would serve
+  // an HTML 404, so it passes through to the root app/robots.ts instead.
+  // (sitemap.xml intentionally keeps 404ing on subdomains — it lists apex
+  // URLs and is only advertised at https://inklee.app/sitemap.xml.)
+  const isRobotsPath = url.pathname === "/robots.txt";
+
   switch (routing.kind) {
     case "marketing":
     case "preview":
@@ -199,7 +239,15 @@ export function decideHostRouting(
       return { action: "pass" };
 
     case "local":
-      if (routing.slug && !isApiPath) {
+      if (routing.slug && !isApiPath && !isRobotsPath) {
+        // Dev counterpart of the subdomain apex-only safety net below:
+        // this decision is pure and cannot know the dev origin/port to
+        // build a redirect, so serve the apex route on the same origin
+        // instead of rewriting it into a guaranteed 404. Prod redirects
+        // to the canonical host; both land the visitor on the real page.
+        if (isApexOnlyPath(url.pathname)) {
+          return { action: "pass" };
+        }
         return {
           action: "rewrite-artist",
           slug: routing.slug,
@@ -210,7 +258,20 @@ export function decideHostRouting(
       return { action: "pass" };
 
     case "artist-subdomain":
-      if (isApiPath) return { action: "pass" };
+      if (isApiPath || isRobotsPath) return { action: "pass" };
+      // Apex-only namespaces bounce to the canonical host instead of being
+      // slug-prefixed into a guaranteed 404. Non-permanent on purpose: if
+      // these routes are ever served on subdomains, a cached 308 would
+      // fight the change. (The `local` case above serves these via "pass"
+      // instead — a pure decision cannot know the dev origin/port needed
+      // to build the redirect URL.)
+      if (isApexOnlyPath(url.pathname)) {
+        return {
+          action: "redirect",
+          url: `${APP_REDIRECT_TARGET}${url.pathname}${url.search}`,
+          permanent: false,
+        };
+      }
       return {
         action: "rewrite-artist",
         slug: routing.slug,
@@ -219,7 +280,17 @@ export function decideHostRouting(
       };
 
     case "hub-subdomain":
-      if (isApiPath) return { action: "pass" };
+      if (isApiPath || isRobotsPath) return { action: "pass" };
+      // Same apex-only safety net as artist-subdomain: <slug>.l.inkl.ee
+      // rewrites everything under /<slug>/hub/..., so /request/* and the
+      // legal routes could never resolve here either.
+      if (isApexOnlyPath(url.pathname)) {
+        return {
+          action: "redirect",
+          url: `${APP_REDIRECT_TARGET}${url.pathname}${url.search}`,
+          permanent: false,
+        };
+      }
       return {
         action: "rewrite-artist",
         slug: routing.slug,
