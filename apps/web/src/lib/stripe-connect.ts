@@ -353,6 +353,68 @@ export async function syncConnectAccount(args: {
 }
 
 /**
+ * True when Stripe says this account id is not usable by the secret key we
+ * hold: the id belongs to the other mode (a test `acct_` under a live key),
+ * the account was deleted, or our platform access was revoked.
+ *
+ * Deliberately narrow. A rate limit, a 5xx, or a dropped connection must NEVER
+ * read as "the account is gone" — that would downgrade every artist's payout
+ * state during a Stripe incident. `resource_missing` in particular is generic,
+ * so it only counts when the error points at an account-shaped parameter and
+ * not at some other id in the same request.
+ */
+export function isConnectAccountUnreachable(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as {
+    type?: string;
+    code?: string;
+    param?: string;
+    statusCode?: number;
+    message?: string;
+  };
+  // 403: "The provided key ... does not have access to account 'acct_...' (or
+  // that account does not exist). Application access may have been revoked."
+  if (e.statusCode === 403 || e.type === "StripePermissionError") return true;
+  if (e.code === "account_invalid") return true;
+  if (e.code === "resource_missing") {
+    return /destination|on_behalf_of|account/i.test(
+      `${e.param ?? ""} ${e.message ?? ""}`,
+    );
+  }
+  return false;
+}
+
+/**
+ * Stripe reported the artist's Connect account as unreachable, so the profile's
+ * cached "active / charges enabled" state is a lie: it keeps routing deposits
+ * into PaymentIntents that can never be created. Downgrade to `restricted`
+ * ("Action needed" on the payouts page) and clear the capability flags so
+ * `deriveConnectRouting` stops returning `routeCharges`.
+ *
+ * The account id is deliberately KEPT. This runs automatically off a Stripe
+ * error, and one platform-wide misconfiguration (a test key deployed to
+ * production) would make every account look unreachable at once. A status
+ * downgrade is fully reversible by the next successful sync or `account.updated`
+ * webhook; wiping every artist's account id would not be. Clearing a genuinely
+ * dead id stays a deliberate admin action — note that `ensureConnectAccount`
+ * reuses a stored id, so an artist whose account is truly gone cannot
+ * re-onboard until an admin clears the field.
+ */
+export async function markConnectAccountUnreachable(
+  userId: string,
+): Promise<void> {
+  await serviceClient
+    .from("profiles")
+    .update({
+      stripe_account_status: "restricted" satisfies ConnectStatus,
+      stripe_charges_enabled: false,
+      stripe_payouts_enabled: false,
+      stripe_account_updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+}
+
+/**
  * Webhook-side helper. The webhook gets the full Account object directly in
  * `event.data.object`, so we can skip the retrieve round-trip and just
  * persist. Looks up the artist by `stripe_account_id`.

@@ -23,7 +23,11 @@ import {
 } from "@/lib/email/send-booking-email";
 import type { EmailGoodsDecision } from "@/lib/email/booking-templates";
 import { stripe } from "@/lib/stripe";
-import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
+import {
+  getConnectRoutingForArtist,
+  isConnectAccountUnreachable,
+  markConnectAccountUnreachable,
+} from "@/lib/stripe-connect";
 import { artistDepositCurrency } from "@/lib/connect-countries";
 import { platformFeeCents } from "@/lib/platform-fee";
 import { checkDepositRequestRateLimit } from "@/lib/ratelimit";
@@ -647,6 +651,99 @@ async function notifyDepositRequested(
 // deposit-defaults parser's MAX_AMOUNT (deposit-settings.ts).
 const MAX_DEPOSIT_AMOUNT = 100_000;
 
+/**
+ * Create the deposit PaymentIntent for an artist we have already established is
+ * BOTH Connect-routable and entitled to card deposits.
+ *
+ * MONEY (2026-07-21): a Stripe failure here used to be captured to Sentry and
+ * then swallowed, letting the caller write the booking as `deposit_pending`
+ * with a null client secret. The customer portal renders that as the manual
+ * "deposit requested" card with no pay button, while the artist believed they
+ * had sent a card payment link — a silent downgrade nobody was told about. It
+ * hid a dead Connect account for weeks. A card deposit must never degrade into
+ * a manual one behind the artist's back: report the failure and leave the
+ * booking untouched so the artist can fix the cause and retry.
+ *
+ * The manual deposit path still exists and is still correct — but only for
+ * artists who are genuinely un-connected or un-entitled, decided BEFORE we
+ * ever call Stripe.
+ */
+async function provisionDepositIntent(args: {
+  userId: string;
+  bookingId: string;
+  stripeAccountId: string;
+  amountCents: number;
+  currency: string;
+  appFeeCents: number;
+  metadata: Record<string, string>;
+}): Promise<
+  { paymentIntentId: string; clientSecret: string } | { error: string }
+> {
+  if (!stripe) return { error: "Stripe is not configured on this deployment." };
+
+  const intentParams: Stripe.PaymentIntentCreateParams = {
+    amount: args.amountCents,
+    currency: args.currency,
+    automatic_payment_methods: { enabled: true },
+    metadata: args.metadata,
+    description: `Tattoo deposit - booking ${args.bookingId}`,
+    on_behalf_of: args.stripeAccountId,
+    transfer_data: { destination: args.stripeAccountId },
+    // Platform fee. Customer pays exactly the deposit; `application_fee_amount`
+    // is the full 3% (Custom Connect, fees.payer = application: Stripe bills
+    // its processing fee to Inklee's balance, so Inklee nets 3% − Stripe).
+    // `on_behalf_of` keeps the artist as merchant of record. When Inklee
+    // sponsors fees (Slice 81) `appFeeCents` is 0.
+    application_fee_amount: args.appFeeCents,
+  };
+
+  try {
+    const intent = await stripe.paymentIntents.create(intentParams, {
+      // Per-attempt key: the nonce protects transport-level retries (the SDK
+      // reuses the same key when it retries a failed request) without pinning
+      // the booking to one cached Stripe response for 24h. A booking-scoped key
+      // (`deposit-intent-${id}`) could replay an already-cancelled intent when a
+      // lost MONEY-03 race cancels the created intent and the artist
+      // re-requests, wedging the deposit until the key expired. App-level
+      // double-submits are already serialised by the conditional status UPDATE
+      // in the caller (the loser cancels its intent).
+      idempotencyKey: `deposit-intent-${args.bookingId}-${crypto.randomUUID()}`,
+    });
+    if (!intent.client_secret) {
+      Sentry.captureMessage("deposit intent created without a client secret", {
+        tags: { action: "stripe_create_intent" },
+        extra: { bookingId: args.bookingId, intentId: intent.id },
+      });
+      return {
+        error:
+          "Stripe did not return a payment secret for this deposit. Please try again.",
+      };
+    }
+    return { paymentIntentId: intent.id, clientSecret: intent.client_secret };
+  } catch (stripeErr) {
+    Sentry.captureException(stripeErr, {
+      tags: { action: "stripe_create_intent" },
+      extra: { bookingId: args.bookingId, artistId: args.userId },
+    });
+
+    if (isConnectAccountUnreachable(stripeErr)) {
+      // The profile still claimed this account was active and charge-ready.
+      // Stop believing that, so the next request takes the manual path instead
+      // of retrying a charge that cannot succeed.
+      await markConnectAccountUnreachable(args.userId);
+      return {
+        error:
+          "Your payout account could not be reached at Stripe, so no card payment was set up. Reconnect it under Settings, payouts, then request the deposit again.",
+      };
+    }
+
+    return {
+      error:
+        "Stripe could not set up the card payment for this deposit, so nothing was sent. Please try again in a moment.",
+    };
+  }
+}
+
 export async function requestDepositCore(
   supabase: SupabaseClient,
   userId: string,
@@ -746,7 +843,8 @@ export async function requestDepositCore(
     // P1-6 / FUN-2/FUN-10: an existing card intent can only be reused if the
     // artist is STILL routable AND the settlement currency hasn't changed (a
     // PaymentIntent's currency is immutable). Otherwise the old intent is dead:
-    // cancel it and fall back to a manual deposit.
+    // cancel it and re-provision (or, for an artist who is no longer routable
+    // or entitled, fall back to a manual deposit) — see the else branch below.
     const reuseRouting =
       stripe && amount > 0
         ? await getConnectRoutingForArtist(userId)
@@ -816,8 +914,11 @@ export async function requestDepositCore(
         return { error: "This booking changed. Refresh and try again." };
       }
     } else {
-      // Can't reuse the card intent → cancel the dead one and convert this
-      // booking to a manual deposit (null intent fields).
+      // The existing intent is unusable (dead, or its immutable currency no
+      // longer matches). Cancel it, then RE-PROVISION rather than silently
+      // dropping to a manual deposit: an artist who is still routable and
+      // entitled asked for a card deposit and must get one. Only a genuinely
+      // un-routable or un-entitled artist ends up with null intent fields here.
       if (stripe) {
         try {
           await stripe.paymentIntents.cancel(fresh.deposit_payment_intent_id);
@@ -825,6 +926,30 @@ export async function requestDepositCore(
           // already paid/cancelled — nothing to undo.
         }
       }
+
+      let replacementIntentId: string | null = null;
+      let replacementSecret: string | null = null;
+      if (
+        stripe &&
+        amount > 0 &&
+        depositsEntitled &&
+        reuseRouting.routeCharges &&
+        reuseRouting.stripeAccountId
+      ) {
+        const provisioned = await provisionDepositIntent({
+          userId,
+          bookingId: id,
+          stripeAccountId: reuseRouting.stripeAccountId,
+          amountCents,
+          currency: depositCurrency,
+          appFeeCents,
+          metadata: depositMetadata,
+        });
+        if ("error" in provisioned) return provisioned;
+        replacementIntentId = provisioned.paymentIntentId;
+        replacementSecret = provisioned.clientSecret;
+      }
+
       const { data: manualFlipped, error: manualError } = await supabase
         .from("booking_requests")
         .update({
@@ -834,8 +959,8 @@ export async function requestDepositCore(
           deposit_note: note || null,
           deposit_policy: depositPolicy,
           deposit_policy_snapshot: depositPolicySnapshot,
-          deposit_payment_intent_id: null,
-          deposit_client_secret: null,
+          deposit_payment_intent_id: replacementIntentId,
+          deposit_client_secret: replacementSecret,
           status: "deposit_pending",
           decided_at: decidedAt,
           updated_at: decidedAt,
@@ -845,6 +970,15 @@ export async function requestDepositCore(
         .select("id");
       if (manualError) return { error: manualError.message };
       if (!manualFlipped || manualFlipped.length === 0) {
+        // Cancel the intent we just created so a booking that moved on doesn't
+        // leave a live PaymentIntent behind.
+        if (replacementIntentId && stripe) {
+          try {
+            await stripe.paymentIntents.cancel(replacementIntentId);
+          } catch {
+            // already gone — nothing to undo.
+          }
+        }
         return { error: "This booking changed. Refresh and try again." };
       }
     }
@@ -875,42 +1009,21 @@ export async function requestDepositCore(
     // platform account.
     const routing = await getConnectRoutingForArtist(userId);
     if (routing.routeCharges && routing.stripeAccountId && depositsEntitled) {
-      const intentParams: Stripe.PaymentIntentCreateParams = {
-        amount: amountCents,
+      const provisioned = await provisionDepositIntent({
+        userId,
+        bookingId: id,
+        stripeAccountId: routing.stripeAccountId,
+        amountCents,
         currency: depositCurrency,
-        automatic_payment_methods: { enabled: true },
+        appFeeCents,
         metadata: depositMetadata,
-        description: `Tattoo deposit - booking ${id}`,
-        on_behalf_of: routing.stripeAccountId,
-        transfer_data: { destination: routing.stripeAccountId },
-        // Platform fee. Customer pays exactly `amount`; `application_fee_amount`
-        // is the full 3% (Custom Connect, fees.payer = application: Stripe bills
-        // its processing fee to Inklee's balance, so Inklee nets 3% − Stripe).
-        // `on_behalf_of` keeps the artist as merchant of record. When Inklee
-        // sponsors fees (Slice 81) `appFeeCents` is 0.
-        application_fee_amount: appFeeCents,
-      };
-      try {
-        const intent = await stripe.paymentIntents.create(intentParams, {
-          // Per-attempt key: the nonce protects transport-level retries (the
-          // SDK reuses the same key when it retries a failed request) without
-          // pinning the booking to one cached Stripe response for 24h. A
-          // booking-scoped key (`deposit-intent-${id}`) could replay an
-          // already-cancelled intent when a lost MONEY-03 race cancels the
-          // created intent and the artist re-requests, wedging the deposit
-          // until the key expired. App-level double-submits are already
-          // serialised by the conditional status UPDATE below (the loser
-          // cancels its intent).
-          idempotencyKey: `deposit-intent-${id}-${crypto.randomUUID()}`,
-        });
-        paymentIntentId = intent.id;
-        clientSecret = intent.client_secret;
-        routedToConnect = true;
-      } catch (stripeErr) {
-        Sentry.captureException(stripeErr, {
-          tags: { action: "stripe_create_intent" },
-        });
-      }
+      });
+      // Nothing has been written yet, so returning here leaves the booking in
+      // its previous status with no client email sent.
+      if ("error" in provisioned) return provisioned;
+      paymentIntentId = provisioned.paymentIntentId;
+      clientSecret = provisioned.clientSecret;
+      routedToConnect = true;
     }
   }
 
