@@ -924,6 +924,41 @@ const IT: SeedCountryConfig = {
   ],
 };
 
+const AU: SeedCountryConfig = {
+  code: "AU",
+  name: "Australia",
+  languages: ["en"],
+  // English, so the base vocab (incl. the strong brow/nail/beauty groups)
+  // carries almost everything. These add the AU-flavoured beauty terms.
+  extraPositive: compileSeedVocabulary([], "australian_tattoo"),
+  extraNegative: compileSeedVocabulary(
+    [
+      ["beauty therapy", "strong"],
+      ["beauty therapist", "strong"],
+      ["hairdresser", "strong"],
+      ["hair salon", "strong"],
+      ["day spa", "strong"],
+      ["spray tan", "weak"],
+    ],
+    "australian_beauty",
+  ),
+  postalCodePattern: /^\d{4}$/,
+  qualityFixtures: [
+    { name: "Sydney Tattoo Studio", expect: "accept" },
+    { name: "Rising Sun Tattoo Melbourne", expect: "accept" },
+    { name: "Bondi Ink Tattoo Co", expect: "accept" },
+    { name: "Glamour Beauty Salon Perth", expect: "reject_beauty" },
+    { name: "Brisbane Brows Studio", expect: "reject_beauty" },
+    { name: "Adelaide Nail Bar", expect: "reject_beauty" },
+    {
+      name: "Hairdresser & Spray Tan Cairns",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Tattoo & Brows Studio", expect: "not_accept" },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -937,6 +972,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   NL,
   KR,
   IT,
+  AU,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {

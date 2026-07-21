@@ -492,6 +492,31 @@ export const TH_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 900 },
 };
 
+// Australia: ~540 LGAs, huge and far apart, with population concentrated on
+// the eastern/southern coast (Sydney, Melbourne, Brisbane, Perth, Adelaide).
+// Coarse units like the UK, wide clusters, English query bundles.
+export const AU_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 300_000,
+    cityPopulation: 100_000,
+    townPopulation: 40_000,
+    clusterRadiusKm: 40,
+    clusterMaxMembers: 8,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "tattoo shop {location}",
+      "tattoo {location}",
+      "walk in tattoo {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "tattoo shop {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 900 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -505,6 +530,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   KR: KR_COVERAGE_POLICY,
   IT: IT_COVERAGE_POLICY,
   TH: TH_COVERAGE_POLICY,
+  AU: AU_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

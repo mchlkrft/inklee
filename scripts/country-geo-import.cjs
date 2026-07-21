@@ -826,6 +826,81 @@ async function adapterTH() {
   };
 }
 
+// Australia: ~537 Local Government Areas (LGAs). ASGS LGA code is the stable
+// identity; state (ste) is the region. Area is computed from the LGA polygon
+// so the spatial-assignment radius fits both tiny inner-city councils and huge
+// outback LGAs (a fixed default would strand studios in big urban councils
+// like Brisbane). Population is best-effort from Wikidata by LGA name+state.
+function ringAreaKm2(ring) {
+  const R = 6371;
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [lng1, lat1] = ring[i];
+    const [lng2, lat2] = ring[i + 1];
+    sum +=
+      ((lng2 - lng1) * Math.PI) / 180 *
+      (2 + Math.sin((lat1 * Math.PI) / 180) + Math.sin((lat2 * Math.PI) / 180));
+  }
+  return Math.abs((sum * R * R) / 2);
+}
+function geomAreaKm2(geom) {
+  if (!geom || !geom.coordinates) return null;
+  try {
+    if (geom.type === "Polygon") return ringAreaKm2(geom.coordinates[0]);
+    if (geom.type === "MultiPolygon")
+      return geom.coordinates.reduce((a, poly) => a + ringAreaKm2(poly[0]), 0);
+  } catch {
+    return null;
+  }
+  return null;
+}
+async function adapterAU() {
+  const url = `${ODS}/georef-australia-local-government-area/exports/json?select=year,ste_code,ste_name,lga_code,lga_name,geo_point_2d,geo_shape`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 400)
+    fail(`Implausible AU export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const code = String(first(m.lga_code) ?? "").trim();
+    const name = String(first(m.lga_name) ?? "").trim();
+    if (!/^\d{3,6}$/.test(code) || !name || seen.has(code)) continue;
+    seen.add(code);
+    const area = geomAreaKm2(m.geo_shape?.geometry ?? m.geo_shape);
+    units.push({
+      externalId: code,
+      name,
+      aliases: [],
+      stateCode: String(first(m.ste_code) ?? ""),
+      stateName: String(first(m.ste_name) ?? ""),
+      districtCode: null,
+      districtName: null,
+      population: null,
+      areaKm2: area && area > 0 && area < 2_000_000 ? Math.round(area) : null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef",
+    sourceVersion: `georef-${latestYear}`,
+    attribution: "Australian LGAs: ABS ASGS via OpenDataSoft.",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -839,6 +914,7 @@ const ADAPTERS = {
   KR: adapterKR,
   IT: adapterIT,
   TH: adapterTH,
+  AU: adapterAU,
 };
 
 function readSecret() {
