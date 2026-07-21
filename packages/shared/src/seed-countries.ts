@@ -505,6 +505,88 @@ const TH: SeedCountryConfig = {
   ],
 };
 
+const FR: SeedCountryConfig = {
+  code: "FR",
+  name: "France",
+  // French dominates studio names nationwide; English loanwords ("tattoo")
+  // are common. Regional languages (Occitan, Breton, Corsican, Basque) still
+  // use the French tattoo/beauty vocabulary in practice.
+  languages: ["fr", "en"],
+  extraPositive: compileSeedVocabulary(
+    [
+      ["tatouage", "strong"],
+      ["tatouages", "strong"],
+      ["salon de tatouage", "strong"],
+      ["studio de tatouage", "strong"],
+      ["atelier de tatouage", "strong"],
+      ["tatoueur", "strong"],
+      ["tatoueuse", "strong"],
+    ],
+    "french_tattoo",
+  ),
+  // Applying the Spain lesson (ruleset 2026-07-20.3): the beauty identity
+  // words go in BARE, not only as multi-word phrases, so a salon filed under
+  // the tattoo category is caught. "esthétique"/"beauté" normalize accents
+  // away automatically.
+  extraNegative: compileSeedVocabulary(
+    [
+      ["institut de beaute", "strong"],
+      ["salon de beaute", "strong"],
+      ["beaute", "strong"],
+      ["esthetique", "strong"],
+      ["estheticienne", "strong"],
+      ["soins esthetiques", "strong"],
+      ["maquillage permanent", "strong"],
+      ["maquillage semi permanent", "strong"],
+      ["dermopigmentation", "strong"],
+      ["dermographe", "strong"],
+      ["microblading", "strong"],
+      ["micropigmentation", "strong"],
+      ["onglerie", "strong"],
+      ["ongles", "strong"],
+      ["manucure", "strong"],
+      ["coiffure", "strong"],
+      ["coiffeur", "strong"],
+      ["extension de cils", "strong"],
+      ["rehaussement de cils", "strong"],
+      ["epilation", "weak"],
+      ["epilation laser", "weak"],
+      ["solarium", "weak"],
+      ["bronzage", "weak"],
+      ["sourcils", "weak"],
+    ],
+    "french_beauty",
+  ),
+  postalCodePattern: /^\d{5}$/,
+  qualityFixtures: [
+    { name: "Salon de Tatouage Paris 11", expect: "accept" },
+    { name: "L'Encre Noire Tatouage", expect: "accept" },
+    { name: "Atelier Tatoueur Lyon", expect: "accept" },
+    {
+      name: "Sacré Coeur Tattoo",
+      extraText: "Tatoueur spécialisé blackwork à Marseille.",
+      expect: "accept",
+    },
+    { name: "Institut de Beauté Sophie", expect: "reject_beauty" },
+    {
+      name: "Esthétique Carmen",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Onglerie Chic Nails", expect: "reject_beauty" },
+    {
+      name: "Maquillage Permanent Lyon",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Coiffure & Esthétique Marie", expect: "reject_beauty" },
+    {
+      name: "Tatouage & Maquillage Permanent Nice",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -513,6 +595,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   US,
   ES,
   TH,
+  FR,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {

@@ -318,6 +318,39 @@ export const ES_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 2500 },
 };
 
+// France: ~35,000 communes, the finest granularity yet and 3x Germany's
+// municipality count. Population concentrates in a handful of metros (Paris,
+// Marseille, Lyon, Toulouse, Nice), so the DACH tier shape fits but the run
+// budget sits higher and clusters do most of the rural work. French query
+// bundles; "salon de tatouage" is the conventional term.
+export const FR_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 200_000,
+    cityPopulation: 50_000,
+    townPopulation: 15_000,
+    clusterRadiusKm: 12,
+    clusterMaxMembers: 12,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "salon de tatouage {location}",
+      "tatoueur {location}",
+      "tattoo studio {location}",
+      "tatouage {location}",
+    ],
+    city_standard: [
+      "salon de tatouage {location}",
+      "tattoo studio {location}",
+    ],
+    town_light: ["salon de tatouage {location}"],
+    rural_cluster: ["salon de tatouage {location}"],
+    gap_recheck: ["salon de tatouage {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 4000 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -325,6 +358,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   GB: GB_COVERAGE_POLICY,
   US: US_COVERAGE_POLICY,
   ES: ES_COVERAGE_POLICY,
+  FR: FR_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

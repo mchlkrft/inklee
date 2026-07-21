@@ -439,6 +439,86 @@ async function adapterES() {
   };
 }
 
+// France: ~34,900 communes. INSEE code (P374) is the stable identity; note
+// Corsica uses 2A/2B in place of a leading department digit, so the code is
+// not purely numeric. Region is the chunk level (stateCode) and department
+// the district. Population comes from Wikidata best-effort: it only drives
+// the paid search tier, and units without it fall to structured-first rural
+// coverage, which is correct for a small commune anyway.
+const INSEE = /^[0-9][0-9AB][0-9]{3}$/;
+async function adapterFR() {
+  const url = `${ODS}/georef-france-commune/exports/json?select=year,reg_code,reg_name,dep_code,dep_name,com_code,com_name,geo_point_2d`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 30000)
+    fail(`Implausible FR export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  console.log("→ Wikidata population + area by INSEE code (P374), best-effort…");
+  const wd = new Map();
+  try {
+    for (const b of await sparql(
+      `SELECT ?insee ?pop ?area WHERE { ?x wdt:P374 ?insee . OPTIONAL { ?x wdt:P1082 ?pop } OPTIONAL { ?x wdt:P2046 ?area } }`,
+    )) {
+      const insee = String(b.insee?.value ?? "").trim().toUpperCase();
+      if (!INSEE.test(insee)) continue;
+      const cur = wd.get(insee) ?? {};
+      const pop =
+        b.pop && Number.isFinite(Number(b.pop.value))
+          ? Math.round(Number(b.pop.value))
+          : null;
+      const area =
+        b.area && Number.isFinite(Number(b.area.value))
+          ? Number(b.area.value)
+          : null;
+      if (pop && (!cur.population || pop > cur.population)) cur.population = pop;
+      if (area && !cur.areaKm2) cur.areaKm2 = area;
+      wd.set(insee, cur);
+    }
+    console.log(`  Wikidata: ${wd.size} communes with attributes.`);
+  } catch (e) {
+    console.log(`  Wikidata step skipped (${e.message ?? e}); tiering falls back to structured-first rural.`);
+  }
+
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const insee = String(first(m.com_code) ?? "").trim().toUpperCase();
+    const name = String(first(m.com_name) ?? "").trim();
+    if (!INSEE.test(insee) || !name || seen.has(insee)) continue;
+    seen.add(insee);
+    units.push({
+      externalId: insee,
+      name,
+      aliases: [],
+      stateCode: String(first(m.reg_code) ?? ""),
+      stateName: String(first(m.reg_name) ?? ""),
+      districtCode: first(m.dep_code) ? String(first(m.dep_code)) : null,
+      districtName: first(m.dep_name) ? String(first(m.dep_name)) : null,
+      population: wd.get(insee)?.population ?? null,
+      areaKm2: wd.get(insee)?.areaKm2 ?? null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef+wikidata",
+    sourceVersion: `georef-${latestYear}+wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution:
+      "French communes: IGN/INSEE via OpenDataSoft. Population: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -446,6 +526,7 @@ const ADAPTERS = {
   GB: adapterGB,
   US: adapterUS,
   ES: adapterES,
+  FR: adapterFR,
 };
 
 function readSecret() {
