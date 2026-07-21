@@ -74,7 +74,11 @@ Use a **dedicated test artist account** (not your founder/admin account).
       clients to pay deposits by card here…") and mentions the **3% fee**.
 - [ ] A **country selector** is shown (defaults to **Germany**). Pick your real
       country (this is fixed at account creation).
-- [ ] Click **"Connect Stripe"** → redirected to Stripe Express onboarding.
+- [ ] Fill in the **in-app KYC form** and submit. (Historical note: this step
+      used to say "redirected to Stripe Express onboarding". Under the Custom
+      model shipped in Slice 79 there is **no redirect** — the artist never
+      leaves Inklee. If Stripe subsequently asks for an identity document, it is
+      uploaded on the same page.)
 - [ ] Fill Stripe's test data **for the country you picked**:
   - **EU (e.g. Germany):** test IBAN `DE89 3704 0044 0532 0130 00`, any test
     name/DOB/address Stripe accepts; use Stripe's instant-verify test values.
@@ -208,8 +212,13 @@ config, not an app build).
 ## Phase 3: First real artist (external)
 
 1. A real artist visits `/settings/payouts` on production, **picks their
-   country**, and completes **live-mode** Stripe Express onboarding (real ID +
-   bank verification).
+   country**, and completes **live-mode** onboarding via the in-app KYC form
+   (real IBAN, real identity details, and an ID document upload if Stripe asks
+   for one). No Stripe redirect: the model is Custom, not Express.
+   ⚠️ **An account onboarded in test mode cannot be reused live.** Its id is
+   invisible to the live key, and `ensureConnectAccount` reuses whatever id is
+   stored, so the profile's `stripe_*` columns must be cleared first or the
+   artist is wedged. See `docs/artist-account-and-payouts.md` §4.
 2. **You** (or a real client) submit a booking; the artist approves and requests
    a small real deposit (e.g. EUR 20).
 3. Pay with a **real card**. Verify:

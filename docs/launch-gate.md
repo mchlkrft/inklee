@@ -6,6 +6,47 @@
 
 **Roadmap note:** roadmap §3.1/§8/§9 still carry the pre-reset "Bio Page + Goods cluster + OT-12 gate launch" framing. That is superseded — goods are showcase-only (2026-06-03 money-scope reset) and the deposit code is done. THIS file is the launch source of truth.
 
+## 🔴 G-5 update 2026-07-21 — the first live attempt failed, and what it now needs
+
+The founder ran the first real-money deposit and the client page showed **no pay
+button**. Cause: both Connect accounts on file were **test-mode** accounts made
+before the 2026-07-04 live-key cutover, so they are invisible to the live key,
+while the cached `profiles.stripe_*` columns still read `active`. The deposit
+request tried a live charge against an invisible account, Stripe refused, and
+the error was **swallowed** — the booking was written as a manual deposit while
+the artist had been told the client pays by card. Fixed in PRs #9-#13 (see
+memory `money-path-rules` and `docs/artist-account-and-payouts.md`); the dead
+accounts were cleared, so there are currently **zero live connected accounts**.
+
+**Nothing about "deposits are entitlement-gated so no real charge can happen"
+protected against this** — the entitlement was correct. The gate reads cached
+profile columns that can lie.
+
+G-5 now takes these steps, in order:
+
+1. **Onboard for payouts in live mode.** `/settings/payouts` reads "Not
+   connected". This needs real details: real IBAN and real identity
+   verification. A test-mode account cannot be carried over.
+   If Stripe asks for an ID document, that is now **self-service** on the same
+   page (JPG/PNG/PDF) — it used to be a hard dead end with no route forward.
+2. **Reopen the stuck booking** (`deposit_pending` → `pending` clears the dead
+   deposit; the state machine blocks a second `deposit_pending` transition) or
+   create a fresh one.
+3. **Request the €1 deposit and pay it**, then refund it.
+
+Verified live and needing nothing further: platform account
+`acct_1TODmKHkG0exykzF` (EE/EUR) with `card_payments` + `transfers` active; the
+live webhook enabled at `https://inklee.app/api/stripe/webhook` carrying exactly
+the five events the handler implements; prod on `sk_live`/`pk_live` with no
+capability kill switch set.
+
+**Note on blocker 4 (comp beta artists):** comping to Plus grants the
+entitlement but does **not** make an artist able to take card deposits — they
+also need a charge-ready live Connect account. The admin account page now shows
+payout status beside the entitlement and warns when the two disagree, and the
+admin roster has a Plan column showing comps and their expiry. Nothing sweeps
+`plan_expires_at`, so a comp that lapses silently stops card deposits.
+
 ---
 
 ## ✅ Verified working (live-checked 2026-07-03 — do not re-litigate)
@@ -43,7 +84,7 @@
 
 ### Standing process gates (not tasks, but do not skip)
 
-- Migration bookkeeping is now CURRENT through 0060 (verified 2026-07-04: `supabase migration list` shows local≡remote; the 0056 file was re-added to align). No repair is needed before the next push. (Superseded the old "records only through 0051 → repair 0052-0055" note.) Still run the `pg_policies` RLS sanity check after any new migration (post-0001-incident rule, see AGENTS.md).
+- Migration bookkeeping is CURRENT through **0100** (2026-07-21). Historical: it was verified current through 0060 on 2026-07-04. On 2026-07-21 the records were found to stop at 0094 because another session had applied 0095-0098 via direct SQL without recording them; each one's effects were verified present in the database and then repaired, and 0099/0100 were pushed normally. Still run the `pg_policies` RLS sanity check after any new migration (post-0001-incident rule, see AGENTS.md).
 - While flipping Stripe vars: confirm `GOODS_COMMERCE_ENABLED` / `CHECKOUT_ADDONS_PROD_READY` stay unset (verified unset today).
 
 ### The finish line
@@ -77,8 +118,8 @@
 | # | Task | Owner | Size |
 | --- | --- | --- | --- |
 | 1–2 | Stripe live mode + live webhook | Founder | ~2 h |
-| 3 | G-5 real €1–5 deposit + refund | Founder (Claude verifies via API) | ~1 h |
-| 4 | Comp beta artists to Plus | Founder | 5 min |
+| 3 | G-5 real €1–5 deposit + refund — **first attempt failed 2026-07-21, see below** | Founder (Claude verifies via API) | ~1 h + live onboarding |
+| 4 | Comp beta artists to Plus — **and check their payout status in the same panel** | Founder | 5 min per artist |
 | 5 | Supabase deep-link allowlist | ✅ done (Claude, 2026-07-07) | — |
 | 6 | Auth email rate limit | ✅ done (Claude, 2026-07-07) | — |
 | 7 | Firebase/FCM creds → EAS | Founder | ~30 min |

@@ -1,10 +1,18 @@
 # Inklee — payment flow & platform model (for legal counsel)
 
-**Prepared 2026-06-03.** This document describes, in plain terms, how money
-moves through Inklee so counsel can advise on VAT, consumer disclosure, refund
-policy, payment-intermediary/PSD2 status, and the artist terms. It is
-self-contained; no code reading required. Open questions for counsel are
-collected in §10.
+**Prepared 2026-06-03. Revised 2026-07-21.** This document describes, in plain
+terms, how money moves through Inklee so counsel can advise on VAT, consumer
+disclosure, refund policy, payment-intermediary/PSD2 status, and the artist
+terms. It is self-contained; no code reading required. Open questions for
+counsel are collected in §10.
+
+> **What changed on 2026-07-21** (first live money test): in-app card deposits
+> require the deposit **entitlement** as well as an active Stripe account (§3),
+> Inklee can **waive its own fee** for an artist up to a capped budget (§4), the
+> refund asymmetry is now actually implemented rather than in progress (§6), and
+> artist identity documents can now be supplied in-app (§9). Nothing about who
+> holds the money, who is merchant of record, or what the client pays has
+> changed.
 
 ---
 
@@ -43,7 +51,21 @@ account. Inklee only ever receives its own platform fee.
 ## 3. The two deposit modes
 
 When an artist accepts a booking request, they can optionally request a deposit.
-There are two modes, depending on whether the artist has connected Stripe:
+There are two modes. An in-app card deposit requires **both** of the following;
+if either is missing the request becomes a manual deposit instead:
+
+1. the artist has an **active Stripe Connect account** (finished onboarding and
+   Stripe reports charges enabled), and
+2. the artist's account carries the **deposit entitlement** (the paid tier, or a
+   comp granted by Inklee — see `docs/artist-account-and-payouts.md`).
+
+Which mode applies is decided **before** any payment is attempted, and the
+artist is told plainly which one they are about to use: the request screen
+either says the client pays by card via a link in their booking email, or that
+the artist will collect directly and mark it received. **A failure while setting
+up the card payment never silently converts the request into a manual deposit**
+(fixed 2026-07-21 after it did exactly that in production): the artist gets an
+error and the booking is left untouched, with nothing sent to the client.
 
 ### 3a. In-app card deposit (artist has connected Stripe) — money flows via Inklee's platform
 
@@ -54,7 +76,7 @@ There are two modes, depending on whether the artist has connected Stripe:
   software + facilitating the payment.
 - Inklee never holds the deposit. It is the artist's money throughout.
 
-### 3b. Manual deposit (artist has NOT connected Stripe) — no Inklee money rails
+### 3b. Manual deposit (artist not connected, or not entitled) — no Inklee money rails
 
 - No card payment runs through Inklee. The artist tells the client how to pay
   them directly (e.g. bank transfer, in person), the client pays the artist
@@ -86,13 +108,14 @@ This document's commercial and legal questions concern **mode 3a** only.
 | ------------------------------------------------------ | ----------------------------------------------- |
 | Client pays                                            | **€200.00** (exactly the deposit, no surcharge) |
 | Artist receives (into the artist's own Stripe account) | **€194.00** (a 3% all-in deduction)             |
-| Inklee keeps (platform fee)                            | **€2.75**                                       |
-| Stripe keeps (card processing)                         | **€3.25**                                       |
+| Inklee receives (the application fee, gross)           | **€6.00** (the full 3%)                         |
+| Stripe bills Inklee (card processing)                  | **~€3.25** (charged to Inklee's balance)        |
+| **Inklee net**                                         | **~€2.75**                                      |
 
-So of the artist's €6 (3%) total deduction, Inklee nets ~€2.75 and Stripe takes
-~€3.25. The exact split varies slightly with card type (see "edge cases"
-below), but the client always pays exactly €200 and the artist's headline cost
-is presented as a flat 3%.
+The artist's deduction is exactly €6 in every case. Stripe's cost is a separate
+charge against **Inklee's** balance, so the variability between card types
+lands on Inklee's margin rather than on the artist. The client always pays
+exactly €200.
 
 ### How this is implemented in Stripe (plain terms)
 
@@ -100,28 +123,48 @@ The deposit is a Stripe Connect **destination charge** with three properties:
 
 1. **`on_behalf_of` = the artist's connected account.** This makes the **artist
    the merchant of record / settlement merchant**: the charge settles in the
-   artist's country and currency, the artist's name is the business of record,
-   and Stripe's processing fee is borne by the artist's account.
+   artist's country and currency, and the artist's name is the business of
+   record.
 2. **`transfer_data.destination` = the artist's connected account.** The funds
    land in the artist's Stripe balance, not Inklee's.
-3. **`application_fee_amount` = Inklee's fee.** Inklee receives only this
-   platform fee. (It is sized as "3% of the deposit minus Stripe's standard fee"
-   so that the artist's all-in cost lands at ~3% and Inklee absorbs the
-   standard processing cost — see §4 example.)
+3. **`application_fee_amount` = the full 3%.** Under the Custom model the
+   connected account is configured with `fees.payer = application`, so **Stripe
+   bills its own processing fee to Inklee's platform balance separately**
+   instead of deducting it from the charge. The application fee is therefore the
+   whole 3%, and Inklee's *net* is that 3% minus what Stripe charges Inklee.
 
 **Inklee never takes custody of the deposit.** Stripe moves the gross amount to
 the artist's account and routes only Inklee's fee to Inklee.
 
+> **Corrected 2026-07-21.** An earlier revision of this document said the
+> artist's account bore Stripe's processing fee and that Inklee's fee was sized
+> as "3% minus Stripe's fee". That described the **Express** model this product
+> no longer uses. Under the Custom model actually in production, Stripe's cost
+> sits on **Inklee's** balance. The artist's deduction is always exactly 3%,
+> and the variability sits with Inklee, not the artist. Everything below
+> reflects the shipped configuration.
+
 ### Edge cases (for completeness)
 
 - **Foreign / premium cards** carry a higher Stripe processing fee than the
-  standard rate Inklee sizes against. That excess is borne by the **artist's**
-  account (consistent with the artist being merchant of record), so on those
-  cards the artist's effective cost is slightly above 3%. The client still pays
-  exactly the deposit.
-- **Very small deposits (under ~€17)**: Stripe's fixed component already exceeds
-  the entire 3%, so Inklee's fee is floored at €0 (Inklee keeps nothing) and the
-  artist covers the small processing shortfall.
+  standard rate Inklee sizes against. Because Stripe bills Inklee rather than
+  the artist, that excess is borne by **Inklee**: the artist still loses exactly
+  3% and the client still pays exactly the deposit. On an expensive card Inklee's
+  margin narrows and can go negative.
+- **Very small deposits.** There is **no fee floor**. Inklee still takes the full
+  3% application fee, but Stripe's fixed per-charge component is billed to
+  Inklee, so on a small enough deposit Stripe's cost exceeds Inklee's 3% and
+  **Inklee makes a loss on that transaction**. The artist is unaffected and still
+  pays exactly 3%. (A €1 test deposit therefore costs Inklee money by design.)
+- **Sponsored fees.** Inklee can waive its own 3% for a given artist, typically
+  a beta artist, for a period and up to a spending cap. The client still pays
+  exactly the deposit and the artist still receives it in full; the only
+  difference is that Inklee's `application_fee_amount` is set to zero, so Inklee
+  earns nothing on that deposit and still bears Stripe's processing cost. The
+  waiver is decided per deposit against the remaining budget, so a single
+  deposit can never take the total past the cap. Because the fee is fixed when
+  the payment is created and cannot be partially waived afterwards, a waiver is
+  all-or-nothing per deposit.
 
 ---
 
@@ -138,6 +181,28 @@ change the merchant-of-record analysis (Inklee is taking a platform service fee,
 not becoming the seller), but **asks counsel to confirm** that adding a platform
 fee on top of the destination charge does not shift merchant-of-record or
 fund-holding status to Inklee. (See §10, Q5.)
+
+### Material change since that clearance: Express → Custom (please review)
+
+The clearance was given while the product used Stripe **Express** connected
+accounts. Production now uses **Custom** connected accounts, configured so that:
+
+- **Inklee collects verification, not Stripe** (`requirement_collection:
+  application`). The artist never visits Stripe and has **no Stripe dashboard**
+  (`stripe_dashboard: none`). Inklee's interface is the only place they can
+  supply identity information or see their payout status.
+- **Inklee pays Stripe's processing fee** (`fees.payer: application`), as set
+  out in §4.
+- **Inklee is liable for payment losses** (`losses.payments: application`).
+  Chargebacks and disputes on a deposit fall on **Inklee's** balance, not the
+  artist's.
+
+The last point is the one Inklee most wants reviewed. It sits uneasily beside
+"the artist is merchant of record and Inklee never holds or fronts the funds":
+Inklee does not hold the money, but it does carry the downside if a client
+disputes a charge. **Counsel is asked whether accepting payment-loss liability
+affects the merchant-of-record analysis, Inklee's regulatory position, or what
+must be disclosed to artists and clients.** (See §10, Q11.)
 
 ---
 
@@ -164,21 +229,30 @@ how tattoo deposits normally work:
 - **Inklee returns its platform fee** — Inklee keeps nothing on an
   artist-cancelled deposit.
 - **Stripe does not return its processing fee** on a refund (standard for any
-  card refund). That non-refundable cost falls on the artist's account.
+  card refund). Because that fee was billed to Inklee in the first place (§4),
+  the non-refundable cost falls on **Inklee**, not the artist.
 - The **client receives the full deposit amount back.**
 
-So on an artist-cancelled €200 deposit: client gets €200 back, Inklee returns
-its €2.75, and the artist's account absorbs Stripe's ~€3.25.
+So on an artist-cancelled €200 deposit: the client gets €200 back, the €200
+comes back out of the artist's balance, Inklee returns its €6 application fee,
+and Inklee absorbs Stripe's ~€3.25. **A refunded deposit is a net loss to
+Inklee**, which is the correct incentive but worth stating plainly.
 
-Because the artist is merchant of record and holds the funds, the artist can
-also refund directly from their own Stripe dashboard; the in-app flow is a
-convenience.
+The artist has **no Stripe dashboard** under the Custom model, so the in-app
+refund is not a convenience: it is the only route available to them. A refund
+can otherwise only be issued by Inklee from the platform's own Stripe account.
 
-**The implementation of this asymmetry is still being finalised** (the current
-build has a discretionary manual refund button; wiring it to cancellation
-direction + the client-forfeit warning is in progress). The legal question below
-(Q9) drives how strict the "non-refundable on client cancellation" default can
-be.
+**The asymmetry is implemented as described** (verified 2026-07-21). An artist
+cancelling a booking with a paid deposit triggers the refund automatically, and
+a client cancelling from their portal is shown, before they confirm, that their
+deposit is non-refundable and the artist keeps it. The legal question below (Q9)
+still drives how strict that default may be.
+
+**Sponsored deposits and refunds.** When Inklee had waived its fee on a deposit
+that is later refunded, Inklee returns nothing (there was nothing to return) and
+the waiver is credited back to that artist's sponsorship budget, so a refunded
+deposit does not consume their allowance. This is internal accounting between
+Inklee and the artist and does not change what the client receives.
 
 ---
 
@@ -212,6 +286,14 @@ subscription. That is not implemented yet and is out of scope here.)
 
 - **Card data** is entered directly into Stripe's hosted fields; Inklee never
   sees or stores card numbers.
+- **Artist identity data for payouts** (name, date of birth, address, phone,
+  IBAN, and any identity document Stripe asks for) is collected inside Inklee,
+  because Inklee runs Stripe Connect in the mode where the platform collects
+  verification rather than sending the artist to Stripe. It is forwarded
+  straight to Stripe from memory and is **never written to an Inklee database,
+  never placed in Inklee's file storage, and never logged**. Only the resulting
+  account status is stored. Identity documents were previously impossible to
+  supply in-app at all; that was closed on 2026-07-21.
 - Inklee stores booking metadata (the client's handle/email, the request
   details, the deposit amount/status, and Stripe identifiers such as the
   payment-intent ID and refund ID) to run the booking workflow.
@@ -291,14 +373,34 @@ subscription. That is not implemented yet and is out of scope here.)
    the artist's deposit/cancellation policy to the client before payment if
    required — please specify what disclosure is needed and any hard limits.
 
+10. **Fee waivers for beta artists.** Inklee waives its entire 3% for selected
+    artists during the beta, for a period and up to a spending cap (§4). Those
+    deposits therefore run with no platform fee at all while Inklee still pays
+    Stripe's processing cost. Does waiving the fee for some artists and not
+    others create any issue we should be aware of (pricing transparency toward
+    artists, the terms we publish, or the VAT treatment in Q1 when the fee is
+    zero)?
+
+11. **Payment-loss liability under the Custom model (new, please review).** As
+    set out in §5, the connected accounts are configured with
+    `losses.payments: application`, so **Inklee bears chargeback and dispute
+    losses** on deposits, and with `fees.payer: application`, so Inklee pays
+    Stripe's processing fees. Inklee still never holds the deposit and the
+    artist remains merchant of record. Does accepting loss liability change the
+    merchant-of-record or payment-intermediary analysis previously cleared under
+    the Express model, does it create any licensing/regulatory exposure, and
+    what must be disclosed to artists (who are shielded from those losses) and
+    to clients (whose disputes Inklee, not the artist, ultimately absorbs)?
+
 ---
 
 ## Appendix — one-line summary of the money flow
 
 > Client pays the agreed deposit by card → Stripe routes the full deposit to the
 > **artist's own** Stripe account (artist = merchant of record via
-> `on_behalf_of` + destination charge) → Inklee receives only a **3% all-in
-> platform fee** (deducted from the artist's side, Stripe's processing cost
-> absorbed within it) → Inklee never holds the funds. Refunds reverse the
-> deposit to the client, Inklee returns its fee, and Stripe's non-refundable
-> processing cost falls on the artist.
+> `on_behalf_of` + destination charge) → Inklee receives a **3% all-in platform
+> fee**, deducted from the artist's side → Stripe bills its own processing cost
+> to **Inklee's** balance separately, so Inklee's net is that 3% minus Stripe's
+> cut → Inklee never holds the deposit, but does carry payment-loss liability.
+> Refunds reverse the deposit to the client, Inklee returns its fee, and
+> Stripe's non-refundable processing cost falls on **Inklee**.
