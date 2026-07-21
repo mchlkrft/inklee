@@ -5,7 +5,7 @@
 // the decision but never replaces the rules. SoT:
 // docs/product/inklee-2-seed-automation.md.
 
-export const SEED_RULESET_VERSION = "2026-07-21.4";
+export const SEED_RULESET_VERSION = "2026-07-21.5";
 export const SEED_PIPELINE_VERSION = "1.0.0";
 export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 
@@ -203,6 +203,7 @@ const NEGATIVE_RAW: Array<[string, "strong" | "weak", string]> = [
   ["brow", "strong", "brows"],
   ["eyelash", "strong", "brows"],
   ["eyelashes", "strong", "brows"],
+  ["lashes", "strong", "brows"],
   ["lash extensions", "strong", "brows"],
   ["lash lift", "strong", "brows"],
   ["lash bar", "strong", "brows"],
@@ -268,6 +269,12 @@ const NEGATIVE_RAW: Array<[string, "strong" | "weak", string]> = [
   ["beauty center", "strong", "beauty"],
   ["beauty centre", "strong", "beauty"],
   ["beautician", "strong", "beauty"],
+  // Bare "beauty" is a strong signal: "X Beauty" businesses were accepted when
+  // the provider category said tattoo (observed on the 2026-07-21 Australia
+  // run, ~23 of them). A real tattoo studio with "beauty" in its name has a
+  // strong tattoo positive and so goes to R-MIXED review, not a reject; only
+  // weak-or-no tattoo evidence + "beauty" rejects.
+  ["beauty", "strong", "beauty"],
   ["cosmetic clinic", "strong", "beauty"],
   ["aesthetic clinic", "strong", "beauty"],
   ["aesthetics clinic", "strong", "beauty"],

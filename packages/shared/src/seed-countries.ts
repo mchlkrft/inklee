@@ -955,6 +955,12 @@ const AU: SeedCountryConfig = {
       category: "tattoo_and_piercing",
       expect: "reject_beauty",
     },
+    // Bare "beauty" under a tattoo category (the AU dry-run gap).
+    {
+      name: "Jasmine Beauty",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
     { name: "Tattoo & Brows Studio", expect: "not_accept" },
   ],
 };
