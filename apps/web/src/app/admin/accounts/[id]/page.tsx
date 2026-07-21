@@ -8,6 +8,7 @@ import { parseFormSettings } from "@/lib/form-settings";
 import AccountActions from "./account-actions";
 import AccountEntitlements from "./account-entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
+import { deriveConnectRouting } from "@/lib/stripe-connect";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicArtistUrl } from "@/lib/public-url";
 import { formatDate, relativeTime } from "@/lib/format";
@@ -115,6 +116,18 @@ export default async function AccountDetailPage({
   const formSettings = parseFormSettings(profileSettings.form_settings);
 
   const publicUrl = publicArtistUrl(profile.slug);
+
+  // Connect state for the entitlements panel. Derived here because
+  // deriveConnectRouting is pure but lives in a server-only module; the panel
+  // is a client component and receives the plain result. No extra query: the
+  // account detail already selects the profile's stripe_* columns.
+  const connectRouting = deriveConnectRouting(
+    profile as {
+      stripe_account_id: string | null;
+      stripe_account_status: string | null;
+      stripe_charges_enabled: boolean | null;
+    },
+  );
 
   const accountStatus = (profile.account_status as string) ?? "active";
   const isSelf = adminId === profile.id;
@@ -476,6 +489,10 @@ export default async function AccountDetailPage({
               accountId={profile.id}
               overrides={overrides}
               usage={depositUsage}
+              connect={{
+                status: (profile.stripe_account_status as string) ?? "unset",
+                routeCharges: connectRouting.routeCharges,
+              }}
             />
 
             <section className="rounded-md border border-border p-5 space-y-2">

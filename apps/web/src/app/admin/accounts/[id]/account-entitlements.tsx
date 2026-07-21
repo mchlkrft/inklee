@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import SelectInput from "@/components/select-input";
 import {
   ENTITLEMENT_FEATURES,
+  canAccess,
   effectivePlanTier,
   sponsorshipRemainingCents,
   type AccountOverrides,
@@ -29,6 +30,16 @@ const FEATURE_LABELS: Record<EntitlementFeature, string> = {
   analytics: "Personal analytics",
 };
 
+// Mirrors the artist-facing labels on /settings/payouts so admin and artist
+// describe the same state with the same words.
+const CONNECT_STATUS_LABELS: Record<string, string> = {
+  unset: "Not connected",
+  pending: "Onboarding in progress",
+  active: "Connected",
+  restricted: "Action needed",
+  disabled: "Disabled by Stripe",
+};
+
 function eur(cents: number): string {
   return `€${(cents / 100).toFixed(2)}`;
 }
@@ -51,10 +62,16 @@ export default function AccountEntitlements({
   accountId,
   overrides,
   usage,
+  connect,
 }: {
   accountId: string;
   overrides: AccountOverrides;
   usage: { paidDepositCount: number; depositVolumeCents: number };
+  /** The artist's Stripe Connect state, derived server-side (the helper lives
+   *  in a server-only module). A card deposit needs BOTH the deposits
+   *  entitlement and a charge-ready Connect account, so granting Plus without
+   *  showing this half made a working grant look broken. */
+  connect: { status: string; routeCharges: boolean };
 }) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -117,6 +134,25 @@ export default function AccountEntitlements({
           {msg}
         </p>
       )}
+
+      {/* Both halves must be true for a card deposit. Without this, a correct
+          grant looks broken: the artist requests a deposit, the client gets no
+          payment button, and nothing on this screen explains why. */}
+      <div className="space-y-1 rounded-md border border-border bg-muted/20 px-3 py-2">
+        <p className="text-[11px] text-muted-foreground">
+          Stripe payouts:{" "}
+          <span className="font-medium text-foreground">
+            {CONNECT_STATUS_LABELS[connect.status] ?? connect.status}
+          </span>
+        </p>
+        {canAccess(overrides, "deposits") && !connect.routeCharges && (
+          <p className="text-[11px] leading-snug text-brand-mustard">
+            Card deposits are granted, but this artist cannot collect by card
+            yet. Their deposit requests go out as manual deposits until payout
+            setup is active.
+          </p>
+        )}
+      </div>
 
       {/* Plan */}
       <div className="space-y-2">

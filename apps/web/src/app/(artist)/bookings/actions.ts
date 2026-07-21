@@ -99,7 +99,11 @@ export async function requestDeposit(
     dueAt,
     note,
   );
-  if ("success" in result) revalidateBookingViews(id);
+  // Revalidate on failure too: a Stripe 403 can downgrade the artist's cached
+  // Connect routing mid-request. Without this the page keeps the stale
+  // canCollectInApp=true and still promises "the client pays by card", so a
+  // retry would quietly produce a manual deposit instead.
+  revalidateBookingViews(id);
   return result;
 }
 

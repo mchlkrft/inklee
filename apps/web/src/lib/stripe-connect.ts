@@ -13,6 +13,7 @@
 // are historical.
 
 import type Stripe from "stripe";
+import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
 import { serviceClient } from "@/lib/supabase/service";
 import { payoutCurrencyForCountry } from "@/lib/connect-countries";
@@ -350,6 +351,88 @@ export async function syncConnectAccount(args: {
     return { error: stripeMessage(e, "Could not refresh account status.") };
   }
   return persistConnectAccount({ userId: args.userId, account });
+}
+
+/**
+ * True when Stripe says this account id is not usable by the secret key we
+ * hold: the id belongs to the other mode (a test `acct_` under a live key),
+ * the account was deleted, or our platform access was revoked.
+ *
+ * Deliberately narrow. A rate limit, a 5xx, or a dropped connection must NEVER
+ * read as "the account is gone" — that would downgrade every artist's payout
+ * state during a Stripe incident. `resource_missing` in particular is generic,
+ * so it only counts when the error points at an account-shaped parameter and
+ * not at some other id in the same request.
+ */
+export function isConnectAccountUnreachable(
+  err: unknown,
+  accountId?: string | null,
+): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as {
+    type?: string;
+    code?: string;
+    param?: string;
+    statusCode?: number;
+    message?: string;
+  };
+  const text = `${e.param ?? ""} ${e.message ?? ""}`;
+
+  // Stripe maps EVERY 403 to StripePermissionError, which covers two very
+  // different faults: "this acct_ is not usable by our key" (about one artist)
+  // and "our key lacks the scope for this endpoint" (about the platform — a
+  // restricted or rotated key). Only the first may downgrade an artist, so
+  // require the error to actually name an account. A platform-scope 403 must
+  // fail the deposit loudly without touching anyone's payout state.
+  if (e.statusCode === 403 || e.type === "StripePermissionError") {
+    return accountId
+      ? text.includes(accountId)
+      : /\bacct_[A-Za-z0-9]+/.test(text);
+  }
+  if (e.code === "account_invalid") return true;
+  if (e.code === "resource_missing") {
+    return /destination|on_behalf_of|account/i.test(text);
+  }
+  return false;
+}
+
+/**
+ * Stripe reported the artist's Connect account as unreachable, so the profile's
+ * cached "active / charges enabled" state is a lie: it keeps routing deposits
+ * into PaymentIntents that can never be created. Downgrade to `restricted`
+ * ("Action needed" on the payouts page) and clear the capability flags so
+ * `deriveConnectRouting` stops returning `routeCharges`.
+ *
+ * The account id is deliberately KEPT. This runs automatically off a Stripe
+ * error, and one platform-wide misconfiguration (a test key deployed to
+ * production) would make every account look unreachable at once. A status
+ * downgrade is fully reversible by the next successful sync or `account.updated`
+ * webhook; wiping every artist's account id would not be. Clearing a genuinely
+ * dead id stays a deliberate admin action — note that `ensureConnectAccount`
+ * reuses a stored id, so an artist whose account is truly gone cannot
+ * re-onboard until an admin clears the field.
+ */
+export async function markConnectAccountUnreachable(
+  userId: string,
+): Promise<void> {
+  const { error } = await serviceClient
+    .from("profiles")
+    .update({
+      stripe_account_status: "restricted" satisfies ConnectStatus,
+      stripe_charges_enabled: false,
+      stripe_payouts_enabled: false,
+      stripe_account_updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+  if (error) {
+    // Non-fatal: the caller is already returning an error for the deposit. But
+    // a failed downgrade means the profile keeps claiming it can route charges,
+    // so this must not vanish.
+    Sentry.captureException(error, {
+      tags: { action: "mark_connect_account_unreachable" },
+      extra: { userId },
+    });
+  }
 }
 
 /**

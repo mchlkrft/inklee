@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   deriveConnectStatus,
   deriveConnectRouting,
+  isConnectAccountUnreachable,
   isConnectStatus,
   type ConnectAccountSnapshot,
 } from "../stripe-connect";
@@ -144,6 +145,135 @@ describe("deriveConnectRouting", () => {
         stripe_charges_enabled: undefined,
       }),
     ).toEqual({ stripeAccountId: null, routeCharges: false });
+  });
+});
+
+// This predicate decides whether a Stripe error is allowed to downgrade an
+// artist's stored payout state. A false positive during a Stripe incident would
+// knock every artist out of card deposits at once, so the negative cases below
+// matter more than the positive ones.
+describe("isConnectAccountUnreachable", () => {
+  it("detects the 403 raised when an account id belongs to the other key mode", () => {
+    const err = {
+      type: "StripePermissionError",
+      statusCode: 403,
+      message:
+        "The provided key 'sk_live_***' does not have access to account 'acct_1TepeQHRzRukdnOm' (or that account does not exist). Application access may have been revoked.",
+    };
+    expect(isConnectAccountUnreachable(err, "acct_1TepeQHRzRukdnOm")).toBe(
+      true,
+    );
+    // Without the account argument it still recognises an account-shaped 403.
+    expect(isConnectAccountUnreachable(err)).toBe(true);
+  });
+
+  // Stripe maps every 403 to StripePermissionError, so a platform-scope
+  // failure (restricted or rotated key) looks identical to a per-artist one.
+  // Downgrading on those would knock EVERY artist onto manual deposits at once
+  // and leave them there until each one hits "Refresh status" individually.
+  it("ignores a platform-scoped 403 that names no account", () => {
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripePermissionError",
+        statusCode: 403,
+        message:
+          "The provided key does not have the required permissions to perform this request.",
+      }),
+    ).toBe(false);
+  });
+
+  it("ignores a 403 naming a DIFFERENT account than the one being charged", () => {
+    expect(
+      isConnectAccountUnreachable(
+        {
+          type: "StripePermissionError",
+          statusCode: 403,
+          message:
+            "The provided key does not have access to account 'acct_someoneElse'.",
+        },
+        "acct_1TepeQHRzRukdnOm",
+      ),
+    ).toBe(false);
+  });
+
+  it("detects an invalid destination account", () => {
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripeInvalidRequestError",
+        statusCode: 400,
+        code: "account_invalid",
+        message: "The account is invalid.",
+      }),
+    ).toBe(true);
+  });
+
+  it("detects resource_missing when it points at an account parameter", () => {
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripeInvalidRequestError",
+        statusCode: 400,
+        code: "resource_missing",
+        param: "transfer_data[destination]",
+        message: "No such destination account: acct_1TepeQHRzRukdnOm",
+      }),
+    ).toBe(true);
+    expect(
+      isConnectAccountUnreachable({
+        code: "resource_missing",
+        param: "on_behalf_of",
+        message: "No such account",
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores resource_missing that points at some other id", () => {
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripeInvalidRequestError",
+        statusCode: 404,
+        code: "resource_missing",
+        param: "payment_method",
+        message: "No such payment_method: pm_123",
+      }),
+    ).toBe(false);
+  });
+
+  it("never downgrades on transient failures", () => {
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripeRateLimitError",
+        statusCode: 429,
+        message: "Too many requests",
+      }),
+    ).toBe(false);
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripeAPIError",
+        statusCode: 500,
+        message: "Stripe is temporarily unavailable",
+      }),
+    ).toBe(false);
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripeConnectionError",
+        message: "socket hang up",
+      }),
+    ).toBe(false);
+    expect(
+      isConnectAccountUnreachable({
+        type: "StripeCardError",
+        statusCode: 402,
+        code: "card_declined",
+        message: "Your card was declined.",
+      }),
+    ).toBe(false);
+  });
+
+  it("tolerates non-error inputs", () => {
+    expect(isConnectAccountUnreachable(null)).toBe(false);
+    expect(isConnectAccountUnreachable(undefined)).toBe(false);
+    expect(isConnectAccountUnreachable("403")).toBe(false);
+    expect(isConnectAccountUnreachable({})).toBe(false);
   });
 });
 
