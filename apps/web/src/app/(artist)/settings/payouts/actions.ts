@@ -7,7 +7,12 @@ import {
   ensureConnectAccount,
   updateConnectKyc,
   syncConnectAccount,
+  uploadConnectVerificationDocument,
+  VERIFICATION_DOCUMENT_MAX_BYTES,
+  VERIFICATION_DOCUMENT_MIME_TYPES,
   type ConnectStatus,
+  type VerificationDocumentFile,
+  type VerificationDocumentKind,
 } from "@/lib/stripe-connect";
 import {
   isSupportedConnectCountry,
@@ -135,6 +140,114 @@ export async function submitConnectKycAction(
     iban,
     businessUrl,
     tosIp: ip,
+  });
+  if ("error" in result) return { error: result.error };
+
+  revalidatePath("/settings/payouts");
+  return {
+    ok: true,
+    status: result.status,
+    requirementsDue: result.requirementsDue,
+  };
+}
+
+type DocumentState =
+  | { ok: true; status: ConnectStatus; requirementsDue: string[] }
+  | { error: string }
+  | null;
+
+/** Pull one uploaded image off the FormData, validating it before any bytes
+ *  leave the server. Returns null when the field is absent (an optional back
+ *  side), or an error string the artist can act on. */
+async function readDocumentFile(
+  formData: FormData,
+  key: string,
+  label: string,
+): Promise<
+  { file: VerificationDocumentFile } | { error: string } | { missing: true }
+> {
+  const entry = formData.get(key);
+  if (!(entry instanceof File) || entry.size === 0) return { missing: true };
+
+  if (
+    !(VERIFICATION_DOCUMENT_MIME_TYPES as readonly string[]).includes(
+      entry.type,
+    )
+  ) {
+    return { error: `${label} must be a JPG, PNG, or PDF file.` };
+  }
+  if (entry.size > VERIFICATION_DOCUMENT_MAX_BYTES) {
+    return { error: `${label} must be smaller than 10 MB.` };
+  }
+
+  const bytes = new Uint8Array(await entry.arrayBuffer());
+  return {
+    file: {
+      bytes,
+      // Stripe only uses the name as a label. Strip any path the browser sent
+      // and keep it short rather than trusting the client string.
+      filename: (entry.name.split(/[\\/]/).pop() ?? "document").slice(0, 100),
+      mimeType: entry.type,
+    },
+  };
+}
+
+/**
+ * Send an identity document to Stripe for a Connect account that Stripe has
+ * asked to verify. The artist can only clear a document requirement through
+ * Inklee (Custom Connect, `requirement_collection: application`), so without
+ * this they are stuck: the payouts page can name the requirement but nothing
+ * could satisfy it.
+ *
+ * The image never touches Inklee storage. It is read into memory, forwarded to
+ * Stripe, and dropped when the request ends.
+ */
+export async function uploadVerificationDocumentAction(
+  _prev: DocumentState,
+  formData: FormData,
+): Promise<DocumentState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  // Same throttle as the KYC submit: each call is several Stripe round-trips
+  // with a multi-megabyte body.
+  const { allowed } = await checkConnectKycRateLimit(user.id);
+  if (!allowed) {
+    return { error: "Too many attempts. Please try again in a little while." };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("stripe_account_id, stripe_account_status")
+    .eq("id", user.id)
+    .single();
+  const accountId = profile?.stripe_account_id as string | null;
+  // Mirrors syncConnectAccountAction's H-4 guard: never call Stripe for an
+  // account we no longer control or never created.
+  if (!accountId || profile?.stripe_account_status === "unset") {
+    return { error: "Set up your payout details first, then add documents." };
+  }
+
+  const rawKind = formData.get("kind");
+  const kind: VerificationDocumentKind =
+    rawKind === "additional" ? "additional" : "identity";
+
+  const front = await readDocumentFile(formData, "front", "The front file");
+  if ("error" in front) return { error: front.error };
+  if ("missing" in front) return { error: "Please choose a document image." };
+
+  const back = await readDocumentFile(formData, "back", "The back file");
+  if ("error" in back) return { error: back.error };
+
+  const result = await uploadConnectVerificationDocument({
+    userId: user.id,
+    accountId,
+    kind,
+    front: front.file,
+    back: "file" in back ? back.file : null,
   });
   if ("error" in result) return { error: result.error };
 

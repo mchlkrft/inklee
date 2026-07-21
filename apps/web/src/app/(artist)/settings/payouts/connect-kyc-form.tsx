@@ -76,8 +76,16 @@ export default function ConnectKycForm({
   // After a submit Stripe returns a fresh list; before any submit fall back to
   // what the page fetched on load. Either way, tell the artist exactly what's
   // still needed (P0-3) so a pending/restricted account is self-serviceable.
+  //
+  // Document requirements are filtered out: this form cannot satisfy them, and
+  // listing them here alongside "add them and submit again" sent the artist
+  // round in circles. The upload section below the form owns those.
   const outstanding = describeRequirements(
-    state && "ok" in state ? state.requirementsDue : requirementsDue,
+    (state && "ok" in state ? state.requirementsDue : requirementsDue).filter(
+      (code) =>
+        code !== "individual.verification.document" &&
+        code !== "individual.verification.additional_document",
+    ),
   );
 
   return (
