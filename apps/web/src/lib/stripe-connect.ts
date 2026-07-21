@@ -13,6 +13,7 @@
 // are historical.
 
 import type Stripe from "stripe";
+import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
 import { serviceClient } from "@/lib/supabase/service";
 import { payoutCurrencyForCountry } from "@/lib/connect-countries";
@@ -363,7 +364,10 @@ export async function syncConnectAccount(args: {
  * so it only counts when the error points at an account-shaped parameter and
  * not at some other id in the same request.
  */
-export function isConnectAccountUnreachable(err: unknown): boolean {
+export function isConnectAccountUnreachable(
+  err: unknown,
+  accountId?: string | null,
+): boolean {
   if (!err || typeof err !== "object") return false;
   const e = err as {
     type?: string;
@@ -372,14 +376,22 @@ export function isConnectAccountUnreachable(err: unknown): boolean {
     statusCode?: number;
     message?: string;
   };
-  // 403: "The provided key ... does not have access to account 'acct_...' (or
-  // that account does not exist). Application access may have been revoked."
-  if (e.statusCode === 403 || e.type === "StripePermissionError") return true;
+  const text = `${e.param ?? ""} ${e.message ?? ""}`;
+
+  // Stripe maps EVERY 403 to StripePermissionError, which covers two very
+  // different faults: "this acct_ is not usable by our key" (about one artist)
+  // and "our key lacks the scope for this endpoint" (about the platform — a
+  // restricted or rotated key). Only the first may downgrade an artist, so
+  // require the error to actually name an account. A platform-scope 403 must
+  // fail the deposit loudly without touching anyone's payout state.
+  if (e.statusCode === 403 || e.type === "StripePermissionError") {
+    return accountId
+      ? text.includes(accountId)
+      : /\bacct_[A-Za-z0-9]+/.test(text);
+  }
   if (e.code === "account_invalid") return true;
   if (e.code === "resource_missing") {
-    return /destination|on_behalf_of|account/i.test(
-      `${e.param ?? ""} ${e.message ?? ""}`,
-    );
+    return /destination|on_behalf_of|account/i.test(text);
   }
   return false;
 }
@@ -403,7 +415,7 @@ export function isConnectAccountUnreachable(err: unknown): boolean {
 export async function markConnectAccountUnreachable(
   userId: string,
 ): Promise<void> {
-  await serviceClient
+  const { error } = await serviceClient
     .from("profiles")
     .update({
       stripe_account_status: "restricted" satisfies ConnectStatus,
@@ -412,6 +424,15 @@ export async function markConnectAccountUnreachable(
       stripe_account_updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
+  if (error) {
+    // Non-fatal: the caller is already returning an error for the deposit. But
+    // a failed downgrade means the profile keeps claiming it can route charges,
+    // so this must not vanish.
+    Sentry.captureException(error, {
+      tags: { action: "mark_connect_account_unreachable" },
+      extra: { userId },
+    });
+  }
 }
 
 /**

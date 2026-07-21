@@ -714,6 +714,14 @@ async function provisionDepositIntent(args: {
         tags: { action: "stripe_create_intent" },
         extra: { bookingId: args.bookingId, intentId: intent.id },
       });
+      // Unusable to the customer (the portal keys off the secret) and about to
+      // be referenced by no booking row, so cancel it rather than leave a live
+      // intent behind.
+      try {
+        await stripe.paymentIntents.cancel(intent.id);
+      } catch {
+        // nothing to undo.
+      }
       return {
         error:
           "Stripe did not return a payment secret for this deposit. Please try again.",
@@ -726,14 +734,19 @@ async function provisionDepositIntent(args: {
       extra: { bookingId: args.bookingId, artistId: args.userId },
     });
 
-    if (isConnectAccountUnreachable(stripeErr)) {
+    if (isConnectAccountUnreachable(stripeErr, args.stripeAccountId)) {
       // The profile still claimed this account was active and charge-ready.
       // Stop believing that, so the next request takes the manual path instead
       // of retrying a charge that cannot succeed.
       await markConnectAccountUnreachable(args.userId);
+      // Deliberately does NOT tell the artist to request again: after the
+      // downgrade a retry produces a MANUAL deposit, which is exactly the
+      // silent card-to-manual swap this function exists to prevent. The web
+      // caller revalidates on the error path so the re-opened form states the
+      // manual outcome plainly before they can act.
       return {
         error:
-          "Your payout account could not be reached at Stripe, so no card payment was set up. Reconnect it under Settings, payouts, then request the deposit again.",
+          "Your payout account could not be reached at Stripe, so no card payment was set up and nothing was sent to the client. Check Settings, payouts before requesting this deposit again.",
       };
     }
 
@@ -984,10 +997,10 @@ export async function requestDepositCore(
         .eq("id", id)
         .eq("status", booking.status) // MONEY-03
         .select("id");
-      if (manualError) return { error: manualError.message };
-      if (!manualFlipped || manualFlipped.length === 0) {
-        // Cancel the intent we just created so a booking that moved on doesn't
-        // leave a live PaymentIntent behind.
+      if (manualError || !manualFlipped || manualFlipped.length === 0) {
+        // Either the write failed or the booking moved on. Both leave the
+        // intent we just created referenced by no row, so cancel it rather
+        // than abandon a live PaymentIntent in Stripe.
         if (replacementIntentId && stripe) {
           try {
             await stripe.paymentIntents.cancel(replacementIntentId);
@@ -995,6 +1008,7 @@ export async function requestDepositCore(
             // already gone — nothing to undo.
           }
         }
+        if (manualError) return { error: manualError.message };
         return { error: "This booking changed. Refresh and try again." };
       }
     }
@@ -1064,21 +1078,22 @@ export async function requestDepositCore(
     .eq("status", booking.status)
     .select("id");
 
-  if (error) {
-    Sentry.captureException(error, {
-      tags: { action: "booking_status_change" },
-    });
-    return { error: error.message };
-  }
-  if (!flipped || flipped.length === 0) {
-    // The booking moved on after we created the intent — cancel it so we don't
-    // leave an orphaned live PaymentIntent against a booking that changed.
+  if (error || !flipped || flipped.length === 0) {
+    // The write failed, or the booking moved on after we created the intent.
+    // Either way the intent is referenced by no row, so cancel it rather than
+    // leave an orphaned live PaymentIntent behind.
     if (paymentIntentId && stripe) {
       try {
         await stripe.paymentIntents.cancel(paymentIntentId);
       } catch {
         // already gone — nothing to undo.
       }
+    }
+    if (error) {
+      Sentry.captureException(error, {
+        tags: { action: "booking_status_change" },
+      });
+      return { error: error.message };
     }
     return { error: "This booking changed. Refresh and try again." };
   }

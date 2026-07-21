@@ -154,14 +154,46 @@ describe("deriveConnectRouting", () => {
 // matter more than the positive ones.
 describe("isConnectAccountUnreachable", () => {
   it("detects the 403 raised when an account id belongs to the other key mode", () => {
+    const err = {
+      type: "StripePermissionError",
+      statusCode: 403,
+      message:
+        "The provided key 'sk_live_***' does not have access to account 'acct_1TepeQHRzRukdnOm' (or that account does not exist). Application access may have been revoked.",
+    };
+    expect(isConnectAccountUnreachable(err, "acct_1TepeQHRzRukdnOm")).toBe(
+      true,
+    );
+    // Without the account argument it still recognises an account-shaped 403.
+    expect(isConnectAccountUnreachable(err)).toBe(true);
+  });
+
+  // Stripe maps every 403 to StripePermissionError, so a platform-scope
+  // failure (restricted or rotated key) looks identical to a per-artist one.
+  // Downgrading on those would knock EVERY artist onto manual deposits at once
+  // and leave them there until each one hits "Refresh status" individually.
+  it("ignores a platform-scoped 403 that names no account", () => {
     expect(
       isConnectAccountUnreachable({
         type: "StripePermissionError",
         statusCode: 403,
         message:
-          "The provided key 'sk_live_***' does not have access to account 'acct_1TepeQHRzRukdnOm' (or that account does not exist). Application access may have been revoked.",
+          "The provided key does not have the required permissions to perform this request.",
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it("ignores a 403 naming a DIFFERENT account than the one being charged", () => {
+    expect(
+      isConnectAccountUnreachable(
+        {
+          type: "StripePermissionError",
+          statusCode: 403,
+          message:
+            "The provided key does not have access to account 'acct_someoneElse'.",
+        },
+        "acct_1TepeQHRzRukdnOm",
+      ),
+    ).toBe(false);
   });
 
   it("detects an invalid destination account", () => {
