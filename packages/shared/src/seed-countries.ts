@@ -789,6 +789,15 @@ const KR: SeedCountryConfig = {
     { name: "네일샵 뷰티", expect: "reject_beauty" },
     { name: "속눈썹 연장 전문", expect: "reject_beauty" },
     { name: "눈썹문신 타투 스튜디오", expect: "not_accept" },
+    // Space-less names, the real Korean case. These regress if the jamo
+    // ranges ever drop out of NO_WORD_BOUNDARY (Hangul decomposes under NFD).
+    { name: "서울타투스튜디오", expect: "accept" },
+    {
+      name: "반영구화장학원강남",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "눈썹문신잘하는곳", expect: "reject_beauty" },
   ],
 };
 

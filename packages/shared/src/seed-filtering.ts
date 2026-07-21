@@ -5,7 +5,7 @@
 // the decision but never replaces the rules. SoT:
 // docs/product/inklee-2-seed-automation.md.
 
-export const SEED_RULESET_VERSION = "2026-07-21.1";
+export const SEED_RULESET_VERSION = "2026-07-21.2";
 export const SEED_PIPELINE_VERSION = "1.0.0";
 export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 
@@ -64,8 +64,13 @@ export function normalizeSeedText(value: string | null | undefined): string {
 // Scripts written without spaces between words: Thai, Japanese (hiragana,
 // katakana incl. halfwidth, kanji), Chinese, Korean. Phrases in these match
 // as substrings because word boundaries do not exist to anchor on.
+//
+// normalizeSeedText runs NFD, which DECOMPOSES every precomposed Hangul
+// syllable (가-힣) into conjoining jamo (U+1100-U+11FF), so the detector must
+// cover the jamo ranges too or post-NFD Korean falls through to word-boundary
+// matching and never fires on space-less names (반영구화장학원, 눈썹문신잘하는곳).
 const NO_WORD_BOUNDARY =
-  /[฀-๿぀-ヿ㐀-䶿一-鿿가-힯ｦ-ﾟ]/;
+  /[฀-๿぀-ヿ㐀-䶿一-鿿가-힯ｦ-ﾟᄀ-ᇿ㄰-㆏]/;
 
 /**
  * Phrase test on normalized text. Latin phrases match on word boundaries so
