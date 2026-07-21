@@ -42,30 +42,31 @@ export const runtime = "nodejs";
  * retry a delivery whose real work (the refund audit row) already succeeded.
  */
 async function releaseSponsoredFeeForRefund(args: {
-  stripe: Stripe;
   bookingId: string;
   artistId: string;
-  intentId: string;
+  bookedCents: number;
   charge: Stripe.Charge;
-}): Promise<void> {
+}): Promise<{ retry: boolean }> {
+  // `bookedCents` is what the settlement increment actually added to the
+  // artist's counter for THIS booking (0 when it never ran). Releasing against
+  // the intent's metadata instead would credit the artist for spend that was
+  // never recorded, and since the counter is artist-global that erases OTHER
+  // bookings' real waivers and lets sponsorship run past the cap.
+  if (!Number.isFinite(args.bookedCents) || args.bookedCents <= 0) {
+    return { retry: false };
+  }
+
+  const chargedCents = args.charge.amount ?? 0;
+  const refundedCents = args.charge.amount_refunded ?? 0;
+  if (chargedCents <= 0 || refundedCents <= 0) return { retry: false };
+
+  // Cap the ratio at 1: a refund can never exceed the charge, but clamping
+  // keeps a surprising payload from releasing more than was booked.
+  const ratio = Math.min(1, refundedCents / chargedCents);
+  const targetCents = Math.round(args.bookedCents * ratio);
+  if (targetCents <= 0) return { retry: false };
+
   try {
-    const intent = await args.stripe.paymentIntents.retrieve(args.intentId);
-    const sponsoredCents = parseInt(
-      intent.metadata?.sponsored_fee_cents ?? "",
-      10,
-    );
-    if (!Number.isFinite(sponsoredCents) || sponsoredCents <= 0) return;
-
-    const chargedCents = args.charge.amount ?? 0;
-    const refundedCents = args.charge.amount_refunded ?? 0;
-    if (chargedCents <= 0 || refundedCents <= 0) return;
-
-    // Cap the ratio at 1: a refund can never exceed the charge, but clamping
-    // keeps a surprising payload from releasing more than was ever sponsored.
-    const ratio = Math.min(1, refundedCents / chargedCents);
-    const targetCents = Math.round(sponsoredCents * ratio);
-    if (targetCents <= 0) return;
-
     const { data: released, error } = await serviceClient.rpc(
       "release_fee_sponsored_used",
       {
@@ -79,28 +80,35 @@ async function releaseSponsoredFeeForRefund(args: {
         tags: { action: "fee_sponsorship_release" },
         extra: { bookingId: args.bookingId, targetCents },
       });
-      return;
+      // Ask Stripe to redeliver. Everything else in this branch is idempotent
+      // (the audit row is count-guarded and tolerates 23505, the release
+      // converges to a target), so a retry re-runs safely and is far better
+      // than silently losing the artist's budget back.
+      return { retry: true };
     }
 
-    // Only log when something actually moved, so redeliveries stay quiet.
+    // Only log when something actually moved, so redeliveries stay quiet. The
+    // RPC returns what the counter really gave back, not what we asked for.
     if (typeof released === "number" && released > 0) {
       await serviceClient.from("audit_log").insert({
         booking_id: args.bookingId,
         action: "fee_sponsorship_released",
         details: {
           released_cents: released,
-          sponsored_cents: sponsoredCents,
+          booked_cents: args.bookedCents,
           refunded_cents: refundedCents,
           charged_cents: chargedCents,
           via: "stripe_webhook",
         },
       });
     }
+    return { retry: false };
   } catch (e) {
     Sentry.captureException(e, {
       tags: { action: "fee_sponsorship_release" },
       extra: { bookingId: args.bookingId },
     });
+    return { retry: true };
   }
 }
 
@@ -177,7 +185,7 @@ export async function POST(request: Request) {
 
     const { data: booking } = await serviceClient
       .from("booking_requests")
-      .select("id, artist_id")
+      .select("id, artist_id, deposit_fee_sponsorship_booked_cents")
       .eq("deposit_payment_intent_id", intentId)
       .single();
     if (!booking) return NextResponse.json({ received: true });
@@ -192,13 +200,18 @@ export async function POST(request: Request) {
     // The RPC is idempotent on its own (it converges this booking's released
     // total to a target), which is what makes redelivery and multiple partial
     // refunds safe.
-    await releaseSponsoredFeeForRefund({
-      stripe,
+    const release = await releaseSponsoredFeeForRefund({
       bookingId: booking.id,
       artistId: booking.artist_id as string,
-      intentId,
+      bookedCents: Number(booking.deposit_fee_sponsorship_booked_cents ?? 0),
       charge,
     });
+    if (release.retry) {
+      return NextResponse.json(
+        { error: "fee sponsorship release failed" },
+        { status: 500 },
+      );
+    }
 
     // Idempotent: the in-app refund already logs this row, and a single refund
     // can deliver more than once. Log at most one deposit_refunded per booking.
@@ -513,6 +526,25 @@ export async function POST(request: Request) {
             Sentry.captureException(incError, {
               tags: { action: "fee_sponsorship_increment" },
             });
+          } else {
+            // Record what was ACTUALLY booked against the cap. A later refund
+            // releases against this, never against the intent's metadata:
+            // metadata says what we intended to waive, this says what the
+            // artist's counter actually carries. Written only after the
+            // increment succeeded, so a swallowed failure above leaves it 0 and
+            // a refund correctly releases nothing.
+            const { error: bookedError } = await serviceClient
+              .from("booking_requests")
+              .update({
+                deposit_fee_sponsorship_booked_cents: sponsoredCents,
+              })
+              .eq("id", bookingId);
+            if (bookedError) {
+              Sentry.captureException(bookedError, {
+                tags: { action: "fee_sponsorship_booked_stamp" },
+                extra: { bookingId },
+              });
+            }
           }
         }
       } else {

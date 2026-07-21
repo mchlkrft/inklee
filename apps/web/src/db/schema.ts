@@ -145,6 +145,15 @@ export const bookingRequests = pgTable("booking_requests", {
   )
     .notNull()
     .default(0),
+  // Migration 0100 — what the settlement increment ACTUALLY added to the
+  // artist's counter for this booking. 0 means nothing was booked, so a refund
+  // must release nothing: the counter is artist-global, and releasing against
+  // an unbooked waiver would erase other bookings' real usage.
+  depositFeeSponsorshipBookedCents: integer(
+    "deposit_fee_sponsorship_booked_cents",
+  )
+    .notNull()
+    .default(0),
   // Q9 — deposit-policy snapshot, frozen at payment time (migration 0043).
   // Editable source is profiles.settings.deposit_policy.
   depositPolicy: jsonb("deposit_policy"),
