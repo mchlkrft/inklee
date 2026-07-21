@@ -5,7 +5,9 @@ import SelectInput from "@/components/select-input";
 import {
   ENTITLEMENT_FEATURES,
   canAccess,
+  daysUntilPlanExpiry,
   effectivePlanTier,
+  sponsorshipOverspentCents,
   sponsorshipRemainingCents,
   type AccountOverrides,
   type EntitlementFeature,
@@ -14,6 +16,7 @@ import {
   setPlanOverrideAction,
   setEntitlementOverrideAction,
   setFeeSponsorshipAction,
+  resetFeeSponsorshipUsageAction,
   saveAdminNotesAction,
 } from "./actions";
 
@@ -42,6 +45,11 @@ const CONNECT_STATUS_LABELS: Record<string, string> = {
 
 function eur(cents: number): string {
   return `€${(cents / 100).toFixed(2)}`;
+}
+
+function dayCount(days: number): string {
+  const n = Math.abs(days);
+  return `${n} day${n === 1 ? "" : "s"}`;
 }
 
 // ISO timestamp <-> <input type="date"> (YYYY-MM-DD). Expiry is end-of-day UTC.
@@ -97,6 +105,10 @@ export default function AccountEntitlements({
   // Notes
   const [notes, setNotes] = useState(overrides.adminNotes ?? "");
 
+  // The reset is irreversible (the previous total survives only in the audit
+  // log), so it takes a confirmation rather than a single click.
+  const [confirmReset, setConfirmReset] = useState(false);
+
   const run = (fn: () => Promise<{ error?: string }>, ok: string) => {
     setMsg(null);
     startTransition(async () => {
@@ -107,6 +119,17 @@ export default function AccountEntitlements({
 
   const effective = effectivePlanTier(overrides);
   const remaining = sponsorshipRemainingCents(overrides);
+  const overspent = sponsorshipOverspentCents(overrides);
+  // Nothing sweeps plan_expires_at, so a lapsed plan just silently stops
+  // granting features. Say so on the screen where it was granted.
+  const expiryDays = daysUntilPlanExpiry(overrides);
+  // An expiry lapses a paid plan just as much as a comp, so name it correctly
+  // rather than calling a paying subscriber's plan a freebie.
+  const planNoun = overrides.planSource === "paid" ? "paid plan" : "comp";
+  // An explicit per-feature grant outlives the plan, so do not claim deposits
+  // stopped when the override keeps them on.
+  const depositsSurviveExpiry =
+    overrides.entitlementOverrides.deposits === true;
 
   return (
     <section className="rounded-md border border-border p-5 space-y-5">
@@ -132,6 +155,24 @@ export default function AccountEntitlements({
           className={`text-xs ${msg.startsWith("Error") ? "text-destructive" : "text-brand-green"}`}
         >
           {msg}
+        </p>
+      )}
+
+      {expiryDays !== null && (
+        <p
+          className={`text-[11px] leading-snug ${
+            expiryDays < 0
+              ? "text-destructive"
+              : expiryDays <= 14
+                ? "text-brand-mustard"
+                : "text-muted-foreground"
+          }`}
+        >
+          {expiryDays < 0
+            ? `This ${planNoun} expired ${dayCount(expiryDays)} ago, so the account is back on Free${depositsSurviveExpiry ? ", though card deposits stay on through the feature override below." : " and card deposits have stopped."}`
+            : expiryDays === 0
+              ? `This ${planNoun} expires today.${depositsSurviveExpiry ? "" : " Card deposits stop when it lapses."}`
+              : `This ${planNoun} expires in ${dayCount(expiryDays)}. Nothing renews it automatically.`}
         </p>
       )}
 
@@ -270,6 +311,56 @@ export default function AccountEntitlements({
             : " (no cap)"}
           .
         </p>
+        {overspent > 0 && (
+          // Each waiver is checked against the full fee, but the counter only
+          // moves at settlement, so deposits outstanding at the same time can
+          // still land past the cap. Report it instead of clamping the number.
+          <p className="text-[11px] leading-snug text-brand-mustard">
+            Spend is {eur(overspent)} above this cap. New deposits are charged
+            the standard fee until the cap is raised or the usage is reset.
+          </p>
+        )}
+        {overrides.feeSponsoredUsedCents > 0 &&
+          (confirmReset ? (
+            <div className="space-y-2 rounded-md border border-destructive/50 p-3">
+              <p className="text-[11px] leading-snug text-foreground">
+                Reset the sponsorship spend to zero? The current total of{" "}
+                {eur(overrides.feeSponsoredUsedCents)} cannot be restored.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    setConfirmReset(false);
+                    run(
+                      () => resetFeeSponsorshipUsageAction(accountId),
+                      "Sponsorship usage reset.",
+                    );
+                  }}
+                  className="rounded-full bg-destructive px-3 py-1 text-[11px] font-medium text-white disabled:opacity-50"
+                >
+                  Yes, reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmReset(false)}
+                  className="rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground"
+                >
+                  Keep it
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setConfirmReset(true)}
+              className="rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              Reset usage to zero
+            </button>
+          ))}
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input
             type="checkbox"

@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   canAccess,
+  canSponsorFeeCents,
+  daysUntilPlanExpiry,
   effectivePlanTier,
   isFeeSponsorshipActive,
+  sponsorshipOverspentCents,
   sponsorshipRemainingCents,
   DEFAULT_OVERRIDES,
   type AccountOverrides,
@@ -95,5 +98,108 @@ describe("entitlements", () => {
         base({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 1500 }),
       ),
     ).toBe(0);
+  });
+});
+
+// A waiver is all-or-nothing once the PaymentIntent exists, so the decision has
+// to be made against the fee actually being waived. Gating on "the budget still
+// has something in it" is what let a cap be overshot by a whole fee.
+describe("canSponsorFeeCents", () => {
+  const sponsored = (o: Partial<AccountOverrides> = {}) =>
+    base({ feeSponsored: true, ...o });
+
+  it("covers a fee that fits inside the remaining budget", () => {
+    expect(
+      canSponsorFeeCents(
+        sponsored({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 400 }),
+        600,
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses a fee larger than the remaining budget", () => {
+    // 9.50 of a 10.00 cap already spent: a 3.00 fee would have been fully
+    // sponsored before, overshooting by 2.50.
+    expect(
+      canSponsorFeeCents(
+        sponsored({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 950 }),
+        300,
+      ),
+    ).toBe(false);
+  });
+
+  it("allows a fee that exactly exhausts the budget", () => {
+    expect(
+      canSponsorFeeCents(
+        sponsored({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 700 }),
+        300,
+      ),
+    ).toBe(true);
+  });
+
+  it("treats an absent cap as unlimited", () => {
+    expect(canSponsorFeeCents(sponsored(), 999_999)).toBe(true);
+  });
+
+  it("refuses when sponsorship is off, expired, or already exhausted", () => {
+    expect(canSponsorFeeCents(base({ feeSponsored: false }), 100)).toBe(false);
+    expect(
+      canSponsorFeeCents(sponsored({ feeSponsorExpiresAt: past }), 100),
+    ).toBe(false);
+    expect(
+      canSponsorFeeCents(
+        sponsored({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 1000 }),
+        1,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("sponsorshipOverspentCents", () => {
+  it("is 0 inside budget and 0 when uncapped", () => {
+    expect(
+      sponsorshipOverspentCents(
+        base({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 400 }),
+      ),
+    ).toBe(0);
+    expect(
+      sponsorshipOverspentCents(base({ feeSponsoredUsedCents: 50_000 })),
+    ).toBe(0);
+  });
+
+  it("reports the overshoot when concurrent settlements passed the cap", () => {
+    expect(
+      sponsorshipOverspentCents(
+        base({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 1250 }),
+      ),
+    ).toBe(250);
+  });
+});
+
+describe("daysUntilPlanExpiry", () => {
+  it("is null for an open-ended comp or a free account", () => {
+    expect(daysUntilPlanExpiry(base({ planTier: "plus" }))).toBeNull();
+    expect(
+      daysUntilPlanExpiry(base({ planTier: "free", planExpiresAt: future })),
+    ).toBeNull();
+  });
+
+  it("is negative once the comp has lapsed", () => {
+    const days = daysUntilPlanExpiry(
+      base({ planTier: "plus", planExpiresAt: past }),
+    );
+    expect(days).not.toBeNull();
+    expect(days!).toBeLessThan(0);
+  });
+
+  it("counts whole days remaining on a live comp", () => {
+    // Offset by an extra minute so the result cannot straddle a day boundary
+    // between the two Date.now() reads.
+    const in10Days = new Date(
+      Date.now() + 10 * 86400000 + 60_000,
+    ).toISOString();
+    expect(
+      daysUntilPlanExpiry(base({ planTier: "plus", planExpiresAt: in10Days })),
+    ).toBe(10);
   });
 });

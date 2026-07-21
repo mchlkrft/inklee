@@ -31,7 +31,7 @@ import {
 import { artistDepositCurrency } from "@/lib/connect-countries";
 import { platformFeeCents } from "@/lib/platform-fee";
 import { checkDepositRequestRateLimit } from "@/lib/ratelimit";
-import { canAccess, isFeeSponsorshipActive } from "@/lib/entitlements";
+import { canAccess, canSponsorFeeCents } from "@/lib/entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { isCapabilityDisabled } from "@/lib/server/app-config";
 import {
@@ -849,9 +849,14 @@ export async function requestDepositCore(
   // coherent without touching Stripe keys or account rows.
   const depositsEntitled =
     !isCapabilityDisabled("deposits") && canAccess(overrides, "deposits");
-  const feeSponsored = depositsEntitled && isFeeSponsorshipActive(overrides);
   const amountCents = Math.round(amount * 100);
   const standardFeeCents = platformFeeCents(amountCents);
+  // Decide sponsorship against THIS deposit's actual fee, not merely "the
+  // budget still has something left in it". A waiver is all-or-nothing once the
+  // PaymentIntent exists, so a nearly-exhausted budget would otherwise fund a
+  // full fee and overshoot the cap.
+  const feeSponsored =
+    depositsEntitled && canSponsorFeeCents(overrides, standardFeeCents);
   const appFeeCents = feeSponsored ? 0 : standardFeeCents;
   const depositMetadata: Record<string, string> = feeSponsored
     ? {
