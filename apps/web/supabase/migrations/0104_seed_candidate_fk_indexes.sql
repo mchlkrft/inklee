@@ -1,4 +1,10 @@
--- 0099: index the map_seed_candidates foreign keys that back ON DELETE SET NULL
+-- 0104: index the map_seed_candidates foreign keys that back ON DELETE SET NULL
+--
+-- Renumbered from 0099 to 0104 on 2026-07-22: it shared version 0099 with
+-- 0099_release_fee_sponsorship_on_refund.sql, so `supabase start` / `db reset`
+-- aborted on a schema_migrations_pkey duplicate and CI failed on every push
+-- since it landed. The indexes below already exist on prod (created
+-- concurrently); IF NOT EXISTS keeps a fresh apply idempotent.
 --
 -- Deleting a map_location (or a candidate) fires the SET NULL cascade on these
 -- candidate columns; without an index each delete seq-scans the 100k-row
