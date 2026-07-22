@@ -901,6 +901,57 @@ async function adapterAU() {
   };
 }
 
+// Canada: ~5,160 census subdivisions (CSDs) as the municipal unit. They vary
+// hugely (dense southern cities to enormous northern districts), so area is
+// computed from the CSD polygon like Australia. SGC 7-digit code is the
+// identity; province is the region. Population best-effort skipped (null).
+async function adapterCA() {
+  const url = `${ODS}/georef-canada-census-subdivision/exports/json?select=year,prov_code,prov_name_en,csd_code,csd_name_en,geo_point_2d,geo_shape`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) fail(`OpenDataSoft export failed: HTTP ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length < 4000)
+    fail(`Implausible CA export (${rows?.length ?? 0} rows).`);
+  const latestYear = Math.max(...rows.map((r) => Number(r.year ?? 0)));
+
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const seen = new Set();
+  const units = [];
+  for (const m of rows) {
+    if (Number(m.year ?? 0) !== latestYear) continue;
+    const code = String(first(m.csd_code) ?? "").trim();
+    const name = String(first(m.csd_name_en) ?? "").trim();
+    if (!/^\d{7}$/.test(code) || !name || seen.has(code)) continue;
+    seen.add(code);
+    const area = geomAreaKm2(m.geo_shape?.geometry ?? m.geo_shape);
+    units.push({
+      externalId: code,
+      name,
+      aliases: [],
+      stateCode: String(first(m.prov_code) ?? ""),
+      stateName: String(first(m.prov_name_en) ?? ""),
+      districtCode: null,
+      districtName: null,
+      population: null,
+      areaKm2: area && area > 0 && area < 2_000_000 ? Math.round(area) : null,
+      centroid:
+        m.geo_point_2d && Number.isFinite(Number(m.geo_point_2d.lat))
+          ? {
+              latitude: Number(m.geo_point_2d.lat),
+              longitude: Number(m.geo_point_2d.lon),
+            }
+          : null,
+      settlementClass: null,
+    });
+  }
+  return {
+    source: "opendatasoft-georef",
+    sourceVersion: `georef-${latestYear}`,
+    attribution: "Canadian census subdivisions: Statistics Canada via OpenDataSoft.",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -915,6 +966,7 @@ const ADAPTERS = {
   IT: adapterIT,
   TH: adapterTH,
   AU: adapterAU,
+  CA: adapterCA,
 };
 
 function readSecret() {

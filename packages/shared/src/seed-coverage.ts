@@ -517,6 +517,31 @@ export const AU_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 900 },
 };
 
+// Canada: ~5,160 census subdivisions, population hugging the US border in a
+// few metros (Toronto, Montreal, Vancouver, Calgary, Ottawa). Coarse, spread
+// out; English + French query bundles (salon de tatouage for Quebec).
+export const CA_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 300_000,
+    cityPopulation: 100_000,
+    townPopulation: 40_000,
+    clusterRadiusKm: 40,
+    clusterMaxMembers: 8,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "tattoo shop {location}",
+      "salon de tatouage {location}",
+      "tattoo {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "salon de tatouage {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 2500 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -531,6 +556,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   IT: IT_COVERAGE_POLICY,
   TH: TH_COVERAGE_POLICY,
   AU: AU_COVERAGE_POLICY,
+  CA: CA_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

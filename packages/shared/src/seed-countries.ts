@@ -965,6 +965,63 @@ const AU: SeedCountryConfig = {
   ],
 };
 
+const CA: SeedCountryConfig = {
+  code: "CA",
+  name: "Canada",
+  languages: ["en", "fr"],
+  // English rides the base vocab. French (Quebec) needs its own terms, the
+  // same set France uses: tatouage/tatoueur positive, and the bare-identity
+  // beauty words (esthétique/beauté/onglerie/coiffure/sourcils/cils).
+  extraPositive: compileSeedVocabulary(
+    [
+      ["tatouage", "strong"],
+      ["tatouages", "strong"],
+      ["salon de tatouage", "strong"],
+      ["tatoueur", "strong"],
+      ["tatoueuse", "strong"],
+    ],
+    "canadian_tattoo",
+  ),
+  extraNegative: compileSeedVocabulary(
+    [
+      ["institut de beaute", "strong"],
+      ["salon de beaute", "strong"],
+      ["beaute", "strong"],
+      ["esthetique", "strong"],
+      ["estheticienne", "strong"],
+      ["maquillage permanent", "strong"],
+      ["dermopigmentation", "strong"],
+      ["onglerie", "strong"],
+      ["ongles", "strong"],
+      ["manucure", "strong"],
+      ["coiffure", "strong"],
+      ["coiffeur", "strong"],
+      ["sourcils", "strong"],
+      ["cils", "strong"],
+      ["epilation", "weak"],
+    ],
+    "canadian_beauty",
+  ),
+  postalCodePattern: /^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/,
+  qualityFixtures: [
+    { name: "Toronto Tattoo Studio", expect: "accept" },
+    { name: "Salon de Tatouage Montréal", expect: "accept" },
+    { name: "Vancouver Ink Tattoo Co", expect: "accept" },
+    { name: "Glamour Beauty Salon Calgary", expect: "reject_beauty" },
+    {
+      name: "Esthétique Sophie Québec",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Ongles & Cils Montréal", expect: "reject_beauty" },
+    { name: "Nail Bar Ottawa", expect: "reject_beauty" },
+    {
+      name: "Tatouage & Maquillage Permanent Laval",
+      expect: "not_accept",
+    },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -979,6 +1036,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   KR,
   IT,
   AU,
+  CA,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
