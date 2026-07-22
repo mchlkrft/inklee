@@ -5,7 +5,7 @@
 // the decision but never replaces the rules. SoT:
 // docs/product/inklee-2-seed-automation.md.
 
-export const SEED_RULESET_VERSION = "2026-07-21.5";
+export const SEED_RULESET_VERSION = "2026-07-22.6";
 export const SEED_PIPELINE_VERSION = "1.0.0";
 export const SEED_SCHEMA_VERSION = "3"; // v2 description + contact fields (address/postal/phone/hours) + extra envelope
 
@@ -290,6 +290,16 @@ const NEGATIVE_RAW: Array<[string, "strong" | "weak", string]> = [
   ["nail and beauty", "strong", "beauty"],
   ["hair and beauty", "strong", "beauty"],
   ["makeup artist", "weak", "beauty"],
+  // Bare "makeup"/"make up" and "spa" are strong, same reasoning as bare
+  // "beauty"/"eyebrows" above: makeup artists, makeup academies/stores and
+  // standalone spas brand in English (and as loanwords) worldwide and were
+  // being ACCEPTED when the provider category said tattoo (observed on the
+  // 2026-07-22 Vietnam run, 52 of them: "X Makeup Academy", "Hạnh Spa", nail
+  // + makeup studios). A real tattoo studio with "makeup"/"spa" in its name has
+  // a strong tattoo positive and so goes to R-MIXED review, not a reject.
+  ["makeup", "strong", "beauty"],
+  ["make up", "strong", "beauty"],
+  ["spa", "strong", "beauty"],
   ["cosmetologist", "strong", "beauty"],
   ["esthetician", "strong", "beauty"],
   ["aesthetician", "strong", "beauty"],

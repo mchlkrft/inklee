@@ -1129,6 +1129,10 @@ const VN: SeedCountryConfig = {
     },
     { name: "Làm Móng Nail Box", expect: "reject_beauty" },
     { name: "Nối Mi Lông Mày Spa", expect: "reject_beauty" },
+    // Makeup artists/academies/stores and standalone spas leaked in under the
+    // provider tattoo category on the 2026-07-22 run (bare "makeup"/"spa").
+    { name: "An Nhi Makeup Academy", expect: "reject_beauty" },
+    { name: "Hạnh Spa", expect: "reject_beauty" },
     { name: "Tattoo và Phun Xăm Đà Nẵng", expect: "not_accept" },
   ],
 };
