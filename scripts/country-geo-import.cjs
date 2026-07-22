@@ -1014,6 +1014,59 @@ async function adapterEE() {
   };
 }
 
+// Vietnam: no ODS dataset and the district level is fragmented/undercounted
+// in Wikidata (even provinces read 30/63). The well-populated urban/town
+// level - wards (phường, Q687188) + commune-level towns (thị trấn, Q1070942)
+// - is where tattoo studios actually are (HCMC, Hanoi, Da Nang). ~2,140
+// units; province (P131) chains drive clustering. Vietnamese labels.
+async function adapterVN() {
+  console.log("→ Wikidata Vietnamese wards + commune-level towns…");
+  const rows = await sparql(`SELECT ?m ?mLabel ?coord ?pop ?area ?prov ?provLabel WHERE {
+    { ?m wdt:P31 wd:Q687188 } UNION { ?m wdt:P31 wd:Q1070942 }
+    ?m wdt:P625 ?coord .
+    FILTER NOT EXISTS { ?m wdt:P576 ?dissolved }
+    OPTIONAL { ?m wdt:P1082 ?pop }
+    OPTIONAL { ?m wdt:P2046 ?area }
+    OPTIONAL { ?m wdt:P131 ?prov }
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "vi,en". }
+  }`);
+  const byQid = new Map();
+  for (const b of rows) {
+    const qid = String(b.m?.value ?? "").split("/").pop();
+    const name = String(b.mLabel?.value ?? "").trim();
+    if (!/^Q\d+$/.test(qid) || !name || name === qid) continue;
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    const provQid = b.prov?.value ? String(b.prov.value).split("/").pop() : null;
+    const cur = byQid.get(qid);
+    const next = {
+      externalId: qid,
+      name,
+      aliases: [],
+      stateCode: provQid ?? "VN",
+      stateName: b.provLabel?.value ?? "",
+      districtCode: provQid,
+      districtName: b.provLabel?.value ?? null,
+      population: pop,
+      areaKm2: b.area ? Number(b.area.value) : null,
+      centroid: parsePoint(b.coord?.value),
+      settlementClass: null,
+    };
+    if (!cur || (pop && (!cur.population || pop > cur.population)))
+      byQid.set(qid, { ...cur, ...next });
+  }
+  const units = [...byQid.values()];
+  if (units.length < 1000) fail(`Implausible VN dataset (${units.length}).`);
+  return {
+    source: "wikidata-vn-wards",
+    sourceVersion: `wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution: "Vietnamese wards/towns: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -1030,6 +1083,7 @@ const ADAPTERS = {
   AU: adapterAU,
   CA: adapterCA,
   EE: adapterEE,
+  VN: adapterVN,
 };
 
 function readSecret() {

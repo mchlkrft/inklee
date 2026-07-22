@@ -1079,6 +1079,60 @@ const EE: SeedCountryConfig = {
   ],
 };
 
+const VN: SeedCountryConfig = {
+  code: "VN",
+  name: "Vietnam",
+  // Vietnamese is Latin with heavy diacritics; normalizeSeedText NFD-strips
+  // the tone/vowel marks consistently on both sides so matching still works
+  // (xăm -> xam). The PMU term phun xăm CONTAINS the tattoo word xăm, so the
+  // subsumption rule strips that false positive - a pure PMU shop rejects
+  // while a "tattoo và phun xăm" mixed shop keeps its English/other positive
+  // and goes to review.
+  languages: ["vi", "en"],
+  extraPositive: compileSeedVocabulary(
+    [
+      ["xăm", "strong"],
+      ["hình xăm", "strong"],
+      ["xăm hình", "strong"],
+      ["thợ xăm", "strong"],
+      ["xăm nghệ thuật", "strong"],
+    ],
+    "vietnamese_tattoo",
+  ),
+  extraNegative: compileSeedVocabulary(
+    [
+      ["phun xăm", "strong"],
+      ["phun thêu", "strong"],
+      ["thẩm mỹ viện", "strong"],
+      ["thẩm mỹ", "strong"],
+      ["làm móng", "strong"],
+      ["nối mi", "strong"],
+      ["uốn mi", "strong"],
+      ["lông mày", "strong"],
+      ["điêu khắc lông mày", "strong"],
+      ["làm tóc", "strong"],
+      ["cắt tóc", "strong"],
+      ["gội đầu", "weak"],
+    ],
+    "vietnamese_beauty",
+  ),
+  postalCodePattern: /^\d{6}$/,
+  qualityFixtures: [
+    { name: "Sài Gòn Tattoo Studio", expect: "accept" },
+    { name: "Hình Xăm Nghệ Thuật Hà Nội", expect: "accept" },
+    { name: "Thợ Xăm Đen Trắng", expect: "accept" },
+    { name: "Thẩm Mỹ Viện Ngọc", expect: "reject_beauty" },
+    {
+      name: "Phun Xăm Thẩm Mỹ Lan",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Làm Móng Nail Box", expect: "reject_beauty" },
+    { name: "Nối Mi Lông Mày Spa", expect: "reject_beauty" },
+    { name: "Tattoo và Phun Xăm Đà Nẵng", expect: "not_accept" },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -1095,6 +1149,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   AU,
   CA,
   EE,
+  VN,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {

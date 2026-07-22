@@ -565,6 +565,31 @@ export const EE_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 400 },
 };
 
+// Vietnam: ~2,100 ward/town units (structured-first, most lack Wikidata
+// population so they sit in the rural tier - fine for the import). Tattoo
+// scene concentrates in HCMC, Hanoi, Da Nang. Vietnamese query bundles.
+export const VN_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 300_000,
+    cityPopulation: 100_000,
+    townPopulation: 30_000,
+    clusterRadiusKm: 15,
+    clusterMaxMembers: 12,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "hình xăm {location}",
+      "xăm nghệ thuật {location}",
+      "tattoo {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "hình xăm {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 1200 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -581,6 +606,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   AU: AU_COVERAGE_POLICY,
   CA: CA_COVERAGE_POLICY,
   EE: EE_COVERAGE_POLICY,
+  VN: VN_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {
