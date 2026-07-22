@@ -336,3 +336,29 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 - `docs/roadmap.md` §4.1/§10 still reference the older SEO strategy; a follow-up doc edit should point them at the canonical file.
 
 **Commit:** _(added on commit; see `docs(seo): establish shared SEO strategy source of truth`)_
+
+---
+
+### 2026-07-22 — Public tattoo map: keyword/page-ownership handoff to ChatGPT (no indexable change)
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** New surface not yet in the canonical strategy; requests an addition. Guardrails reference "Current keyword ownership" (`/guest-spot-booking`, `/tattoo-booking-form`, `/tattoo-booking-software`) and "SERP overlap decision rules".
+
+**Files changed:**
+
+- `docs/seo/public-map-keyword-ownership-brief.md` (new) — brief for ChatGPT (strategy owner) describing the public map surfaces (public explore view, claimed vs unclaimed studio pages, city/style/filter-combination pages), the data + audience behind each, hard guardrails (one intent one owner; no filter-combination indexable pages; no cannibalization of `/guest-spot-booking`; data ~17% materially wrong so unclaimed pages recommended `noindex`; licensing attribution required), and the specific ownership decisions requested back in the canonical proposal format.
+
+**Implementation:** Documentation/handoff only. The tattoo map is going public (Q3 reversed 2026-07-22); its public shell ships last and stays `noindex` + out of the sitemap (fail-closed) until ChatGPT assigns keyword/page ownership and I implement it as a logged slice. Per `CLAUDE.md`, I did **not** set keyword ownership or mint any indexable page. No routes, metadata, canonicals, redirects, sitemap, or structured data changed.
+
+**Validation performed:**
+
+- Confirmed the public map introduces a *new* intent class (consumer/local directory) that no existing owned URL targets, so this is an addition decision, not a repositioning — flagged as such for the strategy owner rather than resolved here.
+- Confirmed the fail-closed posture: `mapImmersiveShellEnabled()` and the public shell remain `noindex`/out-of-sitemap absent an explicit strategy decision.
+
+**Remaining issues:**
+
+- Awaiting ChatGPT's ownership proposal (surfaces A–F: indexable or `noindex`, intent, canonical owner URL, URL structure, sitemap/schema, priority tier). Nothing public becomes indexable until that lands on `master` and is implemented + logged here.
+- Legal prerequisite tracked separately: `docs/counsel-note-public-map-data-licensing-2026-07-22.md` (Q20 data-attribution/licensing must clear before any seeded row is published).
+
+**Commit:** _(added on commit; see the map redesign / DSA writer commit)_

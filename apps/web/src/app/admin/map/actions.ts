@@ -22,6 +22,10 @@ import {
   type MapLocationFormInput,
 } from "@/lib/server/map-locations";
 import { approveClaimCore, rejectClaimCore } from "@/lib/server/studios";
+import {
+  recordMapModerationStatement,
+  reportReasonToGrounds,
+} from "@/lib/server/moderation-statements";
 
 type Result = { error?: string; id?: string; duplicates?: DuplicateHit[] };
 
@@ -110,7 +114,7 @@ export async function updateMapLocationAction(
   const row = locationRowFromInput(input, bucket);
   const { data: linkedRow } = await serviceClient
     .from("map_locations")
-    .select("studio_profile_id")
+    .select("studio_profile_id, moderation_status")
     .eq("id", id)
     .maybeSingle();
   if (linkedRow?.studio_profile_id) {
@@ -143,6 +147,26 @@ export async function updateMapLocationAction(
     return { error: error.message };
   }
 
+  // DSA Art. 17: record a statement of reasons only when a listing that was
+  // publicly visible (approved) becomes hidden or removed, the transition that
+  // actually restricts visibility to recipients. A pending listing was never
+  // shown, and hidden->removed adds no new restriction, so neither records
+  // (docs/dsa-moderation-procedure.md §3). The admin editor captures no
+  // per-action reason, so the grounds are generic; a dedicated reason field is
+  // a follow-up. statement_recorded is logged only when a statement is
+  // attempted, so a legitimate no-op is not confused with a lost record.
+  const prevStatus = linkedRow?.moderation_status as string | undefined;
+  const restricts =
+    input.moderationStatus === "hidden" || input.moderationStatus === "removed";
+  const recordsStatement = prevStatus === "approved" && restricts;
+  const statementRecorded = recordsStatement
+    ? (await recordMapModerationStatement({
+        mapLocationId: id,
+        action: input.moderationStatus as "hidden" | "removed",
+        reason: "an administrative review of this listing",
+      })) !== null
+    : null;
+
   await Promise.all([
     logMapAdminAction(adminId, "map_location_updated", {
       map_location_id: id,
@@ -151,6 +175,7 @@ export async function updateMapLocationAction(
       is_seed: input.isSeed,
       seed_region_bucket: bucket,
       duplicate_hits: duplicateHits.length,
+      ...(recordsStatement ? { statement_recorded: statementRecorded } : {}),
     }),
     persistDuplicateSuggestions(
       id,
@@ -186,9 +211,21 @@ export async function deleteMapLocationAction(id: string): Promise<Result> {
     .eq("id", id);
   if (error) return { error: error.message };
 
+  // DSA Art. 17: a hard delete removes an unclaimed seed listing (studio-linked
+  // rows are blocked above), so there is no owner to deliver to, but the
+  // register still records the removal for transparency-report trend analysis.
+  // The row is gone, so target_map_location_id is null and the grounds name it.
+  const deletedName = existing?.name ?? "an unnamed listing";
+  const stmtId = await recordMapModerationStatement({
+    mapLocationId: null,
+    action: "removed",
+    reason: `an administrative removal of the seeded directory listing "${deletedName}"`,
+  });
+
   await logMapAdminAction(adminId, "map_location_deleted", {
     map_location_id: id,
     name: existing?.name ?? null,
+    statement_recorded: stmtId !== null,
   });
   revalidatePath("/admin/map");
   return {};
@@ -283,11 +320,14 @@ export async function markLocationPossiblyClosedAction(
 
   const { data: report } = await serviceClient
     .from("map_reports")
-    .select("id, target_map_location_id")
+    .select("id, target_map_location_id, reason, status")
     .eq("id", reportId)
     .maybeSingle();
   if (!report?.target_map_location_id)
     return { error: "This report is not about a map location." };
+  // Idempotency: an already-actioned report must not flag again or write a
+  // second statement, which would orphan the first and inflate the register.
+  if (report.status === "actioned") return {};
   const locationId = report.target_map_location_id as string;
 
   const { error: locErr } = await serviceClient
@@ -306,9 +346,20 @@ export async function markLocationPossiblyClosedAction(
     .eq("id", reportId);
   if (repErr) return { error: repErr.message };
 
+  // DSA Art. 17: flagging a listing possibly-closed is a visibility-affecting
+  // action taken on a user report, so it is owed a statement of reasons. Ground
+  // it in the report's own reason + detail and link the report to the statement.
+  const stmtId = await recordMapModerationStatement({
+    mapLocationId: locationId,
+    action: "warning_shown",
+    reason: reportReasonToGrounds(report.reason as string | null),
+    reportId,
+  });
+
   await logMapAdminAction(adminId, "map_location_possibly_closed", {
     map_report_id: reportId,
     map_location_id: locationId,
+    statement_recorded: stmtId !== null,
   });
   revalidatePath("/admin/map/reports");
   return {};

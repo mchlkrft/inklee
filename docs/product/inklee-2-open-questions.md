@@ -189,5 +189,7 @@ The planned artist suggestion form may accept an optional Google Maps link as a 
 
 Converted entries carry name and coordinates that originated in Overture data (CDLA-Permissive-2.0, Foursquare-sourced rows Apache 2.0). Fine on the logged-in map; does anything change if map pages ever become public (Q3)?
 
-- What it blocks: nothing while the map stays logged-in only.
-- Decide by: together with Q3, if indexability is ever reconsidered.
+**Reopened + drafted for counsel 2026-07-22.** Q3 was reversed the same day (map goes public), so this is now live rather than hypothetical. A full legal draft — the sources, the three licenses (adding the OSM/ODbL share-alike edge the original framing missed), the facts-vs-database distinction, the proposed attribution position, and the residual questions only counsel can close — is in `docs/counsel-note-public-map-data-licensing-2026-07-22.md`. The load-bearing question is whether the public directory is an ODbL "Derived Database publicly used" (share-alike) or a "Produced Work" (attribution only).
+
+- What it blocks: the **public** launch of seeded studio data. The logged-in map is unaffected.
+- Decide by: before the public shell publishes any seeded row. Owner: founder + counsel.

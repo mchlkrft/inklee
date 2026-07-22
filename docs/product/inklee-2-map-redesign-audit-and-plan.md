@@ -728,3 +728,32 @@ Route the two public flags through the **capability plane `DISABLED_CAPABILITIES
 3. **Name upcoming guest artists publicly, or keep them anonymized?** Current/upcoming stays are anonymized unconditionally (`guest-spots.ts:1144`); naming future whereabouts is a bigger consent than `passport_public` promises. A flag decision, not a table.
 4. **Accept the spatial-index migration on the hot RPC before any density/full-viewport work?** Non-negotiable for scale, but it touches the live viewport query and needs careful rollout.
 5. **Consolidate the two divergent map clients + basemaps now, or carry the duplication?** Deferring it bakes duplicated marker logic into every subsequent slice.
+
+---
+
+## 25. Execution status — 2026-07-22
+
+Live progress against the plan above. Written the same day as the founder's
+"continue the DSA writer, do the switches, keep building" instruction.
+
+### Shipped
+
+- **Slice 1 (immersive shell) flipped ON in production.** `NEXT_PUBLIC_MAP_IMMERSIVE_SHELL=true` created on the Vercel `inklee` project (production target), mirroring `NEXT_PUBLIC_TATTOO_MAP`. It bakes into the next deploy. Fail-closed unchanged: still gated behind `tattooMapEnabled()`, so the boxed discovery card is a one-flag rollback.
+- **Slice 4 trust surface — DSA `moderation_statements` writer (P4).** New `lib/server/moderation-statements.ts` populates the Art. 17 statement-of-reasons register (previously zero writers). Wired at three admin moderation sites: `updateMapLocationAction` (hide/remove, only on a real transition), `deleteMapLocationAction` (seed removal, target null after delete), and `markLocationPossiblyClosedAction` (report-driven `warning_shown`, links `map_reports.statement_of_reasons_id`). Grounds compose what/why/scope/automated/redress per `docs/dsa-moderation-procedure.md` §3.2. Statement-write failure never aborts the moderation action; each caller logs `statement_recorded`. Delivery to the affected party (email/notice) is the tracked follow-up; `delivered_at` stays null, `delivered_to` resolved now.
+- **Q20 legal draft** written for counsel: `docs/counsel-note-public-map-data-licensing-2026-07-22.md` (Overture CDLA-2.0 / Foursquare Apache-2.0 / OSM ODbL; the ODbL "Derived Database publicly used" share-alike edge is the load-bearing question). Q20 in the open-questions doc reopened + pointed at it.
+- **SEO handoff** for ChatGPT: `docs/seo/public-map-keyword-ownership-brief.md` (the public map introduces a net-new local-directory intent class no owned URL covers; requests the ownership decision per the CLAUDE.md split, sets guardrails, does not set keyword ownership).
+
+### Rejected after validation — v2 pins RPC (P2) stays OFF
+
+`MAP_PINS_V2` was validated read-only against prod (`.scratch`-style parity + EXPLAIN over 9 viewports) and **failed**:
+
+- **Parity broke on wide viewports.** US-wide undercounted by 599 (v2 27547 vs v1 28146) and the full-world envelope returned **0** pins (v2 0 vs v1 71191). The migration's "geography `&&` is a superset of the lon/lat box" assumption is false: a geodetic bbox bows inward at mid latitudes and collapses across the antimeridian, so the `&&` silently *drops* valid rows — worst exactly when the map is zoomed out.
+- **The optimization is also unnecessary.** EXPLAIN shows v1's `BETWEEN` already served by the btree `map_locations_display_lat_lng_idx` (added in **0076**, not the seq scan 0101 assumed), ~0.7 ms. So v2 is both slower to trust and no faster.
+- **Decision:** `MAP_PINS_V2` remains absent (fail-closed to v1, which is correct and index-backed). The founder's "verify before flipping" gate did its job. The v2 functions stay deployed but dormant; a follow-up either drops them or rebuilds the bbox prune on planar `geometry` (not `geography`) if a spatial prune is ever actually needed. **The P2 "spatial index + RPC rewrite" item is effectively already solved by the 0076 btree; count de-doubling is moot at ~0.7 ms.**
+
+### Deferred (the honest "rest"), with reasons
+
+- **Retire the legacy boxed map clients** (`discovery-map-client.tsx`, `map-client.tsx`): they are the fail-closed fallback. Delete only after the shell flag is confirmed healthy in prod, not the same hour it flips.
+- **Style filter on the map, city/style layers, marker/list `possibly_closed` badge** (P3 + P4 polish): net-new feature slices, not blockers; sequenced after the shell is confirmed.
+- **Mobile/tablet shell** (camera-padding drawer, bottom-sheet, 44pt targets): separate native track (needs an EAS build; no OTA).
+- **Public shell (P5):** unchanged — gated on Q20 (legal), the SEO ownership decision (ChatGPT), and public-presence consent. The DSA writer prerequisite is now met.
