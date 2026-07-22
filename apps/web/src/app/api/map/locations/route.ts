@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
-import { tattooMapEnabled } from "@/lib/map-features";
+import { tattooMapEnabled, mapPinsV2Enabled } from "@/lib/map-features";
 import {
   MAP_LOCATION_CATEGORIES,
   parseMapBBox,
@@ -67,8 +67,13 @@ export async function GET(request: Request) {
     ? Math.min(22, Math.max(0, zoomParam))
     : 3;
 
+  // Perf hardening (Slice 2, migration 0101): route to the index-using v2 RPCs
+  // when MAP_PINS_V2 is on. v2 is byte-identical to v1 (same grid sample + fair
+  // truncation, plus an exact BETWEEN), so the response shape is unchanged;
+  // fails closed to the proven v1 functions.
+  const useV2 = mapPinsV2Enabled();
   const [{ data, error }, { data: totalInView }] = await Promise.all([
-    serviceClient.rpc("map_pins_in_view", {
+    serviceClient.rpc(useV2 ? "map_pins_in_view_v2" : "map_pins_in_view", {
       p_west: bbox.west,
       p_south: bbox.south,
       p_east: bbox.east,
@@ -76,12 +81,15 @@ export async function GET(request: Request) {
       p_zoom: zoom,
       p_limit: PIN_LIMIT,
     }),
-    serviceClient.rpc("map_pins_in_view_count", {
-      p_west: bbox.west,
-      p_south: bbox.south,
-      p_east: bbox.east,
-      p_north: bbox.north,
-    }),
+    serviceClient.rpc(
+      useV2 ? "map_pins_in_view_count_v2" : "map_pins_in_view_count",
+      {
+        p_west: bbox.west,
+        p_south: bbox.south,
+        p_east: bbox.east,
+        p_north: bbox.north,
+      },
+    ),
   ]);
   if (error) {
     return NextResponse.json({ error: "query_failed" }, { status: 500 });

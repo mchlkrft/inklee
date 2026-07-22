@@ -11,6 +11,10 @@ import {
 } from "@inklee/shared/studio-profile";
 import { getPublishedHouseRules } from "@/lib/server/studios";
 import {
+  getStudioStyles,
+  type StudioStylesForDisplay,
+} from "@/lib/server/studio-styles";
+import {
   getStudioGuestTimeline,
   type StudioTimeline,
   type TimelineEntry,
@@ -57,7 +61,7 @@ export default async function MapLocationPage({
   const { data } = await serviceClient
     .from("map_locations")
     .select(
-      "id, name, category, address, city, country, website_url, instagram_handle, phone, opening_hours, claim_status, moderation_status, last_confirmed_at, is_seed",
+      "id, name, category, address, city, country, website_url, instagram_handle, phone, opening_hours, claim_status, moderation_status, last_confirmed_at, is_seed, possibly_closed",
     )
     .eq("id", id)
     .eq("moderation_status", "approved")
@@ -81,6 +85,7 @@ export default async function MapLocationPage({
   let ownStudio = false;
   let houseRules: Array<{ key: string; content: string }> = [];
   let timeline: StudioTimeline | null = null;
+  let styles: StudioStylesForDisplay | null = null;
   if (studioLink?.studio_profile_id) {
     const { data: studio } = await serviceClient
       .from("studio_profiles")
@@ -94,9 +99,10 @@ export default async function MapLocationPage({
       studio.guest_spot_status === "accepting";
     ownStudio = studio?.owner_user_id === user.id;
     if (studio?.publication_status === "published") {
-      [houseRules, timeline] = await Promise.all([
+      [houseRules, timeline, styles] = await Promise.all([
         getPublishedHouseRules(studioLink.studio_profile_id as string),
         getStudioGuestTimeline(studioLink.studio_profile_id as string),
+        getStudioStyles(studioLink.studio_profile_id as string),
       ]);
     }
   }
@@ -115,6 +121,7 @@ export default async function MapLocationPage({
   // details are a snapshot and can be stale, so we say so rather than
   // presenting it as confirmed.
   const unverified = Boolean(data.is_seed) && !claimed;
+  const possiblyClosed = Boolean(data.possibly_closed);
   const place = [data.address, data.city, data.country]
     .filter(Boolean)
     .join(", ");
@@ -143,7 +150,24 @@ export default async function MapLocationPage({
           )}
         </div>
         <p className="text-sm text-muted-foreground">{categoryLabel}</p>
+        {claimed && data.last_confirmed_at ? (
+          <p className="text-xs text-muted-foreground">
+            Confirmed by the studio on{" "}
+            {formatDateKey((data.last_confirmed_at as string).slice(0, 10))}.
+          </p>
+        ) : null}
       </header>
+
+      {possiblyClosed ? (
+        <section className="rounded-2xl border border-brand-red/40 bg-brand-red/10 p-4">
+          <p className="text-sm font-medium text-foreground">Possibly closed</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Someone reported this studio may have closed. Details may be out of
+            date. If it is open, claim it or report the listing to set it
+            straight.
+          </p>
+        </section>
+      ) : null}
 
       {unverified ? (
         <section className="rounded-2xl border border-border bg-muted/20 p-4">
@@ -225,6 +249,55 @@ export default async function MapLocationPage({
           <WatchButton mapLocationId={id} initialWatched={Boolean(watch)} />
         </div>
       </section>
+
+      {claimed && styles && !styles.isEmpty ? (
+        <section className="space-y-3 rounded-2xl border border-border p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            Styles represented
+          </h2>
+          {styles.specialties.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Studio specialties
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {styles.specialties.map((s) => (
+                  <span
+                    key={s.key}
+                    className="rounded-full bg-muted px-2.5 py-1 text-xs text-foreground"
+                  >
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {styles.guestStyles.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Guest artist styles
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {styles.guestStyles.map((s) => (
+                  <span
+                    key={s.key}
+                    className="rounded-full bg-brand-rosa/15 px-2.5 py-1 text-xs text-foreground"
+                  >
+                    {s.label}
+                    {s.showCount
+                      ? ` · ${s.count} visiting`
+                      : " · guest visiting"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <p className="text-xs text-muted-foreground">
+            Styles reflect what the studio declares and the guest artists
+            visiting it. Not every artist works in every style.
+          </p>
+        </section>
+      ) : null}
 
       {claimed &&
       timeline &&

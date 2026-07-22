@@ -20,6 +20,7 @@ export type MapPresenceValues = {
   cityLng: number | null;
   travelMapConsent: boolean;
   passportPublic: boolean;
+  guestNamingOptOut: boolean;
   styleKeys: string[];
 };
 
@@ -198,12 +199,24 @@ export default function MapPresenceForm({
         </label>
         <p className="text-xs text-muted-foreground">
           The passport is your completed guest spots. Studios reviewing your
-          requests see it, and studios you guested at can name you in the past
-          section of their guest list. Nothing shows while it is off.
+          requests see it. Nothing shows while it is off.
         </p>
         <p className="text-xs text-muted-foreground">
           Trip cities come from your Guest Spots planner and appear at city
           level only. This is separate from showing trips on your booking form.
+        </p>
+        <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={!values.guestNamingOptOut}
+            onChange={(e) => set("guestNamingOptOut", !e.target.checked)}
+          />
+          Show my name on studio guest lists
+        </label>
+        <p className="text-xs text-muted-foreground">
+          When a studio you guest at shows its guest artists, your name and
+          profile link appear on its map page, for current, upcoming and past
+          visits. Turn this off to show only as a guest artist with dates.
         </p>
       </section>
 

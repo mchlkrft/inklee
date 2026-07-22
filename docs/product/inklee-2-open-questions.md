@@ -33,6 +33,8 @@ What public data source is legally safe enough for first studio seeding?
 
 ### Q3. Indexability of seeded unclaimed studio pages
 
+**REVERSED 2026-07-22 (founder): the map GOES PUBLIC as an experimental, community-evolving surface.** This supersedes the 2026-07-19 logged-in-only resolution below. The public surface is one capability layer on a single shared map core (not a separate map product); it ships last in the rollout and only after its prerequisites close: the Q20 Overture/Foursquare licensing re-check (legal), a DSA `moderation_statements` writer (counsel item Q14), and SEO keyword/page ownership through the SEO strategy owner per the CLAUDE.md split (no filter-combination indexable pages; do not cannibalize `/guest-spot-booking`). Full detail + the shared-core architecture in `docs/product/inklee-2-map-redesign-audit-and-plan.md`.
+
 **RESOLVED 2026-07-19 (founder): the map stays logged-in only.** Seeded
 pages remain noindex, behind auth, out of the sitemap. This also closes the
 attribution follow-up below in its favor (nothing changes while pages are
@@ -151,6 +153,8 @@ Inklee 1.x already ships artist-owned flash days (flash days, flash items, booki
 - Decide by: before the Phase 6 flash day planner slice starts. Needs a short design pass over the 1.x flash schema first.
 
 ### Q16. Private artist representation in the guest artist timeline
+
+**UPDATED 2026-07-22 (founder): named by default, with an explicit per-artist opt-out.** The default flips from anonymized to named across current/upcoming/past timeline entries; a new `profiles.guest_naming_opt_out` (default false) plus a `/settings/map` toggle lets an artist anonymize themselves everywhere. Artist privacy still always caps studio settings: an opt-out wins over any studio's `show_guest_timeline`. Naming is decoupled from `passport_public` (which keeps its own purpose). Safety note recorded in `docs/product/inklee-2-map-redesign-audit-and-plan.md`: naming future whereabouts publicly by default is what the original anonymized default protected against, so the opt-out should be surfaced prominently.
 
 **RESOLVED by the founder 2026-07-18: anonymized entry.** A privacy-protected artist appears as "a guest artist" with dates only: no name, no link, no origin. The timeline stays visually complete without exposing anyone, and artists can opt in to full display. Artist privacy always caps studio settings.
 

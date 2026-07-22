@@ -268,3 +268,48 @@ export async function setReportStatusAction(
   revalidatePath("/admin/map/reports");
   return {};
 }
+
+/**
+ * Action a "closed" / "outdated" report: flag the location possibly_closed (a
+ * soft warning on the detail, reversed by any owner confirmation) and resolve
+ * the report as actioned. The location comes from the report, so a stale id can
+ * never be targeted.
+ */
+export async function markLocationPossiblyClosedAction(
+  reportId: string,
+): Promise<Result> {
+  const adminId = await getAdminId();
+  if (!adminId) return { error: "Not authorized." };
+
+  const { data: report } = await serviceClient
+    .from("map_reports")
+    .select("id, target_map_location_id")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (!report?.target_map_location_id)
+    return { error: "This report is not about a map location." };
+  const locationId = report.target_map_location_id as string;
+
+  const { error: locErr } = await serviceClient
+    .from("map_locations")
+    .update({ possibly_closed: true, updated_at: new Date().toISOString() })
+    .eq("id", locationId);
+  if (locErr) return { error: locErr.message };
+
+  const { error: repErr } = await serviceClient
+    .from("map_reports")
+    .update({
+      status: "actioned",
+      reviewed_by: adminId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", reportId);
+  if (repErr) return { error: repErr.message };
+
+  await logMapAdminAction(adminId, "map_location_possibly_closed", {
+    map_report_id: reportId,
+    map_location_id: locationId,
+  });
+  revalidatePath("/admin/map/reports");
+  return {};
+}

@@ -51,7 +51,7 @@ GRANT SELECT (
   address_confirmation, status, evidence_note, created_at
 ) ON location_claims TO authenticated;
 
--- Mirror of 0074_profiles_column_privileges.sql + the 0076 + 0084 grant
+-- Mirror of 0074_profiles_column_privileges.sql + the 0076 + 0084 + 0102 grant
 -- extensions:
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;
 REVOKE INSERT ON public.profiles FROM anon, authenticated;
@@ -62,7 +62,7 @@ GRANT UPDATE (
   signup_attribution, updated_at,
   map_visibility, looking_for_guest_spots,
   map_city_label, map_city_place_id, map_city_lat, map_city_lng,
-  travel_map_consent, passport_public
+  travel_map_consent, passport_public, guest_naming_opt_out
 ) ON public.profiles TO authenticated;
 GRANT INSERT (
   id, slug, display_name, instagram_handle, location, timezone,

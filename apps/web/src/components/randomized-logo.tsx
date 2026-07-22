@@ -16,8 +16,21 @@ const noop = () => () => {};
 const getServerSnapshot = (): string => SSR_DEFAULT;
 const getClientSnapshot = (): string => LOGO[getBrandColor()];
 
-export default function RandomizedLogo({ height = 24 }: { height?: number }) {
-  const src = useSyncExternalStore(noop, getClientSnapshot, getServerSnapshot);
+export default function RandomizedLogo({
+  height = 24,
+  color,
+}: {
+  height?: number;
+  // Force a specific brand color instead of the random pick (e.g. the map's
+  // light-mode logo pill wants mustard). Omitted = randomized as before.
+  color?: "bone" | "mustard" | "rosa";
+}) {
+  const randomSrc = useSyncExternalStore(
+    noop,
+    getClientSnapshot,
+    getServerSnapshot,
+  );
+  const src = color ? LOGO[color] : randomSrc;
   const width = Math.round(height * 3.484);
 
   return (

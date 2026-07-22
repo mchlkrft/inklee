@@ -13,8 +13,16 @@ import {
 // which flies to it and opens its detail panel.
 export default function MapSearchBox({
   onSelect,
+  shape = "default",
+  containerClassName,
 }: {
   onSelect: (pin: PublicMapPin) => void;
+  // "pill" rounds the bar fully to match the immersive shell's Inklee-branded
+  // controls; "default" keeps the legacy boxed discovery card unchanged.
+  shape?: "default" | "pill";
+  // Position override for the immersive shell (top-center float); default keeps
+  // the legacy top-left placement.
+  containerClassName?: string;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicMapPin[]>([]);
@@ -110,9 +118,16 @@ export default function MapSearchBox({
   return (
     <div
       ref={rootRef}
-      className="absolute left-3 top-3 z-10 w-[min(20rem,calc(100%-1.5rem))]"
+      className={
+        containerClassName ??
+        "absolute left-3 top-3 z-10 w-[min(20rem,calc(100%-1.5rem))]"
+      }
     >
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-lg backdrop-blur focus-within:border-foreground/40">
+      <div
+        className={`flex items-center gap-2 border border-border bg-background/95 shadow-lg backdrop-blur focus-within:border-foreground/40 ${
+          shape === "pill" ? "h-11 rounded-full px-4" : "rounded-xl px-3 py-2"
+        }`}
+      >
         <svg
           viewBox="0 0 24 24"
           className="h-4 w-4 shrink-0 text-muted-foreground"

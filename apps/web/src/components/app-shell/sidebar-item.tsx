@@ -9,6 +9,10 @@ interface SidebarItemProps {
   Icon: LucideIcon;
   active: boolean;
   badgeCount?: number;
+  // Icon-only variant (the map's floating rail). The icon keeps its normal
+  // left position so switching between the full sidebar and the collapsed rail
+  // is seamless; the label + badge are hidden and the label moves to a tooltip.
+  collapsed?: boolean;
 }
 
 export default function SidebarItem({
@@ -17,11 +21,14 @@ export default function SidebarItem({
   Icon,
   active,
   badgeCount,
+  collapsed,
 }: SidebarItemProps) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
+      aria-label={collapsed ? label : undefined}
+      title={collapsed ? label : undefined}
       className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-rosa/50 ${
         active
           ? "text-brand-rosa"
@@ -38,8 +45,10 @@ export default function SidebarItem({
         className="h-[18px] w-[18px] shrink-0"
         strokeWidth={active ? 2 : 1.6}
       />
-      <span className={active ? "font-medium" : ""}>{label}</span>
-      {typeof badgeCount === "number" && badgeCount > 0 && (
+      {!collapsed && (
+        <span className={active ? "font-medium" : ""}>{label}</span>
+      )}
+      {!collapsed && typeof badgeCount === "number" && badgeCount > 0 && (
         <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-mustard px-1.5 text-[11px] font-semibold leading-none text-brand-charcoal">
           {badgeCount > 99 ? "99+" : badgeCount}
         </span>

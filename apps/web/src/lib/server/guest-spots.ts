@@ -1084,13 +1084,15 @@ export async function deleteTripLegCore(
 }
 
 // ---------------------------------------------------------------------------
-// Guest artist timeline (Phase 4, Q16 resolved 2026-07-18): a read model over
-// stays for a studio's map page. Studio opts in (show_guest_timeline);
-// artist privacy caps every entry: only passport_public artists render
-// named + linked, everyone else appears as "A guest artist" with dates only.
+// Guest artist timeline (Phase 4; founder decision 2026-07-22 updates Q16): a
+// read model over stays for a studio's map page. The studio opts in
+// (show_guest_timeline); guest artists are named + linked by DEFAULT across
+// current/upcoming/past, and an artist who set guest_naming_opt_out appears as
+// "A guest artist" with dates only, everywhere. Artist privacy always caps the
+// studio setting. Decoupled from passport_public (the completed-stays passport).
 
 export type TimelineEntry = {
-  // null name = anonymized entry (the Q16 default).
+  // null name = the artist opted out of naming (guest_naming_opt_out).
   name: string | null;
   slug: string | null;
   startsOn: string;
@@ -1140,55 +1142,56 @@ export async function getStudioGuestTimeline(
         .limit(8),
     ]);
 
-  // Naming consent: passport_public covers the artist's completed guest spot
-  // HISTORY, so only PAST entries carry a name and link. Current and upcoming
-  // stays render anonymized for everyone in v1: naming future whereabouts is
-  // a bigger consent than the passport toggle promises, and bundling it in
-  // silently is not this slice's call (founder decision pending).
-  const pastArtistIds = [
-    ...new Set((past ?? []).map((s) => s.artist_user_id as string)),
+  // Naming (founder decision 2026-07-22, updating Q16): guest artists are named
+  // and linked by DEFAULT across current/upcoming/past. An artist who set
+  // guest_naming_opt_out stays "A guest artist" everywhere; artist privacy
+  // always caps the studio's timeline. Decoupled from passport_public.
+  const allArtistIds = [
+    ...new Set(
+      [...(current ?? []), ...(upcoming ?? []), ...(past ?? [])].map(
+        (s) => s.artist_user_id as string,
+      ),
+    ),
   ];
-  const { data: artists } = pastArtistIds.length
+  const { data: artists } = allArtistIds.length
     ? await serviceClient
         .from("profiles")
-        .select("id, display_name, slug, passport_public")
-        .in("id", pastArtistIds)
+        .select("id, display_name, slug, guest_naming_opt_out")
+        .in("id", allArtistIds)
     : { data: [] };
   const byId = new Map(
     (artists ?? []).map((a) => [
       a.id as string,
-      {
-        name: a.passport_public
-          ? (((a.display_name as string | null) || (a.slug as string | null)) ??
-            null)
-          : null,
-        slug: a.passport_public ? ((a.slug as string | null) ?? null) : null,
-      },
+      a.guest_naming_opt_out
+        ? { name: null as string | null, slug: null as string | null }
+        : {
+            name:
+              ((a.display_name as string | null) ||
+                (a.slug as string | null)) ??
+              null,
+            slug: (a.slug as string | null) ?? null,
+          },
     ]),
   );
 
-  const anonymized = (s: {
+  const toEntry = (s: {
+    artist_user_id: unknown;
     starts_on: unknown;
     ends_on: unknown;
-  }): TimelineEntry => ({
-    name: null,
-    slug: null,
-    startsOn: s.starts_on as string,
-    endsOn: s.ends_on as string,
-  });
+  }): TimelineEntry => {
+    const artist = byId.get(s.artist_user_id as string);
+    return {
+      name: artist?.name ?? null,
+      slug: artist?.slug ?? null,
+      startsOn: s.starts_on as string,
+      endsOn: s.ends_on as string,
+    };
+  };
 
   return {
-    current: (current ?? []).map(anonymized),
-    upcoming: (upcoming ?? []).map(anonymized),
-    past: (past ?? []).map((s) => {
-      const artist = byId.get(s.artist_user_id as string);
-      return {
-        name: artist?.name ?? null,
-        slug: artist?.slug ?? null,
-        startsOn: s.starts_on as string,
-        endsOn: s.ends_on as string,
-      };
-    }),
+    current: (current ?? []).map(toEntry),
+    upcoming: (upcoming ?? []).map(toEntry),
+    past: (past ?? []).map(toEntry),
   };
 }
 

@@ -397,6 +397,11 @@ export async function updateStudioProfileCore(
         postal_code: approximate ? null : input.postalCode?.trim() || null,
         display_latitude: display.latitude,
         display_longitude: display.longitude,
+        // The owner just touched this data, so it is confirmed-fresh (the trust
+        // surface reads last_confirmed_at; a seed leaves it null) and any
+        // possibly-closed flag from a stale report is cleared.
+        last_confirmed_at: new Date().toISOString(),
+        possibly_closed: false,
         updated_at: new Date().toISOString(),
       })
       .eq("id", linkedLoc.id);
@@ -1404,6 +1409,9 @@ export async function approveClaimCore(
       .update({
         studio_profile_id: studioId,
         claim_status: "claimed",
+        // An owner has verified this place exists and is theirs.
+        last_confirmed_at: new Date().toISOString(),
+        possibly_closed: false,
         updated_at: new Date().toISOString(),
       })
       .eq("id", locationId)

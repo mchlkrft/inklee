@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { setReportStatusAction } from "../actions";
+import {
+  markLocationPossiblyClosedAction,
+  setReportStatusAction,
+} from "../actions";
 
 export type ReportRow = {
   id: string;
@@ -23,6 +26,18 @@ export default function ReportsQueue({ rows }: { rows: ReportRow[] }) {
     setError(null);
     startTransition(async () => {
       const result = await setReportStatusAction(id, status);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const markClosed = (id: string) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await markLocationPossiblyClosedAction(id);
       if (result.error) {
         setError(result.error);
         return;
@@ -89,6 +104,17 @@ export default function ReportsQueue({ rows }: { rows: ReportRow[] }) {
               >
                 Dismiss
               </button>
+              {r.targetType === "location" &&
+              (r.reason === "closed" || r.reason === "outdated_details") ? (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => markClosed(r.id)}
+                  className="rounded-md border border-brand-red/40 px-3 py-1.5 text-xs text-brand-red transition-colors hover:bg-brand-red/10 disabled:opacity-50"
+                >
+                  Mark possibly closed
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

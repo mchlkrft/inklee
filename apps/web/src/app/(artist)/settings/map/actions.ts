@@ -18,6 +18,7 @@ export type MapPresenceInput = {
   cityLng: number | null;
   travelMapConsent: boolean;
   passportPublic: boolean;
+  guestNamingOptOut: boolean;
   styleKeys: string[];
 };
 
@@ -81,6 +82,7 @@ export async function updateMapPresenceAction(
       map_city_lng: hasCity ? input.cityLng : null,
       travel_map_consent: input.travelMapConsent,
       passport_public: input.passportPublic,
+      guest_naming_opt_out: input.guestNamingOptOut,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);

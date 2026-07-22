@@ -497,3 +497,12 @@ html {
     transform: translateY(0);
   }
 }
+
+/* Immersive map: keep the MapLibre / CARTO attribution links readable on the
+   library's light attribution bar in both schemes - charcoal in light, rosa
+   (charcoal on hover) in dark. Base is charcoal so the links stay legible even
+   if the dark override does not apply. The zoom control is a custom React pill
+   in the shell, so no control-group styling is needed here. */
+/* The map's MapLibre attribution is disabled (attributionControl: false) and
+   rendered as a custom React pill in the immersive shell, so it aligns with the
+   in-view count and the map/list toggle. No control-group CSS is needed. */

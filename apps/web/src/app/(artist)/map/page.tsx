@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { tattooMapEnabled } from "@/lib/map-features";
+import { tattooMapEnabled, mapImmersiveShellEnabled } from "@/lib/map-features";
 import { listTravelJourney, hasTravelEntries } from "@/lib/server/travel-map";
 import {
   groupJourneyByTrip,
   type TravelMapStop,
 } from "@inklee/shared/travel-map";
+import { artistMapCapabilities } from "@inklee/shared/map-core-state";
 import { BRAND, PAST_GREY } from "./map-style";
 
 function fmtDate(d: string): string {
@@ -84,6 +85,21 @@ async function DiscoveryMapPage() {
   const watchedIds = (watchedData ?? []).map(
     (w) => w.map_location_id as string,
   );
+
+  // Immersive shell (map redesign Slice 1): the full-viewport map core takes
+  // over the whole screen behind its own flag. When off, the boxed discovery
+  // card below renders unchanged.
+  if (mapImmersiveShellEnabled()) {
+    const { default: ImmersiveMapShell } =
+      await import("./immersive-map-shell");
+    return (
+      <ImmersiveMapShell
+        journey={journey}
+        watchedIds={watchedIds}
+        capabilities={artistMapCapabilities(user.id)}
+      />
+    );
+  }
 
   const { default: DiscoveryMapClient } =
     await import("./discovery-map-client");
