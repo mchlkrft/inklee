@@ -786,17 +786,22 @@ export async function coverageWorkerTick(
   // A run still holding unprocessed discoveries has structured-import work to
   // DRAIN; a run without them only has paid-search task-claiming left. Serve
   // the draining runs first so a newly-importing country is never starved by
-  // older parked runs that "win" the tick on a claimed search task. (One
-  // sampled page of run_ids is enough to spot the actively-draining run; the
-  // rollout imports one country at a time.)
-  const runIds = (activeRuns as RunRow[]).map((r) => r.id);
-  const { data: pendingRows } = await serviceClient
-    .from("map_coverage_discoveries")
-    .select("run_id")
-    .in("run_id", runIds)
-    .is("batch_run_id", null);
+  // older parked runs that "win" the tick on a claimed search task. A
+  // per-run exact-count (not a sampled page of discoveries, which the 1000-row
+  // cap fills with old leftovers and misses the newest import) reliably spots
+  // every actively-draining run.
+  const drainChecks = await Promise.all(
+    (activeRuns as RunRow[]).map(async (r) => {
+      const { count } = await serviceClient
+        .from("map_coverage_discoveries")
+        .select("id", { count: "exact", head: true })
+        .eq("run_id", r.id)
+        .is("batch_run_id", null);
+      return [r.id, (count ?? 0) > 0] as const;
+    }),
+  );
   const draining = new Set(
-    (pendingRows ?? []).map((r) => (r as { run_id: string }).run_id),
+    drainChecks.filter(([, has]) => has).map(([id]) => id),
   );
   const ordered = [
     ...(activeRuns as RunRow[]).filter((r) => draining.has(r.id)),
