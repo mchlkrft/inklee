@@ -542,6 +542,29 @@ export const CA_COVERAGE_POLICY: CoveragePolicy = {
   budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 2500 },
 };
 
+// Estonia: ~100 municipalities, tiny (1.3M), tattoo scene concentrated in
+// Tallinn and Tartu. Estonian + English query bundles.
+export const EE_COVERAGE_POLICY: CoveragePolicy = {
+  ...DE_COVERAGE_POLICY,
+  thresholds: {
+    metroPopulation: 100_000,
+    cityPopulation: 30_000,
+    townPopulation: 10_000,
+    clusterRadiusKm: 20,
+    clusterMaxMembers: 10,
+  },
+  queryBundles: {
+    ...DE_COVERAGE_POLICY.queryBundles,
+    metro_deep: [
+      "tattoo studio {location}",
+      "tätoveering {location}",
+      "tattoo {location}",
+    ],
+    city_standard: ["tattoo studio {location}", "tätoveering {location}"],
+  },
+  budgets: { ...DE_COVERAGE_POLICY.budgets, maxRunSearchRequests: 400 },
+};
+
 export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   DE: DE_COVERAGE_POLICY,
   AT: AT_COVERAGE_POLICY,
@@ -557,6 +580,7 @@ export const COVERAGE_POLICIES: Record<string, CoveragePolicy> = {
   TH: TH_COVERAGE_POLICY,
   AU: AU_COVERAGE_POLICY,
   CA: CA_COVERAGE_POLICY,
+  EE: EE_COVERAGE_POLICY,
 };
 
 export function getCoveragePolicy(countryCode: string): CoveragePolicy | null {

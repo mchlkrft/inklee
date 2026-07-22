@@ -952,6 +952,68 @@ async function adapterCA() {
   };
 }
 
+// Estonia: 79 municipalities (2017 reform) = rural municipalities (vald,
+// generic type Q28122896) + city-municipalities (linn). No ODS dataset and
+// Wikidata typing is fragmented, so define them as the direct children of an
+// Estonian county (P131 -> county of Estonia Q189672) that carry a
+// municipality/city type. QID identity; county drives clustering; Estonian
+// labels feed the query bundles.
+async function adapterEE() {
+  console.log("→ Wikidata Estonian municipalities (vald + linn)…");
+  // Rural municipalities (vald) plus Estonian towns/cities with pop >= 2000
+  // (the linn municipalities like Tallinn/Tartu, whose Wikidata P131 is
+  // self-referential and so miss a clean county-child query). The pop floor
+  // keeps out tiny towns that sit inside a vald.
+  const rows = await sparql(`SELECT ?m ?mLabel ?coord ?pop ?area ?county ?countyLabel WHERE {
+    ?m wdt:P17 wd:Q191 .
+    ?m wdt:P625 ?coord .
+    { ?m wdt:P31 wd:Q28122896 }
+    UNION { ?m wdt:P31/wdt:P279* wd:Q515 . ?m wdt:P1082 ?cpop . FILTER(?cpop >= 2000) }
+    FILTER NOT EXISTS { ?m wdt:P576 ?dissolved }
+    OPTIONAL { ?m wdt:P1082 ?pop }
+    OPTIONAL { ?m wdt:P2046 ?area }
+    OPTIONAL { ?m wdt:P131 ?county }
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "et,en". }
+  }`);
+  const byQid = new Map();
+  for (const b of rows) {
+    const qid = String(b.m?.value ?? "").split("/").pop();
+    const name = String(b.mLabel?.value ?? "").trim();
+    if (!/^Q\d+$/.test(qid) || !name || name === qid) continue;
+    const pop =
+      b.pop && Number.isFinite(Number(b.pop.value))
+        ? Math.round(Number(b.pop.value))
+        : null;
+    const countyQid = b.county?.value
+      ? String(b.county.value).split("/").pop()
+      : null;
+    const cur = byQid.get(qid);
+    const next = {
+      externalId: qid,
+      name,
+      aliases: [],
+      stateCode: countyQid ?? "EE",
+      stateName: b.countyLabel?.value ?? "",
+      districtCode: countyQid,
+      districtName: b.countyLabel?.value ?? null,
+      population: pop,
+      areaKm2: b.area ? Number(b.area.value) : null,
+      centroid: parsePoint(b.coord?.value),
+      settlementClass: null,
+    };
+    if (!cur || (pop && (!cur.population || pop > cur.population)))
+      byQid.set(qid, { ...cur, ...next });
+  }
+  const units = [...byQid.values()];
+  if (units.length < 50) fail(`Implausible EE dataset (${units.length}).`);
+  return {
+    source: "wikidata-ee-municipalities",
+    sourceVersion: `wikidata-${new Date().toISOString().slice(0, 10)}`,
+    attribution: "Estonian municipalities: Wikidata (CC0).",
+    units,
+  };
+}
+
 const ADAPTERS = {
   DE: adapterDE,
   AT: adapterAT,
@@ -967,6 +1029,7 @@ const ADAPTERS = {
   TH: adapterTH,
   AU: adapterAU,
   CA: adapterCA,
+  EE: adapterEE,
 };
 
 function readSecret() {

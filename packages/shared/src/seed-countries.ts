@@ -1022,6 +1022,63 @@ const CA: SeedCountryConfig = {
   ],
 };
 
+const EE: SeedCountryConfig = {
+  code: "EE",
+  name: "Estonia",
+  // Estonian is very English-friendly (many studios brand in English, which
+  // the base vocab handles); Estonian is agglutinative (14 cases), so the
+  // common declensions are listed rather than a single stem.
+  languages: ["et", "en"],
+  extraPositive: compileSeedVocabulary(
+    [
+      ["tätoveering", "strong"],
+      ["tätoveeringu", "strong"],
+      ["tätoveeringud", "strong"],
+      ["tätoveerija", "strong"],
+      ["tätoveerimine", "strong"],
+    ],
+    "estonian_tattoo",
+  ),
+  extraNegative: compileSeedVocabulary(
+    [
+      ["ilusalong", "strong"],
+      ["ilusalongi", "strong"],
+      ["iluteenused", "strong"],
+      ["iluteenindus", "strong"],
+      ["juuksur", "strong"],
+      ["juuksurisalong", "strong"],
+      ["küünesalong", "strong"],
+      ["küüned", "strong"],
+      ["maniküür", "strong"],
+      ["pediküür", "strong"],
+      ["ripsmed", "strong"],
+      ["ripsmepikendus", "strong"],
+      ["kulmud", "strong"],
+      ["püsimeik", "strong"],
+      ["püsimeigi", "strong"],
+      ["kosmeetik", "strong"],
+      ["näohooldus", "strong"],
+      ["solaarium", "weak"],
+    ],
+    "estonian_beauty",
+  ),
+  postalCodePattern: /^\d{5}$/,
+  qualityFixtures: [
+    { name: "Tallinn Tattoo Studio", expect: "accept" },
+    { name: "Tätoveering Stuudio Tartu", expect: "accept" },
+    { name: "Verev Tätoveerija", expect: "accept" },
+    { name: "Ilusalong Kaunitar", expect: "reject_beauty" },
+    { name: "Küünesalong Elegants", expect: "reject_beauty" },
+    { name: "Juuksur Anne Tallinn", expect: "reject_beauty" },
+    {
+      name: "Püsimeik Tallinn",
+      category: "tattoo_and_piercing",
+      expect: "reject_beauty",
+    },
+    { name: "Tätoveering ja Ripsmed", expect: "not_accept" },
+  ],
+};
+
 const REGISTRY: Record<string, SeedCountryConfig> = {
   DE,
   AT,
@@ -1037,6 +1094,7 @@ const REGISTRY: Record<string, SeedCountryConfig> = {
   IT,
   AU,
   CA,
+  EE,
 };
 
 export function getSeedCountry(code: string): SeedCountryConfig | null {
