@@ -777,15 +777,36 @@ export async function coverageWorkerTick(
       "paused_rate_limit",
     ])
     .order("created_at", { ascending: true })
-    // High enough that budget-paused older runs can never cut newer runs
-    // out of the tick (observed with 3 paused DACH tails starving the GB
-    // onboarding at limit 3).
-    .limit(12);
+    // Fetch ALL open runs, not a fixed window: with the 100-country rollout
+    // there can be dozens of parked coverage tails, and a 12-run window cut
+    // the newest country out of the tick entirely (it starved Canada, #12).
+    .limit(500);
   if (!activeRuns?.length) return { summary: { idle: true } };
 
-  // Oldest first, but a budget-paused head run must not starve newer runs:
-  // paused runs still get their free work (handoff) before we move on.
-  for (const candidate of activeRuns as RunRow[]) {
+  // A run still holding unprocessed discoveries has structured-import work to
+  // DRAIN; a run without them only has paid-search task-claiming left. Serve
+  // the draining runs first so a newly-importing country is never starved by
+  // older parked runs that "win" the tick on a claimed search task. (One
+  // sampled page of run_ids is enough to spot the actively-draining run; the
+  // rollout imports one country at a time.)
+  const runIds = (activeRuns as RunRow[]).map((r) => r.id);
+  const { data: pendingRows } = await serviceClient
+    .from("map_coverage_discoveries")
+    .select("run_id")
+    .in("run_id", runIds)
+    .is("batch_run_id", null);
+  const draining = new Set(
+    (pendingRows ?? []).map((r) => (r as { run_id: string }).run_id),
+  );
+  const ordered = [
+    ...(activeRuns as RunRow[]).filter((r) => draining.has(r.id)),
+    ...(activeRuns as RunRow[]).filter((r) => !draining.has(r.id)),
+  ];
+
+  // Draining runs first, then oldest-first for the paid-search layer; a
+  // budget-paused head run must not starve newer runs, so we move on when a
+  // run has no work to return.
+  for (const candidate of ordered) {
     const result = await tickOneRun(candidate, workerId);
     if (result) return result;
   }
