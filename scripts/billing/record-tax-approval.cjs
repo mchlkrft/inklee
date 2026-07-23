@@ -23,8 +23,8 @@
 // Estonian small business; the management board confirms or replaces each line.
 // ─────────────────────────────────────────────────────────────────────────────
 const CONFIG = {
-  version_label: "ee-unregistered-v1", // stable posture identifier (the gate binds to this)
-  posture_version: "ee-unregistered-v1",
+  version_label: "ee-unregistered-v2", // stable posture identifier (the gate binds to this)
+  posture_version: "ee-unregistered-v2",
 
   seller_country: "EE",
   seller_vat_registered: false, // board confirms (below threshold today)
@@ -37,7 +37,7 @@ const CONFIG = {
   // customer_country_vat | cross_border_sme_exemption | manual_review.
   treatment_rules: {
     estonian: { treatment: "small_business_exemption", reverseCharge: false },
-    eu_business_vat: { treatment: "reverse_charge", reverseCharge: true },
+    eu_business_vat: { treatment: "place_of_supply_outside_estonia", reverseCharge: false }, // unregistered seller: outside VAT, not reverse charge (counsel 2026-07-24)
     eu_business_no_vat: { treatment: "manual_review", reverseCharge: false }, // ambiguous: board confirms
     eu_consumer: { treatment: "cross_border_sme_exemption", reverseCharge: false }, // under the 10k threshold; over -> customer_country_vat (OSS)
     non_eu_business: { treatment: "place_of_supply_outside_estonia", reverseCharge: false },
@@ -49,18 +49,24 @@ const CONFIG = {
   approvedBy: "Management board (M. Kraeft)",
   approvalBasis:
     "Unregistered Estonian small-business posture with a distinct treatment per customer class: " +
-    "domestic small-business exemption; reverse charge for VAT-registered EU business; place of supply " +
-    "outside Estonia for non-EU; manual review for VAT-less EU business and over-threshold EU consumers " +
-    "(cross-border SME exemption while under the 10k threshold).",
+    "domestic small-business exemption; place of supply outside Estonia (outside VAT) for cross-border " +
+    "EU and non-EU business; manual review for VAT-less EU business; cross-border SME exemption for EU " +
+    "consumers under the 10k threshold. An unregistered seller cannot apply reverse charge, so EU B2B is " +
+    "outside VAT (corrected per counsel 2026-07-24).",
   evidenceReferences: [
     "docs/legal/accountant-decision-pack.md",
     "docs/legal/counsel-decision-pack.md (Answers, 2026-07-23)",
-    "Management-board approval, 2026-07-23",
+    "docs/legal/b2b-signoff-package.md (counsel sign-off + outside-VAT correction, 2026-07-24)",
+    "Management-board approval, 2026-07-23 (correction 2026-07-24)",
   ],
   professionalReviewer: null, // OPTIONAL: e.g. "Jane Doe, ACME Tax OU" (recorded as evidence)
   professionalReviewDate: null, // OPTIONAL ISO date
   nextMandatoryReviewAt: "2027-07-23T00:00:00Z", // when the posture must be re-reviewed
-  notes: "Starting posture. Revise the per-class treatment + thresholds when EE VAT registration or OSS is triggered.",
+  notes:
+    "v2: corrected eu_business_vat from reverse_charge to outside-VAT (an unregistered EE seller cannot " +
+    "reverse-charge; counsel 2026-07-24). PENDING accountant confirmation of the C7/A2 registration " +
+    "obligation before invoice_config_approved + live billing. Revise treatment + thresholds if EE VAT " +
+    "registration or OSS is triggered.",
 };
 
 // Thresholds to track (limits in minor units). Country-specific SME thresholds

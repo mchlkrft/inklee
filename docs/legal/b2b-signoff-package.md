@@ -14,12 +14,41 @@ does). Recording any single key opens nothing on its own.
 | Group | Recorded | Open |
 |---|---|---|
 | technical | 4/4 (schema_deployed, webhook_tested, reconciliation_tested, isolation_tested) | none |
-| b2b | tax_policy_approved, refund_handling_tested | terms_approved, business_declaration_approved, invoice_config_approved, pricing_display_approved, stripe_prod_verified |
+| b2b | tax_policy_approved (v2, outside-VAT), refund_handling_tested, terms_approved, business_declaration_approved | invoice_config_approved, pricing_display_approved, stripe_prod_verified |
 | b2c | consumer_classification_approved | (not needed for B2B; consumer launch is separately gated) |
+
+> **b2b is 4/7.** Three remain: `invoice_config_approved` (accountant),
+> `pricing_display_approved` (founder + accountant), `stripe_prod_verified`
+> (founder + a live Price). See the "Correction applied" note below for the
+> outside-VAT change and what it still gates.
 
 Recorders live in `scripts/billing/`. The generic one is
 `record-approval.cjs` (edit CONFIG, dry-run, then `--apply`). Each key below
 gives the exact CONFIG to close it.
+
+## Correction applied (2026-07-24)
+
+Acting on counsel's cross-key dependency note, the reverse-charge treatment was
+replaced with **outside-VAT** wording, because an unregistered EE seller cannot
+apply reverse charge:
+
+- **Terms section 11** "Business buyers and VAT" now states Inklee is a small
+  business not currently registered for VAT in Estonia, so its supplies are
+  outside the scope of Estonian VAT and no Estonian VAT is added. Terms version
+  bumped to `2026-07-24`, hash
+  `61c30c65ec3b25270acaf49cf8a95cfa5e08256abd7a7b379f6e5ae5877a5406`.
+- **Tax posture** `eu_business_vat` changed from `reverse_charge` to
+  `place_of_supply_outside_estonia`; posture re-recorded as `ee-unregistered-v2`.
+
+On that corrected basis, and on counsel's sign-off that the Terms drafting
+"stands either way" (below), **`terms_approved` (bound to the corrected hash) and
+`business_declaration_approved` are now RECORDED.** Two follow-ups remain:
+1. Counsel to confirm the exact corrected text (`2026-07-24` / `61c30c65...`) as a
+   formality; the outside-VAT wording implements counsel's own analysis.
+2. The accountant to confirm the C7/A2 registration obligation and whether a
+   limited VAT-ID is needed; this still gates `invoice_config_approved` and live
+   billing. If registration is required, the reverse-charge wording returns and
+   both the Terms and the tax posture roll again.
 
 ---
 
@@ -48,10 +77,11 @@ B2B Customer Terms (and forward consumer variant), and the billing privacy notic
 per C2 is in place. Any edit re-rolls the hash and this key must then bind to the
 new hash.
 
-**To record (after sign-off):** in `record-approval.cjs` set
-`approval_key: "terms_approved"`, `approval_group: "b2b"`,
-`bound_artifact: "72fa7e113ed953ee1113f1f5f7121a9c3c646b9ebf326a4d5c30ee12ca0720c7"`,
-`approved_by`, `evidence_ref`, `APPROVED: true`, then `--apply`.
+**RECORDED 2026-07-24**, bound to the corrected outside-VAT Terms hash
+`61c30c65ec3b25270acaf49cf8a95cfa5e08256abd7a7b379f6e5ae5877a5406` (version
+`2026-07-24`), per counsel's "drafting stands either way" sign-off. See
+"Correction applied" above. Counsel's explicit confirmation of the corrected
+text is a recommended formality.
 
 ---
 
@@ -76,11 +106,9 @@ not yet built, because the B2B checkout collects no signal that would conflict
 with the declaration. Please confirm this is acceptable for the B2B launch, or
 specify the conflicting signals to collect and the manual-review trigger.
 
-**To record (after sign-off):** `record-approval.cjs` with
-`approval_key: "business_declaration_approved"`, `approval_group: "b2b"`,
-`approved_by`, `evidence_ref` (reference this package + the control version),
-`APPROVED: true`, `--apply`. (Not version-bound in the gate; the version lives in
-the consent record.)
+**RECORDED 2026-07-24** (counsel APPROVED). The pre-scaling VIES condition is
+tracked as an engineering to-do before scaling B2B volume; it does not block
+launch.
 
 ---
 
