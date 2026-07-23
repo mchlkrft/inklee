@@ -45,14 +45,22 @@ const CONFIG = {
   },
 
   // The MANAGEMENT-BOARD approval. Required to --apply.
-  MANAGEMENT_BOARD_APPROVED: false, // set true ONLY after the board approves
-  approvedBy: "", // e.g. "Management board (M. Kraeft)"
-  approvalBasis: "", // e.g. "Unregistered EE small-business scheme; per-class treatment as below"
-  evidenceReferences: [], // e.g. ["board-resolution-2026-07", "tax-adviser-memo-2026-07"]
+  MANAGEMENT_BOARD_APPROVED: true, // board approved 2026-07-23
+  approvedBy: "Management board (M. Kraeft)",
+  approvalBasis:
+    "Unregistered Estonian small-business posture with a distinct treatment per customer class: " +
+    "domestic small-business exemption; reverse charge for VAT-registered EU business; place of supply " +
+    "outside Estonia for non-EU; manual review for VAT-less EU business and over-threshold EU consumers " +
+    "(cross-border SME exemption while under the 10k threshold).",
+  evidenceReferences: [
+    "docs/legal/accountant-decision-pack.md",
+    "docs/legal/counsel-decision-pack.md (Answers, 2026-07-23)",
+    "Management-board approval, 2026-07-23",
+  ],
   professionalReviewer: null, // OPTIONAL: e.g. "Jane Doe, ACME Tax OU" (recorded as evidence)
   professionalReviewDate: null, // OPTIONAL ISO date
   nextMandatoryReviewAt: "2027-07-23T00:00:00Z", // when the posture must be re-reviewed
-  notes: "",
+  notes: "Starting posture. Revise the per-class treatment + thresholds when EE VAT registration or OSS is triggered.",
 };
 
 // Thresholds to track (limits in minor units). Country-specific SME thresholds
