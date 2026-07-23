@@ -321,16 +321,20 @@ Do not expose goods controls in the entitlement admin UI until they correspond t
 
 ## 9. Business-model decisions still required before Stage 2 enforcement
 
-**Resolved 2026-07-23:** `active_trips` Free = 3, metered as active trips (section 3); A1 `custom_templates` downgrade = read-only; A3 `analytics` = gate for all free, no grandfathering.
+**Resolved 2026-07-23 (round 2):**
 
-Still required before Stage 2 enforcement:
+- `active_trips`: Free = 3 (active trips), **Plus = 100**.
+- A1 `custom_templates` downgrade = read-only. A3 `analytics` = gate for all free, no grandfathering.
+- **`branding` scope = full customized design: design tokens for ALL client-side surfaces (public booking page, hub, flash pages), not just footer removal.** See the expanded contract in section 2.1.
+- **Cutover + eligibility (as recommended):** cutover = the Stage 2 production-migration timestamp; `legacy_free_v1` eligible = active free artist accounts created before cutover, excluding testers and admins.
+- **D22 goods take:** card-PAID goods carry a **5% Inklee platform fee + the 3% card fee** (via `application_fee_amount` on the combined deposit+goods intent, fixing the 0 percent take); **pickup-only goods (no in-app card payment) are FREE** (Inklee cannot and should not gate an in-person sale). Goods is a transaction feature, NOT a Plus entitlement. See section 8.
+- **D6: build billing NOW.** Plus is purchasable immediately via Stripe (web, per D17), not comp-only. Target: public-launch-ready as soon as safely possible.
 
-1. The Plus limit numbers (`custom_fields`, `active_trips`, `studio_library`: a specific higher number or unlimited). Free numbers are now set (3 / 3 active / 5).
-2. Whether `branding` is only footer removal or also "advanced customization" (and what "advanced" means).
-3. The cutover timestamp definition and eligibility rule (all active free created before cutover; testers and admins excluded).
-4. The `legacy_free_v1` package contents confirmation (which entitlements and `limitOverride` values it grants), after the dry-run report is run and reviewed.
-5. Goods: D22 (take rate) and the commerce activation model, before any goods reconciliation (section 8).
-6. D6 (build billing) and the Plus price: not required to build Stage 2 enforcement, but the upgrade messaging (step 7) needs to know whether a purchase path exists or whether Plus stays comp-only during the enforcement rollout.
+Still required (small, propose-and-confirm; do not block the build):
+
+1. Plus limit numbers for `custom_fields` and `studio_library` (`active_trips` Plus = 100 is set). Proposed generous-bounded to match the trips=100 signal: `custom_fields` Plus = 30, `studio_library` Plus = 50. Confirm or adjust.
+2. Plus price and billing interval(s) and the founder-window offer, needed to create the Stripe recurring Price(s). (`business-model.md` anchor: EUR 3 per month / EUR 30 per year, founder window EUR 24 per year.)
+3. The `legacy_free_v1` package contents confirmation, after the dry-run report is run and reviewed. **The dry-run remains the gate before the production cutover** (build the migration now, apply after review).
 
 ---
 
