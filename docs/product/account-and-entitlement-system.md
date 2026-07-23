@@ -210,7 +210,7 @@ Keep these ten concepts explicitly distinct. Never collapse them into one `plan`
 | --- | --- | --- | --- |
 | 1 | Identity | one auth user = one artist | unchanged; clients tokenized, admins env-allowlisted |
 | 2 | Account type | artist only | still one account type; studio and shop are capabilities and owned entities on an artist account, not new account types |
-| 3 | Membership | none | greenfield `studio_memberships` (artist to studio, role, bilateral-consent FSM) only when multi-artist studios ship; not needed for Plus |
+| 3 | Membership | none | RATIFIED (D3, 2026-07-23): `studio_memberships` (user to studio; role own / administer / join / visit; multi-studio; bilateral-consent FSM). Greenfield storage, built when studios ship; not needed for Plus |
 | 4 | Role | implicit (artist owns own; studio owner; admin env) | studio roles via membership later; keep roles independent from billing tier |
 | 5 | Billing tier | `free`, `plus` | add `studio` later; keep tier a resolved value, not the enforcement key |
 | 6 | Subscription state | none (comp only) | new axis: `none / trialing / active / past_due / canceled / expired`, populated by Stripe webhooks, independent of tier |
@@ -224,11 +224,13 @@ Keep these ten concepts explicitly distinct. Never collapse them into one `plan`
 Entitlements belong to a **scope**, not always to a person. Today scope is implicit (always the artist). The target makes scope explicit:
 
 - **Artist scope**: personal features (deposits, branding, custom templates, caps, analytics). Keyed by `artist_id` in `account_overrides`. This is everything shipped.
-- **Studio scope**: organization features (studio profile, guest-spot hosting, later multi-artist booking). A studio subscription must not grant unrelated personal entitlements, and an artist's personal subscription must not grant studio-wide permissions. When the Studio tier ships, add a `studio_overrides` (or a `scope` discriminator on the existing table) keyed by `studio_profile_id`.
+- **Studio scope**: organization features (studio profile, guest-spot hosting, later multi-artist booking). A studio subscription must not grant unrelated personal entitlements, and an artist's personal subscription must not grant studio-wide permissions. Personal and studio subscriptions, data ownership, roles, and entitlements stay separate: they resolve against separate holders through the same engine. When the Studio tier ships, add a studio-scoped entitlement holder keyed by `studio_profile_id`; a user resolves personal entitlements from their own `account_overrides` and studio entitlements from each studio they belong to.
 
-### 5.2 Account type stays singular on purpose
+### 5.2 Account type stays singular on purpose (ratified D3, 2026-07-23)
 
-The strongest architectural recommendation: **do not create a separate studio account type.** A studio is an owned entity plus a scope, layered on the one artist account. This keeps auth, onboarding, RLS, and the mobile bearer path unchanged, and it matches what is already built (`studio_profiles.owner_user_id`). Multi-owner or agency structures, if ever needed, add an org parent above `studio_profiles`, per the schema-proposal note, without touching the account type.
+Founder-ratified D3: **a studio is a separate organization and entitlement scope reached through individual user accounts. It is not a separate authenticated account type.** A user can own, administer, join, or temporarily visit one or more studios through studio memberships. Personal and studio subscriptions, data ownership, roles, and entitlements remain separate.
+
+Consequences for the model: keep one account type (the artist login); model the studio as an owned organization entity plus a scope, layered on individual user accounts, which keeps auth, onboarding, RLS, and the mobile bearer path unchanged. The current `studio_profiles.owner_user_id UNIQUE` (one studio per owner) is a starting constraint that the membership model supersedes: multi-studio ownership and membership are the ratified target, so the future `studio_memberships` table carries the ownership relationship with a role (own / administer / join / visit) and the one-per-owner unique constraint is relaxed as part of that build (migration plan Phase 6+). The engine's `EntitlementScope` type (`personal` vs `studio`) is already shaped for this (BM-2.0 slice 1a).
 
 ---
 

@@ -2,8 +2,46 @@
 // is safe to import from client components for the feature list + types). The
 // service-role read lives in `entitlements-server.ts`. Derives what an artist
 // can access + whether their deposit fees are currently sponsored by Inklee.
+//
+// BM-2.0 (2026-07-23) extended this engine, without changing any existing
+// behaviour, for the account-tier work (docs/product/account-and-entitlement-
+// system.md): numeric LIMITS alongside boolean features, an entitlement SCOPE
+// type (personal vs studio) for the ratified multi-studio model, and a
+// tier-widening guard so a future `studio` tier value is a deliberate addition
+// rather than a silent downgrade. Storage for per-account limit overrides and
+// studio-scoped holders is a later phase; the engine is ready for them.
 
 export type PlanTier = "free" | "plus";
+
+// The known plan tiers, so wire/boundary code can detect an UNKNOWN (future)
+// value (e.g. "studio" arriving at an old build) and handle it deliberately
+// instead of silently resolving it to free. See `isKnownPlanTier`.
+export const KNOWN_PLAN_TIERS: readonly PlanTier[] = ["free", "plus"];
+
+/** True when `value` is a plan tier this build understands. A false result on a
+ *  non-empty string means a newer tier reached older code: the caller should
+ *  decide (usually: treat as the closest known tier, or prompt for an update),
+ *  NOT assume free. `effectivePlanTier` still fails safe to free, but this lets
+ *  a caller notice the widening rather than absorb it. */
+export function isKnownPlanTier(value: unknown): value is PlanTier {
+  return (
+    typeof value === "string" && KNOWN_PLAN_TIERS.includes(value as PlanTier)
+  );
+}
+
+// The scope an entitlement is resolved against. Ratified D3 (2026-07-23): a
+// studio is an organization + entitlement scope reached through individual user
+// accounts, not a separate account type; a user may own, administer, join, or
+// visit one or more studios. Personal and studio subscriptions, roles, and
+// entitlements stay separate, so they resolve against separate holders through
+// this SAME engine: an `AccountOverrides` object represents ONE scope's state.
+// Studio-scoped storage is greenfield (migration plan Phase 6+); the type is
+// defined now so callers and the resolver are shaped for it.
+export type EntitlementScope =
+  | { kind: "personal" }
+  | { kind: "studio"; studioId: string };
+
+export const PERSONAL_SCOPE: EntitlementScope = { kind: "personal" };
 
 // Feature keys gated by plan/entitlement. `deposits` (in-app Stripe-connected
 // card deposit collection) is the one enforced today; the rest are the Solo
@@ -19,10 +57,38 @@ export const ENTITLEMENT_FEATURES = [
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 
+// Numeric limit keys. Unlike boolean features these express "how many", so a
+// generous Free cap can lift on Plus without crippling the free tier (the
+// business-model.md §3.1/§3.2 model). `limitFor` returns the cap; nothing
+// enforces it yet (migration plan Phase 3 wires create-time checks). The
+// NUMBERS below are the business-model.md suggestions and are PROVISIONAL
+// pending the founder's final free-cap decision (register D14) — because
+// nothing reads them yet, changing them is a one-line, zero-risk edit.
+export const ENTITLEMENT_LIMITS = [
+  "custom_fields",
+  "active_trips",
+  "studio_library",
+] as const;
+export type EntitlementLimit = (typeof ENTITLEMENT_LIMITS)[number];
+
 // Baseline features granted by each plan tier (before per-account overrides).
 const PLAN_FEATURES: Record<PlanTier, readonly EntitlementFeature[]> = {
   free: [],
   plus: ENTITLEMENT_FEATURES,
+};
+
+// Baseline numeric limits per tier. `null` = unlimited. PROVISIONAL (see above).
+const PLAN_LIMITS: Record<PlanTier, Record<EntitlementLimit, number | null>> = {
+  free: {
+    custom_fields: 3,
+    active_trips: 3,
+    studio_library: 5,
+  },
+  plus: {
+    custom_fields: 10,
+    active_trips: 10,
+    studio_library: 15,
+  },
 };
 
 export type AccountOverrides = {
@@ -30,6 +96,10 @@ export type AccountOverrides = {
   planSource: "comp" | "paid" | null;
   planExpiresAt: string | null;
   entitlementOverrides: Partial<Record<EntitlementFeature, boolean>>;
+  // Per-account numeric limit overrides (beat the tier baseline). Optional so
+  // adding it is non-breaking; storage arrives with the billing schema phase.
+  // A value of `null` means "unlimited for this account".
+  limitOverrides?: Partial<Record<EntitlementLimit, number | null>>;
   feeSponsored: boolean;
   feeSponsorExpiresAt: string | null;
   feeSponsorCapCents: number | null;
@@ -42,6 +112,7 @@ export const DEFAULT_OVERRIDES: AccountOverrides = {
   planSource: null,
   planExpiresAt: null,
   entitlementOverrides: {},
+  limitOverrides: {},
   feeSponsored: false,
   feeSponsorExpiresAt: null,
   feeSponsorCapCents: null,
@@ -67,6 +138,30 @@ export function canAccess(
   const override = o.entitlementOverrides[feature];
   if (typeof override === "boolean") return override;
   return PLAN_FEATURES[effectivePlanTier(o)].includes(feature);
+}
+
+/** The numeric cap for a limited feature (null = unlimited). A per-account
+ *  override wins over the tier baseline. Returns the cap only; the create-time
+ *  enforcement (block-new, keep-existing-read-only on downgrade) lives at the
+ *  server core that owns the resource (migration plan Phase 3). */
+export function limitFor(
+  o: AccountOverrides,
+  key: EntitlementLimit,
+): number | null {
+  const override = o.limitOverrides?.[key];
+  if (override !== undefined) return override;
+  return PLAN_LIMITS[effectivePlanTier(o)][key];
+}
+
+/** True when `count` is still under the cap for `key` (an unlimited cap always
+ *  passes). Convenience for the eventual create-time gate; nothing calls it yet. */
+export function withinLimit(
+  o: AccountOverrides,
+  key: EntitlementLimit,
+  count: number,
+): boolean {
+  const cap = limitFor(o, key);
+  return cap === null || count < cap;
 }
 
 /** True when Inklee is currently covering this artist's deposit fee (active,

@@ -5,8 +5,11 @@ import {
   daysUntilPlanExpiry,
   effectivePlanTier,
   isFeeSponsorshipActive,
+  isKnownPlanTier,
+  limitFor,
   sponsorshipOverspentCents,
   sponsorshipRemainingCents,
+  withinLimit,
   DEFAULT_OVERRIDES,
   type AccountOverrides,
 } from "../entitlements";
@@ -173,6 +176,76 @@ describe("sponsorshipOverspentCents", () => {
         base({ feeSponsorCapCents: 1000, feeSponsoredUsedCents: 1250 }),
       ),
     ).toBe(250);
+  });
+});
+
+// BM-2.0: numeric limits, the tier-widening guard, and the scope-ready types.
+// These add vocabulary the tier build needs; none of them change the existing
+// boolean-feature or sponsorship behaviour above (asserted unchanged).
+describe("limitFor / withinLimit", () => {
+  it("returns the free-tier baseline cap by default", () => {
+    expect(limitFor(base(), "custom_fields")).toBe(3);
+    expect(limitFor(base(), "active_trips")).toBe(3);
+    expect(limitFor(base(), "studio_library")).toBe(5);
+  });
+
+  it("returns the higher plus-tier cap on an active plus plan", () => {
+    const o = base({ planTier: "plus" });
+    expect(limitFor(o, "custom_fields")).toBe(10);
+    expect(limitFor(o, "studio_library")).toBe(15);
+  });
+
+  it("falls back to the free cap when a plus comp has expired", () => {
+    const o = base({ planTier: "plus", planExpiresAt: past });
+    expect(limitFor(o, "custom_fields")).toBe(3);
+  });
+
+  it("lets a per-account override beat the tier baseline (incl. unlimited)", () => {
+    expect(
+      limitFor(
+        base({ limitOverrides: { custom_fields: 50 } }),
+        "custom_fields",
+      ),
+    ).toBe(50);
+    // null override = unlimited for this account
+    expect(
+      limitFor(
+        base({ limitOverrides: { custom_fields: null } }),
+        "custom_fields",
+      ),
+    ).toBeNull();
+  });
+
+  it("withinLimit blocks at the cap and always passes an unlimited cap", () => {
+    expect(withinLimit(base(), "custom_fields", 2)).toBe(true); // 2 < 3
+    expect(withinLimit(base(), "custom_fields", 3)).toBe(false); // 3 not < 3
+    expect(
+      withinLimit(
+        base({ limitOverrides: { custom_fields: null } }),
+        "custom_fields",
+        9999,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not disturb the boolean feature resolution", () => {
+    // A limit override must never leak into canAccess.
+    const o = base({ planTier: "plus", limitOverrides: { custom_fields: 1 } });
+    expect(canAccess(o, "deposits")).toBe(true);
+  });
+});
+
+describe("isKnownPlanTier (widening guard)", () => {
+  it("accepts the known tiers", () => {
+    expect(isKnownPlanTier("free")).toBe(true);
+    expect(isKnownPlanTier("plus")).toBe(true);
+  });
+
+  it("rejects an unknown/future tier value so callers can notice the widening", () => {
+    expect(isKnownPlanTier("studio")).toBe(false);
+    expect(isKnownPlanTier("")).toBe(false);
+    expect(isKnownPlanTier(null)).toBe(false);
+    expect(isKnownPlanTier(undefined)).toBe(false);
   });
 });
 

@@ -52,6 +52,9 @@ export async function getAccountOverrides(
       (data.entitlement_overrides as Partial<
         Record<EntitlementFeature, boolean>
       >) ?? {},
+    // No per-account limit-override column yet (arrives with the billing schema
+    // phase); resolve from the tier baseline until then.
+    limitOverrides: {},
     feeSponsored: (data.fee_sponsored as boolean) ?? false,
     feeSponsorExpiresAt: (data.fee_sponsor_expires_at as string | null) ?? null,
     feeSponsorCapCents: (data.fee_sponsor_cap_cents as number | null) ?? null,
