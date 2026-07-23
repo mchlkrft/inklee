@@ -7,6 +7,12 @@ vi.mock("@/lib/supabase/service", () => ({
   serviceClient: { from: () => ({ select: selectMock }) },
 }));
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
+// Mock the artifact resolver so the gate wiring is tested with controlled
+// current versions (the resolver itself is covered by artifacts.test.ts).
+const artifactsMock = vi.fn(async () => ({}) as Record<string, string>);
+vi.mock("@/lib/server/billing/artifacts", () => ({
+  getCurrentBillingArtifacts: () => artifactsMock(),
+}));
 
 import {
   assertLiveBillingAllowedFor,
@@ -36,6 +42,8 @@ const row = (key: string, group: string) => ({
 
 beforeEach(() => {
   selectMock.mockReset();
+  artifactsMock.mockReset();
+  artifactsMock.mockResolvedValue({});
 });
 afterEach(() => {
   process.env.STRIPE_SECRET_KEY = ORIGINAL_KEY;
@@ -79,6 +87,37 @@ describe("activation gate (server reader)", () => {
     });
     const r = await evaluateLiveBilling("b2b");
     expect(r.allowed).toBe(true);
+  });
+
+  it("live mode: a stale artifact binding re-closes the gate", async () => {
+    forceLiveMode();
+    selectMock.mockResolvedValue({
+      data: [
+        row("schema_deployed", "technical"),
+        row("webhook_tested", "technical"),
+        row("reconciliation_tested", "technical"),
+        row("isolation_tested", "technical"),
+        // approved, but bound to an OLD tax-policy version
+        {
+          approval_key: "tax_policy_approved",
+          approval_group: "b2b",
+          approved: true,
+          bound_artifact: "tax-v1",
+        },
+        row("business_declaration_approved", "b2b"),
+        row("terms_approved", "b2b"),
+        row("invoice_config_approved", "b2b"),
+        row("pricing_display_approved", "b2b"),
+        row("stripe_prod_verified", "b2b"),
+        row("refund_handling_tested", "b2b"),
+      ],
+      error: null,
+    });
+    // The current tax policy has advanced to v2, so the v1-bound approval is stale.
+    artifactsMock.mockResolvedValue({ tax_policy_approved: "tax-v2" });
+    const r = await evaluateLiveBilling("b2b");
+    expect(r.allowed).toBe(false);
+    expect(r.missing).toContain("tax_policy_approved");
   });
 
   it("live mode: a read error fails closed (throws, never 'approved')", async () => {

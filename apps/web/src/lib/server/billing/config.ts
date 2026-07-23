@@ -22,15 +22,12 @@ export function resolveBillingMode(): BillingMode {
 // billing_activation_approvals. Founder/dev cannot self-approve the
 // accountant/counsel keys; that boundary lives in the approval process.
 //
-// STALE-ARTIFACT RE-CLOSE IS NOT YET WIRED. The pure gate CAN re-close a stale
-// approval when the current artifact version is supplied as `currentArtifacts`
-// (packages/shared/src/billing.ts), but the server path (activation.ts) does not
-// yet resolve and pass it. Wiring `currentArtifacts` (terms/privacy versionHash
-// from lib/legal/documents.ts, the active tax-policy version) into
-// assertLiveBillingAllowedFor is a HARD prerequisite before ANY b2b/b2c approval
-// row is recorded, and must fail closed if a bound artifact cannot be resolved.
-// Until wired, do not rely on artifact-version re-closing (tracked in the
-// billing activation checklist).
+// Stale-artifact re-close IS wired: assertLiveBillingAllowedFor resolves current
+// artifact versions via ./artifacts (getCurrentBillingArtifacts: terms
+// versionHash, active tax-policy version, current legal-policy versions) and
+// passes them as `currentArtifacts`, so an approval bound to a superseded
+// artifact re-closes the gate. Resolution fails closed (an unresolvable version
+// becomes a sentinel that no bound_artifact matches, so the gate blocks).
 export const REQUIRED_APPROVAL_KEYS: Record<ApprovalGroup, string[]> = {
   technical: [
     "schema_deployed",

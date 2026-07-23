@@ -48,10 +48,10 @@ export async function POST(request: Request) {
         // could regain Plus, or a paying artist lose it). reconcileSubscriptionById
         // reads the live subscription (a canceled one still resolves to
         // status=canceled), so redelivery and out-of-order events converge
-        // correctly. (A monotonic event.created guard, migration follow-up, would
-        // close the residual sub-second concurrent-processing window.)
+        // correctly. event.created feeds the monotonic ordering guard in
+        // reconcile, which closes the residual concurrent-processing window.
         const snap = event.data.object as Stripe.Subscription;
-        const r = await reconcileSubscriptionById(snap.id);
+        const r = await reconcileSubscriptionById(snap.id, event.created);
         return NextResponse.json({ received: true, reconciled: r });
       }
 
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
         const raw = parentSub ?? legacySub;
         const subId = typeof raw === "string" ? raw : (raw?.id ?? null);
         if (subId) {
-          await reconcileSubscriptionById(subId);
+          await reconcileSubscriptionById(subId, event.created);
         }
         return NextResponse.json({ received: true, subscription: subId });
       }

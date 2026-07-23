@@ -2,6 +2,10 @@ import type Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { planTierForSubscription } from "@/lib/billing";
+import {
+  restoreGrandfatherPackage,
+  type GrantPackage,
+} from "@/lib/entitlements";
 import { requireStripe } from "./client";
 
 // Internal subscription reconciliation (execution item 5).
@@ -23,7 +27,62 @@ export type ReconcileResult = {
   status: string;
   duplicate: boolean;
   orphaned: boolean;
+  /** True when a newer event for this subscription already applied, so this
+   *  (older/redelivered) event was skipped. */
+  stale: boolean;
 };
+
+// Atomic, event-ordering-guarded write. With `eventCreated` set, the row is
+// written ONLY if this event is not older than the stored last_event_created
+// (a single conditional UPDATE; INSERT when absent), closing the residual
+// concurrent-processing race the webhook re-fetch cannot. Returns stale=true when
+// a newer event already applied. With eventCreated null (internal callers), it is
+// a plain upsert with no ordering guard.
+async function guardedUpsert(input: {
+  table: "billing_subscriptions" | "account_overrides";
+  matchCol: "stripe_subscription_id" | "artist_id";
+  matchVal: string;
+  payload: Record<string, unknown>;
+  eventCreated: number | null;
+}): Promise<{ stale: boolean }> {
+  const { table, matchCol, matchVal, payload, eventCreated } = input;
+  if (eventCreated == null) {
+    const { error } = await serviceClient
+      .from(table)
+      .upsert(payload, { onConflict: matchCol });
+    if (error) throw new Error(`${table} upsert failed: ${error.message}`);
+    return { stale: false };
+  }
+  const ts = Math.floor(eventCreated); // integer seconds; safe in the filter string
+  const withTs = { ...payload, last_event_created: ts };
+  const { data: updated, error: updErr } = await serviceClient
+    .from(table)
+    .update(withTs)
+    .eq(matchCol, matchVal)
+    .or(`last_event_created.is.null,last_event_created.lte.${ts}`)
+    .select(matchCol);
+  if (updErr) {
+    throw new Error(`${table} guarded update failed: ${updErr.message}`);
+  }
+  if (updated && updated.length > 0) return { stale: false };
+  // 0 rows: either no row yet, or a newer event already applied.
+  const { data: existing } = await serviceClient
+    .from(table)
+    .select("last_event_created")
+    .eq(matchCol, matchVal)
+    .maybeSingle();
+  if (!existing) {
+    const { error: insErr } = await serviceClient.from(table).insert(withTs);
+    if (insErr) {
+      // 23505: a concurrent insert won the race; the other event applied.
+      if ((insErr as { code?: string }).code === "23505")
+        return { stale: true };
+      throw new Error(`${table} insert failed: ${insErr.message}`);
+    }
+    return { stale: false };
+  }
+  return { stale: true }; // row exists with a newer last_event_created
+}
 
 function customerIdOf(sub: Stripe.Subscription): string {
   return typeof sub.customer === "string" ? sub.customer : sub.customer.id;
@@ -73,6 +132,7 @@ async function resolveArtistId(
 
 export async function reconcileFromStripeSubscription(
   sub: Stripe.Subscription,
+  eventCreated: number | null = null,
 ): Promise<ReconcileResult> {
   const status = sub.status;
   const artistId = await resolveArtistId(sub);
@@ -91,6 +151,7 @@ export async function reconcileFromStripeSubscription(
       status,
       duplicate: false,
       orphaned: true,
+      stale: false,
     };
   }
 
@@ -103,73 +164,111 @@ export async function reconcileFromStripeSubscription(
   const contractType =
     (sub.metadata?.contract_customer_type as string | undefined) ?? "business";
 
-  // 1. Mirror into billing_subscriptions (converge on the unique stripe id).
-  const { error: subErr } = await serviceClient
-    .from("billing_subscriptions")
-    .upsert(
-      {
-        artist_id: artistId,
-        stripe_customer_id: customerId,
-        stripe_subscription_id: sub.id,
-        stripe_price_id: priceId,
-        status,
-        current_period_end: currentPeriodEnd?.toISOString() ?? null,
-        cancel_at_period_end: cancelAtPeriodEnd,
-        contract_customer_type: contractType,
-        mode,
-        last_reconciled_at: now.toISOString(),
-        updated_at: now.toISOString(),
-      },
-      { onConflict: "stripe_subscription_id" },
-    );
-  if (subErr) {
-    throw new Error(`billing_subscriptions upsert failed: ${subErr.message}`);
-  }
-
-  // 2. Derive the access tier and converge account_overrides. We READ first to
-  //    preserve the grandfather anchor: policy_id and the grant package are
-  //    NEVER written here, and plan_source is left intact for a grandfathered
-  //    account on downgrade (grandfather restore is a deferred Stage-2 substage).
+  // Derive the target access tier up front (needed for the grandfather restore
+  // and the return value even on a stale skip).
   const planTier = planTierForSubscription(status, {
     currentPeriodEnd,
     now,
     graceDays: GRACE_DAYS,
   });
 
-  const { data: existing } = await serviceClient
-    .from("account_overrides")
-    .select("policy_id, plan_source")
-    .eq("artist_id", artistId)
-    .maybeSingle();
-  const isGrandfathered = Boolean(existing?.policy_id);
-
-  const planSource =
-    planTier === "plus"
-      ? "paid"
-      : isGrandfathered
-        ? (existing?.plan_source ?? null) // preserve; do not strip a grandfather
-        : null;
-
-  const { error: ovErr } = await serviceClient.from("account_overrides").upsert(
-    {
+  // 1. Mirror into billing_subscriptions with the event-ordering guard. If a
+  //    newer event for this subscription already applied, skip the derived
+  //    account_overrides write too (the newer event set the correct state).
+  const subGuard = await guardedUpsert({
+    table: "billing_subscriptions",
+    matchCol: "stripe_subscription_id",
+    matchVal: sub.id,
+    eventCreated,
+    payload: {
       artist_id: artistId,
-      plan_tier: planTier,
-      plan_source: planSource,
-      plan_expires_at: currentPeriodEnd?.toISOString() ?? null,
       stripe_customer_id: customerId,
       stripe_subscription_id: sub.id,
       stripe_price_id: priceId,
-      subscription_status: status,
+      status,
       current_period_end: currentPeriodEnd?.toISOString() ?? null,
       cancel_at_period_end: cancelAtPeriodEnd,
+      contract_customer_type: contractType,
+      mode,
+      last_reconciled_at: now.toISOString(),
       updated_at: now.toISOString(),
-      // NB: policy_id, grant_package, entitlement_overrides, limit_overrides are
-      // intentionally NOT written; upsert-update leaves them untouched.
     },
-    { onConflict: "artist_id" },
-  );
-  if (ovErr) {
-    throw new Error(`account_overrides upsert failed: ${ovErr.message}`);
+  });
+  if (subGuard.stale) {
+    return {
+      artistId,
+      planTier,
+      status,
+      duplicate: false,
+      orphaned: false,
+      stale: true,
+    };
+  }
+
+  // 2. Converge account_overrides. We READ first so a downgrade of a
+  //    grandfathered account RESTORES its cohort package (plan_source
+  //    'grandfathered' + the preserved entitlement/limit overrides) rather than
+  //    dropping to bare Free. The durable anchor policy_id and the grant_package
+  //    manifest themselves are NEVER written here.
+  const { data: existing } = await serviceClient
+    .from("account_overrides")
+    .select("policy_id, plan_source, grant_package")
+    .eq("artist_id", artistId)
+    .maybeSingle();
+
+  // Grandfather restore applies only on the downgrade (to Free). On upgrade the
+  // package stays intact (Plus is a superset) and plan_source becomes 'paid'.
+  const restore =
+    planTier === "free"
+      ? restoreGrandfatherPackage({
+          policyId: (existing?.policy_id as string | null) ?? null,
+          grantPackage:
+            (existing?.grant_package as GrantPackage | null) ?? null,
+        })
+      : null;
+
+  const planSource =
+    planTier === "plus" ? "paid" : (restore?.planSource ?? null);
+
+  const overridePayload: Record<string, unknown> = {
+    artist_id: artistId,
+    plan_tier: planTier,
+    plan_source: planSource,
+    plan_expires_at: currentPeriodEnd?.toISOString() ?? null,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: sub.id,
+    stripe_price_id: priceId,
+    subscription_status: status,
+    current_period_end: currentPeriodEnd?.toISOString() ?? null,
+    cancel_at_period_end: cancelAtPeriodEnd,
+    updated_at: now.toISOString(),
+    // NB: policy_id, grant_package are NEVER written; upsert-update leaves them.
+  };
+  if (restore) {
+    // Re-apply the grandfather cohort's preserved entitlements + limits.
+    overridePayload.entitlement_overrides = restore.entitlementOverrides;
+    overridePayload.limit_overrides = restore.limitOverrides;
+  }
+
+  const ovGuard = await guardedUpsert({
+    table: "account_overrides",
+    matchCol: "artist_id",
+    matchVal: artistId,
+    eventCreated,
+    payload: overridePayload,
+  });
+  if (ovGuard.stale) {
+    // billing_subscriptions accepted this event but account_overrides saw a newer
+    // one (should not happen for a single subscription; do not overwrite newer
+    // entitlement state).
+    return {
+      artistId,
+      planTier,
+      status,
+      duplicate: false,
+      orphaned: false,
+      stale: true,
+    };
   }
 
   // 3. Duplicate-subscription guard: an artist should have exactly one active
@@ -192,13 +291,21 @@ export async function reconcileFromStripeSubscription(
     );
   }
 
-  return { artistId, planTier, status, duplicate, orphaned: false };
+  return {
+    artistId,
+    planTier,
+    status,
+    duplicate,
+    orphaned: false,
+    stale: false,
+  };
 }
 
 export async function reconcileSubscriptionById(
   stripeSubscriptionId: string,
+  eventCreated: number | null = null,
 ): Promise<ReconcileResult> {
   const sub =
     await requireStripe().subscriptions.retrieve(stripeSubscriptionId);
-  return reconcileFromStripeSubscription(sub);
+  return reconcileFromStripeSubscription(sub, eventCreated);
 }

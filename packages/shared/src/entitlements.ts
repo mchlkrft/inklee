@@ -266,6 +266,31 @@ export function isGrandfathered(o: AccountOverrides): boolean {
   return !!o.policyId;
 }
 
+/** The override fields to write when a grandfathered account leaves a paid plan
+ *  (subscription downgrade). Restores the cohort's `grantPackage` verbatim so the
+ *  account returns to its grandfather state, not bare Free. Returns null for a
+ *  non-grandfathered account (the caller then does a plain Free downgrade).
+ *
+ *  `planSource` reverts to 'grandfathered' (billing overwrites it to 'paid' on
+ *  upgrade; policyId, the DURABLE anchor, is what survives and drives this). The
+ *  entitlement + limit overrides are re-applied from the package so the state is
+ *  correct even if something cleared them while the account was on Plus. */
+export function restoreGrandfatherPackage(
+  o: Pick<AccountOverrides, "policyId" | "grantPackage">,
+): {
+  planSource: GrantSource;
+  entitlementOverrides: Partial<Record<EntitlementFeature, boolean>>;
+  limitOverrides: Partial<Record<EntitlementLimit, number | null>>;
+} | null {
+  if (!o.policyId) return null;
+  const pkg = o.grantPackage ?? {};
+  return {
+    planSource: "grandfathered",
+    entitlementOverrides: { ...(pkg.features ?? {}) },
+    limitOverrides: { ...(pkg.limits ?? {}) },
+  };
+}
+
 /** True when Inklee is currently covering this artist's deposit fee (active,
  *  not expired, and the budget is not already exhausted).
  *

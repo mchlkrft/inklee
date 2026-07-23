@@ -8,6 +8,7 @@ import {
   type ApprovalGroup,
 } from "@/lib/billing";
 import { REQUIRED_APPROVAL_KEYS, resolveBillingMode } from "./config";
+import { getCurrentBillingArtifacts } from "./artifacts";
 
 // Server-authoritative activation gate (execution item 3), wiring the pure gate
 // in @inklee/shared/billing to the service-role billing_activation_approvals
@@ -53,11 +54,15 @@ export async function evaluateLiveBilling(
       requiredKeys: REQUIRED_APPROVAL_KEYS,
     });
   }
-  const approvals = await getActivationApprovals();
+  const [approvals, currentArtifacts] = await Promise.all([
+    getActivationApprovals(),
+    getCurrentBillingArtifacts(),
+  ]);
   return evaluateActivationGate(group, {
     mode,
     approvals,
     requiredKeys: REQUIRED_APPROVAL_KEYS,
+    currentArtifacts,
   });
 }
 
@@ -69,14 +74,17 @@ export async function assertLiveBillingAllowedFor(
 ): Promise<void> {
   const mode = resolveBillingMode();
   if (mode === "test") return;
-  const approvals = await getActivationApprovals();
-  // TODO (hard pre-live requirement, see config.ts): resolve and pass
-  // `currentArtifacts` (terms/privacy versionHash, active tax-policy version) so
-  // a stale approval re-closes the gate. Not wired yet; must land, failing
-  // closed, before any b2b/b2c approval row is recorded.
+  // Resolve the CURRENT artifact versions so a stale approval (a rolled Terms
+  // hash / superseded tax policy) re-closes the gate. Fails closed: an
+  // unresolvable version becomes a sentinel no bound_artifact can match.
+  const [approvals, currentArtifacts] = await Promise.all([
+    getActivationApprovals(),
+    getCurrentBillingArtifacts(),
+  ]);
   assertLiveBillingAllowed(group, {
     mode,
     approvals,
     requiredKeys: REQUIRED_APPROVAL_KEYS,
+    currentArtifacts,
   });
 }
