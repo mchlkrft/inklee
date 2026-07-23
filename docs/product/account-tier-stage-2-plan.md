@@ -379,10 +379,10 @@ Deferred to fast-follow (post-launch): the `branding` accent token + color sanit
 ### 11.4 Founder decisions required before go-live
 
 1. Plus caps `custom_fields=30` and `studio_library=50` (only `active_trips=100` is ratified).
-2. Plus price + interval + the founder-window mechanic. A separate EUR 24 Price is time-boxed with NO redemption cap; "first 100 subscribers" requires a Stripe promotion code with `max_redemptions=100` on the standard yearly Price. These are mutually exclusive; pick one.
+2. Plus price + interval. Founder-window mechanic RESOLVED 2026-07-23: use a **Stripe promotion code** (`max_redemptions`), plus a new **admin promo-code function** to create customizable codes (price, cap, tier, etc). NOT a separate Price. Monthly-first (annual consumer billing stays disabled until proration is counsel-reviewed, posture section 10).
 3. `past_due` grace length (propose 7 days, aligned to Stripe Smart Retries).
 4. Whether a comped artist who buys Plus then cancels reverts to comp or to Free.
-5. VAT / OSS posture and the EU 14-day digital-subscription withdrawal policy (founder + accountant + counsel). `STRIPE_TAX_ENABLED=false` is permitted pre-live only; live EU money is hard-gated on this. Price `tax_behavior` (inclusive vs exclusive) fixed at Price creation.
+5. VAT / OSS + EU withdrawal RESOLVED 2026-07-23 as a full posture: **B2B-first professional software; a compliant B2C fallback is built but live consumer charging stays disabled behind a server-authoritative activation gate until counsel reviews the consumer terms, withdrawal wording, and Estonian implementation.** 14-day withdrawal is law, no waiver. See the new `docs/legal/eu-billing-posture.md`, `eu-consumer-withdrawal-flow.md`, `vat-and-oss-architecture.md`, `docs/product/billing-customer-classification.md`, `billing-activation-checklist.md`. This is a hard prerequisite layer before any live billing; it supersedes the earlier "STRIPE_TAX_ENABLED toggle" framing.
 6. `rk_` vs `sk_live`, with confirmation the restricted scopes cover BOTH the deposit/Connect graph and billing (else the swap 403s the deposit fleet).
 7. The `legacy_free_v1` package contents + cutover timestamp, ratified from the reviewed dry-run.
 8. Customer Portal at launch vs manual dashboard cancel for v0; `analytics` split at launch vs fast-follow.
