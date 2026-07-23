@@ -60,7 +60,7 @@ Also confirm:
 - Whether tax should be **computed by Stripe Tax** or not (our assumption: not,
   since nothing is charged; `calc_provider = none`).
 
-### A2. VAT / OSS registration posture and the trigger — **CO-OWNED with counsel**
+### A2. VAT / OSS registration posture and the trigger (**CO-OWNED with counsel**)
 **Unblocks:** part of business go-live readiness (feeds A1).
 
 - Confirm Inklee OU remains below the threshold and unregistered at go-live.
@@ -80,7 +80,7 @@ This intersects the legal obligation to register, which counsel co-owns
 - The **credit-note** format for a refund.
 - If/when registered: the **OSS export** columns you need for filing.
 
-### A4. Proration tax-adjustment on a mid-period withdrawal — **CO-OWNED with counsel**
+### A4. Proration tax-adjustment on a mid-period withdrawal (**CO-OWNED with counsel**)
 **Unblocks:** `proration_policy_approved` (consumer path only, later).
 
 When a consumer withdraws mid-period, the law may allow a proportionate charge
@@ -88,7 +88,7 @@ for the service already supplied. Define the **tax-adjustment method** on that
 partial refund/credit note (preserve the original rate and jurisdiction). This
 pairs with counsel's proration and withdrawal decisions (counsel pack C4).
 
-### A5. Billing and tax record retention — **CO-OWNED with counsel**
+### A5. Billing and tax record retention (**CO-OWNED with counsel**)
 **Unblocks:** business go-live readiness.
 
 The retention period for billing and tax records, reconciled against Inklee's

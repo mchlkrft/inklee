@@ -81,7 +81,7 @@ is). Confirm:
   wording (distinct from cancellation, no dark patterns, no forced support
   contact).
 - The default **proration** method on a mid-period withdrawal (time-based,
-  preserving the original tax) — this pairs with the accountant's tax-adjustment
+  preserving the original tax). This pairs with the accountant's tax-adjustment
   method (accountant pack A4). **CO-OWNED.**
 - Whether "withdrawal lost where legally valid" is ever reachable, and under what
   conditions.
@@ -102,14 +102,14 @@ default is to **block or route to manual review** rather than provisionally
 treat the buyer as a verified business. Confirm this default, or define an
 approved provisional treatment (which becomes a policy rule, never ad-hoc code).
 
-### C7. VAT-registration legal obligation — **CO-OWNED with accountant**
+### C7. VAT-registration legal obligation (**CO-OWNED with accountant**)
 **Unblocks:** business go-live readiness.
 
 The legal obligation (as distinct from the tax mechanics) to register for VAT/OSS
 and its trigger. Pairs with the accountant's registration posture (accountant
 pack A2).
 
-### C8. Data retention vs deletion for tax records — **CO-OWNED with accountant**
+### C8. Data retention vs deletion for tax records (**CO-OWNED with accountant**)
 **Unblocks:** business go-live readiness.
 
 How Inklee reconciles the statutory retention of billing/tax records with its
