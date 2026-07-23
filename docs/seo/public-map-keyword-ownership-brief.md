@@ -12,6 +12,12 @@
 > an intent that already has an owner. Please return a proposal in the canonical
 > format and I will implement it as a logged slice.
 
+> **Resolved 2026-07-23.** The approved ownership and indexation decision is now
+> recorded in `docs/seo/inklee-seo-strategy.md` under "Public tattoo map and
+> local studio discovery." This brief remains as the implementation context and
+> decision request history. The canonical strategy file wins if the documents
+> ever differ.
+
 ---
 
 ## 1. What changed

@@ -362,3 +362,31 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 - Legal prerequisite tracked separately: `docs/counsel-note-public-map-data-licensing-2026-07-22.md` (Q20 data-attribution/licensing must clear before any seeded row is published).
 
 **Commit:** _(added on commit; see the map redesign / DSA writer commit)_
+
+---
+
+### 2026-07-23 — Public map ownership decision ratified into canonical strategy (still no implementation)
+
+**Implemented by:** Claude Code (applying ChatGPT's strategy decision, relayed by the founder)
+
+**Related strategy section:** New "Public tattoo map and local studio discovery" section in `docs/seo/inklee-seo-strategy.md`; new cannibalization rules; P3 "Public map and local directory pilot"; two P4 items; 2026-07-23 decision-log entry.
+
+**Files changed:**
+
+- `docs/seo/inklee-seo-strategy.md` — added the public-map ownership section (surface ownership + indexation table, per-surface rules for `/map`, claimed `/studios/{studio-slug}`, unclaimed seeds, city pages, style pages, filter combinations, sitemap + structured data, relationship to existing owned URLs, directory conversion rules), the cannibalization bullets, the P3 pilot subsection, two P4 reconsideration items, and the decision-log entry. `last_updated` bumped to 2026-07-23.
+- `docs/seo/public-map-keyword-ownership-brief.md` — marked resolved 2026-07-23, pointing at the canonical section.
+
+**Implementation:** Documentation/strategy only. This resolves the 2026-07-22 handoff below. **No routes, metadata, canonicals, redirects, sitemap, structured data, or application code changed**, and no production indexation changed. The decision authorizes a future P3 pilot: a `noindex` public `/map`, `noindex` unclaimed entries, and indexable `/studios/{studio-slug}` only for claimed profiles that pass the full quality gate. City pages remain P4 validate-and-allowlist; style pages postponed; filter combinations `noindex`. `/guest-spot-booking`, `/tattoo-booking-software`, `/tattoo-booking-form`, `/tattoo-artist-booking-page`, and `/tattoo-studio-booking-software` retain their existing ownership.
+
+**Validation performed:**
+
+- Confirmed the only line removed from the canonical strategy was the `last_updated` date (no existing keyword or canonical URL altered).
+- Confirmed the added content contains zero em-dashes and the 6-column ownership table is well-formed.
+- Confirmed `/map` stays out of the sitemap and only claimed profiles that pass the quality gate may enter the generated studio sitemap.
+
+**Remaining issues:**
+
+- Legal prerequisite still open: `docs/counsel-note-public-map-data-licensing-2026-07-22.md` (Q20) must clear before any seeded row is published publicly.
+- Implementation of the P3 pilot (public routes, `/studios/{slug}` quality gate, sitemap segment) is a future Claude Code slice, logged here when built. Nothing public is indexable today.
+
+**Commit:** _(added on commit; see the SEO strategy ratification commit)_

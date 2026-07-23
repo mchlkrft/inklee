@@ -13,7 +13,7 @@ primary_markets:
 conversion_goal: Account creation
 strategy_owner: ChatGPT
 implementation_owner: Claude Code
-last_updated: 2026-07-02
+last_updated: 2026-07-23
 ---
 
 # Inklee SEO Strategy
@@ -484,6 +484,279 @@ This is the single owner for broad plural comparison intent.
 
 ---
 
+### Public tattoo map and local studio discovery
+
+**Strategy status:** Approved as a controlled adjacent intent class.
+
+Inklee may enter local tattoo studio discovery without changing the ownership of its artist-facing software pages.
+
+The local directory is an acquisition and product-utility layer. It is not a replacement for the commercial software spine and must not present Inklee as a client self-booking marketplace.
+
+**Audience:**
+
+- Tattoo artists researching studios, travel locations, and guest spot opportunities
+- Clients discovering physical tattoo studios
+- Studio owners who may claim and manage their presence
+
+**Primary conversion:** Account creation.
+
+Account creation should be driven through studio claims and account-gated artist actions such as watching a studio, applying for a guest spot, or managing a studio profile. Client appointment booking is not the SEO conversion goal.
+
+#### Surface ownership and indexation
+
+| Surface | Canonical URL | Status | Indexation | Keyword ownership | Priority |
+| --- | --- | --- | --- | --- | --- |
+| Public map explore view | `/map` | To build | `noindex, follow`; excluded from the sitemap | No search intent ownership. This is a product utility and discovery interface. | P3 |
+| Claimed studio profile | `/studios/{studio-slug}` | To build | Indexable only after the claimed-profile quality gate passes | Branded and local entity discovery for the individual studio | P3 |
+| Unclaimed seed entry | `/map/s/{location-id}` or in-map selection state | To build | `noindex, follow`; excluded from the sitemap | No keyword ownership | P3 |
+| City directory page | `/tattoo-studios/{country-slug}/{city-slug}` | To build (validate) | `noindex` by default. Indexation requires explicit approval and allowlisting. | `tattoo studios in {city}` | P4 |
+| Style directory page | `/tattoo-studios/styles/{style-slug}` | Postpone | Do not build as an indexable route | Future hypothesis: `{style} tattoo studios` | P4 |
+| Filter combination | Query state on `/map` or a parent directory page | Do not build as a standalone document | `noindex`; canonical to the appropriate parent | No independent keyword ownership | Not approved |
+
+#### Public map explore view
+
+**URL:** `/map`
+
+**Role:** Public exploration, search, filtering, map sharing, and movement into claimed studio profiles.
+
+**SEO status:** The map remains a `noindex, follow` utility.
+
+The map must:
+
+- use a self-referencing canonical without viewport or filter query parameters
+- remain outside the generated sitemap
+- allow crawlers to follow links to eligible claimed studio profiles
+- avoid owning `tattoo studios near me`, `tattoo studio map`, or other directory keywords until separate SERP validation supports an indexable map landing page
+- avoid generating indexable URLs for map positions, filters, styles, guest spot status, or selected unclaimed locations
+
+The map conversion path is account creation through account-gated actions such as claim, watch, save, or guest spot application.
+
+#### Claimed studio profiles
+
+**Canonical URL:** `/studios/{studio-slug}`
+
+**Status:** To build.
+
+**Primary keyword pattern:** `{studio name} tattoo studio`
+
+**Supporting keyword patterns:**
+
+- `{studio name} tattoo shop`
+- `{studio name} {city}`
+- `{studio name} tattoo styles`
+- `{studio name} guest artists`
+
+**Search intent:** Navigational and local business discovery for one named studio.
+
+**Role:** The canonical public entity page for a claimed tattoo studio.
+
+**Internal links in:**
+
+- `/map`
+- approved city directory pages
+- direct studio-owner and share links
+- relevant guest spot discovery states inside the map
+
+**Internal links out:**
+
+- `/map`, centered on or selecting the studio
+- visible and owner-approved official website and social links
+- account creation or sign-in for account-gated artist actions
+- `/guest-spot-booking` only inside clearly artist-facing product copy about managing guest spots
+
+**Conversion goal:** Account creation.
+
+A claimed studio page becomes indexable only when all of the following are true:
+
+1. The map location has `claim_status='claimed'`.
+2. The linked studio profile is published.
+3. The existing studio publication gates pass, including the required description, imagery, location visibility, and categories.
+4. The location and profile are approved and have no unresolved hidden, removed, duplicate, or possibly-closed state.
+5. All public content is owner-declared, consented, or safely derived from consented data.
+6. The page contains server-rendered, crawlable HTML with a unique studio name, description, city or region, visible styles or specialties, and useful studio facts.
+7. Public licensing attribution and privacy handling are active.
+8. Approximate-location studios do not expose their true coordinates or private street address.
+
+Do not create an indexable `/studios/{studio-slug}` page for an unclaimed seed.
+
+#### Unclaimed studio entries
+
+Unclaimed seeds may appear inside the public map for discovery and claiming, subject to the legal and product guardrails.
+
+They must not receive indexable studio profile pages.
+
+Unclaimed entry states must:
+
+- use `noindex, follow`
+- remain outside the sitemap
+- show the experimental and unverified nature of the entry clearly
+- provide correction, report, and claim actions
+- avoid structured data that presents the entry as a verified business
+- avoid inferred tattoo styles, services, artists, reviews, or guest spot availability
+
+If an unclaimed location is later claimed and passes the claimed-profile quality gate, its canonical public entity URL becomes `/studios/{studio-slug}`.
+
+#### City directory pages
+
+**Recommended URL:** `/tattoo-studios/{country-slug}/{city-slug}`
+
+**Status:** To build (validate).
+
+**Primary keyword:** `tattoo studios in {city}`
+
+**Supporting keywords:**
+
+- `tattoo shops in {city}`
+- `{city} tattoo studios`
+- `tattoo studio map {city}`
+- `tattoo studios near {city}`
+
+**Search intent:** Local directory and place discovery.
+
+**Internal links in:**
+
+- `/map` city searches or city selections
+- manually approved directory navigation
+- relevant claimed studio profiles through breadcrumbs where useful
+
+**Internal links out:**
+
+- eligible claimed studio profiles
+- `/map` centered on the city
+- account creation for artists and studio owners
+
+A city page must not become indexable automatically.
+
+Indexation requires all of the following:
+
+1. Manual SERP validation confirms a distinct local-directory intent.
+2. The page is added to an explicit city allowlist.
+3. The city contains at least eight indexable claimed studio profiles.
+4. Every listed studio passes the claimed-profile quality gate.
+5. The page contains unique, server-rendered city content and useful visible aggregation, not only a map canvas or templated studio list.
+6. The page has a distinct title, meta description, H1, canonical, and internal-link context.
+7. The page does not use `best`, rankings, ratings, or editorial recommendation language without a real and documented methodology.
+8. Search Console and conversion monitoring can evaluate the page separately.
+
+Do not create country, neighborhood, district, or region landing pages through this approval. They require their own validation and strategy decision.
+
+#### Style directory pages
+
+Style filters may ship inside `/map`, but they do not authorize indexable style pages.
+
+`/tattoo-studios/styles/{style-slug}` remains postponed.
+
+Before any style page is approved, return a new proposal containing:
+
+- primary keyword
+- supporting keywords
+- SERP intent
+- dominant ranking page type
+- claimed studio density
+- content differentiation
+- nearest competing Inklee URL
+- city and style combination risk
+- conversion argument
+- internal-link plan
+
+Do not infer tattoo styles from unclaimed seed data or imagery.
+
+#### Filter combinations
+
+Style, city, category, guest spot status, signal, map bounds, and other filter combinations remain interaction state.
+
+Do not generate standalone indexable documents for combinations such as:
+
+- `{style} tattoo studios in {city}`
+- `guest spot friendly studios in {city}`
+- `private tattoo studios in {city}`
+- `tattoo studios with {attribute} in {city}`
+
+Filter states must remain `noindex` and canonicalize to the nearest approved parent page.
+
+A small number of combination pages may only be reconsidered through a separate strategic proposal supported by SERP demand, sufficient claimed-profile density, unique content, and low cannibalization risk.
+
+#### Sitemap and structured data
+
+Include only claimed studio profiles that pass the complete quality gate in the generated studio sitemap.
+
+Do not include:
+
+- `/map`
+- map query states
+- unclaimed seed entries
+- unapproved city pages
+- style pages
+- filter combinations
+
+Approved city pages may enter the sitemap only through the explicit city allowlist.
+
+Claimed studio profiles may use:
+
+- `WebPage`
+- `LocalBusiness`
+- `BreadcrumbList`
+
+Only emit properties that are visible, owner-approved, and supported by the product data.
+
+Do not emit:
+
+- private or true coordinates for approximate-location studios
+- private street addresses
+- inferred services or tattoo styles
+- `aggregateRating` or review markup without a genuine visible review system
+- opening hours that have not been confirmed
+- guest artist identities that are not publicly consented
+
+Approved city pages may use `CollectionPage`, `ItemList`, and `BreadcrumbList` when the visible HTML contains the corresponding studio list.
+
+#### Relationship to existing owned URLs
+
+`/guest-spot-booking` continues to own the artist-facing commercial intent for tattoo guest spot organization and booking management.
+
+The directory may expose factual guest spot availability as a filter or studio attribute, but it must not:
+
+- use `tattoo guest spot booking` as a city or directory primary keyword
+- create `/guest-spots/{city}` pages
+- duplicate the workflow and software copy from `/guest-spot-booking`
+- imply that local studio discovery and guest spot management are the same intent
+
+`/tattoo-booking-software` continues to own the broad tattoo software, app, and system category.
+
+`/tattoo-booking-form` continues to own tattoo request and intake form intent.
+
+`/tattoo-artist-booking-page` remains the future owner of the artist-facing public-page product intent. A studio entity profile is not an artist booking page.
+
+`/tattoo-studio-booking-software` remains the future commercial owner for multi-artist studio software. Local studio directory pages must not target `tattoo studio booking software`, `tattoo studio management software`, or similar software terms.
+
+Existing public artist booking and request pages remain `noindex`.
+
+The local directory must not create appointment-booking copy that implies unrestricted client self-booking through Inklee.
+
+#### Directory conversion rules
+
+Account creation remains the canonical conversion goal.
+
+Approved conversion paths include:
+
+- claim this studio
+- create an artist account
+- sign in to watch or save a studio
+- sign in to apply for a guest spot
+- create an account to manage a studio presence
+
+Client traffic may continue to the studio's visible official website or social profile, but Inklee must not measure an external client booking as the primary SEO conversion.
+
+The directory should create a network acquisition loop:
+
+1. A user discovers a studio.
+2. An artist or owner sees an incomplete or unclaimed presence.
+3. Claiming or using an artist-only action requires an Inklee account.
+4. Claimed profiles improve data quality.
+5. Higher data quality may later unlock approved city and style pages.
+
+---
+
 ## Cannibalization rules
 
 - One search intent must have one clear owner URL.
@@ -496,6 +769,14 @@ This is the single owner for broad plural comparison intent.
 - Flash booking and general artist shop must remain separate unless validated otherwise.
 - Guest-spot software and guest-spot planning content must remain separate.
 - Solo-artist software and studio-management software must remain separate.
+- Local studio discovery and tattoo booking software are separate intent classes.
+- `/map` is a `noindex` product utility and does not own a generic directory keyword.
+- `/studios/{studio-slug}` owns only the named studio's entity and local navigational intent.
+- `/tattoo-studios/{country-slug}/{city-slug}` may own `tattoo studios in {city}` only after validation and explicit allowlisting.
+- Guest spot availability may be a directory attribute, but `/guest-spot-booking` remains the only owner of guest spot organization and software intent.
+- Do not create `/guest-spots/{city}` or indexable guest spot filter pages.
+- Unclaimed seed entries, style filters, and filter combinations do not justify indexable URLs.
+- Do not target `best tattoo studios` or ranking language without a genuine visible methodology.
 
 **New-page gate.** Before any new indexable page, confirm: (a) it maps to a shipped feature (or is explicitly a validated guide), (b) it has a distinct primary keyword not already owned above, and (c) SERP evidence shows a different intent from the nearest existing page.
 
@@ -916,6 +1197,30 @@ Allowed final decisions:
 - postpone
 - drop
 
+#### Public map and local directory pilot
+
+Local studio discovery is a separate P3 pilot. It is not an expansion of the commercial software page inventory.
+
+P3 authorizes:
+
+1. A public `/map` utility with `noindex, follow`.
+2. Public unclaimed map entries that remain `noindex`.
+3. Indexable `/studios/{studio-slug}` pages only for claimed profiles that pass the complete quality gate.
+4. Account-creation conversion through claims and account-gated artist actions.
+
+P3 does not authorize:
+
+- automatically generated city pages
+- country or region pages
+- style landing pages
+- city and style combinations
+- guest spot city pages
+- indexable unclaimed studio pages
+- inferred studio styles
+- directory pages built from seed names and coordinates alone
+
+City and style directory pages remain P4 validation work.
+
 ### SERP overlap decision rules
 
 Use top-ten result overlap as a guide:
@@ -1036,6 +1341,8 @@ After the first two feature pages and first two guides have generated usable Sea
 - flash booking
 - localization
 - studio software
+- allowlisted city tattoo studio pages after claimed-profile density and SERP validation
+- style-based studio discovery pages after separate intent and content-density validation
 
 Prioritize evidence from:
 
@@ -1056,6 +1363,20 @@ _No open proposals. Claude Code adds entries here when implementation evidence s
 ---
 
 ## Decision log
+
+### 2026-07-23: Public map and local studio discovery ownership
+
+- Approved local tattoo studio discovery as a controlled adjacent intent class.
+- Preserved the existing artist-facing software spine and account-creation conversion goal.
+- Assigned `/map` as a public but `noindex` product utility with no keyword ownership.
+- Assigned `/studios/{studio-slug}` as the canonical entity page for complete claimed studio profiles.
+- Rejected indexable pages for unclaimed seed entries.
+- Assigned `tattoo studios in {city}` to the future route `/tattoo-studios/{country-slug}/{city-slug}`, gated by SERP validation, a manual allowlist, and at least eight indexable claimed profiles.
+- Postponed style directory pages pending separate validation.
+- Reconfirmed that all filter combinations remain `noindex`.
+- Reconfirmed that `/guest-spot-booking` owns guest spot organization and software intent. No `/guest-spots/{city}` routes are approved.
+- Reconfirmed that `/tattoo-studio-booking-software` remains the future owner of commercial studio software intent.
+- Approved `LocalBusiness` structured data only for claimed profiles that pass the complete quality and privacy gates.
 
 ### 2026-07-02: P0/P1/P2 implementation status (same-day execution)
 
