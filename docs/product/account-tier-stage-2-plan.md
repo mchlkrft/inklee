@@ -341,3 +341,52 @@ Still required (small, propose-and-confirm; do not block the build):
 ## 10. Technical follow-up (not part of account-tier commits)
 
 The pre-commit hook runs `next build`, which fetches the Inter font from Google Fonts at build time (`apps/web/src/app/layout.tsx` via `next/font/google`). A transient network failure reaching `fonts.googleapis.com` fails the build and therefore the commit (observed once during slice 1c; passed on retry). Evaluate switching to a locally packaged font via `next/font/local` (or a repository-consistent approach) so builds are deterministic and offline-safe. Tracked separately in `DEFERRED.md`; do not bundle this change into account-tier commits unless it becomes necessary to make builds deterministic.
+
+---
+
+## 11. Launch build (adversarially reviewed 2026-07-23)
+
+D6 makes this a launch build: Plus purchasable via Stripe. Five workstream specs (billing, enforcement, migration+grandfather, goods take, launch readiness) were designed and put through a money-path critic and a scope/launch critic. The specs are individually sound; the danger is the seams. This section is the reconciled plan of record.
+
+### 11.1 Cross-spec blockers (fixed in the plan)
+
+- **BLOCKER-1: migration-number collision.** All three schema-touching specs picked `0105`. Reconciled: ONE migration owns all `account_overrides` additive columns (billing + `limit_overrides` + grandfather), owned by the grandfather workstream as `0105` (authored). Goods owns `orders` as `0106`. Billing authors NO `account_overrides` migration; it consumes the columns.
+- **BLOCKER-2: enforcement dropped the kill switch.** Every entitlement gate MUST be `!isCapabilityDisabled(feature) && canAccess(overrides, feature)` (the exact `deposits` pattern), and the five keys registered in the capability registry, so `DISABLED_CAPABILITIES` can dark-launch and instantly roll back any gate without a deploy. Comps are unaffected by a flip.
+- **HIGH-3: the shared Stripe client runs live deposits.** Do NOT bump the global `apiVersion` or swap the `sk_live` for `rk_` inside the billing diff: `stripe.ts` exports one client used by the live deposit/Connect/refund path. Build billing on the CURRENT version. Any version bump or `rk_` swap is a SEPARATE, adversarially-reviewed change to the deposit path (re-run G-5 + the refund/settlement webhook fixtures), with `sk_live` kept for instant rollback.
+- **HIGH-4: downgrade must restore grandfather.** On `paid -> free`, when `policy_id IS NOT NULL`, billing calls the grandfather workstream's `restoreGrandfatherPackage` (set `plan_source='grandfathered'`, re-apply the manifest) instead of blanket `plan_source=null`. The reconciler sweep must do the same.
+- **HIGH-5: no `subscription_status` CHECK.** A Stripe-owned vocabulary in a DB CHECK would make a future unknown status throw on upsert, 500 the webhook, and never converge. Store raw; the resolver maps unknown to Free. (Applied in `0105`.)
+- **F-2: duplicate-subscription double-charge.** The "already Plus -> error" guard reads the lagging internal row; a race can create two live subs, last-writer-wins hiding one that keeps charging. Before session creation, query Stripe for an existing active sub and refuse; `applySubscriptionState` must never overwrite a different active `stripe_subscription_id` (Sentry-flag + cancel the duplicate); the reconciler flags any customer with more than one active sub as an incident.
+- **MEDIUM-10: single ownership of `entitlements.ts`.** The grandfather workstream owns all engine type + reader changes (done in the foundation slice); billing only adds its own reader.
+
+### 11.2 Minimal launch critical path vs deferred
+
+Minimal (ship for public launch): one reconciled migration (done, `0105`); enforcement gates wrapped in `isCapabilityDisabled` + registry entries; `legacy_free_v1` schema + resolver + reviewed dry-run + backfill; billing test-mode graph (Customer, Prices, 6 webhook branches, converge writer, Portal) on the current apiVersion; downgrade restores grandfather; `branding` = **footer removal only**; `custom_templates` gate + read-only editor; `extra_fields`/`extra_trips`/`studio_library` create-time caps; curated self-plan read + upgrade prompts + `/pricing` + conversion events; mobile plan render + one non-actionable no-IAP label + an audit for any outbound upgrade CTA.
+
+Deferred to fast-follow (post-launch): the `branding` accent token + color sanitizer + full design-token system (security-sensitive public-page CSS injection surface; the `branding` boolean key is stable, so nothing is re-gated later); goods un-park (the F-1 5% + card-fee fix and orders refund handling ship behind the OFF kill switch, the flip is deferred); the `analytics` basic/advanced split (deposits + branding + caps + templates already justify the price); the global apiVersion bump; plan-change history + margin tiles + dunning emails + Studio tier + in-app purchase.
+
+### 11.3 Sequence
+
+1. Reconcile migration numbers + engine ownership (done: `0105`, engine foundation shipped).
+2. Founder ratifies the decisions in 11.4.
+3. Apply `0105` to prod, verify effects (information_schema, `relrowsecurity`, `pg_policies=0`); then deploy the `entitlements-server.ts` reader (the deferred half of the foundation slice).
+4. Build billing in test mode on the current apiVersion; dogfood the full lifecycle; adversarial money-path review of the diff.
+5. Build enforcement behind `isCapabilityDisabled`, dark-launched, validated with comps. Footer-only branding.
+6. Dry-run the `legacy_free_v1` impact report; founder reviews; apply the ordered backfill (reclassify `comp -> beta` first, then tag `legacy_free_v1`).
+7. Close G-5 (live deposit test), the `rk_` swap (validated against deposits), and the VAT/OSS + refund-withdrawal policy in parallel.
+8. Go live: live Prices + live webhook, flip `BILLING_ENABLED` and the enforcement capabilities on, publish `/pricing`, open the founder window.
+9. Fast-follow the deferred items (11.2).
+
+### 11.4 Founder decisions required before go-live
+
+1. Plus caps `custom_fields=30` and `studio_library=50` (only `active_trips=100` is ratified).
+2. Plus price + interval + the founder-window mechanic. A separate EUR 24 Price is time-boxed with NO redemption cap; "first 100 subscribers" requires a Stripe promotion code with `max_redemptions=100` on the standard yearly Price. These are mutually exclusive; pick one.
+3. `past_due` grace length (propose 7 days, aligned to Stripe Smart Retries).
+4. Whether a comped artist who buys Plus then cancels reverts to comp or to Free.
+5. VAT / OSS posture and the EU 14-day digital-subscription withdrawal policy (founder + accountant + counsel). `STRIPE_TAX_ENABLED=false` is permitted pre-live only; live EU money is hard-gated on this. Price `tax_behavior` (inclusive vs exclusive) fixed at Price creation.
+6. `rk_` vs `sk_live`, with confirmation the restricted scopes cover BOTH the deposit/Connect graph and billing (else the swap 403s the deposit fleet).
+7. The `legacy_free_v1` package contents + cutover timestamp, ratified from the reviewed dry-run.
+8. Customer Portal at launch vs manual dashboard cancel for v0; `analytics` split at launch vs fast-follow.
+
+### 11.5 Confirmed safe (from the money-path review)
+
+Goods fee never touches pickup or in-person sales (no order row, no fee, structurally); goods fee is idempotent and converges under webhook redelivery; access resolves purely from the internal `plan_tier`/`plan_expires_at` row (never a live Stripe check); the billing Customer and the deposit Connect account are never conflated; `account_overrides` is service-role-only so no column grants or seed mirror are needed; DB write errors return 500 so Stripe retries and converges (no silent degrade); all migrations are additive and reversible; the dry-run gate is respected everywhere.
