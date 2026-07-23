@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { deriveConnectRouting, syncConnectAccount } from "@/lib/stripe-connect";
+import { getDepositCollection } from "@/lib/server/deposit-collection";
 import { detectStripeMode } from "@/lib/deposit-settings";
 import type { MobilePayouts } from "@inklee/shared/mobile-api";
 
@@ -36,6 +37,29 @@ function toPayouts(data: Record<string, unknown> | null): MobilePayouts {
   };
 }
 
+// Fold in the server-authoritative card-vs-manual prediction (BM-2.0 slice 1b)
+// so the deposit form reads ONE truth instead of re-combining capability +
+// entitlement + routing on the client. Reuses the routeCharges already derived
+// above (no extra Connect read). If the entitlement read blips, omit the fields
+// and let the client fall back to its local guess — the deposit core re-checks.
+async function withDepositCollection(
+  userId: string,
+  payouts: MobilePayouts,
+): Promise<MobilePayouts> {
+  try {
+    const collection = await getDepositCollection(userId, {
+      routing: { routeCharges: payouts.routeCharges, stripeAccountId: null },
+    });
+    return {
+      ...payouts,
+      canCollectByCard: collection.canCollectByCard,
+      depositCollectionReason: collection.reason,
+    };
+  } catch {
+    return payouts;
+  }
+}
+
 // GET /api/mobile/settings/payouts — the artist's Stripe Connect payout status
 // (stored, fast). Live requirements + KYC happen in an in-app browser later.
 export async function GET(req: Request) {
@@ -49,7 +73,7 @@ export async function GET(req: Request) {
     .eq("id", userId)
     .single();
 
-  return mobileOk(toPayouts(data));
+  return mobileOk(await withDepositCollection(userId, toPayouts(data)));
 }
 
 // POST /api/mobile/settings/payouts — re-fetch the Connect account from Stripe and
@@ -82,5 +106,5 @@ export async function POST(req: Request) {
     .select(PAYOUT_COLUMNS)
     .eq("id", userId)
     .single();
-  return mobileOk(toPayouts(data));
+  return mobileOk(await withDepositCollection(userId, toPayouts(data)));
 }

@@ -92,6 +92,16 @@ export type MobileProfile = {
   coverColor: string | null;
 };
 
+/** Why a card deposit would degrade to a manual one. `ok` = card is available.
+ *  Mirrors the three-factor gate requestDepositCore enforces, in its order:
+ *  a platform pause of the `deposits` capability, then the `deposits`
+ *  entitlement, then Connect card routing. */
+export type DepositCollectionReason =
+  | "ok"
+  | "capability_paused"
+  | "not_entitled"
+  | "not_connected";
+
 /** GET/POST /api/mobile/settings/payouts — the artist's stored Stripe Connect payout status. */
 export type MobilePayouts = {
   status: string;
@@ -102,6 +112,18 @@ export type MobilePayouts = {
    *  charges enabled) — the same rule web derives via getConnectRoutingForArtist,
    *  so the client never reconstructs it from looser flags. */
   routeCharges: boolean;
+  /** Server-authoritative prediction of whether a card deposit request will
+   *  route to a Stripe card charge (vs degrade to a manual deposit): the SAME
+   *  three-factor gate requestDepositCore enforces (capability pause AND the
+   *  `deposits` entitlement AND `routeCharges`). The deposit form reads THIS
+   *  rather than re-combining the factors client-side, so the web and mobile
+   *  predictors cannot drift (the mobile form previously omitted the
+   *  entitlement). Optional for version skew: an older server omits it and the
+   *  client falls back to its local capability+routing guess. */
+  canCollectByCard?: boolean;
+  /** Why card collection is unavailable, for the form's copy (`ok`/absent when
+   *  canCollectByCard is true). Optional for version skew. */
+  depositCollectionReason?: DepositCollectionReason;
   /** Classification of the deployment's Stripe publishable key (the key itself
    *  never ships to the device); "test" drives the test-mode deposits banner. */
   stripeMode: StripeMode;

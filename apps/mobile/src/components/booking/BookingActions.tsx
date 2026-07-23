@@ -371,7 +371,26 @@ function DepositRequestForm({
   // platform-wide, the server core takes the manual branch, so the form must
   // show the manual copy too (and not the misleading Connect-Stripe nudge).
   const depositsOn = useCapability("deposits");
-  const canCollectInApp = depositsOn && !!payouts.data?.routeCharges;
+  // Card-vs-manual is decided by the SERVER (getDepositCollection → the payouts
+  // payload): the SAME three-factor gate requestDepositCore enforces
+  // (capability pause AND the `deposits` entitlement AND Connect routing).
+  // Reading the server's answer keeps this form from drifting from the web one:
+  // it previously used `depositsOn && routeCharges` and omitted the entitlement,
+  // so a Connect-active free artist was told "the client pays by card" and shown
+  // a fee split while the server issued a MANUAL deposit. Fall back to the local
+  // capability+routing guess only for an older server that omitted the field.
+  const canCollectInApp =
+    payouts.data?.canCollectByCard ??
+    (depositsOn && !!payouts.data?.routeCharges);
+  const depositReason = payouts.data?.depositCollectionReason;
+  // Prefer the server's reason for the manual-copy branch; fall back to the
+  // local signals when an older server didn't send it.
+  const depositsPaused = depositReason
+    ? depositReason === "capability_paused"
+    : !depositsOn;
+  const showConnectNudge = depositReason
+    ? depositReason === "not_connected"
+    : !payouts.data?.routeCharges;
   const currency =
     booking.deposit?.currency ?? artistDepositCurrency(payouts.data?.country);
 
@@ -480,7 +499,7 @@ function DepositRequestForm({
         <Text className="text-xs text-shell-dim">
           The client pays by card via a link in their email.
         </Text>
-      ) : !depositsOn ? (
+      ) : depositsPaused ? (
         <Text className="text-xs text-shell-dim">
           Card payments are temporarily unavailable. You&apos;ll collect this
           deposit directly (e.g. bank transfer, add details in the note) and
@@ -489,14 +508,19 @@ function DepositRequestForm({
       ) : (
         <Text className="text-xs text-shell-dim">
           You&apos;ll collect this deposit directly (e.g. bank transfer, add
-          details in the note) and mark it received.{" "}
-          <Text
-            className="font-medium text-accent"
-            onPress={() => router.push("/settings/payouts")}
-          >
-            Connect Stripe in Settings
-          </Text>{" "}
-          to take card payments in-app.
+          details in the note) and mark it received.
+          {showConnectNudge ? (
+            <>
+              {" "}
+              <Text
+                className="font-medium text-accent"
+                onPress={() => router.push("/settings/payouts")}
+              >
+                Connect Stripe in Settings
+              </Text>{" "}
+              to take card payments in-app.
+            </>
+          ) : null}
         </Text>
       )}
 
