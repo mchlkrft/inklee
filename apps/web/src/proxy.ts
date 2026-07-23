@@ -111,7 +111,7 @@ export async function proxy(request: NextRequest) {
     if (!pathname.startsWith("/onboarding") && !pathname.startsWith("/admin")) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("slug")
+        .select("slug, account_status")
         .eq("id", user.id)
         .single();
 
@@ -119,6 +119,18 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(
           new URL("/onboarding/welcome", request.url),
         );
+      }
+
+      // Suspension / archival gate (BM-2.0 slice 1c), piggybacked on the profile
+      // read above (no extra query). Defense in depth for the window where a
+      // just-suspended account's cookie session is still valid: the Supabase
+      // auth ban is the primary gate; this closes the residual window. Only
+      // fires on an existing row that is explicitly not "active" (a null profile
+      // already bounced to onboarding above, so a transient read error can't
+      // trigger a spurious lockout here). /login is not an artist path and does
+      // not bounce authed users, so this redirect cannot loop.
+      if (profile.account_status !== "active") {
+        return NextResponse.redirect(new URL("/login", request.url));
       }
     }
   } else {

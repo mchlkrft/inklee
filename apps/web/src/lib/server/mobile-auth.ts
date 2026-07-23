@@ -44,6 +44,23 @@ export async function requireMobileUser(req: Request): Promise<MobileAuth> {
     return { ok: false, status: 401, error: "Invalid or expired session." };
   }
 
+  // Suspension / archival gate (BM-2.0 slice 1c). The Supabase auth ban applied
+  // when an admin suspends an account is the PRIMARY gate, but it does not
+  // necessarily revoke an already-issued access token before it expires; this
+  // closes that residual window on the mobile bearer path. Deliberately FAILS
+  // OPEN: a missing profile (pre-onboarding) or a read error must not lock out
+  // the fleet, because the auth ban remains the real gate. Only an existing row
+  // whose status is explicitly not "active" is rejected. Uses maybeSingle so a
+  // zero-row read is data:null (not an error) and falls through as allowed.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("account_status")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  if (profile && profile.account_status !== "active") {
+    return { ok: false, status: 403, error: "This account is not active." };
+  }
+
   // Growth cockpit day-grain presence (fire-and-forget, debounced to one
   // write per artist per day; failures never affect the request).
   void touchArtistActivity(data.user.id, "mobile");
