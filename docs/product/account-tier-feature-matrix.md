@@ -44,7 +44,7 @@ Enforcement authority legend: SVR = server core or API route (the real boundary)
 | Studio house rules, welcome pack, timeline | (proposed) `studio_welcome_pack`, `studio_timeline` | studio | studio | comp during bootstrap | n/a | inc in Studio | no | studio owner plus confirmed stay | file caps | ownership plus stay gate (SVR, DB) | add tier check on top of ownership when studios pay | yes | no | no | resp | studio-scoped, survives owner change | high |
 | Flash designs | (none, core) | content | artist | yes | inc | inc | no | artist | none | RLS (DB) | keep free | yes | yes | yes | resp | rows persist | high |
 | Instagram integration (connect, sync, import) | (none) plus kill switch | content | artist | yes | inc | inc | per-tier cap candidate | artist | 50 posts/sync | `isCapabilityDisabled("instagram_import")` (KILL) plus config (ENV) | keep free; per-tier sync cap if cost bites | yes | yes | yes | resp | disconnect purges IG thumbnails | high |
-| Bio / Linklee hub | `bio_page_modules` (feature flag, dead) | content | artist | yes (founder-locked free) | inc | inc | no | artist | 10 blocks/type | feature flag never called (NONE) | keep free | yes | yes | yes | resp | n/a | high |
+| Bio / Linklee hub | (none; intentionally free) | content | artist | yes (founder-locked free) | inc | inc | no | artist | 10 blocks/type | none (dead `bio_page_modules` flag removed in BM-2.0) | keep free | yes | yes | yes | resp | n/a | high |
 | Personal analytics | `analytics` | analytics | artist | lightweight | fuller (intended) | studio analytics | no | artist | none | NONE (mobile Insights always on) | SVR gate for the Plus depth | yes | yes | yes | resp | hide paid depth, keep free dashboard | high |
 | Map browsing and discovery | (none) | discovery | anon-or-artist | yes (logged-in) | inc | inc | no | authed | pin sampling | env flag plus auth plus RLS plus RPC grants (SVR, DB) | keep free (network supply) | yes | browse | browse | resp | n/a | high |
 | Artist map presence (`map_visibility`) | (none, consent axis) | discovery | artist | yes, self-serve | inc | inc | no | artist | 3-artist anon floor | consent column plus account_status (SVR) | keep free and self-serve, never fold into a tier | yes | via settings | via settings | resp | n/a | high |
@@ -58,7 +58,7 @@ Notes:
 
 - "inc" means included at that tier and above.
 - The five entitlement keys `branding`, `custom_templates`, `extra_fields`, `extra_trips`, `analytics` currently enforce nothing. Their "required enforcement" cell names the server layer they must be wired to before Plus is sold.
-- `goods_module`, `checkout_addons`, `bio_page_modules` live in the older `profiles.settings.features` system, not the entitlement engine. The migration plan reconciles them.
+- `goods_module`, `checkout_addons` live in the older `profiles.settings.features` system, not the entitlement engine (the dead `bio_page_modules` flag was removed in BM-2.0). Goods reconciliation is a separate transaction-led substage (see `account-tier-stage-2-plan.md` section 8).
 - Trust-and-safety and booking-safety features (portal, reminders, transactional emails, support, manual deposits) must never be paywalled; they are marked Free and stay Free.
 
 ---

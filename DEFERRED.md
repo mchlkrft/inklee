@@ -2,6 +2,14 @@
 
 Things intentionally skipped and why. Revisit before launch.
 
+## Build-time Google Fonts fetch (Inter)
+
+**Blocked by:** nothing; a small refactor.  
+**Affects:** build and commit determinism. The pre-commit hook runs `next build`, which fetches the Inter font from Google Fonts at build time (`apps/web/src/app/layout.tsx` via `next/font/google`). A transient failure reaching `fonts.googleapis.com` fails the build and therefore the commit (observed once during BM-2.0 slice 1c; passed on retry).  
+**State:** Evaluate switching to a locally packaged font via `next/font/local` (or a repo-consistent approach) so builds are deterministic and offline-safe. Not bundled into account-tier commits. Context: `docs/product/account-tier-stage-2-plan.md` §10.
+
+---
+
 ## Upstash local dev credentials
 
 **Blocked by:** no local credentials in `.env.local`  
