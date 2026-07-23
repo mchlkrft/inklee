@@ -117,8 +117,18 @@ describe("parseDisabledCapabilitiesList", () => {
 
 describe("capability registry", () => {
   it("registers exactly the documented capabilities", () => {
-    expect(CAPABILITIES).toEqual(["deposits", "instagram_import"]);
+    // Lockstep with docs/architecture/capability-registry.md. The four BM-2.0
+    // entitlement capabilities are dark-launched (parked in DISABLED_CAPABILITIES).
+    expect(CAPABILITIES).toEqual([
+      "deposits",
+      "instagram_import",
+      "branding",
+      "custom_templates",
+      "analytics",
+      "entitlement_caps",
+    ]);
     expect(isCapability("deposits")).toBe(true);
+    expect(isCapability("entitlement_caps")).toBe(true);
     expect(isCapability("hologram_mode")).toBe(false);
   });
 });

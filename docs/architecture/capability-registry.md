@@ -31,6 +31,23 @@ is an automatic rejection.
 | Removal condition | Never while card deposits exist (permanent operational kill-switch); re-verify wiring at each review | If the Instagram integration is ever removed |
 | Docs | docs/architecture/remote-config-plan.md §8; enforcement: `apps/web/src/lib/server/bookings.ts` (requestDepositCore), `apps/web/src/lib/server/app-config.ts` | remote-config-plan.md §8; enforcement: `/api/mobile/instagram/{sync,import}`, `apps/web/src/app/(artist)/flash/instagram/actions.ts`, IG OAuth callback |
 
+### BM-2.0 entitlement enforcement (dark-launched 2026-07-23)
+
+Added with enforcement wired but **parked in `DISABLED_CAPABILITIES` in prod** so
+the slice ships inert; remove a name to turn that gate on. Owner: Founder (flip);
+Claude (wiring). Enforcement composition (one truth for web + mobile):
+`apps/web/src/lib/server/entitlement-gates.ts`. Server enforces on all clients;
+mobile 0.2.0+ additionally hides entry points.
+
+| Name | Purpose | Safe disabled (paused) behaviour | Enforcement |
+| --- | --- | --- | --- |
+| `branding` | Remove the public "made with Inklee" footer for Plus | Footer stays for **everyone** (today's behaviour); removal is a Plus perk | `brandingRemoved`; the 5 `app/[slug]/**` public pages |
+| `custom_templates` | Restrict editing email-template bodies to Plus | Every tier can **edit** (today's behaviour); existing bodies always keep SENDING regardless | `canEditTemplates`; `settings/emails` save action + mobile email-templates route |
+| `analytics` | Gate advanced analytics to Plus (for all, no grandfather) | Advanced analytics visible to **everyone** | `canSeeAdvancedAnalytics`; the artist analytics view |
+| `entitlement_caps` | Enforce the custom-field / active-trip / studio-library caps (block-new, keep-existing) | Caps **not enforced** (unlimited); existing items never touched | `capState`; the field/trip/studio create paths (web + mobile) |
+
+Removal condition: never while the tiers exist (permanent entitlement enforcement); re-verify wiring each review.
+
 ## Config keys (GET /api/mobile/config)
 
 | Key | Source env | Semantics | Fail direction |

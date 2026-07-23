@@ -21,7 +21,17 @@ import { isUpdateRequired } from "./app-version";
 /** The capability registry (docs/architecture/capability-registry.md must stay
  *  in lockstep). Capability-level nouns only — never components, never
  *  negatives. */
-export const CAPABILITIES = ["deposits", "instagram_import"] as const;
+export const CAPABILITIES = [
+  "deposits",
+  "instagram_import",
+  // BM-2.0 Stage 2 entitlement enforcement (dark-launched: parked in
+  // DISABLED_CAPABILITIES until go-live so each ships inert). Disabling any of
+  // these reverts to today's pre-enforcement behaviour (its coherent fallback):
+  "branding", // paused => the "made with Inklee" footer stays for everyone
+  "custom_templates", // paused => every tier can edit email templates
+  "analytics", // paused => advanced analytics visible to everyone
+  "entitlement_caps", // paused => custom-field/trip/studio caps not enforced
+] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
 export function isCapability(value: string): value is Capability {
