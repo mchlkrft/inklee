@@ -54,8 +54,19 @@ async function resolveArtistId(
     if (!customer.deleted && customer.metadata?.artist_id) {
       return customer.metadata.artist_id;
     }
-  } catch {
-    /* fall through to orphan handling */
+    // Customer exists but carries no artist_id: genuinely unattributable.
+  } catch (err) {
+    // A transient Stripe failure must NOT be misread as an orphan: that 200s the
+    // webhook and permanently drops the event (e.g. a missed downgrade). Re-throw
+    // so the webhook 500s and Stripe redelivers; converge-to-target makes the
+    // retry safe. Only a permanent error (e.g. resource_missing) falls through.
+    const e = err as { type?: string; statusCode?: number };
+    const transient =
+      e?.type === "StripeConnectionError" ||
+      e?.type === "StripeAPIError" ||
+      e?.statusCode === 429 ||
+      (typeof e?.statusCode === "number" && e.statusCode >= 500);
+    if (transient) throw err;
   }
   return null;
 }

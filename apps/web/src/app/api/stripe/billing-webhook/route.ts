@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
-import {
-  reconcileFromStripeSubscription,
-  reconcileSubscriptionById,
-} from "@/lib/server/billing/reconcile";
+import { reconcileSubscriptionById } from "@/lib/server/billing/reconcile";
 
 export const runtime = "nodejs";
 
@@ -44,22 +41,37 @@ export async function POST(request: Request) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
-        const r = await reconcileFromStripeSubscription(sub);
+        // Re-fetch CURRENT truth instead of trusting the event's frozen
+        // snapshot. Stripe does not guarantee event ordering and, on a failed
+        // (500) delivery, redelivers the ORIGINAL payload; reconciling that
+        // snapshot lets a stale event clobber newer state (a canceled artist
+        // could regain Plus, or a paying artist lose it). reconcileSubscriptionById
+        // reads the live subscription (a canceled one still resolves to
+        // status=canceled), so redelivery and out-of-order events converge
+        // correctly. (A monotonic event.created guard, migration follow-up, would
+        // close the residual sub-second concurrent-processing window.)
+        const snap = event.data.object as Stripe.Subscription;
+        const r = await reconcileSubscriptionById(snap.id);
         return NextResponse.json({ received: true, reconciled: r });
       }
 
       case "invoice.paid":
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        // invoice.subscription is a string in most versions; read defensively.
-        const subField = (
-          invoice as unknown as {
-            subscription?: string | { id: string } | null;
-          }
-        ).subscription;
-        const subId =
-          typeof subField === "string" ? subField : (subField?.id ?? null);
+        // basil (2025-03-31) removed the top-level invoice.subscription; on the
+        // pinned dahlia API it lives at parent.subscription_details.subscription.
+        // Read the current path first, then fall back to the legacy top-level
+        // for any pre-basil serialization.
+        const parentSub =
+          invoice.parent?.subscription_details?.subscription ?? null;
+        const legacySub =
+          (
+            invoice as unknown as {
+              subscription?: string | { id: string } | null;
+            }
+          ).subscription ?? null;
+        const raw = parentSub ?? legacySub;
+        const subId = typeof raw === "string" ? raw : (raw?.id ?? null);
         if (subId) {
           await reconcileSubscriptionById(subId);
         }

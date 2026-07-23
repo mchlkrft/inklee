@@ -273,10 +273,16 @@ export async function POST(request: Request) {
     const bookingId = intent.metadata?.booking_id;
 
     if (!bookingId) {
-      return NextResponse.json(
-        { error: "missing booking_id in metadata" },
-        { status: 400 },
-      );
+      // A platform-level payment_intent.succeeded with no booking_id is not a
+      // deposit. The isolated Plus billing flow fires this same account-level
+      // event for every subscription invoice payment (invoice PaymentIntents
+      // never carry booking_id), and Stripe delivers all events of a subscribed
+      // type here with no metadata filter. Acknowledge and skip so a foreign PI
+      // is never counted as a failed delivery that could push Stripe toward
+      // auto-disabling this endpoint (which would strand real deposits). Matches
+      // the payment_failed / charge.refunded branches, which already 200 on no
+      // match.
+      return NextResponse.json({ received: true, skipped: "no booking_id" });
     }
 
     const now = new Date().toISOString();

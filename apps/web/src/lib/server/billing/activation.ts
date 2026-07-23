@@ -70,6 +70,10 @@ export async function assertLiveBillingAllowedFor(
   const mode = resolveBillingMode();
   if (mode === "test") return;
   const approvals = await getActivationApprovals();
+  // TODO (hard pre-live requirement, see config.ts): resolve and pass
+  // `currentArtifacts` (terms/privacy versionHash, active tax-policy version) so
+  // a stale approval re-closes the gate. Not wired yet; must land, failing
+  // closed, before any b2b/b2c approval row is recorded.
   assertLiveBillingAllowed(group, {
     mode,
     approvals,

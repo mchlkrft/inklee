@@ -18,10 +18,19 @@ export function resolveBillingMode(): BillingMode {
 // The approval keys each activation group requires, mirroring
 // docs/legal/billing-decision-pack.md section F. Groups are additive
 // (technical < b2b < b2c) in the pure gate. A live charge for a group is
-// impossible until every key here has an approved, artifact-bound row in
+// impossible until every key here has an approved row in
 // billing_activation_approvals. Founder/dev cannot self-approve the
-// accountant/counsel keys; that boundary lives in the approval process, and the
-// bound_artifact check makes a stale approval fail closed.
+// accountant/counsel keys; that boundary lives in the approval process.
+//
+// STALE-ARTIFACT RE-CLOSE IS NOT YET WIRED. The pure gate CAN re-close a stale
+// approval when the current artifact version is supplied as `currentArtifacts`
+// (packages/shared/src/billing.ts), but the server path (activation.ts) does not
+// yet resolve and pass it. Wiring `currentArtifacts` (terms/privacy versionHash
+// from lib/legal/documents.ts, the active tax-policy version) into
+// assertLiveBillingAllowedFor is a HARD prerequisite before ANY b2b/b2c approval
+// row is recorded, and must fail closed if a bound artifact cannot be resolved.
+// Until wired, do not rely on artifact-version re-closing (tracked in the
+// billing activation checklist).
 export const REQUIRED_APPROVAL_KEYS: Record<ApprovalGroup, string[]> = {
   technical: [
     "schema_deployed",
