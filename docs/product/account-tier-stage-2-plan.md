@@ -50,7 +50,7 @@ Each contract must be approved before enforcement. "Current accounts affected" i
 | Authoritative enforcement point | The email-template save action (web action + `/api/mobile/settings/email-templates`): allow a custom body only when `canAccess(overrides, "custom_templates")` or the grandfather package grants it. The default template always sends regardless (deliverability is never paywalled). |
 | UI behavior | Template editor is read-only for non-entitled, non-grandfathered artists; editable for Plus and grandfathered. |
 | Upgrade behavior | Editor unlocks. |
-| Downgrade behavior | Editor locks to read-only. **The saved custom body is retained and keeps sending** (it is an active client-facing flow; reverting it would change what clients receive). This is the one place "read-only" is correct, not a revert. See ambiguity A1. |
+| Downgrade behavior | **DECIDED 2026-07-23: read-only, not revert.** Editor locks to read-only; the saved custom body is retained and keeps sending (it is an active client-facing flow; reverting would change what clients receive). A1 resolved. |
 | Grandfathering behavior | Full custom-template editing was genuinely available free before the cutover (unenforced), so `legacy_free_v1` preserves full editing. Only new (post-cutover) free artists are gated to default and read-only. |
 | Existing data behavior | Custom template bodies retained, keep sending. Never deleted. |
 | Required tests | New free is read-only; grandfathered free edits; Plus edits; downgrade keeps the existing body sending read-only; default always sends. |
@@ -111,7 +111,7 @@ Each contract must be approved before enforcement. "Current accounts affected" i
 | UI behavior | Free sees the basic dashboard; Plus sees the advanced views. |
 | Upgrade behavior | Advanced views unlock. |
 | Downgrade behavior | Advanced views hidden; basic stays. No data deleted (analytics are derived, not stored user data). Not a client-facing flow. |
-| Grandfathering behavior | Undecided, see ambiguity A3. Analytics is derived, not user data, and not a client obligation, so there is nothing to "preserve" except the view itself. Recommendation: gate for all free artists with a clear "trends are now a Plus feature" message, and do not grandfather. Alternative: preserve read-only for `legacy_free_v1`. Founder call. |
+| Grandfathering behavior | **DECIDED 2026-07-23: none, gate for all.** Advanced analytics is a Plus feature for every free artist including `legacy_free_v1`; a soft "trends are now a Plus feature" message is shown. Analytics is a derived view (no user data, no client obligation), so nothing is lost by not grandfathering. A3 resolved. |
 | Existing data behavior | None (derived). |
 | Required tests | Free gets basic only; Plus gets advanced; downgrade hides advanced; basic always renders. |
 | Analytics event | `advanced_analytics_viewed`, `upgrade_prompt_analytics`. |
@@ -127,7 +127,7 @@ The engine's Stage 1a placeholder numbers, now proposed for ratification, and wh
 | Limit | 1a placeholder | Proposed Free | Proposed Plus | Rationale and challenge |
 | --- | --- | --- | --- | --- |
 | `custom_fields` | 3 | 3 | 20 or unlimited | 3 covers a couple of extra questions and matches the DECISIONS.md MVP cap. No challenge. |
-| `active_trips` | 3 | **3 (recommend, not 1)** | unlimited | **Challenge the "one active trip" example.** Trips are the core free activation feature for the traveling and guest-spot artist segment (target user 4 in `business-model.md`). Capping to one active trip would cripple the primary free value for the exact segment Inklee most wants to attract, and it contradicts "the free tier must be genuinely useful". Recommend Free = 3 active trips; monetize scale (many concurrent trips), not the ability to travel at all. |
+| `active_trips` | 3 | **3 (DECIDED 2026-07-23)** | unlimited | Founder confirmed 3 active trips (not the "one active trip" example): trips are the core free activation feature for the traveling and guest-spot artist segment, so the ability to travel stays free; Plus monetizes scale (many concurrent trips). Metered unit = ACTIVE trips (trips overlapping today or future) per §2.4. |
 | `studio_library` | 5 | 5 | unlimited | Venue bookmarks; 5 is generous for a solo artist. No strong challenge; could be lower, but bookmarks are private and cheap. |
 
 `branding`, `custom_templates`, `analytics` are boolean (not limits). Final numbers are a founder decision (section 9).
@@ -148,10 +148,10 @@ Access only to functionality genuinely available to those accounts before the cu
 
 Concretely, per the contracts above:
 
-- `custom_templates`: preserved (full editing was available free).
+- `custom_templates`: preserved (full editing was available free); on downgrade, existing body keeps sending read-only (A1 resolved).
 - `extra_fields`, `extra_trips` (and `studio_library`): preserved as a per-account `limitOverride` equal to the cutover count (not unlimited-forever, not the Plus cap).
 - `branding`: not preserved (never available free).
-- `analytics`: undecided (A3).
+- `analytics`: NOT preserved (DECIDED 2026-07-23: gate for all free, A3 resolved).
 
 ### 4.3 Existing data
 
@@ -296,9 +296,9 @@ Deliverable: a reviewed report from these queries before any Stage 2 enforcement
 
 ## 7. Cases where grandfathering is unsafe or ambiguous
 
-- **A1: `custom_templates` downgrade.** Revert to default (changes the emails clients receive) versus keep the custom body sending read-only (a residual Plus benefit but no client-facing change). Recommendation: keep read-only, because a custom template body is an active client-facing flow the founder rule says not to disable without a migration. Founder confirmation requested.
+- **A1 (RESOLVED 2026-07-23): `custom_templates` downgrade = keep read-only.** The existing custom body keeps sending; only editing is locked. Chosen because a custom template body is an active client-facing flow the founder rule says not to disable without a migration.
 - **A2: limit grandfathering granularity.** For `extra_fields` / `extra_trips` / `studio_library`, does `legacy_free_v1` preserve unlimited-forever (pre-cutover reality was unenforced = unlimited), freeze at cutover count, or set `limitOverride = max(FreeCap, cutover count)`. Recommendation: the last one (existing items stay usable and replaceable, the count cannot grow past cutover, no Plus-generosity-forever). This treats the pre-cutover "unlimited" as an unenforced accident, not a promised product, while never breaking a live form.
-- **A3: `analytics` grandfathering.** Preserve advanced analytics for `legacy_free_v1` (a Plus benefit forever, but no data or flow at stake) versus gate for all free with messaging. Recommendation: gate for all free (analytics is a derived view, not user data or a client obligation), with a soft "trends are now Plus" message. Founder call.
+- **A3 (RESOLVED 2026-07-23): `analytics` = gate for all free, no grandfathering.** Advanced analytics is a Plus feature for every free artist; a derived view with no data or client flow at stake, so nothing is preserved.
 - **A4: the "unlimited was an accident" question.** Broadly: pre-cutover free had unlimited fields, trips, studios, and template editing only because the gates were unbuilt. Grandfathering should preserve what users actually built (their data and active flows) but should not enshrine the unenforced generosity as a permanent entitlement. A2 and the keep-active-but-cap-future rule operationalize this.
 - **A5: transfer and merge.** Grandfathering is personal-scope and non-transferable. There is no account-merge flow today, so this is forward-looking, but the rule must be encoded now so a future merge or studio-claim path does not silently copy or drop it. A studio claim must not move personal grandfathering into the studio scope (D3 separation).
 - **A6: comp versus grandfather ambiguity in the current data.** Today every non-free artist is a `comp` (beta). At cutover, reclassify deliberately (migration plan Phase 8): beta comps become `beta`, and the free cohort becomes `legacy_free_v1`. Do not let a beta comp be miscounted as a grandfathered free artist.
@@ -321,16 +321,16 @@ Do not expose goods controls in the entitlement admin UI until they correspond t
 
 ## 9. Business-model decisions still required before Stage 2 enforcement
 
-1. The exact Free limit numbers, especially `active_trips` (recommend 3, not the "one active trip" example, per section 3).
-2. The Plus limit numbers (`custom_fields`, `active_trips`, `studio_library`: a specific higher number or unlimited).
-3. A1: `custom_templates` downgrade behavior (revert versus read-only; recommend read-only).
-4. A3: `analytics` grandfathering (gate-for-all versus preserve-for-legacy; recommend gate-for-all).
-5. Whether `branding` is only footer removal or also "advanced customization" (and what "advanced" means).
-6. Whether the metered trip unit is "active trips" or "total trips".
-7. The cutover timestamp definition and eligibility rule (all active free created before cutover; testers and admins excluded).
-8. The `legacy_free_v1` package contents confirmation (which entitlements and `limitOverride` values it grants), after the dry-run report.
-9. Goods: D22 (take rate) and the commerce activation model, before any goods reconciliation (section 8).
-10. D6 (build billing) and the Plus price: not required to build Stage 2 enforcement, but the upgrade messaging (step 7) needs to know whether a purchase path exists or whether Plus stays comp-only during the enforcement rollout.
+**Resolved 2026-07-23:** `active_trips` Free = 3, metered as active trips (section 3); A1 `custom_templates` downgrade = read-only; A3 `analytics` = gate for all free, no grandfathering.
+
+Still required before Stage 2 enforcement:
+
+1. The Plus limit numbers (`custom_fields`, `active_trips`, `studio_library`: a specific higher number or unlimited). Free numbers are now set (3 / 3 active / 5).
+2. Whether `branding` is only footer removal or also "advanced customization" (and what "advanced" means).
+3. The cutover timestamp definition and eligibility rule (all active free created before cutover; testers and admins excluded).
+4. The `legacy_free_v1` package contents confirmation (which entitlements and `limitOverride` values it grants), after the dry-run report is run and reviewed.
+5. Goods: D22 (take rate) and the commerce activation model, before any goods reconciliation (section 8).
+6. D6 (build billing) and the Plus price: not required to build Stage 2 enforcement, but the upgrade messaging (step 7) needs to know whether a purchase path exists or whether Plus stays comp-only during the enforcement rollout.
 
 ---
 
