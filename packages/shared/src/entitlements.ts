@@ -267,17 +267,27 @@ export function isGrandfathered(o: AccountOverrides): boolean {
 }
 
 /** The override fields to write when a grandfathered account leaves a paid plan
- *  (subscription downgrade). Restores the cohort's `grantPackage` verbatim so the
- *  account returns to its grandfather state, not bare Free. Returns null for a
+ *  (subscription downgrade). Restores the cohort's `grantPackage` so the account
+ *  returns to its grandfather state, not bare Free. Returns null for a
  *  non-grandfathered account (the caller then does a plain Free downgrade).
  *
  *  `planSource` reverts to 'grandfathered' (billing overwrites it to 'paid' on
- *  upgrade; policyId, the DURABLE anchor, is what survives and drives this). The
- *  entitlement + limit overrides are re-applied from the package so the state is
- *  correct even if something cleared them while the account was on Plus. */
-export function restoreGrandfatherPackage(
-  o: Pick<AccountOverrides, "policyId" | "grantPackage">,
-): {
+ *  upgrade; policyId, the DURABLE anchor, is what survives and drives this).
+ *
+ *  The overrides MERGE the package (base) with the account's LIVE overrides
+ *  (winning on key conflict). entitlement_overrides / limit_overrides are a
+ *  SHARED column also written by admin actions, so a wholesale replace would
+ *  silently reverse an audited admin grant or suppression. Merging restores any
+ *  package key that was genuinely cleared while on Plus, while preserving admin
+ *  decisions. Pass the live values in; omit them and it behaves as a plain
+ *  package restore. */
+export function restoreGrandfatherPackage(o: {
+  policyId?: string | null;
+  grantPackage?: GrantPackage | null;
+  /** The account's LIVE overrides (admin decisions), merged over the package. */
+  entitlementOverrides?: Partial<Record<EntitlementFeature, boolean>>;
+  limitOverrides?: Partial<Record<EntitlementLimit, number | null>>;
+}): {
   planSource: GrantSource;
   entitlementOverrides: Partial<Record<EntitlementFeature, boolean>>;
   limitOverrides: Partial<Record<EntitlementLimit, number | null>>;
@@ -286,8 +296,11 @@ export function restoreGrandfatherPackage(
   const pkg = o.grantPackage ?? {};
   return {
     planSource: "grandfathered",
-    entitlementOverrides: { ...(pkg.features ?? {}) },
-    limitOverrides: { ...(pkg.limits ?? {}) },
+    entitlementOverrides: {
+      ...(pkg.features ?? {}),
+      ...(o.entitlementOverrides ?? {}),
+    },
+    limitOverrides: { ...(pkg.limits ?? {}), ...(o.limitOverrides ?? {}) },
   };
 }
 

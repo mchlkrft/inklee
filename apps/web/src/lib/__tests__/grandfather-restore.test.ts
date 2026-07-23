@@ -32,6 +32,34 @@ describe("restoreGrandfatherPackage", () => {
     expect(r!.limitOverrides).toEqual({});
   });
 
+  it("merges live admin overrides over the package (admin decisions win)", () => {
+    const r = restoreGrandfatherPackage({
+      policyId: "legacy_free_v1",
+      grantPackage: {
+        features: { custom_templates: true },
+        limits: { custom_fields: 5 },
+      },
+      // admin added deposits, suppressed custom_templates, and raised the cap
+      entitlementOverrides: { deposits: true, custom_templates: false },
+      limitOverrides: { custom_fields: 12 },
+    });
+    expect(r!.entitlementOverrides).toEqual({
+      custom_templates: false, // admin suppression preserved (live wins)
+      deposits: true, // admin grant preserved
+    });
+    expect(r!.limitOverrides).toEqual({ custom_fields: 12 }); // admin cap wins
+  });
+
+  it("restores a package key genuinely cleared while on Plus", () => {
+    const r = restoreGrandfatherPackage({
+      policyId: "legacy_free_v1",
+      grantPackage: { features: { custom_templates: true }, limits: {} },
+      entitlementOverrides: {}, // custom_templates was cleared while on Plus
+      limitOverrides: {},
+    });
+    expect(r!.entitlementOverrides).toEqual({ custom_templates: true });
+  });
+
   it("does not mutate the source package (returns copies)", () => {
     const pkg = { features: { custom_templates: true }, limits: {} };
     const r = restoreGrandfatherPackage({ policyId: "p", grantPackage: pkg });

@@ -55,33 +55,52 @@ async function guardedUpsert(input: {
   }
   const ts = Math.floor(eventCreated); // integer seconds; safe in the filter string
   const withTs = { ...payload, last_event_created: ts };
-  const { data: updated, error: updErr } = await serviceClient
-    .from(table)
-    .update(withTs)
-    .eq(matchCol, matchVal)
-    .or(`last_event_created.is.null,last_event_created.lte.${ts}`)
-    .select(matchCol);
-  if (updErr) {
-    throw new Error(`${table} guarded update failed: ${updErr.message}`);
-  }
-  if (updated && updated.length > 0) return { stale: false };
-  // 0 rows: either no row yet, or a newer event already applied.
-  const { data: existing } = await serviceClient
-    .from(table)
-    .select("last_event_created")
-    .eq(matchCol, matchVal)
-    .maybeSingle();
-  if (!existing) {
-    const { error: insErr } = await serviceClient.from(table).insert(withTs);
-    if (insErr) {
-      // 23505: a concurrent insert won the race; the other event applied.
-      if ((insErr as { code?: string }).code === "23505")
-        return { stale: true };
-      throw new Error(`${table} insert failed: ${insErr.message}`);
+  // Compare-and-retry loop. Staleness is NEVER inferred from mere row existence
+  // or a 23505 (that would let an OLDER concurrent insert suppress a NEWER
+  // event). We declare stale ONLY when a row exists whose stored event is
+  // genuinely newer-or-equal. The atomic guarded UPDATE re-evaluates its
+  // predicate under the row lock each iteration, so the loop converges: it
+  // applies once the row exists with stored <= ts, or confirms stale.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data: updated, error: updErr } = await serviceClient
+      .from(table)
+      .update(withTs)
+      .eq(matchCol, matchVal)
+      .or(`last_event_created.is.null,last_event_created.lte.${ts}`)
+      .select(matchCol);
+    if (updErr) {
+      throw new Error(`${table} guarded update failed: ${updErr.message}`);
     }
-    return { stale: false };
+    if (updated && updated.length > 0) return { stale: false };
+
+    // 0 rows: either no row yet, or an existing row to classify.
+    const { data: existing, error: selErr } = await serviceClient
+      .from(table)
+      .select("last_event_created")
+      .eq(matchCol, matchVal)
+      .maybeSingle();
+    if (selErr)
+      throw new Error(`${table} guard read failed: ${selErr.message}`);
+
+    if (existing) {
+      const stored = (existing as { last_event_created: number | null })
+        .last_event_created;
+      // A strictly-newer (or equal, already-applied) event won: genuinely stale.
+      if (stored != null && stored >= ts) return { stale: true };
+      // Row exists but stored < ts (a concurrent OLDER event just inserted it);
+      // retry so the guarded UPDATE applies this newer event.
+      continue;
+    }
+
+    // No row yet: insert. A concurrent insert (23505) means a row now exists;
+    // loop back to the guarded UPDATE to re-evaluate order, never assume stale.
+    const { error: insErr } = await serviceClient.from(table).insert(withTs);
+    if (!insErr) return { stale: false };
+    if ((insErr as { code?: string }).code === "23505") continue;
+    throw new Error(`${table} insert failed: ${insErr.message}`);
   }
-  return { stale: true }; // row exists with a newer last_event_created
+  // Pathological churn: surface so the webhook 500s and Stripe redelivers.
+  throw new Error(`${table} guardedUpsert did not converge`);
 }
 
 function customerIdOf(sub: Stripe.Subscription): string {
@@ -212,18 +231,26 @@ export async function reconcileFromStripeSubscription(
   //    manifest themselves are NEVER written here.
   const { data: existing } = await serviceClient
     .from("account_overrides")
-    .select("policy_id, plan_source, grant_package")
+    .select(
+      "policy_id, plan_source, grant_package, entitlement_overrides, limit_overrides",
+    )
     .eq("artist_id", artistId)
     .maybeSingle();
 
   // Grandfather restore applies only on the downgrade (to Free). On upgrade the
   // package stays intact (Plus is a superset) and plan_source becomes 'paid'.
+  // Passing the LIVE overrides makes the restore MERGE (admin decisions win)
+  // instead of wiping the shared entitlement/limit columns.
   const restore =
     planTier === "free"
       ? restoreGrandfatherPackage({
           policyId: (existing?.policy_id as string | null) ?? null,
           grantPackage:
             (existing?.grant_package as GrantPackage | null) ?? null,
+          entitlementOverrides:
+            (existing?.entitlement_overrides as GrantPackage["features"]) ?? {},
+          limitOverrides:
+            (existing?.limit_overrides as GrantPackage["limits"]) ?? {},
         })
       : null;
 
