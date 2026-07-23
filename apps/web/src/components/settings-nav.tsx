@@ -5,6 +5,7 @@ const ITEMS = [
   { label: "Emails", href: "/settings/emails" },
   { label: "Calendar", href: "/settings/calendar" },
   { label: "Payouts", href: "/settings/payouts" },
+  { label: "Plan", href: "/settings/plan" },
   { label: "Dashboard", href: "/settings/dashboard" },
   { label: "Account", href: "/settings/account" },
   { label: "Support", href: "/support" },
