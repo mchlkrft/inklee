@@ -4,24 +4,16 @@
 // + docs/bio-page-goods-plan.md §8) will flip. NO billing, NO plan enforcement
 // here: this only gives us one place to read a flag from.
 
-export type FeatureKey =
-  | "bio_page_modules"
-  | "goods_module"
-  | "checkout_addons";
+export type FeatureKey = "goods_module" | "checkout_addons";
 
 export type Features = Record<FeatureKey, boolean>;
 
 export const DEFAULT_FEATURES: Features = {
-  bio_page_modules: true,
   goods_module: true,
   checkout_addons: true,
 };
 
-const KEYS: FeatureKey[] = [
-  "bio_page_modules",
-  "goods_module",
-  "checkout_addons",
-];
+const KEYS: FeatureKey[] = ["goods_module", "checkout_addons"];
 
 export function parseFeatures(raw: unknown): Features {
   const out: Features = { ...DEFAULT_FEATURES };
@@ -67,9 +59,13 @@ export function canChargeCheckoutAddons(settings: unknown): boolean {
   return process.env.CHECKOUT_ADDONS_PROD_READY === "true";
 }
 
-export function canUseBioModules(settings: unknown): boolean {
-  return featuresFromSettings(settings).bio_page_modules;
-}
+// There is intentionally NO bio-page / Linklee-hub feature flag here. The bio
+// hub is a PERMANENTLY FREE feature by founder decision (docs/product/
+// account-and-entitlement-system.md; the inklee-hub-feature decision), not a
+// future paywall gate. The former `bio_page_modules` flag + `canUseBioModules`
+// helper were dead placeholders (read nowhere in web, mobile, or shared code)
+// and were removed in BM-2.0 so nothing implies a bio paywall exists. Do not
+// reintroduce a bio flag unless a real, server-enforced bio entitlement ships.
 
 /**
  * RS-3 master park switch (money-scope reset 2026-06-03). Parks the PAYABLE

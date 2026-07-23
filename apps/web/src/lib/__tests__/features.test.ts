@@ -5,7 +5,6 @@ import {
   canUseGoods,
   canUseCheckoutAddons,
   canChargeCheckoutAddons,
-  canUseBioModules,
   isGoodsCommerceEnabled,
   DEFAULT_FEATURES,
 } from "../features";
@@ -42,7 +41,6 @@ describe("featuresFromSettings + helpers", () => {
     expect(canUseGoods(null)).toBe(true);
     expect(canUseGoods({})).toBe(true);
     expect(canUseCheckoutAddons({})).toBe(true);
-    expect(canUseBioModules({})).toBe(true);
   });
 });
 
