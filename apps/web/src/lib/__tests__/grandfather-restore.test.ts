@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { restoreGrandfatherPackage } from "@/lib/entitlements";
+import {
+  restoreGrandfatherPackage,
+  computeLegacyFreeV1Grant,
+  LEGACY_FREE_V1,
+} from "@/lib/entitlements";
 
 describe("restoreGrandfatherPackage", () => {
   it("returns null for a non-grandfathered account (plain Free downgrade)", () => {
@@ -65,5 +69,37 @@ describe("restoreGrandfatherPackage", () => {
     const r = restoreGrandfatherPackage({ policyId: "p", grantPackage: pkg });
     r!.entitlementOverrides.branding = true;
     expect(pkg.features).toEqual({ custom_templates: true });
+  });
+});
+
+describe("computeLegacyFreeV1Grant", () => {
+  it("always preserves custom-template editing for the cohort", () => {
+    const g = computeLegacyFreeV1Grant({});
+    expect(g.features).toEqual({ custom_templates: true });
+    expect(LEGACY_FREE_V1).toBe("legacy_free_v1");
+  });
+
+  it("adds no limit override when every count is within the Free cap", () => {
+    const g = computeLegacyFreeV1Grant({
+      custom_fields: 3,
+      active_trips: 2,
+      studio_library: 5,
+    });
+    expect(g.limits).toEqual({});
+  });
+
+  it("preserves only the counts that EXCEED the Free cap", () => {
+    const g = computeLegacyFreeV1Grant({
+      custom_fields: 7, // > 3
+      active_trips: 1, // <= 3
+      studio_library: 9, // > 5
+    });
+    expect(g.limits).toEqual({ custom_fields: 7, studio_library: 9 });
+  });
+
+  it("does not grant branding or analytics", () => {
+    const g = computeLegacyFreeV1Grant({ custom_fields: 99 });
+    expect(g.features).toEqual({ custom_templates: true });
+    expect(g.features?.branding).toBeUndefined();
   });
 });

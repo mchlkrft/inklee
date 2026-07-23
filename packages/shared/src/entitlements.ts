@@ -304,6 +304,29 @@ export function restoreGrandfatherPackage(o: {
   };
 }
 
+/** The durable grandfather policy identifier for the launch-cutover Free cohort. */
+export const LEGACY_FREE_V1 = "legacy_free_v1";
+
+/** Compute the `legacy_free_v1` grandfather package from an artist's cutover-era
+ *  usage. The cohort keeps custom-template EDITING (genuinely available to free
+ *  artists before enforcement) and any per-limit count that EXCEEDS the Free cap
+ *  (so an existing over-cap count stays usable and replaceable; a count within
+ *  the cap needs no override, as the Free baseline already covers it). `branding`
+ *  (a new Plus perk) and `analytics` (gated for all, no grandfather) are NOT
+ *  granted. This is the manifest stored in account_overrides.grant_package and
+ *  applied to entitlement_overrides / limit_overrides at backfill. */
+export function computeLegacyFreeV1Grant(
+  counts: Partial<Record<EntitlementLimit, number>>,
+): GrantPackage {
+  const limits: Partial<Record<EntitlementLimit, number | null>> = {};
+  for (const key of ENTITLEMENT_LIMITS) {
+    const cap = PLAN_LIMITS.free[key];
+    const count = counts[key] ?? 0;
+    if (cap !== null && count > cap) limits[key] = count;
+  }
+  return { features: { custom_templates: true }, limits };
+}
+
 /** True when Inklee is currently covering this artist's deposit fee (active,
  *  not expired, and the budget is not already exhausted).
  *
