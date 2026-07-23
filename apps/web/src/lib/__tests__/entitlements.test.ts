@@ -4,7 +4,10 @@ import {
   canSponsorFeeCents,
   daysUntilPlanExpiry,
   effectivePlanTier,
+  explainFeature,
+  explainLimit,
   isFeeSponsorshipActive,
+  isGrandfathered,
   isKnownPlanTier,
   limitFor,
   sponsorshipOverspentCents,
@@ -191,8 +194,9 @@ describe("limitFor / withinLimit", () => {
 
   it("returns the higher plus-tier cap on an active plus plan", () => {
     const o = base({ planTier: "plus" });
-    expect(limitFor(o, "custom_fields")).toBe(10);
-    expect(limitFor(o, "studio_library")).toBe(15);
+    expect(limitFor(o, "active_trips")).toBe(100); // decided
+    expect(limitFor(o, "custom_fields")).toBe(30);
+    expect(limitFor(o, "studio_library")).toBe(50);
   });
 
   it("falls back to the free cap when a plus comp has expired", () => {
@@ -246,6 +250,97 @@ describe("isKnownPlanTier (widening guard)", () => {
     expect(isKnownPlanTier("")).toBe(false);
     expect(isKnownPlanTier(null)).toBe(false);
     expect(isKnownPlanTier(undefined)).toBe(false);
+  });
+});
+
+// BM-2.0 Stage 2: grandfather provenance. A grandfathered FREE artist carries
+// the package applied into entitlement_overrides + limit_overrides, plus the
+// declarative grant_package + policyId, so the engine (and the admin panel) can
+// say WHY access was granted, with no isLegacyUser branch anywhere.
+describe("explainFeature / explainLimit / isGrandfathered", () => {
+  const grandfathered = base({
+    planTier: "free",
+    planSource: "grandfathered",
+    policyId: "legacy_free_v1",
+    entitlementOverrides: { custom_templates: true },
+    limitOverrides: { custom_fields: 12 },
+    grantPackage: {
+      features: { custom_templates: true },
+      limits: { custom_fields: 12 },
+    },
+  });
+
+  it("resolves a grandfathered free artist's features through the package", () => {
+    // custom_templates preserved by the policy => grandfather provenance
+    expect(explainFeature(grandfathered, "custom_templates")).toEqual({
+      granted: true,
+      via: "grandfather",
+      policyId: "legacy_free_v1",
+    });
+    expect(canAccess(grandfathered, "custom_templates")).toBe(true);
+    // branding / analytics are never grandfathered
+    expect(explainFeature(grandfathered, "branding")).toEqual({
+      granted: false,
+      via: "none",
+    });
+    expect(canAccess(grandfathered, "branding")).toBe(false);
+    expect(canAccess(grandfathered, "analytics")).toBe(false);
+  });
+
+  it("attributes a manual admin override to `override`, not grandfather", () => {
+    // granted, no policy => manual override
+    expect(
+      explainFeature(
+        base({ entitlementOverrides: { deposits: true } }),
+        "deposits",
+      ),
+    ).toEqual({ granted: true, via: "override" });
+    // an admin grant NOT in the package, even on a grandfathered account, is manual
+    const adminBranding = base({
+      policyId: "legacy_free_v1",
+      grantPackage: { features: { custom_templates: true } },
+      entitlementOverrides: { branding: true },
+    });
+    expect(explainFeature(adminBranding, "branding")).toEqual({
+      granted: true,
+      via: "override",
+    });
+  });
+
+  it("attributes plan-baseline access to `plan`", () => {
+    expect(explainFeature(base({ planTier: "plus" }), "branding")).toEqual({
+      granted: true,
+      via: "plan",
+    });
+  });
+
+  it("explains limit caps by source", () => {
+    expect(explainLimit(grandfathered, "custom_fields")).toEqual({
+      cap: 12,
+      via: "grandfather",
+      policyId: "legacy_free_v1",
+    });
+    expect(limitFor(grandfathered, "custom_fields")).toBe(12);
+    expect(explainLimit(base(), "custom_fields")).toEqual({
+      cap: 3,
+      via: "plan",
+    });
+    // manual cap (no matching package value) => override
+    expect(
+      explainLimit(
+        base({ limitOverrides: { custom_fields: 20 } }),
+        "custom_fields",
+      ),
+    ).toEqual({ cap: 20, via: "override" });
+  });
+
+  it("isGrandfathered keys off policyId and survives an upgrade to plus", () => {
+    expect(isGrandfathered(grandfathered)).toBe(true);
+    expect(isGrandfathered(base())).toBe(false);
+    // upgrade keeps the durable anchor
+    expect(
+      isGrandfathered(base({ planTier: "plus", policyId: "legacy_free_v1" })),
+    ).toBe(true);
   });
 });
 

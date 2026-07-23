@@ -77,7 +77,11 @@ const PLAN_FEATURES: Record<PlanTier, readonly EntitlementFeature[]> = {
   plus: ENTITLEMENT_FEATURES,
 };
 
-// Baseline numeric limits per tier. `null` = unlimited. PROVISIONAL (see above).
+// Baseline numeric limits per tier. `null` = unlimited. Free caps DECIDED by the
+// founder 2026-07-23 (3 / 3 active trips / 5). Plus: active_trips = 100 DECIDED;
+// custom_fields = 30 and studio_library = 50 are PROPOSED pending confirm. Still
+// enforced nowhere (Stage 2 wires create-time checks), so changing a number is a
+// one-line, zero-risk edit.
 const PLAN_LIMITS: Record<PlanTier, Record<EntitlementLimit, number | null>> = {
   free: {
     custom_fields: 3,
@@ -85,26 +89,57 @@ const PLAN_LIMITS: Record<PlanTier, Record<EntitlementLimit, number | null>> = {
     studio_library: 5,
   },
   plus: {
-    custom_fields: 10,
-    active_trips: 10,
-    studio_library: 15,
+    custom_fields: 30, // proposed, pending confirm
+    active_trips: 100, // decided
+    studio_library: 50, // proposed, pending confirm
   },
+};
+
+// Why an account is on its current plan. `paid` = a Stripe subscription (written
+// by the billing workstream); `comp` = an admin grant; `grandfathered` = the
+// legacy_free_v1 cohort (durably anchored by policyId, NOT by this label, which
+// billing overwrites on upgrade); `beta` = a beta cohort; `store` reserved for a
+// future in-app-purchase source (not built; billing is web-only, D17).
+export type GrantSource = "comp" | "paid" | "store" | "grandfathered" | "beta";
+
+// The declarative manifest of what a policy grant (e.g. legacy_free_v1)
+// preserved. The APPLIED values live in entitlementOverrides + limitOverrides;
+// this is the audit/restore record so a downgrade can re-apply the exact package.
+export type GrantPackage = {
+  features?: Partial<Record<EntitlementFeature, boolean>>;
+  limits?: Partial<Record<EntitlementLimit, number | null>>;
 };
 
 export type AccountOverrides = {
   planTier: PlanTier;
-  planSource: "comp" | "paid" | null;
+  planSource: GrantSource | null;
   planExpiresAt: string | null;
   entitlementOverrides: Partial<Record<EntitlementFeature, boolean>>;
-  // Per-account numeric limit overrides (beat the tier baseline). Optional so
-  // adding it is non-breaking; storage arrives with the billing schema phase.
-  // A value of `null` means "unlimited for this account".
+  // Per-account numeric limit overrides (beat the tier baseline). A value of
+  // `null` means "unlimited for this account". Storage lands in migration 0105
+  // (account_overrides.limit_overrides).
   limitOverrides?: Partial<Record<EntitlementLimit, number | null>>;
   feeSponsored: boolean;
   feeSponsorExpiresAt: string | null;
   feeSponsorCapCents: number | null;
   feeSponsoredUsedCents: number;
   adminNotes: string | null;
+  // Stage 2 billing state (migration 0105). Read-only in the engine; written by
+  // the billing workstream's Stripe webhook. Optional so adding them is
+  // non-breaking (undefined before the reader is extended). The engine resolves
+  // access from planTier/planExpiresAt, which the webhook keeps current, so it
+  // never needs to inspect these directly.
+  subscriptionStatus?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  // Stage 2 grandfather / grant provenance (migration 0105). policyId is the
+  // durable cohort anchor (survives an upgrade to Plus).
+  policyId?: string | null;
+  grantedAt?: string | null;
+  cutoverTs?: string | null;
+  grantExpiresAt?: string | null;
+  grantReason?: string | null;
+  grantPackage?: GrantPackage | null;
 };
 
 export const DEFAULT_OVERRIDES: AccountOverrides = {
@@ -162,6 +197,73 @@ export function withinLimit(
 ): boolean {
   const cap = limitFor(o, key);
   return cap === null || count < cap;
+}
+
+// --- Provenance: why a feature/limit is (not) granted. Pure, so admin server
+// code and any UI share one answer. Lets the admin panel render, e.g.,
+// "custom templates available because grandfathered under legacy_free_v1". ---
+
+export type GrantVia = "override" | "grandfather" | "plan" | "none";
+
+export type FeatureProvenance = {
+  granted: boolean;
+  via: GrantVia;
+  policyId?: string;
+};
+
+/** Why `feature` is (or is not) granted, mirroring canAccess precedence: an
+ *  explicit admin override wins; an override that came FROM a policy package
+ *  (present in grantPackage.features with a policyId set) is attributed to the
+ *  grandfather; otherwise the plan baseline. */
+export function explainFeature(
+  o: AccountOverrides,
+  feature: EntitlementFeature,
+): FeatureProvenance {
+  const override = o.entitlementOverrides[feature];
+  if (typeof override === "boolean") {
+    const fromPolicy =
+      override === true &&
+      !!o.policyId &&
+      o.grantPackage?.features?.[feature] === true;
+    return {
+      granted: override,
+      via: fromPolicy ? "grandfather" : "override",
+      ...(fromPolicy ? { policyId: o.policyId ?? undefined } : {}),
+    };
+  }
+  const byPlan = PLAN_FEATURES[effectivePlanTier(o)].includes(feature);
+  return { granted: byPlan, via: byPlan ? "plan" : "none" };
+}
+
+export type LimitProvenance = {
+  cap: number | null;
+  via: "override" | "grandfather" | "plan";
+  policyId?: string;
+};
+
+/** Why `key` has its cap: a per-account override wins; an override equal to the
+ *  grant-package value with a policyId set is a grandfather cap; else the plan
+ *  baseline. */
+export function explainLimit(
+  o: AccountOverrides,
+  key: EntitlementLimit,
+): LimitProvenance {
+  const override = o.limitOverrides?.[key];
+  if (override !== undefined) {
+    const pkg = o.grantPackage?.limits?.[key];
+    const fromPolicy = !!o.policyId && pkg !== undefined && pkg === override;
+    return {
+      cap: override,
+      via: fromPolicy ? "grandfather" : "override",
+      ...(fromPolicy ? { policyId: o.policyId ?? undefined } : {}),
+    };
+  }
+  return { cap: PLAN_LIMITS[effectivePlanTier(o)][key], via: "plan" };
+}
+
+/** True when the account belongs to any grandfather cohort (a policy grant). */
+export function isGrandfathered(o: AccountOverrides): boolean {
+  return !!o.policyId;
 }
 
 /** True when Inklee is currently covering this artist's deposit fee (active,
