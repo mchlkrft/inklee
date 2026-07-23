@@ -36,7 +36,7 @@ export const REQUIRED_APPROVAL_KEYS: Record<ApprovalGroup, string[]> = {
     "isolation_tested",
   ],
   b2b: [
-    "tax_policy_approved", // accountant
+    "tax_policy_approved", // management board (accountant/tax review recorded as evidence)
     "business_declaration_approved", // counsel
     "terms_approved", // counsel
     "invoice_config_approved", // accountant

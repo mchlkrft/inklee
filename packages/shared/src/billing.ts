@@ -64,14 +64,68 @@ export type VatCustomerStatus =
   | "non_eu_business"
   | "manual_review";
 
+// Distinct tax treatments. A zero-VAT outcome is NEVER a generic "out of scope":
+// the specific legal basis is preserved, because each drives different invoice
+// wording and different obligations (an Estonian SaaS supplies electronically
+// delivered services cross-border, so the basis matters).
 export type TaxTreatment =
   | "unresolved"
-  | "domestic_standard"
-  | "reverse_charge"
-  | "oss_destination"
-  | "zero_rated_export"
-  | "out_of_scope"
+  | "domestic_standard" // Estonian VAT charged at the domestic rate
+  | "small_business_exemption" // EE special scheme for small enterprises, no VAT
+  | "reverse_charge" // recipient accounts for VAT
+  | "place_of_supply_outside_estonia" // supply outside the scope of EE VAT
+  | "customer_country_vat" // VAT at the customer's country rate (OSS)
+  | "cross_border_sme_exemption" // cross-border SME scheme, no VAT
+  | "manual_review" // treatment cannot be auto-derived; hold for review
   | "blocked";
+
+// The customer classes the tax posture must distinguish (at minimum). Keyed by
+// residence + status, because an Estonian customer, an EU VAT business, an EU
+// consumer, and a non-EU consumer each get a different treatment.
+export type TaxCustomerClass =
+  | "estonian"
+  | "eu_business_vat"
+  | "eu_business_no_vat"
+  | "eu_consumer"
+  | "non_eu_business"
+  | "non_eu_consumer"
+  | "manual_review";
+
+// EU member states (ISO alpha-2). Estonia is handled as its own domestic class.
+export const EU_COUNTRIES: ReadonlySet<string> = new Set([
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU",
+  "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES",
+  "SE",
+]);
+
+/** Derive the tax customer class from the classification + the customer's
+ *  country. Unknown country or a review-flagged classification resolves to
+ *  manual_review (never guessed). */
+export function taxClassFor(input: {
+  contractCustomerType: ContractCustomerType;
+  vatCustomerStatus: VatCustomerStatus;
+  countryCode: string | null;
+}): TaxCustomerClass {
+  const cc = (input.countryCode ?? "").toUpperCase();
+  if (
+    input.contractCustomerType === "manual_review" ||
+    input.vatCustomerStatus === "manual_review"
+  ) {
+    return "manual_review";
+  }
+  if (cc === "EE") return "estonian";
+  if (!cc) return "manual_review"; // country unknown -> never guess EU vs non-EU
+  const isBusiness = input.contractCustomerType === "business";
+  if (EU_COUNTRIES.has(cc)) {
+    if (isBusiness) {
+      return input.vatCustomerStatus === "eu_vat_registered_business"
+        ? "eu_business_vat"
+        : "eu_business_no_vat";
+    }
+    return "eu_consumer";
+  }
+  return isBusiness ? "non_eu_business" : "non_eu_consumer";
+}
 
 export type TaxBehavior = "inclusive" | "exclusive";
 
@@ -251,85 +305,139 @@ export type TaxTreatmentRule = {
   note?: string;
 };
 
+// The tax posture's approval. Legal responsibility for the posture sits with the
+// company's MANAGEMENT BOARD, so the board is the approving authority; a founder,
+// developer, or single employee cannot substitute. Professional (accountant/tax
+// adviser) review is strongly recommended and recorded as EVIDENCE, but is NOT
+// represented as legally mandatory unless a specific statutory provision is
+// identified (it is optional here).
+export type TaxPostureApproval = {
+  managementBoardApproved: boolean;
+  approvedBy: string;
+  approvedAt: string;
+  approvalBasis: string;
+  evidenceReferences: string[];
+  professionalReviewer?: string | null;
+  professionalReviewDate?: string | null;
+  nextMandatoryReviewAt: string;
+  postureVersion: string;
+};
+
 export type TaxPolicy = {
   versionLabel: string;
   sellerCountry: string;
   sellerVatRegistered: boolean;
   ossRegistered: boolean;
-  /** Only an accountant sets this. Founder/dev cannot. Null/false = not live. */
-  approvedByAccountant: boolean;
-  /** Data: VatCustomerStatus -> rule. Owned by the accountant. */
-  treatmentRules: Partial<Record<VatCustomerStatus, TaxTreatmentRule>>;
+  approval: TaxPostureApproval;
+  /** Data: TaxCustomerClass -> rule. Each rule keeps a specific treatment (never
+   *  a generic out_of_scope), so the invoice wording follows from it. */
+  treatmentRules: Partial<Record<TaxCustomerClass, TaxTreatmentRule>>;
 };
 
 export type TaxDerivation = {
   treatment: TaxTreatment;
   reverseCharge: boolean;
   taxCode?: string;
+  /** Invoice/receipt wording, generated FROM the treatment (never one note for
+   *  all classes). */
+  invoiceNote: string;
   blocked: boolean;
   blockedReason?: string;
   reasons: string[];
 };
 
+/** The invoice/receipt VAT note for a treatment. Generated strictly from the
+ *  treatment so a reverse-charge sale never shows a small-business note, and a
+ *  cross-border SME-exempt sale never shows a reverse-charge note. */
+export function invoiceNoteForTreatment(treatment: TaxTreatment): string {
+  switch (treatment) {
+    case "domestic_standard":
+      return "VAT charged at the Estonian standard rate.";
+    case "small_business_exemption":
+      return "VAT exempt under the Estonian special scheme for small enterprises.";
+    case "reverse_charge":
+      return "Reverse charge: VAT to be accounted for by the recipient.";
+    case "place_of_supply_outside_estonia":
+      return "Outside the scope of Estonian VAT (place of supply outside Estonia).";
+    case "customer_country_vat":
+      return "VAT charged at the rate of the customer's country.";
+    case "cross_border_sme_exemption":
+      return "VAT exempt under the cross-border small-enterprise scheme.";
+    case "manual_review":
+      return "Tax treatment pending review.";
+    case "blocked":
+    case "unresolved":
+    default:
+      return "Tax treatment not determined.";
+  }
+}
+
 export function deriveTaxTreatment(input: {
   policy: TaxPolicy;
-  classification: Pick<
-    Classification,
-    "vatCustomerStatus" | "blocksCharge"
-  >;
+  taxClass: TaxCustomerClass;
+  blocksCharge: boolean;
 }): TaxDerivation {
-  const { policy, classification } = input;
+  const { policy, taxClass, blocksCharge } = input;
 
-  if (!policy.approvedByAccountant) {
+  if (!policy.approval.managementBoardApproved) {
     return {
       treatment: "blocked",
       reverseCharge: false,
+      invoiceNote: invoiceNoteForTreatment("blocked"),
       blocked: true,
       blockedReason:
-        "Tax policy is not accountant-approved; no live treatment may be derived.",
+        "Tax posture is not management-board-approved; no live treatment may be derived.",
       reasons: [],
     };
   }
 
-  if (classification.blocksCharge) {
+  if (blocksCharge || taxClass === "manual_review") {
     return {
-      treatment: "blocked",
+      treatment: "manual_review",
       reverseCharge: false,
+      invoiceNote: invoiceNoteForTreatment("manual_review"),
       blocked: true,
-      blockedReason: "Classification blocks the charge (manual review).",
+      blockedReason:
+        "Classification blocks the charge, or the tax class needs manual review.",
       reasons: [],
     };
   }
 
-  const rule = policy.treatmentRules[classification.vatCustomerStatus];
+  const rule = policy.treatmentRules[taxClass];
   if (!rule) {
-    // The accountant policy has no mapping for this class. Block rather than
-    // guess a treatment.
+    // The posture has no mapping for this class. Block rather than guess.
     return {
       treatment: "blocked",
       reverseCharge: false,
+      invoiceNote: invoiceNoteForTreatment("blocked"),
       blocked: true,
-      blockedReason: `No tax rule for customer class '${classification.vatCustomerStatus}' in policy '${policy.versionLabel}'.`,
+      blockedReason: `No tax rule for customer class '${taxClass}' in posture '${policy.versionLabel}'.`,
       reasons: [],
     };
   }
 
-  // Reverse charge is only ever emitted when the class is an EU VAT-registered
-  // business (VIES-valid). Belt-and-braces against a mis-authored rule.
-  const reverseCharge =
-    rule.reverseCharge &&
-    classification.vatCustomerStatus === "eu_vat_registered_business";
+  // Reverse charge is only ever emitted for an EU VAT-registered business.
+  const reverseCharge = rule.reverseCharge && taxClass === "eu_business_vat";
+  const treatment = reverseCharge
+    ? rule.treatment
+    : rule.treatment === "reverse_charge"
+      ? "manual_review" // rule asked for reverse charge but the class can't; do not guess
+      : rule.treatment;
 
   return {
-    treatment: rule.treatment,
+    treatment,
     reverseCharge,
     taxCode: rule.taxCode,
+    // Invoice wording follows the resolved treatment, not free text.
+    invoiceNote: invoiceNoteForTreatment(treatment),
     blocked: false,
     reasons: [
-      `Applied rule for '${classification.vatCustomerStatus}' from policy '${policy.versionLabel}'.`,
+      `Applied rule for '${taxClass}' from posture '${policy.versionLabel}'.`,
       ...(rule.note ? [rule.note] : []),
       ...(rule.reverseCharge && !reverseCharge
-        ? ["Rule requested reverse charge but the class does not support it; withheld."]
+        ? [
+            "Rule requested reverse charge but the class does not support it; treatment held for review.",
+          ]
         : []),
     ],
   };

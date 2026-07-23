@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   classifyCustomer,
   deriveTaxTreatment,
+  taxClassFor,
+  invoiceNoteForTreatment,
   buildQuote,
   subscriptionGrantsPlus,
   planTierForSubscription,
@@ -116,92 +118,207 @@ describe("classifyCustomer", () => {
 // ---------------------------------------------------------------------------
 // 2. Tax treatment (accountant-gated, law-in-data)
 // ---------------------------------------------------------------------------
+const approval = {
+  managementBoardApproved: true,
+  approvedBy: "Management board",
+  approvedAt: "2026-07-23T00:00:00Z",
+  approvalBasis: "Estonian small-business posture, unregistered",
+  evidenceReferences: ["board-resolution-1"],
+  nextMandatoryReviewAt: "2027-01-01T00:00:00Z",
+  postureVersion: "ee-unregistered-v1",
+};
 const approvedPolicy: TaxPolicy = {
   versionLabel: "ee-unregistered-v1",
   sellerCountry: "EE",
   sellerVatRegistered: false,
   ossRegistered: false,
-  approvedByAccountant: true,
+  approval,
   treatmentRules: {
-    eu_vat_registered_business: {
-      treatment: "reverse_charge",
-      reverseCharge: true,
-    },
-    business_without_vat: { treatment: "out_of_scope", reverseCharge: false },
-    private_non_taxable: {
-      treatment: "domestic_standard",
+    estonian: { treatment: "small_business_exemption", reverseCharge: false },
+    eu_business_vat: { treatment: "reverse_charge", reverseCharge: true },
+    eu_business_no_vat: {
+      treatment: "place_of_supply_outside_estonia",
       reverseCharge: false,
     },
-    non_eu_business: { treatment: "zero_rated_export", reverseCharge: false },
+    eu_consumer: {
+      treatment: "cross_border_sme_exemption",
+      reverseCharge: false,
+    },
+    non_eu_business: {
+      treatment: "place_of_supply_outside_estonia",
+      reverseCharge: false,
+    },
+    non_eu_consumer: {
+      treatment: "place_of_supply_outside_estonia",
+      reverseCharge: false,
+    },
   },
 };
 
-describe("deriveTaxTreatment", () => {
-  it("blocks when the tax policy is not accountant-approved", () => {
-    const d = deriveTaxTreatment({
-      policy: { ...approvedPolicy, approvedByAccountant: false },
-      classification: {
+describe("taxClassFor", () => {
+  it("distinguishes the six classes", () => {
+    expect(
+      taxClassFor({
+        contractCustomerType: "consumer",
+        vatCustomerStatus: "private_non_taxable",
+        countryCode: "EE",
+      }),
+    ).toBe("estonian");
+    expect(
+      taxClassFor({
+        contractCustomerType: "business",
         vatCustomerStatus: "eu_vat_registered_business",
-        blocksCharge: false,
+        countryCode: "DE",
+      }),
+    ).toBe("eu_business_vat");
+    expect(
+      taxClassFor({
+        contractCustomerType: "business",
+        vatCustomerStatus: "business_without_vat",
+        countryCode: "DE",
+      }),
+    ).toBe("eu_business_no_vat");
+    expect(
+      taxClassFor({
+        contractCustomerType: "consumer",
+        vatCustomerStatus: "private_non_taxable",
+        countryCode: "FR",
+      }),
+    ).toBe("eu_consumer");
+    expect(
+      taxClassFor({
+        contractCustomerType: "business",
+        vatCustomerStatus: "non_eu_business",
+        countryCode: "US",
+      }),
+    ).toBe("non_eu_business");
+    expect(
+      taxClassFor({
+        contractCustomerType: "consumer",
+        vatCustomerStatus: "private_non_taxable",
+        countryCode: "US",
+      }),
+    ).toBe("non_eu_consumer");
+  });
+
+  it("unknown country or a review flag resolves to manual_review (never guessed)", () => {
+    expect(
+      taxClassFor({
+        contractCustomerType: "business",
+        vatCustomerStatus: "eu_vat_registered_business",
+        countryCode: null,
+      }),
+    ).toBe("manual_review");
+    expect(
+      taxClassFor({
+        contractCustomerType: "manual_review",
+        vatCustomerStatus: "manual_review",
+        countryCode: "DE",
+      }),
+    ).toBe("manual_review");
+  });
+});
+
+describe("deriveTaxTreatment", () => {
+  it("blocks when the posture is not management-board-approved", () => {
+    const d = deriveTaxTreatment({
+      policy: {
+        ...approvedPolicy,
+        approval: { ...approval, managementBoardApproved: false },
       },
+      taxClass: "eu_business_vat",
+      blocksCharge: false,
     });
     expect(d.blocked).toBe(true);
     expect(d.treatment).toBe("blocked");
   });
 
-  it("blocks when the classification blocks the charge", () => {
-    const d = deriveTaxTreatment({
-      policy: approvedPolicy,
-      classification: {
-        vatCustomerStatus: "manual_review",
+  it("manual review when the classification blocks or the class needs review", () => {
+    expect(
+      deriveTaxTreatment({
+        policy: approvedPolicy,
+        taxClass: "eu_consumer",
         blocksCharge: true,
-      },
-    });
-    expect(d.blocked).toBe(true);
+      }).blocked,
+    ).toBe(true);
+    expect(
+      deriveTaxTreatment({
+        policy: approvedPolicy,
+        taxClass: "manual_review",
+        blocksCharge: false,
+      }).treatment,
+    ).toBe("manual_review");
   });
 
-  it("blocks when the policy has no rule for the class", () => {
+  it("blocks when the posture has no rule for the class", () => {
     const d = deriveTaxTreatment({
-      policy: approvedPolicy,
-      classification: {
-        vatCustomerStatus: "manual_review",
-        blocksCharge: false,
-      },
+      policy: { ...approvedPolicy, treatmentRules: {} },
+      taxClass: "estonian",
+      blocksCharge: false,
     });
     expect(d.blocked).toBe(true);
     expect(d.blockedReason).toMatch(/No tax rule/);
   });
 
-  it("applies reverse charge for an EU VAT-registered business", () => {
+  it("applies reverse charge only for an EU VAT-registered business", () => {
     const d = deriveTaxTreatment({
       policy: approvedPolicy,
-      classification: {
-        vatCustomerStatus: "eu_vat_registered_business",
-        blocksCharge: false,
-      },
+      taxClass: "eu_business_vat",
+      blocksCharge: false,
     });
     expect(d.blocked).toBe(false);
     expect(d.treatment).toBe("reverse_charge");
     expect(d.reverseCharge).toBe(true);
+    expect(d.invoiceNote).toMatch(/Reverse charge/);
   });
 
-  it("withholds reverse charge if a rule requests it for a non-eligible class", () => {
+  it("keeps distinct treatments per class, never a generic out_of_scope", () => {
+    expect(
+      deriveTaxTreatment({
+        policy: approvedPolicy,
+        taxClass: "estonian",
+        blocksCharge: false,
+      }).treatment,
+    ).toBe("small_business_exemption");
+    expect(
+      deriveTaxTreatment({
+        policy: approvedPolicy,
+        taxClass: "eu_consumer",
+        blocksCharge: false,
+      }).treatment,
+    ).toBe("cross_border_sme_exemption");
+  });
+
+  it("withholds reverse charge and holds for review if a rule mis-requests it", () => {
     const d = deriveTaxTreatment({
       policy: {
         ...approvedPolicy,
         treatmentRules: {
-          business_without_vat: {
+          eu_business_no_vat: {
             treatment: "reverse_charge",
             reverseCharge: true,
           },
         },
       },
-      classification: {
-        vatCustomerStatus: "business_without_vat",
-        blocksCharge: false,
-      },
+      taxClass: "eu_business_no_vat",
+      blocksCharge: false,
     });
     expect(d.reverseCharge).toBe(false);
+    expect(d.treatment).toBe("manual_review");
+  });
+
+  it("invoice wording is generated from the treatment", () => {
+    expect(invoiceNoteForTreatment("reverse_charge")).toMatch(/Reverse charge/);
+    expect(invoiceNoteForTreatment("small_business_exemption")).toMatch(
+      /small enterprises/,
+    );
+    expect(
+      deriveTaxTreatment({
+        policy: approvedPolicy,
+        taxClass: "estonian",
+        blocksCharge: false,
+      }).invoiceNote,
+    ).toMatch(/small enterprises/);
   });
 });
 

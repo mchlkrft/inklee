@@ -22,19 +22,27 @@ answer is recorded. Its legal companion is
   and to own the trigger for when it stops holding.
 - **Hard rule the system enforces:** being below the domestic threshold does
   **not** by itself settle cross-border, place-of-supply, reverse-charge, or OSS
-  obligations. So the tax treatment must be your explicit decision, not our
-  assumption. Nothing charges live money until your sign-off is recorded; a
-  founder or developer approval can never substitute for yours (this is enforced
-  in code: only an accountant-signed field opens the tax gate).
+  obligations, so the treatment must be a deliberate decision **per customer
+  class**, never a blanket "out of scope". Nothing charges live money until the
+  posture is approved and recorded.
+- **Who approves:** legal responsibility for the posture sits with Inklee's
+  **management board**, which is the approving authority. A founder, developer,
+  or single employee cannot substitute. **Your professional review is strongly
+  recommended and is recorded as evidence, but the system does not treat it as
+  legally mandatory** (we have not identified a statutory provision requiring
+  it; if you identify one, tell us and we will reflect it).
 
-## How your answers are recorded
+## How the posture is recorded
 
-Each decision below maps to a named approval that the software checks before any
-live charge. Your tax posture is written as a versioned `tax_policies` record
-plus a `tax_policy_approved` approval, both created only from your written
-sign-off, via a controlled script (`scripts/billing/record-tax-approval.cjs`).
-If the posture later changes, the approval is version-bound and automatically
-re-closes until you re-approve.
+The posture is written as a versioned `tax_policies` record plus a
+`tax_policy_approved` approval, created from a **management-board approval** with
+your review recorded as evidence, via a controlled script
+(`scripts/billing/record-tax-approval.cjs`). If the posture later changes, the
+approval is version-bound and automatically re-closes until re-approved. Each
+customer class carries a **distinct treatment**, and the invoice wording is
+generated from that treatment (a reverse-charge sale shows reverse-charge
+wording; an exempt sale shows the exemption note; there is no single note for
+all classes).
 
 ---
 
@@ -43,22 +51,30 @@ re-closes until you re-approve.
 ### A1. The tax posture and per-customer-class treatment
 **Unblocks:** `tax_policy_approved` (required for business go-live).
 
-We need the tax treatment for **each class of customer**. Our current assumption
-for an unregistered Estonian seller is "no VAT charged to anyone" (each class
-treated as out of scope). Please confirm or correct each line:
+We need the treatment for **each customer class below**, each a specific legal
+basis (never a generic "out of scope"). Our starting point for an unregistered
+Estonian small business is shown; please confirm or correct each line:
 
-| Customer class | Our assumption | Your decision |
+| Customer class | Starting treatment | Your view |
 | --- | --- | --- |
-| EU VAT-registered business (different member state) | No VAT (out of scope); no reverse-charge issued while unregistered | |
-| EU business without a VAT number | No VAT (out of scope) | |
-| EU private consumer | No VAT (out of scope) | |
-| Non-EU business | No VAT (out of scope) | |
+| Estonian customer | Small-business exemption (no VAT while unregistered) | |
+| EU business, valid VAT number | Reverse charge (recipient accounts for VAT) | |
+| EU business, no VAT number | Manual review (ambiguous; your call) | |
+| EU private consumer | Cross-border SME exemption under the 10,000 EUR threshold; customer-country VAT (OSS) above it | |
+| Non-EU business | Place of supply outside Estonia | |
+| Non-EU private consumer | Place of supply outside Estonia | |
+
+Treatments the system supports: domestic standard, small-business exemption,
+reverse charge, place of supply outside Estonia, customer-country VAT (OSS),
+cross-border SME exemption, manual review.
 
 Also confirm:
-- The **document note** to display on the receipt/invoice (for example "VAT not
-  applicable, small business, Estonia").
-- Whether tax should be **computed by Stripe Tax** or not (our assumption: not,
-  since nothing is charged; `calc_provider = none`).
+- Whether tax should be **computed by Stripe Tax** or not (starting point: not,
+  since nothing is charged today; `calc_provider = none`).
+- The **invoice note per treatment**. The system generates the note from the
+  resolved treatment (so a reverse-charge sale shows a reverse-charge note and an
+  exempt sale shows the exemption note, never one note for all); confirm the
+  exact wording for each.
 
 ### A2. VAT / OSS registration posture and the trigger (**CO-OWNED with counsel**)
 **Unblocks:** part of business go-live readiness (feeds A1).
@@ -68,6 +84,13 @@ Also confirm:
   taxable cross-border supply, or a date), and who monitors it.
 - Whether any limited or OSS registration is needed for cross-border EU B2C
   before the consumer path opens.
+- We track these thresholds in the system (`tax_thresholds`); please confirm the
+  limits and who monitors each:
+  - Estonian taxable turnover vs the **40,000 EUR** registration threshold.
+  - Cross-border EU B2C electronically supplied services vs the **10,000 EUR**
+    threshold.
+  - Total Union turnover vs the cross-border **SME scheme** threshold.
+  - Any **country-specific** SME threshold you rely on.
 
 This intersects the legal obligation to register, which counsel co-owns
 (see counsel pack C7).
