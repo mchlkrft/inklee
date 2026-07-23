@@ -174,7 +174,7 @@ export default async function PublicFlashOverviewPage({
         </Link>
         {!hideBranding && (
           <>
-            <span>·</span>
+            <span aria-hidden>·</span>
             <Link
               href={homeHref}
               className="hover:text-foreground transition-colors"

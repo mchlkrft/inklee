@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import {
   templateBodySchema,
@@ -37,19 +38,22 @@ export async function saveTemplateAction(
 
   // Entitlement gate (BM-2.0): editing a custom template body is a Plus feature.
   // Dark-launched via custom_templates; existing bodies always keep SENDING (the
-  // send path is never gated). Fail closed on a plan-read blip: block the edit
-  // rather than silently allow it.
-  let overrides;
+  // send path is never gated). Fail OPEN on a plan-read blip (like the cap
+  // gates), so a PAUSED capability stays fully inert (canEditTemplates reads the
+  // pause) and a live blip never blocks a legit edit.
   try {
-    overrides = await getAccountOverrides(user.id);
-  } catch {
-    return { error: "Couldn't verify your plan. Please try again." };
-  }
-  if (!canEditTemplates(overrides)) {
-    return {
-      error:
-        "Custom email templates are a Plus feature. Upgrade to Plus to edit them.",
-    };
+    const overrides = await getAccountOverrides(user.id);
+    if (!canEditTemplates(overrides)) {
+      return {
+        error:
+          "Custom email templates are a Plus feature. Upgrade to Plus to edit them.",
+      };
+    }
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "custom_templates_gate" },
+      extra: { artistId: user.id },
+    });
   }
 
   const subject = DEFAULT_SUBJECTS[type] ?? "inklee";

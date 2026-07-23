@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { deleteTripCore, deleteTripLegCore } from "@/lib/server/guest-spots";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
+import { checkTripLegCap } from "@/lib/server/travel-caps";
 import type { EntitlementLimit } from "@/lib/entitlements";
 import {
   validateTripLeg,
@@ -535,6 +536,17 @@ export async function createTripLegAction(
     leg.studioId ? [leg.studioId] : [],
   );
   if (studioError) return { error: studioError };
+
+  // Enforce the active-trip cap here too: adding a future-dated leg to a
+  // not-yet-active trip is what makes it active (the create-time gate alone is
+  // bypassable). Shared with the mobile leg-add route.
+  const legCapErr = await checkTripLegCap(
+    supabase,
+    user.id,
+    tripId,
+    leg.endsOn,
+  );
+  if (legCapErr) return { error: legCapErr };
 
   const { error } = await supabase.from("trip_legs").insert({
     trip_id: tripId,

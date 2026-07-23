@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import {
   requireMobileUser,
   mobileOk,
@@ -104,19 +105,21 @@ export async function POST(req: Request) {
 
   // Entitlement gate (BM-2.0, same as saveTemplateAction). Dark-launched via
   // custom_templates; the send path stays ungated so existing bodies keep going
-  // out. Fail closed on a plan-read blip.
-  let overrides;
+  // out. Fail OPEN on a plan-read blip so a paused capability stays inert.
   try {
-    overrides = await getAccountOverrides(userId);
-  } catch {
-    return mobileError(503, "Couldn't verify your plan. Please try again.");
-  }
-  if (!canEditTemplates(overrides)) {
-    return mobileError(
-      403,
-      "Custom email templates are a Plus feature. Upgrade to Plus to edit them.",
-      "not_entitled",
-    );
+    const overrides = await getAccountOverrides(userId);
+    if (!canEditTemplates(overrides)) {
+      return mobileError(
+        403,
+        "Custom email templates are a Plus feature. Upgrade to Plus to edit them.",
+        "not_entitled",
+      );
+    }
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "custom_templates_gate_mobile" },
+      extra: { artistId: userId },
+    });
   }
 
   const subject = DEFAULT_SUBJECTS[type] ?? "inklee";

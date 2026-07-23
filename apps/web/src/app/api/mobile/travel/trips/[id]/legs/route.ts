@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { normalizeTripLegInput } from "@/lib/mobile-travel";
+import { checkTripLegCap } from "@/lib/server/travel-caps";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,11 @@ export async function POST(
       return mobileError(400, "That studio doesn't exist.", "bad_studio");
     }
   }
+
+  // Active-trip cap on the leg-add path (same shared gate as the web action):
+  // a future-dated leg that newly activates a trip counts toward active_trips.
+  const legCapErr = await checkTripLegCap(supabase, userId, tripId, v.endsOn);
+  if (legCapErr) return mobileError(403, legCapErr, "cap_reached");
 
   const { data, error } = await supabase
     .from("trip_legs")

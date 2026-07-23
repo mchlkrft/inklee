@@ -208,7 +208,7 @@ export default async function PublicFlashDayPage({
         </Link>
         {!hideBranding && (
           <>
-            <span>·</span>
+            <span aria-hidden>·</span>
             <Link
               href={homeHref}
               className="hover:text-foreground transition-colors"
