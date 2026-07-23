@@ -225,17 +225,19 @@ Phase A (apex redirect, Slice 54) shipped 2026-05-18; Phase B (artist subdomain 
 
 Quiet preparation. No public commitment, no pricing page.
 
-**➡️ NEXT SESSION focus (founder directive 2026-07-23):** begin with an **account-structure audit** ahead of a full account-tier + business-model implementation. Map what exists today (the `profiles` schema, existing entitlement gates: `canUseGoods()`, deposit entitlement, comp/beta flags, Connect/payout coupling) before writing BM-2.2/BM-2.4, so the `plan_tier` model and the `canAccess(profile, feature_key)` primitive are designed against the real current structure rather than bolted on. Audit and design first; no billing, no `/pricing` page in this phase.
+**✅ BM-2.0 DONE 2026-07-23 (docs-only, no code/schema/prod change):** the account-structure audit is complete. Seven system-definition docs live in `docs/product/` (see `account-and-entitlement-system.md` as the anchor). Headline results: one account type (artist); three separated axes already exist (account status, entitlement, payout); a real hybrid entitlement engine shipped in Slice 81 (`account_overrides` + `canAccess`), but only `deposits` of six features is enforced; no billing exists (Plus is comped, `plan_source='paid'` is vestigial); two disconnected paywall systems; no studio billing entity or membership. The audit REVISES the slices below (see below the table). Next: founder decisions D1-D22 in `docs/product/account-tier-audit-findings.md`, then Phase 1 (shared entitlement vocabulary).
 
 | Slice  | Title                                                                                                                    |
 | ------ | ------------------------------------------------------------------------------------------------------------------------ |
-| BM-2.0 | **Account-structure audit** (current `profiles`/account schema + all existing entitlement gates + Connect coupling; the design input for BM-2.2/2.4) — NEXT SESSION entry point |
-| BM-2.1 | Cost audit (concrete Stripe / VAT / Supabase / Vercel numbers; `business-model.md` §6)                                   |
-| BM-2.2 | Schema migration for `plan_tier` enum on `profiles` + subscription columns                                               |
-| BM-2.3 | Stripe Customer Portal + subscription product setup (test mode first)                                                    |
-| BM-2.4 | `canAccess(profile, feature_key)` feature-gate primitive (extends the commerce cluster's `canUseGoods()` readiness work) |
-| BM-2.5 | Webhook extension for subscription events                                                                                |
+| BM-2.0 | ✅ DONE **Account-structure audit** (7 docs in `docs/product/`; anchor `account-and-entitlement-system.md`) |
+| BM-2.1 | Cost audit (concrete Stripe / VAT / Supabase / Vercel numbers; `business-model.md` §6). See also `docs/product/account-tier-unit-economics-inputs.md` |
+| BM-2.2 | Schema migration for subscription columns. REVISED by BM-2.0: tier storage already exists as the separate `account_overrides` table (NOT `plan_tier` on `profiles`); extend that table with subscription columns per the migration plan Phase 6, do not add `plan_tier` to `profiles` |
+| BM-2.3 | Stripe Customer Portal + subscription product setup (test mode first). Keep billing web-only (no in-app purchase), founder decision D17 |
+| BM-2.4 | Feature-gate primitive. REVISED by BM-2.0: `canAccess(overrides, feature)` already exists in `packages/shared/src/entitlements.ts`; the work is to wire the 5 inert features + reconcile `features.ts` (`canUseGoods()`), migration plan Phases 1-3 |
+| BM-2.5 | Webhook extension for subscription events (converge-to-target, idempotent, reconciler cron; migration plan Phase 6)      |
 | BM-2.6 | Founder internal dogfood end-to-end                                                                                      |
+
+**Audit revisions to this phase (from BM-2.0):** (1) do NOT put `plan_tier` on `profiles`; the built `account_overrides` table is the correct home (keeps admin-only tier/notes/budget off the artist-readable profiles row). (2) `canAccess` already exists; wire the 5 placeholder features (`branding`, `custom_templates`, `extra_fields`, `extra_trips`, `analytics`) before selling Plus. (3) Fix the mobile deposit predictor drift (`BookingActions.tsx` omits the entitlement) BEFORE any paid tier ships. (4) The documented "deposits gated behind Plus = every deposit-taking artist pays" premise does NOT hold at launch because Plus is comped; building billing (BM-2.2/2.3/2.5) is what turns the enforced gate into revenue. (5) Studio is a scope on the artist account, not a new account type; per-studio entitlement holder is greenfield, gated on Q8.
 
 Excluded: `/pricing` public page, customer-facing upgrade copy, any Plus features unlocked.
 
