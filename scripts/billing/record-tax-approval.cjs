@@ -88,17 +88,25 @@ const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
     return;
   }
 
+  // Reject whitespace-only entries so the ">=1 evidence" control can't be
+  // satisfied with empty strings.
+  const evidence = (
+    Array.isArray(CONFIG.evidenceReferences) ? CONFIG.evidenceReferences : []
+  )
+    .map((s) => String(s).trim())
+    .filter(Boolean);
+  const approvedBy = String(CONFIG.approvedBy || "").trim();
+  const approvalBasis = String(CONFIG.approvalBasis || "").trim();
   if (
     CONFIG.MANAGEMENT_BOARD_APPROVED !== true ||
-    !CONFIG.approvedBy ||
-    !CONFIG.approvalBasis ||
-    !Array.isArray(CONFIG.evidenceReferences) ||
-    CONFIG.evidenceReferences.length === 0
+    !approvedBy ||
+    !approvalBasis ||
+    evidence.length === 0
   ) {
     console.error(
       "\nREFUSING: MANAGEMENT_BOARD_APPROVED must be true and approvedBy + approvalBasis +\n" +
-        "at least one evidenceReference set. The management board holds legal responsibility\n" +
-        "for the posture; a founder/dev/single-employee approval does not substitute.",
+        "at least one non-empty evidenceReference set. The management board holds legal\n" +
+        "responsibility for the posture; a founder/dev/single-employee approval does not substitute.",
     );
     process.exit(2);
   }
@@ -116,8 +124,8 @@ const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
         (${CONFIG.version_label}, ${CONFIG.posture_version}, ${CONFIG.seller_country},
          ${CONFIG.seller_vat_registered}, ${CONFIG.seller_vat_number}, ${CONFIG.oss_registered},
          ${CONFIG.calc_provider}, ${sql.json(CONFIG.treatment_rules)}, ${now}, true,
-         true, ${CONFIG.approvedBy}, ${now}, ${CONFIG.approvalBasis},
-         ${sql.json(CONFIG.evidenceReferences)}, ${CONFIG.professionalReviewer},
+         true, ${approvedBy}, ${now}, ${approvalBasis},
+         ${sql.json(evidence)}, ${CONFIG.professionalReviewer},
          ${CONFIG.professionalReviewDate}, ${CONFIG.nextMandatoryReviewAt}, ${CONFIG.notes})`;
 
     await tx`
@@ -125,12 +133,12 @@ const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
         (approval_key, approval_group, approved, approved_by, approved_at,
          evidence_ref, bound_artifact, notes, updated_at)
       values
-        ('tax_policy_approved', 'b2b', true, ${CONFIG.approvedBy}, ${now},
-         ${CONFIG.evidenceReferences.join("; ")}, ${CONFIG.version_label},
+        ('tax_policy_approved', 'b2b', true, ${approvedBy}, ${now},
+         ${evidence.join("; ")}, ${CONFIG.version_label},
          'Management-board-approved tax posture.', ${now})
       on conflict (approval_key) do update set
-        approved = true, approved_by = ${CONFIG.approvedBy}, approved_at = ${now},
-        evidence_ref = ${CONFIG.evidenceReferences.join("; ")},
+        approved = true, approved_by = ${approvedBy}, approved_at = ${now},
+        evidence_ref = ${evidence.join("; ")},
         bound_artifact = ${CONFIG.version_label}, updated_at = ${now}`;
 
     for (const t of THRESHOLDS) {

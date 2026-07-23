@@ -11,7 +11,7 @@ This pack records the founder amendments applied to the approved architecture, t
 These correct and refine the committed design set and are authoritative where they differ from an earlier passage.
 
 1. **Consumer classification is conservative and versioned.** Implement Inklee Plus as a continuously supplied digital service where starting access immediately does NOT automatically extinguish the withdrawal right. The consumer architecture must not depend on obtaining a complete withdrawal waiver. The service classification is a versioned, counsel-approved legal-policy row (`billing_legal_policies`), not hardcoded. Counsel still approves the exact classification and wording.
-2. **VAT posture correction.** Being below the Estonian domestic threshold does NOT by itself determine cross-border subscription treatment, place of supply, reverse charge, OSS, or any limited-registration obligation. Live EU billing requires an accountant-approved tax posture. Founder or developer approval never substitutes for accountant approval (enforced: `tax_policies.approved_by_accountant` is the only field the gate reads for the tax posture).
+2. **VAT posture correction.** Being below the Estonian domestic threshold does NOT by itself determine cross-border subscription treatment, place of supply, reverse charge, OSS, or any limited-registration obligation. Live EU billing requires a **management-board-approved** tax posture (the board holds legal responsibility for it). A founder, developer, or single employee cannot substitute; professional (accountant/tax) review is strongly recommended and recorded as evidence, but is not treated as legally mandatory (enforced: the gate reads `tax_policies.management_board_approved`; superseded the earlier accountant-sign-off model in migration 0108).
 3. **VIES failure behavior corrected.** Explicit states `not_submitted | validation_pending | valid | invalid | provider_unavailable | manual_review`. Only `valid` may auto-support reverse charge; `provider_unavailable` never silently becomes `valid` or `business_without_vat`; the charge is blocked or handled through an accountant-approved fallback; every attempt is stored append-only (`vies_validation_attempts`); revalidate after a material billing-identity change.
 4. **Declarations are evidence, not truth.** The professional-use declaration is a classification input with a stored source, confidence, and review state (`classification_source` in `self_declared | vat_verified | manually_verified | system_inferred | conflicting_evidence | unresolved`, plus `classification_confidence` and `classification_review`). Where evidence conflicts, block the charge or route to review; never auto-deny consumer protections on a checkbox alone.
 5. **Stripe responsibility boundary** (map in section B).
@@ -70,7 +70,7 @@ Shared only: the low-level Stripe client init and generic safe utilities. Everyt
 Built now (the minimum coherent foundation):
 
 - `billing_legal_policies` (versioned service classification, counsel-approved) [added beyond the founder list because amendment 1 requires a versioned, non-hardcoded home]
-- `tax_policies` (versioned tax posture, accountant-approved) [added because the snapshot references a tax-policy version and the gate requires an accountant-approved posture, amendments 2 and 9]
+- `tax_policies` (versioned tax posture, management-board-approved; 0108) [added because the snapshot references a tax-policy version and the gate requires a management-board-approved posture, amendments 2 and 9]
 - `pricing_plans` (stable package + replaceable per-Price, effective-dated, amendment 7)
 - `account_billing_profiles` (4 axes + evidence model + VIES state, amendments 3 and 4)
 - `vies_validation_attempts` (append-only, amendment 3)
@@ -115,7 +115,7 @@ The three activation groups. Approval for one never approves another (amendment 
 **Technical test mode** (allowed now; the gate is closed for live): schema deployed; Stripe test configuration; Checkout tested; webhook idempotency tested; reconciliation tested; deposit-vs-subscription regression tests passed.
 
 **Blocking B2B live** (all technical, plus):
-- `tax_policy_approved` (accountant) — an accountant-approved active tax posture.
+- `tax_policy_approved` (management board) — a management-board-approved active tax posture (accountant/tax review recorded as evidence).
 - `business_declaration_approved` (counsel) — the professional-use declaration wording.
 - `terms_approved` (counsel) — B2B terms.
 - `invoice_config_approved` (accountant) — invoice configuration.
@@ -138,7 +138,7 @@ The three activation groups. Approval for one never approves another (amendment 
 
 | # | Decision | Needed by |
 | --- | --- | --- |
-| 1 | The active tax-policy content and formal sign-off (`tax_policies.approved_by_accountant`). Below-threshold does NOT settle obligations (amendment 2). | Before any live charge. |
+| 1 | The active tax-posture content and its formal approval by the management board (`tax_policies.management_board_approved`), with accountant/tax review recorded as evidence. Below-threshold does NOT settle obligations (amendment 2). | Before any live charge. |
 | 2 | Estonian VAT-registration and OSS posture and the trigger to register. | Before B2B live. |
 | 3 | The correct treatment per customer class while unregistered (no-VAT vs out-of-scope on documents; the document note). | Before B2B live. |
 | 4 | Whether Stripe Tax rates are acceptable for OSS destinations, or an alternative rate source. | Before consumer live. |
