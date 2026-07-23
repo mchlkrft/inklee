@@ -98,6 +98,17 @@ export async function createSubscriptionCheckout(input: {
       contract_customer_type: input.contractCustomerType,
     },
     client_reference_id: input.artistId,
+    // Pre-contract reinforcement shown next to the pay button (Art. 8(2) CRD
+    // obligation-to-pay + auto-renewal + how to cancel). Stripe's subscription
+    // button label itself is fixed; the dedicated "Order with obligation to pay"
+    // confirmation control lives in the pre-checkout step. No Stripe-dashboard
+    // dependency, so this is safe in test mode.
+    custom_text: {
+      submit: {
+        message:
+          "By subscribing you place an order with an obligation to pay. Inklee Plus renews automatically each month at the price shown above until you cancel, which you can do at any time from your plan settings.",
+      },
+    },
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
   });
