@@ -319,4 +319,24 @@ describe("reconcileFromStripeSubscription", () => {
     );
     expect(r.duplicate).toBe(true);
   });
+
+  it("a refund posture (unpaid subscription) converges access to free", async () => {
+    // A subscription refund does not itself change access: access follows the
+    // subscription status via reconcile. Stripe leaves the subscription unpaid
+    // (or the artist cancels), and reconcile converges the artist to free.
+    const r = await reconcileFromStripeSubscription(
+      makeSub({
+        subId: "sub_r",
+        status: "unpaid",
+        customer: "cus_r",
+        artistId: "artist_r",
+      }),
+      1000,
+    );
+    expect(r.planTier).toBe("free");
+    const ov = h.store.account_overrides.find(
+      (x) => x.artist_id === "artist_r",
+    )!;
+    expect(ov.plan_tier).toBe("free");
+  });
 });

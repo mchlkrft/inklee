@@ -108,6 +108,22 @@ describe("billing-webhook route", () => {
     expect(h.reconcile).not.toHaveBeenCalled();
   });
 
+  it("ignores a deposit-side charge.refunded (subscription state stays isolated)", async () => {
+    // Refund isolation: a deposit refund event reaching the billing webhook is
+    // acknowledged and ignored; it never touches subscription/access state.
+    h.constructEvent.mockReturnValue({
+      type: "charge.refunded",
+      id: "evt_5",
+      created: 1710000004,
+      data: { object: {} },
+    });
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ignored).toBe("charge.refunded");
+    expect(h.reconcile).not.toHaveBeenCalled();
+  });
+
   it("500s when reconcile throws so Stripe redelivers", async () => {
     h.constructEvent.mockReturnValue({
       type: "customer.subscription.deleted",
