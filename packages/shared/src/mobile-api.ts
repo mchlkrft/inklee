@@ -50,6 +50,10 @@ export type MobileMe = {
   bookingWindowExpired: boolean;
   onboardingCompleted: boolean;
   plan: string;
+  /** True when the account is in a grandfather cohort (e.g. legacy_free_v1). */
+  grandfathered: boolean;
+  /** True when the grandfather package preserves custom email-template editing. */
+  keepsTemplates: boolean;
   canCollectDeposits: boolean;
 };
 

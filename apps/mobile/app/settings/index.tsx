@@ -242,6 +242,12 @@ export default function SettingsHubScreen() {
             onPress={() => router.push("/settings/payouts")}
           />
           <SettingsRow
+            label="Plan"
+            value={me.plan === "plus" ? "Plus" : "Free"}
+            divider
+            onPress={() => router.push("/settings/plan")}
+          />
+          <SettingsRow
             label="Deposit defaults"
             value={depositSummary}
             divider

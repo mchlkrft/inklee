@@ -4,7 +4,11 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { getAccountOverrides } from "@/lib/entitlements-server";
-import { canAccess, effectivePlanTier } from "@/lib/entitlements";
+import {
+  canAccess,
+  effectivePlanTier,
+  isGrandfathered,
+} from "@/lib/entitlements";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { todayInTimeZone } from "@/lib/date-utils";
 import type { MobileMe } from "@inklee/shared/mobile-api";
@@ -45,6 +49,10 @@ export async function GET(req: Request) {
     bookingWindowExpired: windowExpired,
     onboardingCompleted: settings.onboarding_completed === true,
     plan: effectivePlanTier(overrides),
+    grandfathered: isGrandfathered(overrides),
+    keepsTemplates:
+      isGrandfathered(overrides) &&
+      overrides.grantPackage?.features?.custom_templates === true,
     canCollectDeposits: canAccess(overrides, "deposits"),
   };
   return mobileOk(body);

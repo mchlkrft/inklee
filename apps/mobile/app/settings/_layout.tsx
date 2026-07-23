@@ -32,6 +32,7 @@ export default function SettingsLayout() {
         options={{ title: "Settings", headerLeft: () => <HubBackButton /> }}
       />
       <Stack.Screen name="dashboard" options={{ title: "Home widgets" }} />
+      <Stack.Screen name="plan" options={{ title: "Plan" }} />
       <Stack.Screen name="link-hub" options={{ title: "Link Hub" }} />
       <Stack.Screen
         name="booking-policy"
