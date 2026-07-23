@@ -73,11 +73,15 @@ export async function openBillingPortalAction(): Promise<CheckoutResult> {
 
   // The Stripe billing customer id is written by the reconcile webhook. Read it
   // directly (service-role); it is not part of the entitlement engine's view.
-  const { data } = await serviceClient
+  const { data, error } = await serviceClient
     .from("account_overrides")
     .select("stripe_customer_id")
     .eq("artist_id", user.id)
     .maybeSingle();
+  if (error) {
+    // A read blip must not tell a real subscriber they have nothing to manage.
+    return { message: "Couldn't load your subscription. Please try again." };
+  }
   const customerId = data?.stripe_customer_id as string | null | undefined;
   if (!customerId) return { message: "No subscription to manage yet." };
 

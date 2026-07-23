@@ -26,6 +26,12 @@ export default async function PlanPage() {
     grandfathered &&
     overrides.grantPackage?.features?.custom_templates === true;
 
+  // A grandfathered artist who already keeps template editing shouldn't be sold
+  // it back as an upgrade reason.
+  const upgradeBenefits = keepsTemplates
+    ? PLUS_BENEFITS.filter((b) => !b.includes("email templates"))
+    : PLUS_BENEFITS;
+
   return (
     <div className="space-y-10 max-w-2xl">
       <div>
@@ -53,7 +59,7 @@ export default async function PlanPage() {
           )}
         </div>
 
-        {grandfathered && (
+        {tier === "free" && grandfathered && (
           <p className="mt-4 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
             You&apos;re on Free with early-artist benefits.
             {keepsTemplates
@@ -70,7 +76,7 @@ export default async function PlanPage() {
             Upgrade to Plus
           </h2>
           <ul className="mt-4 space-y-2">
-            {PLUS_BENEFITS.map((b) => (
+            {upgradeBenefits.map((b) => (
               <li
                 key={b}
                 className="flex items-start gap-2 text-sm text-foreground"
