@@ -1,4 +1,7 @@
--- 0106: Billing core schema (BM-2.0 Stage 1). AUTHORED for review, NOT applied.
+-- 0106: Billing core schema (BM-2.0 Stage 1).
+-- STATUS: APPLIED + verified in prod 2026-07-23 (supabase db push; all 13 tables
+-- confirmed RLS-on with zero policies, the tts_no_mutation trigger present, all
+-- empty). The "apply only after ratification" note below is historical context.
 --
 -- Apply only after the EU-billing posture is ratified (accountant tax policy,
 -- counsel service classification + terms/withdrawal wording) and NEVER as a

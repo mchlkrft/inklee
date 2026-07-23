@@ -1,6 +1,10 @@
 -- 0105: account_overrides billing + limit-override + legacy_free_v1 grandfather
 -- columns (BM-2.0 Stage 2). Additive and reversible.
 --
+-- STATUS: APPLIED + verified in prod 2026-07-23 (supabase db push; the 13 new
+-- columns and the 5-value plan_source CHECK were confirmed by direct SQL). The
+-- "authored, not applied" notes below are retained as historical context.
+--
 -- AUTHORED for review. Apply to prod (supabase db push) ONLY AFTER the Stage 2
 -- decisions are ratified (Plus caps, the legacy_free_v1 package, the cutover
 -- timestamp) and BEFORE the legacy_free_v1 backfill runs. The backfill (which
