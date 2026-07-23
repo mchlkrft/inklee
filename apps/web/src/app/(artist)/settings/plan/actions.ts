@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { createSubscriptionCheckout } from "@/lib/server/billing/subscription";
 import { requireStripe } from "@/lib/server/billing/client";
+import { getLegalDoc } from "@/lib/legal/documents";
 import { BillingActivationError } from "@/lib/billing";
+import { BUSINESS_DECLARATION_VERSION } from "@/lib/billing-consent-copy";
 
 // The Plus price is resolved by a stable lookup key. In dev/test the test-mode
 // Price exists, so checkout works end to end; in prod (live key) no live Price
@@ -16,15 +18,29 @@ const PRICE_LOOKUP = "inklee_plus_monthly_eur_test";
 
 export type CheckoutResult = { url: string } | { message: string };
 
-/** Start a Plus (B2B) subscription checkout. Returns the Stripe Checkout URL for
- *  the client to redirect to, or a user-facing message when Plus is not yet
- *  purchasable (dark-launch: gate closed or no live Price). */
-export async function startPlusCheckoutAction(): Promise<CheckoutResult> {
+/** Confirm a B2B Plus subscription order and start checkout. The buyer must have
+ *  affirmatively declared business use (counsel C3: a separate, unchecked,
+ *  required control), which we record as evidence alongside Terms acceptance
+ *  BEFORE creating any Stripe object. Returns the Stripe Checkout URL to redirect
+ *  to, or a user-facing message when the declaration is missing or Plus is not
+ *  yet purchasable (dark-launch: gate closed or no live Price). */
+export async function confirmBusinessCheckoutAction(input: {
+  businessUseDeclared: boolean;
+}): Promise<CheckoutResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user?.email) return { message: "Please sign in again." };
+
+  // The business-use declaration is a hard precondition (Art. 8 CRD / counsel
+  // C3). Without it we neither record nor charge; the button is also disabled
+  // client-side, so this is the server-authoritative backstop.
+  if (input.businessUseDeclared !== true) {
+    return {
+      message: "Please confirm you are purchasing as a business to continue.",
+    };
+  }
 
   try {
     const stripe = requireStripe();
@@ -35,6 +51,46 @@ export async function startPlusCheckoutAction(): Promise<CheckoutResult> {
     });
     const price = prices.data[0];
     if (!price) return { message: "Plus isn't available yet." };
+
+    // Read the current Terms version defensively. getLegalDoc reads bundled
+    // content at runtime (the activation gate relies on the same read); a failure
+    // must not block a valid order, so the Terms binding falls back to null.
+    let termsVersion = "unknown";
+    let termsHash: string | null = null;
+    try {
+      const terms = getLegalDoc("terms");
+      termsVersion = terms.version;
+      termsHash = terms.versionHash;
+    } catch {
+      // fall through with the unknown/null fallback
+    }
+
+    // Record the declaration + Terms acceptance as the legal evidence for this
+    // order. Consent is the record that makes the order accountable; if we cannot
+    // store it, do not proceed to charge setup.
+    const now = new Date().toISOString();
+    const { error: consentErr } = await serviceClient
+      .from("billing_consent_records")
+      .insert([
+        {
+          artist_id: user.id,
+          consent_type: "business_use_declaration",
+          consent_version: BUSINESS_DECLARATION_VERSION,
+          consented_at: now,
+          context: { flow: "plus_subscription" },
+        },
+        {
+          artist_id: user.id,
+          consent_type: "terms_acceptance",
+          consent_version: termsVersion,
+          consent_hash: termsHash,
+          consented_at: now,
+          context: { flow: "plus_subscription" },
+        },
+      ]);
+    if (consentErr) {
+      return { message: "Something went wrong. Please try again." };
+    }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
     const { url } = await createSubscriptionCheckout({
