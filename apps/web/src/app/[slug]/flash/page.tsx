@@ -1,4 +1,5 @@
 import { serviceClient } from "@/lib/supabase/service";
+import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -31,6 +32,8 @@ export default async function PublicFlashOverviewPage({
     .single();
 
   if (!profile) notFound();
+
+  const hideBranding = await publicBrandingHidden(profile.id as string);
 
   // Host-aware links: bare subpaths on the artist subdomain, slug-prefixed on
   // the apex (see artistHref). Footer links leave the artist namespace, so
@@ -169,13 +172,17 @@ export default async function PublicFlashOverviewPage({
         >
           Privacy
         </Link>
-        <span>·</span>
-        <Link
-          href={homeHref}
-          className="hover:text-foreground transition-colors"
-        >
-          Powered by inklee
-        </Link>
+        {!hideBranding && (
+          <>
+            <span>·</span>
+            <Link
+              href={homeHref}
+              className="hover:text-foreground transition-colors"
+            >
+              Powered by inklee
+            </Link>
+          </>
+        )}
       </footer>
     </div>
   );

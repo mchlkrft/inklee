@@ -1,8 +1,12 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { deleteTripCore, deleteTripLegCore } from "@/lib/server/guest-spots";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { capState } from "@/lib/server/entitlement-gates";
+import type { EntitlementLimit } from "@/lib/entitlements";
 import {
   validateTripLeg,
   validateTripLegsPayload,
@@ -40,6 +44,49 @@ async function validateOwnedStudios(
   return null;
 }
 
+// Shared entitlement cap gate for the travel create actions. Dark-launched via
+// entitlement_caps; existing rows are never touched. Fail OPEN on a plan-read
+// blip (a soft cap, not money). Returns an error string when the create is
+// blocked, else null.
+async function checkTravelCap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  artistId: string,
+  key: EntitlementLimit,
+  noun: string,
+): Promise<string | null> {
+  try {
+    const overrides = await getAccountOverrides(artistId);
+    let count = 0;
+    if (key === "studio_library") {
+      const { count: n } = await supabase
+        .from("studios")
+        .select("id", { count: "exact", head: true })
+        .eq("artist_id", artistId);
+      count = n ?? 0;
+    } else if (key === "active_trips") {
+      // An active trip has at least one leg ending today or later.
+      const today = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from("trips")
+        .select("id, trip_legs!inner(ends_on)")
+        .eq("artist_id", artistId)
+        .gte("trip_legs.ends_on", today);
+      count = new Set((data ?? []).map((t) => t.id)).size;
+    }
+    const gate = capState(overrides, key, count);
+    if (gate.blocked) {
+      return `You've reached the ${gate.cap}-${noun} limit on your current plan. Upgrade to Plus to add more.`;
+    }
+    return null;
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "travel_cap_check" },
+      extra: { artistId, key },
+    });
+    return null; // fail open
+  }
+}
+
 // ─── Studio actions ───────────────────────────────────────────────────────────
 
 export async function createStudioAction(
@@ -60,6 +107,14 @@ export async function createStudioAction(
       return { error: err.issues[0]?.message ?? "invalid input" };
     return { error: "Invalid input." };
   }
+
+  const capErr = await checkTravelCap(
+    supabase,
+    user.id,
+    "studio_library",
+    "studio",
+  );
+  if (capErr) return { error: capErr };
 
   if (input.is_primary) {
     await supabase
@@ -209,6 +264,16 @@ export async function createStudioAndReturnAction(formData: FormData): Promise<
     }
   }
 
+  // Cap only a genuinely NEW studio row (after the dedup above, so re-selecting
+  // an existing library entry is never blocked).
+  const capErr = await checkTravelCap(
+    supabase,
+    user.id,
+    "studio_library",
+    "studio",
+  );
+  if (capErr) return { error: capErr };
+
   if (input.is_primary) {
     await supabase
       .from("studios")
@@ -291,6 +356,14 @@ export async function createTripAction(
     legs.map((leg) => leg.studioId).filter(Boolean) as string[],
   );
   if (studioError) return { error: studioError };
+
+  const capErr = await checkTravelCap(
+    supabase,
+    user.id,
+    "active_trips",
+    "active trip",
+  );
+  if (capErr) return { error: capErr };
 
   const { data: newTrip, error } = await supabase
     .from("trips")

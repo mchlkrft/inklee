@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import {
   requireMobileUser,
   mobileOk,
@@ -9,6 +10,8 @@ import {
   fieldErrorMessage,
   normalizeFieldInput,
 } from "@/lib/mobile-booking-form";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { capState } from "@/lib/server/entitlement-gates";
 
 export const runtime = "nodejs";
 
@@ -33,6 +36,31 @@ export async function POST(req: Request) {
     return mobileError(400, fieldErrorMessage(parsed.error.issues[0]));
   }
   const data = parsed.data;
+
+  // Entitlement cap (BM-2.0), same gate as the web action so the two surfaces
+  // can't drift. Dark-launched via entitlement_caps; fail open on a plan-read
+  // blip (a soft cap, not money).
+  try {
+    const overrides = await getAccountOverrides(userId);
+    const { count } = await supabase
+      .from("custom_fields")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", userId)
+      .is("deleted_at", null);
+    const gate = capState(overrides, "custom_fields", count ?? 0);
+    if (gate.blocked) {
+      return mobileError(
+        403,
+        `You've reached the ${gate.cap}-field limit on your current plan. Upgrade to Plus to add more.`,
+        "cap_reached",
+      );
+    }
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "custom_fields_cap_check_mobile" },
+      extra: { artistId: userId },
+    });
+  }
 
   // Max position over live fields (deleted_at null), like the web action.
   const { data: existing } = await supabase

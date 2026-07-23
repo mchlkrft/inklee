@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { fieldConfigSchema, labelToKey } from "@/lib/custom-fields";
 import { buildDefaultFieldOrder, insertFieldId } from "@/lib/form-settings";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { capState } from "@/lib/server/entitlement-gates";
 
 type State = { error: string } | { success: true } | null;
 
@@ -42,6 +45,30 @@ export async function createFieldAction(
 
   // Auto-generate key from label if left blank
   const key = data.key || labelToKey(data.label);
+
+  // Entitlement cap (BM-2.0): block a NEW field past the tier limit.
+  // Dark-launched via the entitlement_caps capability; existing fields are never
+  // touched (the count only gates creation). Fail OPEN on a plan-read blip: a
+  // soft cap must not block field creation the way the money path would.
+  try {
+    const overrides = await getAccountOverrides(user.id);
+    const { count } = await supabase
+      .from("custom_fields")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", user.id)
+      .is("deleted_at", null);
+    const gate = capState(overrides, "custom_fields", count ?? 0);
+    if (gate.blocked) {
+      return {
+        error: `You've reached the ${gate.cap}-field limit on your current plan. Upgrade to Plus to add more.`,
+      };
+    }
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "custom_fields_cap_check" },
+      extra: { artistId: user.id },
+    });
+  }
 
   // Get max position
   const { data: existing } = await supabase

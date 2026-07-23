@@ -14,6 +14,7 @@ import type { CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
+import { publicBrandingHidden } from "@/lib/server/public-branding";
 import {
   dateKeyInTimeZone,
   formatDateKey,
@@ -121,6 +122,10 @@ export default async function ArtistPublicPage({
     .single();
 
   if (!profile) notFound();
+
+  // BM-2.0: hide the "made with Inklee" footer for a branding-entitled artist
+  // (dark-launched, fail-safe: keeps the footer on any plan-read blip).
+  const hideBranding = await publicBrandingHidden(profile.id as string);
 
   const isSlotMode = profile.booking_mode === "fixed_slots";
   let slots: SlotOption[] = [];
@@ -631,13 +636,17 @@ export default async function ArtistPublicPage({
           >
             Imprint
           </Link>
-          <span aria-hidden>·</span>
-          <Link
-            href={homeHref}
-            className="transition-colors hover:text-brand-bone"
-          >
-            Powered by inklee
-          </Link>
+          {!hideBranding && (
+            <>
+              <span aria-hidden>·</span>
+              <Link
+                href={homeHref}
+                className="transition-colors hover:text-brand-bone"
+              >
+                Powered by inklee
+              </Link>
+            </>
+          )}
         </footer>
       </div>
     </InterestSelectionsProvider>

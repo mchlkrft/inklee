@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CalendarCheck, ExternalLink } from "lucide-react";
 import { serviceClient } from "@/lib/supabase/service";
+import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { parseBioPageSettings, BIO_SOCIAL_META } from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import { apexHref, publicArtistUrl, publicHubUrl } from "@/lib/public-url";
@@ -59,6 +60,8 @@ export default async function ArtistHubPage({
     .single();
 
   if (!profile) notFound();
+
+  const hideBranding = await publicBrandingHidden(profile.id as string);
 
   const settings = (profile.settings ?? {}) as Record<string, unknown>;
   const bioPage = parseBioPageSettings(settings.bio_page);
@@ -216,13 +219,17 @@ export default async function ArtistHubPage({
         >
           Privacy
         </Link>
-        <span aria-hidden>·</span>
-        <Link
-          href={homeHref}
-          className="transition-colors hover:text-brand-bone"
-        >
-          Powered by inklee
-        </Link>
+        {!hideBranding && (
+          <>
+            <span aria-hidden>·</span>
+            <Link
+              href={homeHref}
+              className="transition-colors hover:text-brand-bone"
+            >
+              Powered by inklee
+            </Link>
+          </>
+        )}
       </footer>
     </div>
   );

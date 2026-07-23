@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import {
   requireMobileUser,
   mobileOk,
@@ -9,6 +10,8 @@ import {
   toStudio,
   type StudioRow,
 } from "@/lib/mobile-travel";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { capState } from "@/lib/server/entitlement-gates";
 import type { MobileStudiosResponse } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -50,6 +53,30 @@ export async function POST(req: Request) {
   const parsed = normalizeStudioInput(raw);
   if (!parsed.ok) return mobileError(400, parsed.error);
   const v = parsed.value;
+
+  // Entitlement cap (BM-2.0, same gate as the web createStudioAction).
+  // Dark-launched via entitlement_caps; fail open on a plan-read blip. No dedup
+  // on this path (Places columns are web-only), so every POST is a new row.
+  try {
+    const overrides = await getAccountOverrides(userId);
+    const { count } = await supabase
+      .from("studios")
+      .select("id", { count: "exact", head: true })
+      .eq("artist_id", userId);
+    const gate = capState(overrides, "studio_library", count ?? 0);
+    if (gate.blocked) {
+      return mobileError(
+        403,
+        `You've reached the ${gate.cap}-studio limit on your current plan. Upgrade to Plus to add more.`,
+        "cap_reached",
+      );
+    }
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "studio_library_cap_check_mobile" },
+      extra: { artistId: userId },
+    });
+  }
 
   // One primary studio per artist (unique partial index) — demote the old one.
   if (v.is_primary) {

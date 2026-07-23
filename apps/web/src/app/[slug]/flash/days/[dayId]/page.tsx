@@ -1,4 +1,5 @@
 import { serviceClient } from "@/lib/supabase/service";
+import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -45,6 +46,8 @@ export default async function PublicFlashDayPage({
   // Private, cancelled, or non-existent days are indistinguishable to clients;
   // a cancelled day must stop soliciting bookings.
   if (!day || !day.is_public || day.status === "cancelled") notFound();
+
+  const hideBranding = await publicBrandingHidden(profile.id as string);
 
   // Footer + consent links leave the artist namespace for apex-only routes,
   // so they go through apexHref (absolute app-origin URLs on subdomains).
@@ -203,13 +206,17 @@ export default async function PublicFlashDayPage({
         >
           Privacy
         </Link>
-        <span>·</span>
-        <Link
-          href={homeHref}
-          className="hover:text-foreground transition-colors"
-        >
-          Powered by inklee
-        </Link>
+        {!hideBranding && (
+          <>
+            <span>·</span>
+            <Link
+              href={homeHref}
+              className="hover:text-foreground transition-colors"
+            >
+              Powered by inklee
+            </Link>
+          </>
+        )}
       </footer>
     </div>
   );

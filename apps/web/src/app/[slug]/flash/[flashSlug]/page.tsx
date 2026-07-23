@@ -1,4 +1,5 @@
 import { serviceClient } from "@/lib/supabase/service";
+import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -41,6 +42,8 @@ export default async function PublicFlashItemPage({
     .single();
 
   if (!item || item.status !== "published") notFound();
+
+  const hideBranding = await publicBrandingHidden(profile.id as string);
 
   // Count active requests to compute intake availability.
   const { count: activeRequestCount } = await serviceClient
@@ -215,13 +218,17 @@ export default async function PublicFlashItemPage({
         >
           Privacy
         </Link>
-        <span>·</span>
-        <Link
-          href={homeHref}
-          className="hover:text-foreground transition-colors"
-        >
-          Powered by inklee
-        </Link>
+        {!hideBranding && (
+          <>
+            <span>·</span>
+            <Link
+              href={homeHref}
+              className="hover:text-foreground transition-colors"
+            >
+              Powered by inklee
+            </Link>
+          </>
+        )}
       </footer>
     </div>
   );

@@ -1,9 +1,12 @@
+import * as Sentry from "@sentry/nextjs";
 import {
   requireMobileUser,
   mobileOk,
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { normalizeTripInput } from "@/lib/mobile-travel";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { capState } from "@/lib/server/entitlement-gates";
 import type {
   MobileTrip,
   MobileTripsResponse,
@@ -69,6 +72,34 @@ export async function POST(req: Request) {
   const parsed = normalizeTripInput(raw);
   if (!parsed.ok) return mobileError(400, parsed.error);
   const v = parsed.value;
+
+  // Entitlement cap (BM-2.0, same gate as the web createTripAction). Dark-launched
+  // via entitlement_caps; fail open on a plan-read blip. (Leg-add is a separate,
+  // ungated path; a follow-up can gate it for full active-trip precision.)
+  try {
+    const overrides = await getAccountOverrides(userId);
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: activeTrips } = await supabase
+      .from("trips")
+      .select("id, trip_legs!inner(ends_on)")
+      .eq("artist_id", userId)
+      .gte("trip_legs.ends_on", today);
+    const count = new Set((activeTrips ?? []).map((t: { id: string }) => t.id))
+      .size;
+    const gate = capState(overrides, "active_trips", count);
+    if (gate.blocked) {
+      return mobileError(
+        403,
+        `You've reached the ${gate.cap}-active trip limit on your current plan. Upgrade to Plus to add more.`,
+        "cap_reached",
+      );
+    }
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "active_trips_cap_check_mobile" },
+      extra: { artistId: userId },
+    });
+  }
 
   const { data, error } = await supabase
     .from("trips")

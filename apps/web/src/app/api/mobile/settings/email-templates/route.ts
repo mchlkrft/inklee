@@ -9,6 +9,8 @@ import {
   DEFAULT_SUBJECTS,
   templateBodySchema,
 } from "@/lib/email/booking-templates";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { canEditTemplates } from "@/lib/server/entitlement-gates";
 import {
   EMAIL_TEMPLATE_TYPES,
   isEmailTemplateType,
@@ -99,6 +101,23 @@ export async function POST(req: Request) {
 
   const parsed = templateBodySchema.safeParse(body.trim());
   if (!parsed.success) return mobileError(400, parsed.error.issues[0].message);
+
+  // Entitlement gate (BM-2.0, same as saveTemplateAction). Dark-launched via
+  // custom_templates; the send path stays ungated so existing bodies keep going
+  // out. Fail closed on a plan-read blip.
+  let overrides;
+  try {
+    overrides = await getAccountOverrides(userId);
+  } catch {
+    return mobileError(503, "Couldn't verify your plan. Please try again.");
+  }
+  if (!canEditTemplates(overrides)) {
+    return mobileError(
+      403,
+      "Custom email templates are a Plus feature. Upgrade to Plus to edit them.",
+      "not_entitled",
+    );
+  }
 
   const subject = DEFAULT_SUBJECTS[type] ?? "inklee";
 

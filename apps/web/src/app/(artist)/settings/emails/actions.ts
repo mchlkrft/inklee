@@ -7,6 +7,8 @@ import {
 } from "@/lib/email/booking-templates";
 import { revalidatePath } from "next/cache";
 import { writeAudit } from "@/lib/audit";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { canEditTemplates } from "@/lib/server/entitlement-gates";
 
 type State = { error: string } | { success: true } | null;
 
@@ -32,6 +34,23 @@ export async function saveTemplateAction(
 
   const parsed = templateBodySchema.safeParse(body);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  // Entitlement gate (BM-2.0): editing a custom template body is a Plus feature.
+  // Dark-launched via custom_templates; existing bodies always keep SENDING (the
+  // send path is never gated). Fail closed on a plan-read blip: block the edit
+  // rather than silently allow it.
+  let overrides;
+  try {
+    overrides = await getAccountOverrides(user.id);
+  } catch {
+    return { error: "Couldn't verify your plan. Please try again." };
+  }
+  if (!canEditTemplates(overrides)) {
+    return {
+      error:
+        "Custom email templates are a Plus feature. Upgrade to Plus to edit them.",
+    };
+  }
 
   const subject = DEFAULT_SUBJECTS[type] ?? "inklee";
 
