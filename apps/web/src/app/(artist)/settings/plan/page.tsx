@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { effectivePlanTier, isGrandfathered } from "@/lib/entitlements";
+import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 import UpgradeButton from "./upgrade-button";
 import ManageSubscriptionButton from "./manage-subscription-button";
 import WithdrawButton from "./withdraw-button";
@@ -90,7 +91,13 @@ export default async function PlanPage() {
             ))}
           </ul>
           <div className="mt-6">
-            <UpgradeButton label="Upgrade to Plus" />
+            {PLUS_CONSUMER_LAUNCH_ENABLED ? (
+              <UpgradeButton label="Upgrade to Plus" />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Plus is coming soon.
+              </p>
+            )}
           </div>
         </section>
       ) : (
@@ -114,15 +121,17 @@ export default async function PlanPage() {
           <div className="mt-6">
             <ManageSubscriptionButton />
           </div>
-          <div className="mt-6 border-t border-border pt-4">
-            <p className="text-xs text-muted-foreground">
-              Bought Inklee Plus in the last 14 days? You have a right to
-              withdraw, which is separate from cancelling.
-            </p>
-            <div className="mt-2">
-              <WithdrawButton />
+          {PLUS_CONSUMER_LAUNCH_ENABLED && (
+            <div className="mt-6 border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground">
+                Bought Inklee Plus in the last 14 days? You have a right to
+                withdraw, which is separate from cancelling.
+              </p>
+              <div className="mt-2">
+                <WithdrawButton />
+              </div>
             </div>
-          </div>
+          )}
         </section>
       )}
     </div>

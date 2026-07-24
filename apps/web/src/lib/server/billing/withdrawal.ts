@@ -87,18 +87,26 @@ function readLatestInvoice(sub: Stripe.Subscription): {
   const anyInv = inv as unknown as {
     amount_paid?: number;
     currency?: string;
-    payment_intent?: unknown;
-    charge?: unknown;
-    payments?: { data?: Array<{ payment?: { payment_intent?: unknown } }> };
+    payment_intent?: unknown; // legacy (pre-basil)
+    charge?: unknown; // legacy (pre-basil)
+    payments?: {
+      data?: Array<{
+        payment?: { payment_intent?: unknown; charge?: unknown };
+      }>;
+    };
   };
+  // dahlia (pinned): the charge/payment_intent live under invoice.payments (which
+  // must be expanded). Read that first, then fall back to the legacy top-level
+  // fields for any pre-basil serialization.
+  const payment = anyInv.payments?.data?.[0]?.payment;
   const paymentIntent =
-    idOf(anyInv.payment_intent) ??
-    idOf(anyInv.payments?.data?.[0]?.payment?.payment_intent);
+    idOf(payment?.payment_intent) ?? idOf(anyInv.payment_intent);
+  const charge = idOf(payment?.charge) ?? idOf(anyInv.charge);
   return {
     amountPaidMinor: anyInv.amount_paid ?? null,
     currency: anyInv.currency ?? null,
     paymentIntent,
-    charge: idOf(anyInv.charge),
+    charge,
   };
 }
 
@@ -145,7 +153,7 @@ export async function recordDurableConfirmation(input: {
     if (existing) return;
   }
 
-  const { data: row } = await serviceClient
+  const { data: row, error: insErr } = await serviceClient
     .from("billing_contract_confirmations")
     .insert({
       artist_id: input.artistId,
@@ -157,6 +165,9 @@ export async function recordDurableConfirmation(input: {
     })
     .select("id")
     .maybeSingle();
+  // 23505 = a concurrent delivery for the same invoice won the unique index
+  // (0110); it is sending, so stop here rather than send a duplicate.
+  if (insErr && (insErr as { code?: string }).code === "23505") return;
 
   try {
     const { data: userData } = await serviceClient.auth.admin.getUserById(
@@ -225,12 +236,13 @@ export async function withdrawSubscriptionCore(input: {
 }): Promise<WithdrawalResult> {
   const stripe = requireStripe();
 
-  // 1. The artist's active subscription (access-control record).
+  // 1. The artist's subscription (most recent, ANY status). A cancellation must
+  //    never extinguish a still-valid withdrawal right, so we do NOT filter to
+  //    active-only; a canceled-within-window subscription must still be found.
   const { data: subRow, error: subErr } = await serviceClient
     .from("billing_subscriptions")
     .select("id, stripe_subscription_id, status")
     .eq("artist_id", input.artistId)
-    .in("status", ["active", "trialing", "past_due"])
     .order("last_reconciled_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -241,13 +253,21 @@ export async function withdrawSubscriptionCore(input: {
   const billingSubscriptionId = subRow.id as string;
   const stripeSubId = subRow.stripe_subscription_id as string;
 
-  // 2. Live Stripe truth (period + invoice/charge). Expand the invoice.
+  // 2. Live Stripe truth. Expand latest_invoice.payments so the refundable charge
+  //    is present on the pinned dahlia API (the charge/payment_intent live under
+  //    invoice.payments there and are not returned by default).
   const sub = await stripe.subscriptions.retrieve(stripeSubId, {
-    expand: ["latest_invoice"],
+    expand: ["latest_invoice.payments"],
   });
   const { periodStart, periodEnd, startDate } = readPeriod(sub);
   const invoice = readLatestInvoice(sub);
   const currency = invoice.currency ?? "eur";
+
+  // The immediate-performance request is read SCOPED to THIS subscription from
+  // its metadata (stamped at checkout), never an unscoped latest-consent lookup:
+  // a stale request from a prior/abandoned checkout must not prorate this one.
+  const immediatePerformanceRequested =
+    (sub.metadata?.immediate_performance ?? "") === "true";
 
   const now = new Date();
   const withdrawalPeriodStart = startDate ?? periodStart ?? now;
@@ -255,29 +275,9 @@ export async function withdrawSubscriptionCore(input: {
     withdrawalPeriodStart.getTime() + WITHDRAWAL_WINDOW_DAYS * 86_400_000,
   );
 
-  // 3. Eligibility: the statutory 14-day window from contract conclusion. The
-  //    withdrawal FUNCTION is always reachable; a withdrawal is VALID only inside
-  //    the window. Outside it we create no case; the UI offers cancellation.
-  if (now.getTime() > withdrawalDeadline.getTime()) {
-    return {
-      status: "not_available",
-      reason: "The 14-day withdrawal period has ended. You can cancel instead.",
-    };
-  }
-
-  // 4. Immediate-performance consent drives proration vs full refund (F4(b)).
-  const { data: ipConsent } = await serviceClient
-    .from("billing_consent_records")
-    .select("id")
-    .eq("artist_id", input.artistId)
-    .eq("consent_type", "immediate_performance_request")
-    .order("consented_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const immediatePerformanceRequested = Boolean(ipConsent?.id);
-
-  // 5. Find-or-create the withdrawal case (idempotent; received_at is FIXED so a
-  //    retry reuses the same proration and refund amount).
+  // 3. Resume an existing case, or open a new one only inside the 14-day window.
+  //    A case that was validly opened in-window is resumed even after the
+  //    deadline; only a brand-new withdrawal is gated on the window.
   let caseRow = (
     await serviceClient
       .from("withdrawal_cases")
@@ -286,7 +286,23 @@ export async function withdrawSubscriptionCore(input: {
       .maybeSingle()
   ).data as CaseRow | null;
 
+  if (caseRow?.state === "completed") {
+    return {
+      status: "completed",
+      refundMinor: caseRow.refund_minor ?? 0,
+      currency,
+      caseId: caseRow.id,
+    };
+  }
+
   if (!caseRow) {
+    if (now.getTime() > withdrawalDeadline.getTime()) {
+      return {
+        status: "not_available",
+        reason:
+          "The 14-day withdrawal period has ended. You can cancel instead.",
+      };
+    }
     const { data: created, error: insErr } = await serviceClient
       .from("withdrawal_cases")
       .insert({
@@ -298,7 +314,6 @@ export async function withdrawSubscriptionCore(input: {
         service_start: (periodStart ?? withdrawalPeriodStart).toISOString(),
         withdrawal_period_start: withdrawalPeriodStart.toISOString(),
         withdrawal_deadline: withdrawalDeadline.toISOString(),
-        immediate_performance_consent_id: ipConsent?.id ?? null,
         updated_at: now.toISOString(),
       })
       .select("id, state, received_at, refund_minor, stripe_refund_id")
@@ -321,6 +336,7 @@ export async function withdrawSubscriptionCore(input: {
   }
 
   const caseId = caseRow.id;
+  // A concurrent request may have completed it between our read and now.
   if (caseRow.state === "completed") {
     return {
       status: "completed",
@@ -330,7 +346,7 @@ export async function withdrawSubscriptionCore(input: {
     };
   }
 
-  // 6. Proration at the FIXED receipt time. Unregistered posture => taxRate 0
+  // 4. Proration at the FIXED receipt time. Unregistered posture => taxRate 0
   //    (when registered, read the original transaction_tax_snapshot rate).
   const proration = computeWithdrawalProration({
     originalGrossMinor: invoice.amountPaidMinor ?? 0,
@@ -342,27 +358,29 @@ export async function withdrawSubscriptionCore(input: {
     immediatePerformanceRequested,
   });
 
-  await serviceClient
-    .from("withdrawal_cases")
-    .update({
-      state: "acknowledged",
-      acknowledged_at: now.toISOString(),
-      proration_policy_version: proration.policyVersion,
-      refund_minor: proration.refundGrossMinor,
-      updated_at: now.toISOString(),
-    })
-    .eq("id", caseId);
+  // 5. Acknowledge + durable ack exactly ONCE, on the first pass (state
+  //    'received'). A resume must not re-send the acknowledgement email.
+  if (caseRow.state === "received") {
+    await serviceClient
+      .from("withdrawal_cases")
+      .update({
+        state: "acknowledged",
+        acknowledged_at: now.toISOString(),
+        proration_policy_version: proration.policyVersion,
+        refund_minor: proration.refundGrossMinor,
+        updated_at: now.toISOString(),
+      })
+      .eq("id", caseId);
+    await recordDurableConfirmation({
+      artistId: input.artistId,
+      billingSubscriptionId,
+      kind: "withdrawal",
+      refundMinor: proration.refundGrossMinor,
+      currency,
+    });
+  }
 
-  // 7. Immediate durable acknowledgement (best-effort; never blocks withdrawal).
-  await recordDurableConfirmation({
-    artistId: input.artistId,
-    billingSubscriptionId,
-    kind: "withdrawal",
-    refundMinor: proration.refundGrossMinor,
-    currency,
-  });
-
-  // 8. PARTIAL refund on Inklee's own charge (skip if nothing owed or already done).
+  // 6. PARTIAL refund on Inklee's own charge (skip if nothing owed or already done).
   if (proration.refundGrossMinor > 0 && !caseRow.stripe_refund_id) {
     const chargeId = await resolveChargeId(stripe, invoice);
     if (!chargeId) throw new Error("withdrawal: no charge to refund");
@@ -386,24 +404,37 @@ export async function withdrawSubscriptionCore(input: {
       .eq("id", caseId);
   }
 
-  // 9. Cancel immediately + downgrade via the shared reconcile (grandfather
-  //    restore aware). Skip the cancel if Stripe already shows it canceled.
+  // 7. End the subscription + downgrade via the shared reconcile (grandfather
+  //    restore aware). Cancel only if not already canceled; ALWAYS reconcile so
+  //    the downgrade lands even on a resume where the sub is already canceled.
   if (sub.status !== "canceled") {
     const canceled = await stripe.subscriptions.cancel(stripeSubId, undefined, {
       idempotencyKey: subscriptionIdempotencyKey("cancel", stripeSubId),
     });
     await reconcileFromStripeSubscription(canceled);
+  } else {
+    await reconcileFromStripeSubscription(sub);
   }
 
-  // 10. Record the withdrawal acknowledgement consent + complete the case.
+  // 8. Record the withdrawal acknowledgement consent (once) + complete the case.
   const done = new Date().toISOString();
-  await serviceClient.from("billing_consent_records").insert({
-    artist_id: input.artistId,
-    consent_type: "withdrawal_ack",
-    consent_version: WITHDRAWAL_ACK_VERSION,
-    consented_at: done,
-    context: { withdrawal_case_id: caseId },
-  });
+  const { data: existingAck } = await serviceClient
+    .from("billing_consent_records")
+    .select("id")
+    .eq("artist_id", input.artistId)
+    .eq("consent_type", "withdrawal_ack")
+    .eq("consent_version", `${WITHDRAWAL_ACK_VERSION}:${caseId}`)
+    .maybeSingle();
+  if (!existingAck) {
+    await serviceClient.from("billing_consent_records").insert({
+      artist_id: input.artistId,
+      consent_type: "withdrawal_ack",
+      // Suffix the case id so a resume is idempotent without a jsonb query.
+      consent_version: `${WITHDRAWAL_ACK_VERSION}:${caseId}`,
+      consented_at: done,
+      context: { withdrawal_case_id: caseId },
+    });
+  }
   await serviceClient
     .from("withdrawal_cases")
     .update({ state: "completed", updated_at: done })

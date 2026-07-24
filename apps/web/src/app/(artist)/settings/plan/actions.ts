@@ -33,6 +33,7 @@ async function startCheckout(input: {
   userId: string;
   email: string;
   contractType: "consumer" | "business";
+  immediatePerformanceRequested?: boolean;
   consentRows: (ctx: {
     now: string;
     termsVersion: string;
@@ -72,6 +73,7 @@ async function startCheckout(input: {
     email: input.email,
     priceId: price.id,
     contractCustomerType: input.contractType,
+    immediatePerformanceRequested: input.immediatePerformanceRequested,
     successUrl: `${appUrl}/settings/plan?checkout=success`,
     cancelUrl: `${appUrl}/settings/plan?checkout=cancelled`,
   });
@@ -110,6 +112,7 @@ export async function startPlusConsumerCheckoutAction(input?: {
       userId: user.id,
       email: user.email,
       contractType: "consumer",
+      immediatePerformanceRequested: immediate,
       consentRows: ({ now, termsVersion, termsHash }) => {
         const rows: ConsentRow[] = [
           {

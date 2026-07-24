@@ -166,26 +166,34 @@ function makeStripeSub(o: {
   startDaysAgo: number;
   periodDays?: number;
   amountPaid?: number | null;
-  paymentIntent?: string | null;
-  charge?: string | null;
+  immediatePerformance?: boolean;
+  legacy?: boolean; // use the pre-basil top-level payment_intent instead of payments
 }) {
   const start = Math.floor((nowMs - o.startDaysAgo * DAY) / 1000);
   const end = Math.floor(
     (nowMs + (o.periodDays ?? 30 - o.startDaysAgo) * DAY) / 1000,
   );
+  // dahlia (pinned) puts the charge/payment_intent under invoice.payments; the
+  // legacy top-level fields no longer exist there. Default to the dahlia shape.
   const latest_invoice =
     o.amountPaid === null
       ? null
       : {
           amount_paid: o.amountPaid ?? 300,
           currency: "eur",
-          payment_intent: o.paymentIntent ?? "pi_1",
-          charge: o.charge ?? null,
+          ...(o.legacy
+            ? { payment_intent: "pi_1" }
+            : {
+                payments: { data: [{ payment: { payment_intent: "pi_1" } }] },
+              }),
         };
   return {
     id: "sub_1",
     status: o.status ?? "active",
     start_date: start,
+    metadata: {
+      immediate_performance: o.immediatePerformance ? "true" : "false",
+    },
     items: { data: [{ current_period_start: start, current_period_end: end }] },
     latest_invoice,
   };
@@ -239,15 +247,14 @@ describe("withdrawSubscriptionCore", () => {
 
   it("mid-period with immediate performance: prorated partial refund on Inklee's charge, then downgrade", async () => {
     seedSub();
-    h.store.billing_consent_records.push({
-      id: "ipc_1",
-      artist_id: "artist_1",
-      consent_type: "immediate_performance_request",
-      consented_at: "2026-07-19T12:00:00Z",
-    });
-    // start 5 days ago, 30-day period -> used 5/30 -> retain 50, refund 250.
+    // Immediate-performance is read from the SUBSCRIPTION metadata (scoped), not
+    // an unscoped consent lookup. start 5 days ago, 30-day period -> refund 250.
     h.stripe.retrieve.mockResolvedValue(
-      makeStripeSub({ startDaysAgo: 5, periodDays: 25 }),
+      makeStripeSub({
+        startDaysAgo: 5,
+        periodDays: 25,
+        immediatePerformance: true,
+      }),
     );
     const r = await withdrawSubscriptionCore({ artistId: "artist_1" });
     expect(r.status).toBe("completed");
@@ -305,6 +312,8 @@ describe("withdrawSubscriptionCore", () => {
     expect(r.status).toBe("completed");
     // The refund was already issued; do not create another.
     expect(h.stripe.refundCreate).not.toHaveBeenCalled();
+    // Resuming from a non-'received' state must NOT re-send the durable ack.
+    expect(h.sendEmail).not.toHaveBeenCalled();
     expect(h.stripe.cancel).toHaveBeenCalledTimes(1);
     expect(h.store.withdrawal_cases).toHaveLength(1);
   });
@@ -331,14 +340,13 @@ describe("withdrawSubscriptionCore", () => {
 
   it("nothing paid (trial): no refund, still cancels + downgrades", async () => {
     seedSub();
-    h.store.billing_consent_records.push({
-      id: "ipc_1",
-      artist_id: "artist_1",
-      consent_type: "immediate_performance_request",
-      consented_at: "2026-07-19T12:00:00Z",
-    });
     h.stripe.retrieve.mockResolvedValue(
-      makeStripeSub({ startDaysAgo: 5, periodDays: 25, amountPaid: 0 }),
+      makeStripeSub({
+        startDaysAgo: 5,
+        periodDays: 25,
+        amountPaid: 0,
+        immediatePerformance: true,
+      }),
     );
     const r = await withdrawSubscriptionCore({ artistId: "artist_1" });
     expect(r.status).toBe("completed");
@@ -346,5 +354,46 @@ describe("withdrawSubscriptionCore", () => {
     expect(r.refundMinor).toBe(0);
     expect(h.stripe.refundCreate).not.toHaveBeenCalled();
     expect(h.stripe.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves the refund charge from the legacy invoice shape too", async () => {
+    seedSub();
+    h.stripe.retrieve.mockResolvedValue(
+      makeStripeSub({
+        startDaysAgo: 5,
+        periodDays: 25,
+        immediatePerformance: true,
+        legacy: true,
+      }),
+    );
+    const r = await withdrawSubscriptionCore({ artistId: "artist_1" });
+    expect(r.status).toBe("completed");
+    expect(h.stripe.refundCreate.mock.calls[0][0].charge).toBe("ch_1");
+  });
+
+  it("a cancellation does not extinguish an in-window withdrawal", async () => {
+    // The subscription is already canceled but still inside the 14-day window.
+    h.store.billing_subscriptions.push({
+      id: "bsub_1",
+      artist_id: "artist_1",
+      stripe_subscription_id: "sub_1",
+      status: "canceled",
+      last_reconciled_at: "2026-07-24T00:00:00Z",
+    });
+    h.stripe.retrieve.mockResolvedValue(
+      makeStripeSub({
+        status: "canceled",
+        startDaysAgo: 5,
+        periodDays: 25,
+        immediatePerformance: true,
+      }),
+    );
+    const r = await withdrawSubscriptionCore({ artistId: "artist_1" });
+    expect(r.status).toBe("completed");
+    if (r.status !== "completed") return;
+    expect(r.refundMinor).toBe(250); // still refunded
+    // Already canceled: do not re-cancel, but still reconcile the downgrade.
+    expect(h.stripe.cancel).not.toHaveBeenCalled();
+    expect(h.reconcile).toHaveBeenCalledTimes(1);
   });
 });

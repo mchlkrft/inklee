@@ -64,6 +64,10 @@ export async function createSubscriptionCheckout(input: {
   name?: string;
   priceId: string;
   contractCustomerType: ContractCustomerType;
+  /** The express immediate-performance request (P3), stamped onto the
+   *  subscription so the withdrawal proration reads it SCOPED to this contract,
+   *  not from an unscoped latest-consent lookup. */
+  immediatePerformanceRequested?: boolean;
   successUrl: string;
   cancelUrl: string;
 }): Promise<{ id: string; url: string | null }> {
@@ -77,6 +81,7 @@ export async function createSubscriptionCheckout(input: {
     name: input.name,
   });
 
+  const immediatePerformance = input.immediatePerformanceRequested === true;
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -89,6 +94,7 @@ export async function createSubscriptionCheckout(input: {
         artist_id: input.artistId,
         billing_flow: "plus_subscription",
         contract_customer_type: input.contractCustomerType,
+        immediate_performance: immediatePerformance ? "true" : "false",
       },
     },
     // Disjoint from the deposit metadata namespace (never booking_id/artist money).
