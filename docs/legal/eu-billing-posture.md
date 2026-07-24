@@ -68,6 +68,14 @@ Covers P0 (B2B-first, consumer charging gated), P2 (checkout collection, VIES B2
 
 ## 8. Decisions required
 
+> **RESOLVED 2026-07-24 (see `plus-launch-strategy-decisions.md`).** The
+> "decline consumer sales at launch / declaration declined" question is closed:
+> there is **no business-use declaration at v1** (D1) — all buyers take the
+> consumer path, so the **b2c group is the launch gate**. Inklee stays
+> **VAT-unregistered with no reverse-charge** (D2); VIES becomes optional invoice
+> enrichment, not a classification gate. The `FOUNDER`/`LEGAL-COUNSEL`/`ACCOUNTANT`
+> items below are superseded to that extent.
+
 - `FOUNDER DECISION` the pricing display convention (fixes `tax_behavior`); what happens when the business-use declaration is declined (route to the consumer flow, or decline consumer sales at launch); the quote lifetime.
 - `ACCOUNTANT DECISION` confirm the current no-VAT posture and the convention trigger date; the VIES revalidation cadence; the IP-evidence retention.
 - `LEGAL-COUNSEL DECISION` the DRAFT subscription terms, withdrawal wording, and business-use declaration; whether Inklee may decline consumer sales at launch (B2B-only), which would keep the b2c group permanently gated until a later decision; the declaration's sufficiency; email as a durable medium; the full disclosure list and the pay-button wording; VIES reliance and downtime handling.

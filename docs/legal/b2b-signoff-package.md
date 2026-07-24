@@ -9,6 +9,15 @@ Live billing is **OFF** and stays off until the full B2B key set is recorded AND
 a live Stripe Price exists AND the deployment runs in live mode (prod always
 does). Recording any single key opens nothing on its own.
 
+> **STRATEGY UPDATE — 2026-07-24 (see `plus-launch-strategy-decisions.md`).**
+> Launch posture changed from B2B-only to **consumer-first** (decision D1), and
+> Inklee stays **VAT-unregistered with no reverse-charge wording** (D2). Effect on
+> this package: the **launch gate is now the b2c set**, not the b2b set; key 2
+> (`business_declaration_approved`) is **deferred out of v1**; and the
+> reverse-charge wording in keys 1 and 3 is **replaced** with non-VAT-registered
+> wording. Per-key notes below; original text kept for history. Concrete steps in
+> `plus-launch-followup.md`.
+
 ## Gate state (2026-07-23)
 
 | Group | Recorded | Open |
@@ -21,6 +30,10 @@ does). Recording any single key opens nothing on its own.
 > `pricing_display_approved` (founder + accountant), `stripe_prod_verified`
 > (founder + a live Price). See the "Correction applied" note below for the
 > outside-VAT change and what it still gates.
+
+> **UPDATE 2026-07-24:** the **launch gate is now the b2c group** (D1). The b2b
+> keys remain valid for a later explicit business/studio tier but are no longer
+> the path to first live charge.
 
 Recorders live in `scripts/billing/`. The generic one is
 `record-approval.cjs` (edit CONFIG, dry-run, then `--apply`). Each key below
@@ -53,6 +66,13 @@ On that corrected basis, and on counsel's sign-off that the Terms drafting
 ---
 
 ## 1. `terms_approved` — OWNER: legal counsel
+
+> **UPDATE 2026-07-24 (D2 + D1):** remove the section 11 statement that
+> cross-border EU B2B supplies are reverse-charged; replace with non-VAT-registered
+> wording (e.g. "VAT not applied — supplier is a non-registered small undertaking,
+> Estonia"). This re-rolls the version hash below and re-closes `terms_approved`
+> until re-approved. Because v1 sells to consumers (D1), the consumer 14-day
+> withdrawal terms are now **live launch terms**, not forward-only.
 
 **Artifact:** Terms of Service, version `2026-07-23`.
 **Version hash (bind to this):**
@@ -87,6 +107,12 @@ text is a recommended formality.
 
 ## 2. `business_declaration_approved` — OWNER: legal counsel
 
+> **UPDATE 2026-07-24 (D1): DEFERRED out of the v1 launch gate.** v1 sells to
+> everyone on the consumer path with **no business-use declaration**; a VAT-ID
+> becomes an optional invoice field, not a gate. This key and its
+> conflicting-signal / manual-review machinery return only with a future explicit
+> B2B/studio tier. Not required for launch.
+
 **Control:** a separate, unchecked, required checkbox at pre-checkout on
 `/settings/plan`, gating an "Order with obligation to pay" button (disabled until
 ticked). Version `c3-business-declaration-2026-07-23`.
@@ -113,6 +139,13 @@ launch.
 ---
 
 ## 3. `invoice_config_approved` — OWNER: accountant
+
+> **UPDATE 2026-07-24 (D2):** drop the reverse-charge note on cross-border EU B2B
+> invoices. Invoices are issued as a non-VAT-registered small-undertaking supply
+> (no VAT line, no VAT number, no reverse-charge). Accountant confirms the exact
+> document note per customer class; the **management board** approves the tax
+> posture (`tax_policies.management_board_approved`) with accountant review
+> recorded as evidence.
 
 **What to confirm:** the subscription invoice configuration (seller identity and
 registry code, VAT treatment shown per customer class, the reverse-charge note on

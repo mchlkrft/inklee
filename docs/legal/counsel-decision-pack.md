@@ -120,7 +120,17 @@ lawful basis). Pairs with the accountant's retention period (accountant pack A5)
 
 ## Answers (counsel review, 2026-07-23)
 
+> **STRATEGY UPDATE — 2026-07-24 (see `plus-launch-strategy-decisions.md`).**
+> Launch posture is now **consumer-first** (D1) and Inklee stays
+> **VAT-unregistered with no reverse-charge** (D2). This promotes C1 and C4 to
+> launch-critical, **defers C3 out of v1**, and revises C7 and C8. Section notes
+> below; concrete steps in `plus-launch-followup.md`.
+
 ### C1 — Classification: Inklee Plus is a digital service
+
+> **UPDATE 2026-07-24 (D1): now LAUNCH-CRITICAL.** Record
+> `consumer_classification_approved` = digital service before the first live
+> charge; it is a launch prerequisite, not a B2C-later item.
 Inklee Plus is a **digital service** under the Consumer Rights Directive as
 implemented in Estonia, not digital content. The CJEU confirmed in *Sky
 Österreich Fernsehen* (C-234/25, judgment of 9 July 2026) that a dynamic
@@ -152,6 +162,10 @@ on the basis of Article 6(1)(c) GDPR (VAT and accounting obligations); and the
 retention rule in C8.
 
 ### C3 — Business-use declaration: confirmed as built
+
+> **UPDATE 2026-07-24 (D1): DEFERRED for v1.** No business-use declaration ships
+> at launch; all buyers take the consumer path. The mechanism below is correct and
+> retained for a future explicit B2B/studio tier, but is not part of the v1 gate.
 The separate, unchecked, non-bundled control is the correct mechanism. The
 declaration is treated as **evidence, not absolute truth**: under the CRD's
 predominant-purpose approach to dual-purpose contracts, a trader may not rely on
@@ -163,6 +177,10 @@ for the control:
 > profession, and not as a consumer."
 
 ### C4 — Withdrawal flow: statutory withdrawal function now applies
+
+> **UPDATE 2026-07-24 (D1): now LAUNCH-CRITICAL.** Because v1 sells to consumers,
+> the Article 11a withdrawal function, durable confirmation, and proration are
+> launch prerequisites, not later work.
 Since **19 June 2026**, Directive (EU) 2023/2673 (new Article 11a CRD) makes an
 online **withdrawal function** mandatory for distance contracts concluded
 through an online interface. This is no longer a wording-approval matter; the
@@ -204,6 +222,15 @@ approved policy rule; until then the conservative default stands. Retry VIES
 before blocking.
 
 ### C7 — VAT/OSS registration (CO-OWNED)
+
+> **UPDATE 2026-07-24 (D2): decision made — stay unregistered.** Inklee remains
+> **not VAT-registered** at launch; supplies are issued as a non-registered
+> small-undertaking supply with **no reverse-charge assertion**. Define a future
+> registration trigger (revenue/volume) with the accountant. The **management
+> board** approves the tax posture; accountant review is evidence. OSS applies only
+> if/when consumer cross-border sales are later brought into scope. The paragraph
+> below is superseded to the extent it asserts reverse-charge treatment.
+
 For the B2B launch, cross-border EU supplies are **reverse-charge** (customer
 accounts for VAT; invoice must state this), gated on VIES verification per C6;
 domestic Estonian supplies follow Estonian registration status. The **€10,000
@@ -212,6 +239,13 @@ cross-border go-live and must be resolved with the accountant (pack A2) before
 the consumer gate opens.
 
 ### C8 — Retention vs deletion for billing records (CO-OWNED)
+
+> **UPDATE 2026-07-24 (D2):** invoices are non-VAT-registered supplies, so the
+> mandatory VAT-invoice identity fields no longer apply *as a VAT requirement*.
+> Retain invoice/accounting records for 7 years per § 12 (unchanged); the
+> counterparty-identity note follows the accountant's confirmed document format for
+> a non-registered supply rather than the VAT-invoice mandate described below.
+
 Billing and tax records survive an account-deletion request on the basis of
 Article 6(1)(c) / Article 17(3)(b) GDPR and § 12 of the Estonian Accounting Act:
 **seven years from the end of the financial year** in which the transaction was
