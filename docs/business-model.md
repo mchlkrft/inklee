@@ -668,6 +668,16 @@ The "do nothing about pricing yet" answer is the right answer for the next ~6 we
 - No critical bugs in the last 14 days
 - Founder has bandwidth for 3 weeks of subscription-architecture work without breaking the SEO sprint pace
 
+> **Re-baselined 2026-07-24 (founder decision, per D3 of `docs/legal/plus-launch-strategy-decisions.md`).**
+> For the consumer-first Plus launch (D1), the go-live adoption gate is softened.
+> Met: **3 real artists are onboarded** (satisfies the >= 2 criterion), and the
+> **system is stable with no critical bugs**. The **4-weeks-of-Plausible-data**
+> requirement is **waived for launch**: adoption is demonstrated by the onboarded
+> artists plus stability, and data matures post-launch. Go-live timing is
+> therefore no longer gated on data maturity. This does NOT by itself enable live
+> billing: the b2c activation-gate keys, a live Stripe Price, and live mode still
+> govern the first live charge (see `docs/legal/plus-launch-followup.md`).
+
 ---
 
 ## 10. Alignment notes for future Claude/ChatGPT prompts

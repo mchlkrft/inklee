@@ -26,7 +26,10 @@ vi.mock("@/lib/server/billing/subscription", () => ({
 }));
 vi.mock("@/lib/legal/documents", () => ({ getLegalDoc: h.getLegalDoc }));
 
-import { confirmBusinessCheckoutAction } from "../actions";
+import {
+  confirmBusinessCheckoutAction,
+  startPlusConsumerCheckoutAction,
+} from "../actions";
 import { BillingActivationError } from "@/lib/billing";
 
 beforeEach(() => {
@@ -126,5 +129,48 @@ describe("confirmBusinessCheckoutAction", () => {
     const terms = rows.find((x) => x.consent_type === "terms_acceptance")!;
     expect(terms.consent_version).toBe("unknown");
     expect(terms.consent_hash).toBeNull();
+  });
+});
+
+describe("startPlusConsumerCheckoutAction (v1 consumer-first)", () => {
+  it("records only Terms acceptance (no declaration) and checks out as consumer", async () => {
+    const r = await startPlusConsumerCheckoutAction();
+    expect(r).toEqual({ url: "https://checkout.stripe/x" });
+
+    expect(h.insert).toHaveBeenCalledTimes(1);
+    const rows = h.insert.mock.calls[0][0] as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].consent_type).toBe("terms_acceptance");
+    expect(rows[0].artist_id).toBe("artist_1");
+    // No business-use declaration on the consumer path.
+    expect(
+      rows.some((x) => x.consent_type === "business_use_declaration"),
+    ).toBe(false);
+    expect(h.createCheckout.mock.calls[0][0]).toMatchObject({
+      artistId: "artist_1",
+      contractCustomerType: "consumer",
+    });
+  });
+
+  it("returns coming-soon without recording when no live Price exists", async () => {
+    h.pricesList.mockResolvedValue({ data: [] });
+    const r = await startPlusConsumerCheckoutAction();
+    expect(r).toEqual({ message: "Plus isn't available yet." });
+    expect(h.insert).not.toHaveBeenCalled();
+    expect(h.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("degrades to coming-soon when the activation gate blocks", async () => {
+    h.createCheckout.mockRejectedValue(
+      new BillingActivationError(
+        "b2c",
+        ["consumer_withdrawal_copy_approved"],
+        "gate closed",
+      ),
+    );
+    const r = await startPlusConsumerCheckoutAction();
+    expect(r).toEqual({
+      message: "Plus isn't available yet. We're finishing the last checks.",
+    });
   });
 });

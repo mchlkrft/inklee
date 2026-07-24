@@ -18,12 +18,109 @@ const PRICE_LOOKUP = "inklee_plus_monthly_eur_test";
 
 export type CheckoutResult = { url: string } | { message: string };
 
-/** Confirm a B2B Plus subscription order and start checkout. The buyer must have
- *  affirmatively declared business use (counsel C3: a separate, unchecked,
- *  required control), which we record as evidence alongside Terms acceptance
- *  BEFORE creating any Stripe object. Returns the Stripe Checkout URL to redirect
- *  to, or a user-facing message when the declaration is missing or Plus is not
- *  yet purchasable (dark-launch: gate closed or no live Price). */
+type ConsentRow = Record<string, unknown>;
+
+// Shared checkout core: resolve the live Price, record the consent rows, then
+// create the subscription Checkout Session for the given contract type. Consent
+// is written BEFORE any Stripe object. Degrades to a user-facing message when
+// Plus is not yet purchasable (no live Price). Throws BillingActivationError when
+// the gate is closed (the callers map that to a message).
+async function startCheckout(input: {
+  userId: string;
+  email: string;
+  contractType: "consumer" | "business";
+  consentRows: (ctx: {
+    now: string;
+    termsVersion: string;
+    termsHash: string | null;
+  }) => ConsentRow[];
+}): Promise<CheckoutResult> {
+  const stripe = requireStripe();
+  const prices = await stripe.prices.list({
+    lookup_keys: [PRICE_LOOKUP],
+    active: true,
+    limit: 1,
+  });
+  const price = prices.data[0];
+  if (!price) return { message: "Plus isn't available yet." };
+
+  // Read the current Terms version defensively (the activation gate relies on the
+  // same read); a failure must not block a valid order, so it falls back to null.
+  let termsVersion = "unknown";
+  let termsHash: string | null = null;
+  try {
+    const terms = getLegalDoc("terms");
+    termsVersion = terms.version;
+    termsHash = terms.versionHash;
+  } catch {
+    // fall through with the unknown/null fallback
+  }
+
+  const now = new Date().toISOString();
+  const { error: consentErr } = await serviceClient
+    .from("billing_consent_records")
+    .insert(input.consentRows({ now, termsVersion, termsHash }));
+  if (consentErr) return { message: "Something went wrong. Please try again." };
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+  const { url } = await createSubscriptionCheckout({
+    artistId: input.userId,
+    email: input.email,
+    priceId: price.id,
+    contractCustomerType: input.contractType,
+    successUrl: `${appUrl}/settings/plan?checkout=success`,
+    cancelUrl: `${appUrl}/settings/plan?checkout=cancelled`,
+  });
+  if (!url) return { message: "Plus isn't available yet." };
+  return { url };
+}
+
+function mapCheckoutError(e: unknown): CheckoutResult {
+  if (e instanceof BillingActivationError) {
+    return {
+      message: "Plus isn't available yet. We're finishing the last checks.",
+    };
+  }
+  return {
+    message: "Something went wrong starting checkout. Please try again.",
+  };
+}
+
+/** v1 consumer-first Plus checkout (strategy D1). Every buyer takes the CONSUMER
+ *  path: no business-use declaration; Terms acceptance is recorded; the consumer
+ *  (b2c) activation gate governs. */
+export async function startPlusConsumerCheckoutAction(): Promise<CheckoutResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return { message: "Please sign in again." };
+
+  try {
+    return await startCheckout({
+      userId: user.id,
+      email: user.email,
+      contractType: "consumer",
+      consentRows: ({ now, termsVersion, termsHash }) => [
+        {
+          artist_id: user.id,
+          consent_type: "terms_acceptance",
+          consent_version: termsVersion,
+          consent_hash: termsHash,
+          consented_at: now,
+          context: { flow: "plus_subscription" },
+        },
+      ],
+    });
+  } catch (e) {
+    return mapCheckoutError(e);
+  }
+}
+
+/** DEFERRED for v1 (PLUS_BUSINESS_TIER_ENABLED = false, strategy D1). The B2B
+ *  path with the C3 business-use declaration, kept for a future explicit
+ *  business/studio tier. The declaration is a hard server-authoritative
+ *  precondition, recorded alongside Terms acceptance before any Stripe object. */
 export async function confirmBusinessCheckoutAction(input: {
   businessUseDeclared: boolean;
 }): Promise<CheckoutResult> {
@@ -33,9 +130,6 @@ export async function confirmBusinessCheckoutAction(input: {
   } = await supabase.auth.getUser();
   if (!user?.email) return { message: "Please sign in again." };
 
-  // The business-use declaration is a hard precondition (Art. 8 CRD / counsel
-  // C3). Without it we neither record nor charge; the button is also disabled
-  // client-side, so this is the server-authoritative backstop.
   if (input.businessUseDeclared !== true) {
     return {
       message: "Please confirm you are purchasing as a business to continue.",
@@ -43,35 +137,11 @@ export async function confirmBusinessCheckoutAction(input: {
   }
 
   try {
-    const stripe = requireStripe();
-    const prices = await stripe.prices.list({
-      lookup_keys: [PRICE_LOOKUP],
-      active: true,
-      limit: 1,
-    });
-    const price = prices.data[0];
-    if (!price) return { message: "Plus isn't available yet." };
-
-    // Read the current Terms version defensively. getLegalDoc reads bundled
-    // content at runtime (the activation gate relies on the same read); a failure
-    // must not block a valid order, so the Terms binding falls back to null.
-    let termsVersion = "unknown";
-    let termsHash: string | null = null;
-    try {
-      const terms = getLegalDoc("terms");
-      termsVersion = terms.version;
-      termsHash = terms.versionHash;
-    } catch {
-      // fall through with the unknown/null fallback
-    }
-
-    // Record the declaration + Terms acceptance as the legal evidence for this
-    // order. Consent is the record that makes the order accountable; if we cannot
-    // store it, do not proceed to charge setup.
-    const now = new Date().toISOString();
-    const { error: consentErr } = await serviceClient
-      .from("billing_consent_records")
-      .insert([
+    return await startCheckout({
+      userId: user.id,
+      email: user.email,
+      contractType: "business",
+      consentRows: ({ now, termsVersion, termsHash }) => [
         {
           artist_id: user.id,
           consent_type: "business_use_declaration",
@@ -87,31 +157,10 @@ export async function confirmBusinessCheckoutAction(input: {
           consented_at: now,
           context: { flow: "plus_subscription" },
         },
-      ]);
-    if (consentErr) {
-      return { message: "Something went wrong. Please try again." };
-    }
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
-    const { url } = await createSubscriptionCheckout({
-      artistId: user.id,
-      email: user.email,
-      priceId: price.id,
-      contractCustomerType: "business",
-      successUrl: `${appUrl}/settings/plan?checkout=success`,
-      cancelUrl: `${appUrl}/settings/plan?checkout=cancelled`,
+      ],
     });
-    if (!url) return { message: "Plus isn't available yet." };
-    return { url };
   } catch (e) {
-    if (e instanceof BillingActivationError) {
-      return {
-        message: "Plus isn't available yet. We're finishing the last checks.",
-      };
-    }
-    return {
-      message: "Something went wrong starting checkout. Please try again.",
-    };
+    return mapCheckoutError(e);
   }
 }
 
