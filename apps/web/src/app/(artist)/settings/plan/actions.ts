@@ -6,7 +6,10 @@ import { createSubscriptionCheckout } from "@/lib/server/billing/subscription";
 import { requireStripe } from "@/lib/server/billing/client";
 import { getLegalDoc } from "@/lib/legal/documents";
 import { BillingActivationError } from "@/lib/billing";
-import { BUSINESS_DECLARATION_VERSION } from "@/lib/billing-consent-copy";
+import {
+  BUSINESS_DECLARATION_VERSION,
+  IMMEDIATE_PERFORMANCE_VERSION,
+} from "@/lib/billing-consent-copy";
 
 // The Plus price is resolved by a stable lookup key. In dev/test the test-mode
 // Price exists, so checkout works end to end; in prod (live key) no live Price
@@ -88,29 +91,47 @@ function mapCheckoutError(e: unknown): CheckoutResult {
 
 /** v1 consumer-first Plus checkout (strategy D1). Every buyer takes the CONSUMER
  *  path: no business-use declaration; Terms acceptance is recorded; the consumer
- *  (b2c) activation gate governs. */
-export async function startPlusConsumerCheckoutAction(): Promise<CheckoutResult> {
+ *  (b2c) activation gate governs. When the buyer expressly requests immediate
+ *  performance (P3, a separate optional control), that request is recorded too;
+ *  without it, a mid-period withdrawal is a full refund (F4(b)). */
+export async function startPlusConsumerCheckoutAction(input?: {
+  immediatePerformanceRequested?: boolean;
+}): Promise<CheckoutResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user?.email) return { message: "Please sign in again." };
 
+  const immediate = input?.immediatePerformanceRequested === true;
   try {
     return await startCheckout({
       userId: user.id,
       email: user.email,
       contractType: "consumer",
-      consentRows: ({ now, termsVersion, termsHash }) => [
-        {
-          artist_id: user.id,
-          consent_type: "terms_acceptance",
-          consent_version: termsVersion,
-          consent_hash: termsHash,
-          consented_at: now,
-          context: { flow: "plus_subscription" },
-        },
-      ],
+      consentRows: ({ now, termsVersion, termsHash }) => {
+        const rows: ConsentRow[] = [
+          {
+            artist_id: user.id,
+            consent_type: "terms_acceptance",
+            consent_version: termsVersion,
+            consent_hash: termsHash,
+            consented_at: now,
+            context: { flow: "plus_subscription" },
+          },
+        ];
+        if (immediate) {
+          rows.push({
+            artist_id: user.id,
+            consent_type: "immediate_performance_request",
+            consent_version: IMMEDIATE_PERFORMANCE_VERSION,
+            consent_hash: null,
+            consented_at: now,
+            context: { flow: "plus_subscription" },
+          });
+        }
+        return rows;
+      },
     });
   } catch (e) {
     return mapCheckoutError(e);

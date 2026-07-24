@@ -152,6 +152,30 @@ describe("startPlusConsumerCheckoutAction (v1 consumer-first)", () => {
     });
   });
 
+  it("records the immediate-performance request when the buyer opts in", async () => {
+    const r = await startPlusConsumerCheckoutAction({
+      immediatePerformanceRequested: true,
+    });
+    expect(r).toEqual({ url: "https://checkout.stripe/x" });
+    const rows = h.insert.mock.calls[0][0] as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    const ip = rows.find(
+      (x) => x.consent_type === "immediate_performance_request",
+    )!;
+    expect(ip).toBeTruthy();
+    expect(ip.consent_version).toBe("p3-immediate-performance-2026-07-24");
+    expect(rows.some((x) => x.consent_type === "terms_acceptance")).toBe(true);
+  });
+
+  it("does NOT record an immediate-performance request when omitted (full-refund path)", async () => {
+    await startPlusConsumerCheckoutAction({});
+    const rows = h.insert.mock.calls[0][0] as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(1);
+    expect(
+      rows.some((x) => x.consent_type === "immediate_performance_request"),
+    ).toBe(false);
+  });
+
   it("returns coming-soon without recording when no live Price exists", async () => {
     h.pricesList.mockResolvedValue({ data: [] });
     const r = await startPlusConsumerCheckoutAction();

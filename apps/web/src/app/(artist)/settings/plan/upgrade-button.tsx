@@ -6,7 +6,10 @@ import {
   confirmBusinessCheckoutAction,
   startPlusConsumerCheckoutAction,
 } from "./actions";
-import { BUSINESS_DECLARATION_TEXT } from "@/lib/billing-consent-copy";
+import {
+  BUSINESS_DECLARATION_TEXT,
+  IMMEDIATE_PERFORMANCE_TEXT,
+} from "@/lib/billing-consent-copy";
 import { PLUS_BUSINESS_TIER_ENABLED } from "@/lib/plus-launch-config";
 
 // Two-step Plus upgrade. Clicking the primary button opens a pre-checkout
@@ -19,6 +22,7 @@ export default function UpgradeButton({ label }: { label: string }) {
   const businessTier = PLUS_BUSINESS_TIER_ENABLED;
   const [open, setOpen] = useState(false);
   const [declared, setDeclared] = useState(false);
+  const [immediate, setImmediate] = useState(false);
   const [pending, startTransitionFn] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
@@ -44,7 +48,9 @@ export default function UpgradeButton({ label }: { label: string }) {
     startTransitionFn(async () => {
       const result = businessTier
         ? await confirmBusinessCheckoutAction({ businessUseDeclared: declared })
-        : await startPlusConsumerCheckoutAction();
+        : await startPlusConsumerCheckoutAction({
+            immediatePerformanceRequested: immediate,
+          });
       if ("url" in result) {
         window.location.href = result.url;
         return;
@@ -78,6 +84,21 @@ export default function UpgradeButton({ label }: { label: string }) {
         </label>
       )}
 
+      {/* Optional, unchecked immediate-performance request (P3). Never
+          pre-selected, never required: leaving it unticked keeps a full refund
+          on withdrawal. Consumer path only. */}
+      {!businessTier && (
+        <label className="flex items-start gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={immediate}
+            onChange={(e) => setImmediate(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-brand-red"
+          />
+          <span>{IMMEDIATE_PERFORMANCE_TEXT}</span>
+        </label>
+      )}
+
       <p className="text-xs text-muted-foreground">
         By placing this order you agree to the{" "}
         <a
@@ -106,6 +127,7 @@ export default function UpgradeButton({ label }: { label: string }) {
           onClick={() => {
             setOpen(false);
             setDeclared(false);
+            setImmediate(false);
             setMessage(null);
           }}
           className="text-sm text-muted-foreground underline disabled:opacity-60"
