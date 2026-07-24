@@ -3,6 +3,7 @@ import { getAccountOverrides } from "@/lib/entitlements-server";
 import { effectivePlanTier, isGrandfathered } from "@/lib/entitlements";
 import UpgradeButton from "./upgrade-button";
 import ManageSubscriptionButton from "./manage-subscription-button";
+import WithdrawButton from "./withdraw-button";
 
 export const metadata = { title: "Plan" };
 
@@ -112,6 +113,15 @@ export default async function PlanPage() {
           </ul>
           <div className="mt-6">
             <ManageSubscriptionButton />
+          </div>
+          <div className="mt-6 border-t border-border pt-4">
+            <p className="text-xs text-muted-foreground">
+              Bought Inklee Plus in the last 14 days? You have a right to
+              withdraw, which is separate from cancelling.
+            </p>
+            <div className="mt-2">
+              <WithdrawButton />
+            </div>
           </div>
         </section>
       )}

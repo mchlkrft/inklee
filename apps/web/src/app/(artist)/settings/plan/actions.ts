@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { createSubscriptionCheckout } from "@/lib/server/billing/subscription";
+import { withdrawSubscriptionCore } from "@/lib/server/billing/withdrawal";
 import { requireStripe } from "@/lib/server/billing/client";
 import { getLegalDoc } from "@/lib/legal/documents";
 import { BillingActivationError } from "@/lib/billing";
@@ -222,5 +223,46 @@ export async function openBillingPortalAction(): Promise<CheckoutResult> {
   } catch {
     // e.g. the portal configuration hasn't been created in Stripe yet.
     return { message: "Subscription management isn't available yet." };
+  }
+}
+
+/** Consumer statutory withdrawal (Art. 11a), distinct from cancellation. Ends the
+ *  subscription now, refunds per the time-based proration, keeps the account and
+ *  data. Requires an explicit confirmation (the unequivocal withdrawal statement);
+ *  the core is idempotent, so a repeat is safe. */
+export async function withdrawFromSubscriptionAction(input: {
+  confirmed: boolean;
+}): Promise<{ message: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { message: "Please sign in again." };
+  if (input.confirmed !== true) {
+    return { message: "Please confirm your withdrawal to continue." };
+  }
+
+  try {
+    const result = await withdrawSubscriptionCore({ artistId: user.id });
+    if (result.status === "no_subscription") {
+      return {
+        message: "You have no active paid subscription to withdraw from.",
+      };
+    }
+    if (result.status === "not_available") {
+      return { message: result.reason };
+    }
+    const refundLine =
+      result.refundMinor > 0
+        ? ` A refund of ${(result.refundMinor / 100).toFixed(2)} ${result.currency.toUpperCase()} is on its way to your original payment method.`
+        : "";
+    return {
+      message: `Your withdrawal is confirmed. Your subscription has ended and your account and data are kept.${refundLine}`,
+    };
+  } catch {
+    return {
+      message:
+        "Something went wrong processing your withdrawal. Please try again, or write to support@inklee.app.",
+    };
   }
 }

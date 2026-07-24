@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   pricesList: vi.fn(),
   createCheckout: vi.fn(),
   getLegalDoc: vi.fn(),
+  withdrawCore: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -25,10 +26,14 @@ vi.mock("@/lib/server/billing/subscription", () => ({
   createSubscriptionCheckout: (args: unknown) => h.createCheckout(args),
 }));
 vi.mock("@/lib/legal/documents", () => ({ getLegalDoc: h.getLegalDoc }));
+vi.mock("@/lib/server/billing/withdrawal", () => ({
+  withdrawSubscriptionCore: (a: unknown) => h.withdrawCore(a),
+}));
 
 import {
   confirmBusinessCheckoutAction,
   startPlusConsumerCheckoutAction,
+  withdrawFromSubscriptionAction,
 } from "../actions";
 import { BillingActivationError } from "@/lib/billing";
 
@@ -44,6 +49,7 @@ beforeEach(() => {
   h.getLegalDoc
     .mockReset()
     .mockReturnValue({ version: "2026-07-23", versionHash: "hash_abc" });
+  h.withdrawCore.mockReset();
 });
 
 describe("confirmBusinessCheckoutAction", () => {
@@ -196,5 +202,42 @@ describe("startPlusConsumerCheckoutAction (v1 consumer-first)", () => {
     expect(r).toEqual({
       message: "Plus isn't available yet. We're finishing the last checks.",
     });
+  });
+});
+
+describe("withdrawFromSubscriptionAction", () => {
+  it("requires an explicit confirmation before doing anything", async () => {
+    const r = await withdrawFromSubscriptionAction({ confirmed: false });
+    expect(r).toEqual({
+      message: "Please confirm your withdrawal to continue.",
+    });
+    expect(h.withdrawCore).not.toHaveBeenCalled();
+  });
+
+  it("confirms with the refund amount on a completed withdrawal", async () => {
+    h.withdrawCore.mockResolvedValue({
+      status: "completed",
+      refundMinor: 250,
+      currency: "eur",
+      caseId: "wc_1",
+    });
+    const r = await withdrawFromSubscriptionAction({ confirmed: true });
+    expect(r.message).toContain("Your withdrawal is confirmed");
+    expect(r.message).toContain("2.50 EUR");
+  });
+
+  it("reports when there is no active subscription", async () => {
+    h.withdrawCore.mockResolvedValue({ status: "no_subscription" });
+    const r = await withdrawFromSubscriptionAction({ confirmed: true });
+    expect(r.message).toContain("no active paid subscription");
+  });
+
+  it("passes through the not-available reason (offers cancellation)", async () => {
+    h.withdrawCore.mockResolvedValue({
+      status: "not_available",
+      reason: "The 14-day withdrawal period has ended. You can cancel instead.",
+    });
+    const r = await withdrawFromSubscriptionAction({ confirmed: true });
+    expect(r.message).toContain("withdrawal period has ended");
   });
 });
