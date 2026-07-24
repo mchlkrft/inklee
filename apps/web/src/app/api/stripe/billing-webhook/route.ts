@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
+import { serviceClient } from "@/lib/supabase/service";
 import { reconcileSubscriptionById } from "@/lib/server/billing/reconcile";
+import { recordDurableConfirmation } from "@/lib/server/billing/withdrawal";
 
 export const runtime = "nodejs";
 
@@ -73,7 +75,40 @@ export async function POST(request: Request) {
         const raw = parentSub ?? legacySub;
         const subId = typeof raw === "string" ? raw : (raw?.id ?? null);
         if (subId) {
-          await reconcileSubscriptionById(subId, event.created);
+          const reconciled = await reconcileSubscriptionById(
+            subId,
+            event.created,
+          );
+          // Durable confirmation on the FIRST paid invoice only (contract
+          // conclusion). Idempotent per invoice + best-effort: it never fails the
+          // webhook (reconcile already succeeded; a confirmation blip must not
+          // trigger a redelivery of the money reconcile).
+          if (
+            event.type === "invoice.paid" &&
+            invoice.billing_reason === "subscription_create" &&
+            reconciled.artistId
+          ) {
+            try {
+              const { data: bs } = await serviceClient
+                .from("billing_subscriptions")
+                .select("id")
+                .eq("stripe_subscription_id", subId)
+                .maybeSingle();
+              if (bs?.id) {
+                await recordDurableConfirmation({
+                  artistId: reconciled.artistId,
+                  billingSubscriptionId: bs.id as string,
+                  kind: "purchase",
+                  stripeInvoiceId: invoice.id ?? undefined,
+                });
+              }
+            } catch (confErr) {
+              Sentry.captureException(confErr, {
+                tags: { action: "billing_purchase_confirmation" },
+                extra: { subscriptionId: subId },
+              });
+            }
+          }
         }
         return NextResponse.json({ received: true, subscription: subId });
       }

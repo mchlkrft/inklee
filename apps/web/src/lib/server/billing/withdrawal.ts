@@ -126,15 +126,31 @@ export async function recordDurableConfirmation(input: {
   artistId: string;
   billingSubscriptionId: string;
   kind: "purchase" | "withdrawal";
+  stripeInvoiceId?: string;
   refundMinor?: number;
   currency?: string;
 }): Promise<void> {
   const now = new Date().toISOString();
+
+  // Idempotency for webhook redelivery: at most one delivered confirmation per
+  // invoice. (The withdrawal ack carries no invoice id and is guarded by the
+  // one-per-subscription case instead.)
+  if (input.stripeInvoiceId) {
+    const { data: existing } = await serviceClient
+      .from("billing_contract_confirmations")
+      .select("id")
+      .eq("stripe_invoice_id", input.stripeInvoiceId)
+      .eq("delivery_status", "sent")
+      .maybeSingle();
+    if (existing) return;
+  }
+
   const { data: row } = await serviceClient
     .from("billing_contract_confirmations")
     .insert({
       artist_id: input.artistId,
       billing_subscription_id: input.billingSubscriptionId,
+      stripe_invoice_id: input.stripeInvoiceId ?? null,
       delivery_channel: "email",
       delivery_status: "pending",
       generated_at: now,

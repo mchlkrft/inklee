@@ -10,11 +10,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const h = vi.hoisted(() => ({
   reconcile: vi.fn(),
   constructEvent: vi.fn(),
+  recordConf: vi.fn(),
 }));
 
 vi.mock("@/lib/server/billing/reconcile", () => ({
   reconcileSubscriptionById: (id: string, created: number) =>
     h.reconcile(id, created),
+}));
+vi.mock("@/lib/supabase/service", () => ({
+  serviceClient: {
+    from: () => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: { id: "bsub_1" } }) }),
+      }),
+    }),
+  },
+}));
+vi.mock("@/lib/server/billing/withdrawal", () => ({
+  recordDurableConfirmation: (a: unknown) => h.recordConf(a),
 }));
 vi.mock("stripe", () => ({
   default: class {
@@ -35,7 +48,10 @@ function req(body = "{}", signature: string | null = "sig") {
 }
 
 beforeEach(() => {
-  h.reconcile.mockReset().mockResolvedValue({ planTier: "plus" });
+  h.reconcile
+    .mockReset()
+    .mockResolvedValue({ artistId: "artist_1", planTier: "plus" });
+  h.recordConf.mockReset();
   h.constructEvent.mockReset();
   process.env.STRIPE_SECRET_KEY = "sk_test_x";
   process.env.STRIPE_BILLING_WEBHOOK_SECRET = "whsec_x";
@@ -122,6 +138,64 @@ describe("billing-webhook route", () => {
     const json = await res.json();
     expect(json.ignored).toBe("charge.refunded");
     expect(h.reconcile).not.toHaveBeenCalled();
+  });
+
+  it("sends a durable purchase confirmation on the first paid invoice", async () => {
+    h.constructEvent.mockReturnValue({
+      type: "invoice.paid",
+      id: "evt_p",
+      created: 1710000010,
+      data: {
+        object: {
+          id: "in_1",
+          billing_reason: "subscription_create",
+          parent: { subscription_details: { subscription: "sub_p" } },
+        },
+      },
+    });
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    expect(h.recordConf).toHaveBeenCalledTimes(1);
+    expect(h.recordConf.mock.calls[0][0]).toMatchObject({
+      artistId: "artist_1",
+      kind: "purchase",
+      stripeInvoiceId: "in_1",
+    });
+  });
+
+  it("does NOT send a purchase confirmation on a renewal invoice", async () => {
+    h.constructEvent.mockReturnValue({
+      type: "invoice.paid",
+      id: "evt_r",
+      created: 1710000011,
+      data: {
+        object: {
+          id: "in_2",
+          billing_reason: "subscription_cycle",
+          parent: { subscription_details: { subscription: "sub_p" } },
+        },
+      },
+    });
+    await POST(req());
+    expect(h.recordConf).not.toHaveBeenCalled();
+  });
+
+  it("does NOT send a confirmation on payment_failed (still reconciles)", async () => {
+    h.constructEvent.mockReturnValue({
+      type: "invoice.payment_failed",
+      id: "evt_f",
+      created: 1710000012,
+      data: {
+        object: {
+          id: "in_3",
+          billing_reason: "subscription_create",
+          parent: { subscription_details: { subscription: "sub_p" } },
+        },
+      },
+    });
+    await POST(req());
+    expect(h.reconcile).toHaveBeenCalledTimes(1);
+    expect(h.recordConf).not.toHaveBeenCalled();
   });
 
   it("500s when reconcile throws so Stripe redelivers", async () => {
