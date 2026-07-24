@@ -539,6 +539,83 @@ export function planTierForSubscription(
 }
 
 // ===========================================================================
+// 4b. Consumer withdrawal proration (P7 / counsel C4). Pure, policy-versioned.
+//     Time-based: the fraction of the current service period already supplied is
+//     retained, the remainder is refunded, preserving the original tax rate in
+//     the split. Integer minor units only; NEVER refunds more than was paid.
+//     Without an express immediate-performance request (P3), a mid-period
+//     withdrawal is a FULL refund: no proportionate deduction is lawful without
+//     that request (founder decision F4(b), docs/legal/eu-consumer-withdrawal-flow.md).
+// ===========================================================================
+
+export const PRORATION_POLICY_VERSION = "time-based-v1";
+
+export type ProrationInput = {
+  /** Gross amount paid for the current period, in minor units. */
+  originalGrossMinor: number;
+  currency: string;
+  /** Original tax rate (0..1) to preserve in the split; 0 while VAT-unregistered. */
+  taxRate: number;
+  /** Service period boundaries + when the withdrawal statement was received. */
+  periodStart: Date;
+  periodEnd: Date;
+  withdrawalAt: Date;
+  /** Whether the consumer expressly requested immediate performance (P3). */
+  immediatePerformanceRequested: boolean;
+};
+
+export type Proration = {
+  policyVersion: string;
+  usedFraction: number; // 0..1
+  retainedGrossMinor: number;
+  refundGrossMinor: number;
+  refundNetMinor: number;
+  refundVatMinor: number;
+  taxRate: number;
+  currency: string;
+  /** True when the whole period is refunded (no proportionate deduction). */
+  fullRefund: boolean;
+};
+
+export function computeWithdrawalProration(input: ProrationInput): Proration {
+  const gross = Math.max(0, Math.round(input.originalGrossMinor));
+  const rate = input.taxRate > 0 ? input.taxRate : 0;
+  const totalMs = input.periodEnd.getTime() - input.periodStart.getTime();
+  const usedMs = input.withdrawalAt.getTime() - input.periodStart.getTime();
+
+  // Used fraction clamped to [0,1]. A non-positive period (bad data) yields 0,
+  // i.e. a full refund, which is the consumer-safe direction.
+  let usedFraction = totalMs > 0 ? usedMs / totalMs : 0;
+  if (usedFraction < 0) usedFraction = 0;
+  if (usedFraction > 1) usedFraction = 1;
+
+  // Without the P3 immediate-performance request, a withdrawal is a full refund.
+  const fullRefund = input.immediatePerformanceRequested !== true;
+  const retainedGrossMinor = fullRefund
+    ? 0
+    : Math.min(gross, Math.round(gross * usedFraction));
+  const refundGrossMinor = gross - retainedGrossMinor;
+
+  // Split the refund into net + VAT preserving the original rate (P7). Net is
+  // derived (not stored) so rounding never invents a cent.
+  const refundNetMinor =
+    rate > 0 ? Math.round(refundGrossMinor / (1 + rate)) : refundGrossMinor;
+  const refundVatMinor = refundGrossMinor - refundNetMinor;
+
+  return {
+    policyVersion: PRORATION_POLICY_VERSION,
+    usedFraction,
+    retainedGrossMinor,
+    refundGrossMinor,
+    refundNetMinor,
+    refundVatMinor,
+    taxRate: rate,
+    currency: input.currency,
+    fullRefund,
+  };
+}
+
+// ===========================================================================
 // 5. Activation gate (amendment 11). The single server-authoritative check
 //    that makes LIVE charging impossible until the matching approval group is
 //    recorded. Groups are ADDITIVE: b2b requires technical + b2b; b2c requires

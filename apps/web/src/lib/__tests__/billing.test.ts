@@ -18,6 +18,8 @@ import {
   FORBIDDEN_SUBSCRIPTION_REFUND_KEYS,
   DEPOSIT_IDEMPOTENCY_PREFIXES,
   SUBSCRIPTION_METADATA_KEYS,
+  computeWithdrawalProration,
+  PRORATION_POLICY_VERSION,
   type TaxPolicy,
   type ActivationContext,
 } from "@/lib/billing";
@@ -619,5 +621,110 @@ describe("refundDeltaToTarget", () => {
         alreadyRefundedMinor: 800,
       }),
     ).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Consumer withdrawal proration (P7 / C4). Time-based, tax-preserving, integer.
+describe("computeWithdrawalProration", () => {
+  const D = (iso: string) => new Date(iso);
+  const base = {
+    originalGrossMinor: 300, // EUR 3.00
+    currency: "eur",
+    taxRate: 0,
+    periodStart: D("2026-07-01T00:00:00Z"),
+    periodEnd: D("2026-07-31T00:00:00Z"), // 30-day period
+    immediatePerformanceRequested: true,
+  };
+
+  it("half the period used, immediate performance -> ~50% retained/refunded", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      withdrawalAt: D("2026-07-16T00:00:00Z"), // 15 of 30 days
+    });
+    expect(p.usedFraction).toBeCloseTo(0.5, 5);
+    expect(p.retainedGrossMinor).toBe(150);
+    expect(p.refundGrossMinor).toBe(150);
+    expect(p.fullRefund).toBe(false);
+    expect(p.policyVersion).toBe(PRORATION_POLICY_VERSION);
+  });
+
+  it("full period elapsed -> nothing refunded", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      withdrawalAt: D("2026-08-05T00:00:00Z"), // past periodEnd -> clamp to 1
+    });
+    expect(p.usedFraction).toBe(1);
+    expect(p.refundGrossMinor).toBe(0);
+    expect(p.retainedGrossMinor).toBe(300);
+  });
+
+  it("withdrawal at period start -> full refund (nothing used)", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      withdrawalAt: D("2026-07-01T00:00:00Z"),
+    });
+    expect(p.refundGrossMinor).toBe(300);
+    expect(p.retainedGrossMinor).toBe(0);
+  });
+
+  it("NO immediate-performance request -> full refund even mid-period", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      immediatePerformanceRequested: false,
+      withdrawalAt: D("2026-07-16T00:00:00Z"),
+    });
+    expect(p.fullRefund).toBe(true);
+    expect(p.refundGrossMinor).toBe(300);
+    expect(p.retainedGrossMinor).toBe(0);
+  });
+
+  it("withdrawal BEFORE the period start clamps to a full refund", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      withdrawalAt: D("2026-06-20T00:00:00Z"),
+    });
+    expect(p.usedFraction).toBe(0);
+    expect(p.refundGrossMinor).toBe(300);
+  });
+
+  it("never refunds more than was paid", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      withdrawalAt: D("2026-07-16T00:00:00Z"),
+    });
+    expect(p.refundGrossMinor).toBeLessThanOrEqual(base.originalGrossMinor);
+    expect(p.refundGrossMinor).toBeGreaterThanOrEqual(0);
+  });
+
+  it("preserves the original VAT rate in the refund split", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      taxRate: 0.22,
+      withdrawalAt: D("2026-07-16T00:00:00Z"),
+    });
+    // refund gross 150 at 22% -> net 123, vat 27 (123 + 27 = 150)
+    expect(p.refundNetMinor + p.refundVatMinor).toBe(p.refundGrossMinor);
+    expect(p.taxRate).toBe(0.22);
+    expect(p.refundNetMinor).toBe(Math.round(150 / 1.22));
+  });
+
+  it("a non-positive service period yields a full refund (consumer-safe)", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      periodEnd: D("2026-07-01T00:00:00Z"), // == periodStart
+      withdrawalAt: D("2026-07-01T12:00:00Z"),
+    });
+    expect(p.usedFraction).toBe(0);
+    expect(p.refundGrossMinor).toBe(300);
+  });
+
+  it("unregistered (rate 0): the whole refund is net, no VAT", () => {
+    const p = computeWithdrawalProration({
+      ...base,
+      withdrawalAt: D("2026-07-16T00:00:00Z"),
+    });
+    expect(p.refundVatMinor).toBe(0);
+    expect(p.refundNetMinor).toBe(p.refundGrossMinor);
   });
 });
