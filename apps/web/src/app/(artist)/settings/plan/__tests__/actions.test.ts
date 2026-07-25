@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   createCheckout: vi.fn(),
   getLegalDoc: vi.fn(),
   withdrawCore: vi.fn(),
+  // Mutable launch flags so tests can exercise both sides of the yearly gate.
+  flags: { yearly: false },
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -24,6 +26,17 @@ vi.mock("@/lib/server/billing/client", () => ({
 }));
 vi.mock("@/lib/server/billing/subscription", () => ({
   createSubscriptionCheckout: (args: unknown) => h.createCheckout(args),
+  // Mirrors the real mapping (subscription.ts) so the actions' price lookup
+  // stays observable per interval.
+  lookupKeyForInterval: (i: string) =>
+    i === "yearly" ? "inklee_plus_yearly_eur" : "inklee_plus_monthly_eur",
+}));
+vi.mock("@/lib/plus-launch-config", () => ({
+  PLUS_BUSINESS_TIER_ENABLED: false,
+  PLUS_CONSUMER_LAUNCH_ENABLED: false,
+  get PLUS_YEARLY_ENABLED() {
+    return h.flags.yearly;
+  },
 }));
 vi.mock("@/lib/legal/documents", () => ({ getLegalDoc: h.getLegalDoc }));
 vi.mock("@/lib/server/billing/withdrawal", () => ({
@@ -50,6 +63,7 @@ beforeEach(() => {
     .mockReset()
     .mockReturnValue({ version: "2026-07-23", versionHash: "hash_abc" });
   h.withdrawCore.mockReset();
+  h.flags.yearly = false;
 });
 
 describe("confirmBusinessCheckoutAction", () => {
@@ -201,6 +215,53 @@ describe("startPlusConsumerCheckoutAction (v1 consumer-first)", () => {
     const r = await startPlusConsumerCheckoutAction();
     expect(r).toEqual({
       message: "Plus isn't available yet. We're finishing the last checks.",
+    });
+  });
+
+  it("refuses yearly while PLUS_YEARLY_ENABLED is off, recording nothing", async () => {
+    const r = await startPlusConsumerCheckoutAction({
+      billingInterval: "yearly",
+    });
+    expect(r).toEqual({ message: "Yearly billing isn't available yet." });
+    expect(h.pricesList).not.toHaveBeenCalled();
+    expect(h.insert).not.toHaveBeenCalled();
+    expect(h.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("defaults to the monthly lookup key and stamps the monthly interval", async () => {
+    await startPlusConsumerCheckoutAction();
+    expect(h.pricesList.mock.calls[0][0]).toMatchObject({
+      lookup_keys: ["inklee_plus_monthly_eur"],
+    });
+    expect(h.createCheckout.mock.calls[0][0]).toMatchObject({
+      billingInterval: "monthly",
+    });
+  });
+
+  it("normalizes an unknown interval value to monthly (untrusted input)", async () => {
+    await startPlusConsumerCheckoutAction({
+      billingInterval: "weekly" as never,
+    });
+    expect(h.pricesList.mock.calls[0][0]).toMatchObject({
+      lookup_keys: ["inklee_plus_monthly_eur"],
+    });
+    expect(h.createCheckout.mock.calls[0][0]).toMatchObject({
+      billingInterval: "monthly",
+    });
+  });
+
+  it("with the yearly flag on, resolves the yearly Price and stamps the yearly interval", async () => {
+    h.flags.yearly = true;
+    const r = await startPlusConsumerCheckoutAction({
+      billingInterval: "yearly",
+    });
+    expect(r).toEqual({ url: "https://checkout.stripe/x" });
+    expect(h.pricesList.mock.calls[0][0]).toMatchObject({
+      lookup_keys: ["inklee_plus_yearly_eur"],
+    });
+    expect(h.createCheckout.mock.calls[0][0]).toMatchObject({
+      contractCustomerType: "consumer",
+      billingInterval: "yearly",
     });
   });
 });

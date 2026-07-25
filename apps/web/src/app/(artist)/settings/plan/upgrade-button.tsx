@@ -21,19 +21,32 @@ import { PLUS_BUSINESS_TIER_ENABLED } from "@/lib/plus-launch-config";
 // checkout charges), the total price renders on this screen directly above the
 // pay button (counsel condition, Art. 8(2)); without it the panel falls back to
 // the price-on-next-step sentence and Stripe Checkout still shows the price.
+// Yearly (counsel approved 2026-07-25) is offered only when BOTH yearly labels
+// resolved server-side; the disclosure and the total line follow the chosen
+// interval so the Art. 8(2) wording always states the actual renewal cadence
+// and the actual first charge.
 export default function UpgradeButton({
   label,
   priceLabel = null,
+  yearlyBaseLabel = null,
+  yearlyFirstYearLabel = null,
 }: {
   label: string;
   priceLabel?: string | null;
+  yearlyBaseLabel?: string | null;
+  yearlyFirstYearLabel?: string | null;
 }) {
   const businessTier = PLUS_BUSINESS_TIER_ENABLED;
   const [open, setOpen] = useState(false);
   const [declared, setDeclared] = useState(false);
   const [immediate, setImmediate] = useState(false);
+  const [yearly, setYearly] = useState(false);
   const [pending, startTransitionFn] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  // Yearly is offered only on the consumer path and only fully price-labelled.
+  const yearlyAvailable =
+    !businessTier && yearlyBaseLabel !== null && yearlyFirstYearLabel !== null;
+  const yearlyChosen = yearlyAvailable && yearly;
 
   if (!open) {
     return (
@@ -59,6 +72,7 @@ export default function UpgradeButton({
         ? await confirmBusinessCheckoutAction({ businessUseDeclared: declared })
         : await startPlusConsumerCheckoutAction({
             immediatePerformanceRequested: immediate,
+            billingInterval: yearlyChosen ? "yearly" : "monthly",
           });
       if ("url" in result) {
         window.location.href = result.url;
@@ -73,11 +87,44 @@ export default function UpgradeButton({
       <div className="space-y-1 text-sm">
         <p className="font-medium text-foreground">Before you order</p>
         <p className="text-muted-foreground">
-          {priceLabel
-            ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your plan settings.`
-            : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your plan settings. The price is shown on the next step before you pay."}
+          {yearlyChosen
+            ? `Inklee Plus is a yearly subscription: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your plan settings.`
+            : priceLabel
+              ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your plan settings.`
+              : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your plan settings. The price is shown on the next step before you pay."}
         </p>
       </div>
+
+      {/* Billing-interval choice (consumer path; yearly counsel-approved
+          2026-07-25). Monthly stays the default; nothing is pre-selected
+          toward the longer commitment. */}
+      {yearlyAvailable && (
+        <fieldset className="space-y-2 text-sm text-foreground">
+          <legend className="sr-only">Billing interval</legend>
+          <label className="flex items-start gap-2">
+            <input
+              type="radio"
+              name="billing-interval"
+              checked={!yearly}
+              onChange={() => setYearly(false)}
+              className="mt-0.5 h-4 w-4 accent-brand-red"
+            />
+            <span>Monthly{priceLabel ? ` — ${priceLabel}` : ""}</span>
+          </label>
+          <label className="flex items-start gap-2">
+            <input
+              type="radio"
+              name="billing-interval"
+              checked={yearly}
+              onChange={() => setYearly(true)}
+              className="mt-0.5 h-4 w-4 accent-brand-red"
+            />
+            <span>
+              Yearly — {yearlyFirstYearLabel} first year, then {yearlyBaseLabel}
+            </span>
+          </label>
+        </fieldset>
+      )}
 
       {/* Deferred for v1 (consumer-first). A future business tier re-enables the
           separate, unchecked, required business-use declaration (counsel C3). */}
@@ -123,10 +170,17 @@ export default function UpgradeButton({
 
       {/* The total price sits directly above the pay button on the same screen
           (Art. 8(2); counsel launch-blocking condition 3). */}
-      {priceLabel && (
+      {yearlyChosen ? (
         <p className="text-sm font-semibold text-foreground">
-          Total: {priceLabel}, final price. Renews monthly until cancelled.
+          Total today: {yearlyFirstYearLabel} first year, final price. Renews
+          yearly at {yearlyBaseLabel} until cancelled.
         </p>
+      ) : (
+        priceLabel && (
+          <p className="text-sm font-semibold text-foreground">
+            Total: {priceLabel}, final price. Renews monthly until cancelled.
+          </p>
+        )
       )}
 
       <div className="flex flex-wrap items-center gap-4">
@@ -145,6 +199,7 @@ export default function UpgradeButton({
             setOpen(false);
             setDeclared(false);
             setImmediate(false);
+            setYearly(false);
             setMessage(null);
           }}
           className="text-sm text-muted-foreground underline disabled:opacity-60"

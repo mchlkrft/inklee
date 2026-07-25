@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import {
   createSubscriptionCheckout,
-  PLUS_PRICE_LOOKUP,
+  lookupKeyForInterval,
+  type PlusBillingInterval,
 } from "@/lib/server/billing/subscription";
+import { PLUS_YEARLY_ENABLED } from "@/lib/plus-launch-config";
 import { withdrawSubscriptionCore } from "@/lib/server/billing/withdrawal";
 import { requireStripe } from "@/lib/server/billing/client";
 import { getLegalDoc } from "@/lib/legal/documents";
@@ -15,13 +17,14 @@ import {
   IMMEDIATE_PERFORMANCE_VERSION,
 } from "@/lib/billing-consent-copy";
 
-// The Plus price is resolved by the shared stable lookup key (single-sourced in
-// lib/server/billing/subscription.ts beside the display resolver, so the shown
-// price and the charged price can never come from different Prices). Both modes
-// carry a Price with this key since 2026-07-25. The activation gate is the other
-// guard: createSubscriptionCheckout asserts it before creating any Stripe
-// object, and a BillingActivationError degrades to "coming soon".
-const PRICE_LOOKUP = PLUS_PRICE_LOOKUP;
+// The Plus price is resolved by the shared stable lookup keys (single-sourced
+// in lib/server/billing/subscription.ts beside the display resolver, so the
+// shown price and the charged price can never come from different Prices).
+// Both modes carry a monthly Price since 2026-07-25; the yearly key has no
+// Price yet and the yearly interval is additionally refused while
+// PLUS_YEARLY_ENABLED is off. The activation gate is the other guard:
+// createSubscriptionCheckout asserts it before creating any Stripe object,
+// and a BillingActivationError degrades to "coming soon".
 
 export type CheckoutResult = { url: string } | { message: string };
 
@@ -36,6 +39,7 @@ async function startCheckout(input: {
   userId: string;
   email: string;
   contractType: "consumer" | "business";
+  billingInterval: PlusBillingInterval;
   immediatePerformanceRequested?: boolean;
   consentRows: (ctx: {
     now: string;
@@ -45,7 +49,7 @@ async function startCheckout(input: {
 }): Promise<CheckoutResult> {
   const stripe = requireStripe();
   const prices = await stripe.prices.list({
-    lookup_keys: [PRICE_LOOKUP],
+    lookup_keys: [lookupKeyForInterval(input.billingInterval)],
     active: true,
     limit: 1,
   });
@@ -76,6 +80,7 @@ async function startCheckout(input: {
     email: input.email,
     priceId: price.id,
     contractCustomerType: input.contractType,
+    billingInterval: input.billingInterval,
     immediatePerformanceRequested: input.immediatePerformanceRequested,
     successUrl: `${appUrl}/settings/plan?checkout=success`,
     cancelUrl: `${appUrl}/settings/plan?checkout=cancelled`,
@@ -102,6 +107,10 @@ function mapCheckoutError(e: unknown): CheckoutResult {
  *  without it, a mid-period withdrawal is a full refund (F4(b)). */
 export async function startPlusConsumerCheckoutAction(input?: {
   immediatePerformanceRequested?: boolean;
+  /** Untrusted client input: anything that is not exactly "yearly" is treated
+   *  as monthly. Yearly is additionally refused while PLUS_YEARLY_ENABLED is
+   *  off (OQ-6: annual proration + renewal reminders are counsel-gated). */
+  billingInterval?: PlusBillingInterval;
 }): Promise<CheckoutResult> {
   const supabase = await createClient();
   const {
@@ -109,12 +118,19 @@ export async function startPlusConsumerCheckoutAction(input?: {
   } = await supabase.auth.getUser();
   if (!user?.email) return { message: "Please sign in again." };
 
+  const billingInterval: PlusBillingInterval =
+    input?.billingInterval === "yearly" ? "yearly" : "monthly";
+  if (billingInterval === "yearly" && !PLUS_YEARLY_ENABLED) {
+    return { message: "Yearly billing isn't available yet." };
+  }
+
   const immediate = input?.immediatePerformanceRequested === true;
   try {
     return await startCheckout({
       userId: user.id,
       email: user.email,
       contractType: "consumer",
+      billingInterval,
       immediatePerformanceRequested: immediate,
       consentRows: ({ now, termsVersion, termsHash }) => {
         const rows: ConsentRow[] = [
@@ -169,6 +185,7 @@ export async function confirmBusinessCheckoutAction(input: {
       userId: user.id,
       email: user.email,
       contractType: "business",
+      billingInterval: "monthly", // the deferred B2B path stays monthly-only
       consentRows: ({ now, termsVersion, termsHash }) => [
         {
           artist_id: user.id,

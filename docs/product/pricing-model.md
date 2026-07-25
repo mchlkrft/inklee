@@ -32,7 +32,7 @@ Inklee is the seller only for the subscription.
 |---|---|---|---|---|
 | 1 | Free Starter | 0 EUR | n/a | **Live** (is the product today) |
 | 2 | Inklee Plus, monthly | **3.00 EUR/month, final price (no VAT added)** | Monthly, auto-renews, cancel any time, 14-day withdrawal | **Built, dark** (no live Stripe Price; gate b2c 1/7; `PLUS_CONSUMER_LAUNCH_ENABLED=false`) |
-| 3 | Inklee Plus, yearly | 24 EUR first year, then 30 EUR/year | Yearly, auto-renews | **Planned, NOT built** (annual consumer billing disabled by design until proration + reminder rules are cleared) |
+| 3 | Inklee Plus, yearly | 24 EUR first year, then 30 EUR/year | Yearly, auto-renews | **Built + enabled 2026-07-25** (counsel approved yearly billing; Prices `inklee_plus_yearly_eur` live in both modes, 30/year inclusive + auto first-year coupon `inklee-plus-yearly-first-year` 6 off once; `PLUS_YEARLY_ENABLED=true`; follow-up: renewal-reminder email due before the first renewals, mid-2027) |
 | 4 | Founder window | First N subscribers at 24 EUR/year (~2 EUR/mo) | Via Stripe promotion code + `max_redemptions` | Mechanic resolved 2026-07-23; **N and window end open** (business-model.md recommends first 100) |
 | 5 | Studio tier | ~25 EUR/month flat per studio (not per-seat, D7) | Monthly | **Teaser only.** Not priced, not built; gated on Q8 + ≥5 inbound studio inquiries |
 | 6 | Deposit platform fee | **3% all-in** of the deposit, deducted from the artist's payout | Per transaction | **Live code since 2026-07-04, zero real transactions** (G-5 unrun, zero live Connect accounts) |

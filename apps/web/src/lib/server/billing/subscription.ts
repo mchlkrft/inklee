@@ -16,29 +16,67 @@ import { assertLiveBillingAllowedFor } from "./activation";
 // inklee_plus_monthly_eur_test is superseded.
 export const PLUS_PRICE_LOOKUP = "inklee_plus_monthly_eur";
 
+// The yearly Plus plan (docs/product/pricing-model.md row 3: 24 EUR first
+// year, then 30 EUR per year; counsel approved 2026-07-25) resolves by its own
+// lookup key. Both modes carry a Price with this key since 2026-07-25: LIVE
+// price_1Tx1zSHkG0exykzF6eSxVQIj + test price_1Tx1zQQi3Lu5kKnKH1fiXuvF
+// (30.00 EUR/year, tax_behavior=inclusive). The first-year 24.00 comes from
+// the coupon below, applied automatically to every yearly checkout so the
+// charged total always matches the advertised "24 first year, then 30".
+export const PLUS_YEARLY_PRICE_LOOKUP = "inklee_plus_yearly_eur";
+
+// The first-year discount: a duration=once coupon created under this fixed id
+// in BOTH modes from the same constant, so display math (base minus off) and
+// the applied discount cannot drift. 600 minor units = 6.00 EUR off the first
+// yearly invoice (30.00 -> 24.00).
+export const PLUS_YEARLY_FIRST_YEAR_COUPON = "inklee-plus-yearly-first-year";
+export const PLUS_YEARLY_FIRST_YEAR_OFF_MINOR = 600;
+
+export type PlusBillingInterval = "monthly" | "yearly";
+
+export const lookupKeyForInterval = (interval: PlusBillingInterval): string =>
+  interval === "yearly" ? PLUS_YEARLY_PRICE_LOOKUP : PLUS_PRICE_LOOKUP;
+
 /** Resolve the Plus price for DISPLAY (counsel condition: the total price must
  *  appear on the same screen as the pay button, directly above it). Reads the
  *  same Stripe Price the checkout charges, so the shown price can never drift
  *  from the charged price. Founder-approved display convention (2026-07-25):
  *  final price, tax-inclusive. Fail-safe: any error resolves to null and the
  *  checkout panel falls back to its price-on-next-step sentence. */
-export async function getPlusPriceDisplay(): Promise<{
+export async function getPlusPriceDisplay(
+  billingInterval: PlusBillingInterval = "monthly",
+): Promise<{
   label: string;
   interval: string;
+  /** Yearly only: the discounted first-year total ("24.00 EUR"), derived from
+   *  the same base Price and the same off-constant the checkout coupon uses. */
+  firstYearLabel?: string;
 } | null> {
   try {
     const stripe = requireStripe();
     const prices = await stripe.prices.list({
-      lookup_keys: [PLUS_PRICE_LOOKUP],
+      lookup_keys: [lookupKeyForInterval(billingInterval)],
       active: true,
       limit: 1,
     });
     const price = prices.data[0];
     if (!price?.unit_amount || !price.currency) return null;
     const interval = price.recurring?.interval ?? "month";
+    const currency = price.currency.toUpperCase();
     const amount = (price.unit_amount / 100).toFixed(2);
+    if (billingInterval === "yearly") {
+      const firstYearMinor = Math.max(
+        0,
+        price.unit_amount - PLUS_YEARLY_FIRST_YEAR_OFF_MINOR,
+      );
+      return {
+        label: `${amount} ${currency} per ${interval}`,
+        interval,
+        firstYearLabel: `${(firstYearMinor / 100).toFixed(2)} ${currency}`,
+      };
+    }
     return {
-      label: `${amount} ${price.currency.toUpperCase()} per ${interval}`,
+      label: `${amount} ${currency} per ${interval}`,
       interval,
     };
   } catch {
@@ -102,6 +140,11 @@ export async function createSubscriptionCheckout(input: {
   name?: string;
   priceId: string;
   contractCustomerType: ContractCustomerType;
+  /** The billing interval of the Price being charged. Drives the renewal
+   *  wording in the pre-pay legal text and is stamped into the metadata so
+   *  reconcile/webhooks can attribute the contract shape without a Price
+   *  lookup. Defaults to monthly (all existing callers). */
+  billingInterval?: PlusBillingInterval;
   /** The express immediate-performance request (P3), stamped onto the
    *  subscription so the withdrawal proration reads it SCOPED to this contract,
    *  not from an unscoped latest-consent lookup. */
@@ -120,6 +163,11 @@ export async function createSubscriptionCheckout(input: {
   });
 
   const immediatePerformance = input.immediatePerformanceRequested === true;
+  const billingInterval: PlusBillingInterval =
+    input.billingInterval ?? "monthly";
+  // Art. 8(2) CRD wording must state the actual renewal cadence, so the text
+  // varies with the interval of the Price being charged.
+  const renewalCadence = billingInterval === "yearly" ? "year" : "month";
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -132,6 +180,7 @@ export async function createSubscriptionCheckout(input: {
         artist_id: input.artistId,
         billing_flow: "plus_subscription",
         contract_customer_type: input.contractCustomerType,
+        billing_interval: billingInterval,
         immediate_performance: immediatePerformance ? "true" : "false",
       },
     },
@@ -140,8 +189,14 @@ export async function createSubscriptionCheckout(input: {
       artist_id: input.artistId,
       billing_flow: "plus_subscription",
       contract_customer_type: input.contractCustomerType,
+      billing_interval: billingInterval,
     },
     client_reference_id: input.artistId,
+    // The advertised first-year yearly total (24.00) is enforced here, not in
+    // copy: every yearly checkout carries the duration=once coupon.
+    ...(billingInterval === "yearly"
+      ? { discounts: [{ coupon: PLUS_YEARLY_FIRST_YEAR_COUPON }] }
+      : {}),
     // Pre-contract reinforcement shown next to the pay button (Art. 8(2) CRD
     // obligation-to-pay + auto-renewal + how to cancel). Stripe's subscription
     // button label itself is fixed; the dedicated "Order with obligation to pay"
@@ -149,8 +204,7 @@ export async function createSubscriptionCheckout(input: {
     // dependency, so this is safe in test mode.
     custom_text: {
       submit: {
-        message:
-          "By subscribing you place an order with an obligation to pay. Inklee Plus renews automatically each month at the price shown above until you cancel, which you can do at any time from your plan settings.",
+        message: `By subscribing you place an order with an obligation to pay. Inklee Plus renews automatically each ${renewalCadence} at the price shown above until you cancel, which you can do at any time from your plan settings.`,
       },
     },
     success_url: input.successUrl,

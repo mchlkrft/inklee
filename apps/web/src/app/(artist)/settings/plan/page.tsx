@@ -36,14 +36,16 @@ export default async function PlanPage() {
     ? PLUS_BENEFITS.filter((b) => !b.includes("email templates"))
     : PLUS_BENEFITS;
 
-  // The Plus price for the pre-checkout panel (counsel condition: total price on
-  // the same screen as the pay button, directly above it). Resolved from the SAME
-  // Stripe Price checkout charges; null (no Price / Stripe error) falls back to
-  // the price-on-next-step sentence.
-  const plusPrice =
-    PLUS_CONSUMER_LAUNCH_ENABLED && tier === "free"
-      ? await getPlusPriceDisplay()
-      : null;
+  // The Plus prices for the pre-checkout panel (counsel condition: total price
+  // on the same screen as the pay button, directly above it). Resolved from the
+  // SAME Stripe Prices checkout charges; null (no Price / Stripe error) falls
+  // back to the price-on-next-step sentence, and a missing yearly Price simply
+  // hides the yearly option (fail-safe).
+  const showUpgrade = PLUS_CONSUMER_LAUNCH_ENABLED && tier === "free";
+  const plusPrice = showUpgrade ? await getPlusPriceDisplay() : null;
+  const plusYearlyPrice = showUpgrade
+    ? await getPlusPriceDisplay("yearly")
+    : null;
 
   // The concrete withdrawal deadline (Art. 11a step 2), resolved only for a Plus
   // subscriber and only when the consumer flow is live. Preformatted server-side
@@ -121,6 +123,8 @@ export default async function PlanPage() {
               <UpgradeButton
                 label="Upgrade to Plus"
                 priceLabel={plusPrice?.label ?? null}
+                yearlyBaseLabel={plusYearlyPrice?.label ?? null}
+                yearlyFirstYearLabel={plusYearlyPrice?.firstYearLabel ?? null}
               />
             ) : (
               <p className="text-sm text-muted-foreground">

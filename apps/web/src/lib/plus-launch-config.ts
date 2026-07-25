@@ -11,3 +11,11 @@ export const PLUS_BUSINESS_TIER_ENABLED = false;
 // real users: keep the plan page on a neutral "coming soon" state. Flip this on
 // only together with counsel's copy approval + the consumer launch.
 export const PLUS_CONSUMER_LAUNCH_ENABLED = false;
+
+// Yearly Plus (docs/product/pricing-model.md row 3: 24 EUR first year via the
+// auto-applied first-year coupon, then 30 EUR per year). ENABLED 2026-07-25:
+// counsel approved yearly billing (annual proration cleared); the
+// inklee_plus_yearly_eur Prices + the first-year coupon exist in both modes.
+// Tracked follow-up, due BEFORE the first yearly renewals (mid-2027): the
+// renewal-reminder email for the FR/AT/RO/SE annual tacit-renewal rules.
+export const PLUS_YEARLY_ENABLED = true;
