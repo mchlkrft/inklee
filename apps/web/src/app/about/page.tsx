@@ -52,9 +52,9 @@ export default function AboutPage() {
                   About Inklee
                 </p>
                 <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl">
-                  <span className="block">Booking tools</span>
+                  <span className="block">By a tattoo artist.</span>
                   <span className="block text-brand-mustard">
-                    by a tattoo artist.
+                    For tattoo artists.
                   </span>
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-5 md:text-base">
