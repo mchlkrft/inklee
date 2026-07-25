@@ -104,7 +104,7 @@ export default function MapDetailPanel({
       aria-modal="false"
       aria-label={pin.name}
       tabIndex={-1}
-      className="absolute inset-x-3 bottom-3 z-30 flex max-h-[72vh] flex-col overflow-hidden rounded-2xl border border-border bg-background/95 shadow-lg outline-none backdrop-blur md:inset-y-3 md:left-auto md:right-3 md:w-96 md:max-h-none"
+      className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)_+_0.75rem)] z-40 flex max-h-[72vh] flex-col supports-[height:1dvh]:max-h-[72dvh] overflow-hidden rounded-2xl border border-border bg-background/95 shadow-lg outline-none backdrop-blur lg:bottom-3 lg:top-3 lg:left-auto lg:right-3 lg:w-96 lg:max-h-none"
     >
       <div className="flex items-start justify-between gap-2 border-b border-border p-3">
         <div className="min-w-0">
@@ -120,13 +120,13 @@ export default function MapDetailPanel({
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="shrink-0 rounded-md px-1.5 text-muted-foreground hover:text-foreground"
+          className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
         >
           ✕
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-3">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading details…</p>
         ) : error || !detail ? (
@@ -189,7 +189,7 @@ export default function MapDetailPanel({
                   href={detail.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+                  className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-1.5"
                 >
                   Website
                 </a>
@@ -199,7 +199,7 @@ export default function MapDetailPanel({
                   href={`https://instagram.com/${encodeURIComponent(detail.instagram)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+                  className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-1.5"
                 >
                   @{detail.instagram}
                 </a>
@@ -207,7 +207,7 @@ export default function MapDetailPanel({
               {detail.phone ? (
                 <a
                   href={`tel:${detail.phone.replace(/[^\d+]/g, "")}`}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+                  className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-1.5"
                 >
                   Call
                 </a>
@@ -217,7 +217,7 @@ export default function MapDetailPanel({
                   type="button"
                   disabled={watchPending}
                   onClick={onToggleWatch}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50"
+                  className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50 lg:py-1.5"
                 >
                   {watched ? "Watching ✓" : "Watch"}
                 </button>
@@ -335,7 +335,7 @@ export default function MapDetailPanel({
             {detail.requestable && !detail.ownStudio ? (
               <Link
                 href={`/map/${pin.id}/request`}
-                className="block rounded-md bg-foreground px-3 py-2 text-center text-xs text-background transition-opacity hover:opacity-90"
+                className="block rounded-md bg-foreground px-3 py-3 text-center text-xs text-background transition-opacity hover:opacity-90 lg:py-2"
               >
                 Request a guest spot
               </Link>
@@ -347,7 +347,7 @@ export default function MapDetailPanel({
       <div className="border-t border-border p-3">
         <Link
           href={`/map/${pin.id}`}
-          className="block rounded-md border border-border px-3 py-2 text-center text-xs text-foreground transition-colors hover:bg-muted/30"
+          className="block rounded-md border border-border px-3 py-3 text-center text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-2"
         >
           Open full page
         </Link>

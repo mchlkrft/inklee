@@ -214,7 +214,15 @@ function MapCanvasInner(
       style: brandMapStyle(scheme) as maplibregl.StyleSpecification,
       center: [initialView.lng, initialView.lat],
       zoom: initialView.zoom,
+      // Touch-friendly: a two-finger pinch must never accidentally rotate or
+      // pitch the map (there is no compass control to recover from it).
+      dragRotate: false,
+      pitchWithRotate: false,
     });
+    map.touchZoomRotate.disableRotation();
+    map.touchPitch.disable();
+    // Keyboard rotate/pitch too (Shift+arrows): same no-compass invariant.
+    map.keyboard.disableRotation();
     mapRef.current = map;
 
     let abort: AbortController | null = null;
@@ -374,40 +382,78 @@ function MapCanvasInner(
         },
         paint: { "text-color": "#1e1e1e" },
       });
-      map.on("click", "artist-city-circles", (e) => {
-        const feature = e.features?.[0];
-        if (!feature) return;
-        const key = feature.properties?.cityKey as string | undefined;
-        const city = artistCitiesRef.current.find((c) => c.cityKey === key);
-        if (city) onSelectCityRef.current(city);
-      });
       map.on("mouseenter", "artist-city-circles", () => {
         map.getCanvas().style.cursor = "pointer";
       });
       map.on("mouseleave", "artist-city-circles", () => {
         map.getCanvas().style.cursor = "";
       });
-
-      // City badges render on top and win clicks: the pin handler bails when a
-      // city badge sits under the cursor.
-      const cityBadgeUnderCursor = (point: maplibregl.PointLike) =>
-        map.queryRenderedFeatures(point, {
-          layers: ["artist-city-circles"],
-        }).length > 0;
-
-      map.on("click", "pin-points", (e) => {
-        if (cityBadgeUnderCursor(e.point)) return;
-        const feature = e.features?.[0];
-        if (!feature) return;
-        const id = feature.properties?.id as string | undefined;
-        const pin = pinsRef.current.find((p) => p.id === id);
-        if (pin) onSelectPinRef.current(pin);
-      });
       map.on("mouseenter", "pin-points", () => {
         map.getCanvas().style.cursor = "pointer";
       });
       map.on("mouseleave", "pin-points", () => {
         map.getCanvas().style.cursor = "";
+      });
+
+      // ONE padded click handler for both layers. The rendered circles are only
+      // ~12-18px, far under the ~44px touch guideline, so an exact layer hit
+      // makes pins nearly untappable on phones. Selection order:
+      //   1. a badge EXACTLY under the point keeps its render-on-top priority
+      //      (the pre-padding behavior: a direct badge click always wins);
+      //   2. otherwise query a padded box (12px on coarse pointers, 4px on
+      //      mouse so desktop precision is preserved) across BOTH layers and
+      //      pick the overall nearest feature — a nearby badge must not steal
+      //      a click that lands closer to a pin.
+      const selectCityFeature = (feature: maplibregl.MapGeoJSONFeature) => {
+        const key = feature.properties?.cityKey as string | undefined;
+        const city = artistCitiesRef.current.find((c) => c.cityKey === key);
+        if (city) onSelectCityRef.current(city);
+      };
+      const selectPinFeature = (feature: maplibregl.MapGeoJSONFeature) => {
+        const id = feature.properties?.id as string | undefined;
+        const pin = pinsRef.current.find((p) => p.id === id);
+        if (pin) onSelectPinRef.current(pin);
+      };
+      const nearestFeature = (
+        features: maplibregl.MapGeoJSONFeature[],
+        point: maplibregl.Point,
+      ) => {
+        let best: maplibregl.MapGeoJSONFeature | null = null;
+        let bestDist = Infinity;
+        for (const f of features) {
+          if (f.geometry.type !== "Point") continue;
+          const p = map.project(f.geometry.coordinates as [number, number]);
+          const d = (p.x - point.x) ** 2 + (p.y - point.y) ** 2;
+          if (d < bestDist) {
+            bestDist = d;
+            best = f;
+          }
+        }
+        return best;
+      };
+      map.on("click", (e) => {
+        const exactCity = map.queryRenderedFeatures(e.point, {
+          layers: ["artist-city-circles"],
+        });
+        if (exactCity.length > 0) {
+          selectCityFeature(exactCity[0]);
+          return;
+        }
+        const pad = window.matchMedia?.("(pointer: coarse)").matches ? 12 : 4;
+        const box: [maplibregl.PointLike, maplibregl.PointLike] = [
+          [e.point.x - pad, e.point.y - pad],
+          [e.point.x + pad, e.point.y + pad],
+        ];
+        const candidates = map.queryRenderedFeatures(box, {
+          layers: ["artist-city-circles", "pin-points"],
+        });
+        const best = nearestFeature(candidates, e.point);
+        if (!best) return;
+        if (best.layer.id === "artist-city-circles") {
+          selectCityFeature(best);
+        } else {
+          selectPinFeature(best);
+        }
       });
 
       map.on("moveend", () => {

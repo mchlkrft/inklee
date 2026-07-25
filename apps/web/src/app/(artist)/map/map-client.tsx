@@ -248,9 +248,20 @@ export default function MapClient({ journey }: { journey: TravelMapStop[] }) {
         style,
         center: [13.405, 52.52],
         zoom: 1.6,
+        // Boxed map inside a scrollable page: cooperative gestures keep touch
+        // scrolling and the wheel usable past the map.
+        cooperativeGestures: true,
+        // No compass control below, so rotation/pitch must be impossible.
+        dragRotate: false,
+        pitchWithRotate: false,
       });
       const theMap = map;
-      theMap.addControl(new maplibregl.NavigationControl());
+      theMap.touchZoomRotate.disableRotation();
+      theMap.touchPitch.disable();
+      theMap.keyboard.disableRotation();
+      theMap.addControl(
+        new maplibregl.NavigationControl({ showCompass: false }),
+      );
       injectPopupStyles();
 
       const journeyEls: HTMLElement[] = [];

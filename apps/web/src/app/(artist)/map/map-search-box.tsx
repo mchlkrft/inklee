@@ -155,7 +155,7 @@ export default function MapSearchBox({
           aria-label="Search studios"
           autoComplete="off"
           spellCheck={false}
-          className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none lg:text-sm"
         />
         {loading ? (
           <span
@@ -167,7 +167,7 @@ export default function MapSearchBox({
             type="button"
             onClick={clear}
             aria-label="Clear search"
-            className="shrink-0 rounded-md px-1 text-muted-foreground hover:text-foreground"
+            className="-my-2 -mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
           >
             ✕
           </button>
@@ -175,7 +175,7 @@ export default function MapSearchBox({
       </div>
 
       {showDropdown ? (
-        <ul className="mt-1.5 max-h-72 overflow-y-auto rounded-xl border border-border bg-background/98 py-1 shadow-lg backdrop-blur">
+        <ul className="mt-1.5 max-h-72 overflow-y-auto overscroll-contain rounded-xl border border-border bg-background/98 py-1 shadow-lg backdrop-blur max-md:fixed max-md:inset-x-3 max-md:top-[68px] max-md:mt-0 max-md:max-h-[50dvh]">
           {results.length === 0 ? (
             <li className="px-3 py-2 text-xs text-muted-foreground">
               {loading ? "Searching…" : "No studios found."}
@@ -187,7 +187,7 @@ export default function MapSearchBox({
                   type="button"
                   onMouseEnter={() => setActive(i)}
                   onClick={() => pick(pin)}
-                  className={`flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left ${
+                  className={`flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left lg:py-1.5 ${
                     i === active ? "bg-muted/40" : "hover:bg-muted/30"
                   }`}
                 >

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import RandomizedLogo from "@/components/randomized-logo";
 import SidebarItem from "@/components/app-shell/sidebar-item";
+import MobileBottomNav from "@/components/app-shell/mobile-bottom-nav";
 import { SIDEBAR_NAV, isItemActive } from "@/components/app-shell/nav-config";
 import {
   MAP_LOCATION_CATEGORIES,
@@ -137,6 +138,18 @@ export default function ImmersiveMapShell({
     return () => {
       document.body.style.overflow = previous;
     };
+  }, []);
+
+  // The My trips control renders md+ only; when the viewport drops below md
+  // (tablet rotation, window resize) the journey overlay must not stay stuck on
+  // with its only toggle hidden, so the overlay follows the same breakpoint.
+  const [mdUp, setMdUp] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setMdUp(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
   }, []);
 
   // Close the filter menu on an outside click.
@@ -335,7 +348,7 @@ export default function ImmersiveMapShell({
           filter={filter}
           watched={watched}
           journey={journey}
-          showJourney={showJourney}
+          showJourney={showJourney && mdUp}
           artistCities={artistCities}
           onSelectPin={selectPin}
           onSelectCity={(city) => {
@@ -349,11 +362,13 @@ export default function ImmersiveMapShell({
         />
 
         {/* List view: the accessible alternative to canvas markers. Shares the
-            map's filtered in-view pins (one dataset, one filter). */}
+            map's filtered in-view pins (one dataset, one filter). On phones it
+            spans the full width above the bottom nav; from md it docks beside
+            the rail. */}
         {viewMode === "list" ? (
           <div
-            className={`absolute bottom-3 right-3 top-[64px] z-20 overflow-y-auto rounded-2xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur transition-[left] duration-200 md:right-auto md:w-[340px] ${
-              railExpanded ? "left-[232px]" : "left-[88px]"
+            className={`absolute bottom-[calc(env(safe-area-inset-bottom)_+_6.5rem)] left-3 right-3 top-[64px] z-20 touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur transition-[left] duration-200 md:bottom-3 md:right-auto md:w-[340px] ${
+              railExpanded ? "md:left-[232px]" : "md:left-[88px]"
             }`}
           >
             <p className="mb-2 px-1 text-xs text-muted-foreground">
@@ -407,8 +422,10 @@ export default function ImmersiveMapShell({
           </div>
         ) : null}
 
-        {/* Top-left: logo pill, search, filter menu, My trips — one row. */}
-        <div className="absolute left-3 top-3 z-40 flex items-center gap-2">
+        {/* Top-left: logo pill, search, filter menu, My trips — one row. On
+            phones the row is bounded on the right (clear of the theme toggle)
+            and the search takes the remaining width; My trips is md+. */}
+        <div className="absolute left-3 right-[4.25rem] top-3 z-40 flex items-center gap-2 md:right-auto">
           <div
             className={`flex h-11 items-center rounded-full border border-border px-4 shadow-lg backdrop-blur ${
               scheme === "light"
@@ -431,7 +448,10 @@ export default function ImmersiveMapShell({
           <MapSearchBox
             onSelect={handleSearchSelect}
             shape="pill"
-            containerClassName="relative w-[min(18rem,calc(100vw-30rem))]"
+            // Phones: the search flexes into whatever the bounded row leaves
+            // (the old calc(100vw-30rem) collapsed to zero below ~480px).
+            // md+: the fixed pill width, clamped so it never crowds the row.
+            containerClassName="relative min-w-0 flex-1 md:flex-none md:w-[min(18rem,calc(100vw-30rem))]"
           />
 
           {/* Filter menu (all filter options in one pill). */}
@@ -458,7 +478,7 @@ export default function ImmersiveMapShell({
             {filterOpen ? (
               <div
                 role="menu"
-                className="absolute left-0 top-[52px] z-10 min-w-44 rounded-2xl border border-border bg-background/98 p-1 shadow-lg backdrop-blur"
+                className="absolute right-0 top-[52px] z-10 min-w-44 rounded-2xl border border-border bg-background/98 p-1 shadow-lg backdrop-blur md:left-0 md:right-auto"
               >
                 {filterOptions.map((o) => (
                   <button
@@ -470,7 +490,7 @@ export default function ImmersiveMapShell({
                       changeFilter(o.key);
                       setFilterOpen(false);
                     }}
-                    className={`flex w-full items-center rounded-lg px-3 py-1.5 text-left text-sm transition-colors ${
+                    className={`flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm transition-colors lg:py-1.5 ${
                       filter === o.key
                         ? "bg-muted/40 text-foreground"
                         : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
@@ -483,13 +503,14 @@ export default function ImmersiveMapShell({
             ) : null}
           </div>
 
-          {/* My trips: a first-class button for the artist's own journey. */}
+          {/* My trips: a first-class button for the artist's own journey.
+              md+ only; on phones the journey stays reachable via /travel. */}
           {showOverlays && journey.length > 0 ? (
             <button
               type="button"
               onClick={() => setShowJourney((v) => !v)}
               aria-pressed={showJourney}
-              className={`flex h-11 items-center gap-1.5 rounded-full border px-4 text-sm shadow-lg backdrop-blur transition-colors ${
+              className={`hidden h-11 items-center gap-1.5 rounded-full border px-4 text-sm shadow-lg backdrop-blur transition-colors md:flex ${
                 showJourney
                   ? "border-transparent bg-foreground text-background"
                   : "border-border bg-background/95 text-foreground hover:bg-muted/30"
@@ -501,9 +522,10 @@ export default function ImmersiveMapShell({
           ) : null}
         </div>
 
-        {/* Top-right: zoom pill, then the dark/light toggle below it. */}
+        {/* Top-right: zoom pill (md+; pinch covers zoom on touch), then the
+            dark/light toggle (44px touch target on phones). */}
         <div className="absolute right-3 top-3 z-30 flex flex-col items-end gap-2">
-          <div className="flex flex-col overflow-hidden rounded-full border border-border bg-background/95 shadow-lg backdrop-blur">
+          <div className="hidden flex-col overflow-hidden rounded-full border border-border bg-background/95 shadow-lg backdrop-blur md:flex">
             <button
               type="button"
               onClick={() => canvasRef.current?.zoomIn()}
@@ -532,7 +554,7 @@ export default function ImmersiveMapShell({
             aria-label={
               scheme === "dark" ? "Switch to light mode" : "Switch to dark mode"
             }
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/95 text-foreground shadow-lg backdrop-blur transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)]"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/95 text-foreground shadow-lg backdrop-blur transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] md:h-9 md:w-9"
           >
             {scheme === "dark" ? (
               <Sun className="h-4 w-4 text-brand-mustard" aria-hidden />
@@ -546,7 +568,7 @@ export default function ImmersiveMapShell({
             floating, so it stays in lockstep with the rest of the menu. */}
         <nav
           aria-label="Primary"
-          className={`absolute bottom-3 left-3 top-[64px] z-30 flex flex-col rounded-[22px] border border-[color:var(--color-shell-hover-strong)] bg-[color:var(--color-shell-bg)] text-brand-bone shadow-lg transition-[width] duration-200 ${
+          className={`absolute bottom-3 left-3 top-[64px] z-30 hidden flex-col rounded-[22px] border border-[color:var(--color-shell-hover-strong)] bg-[color:var(--color-shell-bg)] text-brand-bone shadow-lg transition-[width] duration-200 md:flex ${
             railExpanded ? "w-52" : "w-16"
           }`}
         >
@@ -592,21 +614,23 @@ export default function ImmersiveMapShell({
             the map/list toggle (center), the MapLibre attribution (right). */}
         {viewMode === "map" && !selected && !selectedCity ? (
           <p
-            className={`pointer-events-none absolute bottom-3 z-20 h-[30px] max-w-[42vw] truncate rounded-full bg-background/85 px-3.5 text-xs leading-[30px] text-muted-foreground shadow-sm backdrop-blur transition-[left] duration-200 ${
+            className={`pointer-events-none absolute bottom-3 z-20 hidden h-[30px] max-w-[42vw] truncate rounded-full bg-background/85 px-3.5 text-xs leading-[30px] text-muted-foreground shadow-sm backdrop-blur transition-[left] duration-200 md:block ${
               railExpanded ? "left-[232px]" : "left-[88px]"
             }`}
           >
             {statsText}
           </p>
         ) : null}
-        <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border bg-background/95 p-0.5 shadow-lg backdrop-blur">
+        {/* Map/List toggle: on phones it floats above the bottom nav (clear of
+            the raised center FAB); from md it sits on the bottom-3 baseline. */}
+        <div className="absolute bottom-[calc(env(safe-area-inset-bottom)_+_7rem)] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border bg-background/95 p-0.5 shadow-lg backdrop-blur md:bottom-3">
           {(["map", "list"] as const).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setViewMode(m)}
               aria-pressed={viewMode === m}
-              className={`rounded-full px-3 py-1 text-xs transition-colors ${
+              className={`rounded-full px-4 py-2 text-xs transition-colors md:px-3 md:py-1 ${
                 viewMode === m
                   ? "bg-foreground text-background"
                   : "text-muted-foreground hover:text-foreground"
@@ -620,7 +644,7 @@ export default function ImmersiveMapShell({
         {/* Attribution as a custom pill, so it matches the height + baseline of
             the count and the toggle (bottom-3, 30px). */}
         <div
-          className={`pointer-events-auto absolute bottom-3 right-3 z-20 flex h-[30px] max-w-[60vw] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur ${
+          className={`pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)_+_4.75rem)] right-3 z-20 h-[30px] max-w-[calc(50vw_-_3rem)] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur md:bottom-3 md:max-w-[60vw] ${
             scheme === "dark" ? "text-brand-rosa" : "text-muted-foreground"
           }`}
         >
@@ -659,7 +683,7 @@ export default function ImmersiveMapShell({
             aria-modal="false"
             aria-label={`Artists in ${selectedCity.cityLabel}`}
             tabIndex={-1}
-            className="absolute inset-x-3 bottom-3 z-20 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur md:left-auto md:right-3 md:w-80"
+            className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)_+_0.75rem)] z-40 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur lg:bottom-3 lg:left-auto lg:right-3 lg:z-20 lg:w-80"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -675,18 +699,18 @@ export default function ImmersiveMapShell({
                 type="button"
                 onClick={closeDetail}
                 aria-label="Close"
-                className="rounded-md px-1.5 text-muted-foreground hover:text-foreground"
+                className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
               >
                 ✕
               </button>
             </div>
             {selectedCity.artists.length > 0 ? (
-              <ul className="max-h-44 space-y-1 overflow-y-auto">
+              <ul className="max-h-44 space-y-1 overflow-y-auto overscroll-contain">
                 {selectedCity.artists.map((a) => (
                   <li key={a.slug}>
                     <Link
                       href={`/${a.slug}`}
-                      className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-sm text-foreground hover:bg-muted/30"
+                      className="flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted/30 lg:py-1"
                     >
                       <span className="truncate">{a.displayName}</span>
                       {a.lookingForGuestSpots ? (
@@ -714,7 +738,7 @@ export default function ImmersiveMapShell({
             aria-modal="false"
             aria-label={selected.name}
             tabIndex={-1}
-            className="absolute inset-x-3 bottom-3 z-20 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur md:left-auto md:right-3 md:w-80"
+            className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)_+_0.75rem)] z-40 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur lg:bottom-3 lg:left-auto lg:right-3 lg:z-20 lg:w-80"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -736,7 +760,7 @@ export default function ImmersiveMapShell({
                 type="button"
                 onClick={closeDetail}
                 aria-label="Close"
-                className="rounded-md px-1.5 text-muted-foreground hover:text-foreground"
+                className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
               >
                 ✕
               </button>
@@ -750,7 +774,7 @@ export default function ImmersiveMapShell({
                   type="button"
                   disabled={pending}
                   onClick={() => toggleWatch(selected)}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50"
+                  className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:opacity-50 lg:py-1.5"
                 >
                   {watched.has(selected.id) ? "Watching ✓" : "Watch"}
                 </button>
@@ -758,7 +782,7 @@ export default function ImmersiveMapShell({
               <button
                 type="button"
                 onClick={() => setExpandedPin(selected)}
-                className="rounded-md bg-foreground px-3 py-1.5 text-xs text-background transition-opacity hover:opacity-90"
+                className="rounded-md bg-foreground px-3 py-2.5 text-xs text-background transition-opacity hover:opacity-90 lg:py-1.5"
               >
                 View details
               </button>
@@ -780,6 +804,13 @@ export default function ImmersiveMapShell({
           />
         ) : null}
       </div>
+
+      {/* Phones: the shell overlay (z-60) covers the app layout's bottom nav,
+          which would leave the map a navigation dead end with the rail hidden.
+          Re-render the same nav inside the overlay (it is fixed + md:hidden +
+          safe-area aware, so it lands exactly where it does on every other
+          screen). Open panels stack above it (z-40) like a bottom sheet. */}
+      <MobileBottomNav inMapShell />
     </div>
   );
 }

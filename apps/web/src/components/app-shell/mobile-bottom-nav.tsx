@@ -2,13 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { mapImmersiveShellEnabled } from "@/lib/map-features";
 import { MOBILE_BOTTOM_NAV, isItemActive } from "./nav-config";
 
-export default function MobileBottomNav() {
+export default function MobileBottomNav({
+  inMapShell = false,
+}: {
+  /** Set by the immersive map shell's own copy. The layout's copy yields on
+   *  /map when the shell takeover is active, so phones never carry two
+   *  identical "Primary" nav landmarks (one buried under the z-60 overlay). */
+  inMapShell?: boolean;
+} = {}) {
   const pathname = usePathname();
 
   // Hide all app chrome during onboarding to keep the wizard focused.
   if (pathname.startsWith("/onboarding")) return null;
+
+  // On the immersive map the shell renders its own copy above the overlay; the
+  // layout copy would sit buried but focusable beneath it (duplicate landmark,
+  // ghost tab stops). Both flags are NEXT_PUBLIC, so this is client-safe.
+  if (!inMapShell && pathname === "/map" && mapImmersiveShellEnabled()) {
+    return null;
+  }
 
   // Middle slot gets the raised "exposed above" FAB-style treatment.
   // With 5 nav items that's index 2 (Bookings, per `MOBILE_BOTTOM_NAV`).

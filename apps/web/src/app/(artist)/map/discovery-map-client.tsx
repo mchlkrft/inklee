@@ -140,9 +140,18 @@ export default function DiscoveryMapClient({
       style: brandMapStyle(scheme) as maplibregl.StyleSpecification,
       center: [13.405, 52.52],
       zoom: 3,
+      // Boxed map inside a scrollable page: without cooperative gestures a
+      // one-finger drag traps touch scrolling and the wheel hijacks the page.
+      cooperativeGestures: true,
+      // No compass control below, so rotation/pitch must be impossible.
+      dragRotate: false,
+      pitchWithRotate: false,
     });
+    map.touchZoomRotate.disableRotation();
+    map.touchPitch.disable();
+    map.keyboard.disableRotation();
     mapRef.current = map;
-    map.addControl(new maplibregl.NavigationControl());
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 
     let abort: AbortController | null = null;
     let debounce: ReturnType<typeof setTimeout> | null = null;
