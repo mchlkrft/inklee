@@ -26,6 +26,24 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 
 ---
 
+### 2026-07-25 — Public `/pricing` page (noindex, fail-closed) for the Plus consumer launch
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** New-page gate (not triggered as an indexable addition — the page ships `noindex, follow`, out of the sitemap, per the `/map` fail-closed convention); "Proposed strategic changes" (new proposal filed: index `/pricing` + assign pricing-intent ownership, awaiting ChatGPT ratification).
+
+**Files changed:** `apps/web/src/app/pricing/page.tsx` (new), `docs/seo/inklee-seo-strategy.md` (proposal entry), this log.
+
+**Implementation:** Founder-requested public pricing page for the Plus consumer launch, layout from the founder's card template mapped onto the marketing-v2 design tokens: charcoal hero ("Pricing" / "Three options. The free one is genuinely useful.", the founder's own business-model.md §7 draft copy), a bone plans section with three cards (Free Starter on `#d9d4c7`, Inklee Plus featured on charcoal with the mustard CTA, Studio as an honest "Coming later" teaser with the planned 25 EUR direction and no feature checklist for unshipped functionality), the founder's honesty footer line, a charcoal FAQ (6 items, same array feeds the visible section and `faqPageSchema`), and a rosa final CTA. Prices are the counsel-shown, founder-ratified set: Free 0 EUR; Plus 3 EUR/month with the approved display sentence "3.00 EUR per month, final price. No VAT added. Renews monthly until you cancel."; no monthly/yearly toggle (yearly is not built; the founder's own draft bans save-percent framing). Plus bullets match the shipped PLUS_BENEFITS strings plus the card-deposit line with the 3% disclosure framing. `WebPage` + `FAQPage` JSON-LD via the shared serializer. Robots `index: false, follow: true`, self-canonical `/pricing`, NOT added to `MARKETING_ROUTES` (sitemap/IndexNow). The whole page is gated on `PLUS_CONSUMER_LAUNCH_ENABLED` (404s in production until the consumer launch flips), so paid plans are never publicly shown before Plus is purchasable. `pricing` was already a reserved slug. CTA tracking: `pricing-free-signup`, `pricing-plus-signup`, `pricing-final-signup` (account creation stays the conversion).
+
+**Validation performed:** Web `tsc` + lint + em-dash sweep of the diff; visual check on the local dev server with the launch flag on; copy cross-checked against the counsel-shown pricing table, the shipped plan-page strings, and the AGENTS.md copy rules (sentence case, accept/pass verbs, no em-dashes).
+
+**Remaining issues:** Indexation + sitemap entry + footer/spine internal links wait on the ChatGPT ownership ratification (proposal filed) and on the launch flip; at flip, also decide the footer link placement. Yearly pricing appears only as "Yearly billing is coming" until the yearly plan ships.
+
+**Commit:** the 2026-07-25 `feat(seo)` commit this entry ships in (public `/pricing` page, noindex fail-closed).
+
+---
+
 ### 2026-07-15 — Play Store app name: SEO alignment check + founder decision
 
 **Implemented by:** Claude Code

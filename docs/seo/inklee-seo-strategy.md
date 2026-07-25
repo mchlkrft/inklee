@@ -1358,7 +1358,16 @@ Prioritize evidence from:
 
 ## Proposed strategic changes
 
-_No open proposals. Claude Code adds entries here when implementation evidence suggests a strategic change. Until the canonical strategy above is updated, a proposal is not approved strategy. Each proposal must contain: current decision · proposed decision · technical or data-based reason · pages affected · cannibalization risk · recommended next step._
+_Claude Code adds entries here when implementation evidence suggests a strategic change. Until the canonical strategy above is updated, a proposal is not approved strategy. Each proposal must contain: current decision · proposed decision · technical or data-based reason · pages affected · cannibalization risk · recommended next step._
+
+### Proposal 2026-07-25: index `/pricing` and assign it pricing-intent ownership
+
+- **Current decision:** pricing/cost intent has no owner URL anywhere in the ownership map; no `/pricing` page existed. The Plus consumer launch (built, gated) needs a public pricing surface at flip.
+- **Proposed decision:** assign `/pricing` ownership of brand-pricing and product-pricing intent ("inklee pricing", "tattoo booking software price/cost" secondary), flip it to indexable, add it to the sitemap (suggested priority 0.6, monthly), and add footer/nav internal links from the commercial spine.
+- **Technical or data-based reason:** the page shipped 2026-07-25 as a conversion/navigational surface for the Plus consumer launch, fail-closed per house convention: `noindex, follow`, self-referencing canonical, out of the sitemap, gated on `PLUS_CONSUMER_LAUNCH_ENABLED` (404s until the launch flips). Copy is grounded in shipped functionality and counsel-approved price display ("3.00 EUR per month, final price"). Pricing-intent queries currently have no landing surface at all.
+- **Pages affected:** `/pricing` (new); footer link set; possibly `/tattoo-booking-software` (a "what it costs" contextual link).
+- **Cannibalization risk:** low. No existing URL owns pricing intent; the nearest page (`/tattoo-booking-software`) targets category intent and does not mention prices. Wording-variation risk none (no sibling pages).
+- **Recommended next step:** ChatGPT confirms ownership + indexation timing (suggested: at or shortly after the consumer launch flip, once the page is publicly reachable), then Claude Code flips robots to index, adds the `MARKETING_ROUTES` entry (sitemap + IndexNow), and logs the slice.
 
 ---
 
