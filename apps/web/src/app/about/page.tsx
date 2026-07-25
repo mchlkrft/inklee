@@ -208,7 +208,7 @@ export default function AboutPage() {
                   src="/branding/illustrations/mixed/inklee-_artist-drawing-on-ipad.svg"
                   alt=""
                   aria-hidden="true"
-                  className="mx-auto h-auto w-full max-w-xs md:mx-0 md:max-w-sm"
+                  className="mx-auto h-auto w-full max-w-xs md:max-w-sm"
                   draggable={false}
                 />
               </div>
