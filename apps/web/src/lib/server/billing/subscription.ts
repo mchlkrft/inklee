@@ -9,9 +9,12 @@ import { assertLiveBillingAllowedFor } from "./activation";
 // and a mandatory activation-gate check before any live charge can occur.
 
 // The Plus Price is resolved by this stable lookup key (single source; the
-// checkout action and the price display both read it). In prod no live Price
-// with this key exists yet, so both degrade gracefully.
-export const PLUS_PRICE_LOOKUP = "inklee_plus_monthly_eur_test";
+// checkout action and the price display both read it). Both modes carry a Price
+// with this key since 2026-07-25: LIVE price_1Tx0UvHkG0exykzFmmDjfZA5 + test
+// price_1Tx0WVQi3Lu5kKnKtxMW6Vsk (3.00 EUR/month, tax_behavior=inclusive, the
+// founder-approved display decision). The old test-only key
+// inklee_plus_monthly_eur_test is superseded.
+export const PLUS_PRICE_LOOKUP = "inklee_plus_monthly_eur";
 
 /** Resolve the Plus price for DISPLAY (counsel condition: the total price must
  *  appear on the same screen as the pay button, directly above it). Reads the

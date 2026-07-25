@@ -17,12 +17,10 @@ import {
 
 // The Plus price is resolved by the shared stable lookup key (single-sourced in
 // lib/server/billing/subscription.ts beside the display resolver, so the shown
-// price and the charged price can never come from different Prices). In dev/test
-// the test-mode Price exists, so checkout works end to end; in prod (live key)
-// no live Price with this key exists yet, so the action returns "coming soon"
-// gracefully. The activation gate is the other guard: createSubscriptionCheckout
-// asserts it before creating any Stripe object, and a BillingActivationError
-// also degrades to "coming soon".
+// price and the charged price can never come from different Prices). Both modes
+// carry a Price with this key since 2026-07-25. The activation gate is the other
+// guard: createSubscriptionCheckout asserts it before creating any Stripe
+// object, and a BillingActivationError degrades to "coming soon".
 const PRICE_LOOKUP = PLUS_PRICE_LOOKUP;
 
 export type CheckoutResult = { url: string } | { message: string };
