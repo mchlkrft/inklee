@@ -268,6 +268,104 @@ finished and tested** — the approved withdrawal and refund wording (A–C, 1b)
 only truthful once refunds actually execute end to end. The re-confirmation of the
 switched-on Terms text (step 6) is a quick counsel check, noted.
 
+---
+
+## Follow-up for counsel (2026-07-25): the shipped texts, one-glance confirm
+
+Your conditions from the Answers above are now built. Conditions 1 (refund /
+credit-note flow), 2 (consent restated on the durable medium), and 4 (the
+cancellation button) are done in code; condition 3 (price directly above the pay
+button) is waiting on the price-display approval and will be wired the day it
+lands. Below are the exact texts as shipped, with the additions your conditions
+required. **We need one reply: confirm, or send edits.** Square brackets mark
+variable parts; bracketed lines appear only in the case described.
+
+### E1. Withdrawal acknowledgement email (your condition on string C)
+
+Subject: "Your Inklee Plus withdrawal is confirmed"
+
+> We have received your withdrawal from your Inklee Plus subscription.
+>
+> Your withdrawal takes effect on [date]. *(NEW: the effective date you required)*
+>
+> Because you asked us to start your subscription immediately, we kept a
+> proportionate amount of [amount] for the time provided before your withdrawal,
+> and refunded the rest. *(NEW: shown only when the customer opted into
+> immediate start AND a proportionate amount was kept — the Art. 14(3)/(4)
+> restatement you required)*
+>
+> Your subscription has ended and your plan has been updated. Your account and
+> all of your data are kept.
+>
+> A refund of [amount] is on its way to your original payment method. *(shown
+> only when a refund is due)*
+>
+> This message is your acknowledgement of receipt on a durable medium.
+
+### E2. Purchase confirmation email (your condition linking A to C)
+
+Subject: "Your Inklee Plus subscription is confirmed"
+
+> Your Inklee Plus subscription is confirmed.
+>
+> You asked us to start your subscription immediately, before the end of the
+> 14-day withdrawal period. If you withdraw during that period, you pay a
+> proportionate amount for the time already provided. *(NEW: shown only when
+> the customer ticked the immediate-start box — the durable-medium restatement
+> that makes the proportionate charge enforceable, Art. 8(7)/14(4)(a))*
+>
+> You can manage or cancel it any time from your plan settings.
+>
+> This message is your confirmation on a durable medium.
+
+### E3. Cancellation confirmation email (NEW, part of your § 312k condition)
+
+Sent when a subscriber uses the new cancellation function (E4). States the
+receipt date and time and the date the termination takes effect, per § 312k(3).
+
+Subject: "Your Inklee Plus cancellation is confirmed"
+
+> We have received your cancellation of your Inklee Plus subscription.
+>
+> We received your cancellation on [date] at [time].
+>
+> Your subscription will end on [date], and you keep Plus until then.
+>
+> Your account and all of your data are kept.
+>
+> This message is your confirmation of receipt on a durable medium.
+
+### E4. The cancellation button (§ 312k), as built — founder placement decision
+
+A two-step cancellation function now sits in Settings, in its own "Subscription"
+section directly above "Delete account", visible to any active subscriber:
+
+> Step 1 explainer: "Cancelling ends your Inklee Plus subscription at the end of
+> the current paid period. You keep Plus until then, and your account and all of
+> your data are kept."
+> Step 1 button: "Cancel your subscription here"
+> Step 2 confirm: "Your Inklee Plus subscription will end on [date]. You keep
+> Plus until then, and there is no refund for the current period. Your account
+> and all of your data are kept."
+> Step 2 buttons: "Cancel now" / "Keep my subscription"
+
+Two notes for your file: (1) **founder decision:** the button lives behind login
+(Settings), accepting your note that some German rulings read "directly
+accessible" as possibly pre-login; (2) the app is English-only today, so the
+wording is an "equally unambiguous formulation" rather than the literal
+"Verträge hier kündigen" / "jetzt kündigen"; a German-locale build would use the
+literal wording (noted in code).
+
+### E5. Withdrawal deadline display (Art. 11a step 2, now complete)
+
+The withdrawal panel now shows the concrete deadline: "Your 14-day withdrawal
+period ends on [date]." (or "ended on [date]" after expiry), computed from the
+same subscription start the refund logic enforces.
+
+**What we need:** one confirmation (or edits) covering E1–E5. On your confirm we
+record `consumer_withdrawal_copy_approved`. Nothing here is live: all of it stays
+behind the launch switch until the full gate is recorded.
+
 ### Launch-blocking conditions (counsel view)
 
 1. Refund/credit-note flow complete and tested (makes A–C truthful).
