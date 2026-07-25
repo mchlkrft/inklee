@@ -56,7 +56,7 @@ export default function UpgradeButton({
           trackEvent("plus_upgrade_click");
           setOpen(true);
         }}
-        className="inline-flex items-center justify-center rounded-lg bg-brand-red px-5 py-2.5 text-sm font-semibold text-brand-bone transition-colors hover:bg-brand-red/90"
+        className="inline-flex items-center justify-center rounded-lg bg-brand-mustard px-5 py-2.5 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90"
       >
         {label}
       </button>
@@ -107,7 +107,7 @@ export default function UpgradeButton({
               name="billing-interval"
               checked={!yearly}
               onChange={() => setYearly(false)}
-              className="mt-0.5 h-4 w-4 accent-brand-red"
+              className="mt-0.5 h-4 w-4 accent-brand-mustard"
             />
             <span>Monthly{priceLabel ? ` — ${priceLabel}` : ""}</span>
           </label>
@@ -117,7 +117,7 @@ export default function UpgradeButton({
               name="billing-interval"
               checked={yearly}
               onChange={() => setYearly(true)}
-              className="mt-0.5 h-4 w-4 accent-brand-red"
+              className="mt-0.5 h-4 w-4 accent-brand-mustard"
             />
             <span>
               Yearly — {yearlyFirstYearLabel} first year, then {yearlyBaseLabel}
@@ -134,7 +134,7 @@ export default function UpgradeButton({
             type="checkbox"
             checked={declared}
             onChange={(e) => setDeclared(e.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-brand-red"
+            className="mt-0.5 h-4 w-4 accent-brand-mustard"
           />
           <span>{BUSINESS_DECLARATION_TEXT}</span>
         </label>
@@ -149,7 +149,7 @@ export default function UpgradeButton({
             type="checkbox"
             checked={immediate}
             onChange={(e) => setImmediate(e.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-brand-red"
+            className="mt-0.5 h-4 w-4 accent-brand-mustard"
           />
           <span>{IMMEDIATE_PERFORMANCE_TEXT}</span>
         </label>
@@ -188,7 +188,7 @@ export default function UpgradeButton({
           type="button"
           disabled={!canOrder || pending}
           onClick={placeOrder}
-          className="inline-flex items-center justify-center rounded-lg bg-brand-red px-5 py-2.5 text-sm font-semibold text-brand-bone transition-colors hover:bg-brand-red/90 disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-lg bg-brand-mustard px-5 py-2.5 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {pending ? "Starting checkout..." : "Order with obligation to pay"}
         </button>

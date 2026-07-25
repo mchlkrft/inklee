@@ -4,18 +4,25 @@ import { effectivePlanTier, isGrandfathered } from "@/lib/entitlements";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 import { getWithdrawalWindow } from "@/lib/server/billing/withdrawal";
 import { getPlusPriceDisplay } from "@/lib/server/billing/subscription";
+import { PLUS_BENEFITS } from "@inklee/shared/plus-benefits";
 import UpgradeButton from "./upgrade-button";
 import ManageSubscriptionButton from "./manage-subscription-button";
 import WithdrawButton from "./withdraw-button";
 
 export const metadata = { title: "Plan" };
 
-const PLUS_BENEFITS = [
-  "Remove the “made with Inklee” footer from your public pages",
-  "Customise your booking email templates",
-  "Up to 30 custom form fields, 100 guest-spot trips, and 50 studios",
-  "Advanced booking analytics",
-];
+// The same checkmark as the /pricing cards (mustard, per the founder's
+// consistency pass 2026-07-25: mustard replaces the red highlight here).
+function Check() {
+  return (
+    <span
+      aria-hidden
+      className="shrink-0 text-base font-black leading-5 text-brand-mustard"
+    >
+      &#10003;
+    </span>
+  );
+}
 
 export default async function PlanPage() {
   const supabase = await createClient();
@@ -83,7 +90,7 @@ export default async function PlanPage() {
             </p>
           </div>
           {tier === "plus" && (
-            <span className="rounded-full bg-brand-red/10 px-3 py-1 text-xs font-semibold text-brand-red">
+            <span className="rounded-full bg-brand-mustard px-3 py-1 text-xs font-semibold text-brand-charcoal">
               Active
             </span>
           )}
@@ -111,9 +118,7 @@ export default async function PlanPage() {
                 key={b}
                 className="flex items-start gap-2 text-sm text-foreground"
               >
-                <span aria-hidden className="mt-0.5 text-brand-red">
-                  &#10003;
-                </span>
+                <Check />
                 {b}
               </li>
             ))}
@@ -144,9 +149,7 @@ export default async function PlanPage() {
                 key={b}
                 className="flex items-start gap-2 text-sm text-foreground"
               >
-                <span aria-hidden className="mt-0.5 text-brand-red">
-                  &#10003;
-                </span>
+                <Check />
                 {b}
               </li>
             ))}

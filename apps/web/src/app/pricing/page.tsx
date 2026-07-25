@@ -7,6 +7,7 @@ import { PillNav, SiteFooter } from "@/components/marketing-v2";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
+import { PLUS_BENEFITS } from "@inklee/shared/plus-benefits";
 import PlusPriceToggle from "./plus-price-toggle";
 
 // Public pricing page. SEO posture (fail-closed per docs/seo/inklee-seo-strategy.md):
@@ -99,15 +100,8 @@ const FREE_FEATURES = [
   "Email notifications and client portal",
 ];
 
-const PLUS_FEATURES = [
-  "Collect card deposits in-app",
-  "Take full appointment payments by card",
-  "Fully customisable booking template",
-  "Your branding only, no Inklee footer",
-  "Custom booking email templates",
-  "Manage all your guest spots and studios",
-  "Advanced booking analytics",
-];
+// Shared with /settings/plan and the mobile plan screen (one source of truth).
+const PLUS_FEATURES = PLUS_BENEFITS;
 
 export default function PricingPage() {
   // Dark until the consumer launch flips: paid plans must not be shown publicly

@@ -6,17 +6,14 @@ import { useApiQuery } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { useScreenView } from "@/lib/analytics";
 import type { MobileMe } from "@inklee/shared/mobile-api";
+import { PLUS_BENEFITS } from "@inklee/shared/plus-benefits";
 
 // Read-only plan display. Billing is web-only (no in-app purchase), so this
 // screen never links out to a purchase or checkout: it shows the plan, the
 // early-artist grandfather note, and what Plus includes, with a passive note
 // that the plan is managed on the web. No upgrade CTA (IAP compliance).
-const PLUS_INCLUDES = [
-  "No “made with Inklee” footer on your public pages",
-  "Custom booking email templates",
-  "Up to 30 custom form fields, 100 guest-spot trips, and 50 studios",
-  "Advanced booking analytics",
-];
+// The USP list is the shared canonical one (same as /pricing + web settings).
+const PLUS_INCLUDES = PLUS_BENEFITS;
 
 export default function PlanScreen() {
   useScreenView("settings_plan");
