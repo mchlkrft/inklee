@@ -7,6 +7,7 @@ import { PillNav, SiteFooter } from "@/components/marketing-v2";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
+import PlusPriceToggle from "./plus-price-toggle";
 
 // Public pricing page. SEO posture (fail-closed per docs/seo/inklee-seo-strategy.md):
 // noindex + follow, self-referencing canonical, NOT in marketing-routes/sitemap.
@@ -19,7 +20,11 @@ import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 // (docs/business-model.md section 7), the shipped PLUS_BENEFITS strings
 // (settings/plan), the counsel-shown pricing table
 // (docs/legal/consumer-launch-signoff-package.md), and the founder-ratified
-// display decision "3.00 EUR per month, final price" (2026-07-25).
+// display decision "3.00 EUR per month, final price" (2026-07-25). Card copy
+// revised by the founder in review (2026-07-25): the Plus explainer is now
+// "3.00 EUR per month. No VAT added.", the card carries a monthly/yearly
+// toggle beside the price (yearly per docs/product/pricing-model.md row 3,
+// counsel approved 2026-07-25), and the feature lists are single-line USPs.
 
 const PAGE_PATH = "/pricing";
 const PAGE_TITLE = "Pricing · Inklee";
@@ -56,7 +61,7 @@ const PRICING_FAQ: Faq[] = [
   {
     question: "What does Inklee Plus cost?",
     answer:
-      "3.00 EUR per month, final price. Inklee is not VAT registered, so no VAT is added: the price you see is the price you pay. The subscription renews monthly until you cancel. A yearly option is planned.",
+      "3.00 EUR per month, or yearly at 24.00 EUR first year, then 30.00 EUR per year. Inklee is not VAT registered, so no VAT is added: the price you see is the price you pay. The subscription renews until you cancel.",
   },
   {
     question: "Can I cancel any time?",
@@ -80,21 +85,27 @@ const PRICING_FAQ: Faq[] = [
   },
 ];
 
+// Single-line USPs by design (founder review 2026-07-25): keep each entry short
+// enough to render on one line in the card; two lines is the tolerated maximum.
 const FREE_FEATURES = [
-  "One public booking page with your link",
-  "A structured tattoo request form",
-  "Request review: accept, pass, or suggest a date",
+  "Your public booking page and link",
+  "Structured tattoo request form",
+  "Accept, pass, or suggest a new date",
   "Manual deposit tracking and waitlist",
   "Trip planner for guest spots",
   "Flash gallery with Instagram import",
-  "Email notifications and a client portal",
+  "Your own link hub",
+  "Presence on the tattoo map",
+  "Email notifications and client portal",
 ];
 
 const PLUS_FEATURES = [
-  "Collect card deposits in-app (flat 3% fee, card processing included)",
-  "Remove the “made with Inklee” footer from your public pages",
-  "Customise your booking email templates",
-  "Up to 30 custom form fields, 100 guest-spot trips, and 50 studios",
+  "Collect card deposits in-app",
+  "Take full appointment payments by card",
+  "Fully customisable booking template",
+  "Your branding only, no Inklee footer",
+  "Custom booking email templates",
+  "Manage all your guest spots and studios",
   "Advanced booking analytics",
 ];
 
@@ -131,7 +142,7 @@ export default function PricingPage() {
 function HeroSection() {
   return (
     <section className="bg-shell-bg text-shell-fg">
-      <div className="container-marketing pb-16 pt-36 text-center md:pb-20 md:pt-44">
+      <div className="container-marketing pb-10 pt-16 text-center md:pb-12 md:pt-20">
         <h1 className="text-5xl font-black leading-none tracking-tight md:text-7xl">
           Pricing
         </h1>
@@ -147,7 +158,7 @@ function Check({ dark = false }: { dark?: boolean }) {
   return (
     <span
       aria-hidden
-      className={`mt-0.5 shrink-0 text-sm font-black ${dark ? "text-brand-mustard" : "text-brand-charcoal"}`}
+      className={`shrink-0 text-base font-black leading-5 ${dark ? "text-brand-mustard" : "text-brand-charcoal"}`}
     >
       &#10003;
     </span>
@@ -185,7 +196,7 @@ function PlansSection() {
             >
               Get started
             </TrackedCtaLink>
-            <ul className="mt-1 space-y-2.5">
+            <ul className="mt-1 space-y-5">
               {FREE_FEATURES.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm">
                   <Check />
@@ -196,7 +207,7 @@ function PlansSection() {
           </div>
 
           {/* Inklee Plus (featured) */}
-          <div className="flex h-full flex-col gap-5 rounded-3xl bg-brand-charcoal p-7 text-shell-fg shadow-shell md:-mt-4 md:mb-[-1rem] md:pb-11 md:pt-9">
+          <div className="flex h-full flex-col gap-5 rounded-3xl bg-brand-charcoal p-7 pb-10 text-shell-fg shadow-shell md:-mt-4 md:mb-[-1rem] md:pb-14 md:pt-9">
             <div>
               <h2 className="text-xl font-black">Inklee Plus</h2>
               <p className="mt-1 text-sm text-shell-fg-dim">
@@ -204,18 +215,7 @@ function PlansSection() {
                 control.
               </p>
             </div>
-            <p className="flex items-baseline gap-1.5">
-              <span className="text-5xl font-black tracking-tight text-brand-mustard">
-                &euro;3
-              </span>
-              <span className="text-sm font-bold text-shell-fg-dim">
-                /month
-              </span>
-            </p>
-            <p className="text-xs leading-relaxed text-shell-fg-dim">
-              3.00 EUR per month, final price. No VAT added. Renews monthly
-              until you cancel. Yearly billing is coming.
-            </p>
+            <PlusPriceToggle />
             <TrackedCtaLink
               cta="pricing-plus-signup"
               href="/signup"
@@ -226,7 +226,7 @@ function PlansSection() {
             <p className="text-xs text-shell-fg-dim">
               Upgrade when you&apos;re ready, right from your plan settings.
             </p>
-            <ul className="mt-1 space-y-2.5">
+            <ul className="mt-1 space-y-5">
               <li className="text-xs font-bold uppercase tracking-[0.14em] text-shell-fg-dim">
                 Everything in Free, plus:
               </li>
@@ -249,7 +249,7 @@ function PlansSection() {
                 </p>
               </div>
               <span className="rounded-full bg-brand-charcoal/8 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-brand-charcoal/70">
-                Coming later
+                Soon
               </span>
             </div>
             <p className="flex items-baseline gap-1.5">
@@ -268,12 +268,22 @@ function PlansSection() {
             <p className="text-xs text-brand-charcoal/70">
               Run a studio and want in early? Write to hello@inklee.app.
             </p>
+            <div className="my-auto flex justify-center py-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/illustrations/reaper-wait-for-me.svg"
+                alt=""
+                aria-hidden="true"
+                className="w-48 max-w-full opacity-15 md:w-52"
+                draggable={false}
+              />
+            </div>
           </div>
         </div>
 
         <p className="mx-auto mt-12 max-w-2xl text-center text-sm text-brand-charcoal/70">
-          Built by a tattoo artist, for tattoo artists. No fake testimonials. No
-          &quot;free forever&quot; lies. Cancel any time.
+          Built by an artist, for artists. No fake testimonials. No lies. Cancel
+          any time.
         </p>
       </div>
     </section>
