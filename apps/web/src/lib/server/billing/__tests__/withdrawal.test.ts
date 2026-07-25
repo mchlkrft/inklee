@@ -12,6 +12,9 @@ const h = vi.hoisted(() => {
     withdrawal_cases: [],
     billing_consent_records: [],
     billing_contract_confirmations: [],
+    transaction_tax_snapshots: [],
+    tax_policies: [],
+    account_billing_profiles: [],
   };
   const stripe = {
     retrieve: vi.fn(),
@@ -149,7 +152,8 @@ vi.mock("@/lib/server/billing/client", () => ({
 }));
 vi.mock("@/lib/email/send", () => ({ sendEmail: h.sendEmail }));
 vi.mock("@/lib/email/booking-templates", () => ({
-  buildEmailHtml: () => "<html></html>",
+  // Return the body so tests can assert the durable-confirmation wording.
+  buildEmailHtml: (body: string) => body,
 }));
 vi.mock("@/lib/server/billing/reconcile", () => ({
   reconcileFromStripeSubscription: h.reconcile,
@@ -214,6 +218,9 @@ beforeEach(() => {
   h.store.withdrawal_cases = [];
   h.store.billing_consent_records = [];
   h.store.billing_contract_confirmations = [];
+  h.store.transaction_tax_snapshots = [];
+  h.store.tax_policies = [];
+  h.store.account_billing_profiles = [];
   vi.setSystemTime(new Date(nowMs));
   h.stripe.retrieve.mockReset();
   h.stripe.cancel
@@ -280,6 +287,14 @@ describe("withdrawSubscriptionCore", () => {
     ).toBe(true);
     expect(h.store.billing_contract_confirmations).toHaveLength(1);
     expect(h.sendEmail).toHaveBeenCalledTimes(1);
+    // Counsel condition C: the acknowledgement identifies the contract + the
+    // effective date and RESTATES the immediate-start consent behind the
+    // proportionate amount kept.
+    const html = h.sendEmail.mock.calls[0][0].html as string;
+    expect(html).toContain("Inklee Plus subscription");
+    expect(html).toContain("Your withdrawal takes effect on");
+    expect(html).toContain("asked us to start your subscription immediately");
+    expect(html).toContain("acknowledgement of receipt on a durable medium");
   });
 
   it("without an immediate-performance request: FULL refund", async () => {
@@ -292,6 +307,9 @@ describe("withdrawSubscriptionCore", () => {
     if (r.status !== "completed") return;
     expect(r.refundMinor).toBe(300);
     expect(h.stripe.refundCreate.mock.calls[0][0].amount).toBe(300);
+    // No immediate-start request -> no proportionate-charge restatement.
+    const html = h.sendEmail.mock.calls[0][0].html as string;
+    expect(html).not.toContain("proportionate amount");
   });
 
   it("is idempotent: an existing refunded case does not refund twice", async () => {
@@ -369,6 +387,44 @@ describe("withdrawSubscriptionCore", () => {
     const r = await withdrawSubscriptionCore({ artistId: "artist_1" });
     expect(r.status).toBe("completed");
     expect(h.stripe.refundCreate.mock.calls[0][0].charge).toBe("ch_1");
+  });
+
+  it("writes a credit-note tax snapshot and links it to the case", async () => {
+    seedSub();
+    h.store.tax_policies.push({
+      id: "tp_1",
+      version_label: "ee-unregistered-v2",
+      seller_country: "EE",
+      seller_vat_registered: false,
+      is_current: true,
+      treatment_rules: {
+        estonian: {
+          treatment: "small_business_exemption",
+          reverseCharge: false,
+        },
+      },
+    });
+    // start 5 days ago, 30-day period, immediate performance -> refund 250.
+    h.stripe.retrieve.mockResolvedValue(
+      makeStripeSub({
+        startDaysAgo: 5,
+        periodDays: 25,
+        immediatePerformance: true,
+      }),
+    );
+    const r = await withdrawSubscriptionCore({ artistId: "artist_1" });
+    expect(r.status).toBe("completed");
+    const snap = h.store.transaction_tax_snapshots.find(
+      (s) => s.kind === "credit_note",
+    );
+    expect(snap).toBeTruthy();
+    // Negative amount (a credit note reverses the charge); matches the refund.
+    expect(snap!.gross_minor).toBe(-250);
+    expect(snap!.stripe_charge_id).toBe("ch_1");
+    // The case links the correction snapshot.
+    expect(h.store.withdrawal_cases[0].tax_correction_snapshot_id).toBe(
+      snap!.id,
+    );
   });
 
   it("a cancellation does not extinguish an in-window withdrawal", async () => {

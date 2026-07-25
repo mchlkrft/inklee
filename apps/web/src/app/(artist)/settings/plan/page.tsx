@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { effectivePlanTier, isGrandfathered } from "@/lib/entitlements";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
+import { getWithdrawalWindow } from "@/lib/server/billing/withdrawal";
 import UpgradeButton from "./upgrade-button";
 import ManageSubscriptionButton from "./manage-subscription-button";
 import WithdrawButton from "./withdraw-button";
@@ -33,6 +34,21 @@ export default async function PlanPage() {
   const upgradeBenefits = keepsTemplates
     ? PLUS_BENEFITS.filter((b) => !b.includes("email templates"))
     : PLUS_BENEFITS;
+
+  // The concrete withdrawal deadline (Art. 11a step 2), resolved only for a Plus
+  // subscriber and only when the consumer flow is live. Preformatted server-side
+  // so the client component shows a stable, locale-consistent date.
+  const withdrawalWindow =
+    PLUS_CONSUMER_LAUNCH_ENABLED && tier === "plus"
+      ? await getWithdrawalWindow(user!.id)
+      : null;
+  const withdrawalDeadlineLabel = withdrawalWindow?.deadline
+    ? new Date(withdrawalWindow.deadline).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
 
   return (
     <div className="space-y-10 max-w-2xl">
@@ -124,11 +140,15 @@ export default async function PlanPage() {
           {PLUS_CONSUMER_LAUNCH_ENABLED && (
             <div className="mt-6 border-t border-border pt-4">
               <p className="text-xs text-muted-foreground">
-                Bought Inklee Plus in the last 14 days? You have a right to
-                withdraw, which is separate from cancelling.
+                {withdrawalDeadlineLabel && withdrawalWindow?.withinWindow
+                  ? `Bought Inklee Plus recently? You can withdraw until ${withdrawalDeadlineLabel}, which is separate from cancelling.`
+                  : "Bought Inklee Plus in the last 14 days? You have a right to withdraw, which is separate from cancelling."}
               </p>
               <div className="mt-2">
-                <WithdrawButton />
+                <WithdrawButton
+                  deadlineLabel={withdrawalDeadlineLabel}
+                  withinWindow={withdrawalWindow?.withinWindow ?? true}
+                />
               </div>
             </div>
           )}

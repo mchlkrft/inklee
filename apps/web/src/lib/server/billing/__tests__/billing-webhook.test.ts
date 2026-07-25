@@ -163,6 +163,32 @@ describe("billing-webhook route", () => {
     });
   });
 
+  it("passes the immediate-performance consent to the purchase confirmation (restated on the durable medium)", async () => {
+    h.constructEvent.mockReturnValue({
+      type: "invoice.paid",
+      id: "evt_ip",
+      created: 1710000013,
+      data: {
+        object: {
+          id: "in_ip",
+          billing_reason: "subscription_create",
+          parent: {
+            subscription_details: {
+              subscription: "sub_ip",
+              metadata: { immediate_performance: "true" },
+            },
+          },
+        },
+      },
+    });
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    expect(h.recordConf.mock.calls[0][0]).toMatchObject({
+      kind: "purchase",
+      immediatePerformanceRequested: true,
+    });
+  });
+
   it("does NOT send a purchase confirmation on a renewal invoice", async () => {
     h.constructEvent.mockReturnValue({
       type: "invoice.paid",

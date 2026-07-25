@@ -95,11 +95,27 @@ export async function POST(request: Request) {
                 .eq("stripe_subscription_id", subId)
                 .maybeSingle();
               if (bs?.id) {
+                // The subscription's immediate-performance request, SCOPED to this
+                // subscription via the invoice's subscription metadata (no extra
+                // Stripe call). Restated in the durable confirmation so a later
+                // proportionate charge on withdrawal is enforceable (Art. 8(7)).
+                const subMeta =
+                  invoice.parent?.subscription_details?.metadata ??
+                  (
+                    invoice as unknown as {
+                      subscription_details?: {
+                        metadata?: Record<string, string> | null;
+                      };
+                    }
+                  ).subscription_details?.metadata ??
+                  null;
                 await recordDurableConfirmation({
                   artistId: reconciled.artistId,
                   billingSubscriptionId: bs.id as string,
                   kind: "purchase",
                   stripeInvoiceId: invoice.id ?? undefined,
+                  immediatePerformanceRequested:
+                    (subMeta?.immediate_performance ?? "") === "true",
                 });
               }
             } catch (confErr) {

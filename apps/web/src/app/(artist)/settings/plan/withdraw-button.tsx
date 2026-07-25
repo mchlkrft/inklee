@@ -5,9 +5,17 @@ import { withdrawFromSubscriptionAction } from "./actions";
 
 // Statutory withdrawal function (Art. 11a), distinct from cancellation and
 // continuously available on the plan page for a subscriber. It explains the
-// difference from cancelling, takes an unequivocal withdrawal statement, and
-// shows the acknowledgement. No dark patterns, no forced support, no reason asked.
-export default function WithdrawButton() {
+// difference from cancelling, shows the concrete withdrawal deadline, takes an
+// unequivocal withdrawal statement, and shows the acknowledgement. No dark
+// patterns, no forced support, no reason asked.
+export default function WithdrawButton({
+  deadlineLabel,
+  withinWindow = true,
+}: {
+  /** The concrete withdrawal deadline, preformatted (server-side) for display. */
+  deadlineLabel?: string | null;
+  withinWindow?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [pending, startTransitionFn] = useTransition();
   const [done, setDone] = useState<string | null>(null);
@@ -42,6 +50,13 @@ export default function WithdrawButton() {
         your account and all of your data. You do not need to give a reason or
         contact us.
       </p>
+      {deadlineLabel && (
+        <p className="text-sm text-muted-foreground">
+          {withinWindow
+            ? `Your 14-day withdrawal period ends on ${deadlineLabel}.`
+            : `Your 14-day withdrawal period ended on ${deadlineLabel}.`}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-4">
         <button
           type="button"

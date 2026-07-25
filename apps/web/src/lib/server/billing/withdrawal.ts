@@ -10,6 +10,7 @@ import { sendEmail } from "@/lib/email/send";
 import { buildEmailHtml } from "@/lib/email/booking-templates";
 import { requireStripe } from "./client";
 import { reconcileFromStripeSubscription } from "./reconcile";
+import { writeWithdrawalCreditNote } from "./tax-snapshot";
 
 // Consumer withdrawal core (P6/P7, docs/legal/eu-consumer-withdrawal-flow.md).
 // SEPARATE from cancellation. The statutory 14-day withdrawal is ALWAYS honoured
@@ -70,6 +71,7 @@ const idOf = (v: unknown): string | null =>
   typeof v === "string" ? v : ((v as { id?: string } | null)?.id ?? null);
 
 function readLatestInvoice(sub: Stripe.Subscription): {
+  invoiceId: string | null;
   amountPaidMinor: number | null;
   currency: string | null;
   paymentIntent: string | null;
@@ -78,6 +80,7 @@ function readLatestInvoice(sub: Stripe.Subscription): {
   const inv = sub.latest_invoice;
   if (!inv || typeof inv === "string") {
     return {
+      invoiceId: typeof inv === "string" ? inv : null,
       amountPaidMinor: null,
       currency: null,
       paymentIntent: null,
@@ -85,6 +88,7 @@ function readLatestInvoice(sub: Stripe.Subscription): {
     };
   }
   const anyInv = inv as unknown as {
+    id?: string;
     amount_paid?: number;
     currency?: string;
     payment_intent?: unknown; // legacy (pre-basil)
@@ -103,6 +107,7 @@ function readLatestInvoice(sub: Stripe.Subscription): {
     idOf(payment?.payment_intent) ?? idOf(anyInv.payment_intent);
   const charge = idOf(payment?.charge) ?? idOf(anyInv.charge);
   return {
+    invoiceId: anyInv.id ?? null,
     amountPaidMinor: anyInv.amount_paid ?? null,
     currency: anyInv.currency ?? null,
     paymentIntent,
@@ -128,15 +133,57 @@ function formatAmount(minor: number, currency: string): string {
   return `${(minor / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : `${d.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })} at ${d.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      })}`;
+}
+
 /** Durable-medium acknowledgement (Art. 11a): an append-only confirmation row +
  *  a best-effort email. Never blocks the statutory withdrawal. */
 export async function recordDurableConfirmation(input: {
   artistId: string;
   billingSubscriptionId: string;
-  kind: "purchase" | "withdrawal";
+  kind: "purchase" | "withdrawal" | "cancellation";
   stripeInvoiceId?: string;
   refundMinor?: number;
   currency?: string;
+  /** When the cancellation statement was received (ISO). Shown so a cancellation
+   *  confirmation states the receipt date/time (§ 312k BGB requirement). */
+  receivedAt?: string;
+  /** Whether the consumer expressly requested immediate performance (P3). The
+   *  durable confirmation must RESTATE this consent (counsel condition A<->C):
+   *  the proportionate charge on a mid-period withdrawal is only enforceable if
+   *  the consent was confirmed on a durable medium (CRD Art. 8(7) / 14(4)(a)). */
+  immediatePerformanceRequested?: boolean;
+  /** Withdrawal effective date (ISO), shown so the acknowledgement identifies the
+   *  contract withdrawn AND the effective date (counsel condition C). */
+  effectiveAt?: string;
+  /** The proportionate amount RETAINED on the withdrawal, when a deduction
+   *  applied (immediate performance requested and not a full refund). */
+  retainedMinor?: number;
+  /** True when the whole period was refunded (no proportionate deduction). */
+  fullRefund?: boolean;
 }): Promise<void> {
   const now = new Date().toISOString();
 
@@ -176,29 +223,78 @@ export async function recordDurableConfirmation(input: {
     const email = userData?.user?.email;
     if (!email) throw new Error("no email for artist");
 
-    const refundLine =
-      input.kind === "withdrawal" && (input.refundMinor ?? 0) > 0
-        ? `A refund of ${formatAmount(input.refundMinor ?? 0, input.currency ?? "eur")} is on its way to your original payment method.`
+    const currency = input.currency ?? "eur";
+    let body: string;
+    if (input.kind === "withdrawal") {
+      const effectiveLine = input.effectiveAt
+        ? `Your withdrawal takes effect on ${formatDate(input.effectiveAt)}.`
         : "";
-    const body =
-      input.kind === "withdrawal"
-        ? [
-            "We have received your withdrawal from your Inklee Plus subscription.",
-            "Your subscription has ended and your plan has been updated. Your account and all of your data are kept.",
-            refundLine,
-            "This message is your acknowledgement of receipt on a durable medium.",
-          ]
-            .filter(Boolean)
-            .join("\n\n")
-        : [
-            "Your Inklee Plus subscription is confirmed.",
-            "You can manage or cancel it any time from your plan settings.",
-            "This message is your confirmation on a durable medium.",
-          ].join("\n\n");
+      // Restate the immediate-start consent where a proportionate amount was kept
+      // (a proportionate charge is only owed where the consumer expressly asked
+      // us to begin during the withdrawal period, CRD Art. 14(3)/(4)).
+      const proratedLine =
+        input.immediatePerformanceRequested === true &&
+        input.fullRefund === false &&
+        (input.retainedMinor ?? 0) > 0
+          ? `Because you asked us to start your subscription immediately, we kept a proportionate amount of ${formatAmount(input.retainedMinor ?? 0, currency)} for the time provided before your withdrawal, and refunded the rest.`
+          : "";
+      const refundLine =
+        (input.refundMinor ?? 0) > 0
+          ? `A refund of ${formatAmount(input.refundMinor ?? 0, currency)} is on its way to your original payment method.`
+          : "";
+      body = [
+        "We have received your withdrawal from your Inklee Plus subscription.",
+        effectiveLine,
+        proratedLine,
+        "Your subscription has ended and your plan has been updated. Your account and all of your data are kept.",
+        refundLine,
+        "This message is your acknowledgement of receipt on a durable medium.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    } else if (input.kind === "cancellation") {
+      // Ordinary cancellation confirmation (§ 312k BGB): confirm receipt on a
+      // durable medium, stating the receipt date/time AND the date the
+      // termination takes effect. This is NOT the withdrawal (no refund): the
+      // subscriber keeps Plus until the end of the paid period.
+      const receivedLine = input.receivedAt
+        ? `We received your cancellation on ${formatDateTime(input.receivedAt)}.`
+        : "";
+      const effectiveLine = input.effectiveAt
+        ? `Your subscription will end on ${formatDate(input.effectiveAt)}, and you keep Plus until then.`
+        : "Your subscription will end at the close of the current paid period, and you keep Plus until then.";
+      body = [
+        "We have received your cancellation of your Inklee Plus subscription.",
+        receivedLine,
+        effectiveLine,
+        "Your account and all of your data are kept.",
+        "This message is your confirmation of receipt on a durable medium.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    } else {
+      // Purchase (contract) confirmation. Where the buyer opted into immediate
+      // performance, restate that consent on this durable medium so a later
+      // proportionate charge on withdrawal is enforceable (Art. 8(7)/14(4)(a)).
+      const immediateLine =
+        input.immediatePerformanceRequested === true
+          ? "You asked us to start your subscription immediately, before the end of the 14-day withdrawal period. If you withdraw during that period, you pay a proportionate amount for the time already provided."
+          : "";
+      body = [
+        "Your Inklee Plus subscription is confirmed.",
+        immediateLine,
+        "You can manage or cancel it any time from your plan settings.",
+        "This message is your confirmation on a durable medium.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
     const subject =
       input.kind === "withdrawal"
         ? "Your Inklee Plus withdrawal is confirmed"
-        : "Your Inklee Plus subscription is confirmed";
+        : input.kind === "cancellation"
+          ? "Your Inklee Plus cancellation is confirmed"
+          : "Your Inklee Plus subscription is confirmed";
 
     await sendEmail({
       to: email,
@@ -262,6 +358,11 @@ export async function withdrawSubscriptionCore(input: {
   const { periodStart, periodEnd, startDate } = readPeriod(sub);
   const invoice = readLatestInvoice(sub);
   const currency = invoice.currency ?? "eur";
+  const stripeCustomerId = idOf(sub.customer);
+  // The contract type snapshotted on the subscription at purchase (v1 is
+  // consumer-first; default to consumer if the metadata is absent).
+  const contractType =
+    (sub.metadata?.contract_customer_type as string | undefined) ?? "consumer";
 
   // The immediate-performance request is read SCOPED to THIS subscription from
   // its metadata (stamped at checkout), never an unscoped latest-consent lookup:
@@ -377,31 +478,71 @@ export async function withdrawSubscriptionCore(input: {
       kind: "withdrawal",
       refundMinor: proration.refundGrossMinor,
       currency,
+      immediatePerformanceRequested,
+      effectiveAt: now.toISOString(),
+      retainedMinor: proration.retainedGrossMinor,
+      fullRefund: proration.fullRefund,
     });
   }
 
-  // 6. PARTIAL refund on Inklee's own charge (skip if nothing owed or already done).
-  if (proration.refundGrossMinor > 0 && !caseRow.stripe_refund_id) {
+  // 6. PARTIAL refund on Inklee's own charge, then the immutable credit-note tax
+  //    snapshot. Both are idempotent so a resume re-runs them safely: the refund
+  //    is guarded by stripe_refund_id, the snapshot by its (kind, charge) unique
+  //    index. The snapshot is BEST-EFFORT and never blocks the statutory
+  //    withdrawal (it is a tax record; a failure is captured for backfill).
+  if (proration.refundGrossMinor > 0) {
     const chargeId = await resolveChargeId(stripe, invoice);
     if (!chargeId) throw new Error("withdrawal: no charge to refund");
-    const { params, idempotencyKey } = buildSubscriptionRefundParams({
-      chargeId,
-      amountMinor: proration.refundGrossMinor,
+
+    if (!caseRow.stripe_refund_id) {
+      const { params, idempotencyKey } = buildSubscriptionRefundParams({
+        chargeId,
+        amountMinor: proration.refundGrossMinor,
+        billingSubscriptionId,
+        reason: "consumer_withdrawal",
+      });
+      await serviceClient
+        .from("withdrawal_cases")
+        .update({
+          state: "refund_pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", caseId);
+      const refund = await stripe.refunds.create(params, { idempotencyKey });
+      caseRow.stripe_refund_id = refund.id;
+      await serviceClient
+        .from("withdrawal_cases")
+        .update({
+          stripe_refund_id: refund.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", caseId);
+    }
+
+    const snapshotId = await writeWithdrawalCreditNote({
+      artistId: input.artistId,
       billingSubscriptionId,
-      reason: "consumer_withdrawal",
+      stripeCustomerId,
+      stripeSubscriptionId: stripeSubId,
+      stripeInvoiceId: invoice.invoiceId,
+      stripePaymentIntentId: invoice.paymentIntent,
+      stripeChargeId: chargeId,
+      refundNetMinor: proration.refundNetMinor,
+      refundVatMinor: proration.refundVatMinor,
+      refundGrossMinor: proration.refundGrossMinor,
+      taxRate: proration.taxRate,
+      currency,
+      contractCustomerType: contractType,
     });
-    await serviceClient
-      .from("withdrawal_cases")
-      .update({ state: "refund_pending", updated_at: new Date().toISOString() })
-      .eq("id", caseId);
-    const refund = await stripe.refunds.create(params, { idempotencyKey });
-    await serviceClient
-      .from("withdrawal_cases")
-      .update({
-        stripe_refund_id: refund.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", caseId);
+    if (snapshotId) {
+      await serviceClient
+        .from("withdrawal_cases")
+        .update({
+          tax_correction_snapshot_id: snapshotId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", caseId);
+    }
   }
 
   // 7. End the subscription + downgrade via the shared reconcile (grandfather
@@ -446,4 +587,50 @@ export async function withdrawSubscriptionCore(input: {
     currency,
     caseId,
   };
+}
+
+/** The concrete 14-day withdrawal window for display (Art. 11a step 2: show the
+ *  deadline). Computes the SAME deadline withdrawSubscriptionCore enforces (from
+ *  the Stripe subscription's start), so the date shown equals the date applied.
+ *  Fail-safe: any read error resolves to no concrete date (the generic 14-day
+ *  copy still renders) and never breaks the plan page or the withdrawal function. */
+export async function getWithdrawalWindow(artistId: string): Promise<{
+  hasSubscription: boolean;
+  deadline: string | null;
+  withinWindow: boolean;
+}> {
+  try {
+    const { data: subRow } = await serviceClient
+      .from("billing_subscriptions")
+      .select("stripe_subscription_id")
+      .eq("artist_id", artistId)
+      .order("last_reconciled_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!subRow?.stripe_subscription_id) {
+      return { hasSubscription: false, deadline: null, withinWindow: false };
+    }
+    const sub = await requireStripe().subscriptions.retrieve(
+      subRow.stripe_subscription_id as string,
+    );
+    const { periodStart, startDate } = readPeriod(sub);
+    const start = startDate ?? periodStart;
+    if (!start) {
+      return { hasSubscription: true, deadline: null, withinWindow: false };
+    }
+    const deadline = new Date(
+      start.getTime() + WITHDRAWAL_WINDOW_DAYS * 86_400_000,
+    );
+    return {
+      hasSubscription: true,
+      deadline: deadline.toISOString(),
+      withinWindow: Date.now() <= deadline.getTime(),
+    };
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "billing_withdrawal_window" },
+      extra: { artistId },
+    });
+    return { hasSubscription: true, deadline: null, withinWindow: true };
+  }
 }

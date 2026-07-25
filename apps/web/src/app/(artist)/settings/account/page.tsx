@@ -4,9 +4,12 @@ import {
   isMfaEnabled,
   deriveSignInIdentity,
 } from "@inklee/shared/auth-derivations";
+import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
+import { getSubscriptionCancellationInfo } from "@/lib/server/billing/cancellation";
 import GeneralForm from "./general-form";
 import SecurityForm from "./security-form";
 import TwoFactorSection from "./two-factor-section";
+import CancelSubscriptionSection from "./cancel-subscription-section";
 import DeleteAccountSection from "./delete-account-section";
 
 export default async function AccountPage() {
@@ -37,6 +40,20 @@ export default async function AccountPage() {
     factors?.totp?.find((f) => f.status === "verified") ??
     factors?.totp?.[0] ??
     null;
+
+  // Ordinary cancellation (§ 312k) sits in Settings next to account deletion.
+  // Shown only for an active subscriber, and only when the consumer flow is live.
+  // Read from account_overrides (no Stripe call); preformat the effective date.
+  const cancellation = PLUS_CONSUMER_LAUNCH_ENABLED
+    ? await getSubscriptionCancellationInfo(user!.id)
+    : null;
+  const cancelEffectiveLabel = cancellation?.effectiveAt
+    ? new Date(cancellation.effectiveAt).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
 
   return (
     <div className="space-y-10 max-w-2xl">
@@ -122,6 +139,18 @@ export default async function AccountPage() {
           </a>
         </div>
       </section>
+
+      {cancellation?.hasActiveSubscription && (
+        <section className="space-y-4">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground border-b border-border pb-3">
+            Subscription
+          </h2>
+          <CancelSubscriptionSection
+            effectiveDateLabel={cancelEffectiveLabel}
+            alreadyScheduled={cancellation.alreadyScheduled}
+          />
+        </section>
+      )}
 
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-destructive border-b border-border pb-3">

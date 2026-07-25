@@ -8,6 +8,7 @@ import {
   deleteOwnAccountCore,
   isReauthFresh,
 } from "@/lib/server/account-deletion";
+import { cancelSubscriptionCore } from "@/lib/server/billing/cancellation";
 import { validatePassword } from "@inklee/shared/auth-validation";
 
 type State = { error: string } | { success: true } | null;
@@ -41,6 +42,50 @@ export async function deleteOwnAccountAction(
   const result = await deleteOwnAccountCore(user.id, { surface: "web" });
   if (result.ok) return { deleted: true };
   return { error: result.message };
+}
+
+/** Ordinary subscription cancellation (§ 312k BGB Kündigung), distinct from the
+ *  Art. 11a withdrawal. Ends Plus at the end of the paid period (no refund; the
+ *  subscriber keeps access until then), and sends a durable confirmation stating
+ *  the receipt time and the effective date. Requires an explicit confirmation;
+ *  the core is idempotent, so a repeat is safe. */
+export async function cancelSubscriptionAction(input: {
+  confirmed: boolean;
+}): Promise<{ message: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { message: "Please sign in again." };
+  if (input.confirmed !== true) {
+    return { message: "Please confirm to cancel your subscription." };
+  }
+
+  try {
+    const result = await cancelSubscriptionCore({ artistId: user.id });
+    if (result.status === "no_subscription" || result.status === "not_active") {
+      return { message: "You have no active paid subscription to cancel." };
+    }
+    const endLine = result.effectiveAt
+      ? ` You keep Plus until ${new Date(result.effectiveAt).toLocaleDateString(
+          "en-GB",
+          { day: "numeric", month: "long", year: "numeric" },
+        )}.`
+      : " You keep Plus until the end of the current paid period.";
+    if (result.status === "already_scheduled") {
+      return {
+        message: `Your subscription is already set to end.${endLine}`,
+      };
+    }
+    return {
+      message: `Your cancellation is confirmed.${endLine} Your account and data are kept.`,
+    };
+  } catch {
+    return {
+      message:
+        "Something went wrong cancelling your subscription. Please try again, or write to support@inklee.app.",
+    };
+  }
 }
 
 export async function saveGeneralAction(
