@@ -139,6 +139,15 @@ cancellation button — **built** (in Settings next to account delete, per found
 
 ## 7. Open questions, dependencies, and recommendations
 
+> **✅ FOUNDER APPROVAL 2026-07-25: every recommendation below is APPROVED and
+> confirmed as the working decision** (recorded in `DECISIONS.md`, "Pricing
+> ratifications" row). Co-owned gate keys still need their co-signer before
+> recording: the accountant on OQ-1 (`consumer_pricing_display_approved` /
+> `pricing_display_approved`) and OQ-2 (registration trigger →
+> `invoice_config_approved`). The price-adjacent-to-button wiring (OQ-3) shipped
+> with this approval; OQ-8's comp-expiry sweep and OQ-9's D21 instrumentation are
+> the approved eng follow-ups.
+
 Ordered by launch criticality. "Recommendation" is engineering's direct proposal to
 make pricing match the current business model (consumer-first, VAT-unregistered,
 subscription-covers-Connect-cost, fee-is-margin).

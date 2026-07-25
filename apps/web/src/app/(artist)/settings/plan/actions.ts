@@ -2,7 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
-import { createSubscriptionCheckout } from "@/lib/server/billing/subscription";
+import {
+  createSubscriptionCheckout,
+  PLUS_PRICE_LOOKUP,
+} from "@/lib/server/billing/subscription";
 import { withdrawSubscriptionCore } from "@/lib/server/billing/withdrawal";
 import { requireStripe } from "@/lib/server/billing/client";
 import { getLegalDoc } from "@/lib/legal/documents";
@@ -12,13 +15,15 @@ import {
   IMMEDIATE_PERFORMANCE_VERSION,
 } from "@/lib/billing-consent-copy";
 
-// The Plus price is resolved by a stable lookup key. In dev/test the test-mode
-// Price exists, so checkout works end to end; in prod (live key) no live Price
-// with this key exists yet, so the action returns "coming soon" gracefully. The
-// activation gate is the other guard: createSubscriptionCheckout asserts it
-// before creating any Stripe object, and a BillingActivationError also degrades
-// to "coming soon".
-const PRICE_LOOKUP = "inklee_plus_monthly_eur_test";
+// The Plus price is resolved by the shared stable lookup key (single-sourced in
+// lib/server/billing/subscription.ts beside the display resolver, so the shown
+// price and the charged price can never come from different Prices). In dev/test
+// the test-mode Price exists, so checkout works end to end; in prod (live key)
+// no live Price with this key exists yet, so the action returns "coming soon"
+// gracefully. The activation gate is the other guard: createSubscriptionCheckout
+// asserts it before creating any Stripe object, and a BillingActivationError
+// also degrades to "coming soon".
+const PRICE_LOOKUP = PLUS_PRICE_LOOKUP;
 
 export type CheckoutResult = { url: string } | { message: string };
 

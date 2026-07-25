@@ -17,8 +17,17 @@ import { PLUS_BUSINESS_TIER_ENABLED } from "@/lib/plus-launch-config";
 // button (Art. 8 CRD). v1 is consumer-first (strategy D1): every buyer takes the
 // consumer path with no business-use declaration. The B2B declaration control is
 // deferred behind PLUS_BUSINESS_TIER_ENABLED for a future business/studio tier.
-// The order button hands off to Stripe Checkout, which shows the price before pay.
-export default function UpgradeButton({ label }: { label: string }) {
+// When priceLabel is present (resolved server-side from the SAME Stripe Price
+// checkout charges), the total price renders on this screen directly above the
+// pay button (counsel condition, Art. 8(2)); without it the panel falls back to
+// the price-on-next-step sentence and Stripe Checkout still shows the price.
+export default function UpgradeButton({
+  label,
+  priceLabel = null,
+}: {
+  label: string;
+  priceLabel?: string | null;
+}) {
   const businessTier = PLUS_BUSINESS_TIER_ENABLED;
   const [open, setOpen] = useState(false);
   const [declared, setDeclared] = useState(false);
@@ -64,9 +73,9 @@ export default function UpgradeButton({ label }: { label: string }) {
       <div className="space-y-1 text-sm">
         <p className="font-medium text-foreground">Before you order</p>
         <p className="text-muted-foreground">
-          Inklee Plus is a monthly subscription. It renews automatically each
-          month until you cancel, and you can cancel any time from your plan
-          settings. The price is shown on the next step before you pay.
+          {priceLabel
+            ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your plan settings.`
+            : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your plan settings. The price is shown on the next step before you pay."}
         </p>
       </div>
 
@@ -111,6 +120,14 @@ export default function UpgradeButton({ label }: { label: string }) {
         </a>
         , which include your 14-day right to withdraw.
       </p>
+
+      {/* The total price sits directly above the pay button on the same screen
+          (Art. 8(2); counsel launch-blocking condition 3). */}
+      {priceLabel && (
+        <p className="text-sm font-semibold text-foreground">
+          Total: {priceLabel}, final price. Renews monthly until cancelled.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-4">
         <button

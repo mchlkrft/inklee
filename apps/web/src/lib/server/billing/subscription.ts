@@ -8,6 +8,41 @@ import { assertLiveBillingAllowedFor } from "./activation";
 // namespace (billing_flow / artist_id, never booking_id), subscription mode,
 // and a mandatory activation-gate check before any live charge can occur.
 
+// The Plus Price is resolved by this stable lookup key (single source; the
+// checkout action and the price display both read it). In prod no live Price
+// with this key exists yet, so both degrade gracefully.
+export const PLUS_PRICE_LOOKUP = "inklee_plus_monthly_eur_test";
+
+/** Resolve the Plus price for DISPLAY (counsel condition: the total price must
+ *  appear on the same screen as the pay button, directly above it). Reads the
+ *  same Stripe Price the checkout charges, so the shown price can never drift
+ *  from the charged price. Founder-approved display convention (2026-07-25):
+ *  final price, tax-inclusive. Fail-safe: any error resolves to null and the
+ *  checkout panel falls back to its price-on-next-step sentence. */
+export async function getPlusPriceDisplay(): Promise<{
+  label: string;
+  interval: string;
+} | null> {
+  try {
+    const stripe = requireStripe();
+    const prices = await stripe.prices.list({
+      lookup_keys: [PLUS_PRICE_LOOKUP],
+      active: true,
+      limit: 1,
+    });
+    const price = prices.data[0];
+    if (!price?.unit_amount || !price.currency) return null;
+    const interval = price.recurring?.interval ?? "month";
+    const amount = (price.unit_amount / 100).toFixed(2);
+    return {
+      label: `${amount} ${price.currency.toUpperCase()} per ${interval}`,
+      interval,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Find-or-create the Stripe billing Customer for an artist and stamp the link
  *  both ways (account_overrides.stripe_customer_id + customer.metadata.artist_id
  *  so reconcile can always attribute a subscription back to the artist). */

@@ -18,8 +18,11 @@
 // fee was set to `3% − Stripe fee` because the artist's account bore Stripe's
 // cut; under Custom that cut is on Inklee's balance, so the full 3% is set.)
 //
-// Rate = 3% (D-b), flat across all artists for now. Tier variation (D-d) is
-// open; route every computation through here so that's a one-function change.
+// Rate = 3% (D-b), flat across ALL artists and tiers — RATIFIED by the founder
+// 2026-07-25 (pricing-model.md OQ-7: no Plus discount; the subscription covers
+// the Connect account cost, this fee IS the margin). Revisit only with G-5 +
+// D21 margin data; every computation routes through here so a future change
+// stays one function.
 // The fee only applies to deposits collected THROUGH Inklee (active Connect);
 // manual deposits paid directly to the artist carry no fee.
 

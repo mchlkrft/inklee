@@ -18,7 +18,8 @@ import { requireStripe } from "./client";
 // redelivery and out-of-order events are safe. It NEVER touches the deposit
 // path and NEVER overwrites the grandfather anchor (policy_id).
 
-// Founder rec: past_due keeps access for a short grace window before downgrade.
+// past_due keeps access for a 7-day grace window before downgrade, aligned to
+// Stripe Smart Retries. RATIFIED by the founder 2026-07-25 (pricing-model OQ-10).
 const GRACE_DAYS = 7;
 
 export type ReconcileResult = {

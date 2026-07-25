@@ -3,6 +3,7 @@ import { getAccountOverrides } from "@/lib/entitlements-server";
 import { effectivePlanTier, isGrandfathered } from "@/lib/entitlements";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 import { getWithdrawalWindow } from "@/lib/server/billing/withdrawal";
+import { getPlusPriceDisplay } from "@/lib/server/billing/subscription";
 import UpgradeButton from "./upgrade-button";
 import ManageSubscriptionButton from "./manage-subscription-button";
 import WithdrawButton from "./withdraw-button";
@@ -34,6 +35,15 @@ export default async function PlanPage() {
   const upgradeBenefits = keepsTemplates
     ? PLUS_BENEFITS.filter((b) => !b.includes("email templates"))
     : PLUS_BENEFITS;
+
+  // The Plus price for the pre-checkout panel (counsel condition: total price on
+  // the same screen as the pay button, directly above it). Resolved from the SAME
+  // Stripe Price checkout charges; null (no Price / Stripe error) falls back to
+  // the price-on-next-step sentence.
+  const plusPrice =
+    PLUS_CONSUMER_LAUNCH_ENABLED && tier === "free"
+      ? await getPlusPriceDisplay()
+      : null;
 
   // The concrete withdrawal deadline (Art. 11a step 2), resolved only for a Plus
   // subscriber and only when the consumer flow is live. Preformatted server-side
@@ -108,7 +118,10 @@ export default async function PlanPage() {
           </ul>
           <div className="mt-6">
             {PLUS_CONSUMER_LAUNCH_ENABLED ? (
-              <UpgradeButton label="Upgrade to Plus" />
+              <UpgradeButton
+                label="Upgrade to Plus"
+                priceLabel={plusPrice?.label ?? null}
+              />
             ) : (
               <p className="text-sm text-muted-foreground">
                 Plus is coming soon.

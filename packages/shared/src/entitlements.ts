@@ -59,11 +59,9 @@ export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 
 // Numeric limit keys. Unlike boolean features these express "how many", so a
 // generous Free cap can lift on Plus without crippling the free tier (the
-// business-model.md §3.1/§3.2 model). `limitFor` returns the cap; nothing
-// enforces it yet (migration plan Phase 3 wires create-time checks). The
-// NUMBERS below are the business-model.md suggestions and are PROVISIONAL
-// pending the founder's final free-cap decision (register D14) — because
-// nothing reads them yet, changing them is a one-line, zero-risk edit.
+// business-model.md §3.1/§3.2 model). `limitFor` returns the cap. The numbers
+// below are FOUNDER-RATIFIED 2026-07-25 (pricing-model.md OQ-4): Free caps from
+// 2026-07-23, Plus 30/100/50 confirmed as promised in the plan-page copy.
 export const ENTITLEMENT_LIMITS = [
   "custom_fields",
   "active_trips",
@@ -78,10 +76,10 @@ const PLAN_FEATURES: Record<PlanTier, readonly EntitlementFeature[]> = {
 };
 
 // Baseline numeric limits per tier. `null` = unlimited. Free caps DECIDED by the
-// founder 2026-07-23 (3 / 3 active trips / 5). Plus: active_trips = 100 DECIDED;
-// custom_fields = 30 and studio_library = 50 are PROPOSED pending confirm. Still
-// enforced nowhere (Stage 2 wires create-time checks), so changing a number is a
-// one-line, zero-risk edit.
+// founder 2026-07-23 (3 / 3 active trips / 5). Plus caps ALL RATIFIED by the
+// founder 2026-07-25 (pricing-model.md OQ-4; DECISIONS.md pricing-ratifications
+// row): 30 custom fields / 100 active trips / 50 studios, matching the shipped
+// PLUS_BENEFITS copy on the plan page.
 const PLAN_LIMITS: Record<PlanTier, Record<EntitlementLimit, number | null>> = {
   free: {
     custom_fields: 3,
@@ -89,9 +87,9 @@ const PLAN_LIMITS: Record<PlanTier, Record<EntitlementLimit, number | null>> = {
     studio_library: 5,
   },
   plus: {
-    custom_fields: 30, // proposed, pending confirm
-    active_trips: 100, // decided
-    studio_library: 50, // proposed, pending confirm
+    custom_fields: 30, // ratified 2026-07-25
+    active_trips: 100, // ratified 2026-07-25
+    studio_library: 50, // ratified 2026-07-25
   },
 };
 
