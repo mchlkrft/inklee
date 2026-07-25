@@ -8,6 +8,7 @@ import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 import { PLUS_BENEFITS } from "@inklee/shared/plus-benefits";
+import CheckBadge from "@/components/check-badge";
 import PlusPriceToggle from "./plus-price-toggle";
 
 // Public pricing page. SEO posture (fail-closed per docs/seo/inklee-seo-strategy.md):
@@ -148,16 +149,9 @@ function HeroSection() {
   );
 }
 
-function Check({ dark = false }: { dark?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={`shrink-0 text-base font-black leading-5 ${dark ? "text-brand-mustard" : "text-brand-charcoal"}`}
-    >
-      &#10003;
-    </span>
-  );
-}
+// Filled mustard circle + charcoal check (shared with /settings/plan). The
+// `dark` prop is gone: the filled badge reads identically on every card.
+const Check = CheckBadge;
 
 function PlansSection() {
   return (
@@ -226,7 +220,7 @@ function PlansSection() {
               </li>
               {PLUS_FEATURES.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm">
-                  <Check dark />
+                  <Check />
                   {f}
                 </li>
               ))}

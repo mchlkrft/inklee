@@ -5,24 +5,16 @@ import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 import { getWithdrawalWindow } from "@/lib/server/billing/withdrawal";
 import { getPlusPriceDisplay } from "@/lib/server/billing/subscription";
 import { PLUS_BENEFITS } from "@inklee/shared/plus-benefits";
+import CheckBadge from "@/components/check-badge";
 import UpgradeButton from "./upgrade-button";
 import ManageSubscriptionButton from "./manage-subscription-button";
 import WithdrawButton from "./withdraw-button";
 
 export const metadata = { title: "Plan" };
 
-// The same checkmark as the /pricing cards (mustard, per the founder's
-// consistency pass 2026-07-25: mustard replaces the red highlight here).
-function Check() {
-  return (
-    <span
-      aria-hidden
-      className="shrink-0 text-base font-black leading-5 text-brand-mustard"
-    >
-      &#10003;
-    </span>
-  );
-}
+// The same checkmark as the /pricing cards: a filled mustard circle with a
+// charcoal check (founder correction 2026-07-25, better visibility).
+const Check = CheckBadge;
 
 export default async function PlanPage() {
   const supabase = await createClient();
