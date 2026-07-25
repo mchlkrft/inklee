@@ -81,7 +81,7 @@ export default function AboutPage() {
                 <div className="animate-hero-float w-full max-w-2xs md:max-w-sm">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/branding/illustrations/mixed/inklee-_artist-using-inklee.svg"
+                    src="/branding/illustrations/landingpages/hero-artist-confirmed.svg"
                     alt=""
                     aria-hidden="true"
                     className="h-auto w-full"
@@ -103,7 +103,7 @@ export default function AboutPage() {
               <div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/branding/illustrations/mixed/inklee-_DM-to-Booking-Form.svg"
+                  src="/branding/illustrations/landingpages/hero-dm-questions.svg"
                   alt=""
                   aria-hidden="true"
                   className="mx-auto h-auto w-full max-w-sm md:mx-0 md:max-w-md"
