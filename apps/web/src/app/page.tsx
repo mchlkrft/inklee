@@ -7,6 +7,8 @@ import type { FaqItem } from "@/lib/marketing";
 import { softwareApplicationSchema, faqPageSchema } from "@/lib/jsonld";
 import { PillNav } from "@/components/marketing-v2";
 import SiteFooter from "@/components/marketing-v2/site-footer";
+import { tattooMapEnabled } from "@/lib/map-features";
+import { mapMarketingCta } from "@/lib/map-marketing";
 
 /* ─── FAQ data ───────────────────────────────────────────────────────────── */
 
@@ -53,6 +55,18 @@ const HOMEPAGE_FAQ: FaqItem[] = [
   },
 ];
 
+/**
+ * Appended to the FAQ only while the tattoo map is live, so the visible FAQ and
+ * the FAQPage schema always describe the same product. Wording stays inside the
+ * artist audience: the map is artist-facing discovery of studios and shops, not
+ * client-facing artist discovery (docs/inklee-feature-scope.md scope guardrail).
+ */
+const MAP_FAQ: FaqItem = {
+  question: "Can Inklee help me find studios for a guest spot?",
+  answer:
+    "Yes. Inklee includes a tattoo map of studios and shops. You can search a city, see which studios host guest artists, save the ones you want to come back to, and send a guest spot request from the studio page. Inklee does not book the spot for you. The studio still decides.",
+};
+
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 
 export default async function Home() {
@@ -62,6 +76,9 @@ export default async function Home() {
   } = await supabase.auth.getUser();
 
   if (user) redirect("/dashboard");
+
+  const mapLive = tattooMapEnabled();
+  const faq = mapLive ? [...HOMEPAGE_FAQ, MAP_FAQ] : HOMEPAGE_FAQ;
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -75,16 +92,17 @@ export default async function Home() {
         fetchPriority="high"
       />
       <JsonLd data={softwareApplicationSchema()} id="ld-softwareapplication" />
-      <JsonLd data={faqPageSchema(HOMEPAGE_FAQ)} id="ld-faq" />
+      <JsonLd data={faqPageSchema(faq)} id="ld-faq" />
       <PillNav />
       <main className="flex-1">
         <HeroSection />
         <DefinitionSection />
         <FeaturesSection />
         <HowItWorksSection />
+        {mapLive ? <TattooMapSection /> : null}
         <AboutSection />
         <FinalCtaSection />
-        <FaqHomeSection />
+        <FaqHomeSection items={faq} />
       </main>
       <SiteFooter />
     </div>
@@ -480,6 +498,132 @@ function HowItWorksSection() {
   );
 }
 
+/* ─── Tattoo map (charcoal) ─────────────────────────────────────────────────
+   The discovery layer of the artist workflow. Sits AFTER the three-step
+   promise on purpose: by this point the request-first message has been made
+   three times, so discovery reads as an extension rather than a competing
+   promise. Colour rhythm stays alternating (mustard -> charcoal -> bone).
+
+   Deliberately carries no map imagery. `app-travel-map.webp` is the personal
+   journey map, a different feature, and a real screenshot of the tattoo map
+   would publish seeded studio names on a public page, which is exactly what the
+   open Q20 licensing note blocks. So this mirrors the mustard how-it-works
+   layout: heading left, cards right, no illustration.
+
+   Every claim here is shipped: search + category filters, watched studios,
+   artist-to-studio guest spot requests, and the studio claim flow.
+   Audit: docs/marketing/public-map-marketing-integration-audit.md */
+
+const MAP_CARDS: Array<{
+  title: string;
+  description: string;
+  variant: FeatureCardVariant;
+}> = [
+  {
+    title: "Look up a city",
+    description:
+      "Move around the map, filter by what kind of place it is, and open a studio to see what it says about itself.",
+    variant: "mustard",
+  },
+  {
+    title: "Ask about a guest spot",
+    description:
+      "Studios that host guest artists can take a request from their page, with your dates and your links attached.",
+    variant: "bone",
+  },
+  {
+    title: "Claim your studio",
+    description:
+      "Run a studio? Claim its place on the map and keep the details, styles, and guest spot status accurate.",
+    variant: "rosa",
+  },
+];
+
+function TattooMapSection() {
+  const cta = mapMarketingCta(
+    "home-map-signup",
+    "home-map-explore",
+    "Get started free",
+  );
+  return (
+    <section className="bg-shell-bg text-shell-fg">
+      <div className="container-marketing py-24 md:py-32">
+        <div className="grid grid-cols-1 gap-12 md:grid-cols-[5fr_7fr] md:gap-16">
+          <div>
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
+              The tattoo map
+            </p>
+            <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl lg:text-6xl">
+              Find the place.
+              <br />
+              Organize the guest spot.
+            </h2>
+            <p className="mt-6 max-w-md text-base leading-relaxed text-shell-fg-dim md:text-lg">
+              Inklee has a tattoo map of studios and shops. Look up a city
+              before you plan a trip, see which studios host guest artists, and
+              save the ones worth asking. When a studio says yes, the booking
+              side is already waiting.
+            </p>
+            <p className="mt-4 max-w-md text-base leading-relaxed text-shell-fg-dim md:text-lg">
+              The map grows with the tattoo community. Owners claim their page,
+              artists report what changed, and the details get better from
+              there.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <TrackedCtaLink
+                cta={cta.primary.cta}
+                href={cta.primary.href}
+                className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
+              >
+                {cta.primary.label}
+              </TrackedCtaLink>
+              {cta.secondary ? (
+                <TrackedCtaLink
+                  cta={cta.secondary.cta}
+                  href={cta.secondary.href}
+                  className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
+                >
+                  {cta.secondary.label}
+                </TrackedCtaLink>
+              ) : (
+                <Link
+                  href="/guest-spot-booking"
+                  className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
+                >
+                  How guest spots work →
+                </Link>
+              )}
+            </div>
+          </div>
+          <div className="space-y-4 md:space-y-5">
+            {MAP_CARDS.map((card) => {
+              const bgClass =
+                card.variant === "mustard"
+                  ? "bg-brand-mustard"
+                  : card.variant === "rosa"
+                    ? "bg-brand-rosa"
+                    : "bg-brand-bone";
+              return (
+                <div
+                  key={card.title}
+                  className={`flex flex-col gap-2 rounded-3xl p-6 md:p-7 ${bgClass}`}
+                >
+                  <h3 className="text-lg font-black leading-tight text-brand-charcoal md:text-xl">
+                    {card.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-brand-charcoal/75">
+                    {card.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── About (bone, scoped light) ────────────────────────────────────────── */
 
 function AboutSection() {
@@ -586,7 +730,7 @@ function FinalCtaSection() {
 
 /* ─── FAQ (charcoal, numbered card pattern) ─────────────────────────────── */
 
-function FaqHomeSection() {
+function FaqHomeSection({ items }: { items: FaqItem[] }) {
   return (
     <section className="bg-shell-bg text-shell-fg">
       <div className="container-marketing py-24 md:py-32">
@@ -600,9 +744,9 @@ function FaqHomeSection() {
             </h2>
           </div>
           <div className="rounded-3xl border-[1.5px] border-shell-border bg-[#252525] px-6 md:px-10">
-            {HOMEPAGE_FAQ.map((item, idx) => {
+            {items.map((item, idx) => {
               const number = String(idx + 1).padStart(2, "0");
-              const isLast = idx === HOMEPAGE_FAQ.length - 1;
+              const isLast = idx === items.length - 1;
               // JSX conditional instead of `last:border-b-0`: the global
               // `.border-b:not(.border-transparent)` rule in globals.css
               // wins source-order against the Tailwind last: utility, so

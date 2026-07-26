@@ -1108,6 +1108,12 @@ export async function reviewCandidateCore(
     update.admin_notes = extras.adminNotes?.trim() || null;
   if (extras?.confidenceScore !== undefined)
     update.confidence_score = extras.confidenceScore;
+  // Q17: a reviewed Brave lead keeps its URL, not Brave's result title.
+  if (
+    target === "rejected" &&
+    shouldDropBraveTitle(candidate.sourceType, candidate.name)
+  )
+    update.name = DROPPED_BRAVE_TITLE;
 
   const { data } = await serviceClient
     .from("map_seed_candidates")
@@ -1117,6 +1123,20 @@ export async function reviewCandidateCore(
     .select("id");
   if (!data?.length) return { error: "This candidate already moved on." };
   return {};
+}
+
+/**
+ * Placeholder written over a Brave result title once the lead has been reviewed
+ * (Q17, answered 2026-07-24: keep the URL durably, drop the title at terminal
+ * status). `name` is NOT NULL and is where the Brave title is stored, so the
+ * conservative path is to overwrite rather than null. The title stays
+ * re-derivable by opening `source_url`, which is a pointer rather than content.
+ */
+export const DROPPED_BRAVE_TITLE = "(title dropped after review)";
+
+/** True when a terminal-status write must drop the stored Brave title. */
+function shouldDropBraveTitle(sourceType: string, name: string): boolean {
+  return sourceType === "brave_search" && name !== DROPPED_BRAVE_TITLE;
 }
 
 /** Called by the convert wrapper after the map entry was created. */
@@ -1129,18 +1149,37 @@ export async function markConvertedCore(
   if (!candidate) return { error: "Candidate not found." };
   if (!canTransitionSeedCandidate(candidate.status, "converted"))
     return { error: "This candidate already moved on." };
+  const update: Record<string, unknown> = {
+    status: "converted",
+    converted_location_id: locationId,
+    reviewed_by: adminId,
+    reviewed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  if (shouldDropBraveTitle(candidate.sourceType, candidate.name))
+    update.name = DROPPED_BRAVE_TITLE;
+
   const { data } = await serviceClient
     .from("map_seed_candidates")
-    .update({
-      status: "converted",
-      converted_location_id: locationId,
-      reviewed_by: adminId,
-      reviewed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", candidateId)
     .neq("status", "converted")
     .select("id");
   if (!data?.length) return { error: "This candidate already moved on." };
+
+  // Carry per-row provenance onto the published table so the public map can
+  // credit the source and act on a source-scoped takedown (migration 0111 and
+  // docs/counsel-note-public-map-osm-correction-2026-07-26.md). Best-effort:
+  // the conversion itself already succeeded and must not be rolled back if this
+  // stamp fails, and migration 0111's backfill re-derives it from the candidate.
+  await serviceClient
+    .from("map_locations")
+    .update({
+      data_source: candidate.sourceType,
+      data_attribution: candidate.attribution,
+    })
+    .eq("id", locationId)
+    .is("data_source", null);
+
   return {};
 }

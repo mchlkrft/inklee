@@ -3,7 +3,29 @@
 **Prepared:** 2026-07-22 · **For:** legal counsel (Estonia/EU, IP + open-data licensing)
 **Companion docs:** `docs/product/inklee-2-open-questions.md` (Q20, Q2, Q14) · `docs/product/inklee-2-map-redesign-audit-and-plan.md` (§ external dependencies) · `docs/product/inklee-2-map-seeding-tool.md` (the seeding source stack)
 **Triggered by:** founder decision 2026-07-22 to take the tattoo map **public** as an experimental, community-evolving surface (reverses locked Q3).
-**Status:** **open — drafted for counsel.** This blocks nothing on the logged-in map, which is unaffected. It must close **before any seeded studio data is published on a public, non-authenticated page.**
+**Status:** **ANSWERED — attribution only, no share-alike. Premise corrected and answer
+re-confirmed 2026-07-26.**
+
+The 2026-07-24 answer reached attribution-only on the ground that there are **no
+OSM-derived studio rows**. That ground was false: the verification sweep §7.1 itself
+required before the flip found **3,582 approved live studios (5.0% of the directory)
+sourced solely from a direct OpenStreetMap Overpass lane** added by migration `0088`.
+Counsel was given the corrected facts and **re-confirmed the same conclusion on 2026-07-26**:
+each public studio page is a Produced Work, share-alike does not attach, the obligation is
+attribution. No coverage is lost.
+
+**The only substantive change is the credit string, which now restores OpenStreetMap** —
+see `docs/counsel-note-public-map-osm-correction-2026-07-26.md` §8 for the approved wording
+and the standing re-verification instruction. §7.2, §7.4, §7.6 and §7.7 are unaffected
+throughout; §7.3's placement finding and Apache-2.0 obligations also stand.
+
+*Original status: open — drafted for counsel. This blocks nothing on the logged-in
+map, which is unaffected. It must close before any seeded studio data is published
+on a public, non-authenticated page.*
+
+*Original status: open — drafted for counsel. This blocks nothing on the logged-in
+map, which is unaffected. It must close before any seeded studio data is published
+on a public, non-authenticated page.*
 
 > This note is written by the engineering team, not by a lawyer. It states facts
 > about where the data comes from and what the licenses appear to require, and it
@@ -56,7 +78,7 @@ traceable to its origin for attribution and takedown.
 |---|---|---|---|
 | **Overture Maps** (Places theme, base) | **CDLA-Permissive-2.0** | Preserve the license text / disclaimer when the **Data** is shared; attribution requested. | **No** |
 | **Foursquare-sourced rows** within Overture Places | **Apache-2.0** | Preserve attribution / NOTICE when redistributing. | **No** |
-| **OpenStreetMap-derived rows** (the map also draws studio facts from OSM) | **ODbL 1.0** | **"© OpenStreetMap contributors"** attribution; if a **Derived Database** is **publicly used**, offer it under ODbL. | **Yes (conditionally)** |
+| **OpenStreetMap-derived rows** — the 2026-07-24 correction said "this row does not exist". **RE-CORRECTED 2026-07-26: it does.** 3,582 approved studios come solely from a direct Overpass extraction (`source_type='osm'`, added by migration `0088`). OSM additionally covers the basemap tiles, which are separately credited in the tile pill. | **ODbL 1.0** (studio rows) + tiles | Attribution; share-alike question re-put to counsel. | **Under re-check** |
 
 Two of the three (CDLA-Permissive-2.0, Apache-2.0) are permissive with **no**
 share-alike. The load-bearing one is **ODbL**, because the map's studio facts are
@@ -141,6 +163,163 @@ Our working reading, for counsel to confirm or correct:
   the derived export; re-source those facts from a permissive origin; or keep
   OSM-derived rows authed-only while publishing only Overture/Foursquare-sourced
   rows). We do **not** publish on the optimistic reading without your sign-off.
+
+---
+
+## 7. Answers (2026-07-24)
+
+> Not legal advice. Positions below are for ratification; each states its basis so
+> the review is a confirmation rather than a fresh analysis.
+
+### 7.1 The load-bearing question is moot — there are no OSM-derived studio rows
+
+> 🚨 **PREMISE SUPERSEDED 2026-07-26; CONCLUSION UNCHANGED.** The reasoning below is false
+> for the shipped system, and the verification condition this section itself set ("re-check
+> before the flip") is what caught it. Ground 2 (Overture Places contains no OSM data)
+> stands; **ground 1 does not** — OSM reaches the directory through a separate direct
+> Overpass extraction, not through Overture. 3,582 approved studios (5.0%) are OSM-only, so
+> the *Substantial* fallback below is also unavailable. Counsel was re-asked on the
+> corrected facts and **re-confirmed attribution-only** on 2026-07-26, so the outcome of
+> this section survives even though its route to it did not. Text kept verbatim for the
+> record. **Correction, numbers and confirmed answer:**
+> `docs/counsel-note-public-map-osm-correction-2026-07-26.md`.
+
+§2 of this note listed OSM-derived rows as a third source. **That is incorrect**, on
+two independent grounds:
+
+1. **The seeding stack excludes OSM.** `inklee-2-map-seeding-tool.md` lists
+   "OpenStreetMap as primary source" under *Excluded from v1*, and gives the reason
+   ("ODbL share-alike obligations sit badly under a commercial directory that mixes
+   sources"). The actual `source_type` set is `overture_maps`, `brave_search`,
+   `manual_instagram`, `artist_suggestion`.
+2. **Overture's Places theme contains no OSM data.** Per Overture's own attribution
+   documentation, the Places theme is CDLA-Permissive-2.0 (Apache-2.0 for
+   Foursquare-sourced rows) and "contains no OpenStreetMap data and carries none of
+   the share-alike obligations of the ODbL." OSM sits in Overture's
+   base/transportation/buildings/divisions themes, which are not used for studio facts.
+
+**Consequence:** ODbL share-alike is **not triggered**. Both applicable licences
+(CDLA-Permissive-2.0, Apache-2.0) are permissive with no share-alike. The §6
+contingency (hold the launch, options memo, ODbL-licensed export) is **not needed**.
+
+OSM remains relevant only to the **basemap tiles**, which are a rendered Produced
+Work and are already credited by the existing tile pill
+(`MapLibre | © CARTO © OpenStreetMap contributors`). No change required there.
+
+*Belt-and-braces:* even if a small number of OSM rows were later found, the OSMF
+**Substantial guideline** treats extractions of fewer than 100 features as not
+Substantial under ODbL, so share-alike would still not bite at seeding scale.
+
+**Verification condition:** confirm no seeding path ever wrote an OSM-sourced row —
+`map_seed_candidates.source_type` should contain only the four values above. A repo
+and docs sweep on 2026-07-24 found no OSM source type outside the basemap tiles and
+this note. Re-check before the flip.
+
+### 7.2 Facts sufficiency (§5 Q2) — agreed, and no longer load-bearing
+
+A single studio's name, display point, and derived city/country are **facts**; each
+public page is a Produced Work / a use of Data, not redistribution of a source
+Database. With ODbL out of scope, CDLA-2.0 and Apache-2.0 impose **attribution and
+licence preservation only**, with no redistribution control. The §4 commitments (no
+bulk export, no "download the directory", no API re-emitting the collection) keep
+Inklee clearly on the use-of-Data side and should be **retained as standing policy**.
+
+### 7.3 Attribution wording and placement (§5 Q3) — approved with a corrected string
+
+> 🚨 **THE CREDIT STRING BELOW IS SUPERSEDED — DO NOT IMPLEMENT IT.** It removes OSM from
+> the studio-data credit on the §7.1 premise, which is false; shipping it would publish
+> 3,582 ODbL-sourced rows with no ODbL attribution. **Implement the corrected string from
+> `docs/counsel-note-public-map-osm-correction-2026-07-26.md` §8 instead** (approved
+> 2026-07-26, OpenStreetMap restored):
+>
+> > Studio data © OpenStreetMap contributors (ODbL), Overture Maps Foundation
+> > (CDLA-Permissive-2.0) and Foursquare Labs, Inc. (Apache-2.0), modified by Inklee.
+> > [Licences and notices]
+>
+> The **placement** finding (persistent credit + linked `/data-attribution` page, adjacency
+> not required) and the **Apache-2.0 requirements** (NOTICE preservation, licence copy,
+> statement of changes with dates) are unaffected and stand as written below.
+
+Remove OSM from the **studio-data** credit (it stays in the tile credit). Apache-2.0
+is the stricter of the two licences and requires: (a) preserving the NOTICE
+attribution, at minimum `Copyright 2024 Foursquare Labs, Inc. All rights reserved.`;
+(b) including a copy of the licence; and (c) **stating that files were changed, with
+dates of change** — this applies, because admin review edits rows.
+
+Approved studio-data credit line:
+
+> Studio data © Overture Maps Foundation (CDLA-Permissive-2.0) and Foursquare Labs,
+> Inc. (Apache-2.0), modified by Inklee. [Licences and notices]
+
+**Placement:** a persistently visible credit on the public map and each public studio
+page, linking to a `/data-attribution` page that carries the full CDLA-2.0 and
+Apache-2.0 licence texts, the Foursquare NOTICE, and the modification statement
+("modified by Inklee, ongoing since <date>"). Neither licence requires the credit to
+sit adjacent to the data — adjacency is an ODbL-culture expectation, which no longer
+applies here. The footer-plus-linked-page pattern satisfies both licences.
+
+### 7.4 Foursquare specifics (§5 Q4) — nothing beyond Apache-2.0, minus trademarks
+
+Apache-2.0 §6 grants **no trademark rights**. Do not use the Foursquare name or logo
+as a badge, endorsement, or partnership signal; a plain copyright attribution string
+is both permitted and sufficient. The NOTICE preservation and change statement in
+§7.3 discharge the remaining obligations. No Foursquare-specific attribution string
+beyond the NOTICE copyright line is required.
+
+### 7.5 Interaction with Q2 / Q14 (§5 Q5) — deliver together
+
+Confirmed: deliver the licensing read with the DSA/GDPR read. They gate the same
+flip, and the DSA notice-and-action route plus the GDPR objection/delisting route are
+the takedown surface this licensing position assumes exists. Extend
+`docs/dsa-moderation-procedure.md` scope beyond `inklee.app` / public artist pages /
+booking uploads to cover **directory entries, studio pages, shop entries, and
+temporary signals**. Q14 answers are recorded in `inklee-2-open-questions.md`.
+
+### 7.6 Remaining blockers are engineering, not legal
+
+1. **`map_locations` has no attribution/provenance column** — the Overture/CDLA
+   string lives only on `map_seed_candidates`. Per-row provenance must carry over to
+   the published table; it is what makes takedown and the change statement honest.
+2. **No data-source attribution UI exists** — only the basemap tile pill. The
+   §7.3 component must ship before any seeded row is public.
+
+Until both land, claimed-profile gate item 7 ("public licensing attribution active")
+cannot be satisfied and the flip stays closed.
+
+### 7.7 Additional requirement not in the original five: GDPR for seeded studios
+
+Seeded studios that are **sole traders trading under a personal name** are personal
+data, so publishing them needs, independently of any licence:
+
+- a documented **Art. 6(1)(f)** legitimate-interest basis and balancing note in the
+  Art. 30 record;
+- an **Art. 14** disclosure (the data was not obtained from the data subject). The
+  Art. 14(5)(b) disproportionate-effort exemption is available for open-data seeding
+  **only if** the information is published instead — a public transparency page
+  discharges this;
+- a working **Art. 21 objection / delisting** route.
+
+Practically this is one page — "why you are listed, where the data came from, how to
+correct or remove it" — plus a delist action. **That page can be the same
+`/data-attribution` page as §7.3.** This is a launch condition for the public map.
+
+### 7.8 Summary
+
+| § | Question | Answer |
+|---|---|---|
+| 7.1 | ODbL share-alike | **Not triggered** — but not for the reason given here. 3,582 approved studios (5.0%) *are* OSM-only; counsel re-confirmed the Produced Work reading on the corrected facts, 2026-07-26 |
+| 7.2 | Facts sufficiency | Agreed; attribution only, keep no-bulk-export policy |
+| 7.3 | Attribution wording/placement | Placement + Apache-2.0 findings stand; **credit string superseded 2026-07-26** — use the corrected one with OSM restored |
+| 7.4 | Foursquare specifics | Apache-2.0 only; no trademark/endorsement use |
+| 7.5 | Deliver with Q2/Q14 | Yes; extend DSA procedure scope to the directory |
+| 7.6 | Blockers | Two build gaps (provenance column, attribution UI) |
+| 7.7 | Added | GDPR Art. 6(1)(f)/14/21 for sole-trader studios |
+
+**Basis:** [Overture attribution docs](https://docs.overturemaps.org/attribution/) ·
+[Overture Places guide](https://docs.overturemaps.org/guides/places/) ·
+[OSMF Substantial guideline](https://osmfoundation.org/wiki/Licence/Community_Guidelines/Substantial_-_Guideline) ·
+[OSMF licence FAQ](https://osmfoundation.org/wiki/Licence/Licence_and_Legal_FAQ) ·
+Apache-2.0 §§4, 6 · CDLA-Permissive-2.0 · GDPR Arts. 6, 14, 21.
 
 ---
 

@@ -86,6 +86,7 @@ export const RESERVED_SLUGS = new Set([
   "cookies",
   "dpa",
   "subprocessors",
+  "data-attribution",
 
   // Top-level marketing routes
   "about",

@@ -11,12 +11,20 @@ export type ReportState =
   | { sent: true; reference: string }
   | null;
 
+// `directory_listing` is NOT a DSA notice. It is the GDPR Article 21 objection
+// and delisting route for a studio we listed on the tattoo map from open data,
+// required by the 2026-07-24 counsel answer (§7.7). It lives on this form
+// because the in-product map report requires an account and the studio owner
+// almost never has one. Triage it as a factual correction or an erasure
+// request, not through the notice-and-action path
+// (docs/dsa-moderation-procedure.md §2a).
 const CATEGORY_LABELS: Record<string, string> = {
   illegal_content: "Illegal content",
   ip_infringement: "Intellectual property infringement",
   impersonation: "Impersonation",
   harassment: "Harassment or hate",
   spam_fraud: "Spam or fraud",
+  directory_listing: "Remove or correct a studio listing on the tattoo map",
   other: "Other",
 };
 

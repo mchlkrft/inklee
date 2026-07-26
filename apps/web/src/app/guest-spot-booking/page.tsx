@@ -5,6 +5,8 @@ import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
+import { tattooMapEnabled } from "@/lib/map-features";
+import { mapMarketingCta } from "@/lib/map-marketing";
 
 const PAGE_PATH = "/guest-spot-booking";
 const PAGE_TITLE = "Tattoo guest spot organizer for artists · Inklee";
@@ -227,6 +229,24 @@ const GUEST_SPOT_FAQ: Faq[] = [
   },
 ];
 
+/**
+ * Appended only while the tattoo map is live, so the visible FAQ and the
+ * FAQPage schema never describe a capability the flag has removed. This page
+ * keeps its ownership of guest spot organization and software intent: the
+ * answer describes an Inklee capability and deliberately avoids directory
+ * phrasing (no "tattoo studios in {city}", no city names).
+ */
+const MAP_FAQ: Faq = {
+  question: "How do I find studios that host guest artists?",
+  answer:
+    // "dates", not "city and dates": a guest-spot leg is materialized without a
+    // studios row (finishAcceptance in lib/server/guest-spots.ts), and every
+    // public location label on /[slug] derives from that join, so the booking
+    // page shows the dates and no city. Do not re-add "city" here unless the
+    // public booking page gains the guest-spot host fallback the email path has.
+    "Inklee includes a tattoo map of studios and shops. You can look up a city, open a studio to see what it declares about itself, and send a guest spot request to studios that host guest artists. When a studio confirms, the spot becomes a trip in Inklee, so the dates show on your booking page and requests arrive against the right trip.",
+};
+
 const RELATED_LINKS: Related[] = [
   {
     title: "Tattoo booking tool for artists",
@@ -248,7 +268,68 @@ const RELATED_LINKS: Related[] = [
   },
 ];
 
+function FindTheStudioSection() {
+  const cta = mapMarketingCta(
+    "gs-map-signup",
+    "gs-map-explore",
+    "Create your booking link",
+  );
+  return (
+    <section className="bg-shell-bg text-shell-fg">
+      <div className="container-marketing py-20 md:py-28">
+        <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-[5fr_7fr] md:gap-16">
+          <div>
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-brand-mustard">
+              Before the requests
+            </p>
+            <h2 className="text-4xl font-black leading-tight tracking-tight text-shell-fg md:text-5xl">
+              Find the studio.
+              <br />
+              Then fill the trip.
+            </h2>
+          </div>
+          <div className="space-y-4 md:space-y-5">
+            <p className="max-w-xl text-base leading-relaxed text-shell-fg-dim md:text-lg">
+              A guest spot starts before any client request arrives. You need a
+              studio that hosts guest artists and dates that work for both of
+              you. Inklee has a tattoo map of studios and shops for exactly
+              that: look up a city, open a studio to see what it declares about
+              itself, and save the ones worth asking.
+            </p>
+            <p className="max-w-xl text-base leading-relaxed text-shell-fg-dim md:text-lg">
+              Studios that host guest artists can take a request from their
+              page, with your dates and your links attached. When a studio
+              confirms, the spot becomes a trip in Inklee, so the dates show on
+              your booking page and the request flow above takes over.
+            </p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <TrackedCtaLink
+                cta={cta.primary.cta}
+                href={cta.primary.href}
+                className="inline-flex items-center rounded-full bg-brand-mustard px-6 py-3 text-base font-bold text-brand-charcoal transition-opacity hover:opacity-90"
+              >
+                {cta.primary.label}
+              </TrackedCtaLink>
+              {cta.secondary ? (
+                <TrackedCtaLink
+                  cta={cta.secondary.cta}
+                  href={cta.secondary.href}
+                  className="inline-flex items-center rounded-full border-[1.5px] border-shell-border px-6 py-3 text-base font-bold text-shell-fg-dim transition-colors hover:border-shell-fg hover:text-foreground"
+                >
+                  {cta.secondary.label}
+                </TrackedCtaLink>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function GuestSpotBookingPage() {
+  const mapLive = tattooMapEnabled();
+  const faq = mapLive ? [...GUEST_SPOT_FAQ, MAP_FAQ] : GUEST_SPOT_FAQ;
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <JsonLd
@@ -259,7 +340,7 @@ export default function GuestSpotBookingPage() {
         })}
         id="ld-webpage"
       />
-      <JsonLd data={faqPageSchema(GUEST_SPOT_FAQ)} id="ld-faq" />
+      <JsonLd data={faqPageSchema(faq)} id="ld-faq" />
       <PillNav />
       <main className="flex-1">
         <section className="overflow-hidden md:flex md:min-h-[calc(100svh-80px)] md:items-center">
@@ -461,6 +542,15 @@ export default function GuestSpotBookingPage() {
           </div>
         </section>
 
+        {/* The half of a guest spot this page did not cover: finding the host
+            studio. Complements the page's ownership of guest spot organization
+            rather than competing with it, and closes the loop back into the
+            request flow above (a confirmed spot materializes a trip). Charcoal
+            keeps the page's strict colour alternation intact between the mustard
+            flow section and the bone feature section.
+            Audit: docs/marketing/public-map-marketing-integration-audit.md */}
+        {mapLive ? <FindTheStudioSection /> : null}
+
         <section
           data-appearance="light"
           className="bg-brand-bone text-brand-charcoal"
@@ -608,9 +698,9 @@ export default function GuestSpotBookingPage() {
                 </h2>
               </div>
               <div className="rounded-3xl border-[1.5px] border-shell-border bg-[#252525] px-6 md:px-10">
-                {GUEST_SPOT_FAQ.map((item, idx) => {
+                {faq.map((item, idx) => {
                   const number = String(idx + 1).padStart(2, "0");
-                  const isLast = idx === GUEST_SPOT_FAQ.length - 1;
+                  const isLast = idx === faq.length - 1;
                   return (
                     <details
                       key={item.question}

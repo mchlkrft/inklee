@@ -1360,6 +1360,15 @@ Prioritize evidence from:
 
 _Claude Code adds entries here when implementation evidence suggests a strategic change. Until the canonical strategy above is updated, a proposal is not approved strategy. Each proposal must contain: current decision · proposed decision · technical or data-based reason · pages affected · cannibalization risk · recommended next step._
 
+### Proposal 2026-07-26: name the owner of "guest spot host discovery" so no new URL is minted for it
+
+- **Current decision:** `/map` is a `noindex` product utility with no keyword ownership, and `/guest-spot-booking` owns "tattoo guest spot organizer" plus guest spot organization and booking-management intent. Neither statement names an owner for the *adjacent* artist need of **finding a studio that hosts guest artists**. That need is currently unowned in the ownership map.
+- **Proposed decision:** confirm that this need is served as **product copy on `/guest-spot-booking` and on the homepage**, and that it does **not** justify a new indexable URL. Add one guardrail sentence to "Relationship to existing owned URLs": *"Finding a studio that hosts guest artists is served as product copy on `/guest-spot-booking` and the homepage. Do not create a separate indexable page for it (`/find-guest-spot-studios`, `/tattoo-map`, `/explore`, or similar); `/map` remains a `noindex` utility with no keyword ownership."*
+- **Technical or data-based reason:** the marketing audit (`docs/marketing/public-map-marketing-integration-audit.md`, 2026-07-26) found that `/guest-spot-booking` covers only the second half of a guest spot (collecting client requests for a trip) and never mentions finding the host studio, while the tattoo map, which does exactly that, was absent from the entire marketing site. The gap was closed with copy on the two pages that already own the audience and the workflow, adding no new URL and no new keyword. Because the gap is real and now visible, a later session could reasonably read it as a page opportunity. This proposal forecloses that rather than opening it.
+- **Pages affected:** `/guest-spot-booking` (gains a contextual section and one FAQ item, no metadata or canonical change), `/` (gains one section and one FAQ item), `/map` (unchanged: `noindex, follow`, out of the sitemap, no keyword). No new URL.
+- **Cannibalization risk:** the proposal *reduces* risk. Without the guardrail, a future `/find-guest-spot-studios` page would compete directly with `/guest-spot-booking` (already the single owner of guest-spot intent) and would edge toward the directory keywords the 2026-07-23 decision withheld from `/map`.
+- **Recommended next step:** ChatGPT confirms or rejects the guardrail sentence. Nothing is blocked either way; the implementation already respects it. If rejected, ChatGPT should say which URL would own the intent instead, so it is not left unowned.
+
 ### Proposal 2026-07-25: index `/pricing` and assign it pricing-intent ownership
 
 - **Current decision:** pricing/cost intent has no owner URL anywhere in the ownership map; no `/pricing` page existed. The Plus consumer launch (built, gated) needs a public pricing surface at flip.

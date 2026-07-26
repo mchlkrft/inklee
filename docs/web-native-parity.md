@@ -71,7 +71,9 @@ no decision against it), ~ = partial.
 | Journey overlay ("My trips" on the discovery map) | ✅ | 📱 has a dedicated travel map screen instead (travel/map) | ~ by design |
 | Dark/light basemap | shell toggle | follows the app theme | ✅ |
 | Kill switch | NEXT_PUBLIC_TATTOO_MAP (web launch flag) | `tattoo_map` capability (client hides + server refuses) | ✅ |
-| Public (logged-out) map | unbuilt (Q20 gate) | n/a (app is artists-only) | 🌐 |
+| Public (logged-out) map | unbuilt. Q20 licensing CLOSED 2026-07-26 (attribution only, OSM restored to the credit); remaining gates are engineering: credit component, `/data-attribution` page, GDPR Art. 14/21 surface, provenance on `map_locations` | n/a (app is artists-only) | 🌐 |
+| Marketing narrative for the map (homepage section, `/guest-spot-booking` section, FAQ items) | ✅ 2026-07-26, gated on `tattooMapEnabled()` | 🌐 (the app has no marketing pages; the store listings are a separate surface) | 🌐 |
+| Public-map entry points (pill nav `Map`, footer `Tattoo map`, "Open the tattoo map" CTAs) | built but DARK behind `NEXT_PUBLIC_PUBLIC_MAP` (`publicMapEnabled()` = platform gate AND public gate) | n/a | 🌐 |
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
 

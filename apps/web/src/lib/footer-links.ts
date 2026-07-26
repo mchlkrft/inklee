@@ -12,6 +12,8 @@ export type FooterGroup = {
   items: FooterLink[];
 };
 
+import { publicMapEnabled } from "@/lib/map-features";
+
 export const FOOTER_GROUPS: FooterGroup[] = [
   {
     id: "product",
@@ -41,6 +43,16 @@ export const FOOTER_GROUPS: FooterGroup[] = [
         label: "Guest spot booking",
         href: "/guest-spot-booking",
         active: true,
+      },
+      {
+        // The tattoo map. Held behind publicMapEnabled() because /map is
+        // authenticated-only today: a footer link would bounce every anonymous
+        // visitor to /login. getRenderableFooterGroups() drops inactive items,
+        // so nothing renders until the public shell ships and the flag flips.
+        // Reasoning: docs/marketing/public-map-marketing-integration-audit.md
+        label: "Tattoo map",
+        href: "/map",
+        active: publicMapEnabled(),
       },
       {
         label: "Live example",

@@ -10,6 +10,12 @@ const CATEGORIES: { value: string; label: string }[] = [
   { value: "impersonation", label: "Impersonation" },
   { value: "harassment", label: "Harassment or hate" },
   { value: "spam_fraud", label: "Spam or fraud" },
+  // GDPR Art. 21 objection / delisting route for studios listed on the tattoo
+  // map from open data. Kept in sync with CATEGORY_LABELS in ./actions.ts.
+  {
+    value: "directory_listing",
+    label: "Remove or correct a studio listing on the tattoo map",
+  },
   { value: "other", label: "Other" },
 ];
 

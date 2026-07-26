@@ -30,10 +30,13 @@ What public data source is legally safe enough for first studio seeding?
 - What it blocks: Phase 1 seeding imports. Admin CRUD and the data model do not depend on it; hand-entered admin curation can start without any bulk source.
 - Decide by: before the first bulk import in Phase 1. Until then, seed by hand through admin CRUD only.
 - **Provisionally answered by the founder 2026-07-18** (see `inklee-2-map-seeding-tool.md`): the seeding source stack is locked as Overture Maps (CDLA-Permissive-2.0, the automated source), Brave Search leads (URL and title only), manual Instagram discovery, and artist suggestions, all through mandatory admin review; no scraping, no Google Places, no bulk publish. What stays open from Q2: formal legal review of the whole seeding posture before public launch, plus Q17 to Q20 below.
+- **Updated 2026-07-26.** Two things have moved. (a) Q17, Q18, Q19 are **answered** (2026-07-24) and Q20 is answered apart from one re-opened question, so the "plus Q17 to Q20" clause is largely discharged. (b) **The locked source list above is out of date**: a fifth automated source, a direct OpenStreetMap **Overpass** extraction, was added for country coverage by migration `0088` and has produced 12,658 candidates / 3,582 approved live studios. It is not scraping and it went through the same mandatory admin review, but it is an ODbL source that the 2026-07-18 lock did not contemplate and the counsel note did not know about. **Cleared 2026-07-26**: counsel confirmed attribution-only on the corrected facts, so the OSM lane stays in the stack, with OpenStreetMap restored to the studio-data credit. Treat the source list above as five sources, not four.
 
 ### Q3. Indexability of seeded unclaimed studio pages
 
 **REVERSED 2026-07-22 (founder): the map GOES PUBLIC as an experimental, community-evolving surface.** This supersedes the 2026-07-19 logged-in-only resolution below. The public surface is one capability layer on a single shared map core (not a separate map product); it ships last in the rollout and only after its prerequisites close: the Q20 Overture/Foursquare licensing re-check (legal), a DSA `moderation_statements` writer (counsel item Q14), and SEO keyword/page ownership through the SEO strategy owner per the CLAUDE.md split (no filter-combination indexable pages; do not cannibalize `/guest-spot-booking`). Full detail + the shared-core architecture in `docs/product/inklee-2-map-redesign-audit-and-plan.md`.
+
+**Prerequisite status 2026-07-26.** Of the three above: the **DSA writer shipped** 2026-07-23 (`lib/server/moderation-statements.ts`, wired into three moderation actions) and **SEO ownership was ratified** 2026-07-23 into the canonical strategy (`/map` public but `noindex`, no keyword ownership). **Q20 is the only original prerequisite still open**, and only in part (see Q20 below). What now gates the flip is mostly engineering, not decisions: the attribution UI and `/data-attribution` page, provenance carried to `map_locations`, the GDPR surface, the DSA procedure scope extension, and the public shell itself. The marketing entry points are already built and held dark behind `NEXT_PUBLIC_PUBLIC_MAP` (`docs/marketing/public-map-marketing-integration-audit.md`).
 
 **RESOLVED 2026-07-19 (founder): the map stays logged-in only.** Seeded
 pages remain noindex, behind auth, out of the sitemap. This also closes the
@@ -141,6 +144,24 @@ The live database already has a `studios` table that means "an artist's own trav
 
 The locked decisions want anonymous reports with threshold logic. The existing DSA moderation procedure requires acknowledging reporters within 24 hours (anonymity is contemplated only for CSAM) and treats visibility restrictions as moderation actions requiring statements of reasons. The likely design is two channels (anonymous in-product map signals plus the formal `/legal/report` path, with escalation between them), but that split and its wording need counsel review, and the DSA procedure document must be extended to cover studio pages, shop entries, and temporary posts either way. Note 2026-07-18: the categorized report vocabulary now includes conduct categories (harassment, unsafe behavior, payment conflict) that lean further toward the formal channel; the counsel review should cover the category-to-channel mapping.
 
+**ANSWERED 2026-07-24: hybrid, split by whether the report alleges illegal content — and much lighter than assumed, because Inklee is a micro enterprise.**
+
+Inklee OÜ qualifies as a **micro enterprise**, so **DSA Article 19 excludes it from Section 3**: no internal complaint-handling system (Art. 20), no out-of-court dispute settlement (Art. 21), no trusted-flagger channel (Art. 22), and Art. 15(2) also exempts it from transparency reporting. Most of the feared apparatus does not apply.
+
+**Section 2 applies regardless of size**: Art. 16 (notice and action) and Art. 17 (statement of reasons).
+
+Category-to-channel mapping:
+
+| Report category | Channel | Why |
+|---|---|---|
+| Harassment, unsafe behaviour | **Formal DSA notice** (`/legal/report`) | Capable of alleging illegal content → Art. 16 notice, acknowledgement, decision, statement of reasons where action is taken |
+| Payment conflict | In-product signal (+ own T&C enforcement) | Contractual dispute, not illegal content |
+| Wrong address, closed, not a tattoo studio, duplicate | In-product signal only | Factual correction; no DSA machinery |
+
+**Key nuance that resolves the anonymity tension:** Art. 17 statements of reasons are owed to **"recipients of the service."** An unclaimed seeded studio is not a recipient, so delisting or correcting an unclaimed entry owes no Art. 17 statement (which is fortunate, since there is often no contact route). Once a studio **claims** its profile it becomes a recipient and Art. 17 applies to visibility restrictions against it. Anonymous in-product signals are therefore fine for unclaimed-entry corrections; the formal channel carries the conduct categories.
+
+**Required work:** extend `docs/dsa-moderation-procedure.md` (still v1) beyond its current `inklee.app` / public artist pages / booking-upload scope to cover **directory entries, studio pages, shop entries, and temporary signals**, and record the category-to-channel table above. Deliver together with Q20 (see that entry §7.5).
+
 - Decide by: Phase 0 for the design direction; counsel sign-off before Phase 7 ships reports to users.
 
 ## Added 2026-07-18 (extension round)
@@ -168,12 +189,22 @@ Background and the 2026 search API landscape live in `inklee-2-map-seeding-tool.
 
 Brave's data rights around storing search results are written mostly for LLM training. The tool stores only the result URL and title as a lead. Can titles stay long term, or must they be dropped after review (the URL alone would remain)?
 
+**ANSWERED 2026-07-24: take the conservative path — keep the URL durably, drop the title once the candidate is reviewed.**
+
+A result title is thin material, but it is still Brave's search output, and Brave's terms restrict storing and caching result content. Because the title can be re-derived at review time by opening the URL, the conservative option costs nothing operationally and removes the question entirely rather than leaving a standing argument. Store `source_url` durably (a URL is a pointer, not content); null the title when the candidate reaches a terminal status (`converted` / `rejected`).
+
+**Implementation note 2026-07-26.** There is no separate title column: `storeBraveSelectionCore` writes the Brave result title straight into `map_seed_candidates.name`, which is `NOT NULL`. So "null the title" is implemented as an overwrite with `DROPPED_BRAVE_TITLE` (`(title dropped after review)`) for `source_type='brave_search'` rows only, applied in `markConvertedCore` and in the reject path, with a backfill in migration `0111`. `source_url` is kept, so the title stays re-derivable exactly as the answer contemplated. Converted rows lose nothing in substance: the studio name they produced lives on in `map_locations` as an admin-reviewed Inklee record. **Migration `0111` is written but not yet applied.**
+
 - What it blocks: nothing operationally; the conservative fallback (drop titles post-review) is a small migration.
-- Decide by: the legal review pass before public launch.
+- Decide by: the legal review pass before public launch. **Built 2026-07-26, pending the migration being applied.**
 
 ### Q18. Instagram URLs as durable source references
 
 Manual candidates carry the Instagram URL the admin found. Is a bare profile URL acceptable as a durable stored reference without additional policy review?
+
+**ANSWERED 2026-07-24: yes — a bare Instagram profile URL is acceptable as a durable stored reference.**
+
+A public profile URL is a pointer, not copied content: no posts, images, captions, or follower data are stored or cached, so neither Instagram's terms on scraping/caching nor copyright in the profile content is engaged. Keep it strictly a URL. Two conditions: do not fetch and store profile media or bio text alongside it (that would change the analysis), and treat the URL as personal data where the profile belongs to an identifiable sole trader — it falls under the same Art. 6(1)(f) basis and delisting route as the rest of the seeded record (Q20 §7.7).
 
 - What it blocks: nothing; URLs are references, no content is copied.
 - Decide by: the legal review pass before public launch.
@@ -182,7 +213,19 @@ Manual candidates carry the Instagram URL the admin found. Is a bare profile URL
 
 The planned artist suggestion form may accept an optional Google Maps link as a review reference only. Can such links be stored long term?
 
-- What it blocks: the artist suggestion slice ships without the field until decided.
+**ANSWERED 2026-07-24: ship the field, but as a transient review reference — do not persist the Google Maps link after the candidate is resolved.**
+
+Google Maps Platform terms restrict caching Maps content and specifically prohibit using it to create, augment, or improve a competing mapping dataset. A bare URL is a pointer rather than Maps content, so accepting one at submission and opening it during review is low risk. Retaining Google place references **durably inside a studio directory** is the part that invites the "augmenting a dataset from Google" objection — and it buys nothing, since the value of the link is exhausted at review.
+
+Implementation: accept the optional link on the artist-suggestion form; use it during admin review; **null it when the candidate reaches a terminal status** (`converted` / `rejected`), keeping only Inklee-verified facts and the artist's own submitted text. Never derive coordinates, name, hours, or ratings from the linked page — facts must come from Overture, the artist's submission, or admin verification.
+
+The rest of the artist suggestion (submitted studio name, city, notes, plus the submitting artist's identity for audit and abuse handling) **is storable long term** under Art. 6(1)(f) / contract performance; pseudonymise or drop the submitter link on that artist's account deletion, per `docs/account-deletion-handoff.md`. Mandatory admin review before publication stays.
+
+**Reframed by the founder 2026-07-26: the artist-suggestion form is an acquisition angle, not an admin utility.** Its purpose is to be **an angle for new artists to get listed**, so design it as a growth surface that pulls an artist into Inklee, with the studio lead as a by-product rather than the point. Scheduled on the roadmap (§6.4 Inklee 2.0), sequenced behind the public shell because the acquisition value depends on the map being publicly reachable. The data constraints below are settled and carry over unchanged.
+
+**Status 2026-07-26: unblocked but not implementable yet.** The artist-suggestion slice does not exist. `artist_suggestion` appears only as a `source_type` enum value and a display label in `packages/shared/src/map-seeding.ts`; there is no submission form, no route, and no writer. The requirement above is therefore recorded here as a spec for whoever builds that slice: accept the optional Google Maps link, use it during admin review, null it at terminal status (`converted` / `rejected`) the same way the Brave title is dropped in Q17, and never derive coordinates, name, hours or ratings from the linked page.
+
+- What it blocks: the artist suggestion slice ships without the field until decided. **Unblocked** — ship with the transient-reference behaviour above.
 - Decide by: before the artist suggestion slice adds the field.
 
 ### Q20. Overture-derived fields on public pages
@@ -191,5 +234,30 @@ Converted entries carry name and coordinates that originated in Overture data (C
 
 **Reopened + drafted for counsel 2026-07-22.** Q3 was reversed the same day (map goes public), so this is now live rather than hypothetical. A full legal draft — the sources, the three licenses (adding the OSM/ODbL share-alike edge the original framing missed), the facts-vs-database distinction, the proposed attribution position, and the residual questions only counsel can close — is in `docs/counsel-note-public-map-data-licensing-2026-07-22.md`. The load-bearing question is whether the public directory is an ODbL "Derived Database publicly used" (share-alike) or a "Produced Work" (attribution only).
 
-- What it blocks: the **public** launch of seeded studio data. The logged-in map is unaffected.
-- Decide by: before the public shell publishes any seeded row. Owner: founder + counsel.
+**ANSWERED: attribution only, no share-alike.** Given 2026-07-24, premise corrected and **re-confirmed by counsel 2026-07-26** on the true facts. Full answer in `docs/counsel-note-public-map-data-licensing-2026-07-22.md` §7; the correction and the confirmed outcome in `docs/counsel-note-public-map-osm-correction-2026-07-26.md` §8.
+
+The 2026-07-24 answer held that there are **no OSM-derived studio rows**, so ODbL share-alike could not attach. The verification sweep that answer itself required before the flip was run on 2026-07-26 and **failed**: migration `0088` widened `map_seed_candidates.source_type` to include `'osm'`, a direct OpenStreetMap **Overpass** extraction (`scripts/osm-tattoo-extract.cjs`) feeds the country-coverage lane, and Inklee's own pipeline stamps those rows `retention_class='odbl_attribution'` with the attribution string `OpenStreetMap contributors (ODbL)`. Production counts: **12,658 OSM candidates, 3,642 converted, 3,582 approved and live** out of 71,191 (**5.0%**), with **zero** overlap with Overture (each is OSM-only) and spread across all 16 seeded countries.
+
+Counsel was re-asked on those facts and **re-confirmed the same conclusion on 2026-07-26**: each public studio page is a Produced Work, ODbL share-alike does not attach, the obligation is attribution. **No coverage is lost** — the contingency of holding the OSM rows back (which would have cost 67,609 of 71,191 pins) is not needed. The one substantive change is the credit string, which now **restores OpenStreetMap**:
+
+> Studio data © OpenStreetMap contributors (ODbL), Overture Maps Foundation (CDLA-Permissive-2.0) and Foursquare Labs, Inc. (Apache-2.0), modified by Inklee. [Licences and notices]
+
+**Standing instruction:** re-run the source-type verification before any change to the seeding stack and before the public flip. This correction exists only because that check was not re-run between migration `0088` and the 2026-07-24 answer.
+
+Still standing from the 2026-07-24 answer, unaffected by the correction: §7.2 facts-vs-database and the standing no-bulk-export policy, §7.4 Foursquare/Apache-2.0 with no trademark use, §7.6 the two build gaps, §7.7 the GDPR surface for sole-trader studios.
+
+Overture's Places theme does contain no OpenStreetMap data — that leg of the 2026-07-24 reasoning was correct and is unchanged. It simply does not cover the direct Overpass path.
+
+What must ship before the flip:
+
+1. **Corrected studio-data credit** (drop OSM, add the Foursquare NOTICE and a "modified by Inklee" statement — Apache-2.0 requires stating changes) plus a linked `/data-attribution` page carrying both licence texts. Exact string in the counsel note §7.3.
+2. **Provenance carried to `map_locations`** — it currently exists only on `map_seed_candidates`.
+3. **The attribution UI itself** — does not exist today; only the basemap tile pill does. Claimed-profile gate item 7 cannot be satisfied until it ships.
+4. **GDPR surface for sole-trader studios** (counsel note §7.7): Art. 6(1)(f) basis + balancing note, Art. 14 transparency disclosure, Art. 21 objection/delisting route. The same `/data-attribution` page can carry the "why you are listed / how to be removed" text.
+
+Standing policy retained: publish only facts (name, display point, city/country), no bulk export, no dataset-re-emitting API, no source descriptions/photos/hours/ratings/taxonomies.
+
+What must ship before the flip is otherwise unchanged (corrected credit string once confirmed, provenance carried to `map_locations`, the attribution UI, and the GDPR surface).
+
+- What it blocks: the **public** launch of seeded studio data. The logged-in map is unaffected. **The legal question is now closed** (attribution only, OSM restored to the credit). What remains before the flip is engineering: the corrected credit component, the `/data-attribution` page, provenance carried to `map_locations`, and the GDPR Art. 14/21 surface.
+- Decide by: before the public shell publishes any seeded row. Owner: founder + counsel. **Closed 2026-07-26.**

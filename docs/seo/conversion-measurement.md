@@ -21,9 +21,37 @@ Attached automatically where available:
 | `referrer` | External referrer origin only (e.g. `https://www.instagram.com`); same-origin referrers are dropped |
 | `source` / `medium` / `campaign` | From `utm_source` / `utm_medium` / `utm_campaign` on the first-touch URL |
 | `current_path` | Page the event fired on (client events) |
-| `cta` | Stable CTA position id (`hero-signup`, `mid-signup`, `final-signup`, `nav-get-started`) on `marketing_cta_click` |
+| `cta` | Stable CTA position id on `marketing_cta_click`. Current values: `hero-signup`, `mid-signup`, `mid-signup-2`, `final-signup`, `nav-get-started`, `pricing-free-signup`, `pricing-plus-signup`, `pricing-final-signup`, and the tattoo-map set below |
 | `method` | `email` or `google` on `signup_started` |
 | `platform` | `web` or `mobile_app` on the two conversion events |
+
+### Tattoo map CTA ids
+
+Added 2026-07-26 with the marketing integration of the tattoo map
+(`docs/marketing/public-map-marketing-integration-audit.md`). `trackEvent` applies no
+allowlist to caller props, so these need no code or dashboard change beyond the existing
+`cta` property registration. The `-explore` ids only fire once `NEXT_PUBLIC_PUBLIC_MAP` is
+on, because `/map` is authenticated-only until the public shell ships.
+
+| `cta` value | Surface | Destination | Live today? |
+| --- | --- | --- | --- |
+| `home-map-signup` | Homepage tattoo-map section | `/signup` | Yes |
+| `home-map-explore` | Homepage tattoo-map section | `/map` | No, at public-map flip |
+| `gs-map-signup` | `/guest-spot-booking` "Before the requests" section | `/signup` | Yes |
+| `gs-map-explore` | `/guest-spot-booking` "Before the requests" section | `/map` | No, at public-map flip |
+| `nav-map-explore` | Pill nav `Map` (desktop) | `/map` | No, at public-map flip |
+
+First-touch attribution is merged automatically, so a signup that started on the homepage
+map section still reports its original `entry_path` on `signup_completed`.
+
+**Not covered by Plausible:** the public map's own funnel (map opened, account walls, claim
+started/completed, external studio website clicks) belongs in the first-party
+`web_analytics_events` pipeline and must be added to
+`src/lib/public-analytics/event-registry.ts` when the public shell ships. That registry is a
+hard allowlist which discards the **whole event** and still answers `202`, and
+`recordPublicServerEvent` logs nothing, so an unregistered event is a silent total loss.
+`/map` must also be removed from `PRIVATE_PREFIXES` in `src/lib/public-analytics/collector.ts`
+at the same time, or the map records no pageviews at all.
 
 Device and country are NOT sent as custom props: Plausible derives them itself (screen size/UA client-side; forwarded `User-Agent` and `X-Forwarded-For` for server-side events).
 

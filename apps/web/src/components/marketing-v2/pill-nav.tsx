@@ -1,5 +1,6 @@
 import Link from "next/link";
 import TrackedCtaLink from "@/components/tracked-cta-link";
+import { publicMapEnabled } from "@/lib/map-features";
 
 /** Floating two-pill nav shared across all redesigned marketing pages.
  *
@@ -52,6 +53,20 @@ export default function PillNav() {
           >
             App
           </Link>
+          {/* Tattoo map. Gated on publicMapEnabled(): /map is
+              authenticated-only today, so a nav link would bounce anonymous
+              visitors to /login. Desktop-only like App / About / Log in,
+              because the marketing nav has no mobile menu at all (recorded as
+              a pre-existing IA gap in the marketing integration audit). */}
+          {publicMapEnabled() ? (
+            <TrackedCtaLink
+              cta="nav-map-explore"
+              href="/map"
+              className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
+            >
+              Map
+            </TrackedCtaLink>
+          ) : null}
           <Link
             href="/about"
             className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
