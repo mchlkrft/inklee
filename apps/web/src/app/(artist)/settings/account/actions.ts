@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
@@ -80,7 +81,11 @@ export async function cancelSubscriptionAction(input: {
     return {
       message: `Your cancellation is confirmed.${endLine} Your account and data are kept.`,
     };
-  } catch {
+  } catch (e) {
+    Sentry.captureException(e, {
+      tags: { action: "billing_cancel" },
+      extra: { artistId: user.id },
+    });
     return {
       message:
         "Something went wrong cancelling your subscription. Please try again, or write to support@inklee.app.",

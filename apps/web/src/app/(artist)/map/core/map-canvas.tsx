@@ -21,7 +21,11 @@ import {
   type PublicMapPin,
 } from "@inklee/shared/map-directory";
 import type { TravelMapStop } from "@inklee/shared/travel-map";
-import type { MapFilterKind, MapViewport } from "@inklee/shared/map-core-state";
+import {
+  normalizeViewportBounds,
+  type MapFilterKind,
+  type MapViewport,
+} from "@inklee/shared/map-core-state";
 
 // The ONE rendering engine for the map redesign. This is the discovery map's
 // proven, founder-tuned MapLibre setup (2026-07-20 colors, no client
@@ -230,20 +234,20 @@ function MapCanvasInner(
       const b = map.getBounds();
       abort?.abort();
       abort = new AbortController();
-      // MapLibre bounds come back with UNWRAPPED longitudes; wrap each edge and
-      // fall back to the full range across the antimeridian / whole world.
-      const wrapLng = (l: number) => ((((l + 180) % 360) + 360) % 360) - 180;
-      let west = wrapLng(b.getWest());
-      let east = wrapLng(b.getEast());
-      if (b.getEast() - b.getWest() >= 360 || west >= east) {
-        west = -180;
-        east = 180;
-      }
+      // MapLibre bounds come back with UNWRAPPED longitudes; the shared helper
+      // wraps each edge, falls back to the full range across the antimeridian /
+      // whole world, and clamps latitudes (same normalization as native).
+      const nb = normalizeViewportBounds(
+        b.getWest(),
+        b.getSouth(),
+        b.getEast(),
+        b.getNorth(),
+      );
       const params = new URLSearchParams({
-        west: String(west),
-        south: String(Math.max(-90, b.getSouth())),
-        east: String(east),
-        north: String(Math.min(90, b.getNorth())),
+        west: String(nb.west),
+        south: String(nb.south),
+        east: String(nb.east),
+        north: String(nb.north),
         zoom: String(map.getZoom()),
       });
       fetch(`/api/map/locations?${params.toString()}`, {

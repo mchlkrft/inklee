@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { tattooMapEnabled } from "@/lib/map-features";
+import { toggleWatchCore } from "@/lib/server/map-watch";
 import {
   MAP_CORRECTION_REASONS,
   type MapCorrectionReason,
@@ -80,9 +81,9 @@ export async function submitMapCorrection(
 }
 
 /**
- * Toggle a watched studio. The watch row is written with the user-scoped
- * client (own-row RLS from 0076); the approved check runs first via the
- * service client so hidden or pending locations cannot be probed or watched.
+ * Toggle a watched studio. Delegates to the shared toggleWatchCore (also used
+ * by the mobile route) so web and native cannot drift; this wrapper adds the
+ * web concerns only (flag gate, cookie auth, revalidate).
  */
 export async function toggleWatchAction(
   mapLocationId: string,
@@ -94,37 +95,7 @@ export async function toggleWatchAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const { data: location } = await serviceClient
-    .from("map_locations")
-    .select("id")
-    .eq("id", mapLocationId)
-    .eq("moderation_status", "approved")
-    .maybeSingle();
-  if (!location) return { error: "This place is not on the map." };
-
-  const { data: existing } = await supabase
-    .from("watched_studios")
-    .select("id")
-    .eq("map_location_id", mapLocationId)
-    .eq("artist_user_id", user.id)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from("watched_studios")
-      .delete()
-      .eq("id", existing.id as string);
-    if (error) return { error: "Could not update your watched list." };
-    revalidatePath("/map");
-    return { watched: false };
-  }
-
-  const { error } = await supabase.from("watched_studios").insert({
-    artist_user_id: user.id,
-    map_location_id: mapLocationId,
-  });
-  if (error && error.code !== "23505")
-    return { error: "Could not update your watched list." };
-  revalidatePath("/map");
-  return { watched: true };
+  const result = await toggleWatchCore(supabase, user.id, mapLocationId);
+  if (!result.error) revalidatePath("/map");
+  return result;
 }

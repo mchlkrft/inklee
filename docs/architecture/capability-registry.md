@@ -45,6 +45,7 @@ mobile 0.2.0+ additionally hides entry points.
 | `custom_templates` | Restrict editing email-template bodies to Plus | Every tier can **edit** (today's behaviour); existing bodies always keep SENDING regardless | `canEditTemplates`; `settings/emails` save action + mobile email-templates route |
 | `analytics` | Gate advanced analytics to Plus (for all, no grandfather) | Advanced analytics visible to **everyone** | `canSeeAdvancedAnalytics`; the artist analytics view |
 | `entitlement_caps` | Enforce the custom-field / active-trip / studio-library caps (block-new, keep-existing) | Caps **not enforced** (unlimited); existing items never touched | `capState`; the field/trip/studio create paths (web + mobile) |
+| `tattoo_map` | Kill switch for the NATIVE tattoo-map surface (2026-07-26). Default: ENABLED (not in `DISABLED_CAPABILITIES`); list it there to pause | Nav entry hidden + discover screen shows an unavailable message + its queries stop (client); every `/api/mobile/map/*` route refuses `capability_disabled` (server); the WEB map is separately gated by `NEXT_PUBLIC_TATTOO_MAP` (the platform launch gate, which the mobile routes also re-check) | `mapMobileGate` in `api/mobile/map/_lib.ts`; `useCapability("tattoo_map")` in `travel/index.tsx` + `travel/discover.tsx` |
 
 Removal condition: never while the tiers exist (permanent entitlement enforcement); re-verify wiring each review.
 

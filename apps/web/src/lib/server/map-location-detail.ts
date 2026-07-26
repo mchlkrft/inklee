@@ -27,32 +27,8 @@ function safeHttpUrl(value: string | null): string | null {
   }
 }
 
-export type MapLocationDetail = {
-  id: string;
-  name: string;
-  category: string;
-  claimed: boolean;
-  /** Seed pin nobody has claimed: its details are a snapshot, so we say so. */
-  unverified: boolean;
-  /** When an owner last confirmed the data (claim or edit); null for seeds. */
-  lastConfirmedAt: string | null;
-  /** An admin flagged this from a "closed"/"outdated" report; a soft warning. */
-  possiblyClosed: boolean;
-  signal: string | null;
-  address: string | null;
-  city: string | null;
-  country: string | null;
-  website: string | null;
-  instagram: string | null;
-  phone: string | null;
-  openingHours: string | null;
-  watched: boolean;
-  styles: StudioStylesForDisplay | null;
-  houseRules: { key: string; content: string }[];
-  timeline: StudioTimeline | null;
-  requestable: boolean;
-  ownStudio: boolean;
-};
+export type { MapLocationDetail } from "@inklee/shared/map-location-detail";
+import type { MapLocationDetail } from "@inklee/shared/map-location-detail";
 
 export async function getMapLocationDetail(
   id: string,

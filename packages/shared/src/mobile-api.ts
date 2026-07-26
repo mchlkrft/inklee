@@ -972,3 +972,71 @@ export type MobileSupportTicketDetail = {
 
 /** POST /api/mobile/support result (failures use the error envelope). */
 export type MobileSupportCreateResult = { id: string; reference: string };
+
+// ---------------------------------------------------------------------------
+// Tattoo map (native discovery surface, 2026-07-26). ADDITIVE per the wire
+// policy above. The pin/city/detail shapes are the SAME shared types the web
+// immersive shell renders (one map core, capability shells).
+
+import type { PublicArtistCity, PublicMapPin } from "./map-directory";
+import type { MapLocationDetail } from "./map-location-detail";
+
+/** GET /api/mobile/map/locations?west&south&east&north&zoom[&category] */
+export type MobileMapLocationsResponse = {
+  pins: PublicMapPin[];
+  capped: boolean;
+  total: number;
+};
+
+/** GET /api/mobile/map/search?q= */
+export type MobileMapSearchResponse = { results: PublicMapPin[] };
+
+/** GET /api/mobile/map/artists */
+export type MobileMapArtistsResponse = { cities: PublicArtistCity[] };
+
+/** GET /api/mobile/map/locations/[id] */
+export type MobileMapLocationDetailResponse = { detail: MapLocationDetail };
+
+/** POST /api/mobile/map/locations/[id]/watch */
+export type MobileMapWatchResult = { watched: boolean };
+
+/** GET /api/mobile/map/watched */
+export type MobileMapWatchedResponse = { ids: string[] };
+
+/** POST /api/mobile/map/locations/[id]/request result. */
+export type MobileGuestSpotRequestResult = { requestId: string };
+
+// ---------------------------------------------------------------------------
+// Billing management (2026-07-26). READ + statutory management only: the EU
+// withdrawal (Art. 11a) and ordinary cancellation (s312k) are post-purchase
+// LEGAL functions, not purchases — purchases stay web-only (decision D17, no
+// IAP), and the app shows no prices and no upgrade path.
+
+/** GET /api/mobile/billing/subscription */
+export type MobileBillingSubscription = {
+  /** An active/trialing/past_due subscription exists (mirrors the web read). */
+  hasActiveSubscription: boolean;
+  /** When the subscription ends or renews (ISO), when known. */
+  currentPeriodEnd: string | null;
+  /** Ordinary cancellation is already scheduled (keeps access until the end). */
+  cancelAtPeriodEnd: boolean;
+  /** The 14-day withdrawal window (null deadline = no concrete date known). */
+  withdrawal: {
+    hasSubscription: boolean;
+    deadline: string | null;
+    withinWindow: boolean;
+  };
+};
+
+/** POST /api/mobile/billing/withdraw result (mirrors WithdrawalResult). */
+export type MobileBillingWithdrawResult =
+  | { status: "no_subscription" }
+  | { status: "not_available"; reason: string }
+  | { status: "completed"; refundMinor: number; currency: string };
+
+/** POST /api/mobile/billing/cancel result (mirrors CancellationResult). */
+export type MobileBillingCancelResult =
+  | { status: "no_subscription" }
+  | { status: "not_active" }
+  | { status: "already_scheduled"; effectiveAt: string | null }
+  | { status: "scheduled"; effectiveAt: string | null };

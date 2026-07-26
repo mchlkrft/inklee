@@ -22,6 +22,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
 import { NavCardRow } from "@/components/NavCardRow";
 import { useApiQuery } from "@/lib/api";
+import { useCapability } from "@/lib/capabilities";
 import { useColors } from "@/lib/theme";
 import { useScrollHide } from "@/lib/scroll-hide";
 import { useTabBarClearance } from "@/lib/layout";
@@ -31,6 +32,7 @@ const ListGap = () => <View className="h-3" />;
 export default function TripsList() {
   const router = useRouter();
   const q = useApiQuery<MobileTripsResponse>("/travel/trips");
+  const mapEnabled = useCapability("tattoo_map");
   const colors = useColors();
   const onScroll = useScrollHide();
   const topBarHeight = useTopBarHeight();
@@ -68,6 +70,15 @@ export default function TripsList() {
           label="Studios"
           onPress={() => router.push("/travel/studios")}
         />
+        {/* Hidden while the tattoo_map capability is paused (the discover
+            screen itself explains if reached via a stale route). */}
+        {mapEnabled ? (
+          <NavCardRow
+            icon="earth-outline"
+            label="Tattoo map"
+            onPress={() => router.push("/travel/discover")}
+          />
+        ) : null}
         {q.data.items.length > 0 ? (
           <NavCardRow
             icon="map-outline"

@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import {
@@ -282,7 +283,13 @@ export async function withdrawFromSubscriptionAction(input: {
     return {
       message: `Your withdrawal is confirmed. Your subscription has ended and your account and data are kept.${refundLine}`,
     };
-  } catch {
+  } catch (e) {
+    // A refund that cannot be issued is a money-path failure: capture it, the
+    // user only sees "try again".
+    Sentry.captureException(e, {
+      tags: { action: "billing_withdraw" },
+      extra: { artistId: user.id },
+    });
     return {
       message:
         "Something went wrong processing your withdrawal. Please try again, or write to support@inklee.app.",

@@ -126,6 +126,7 @@ describe("capability registry", () => {
       "custom_templates",
       "analytics",
       "entitlement_caps",
+      "tattoo_map",
     ]);
     expect(isCapability("deposits")).toBe(true);
     expect(isCapability("entitlement_caps")).toBe(true);

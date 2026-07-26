@@ -68,6 +68,16 @@ per refund carrying the *cumulative* `amount_refunded`, and Stripe redelivers
 events. Never add a delta; compute the total that should have been applied and
 move only the difference under a row lock.
 
+## Native app changes: update the parity register
+
+`docs/web-native-parity.md` is the single tracked web-vs-native parity view
+(founder rule, 2026-07-26). Update it in the SAME change whenever you: add or
+modify a native screen or `/api/mobile/*` route, ship a web feature the app
+might need (add a row, even if the decision is web-only), change
+entitlement/capability wiring that touches mobile, or make a deliberate
+web-only/native-only decision. An out-of-date row is a bug; the register
+replaces re-auditing parity from scratch.
+
 ## Copy rules (user-visible strings)
 
 These apply to every string the artist or a public visitor can read: page copy, button labels, helper text, modal bodies, action error messages, email copy. They do NOT apply to code comments, log lines, or commit messages (where em-dashes etc. are fine for readability).

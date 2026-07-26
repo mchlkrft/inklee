@@ -1091,19 +1091,14 @@ export async function deleteTripLegCore(
 // "A guest artist" with dates only, everywhere. Artist privacy always caps the
 // studio setting. Decoupled from passport_public (the completed-stays passport).
 
-export type TimelineEntry = {
-  // null name = the artist opted out of naming (guest_naming_opt_out).
-  name: string | null;
-  slug: string | null;
-  startsOn: string;
-  endsOn: string;
-};
-
-export type StudioTimeline = {
-  current: TimelineEntry[];
-  upcoming: TimelineEntry[];
-  past: TimelineEntry[];
-};
+export type {
+  StudioTimeline,
+  TimelineEntry,
+} from "@inklee/shared/map-location-detail";
+import type {
+  StudioTimeline,
+  TimelineEntry,
+} from "@inklee/shared/map-location-detail";
 
 /**
  * Returns the timeline, or null when the studio has not opted in or is not

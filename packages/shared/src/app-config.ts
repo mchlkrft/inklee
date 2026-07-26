@@ -31,6 +31,9 @@ export const CAPABILITIES = [
   "custom_templates", // paused => every tier can edit email templates
   "analytics", // paused => advanced analytics visible to everyone
   "entitlement_caps", // paused => custom-field/trip/studio caps not enforced
+  // The native tattoo-map surface (map-features.ts note: the mobile map ships
+  // capability-killable; the web env flag stays the web launch gate for now):
+  "tattoo_map", // paused => native map hidden + /api/mobile/map/* refuses
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 

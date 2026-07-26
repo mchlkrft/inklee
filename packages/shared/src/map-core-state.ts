@@ -27,6 +27,35 @@ export const DEFAULT_MAP_VIEWPORT: MapViewport = {
   zoom: 3,
 };
 
+/**
+ * Normalize raw renderer bounds into a server-safe bbox. MapLibre (web AND
+ * native) reports UNWRAPPED longitudes when the camera crosses the
+ * antimeridian or shows more than a full world, and the viewport API rejects
+ * out-of-range values. Wrap each edge, fall back to the full range across the
+ * antimeridian / whole world, and clamp latitudes. One helper for both
+ * clients so the query contract can never drift.
+ */
+export function normalizeViewportBounds(
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+): { west: number; south: number; east: number; north: number } {
+  const wrapLng = (l: number) => ((((l + 180) % 360) + 360) % 360) - 180;
+  let w = wrapLng(west);
+  let e = wrapLng(east);
+  if (east - west >= 360 || w >= e) {
+    w = -180;
+    e = 180;
+  }
+  return {
+    west: w,
+    south: Math.max(-90, south),
+    east: e,
+    north: Math.min(90, north),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // One filter state. Mirrors the discovery chip set exactly so the same state
 // drives the map AND (later) the list, with no second filtering path. Category

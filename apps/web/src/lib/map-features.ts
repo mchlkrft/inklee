@@ -4,10 +4,12 @@
 // flips it per environment in Vercel. Routes gated by it must notFound()
 // when off, and server routes must re-check it (defense in depth).
 //
-// This is a launch gate, not an operational kill-switch: when the MOBILE map
-// surface ships, a `tattoo_map` capability gets registered in the capability
-// plane (docs/architecture/capability-registry.md) and this env flag retires
-// per the one-owner-per-behavior rule.
+// This is a launch gate, not an operational kill-switch. Ratified split
+// (2026-07-26, native map ship): this env flag stays the PLATFORM launch gate
+// for the tattoo map (web routes AND the /api/mobile/map/* twins re-check it),
+// while the `tattoo_map` capability (docs/architecture/capability-registry.md)
+// is the NATIVE operational kill switch layered on top. Two owners, two
+// behaviors: "is the map launched" vs "pause the native surface".
 export function tattooMapEnabled(): boolean {
   return process.env.NEXT_PUBLIC_TATTOO_MAP === "true";
 }

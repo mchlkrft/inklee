@@ -13,17 +13,17 @@ import { STYLE_SEED } from "@inklee/shared/map-directory";
 const STYLE_LABEL = new Map(STYLE_SEED.map((s) => [s.key, s.label] as const));
 const styleLabel = (key: string): string => STYLE_LABEL.get(key) ?? key;
 
-export type StudioStyleChip = { key: string; label: string };
-export type GuestStyleChip = StudioStyleChip & {
-  count: number;
-  showCount: boolean;
-};
-export type StudioStylesForDisplay = {
-  specialties: StudioStyleChip[];
-  guestStyles: GuestStyleChip[];
-  isEmpty: boolean;
-};
+import type {
+  GuestStyleChip,
+  StudioStyleChip,
+  StudioStylesForDisplay,
+} from "@inklee/shared/map-location-detail";
 
+export type {
+  GuestStyleChip,
+  StudioStyleChip,
+  StudioStylesForDisplay,
+} from "@inklee/shared/map-location-detail";
 const EMPTY: StudioStylesForDisplay = {
   specialties: [],
   guestStyles: [],
