@@ -915,7 +915,7 @@ const LIGHT: Ink = {
 ${fmt(light)}
 };
 
-// apps/web/src/app/(artist)/map/discovery-map-client.tsx
+// apps/web/src/app/(artist)/map/core/map-canvas.tsx (discovery-map-client retired)
 const CATEGORY_COLOR_DARK = {
   tattoo_studio: "${darkPins.tattooStudio}",
   private_studio: "${darkPins.privateStudio}",

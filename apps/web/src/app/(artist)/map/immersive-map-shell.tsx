@@ -58,7 +58,8 @@ import MapDetailPanel from "./map-detail-panel";
 // pill nav floats as a compact full-height rail (the real SidebarItem, so
 // future menu changes carry over); the zoom control and a dark/light toggle
 // float top right. Capability layer over the core (the SAME MapCanvas backs the
-// public shell later). Rendered only when `mapImmersiveShellEnabled()`.
+// public shell later). Rendered whenever tattooMapEnabled() (the boxed
+// discovery fallback was retired 2026-07-25).
 
 const RAIL_ITEMS = SIDEBAR_NAV.flatMap((group) => group.items);
 

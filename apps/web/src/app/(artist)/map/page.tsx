@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { tattooMapEnabled, mapImmersiveShellEnabled } from "@/lib/map-features";
+import { tattooMapEnabled } from "@/lib/map-features";
 import { listTravelJourney, hasTravelEntries } from "@/lib/server/travel-map";
 import {
   groupJourneyByTrip,
@@ -86,44 +86,17 @@ async function DiscoveryMapPage() {
     (w) => w.map_location_id as string,
   );
 
-  // Immersive shell (map redesign Slice 1): the full-viewport map core takes
-  // over the whole screen behind its own flag. When off, the boxed discovery
-  // card below renders unchanged.
-  if (mapImmersiveShellEnabled()) {
-    const { default: ImmersiveMapShell } =
-      await import("./immersive-map-shell");
-    return (
-      <ImmersiveMapShell
-        journey={journey}
-        watchedIds={watchedIds}
-        capabilities={artistMapCapabilities(user.id)}
-      />
-    );
-  }
-
-  const { default: DiscoveryMapClient } =
-    await import("./discovery-map-client");
-
+  // Immersive shell (map redesign Slice 1): the full-viewport map core is THE
+  // discovery surface. The legacy boxed discovery card was retired 2026-07-25
+  // (founder direction after the prod soak + the tablet/mobile optimization);
+  // NEXT_PUBLIC_TATTOO_MAP remains the feature kill switch above.
+  const { default: ImmersiveMapShell } = await import("./immersive-map-shell");
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-foreground">Tattoo map</h1>
-        <p className="text-sm text-muted-foreground">
-          Studios and shops, hand-curated. Snoop around, watch the places you
-          like, and plan where to guest spot next. Your own trips can overlay
-          the map with the My trips toggle.
-        </p>
-      </header>
-      <DiscoveryMapClient journey={journey} watchedIds={watchedIds} />
-      <p className="text-xs text-muted-foreground">
-        Your studio? Claim it from its map page. Reporting something wrong
-        arrives in a later update. Your travel planner stays in{" "}
-        <Link href="/travel" className="underline hover:text-foreground">
-          Guest Spots
-        </Link>
-        .
-      </p>
-    </div>
+    <ImmersiveMapShell
+      journey={journey}
+      watchedIds={watchedIds}
+      capabilities={artistMapCapabilities(user.id)}
+    />
   );
 }
 

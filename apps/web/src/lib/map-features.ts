@@ -12,18 +12,12 @@ export function tattooMapEnabled(): boolean {
   return process.env.NEXT_PUBLIC_TATTOO_MAP === "true";
 }
 
-// Immersive map shell (map redesign Slice 1): the full-viewport canvas + rail +
-// detail panel + URL state, built on the one shared map core. Fail-closed,
-// default OFF everywhere and additive to `tattooMapEnabled()` — it only has any
-// effect while the tattoo map itself is on. When off, `/map` renders the
-// existing boxed discovery card byte-identically. The founder flips it per
-// environment in Vercel once the new core is verified; retiring the legacy
-// boxed client happens only after that.
-export function mapImmersiveShellEnabled(): boolean {
-  return (
-    tattooMapEnabled() && process.env.NEXT_PUBLIC_MAP_IMMERSIVE_SHELL === "true"
-  );
-}
+// RETIRED 2026-07-25: `mapImmersiveShellEnabled()` + NEXT_PUBLIC_MAP_IMMERSIVE_SHELL.
+// The immersive shell soaked in prod (flipped 2026-07-22, founder-verified) and
+// is now THE discovery surface whenever `tattooMapEnabled()`; the legacy boxed
+// discovery client was deleted with it. The env var can be removed from Vercel
+// at leisure (it is no longer read). The classic journey map remains the
+// tattooMapEnabled()-off kill-switch fallback.
 
 // Server-only perf flag (map redesign Slice 2): route the viewport pins query
 // to the index-using v2 RPCs (migration 0101). NOT NEXT_PUBLIC — it never

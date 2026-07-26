@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { mapImmersiveShellEnabled } from "@/lib/map-features";
+import { tattooMapEnabled } from "@/lib/map-features";
 import { MOBILE_BOTTOM_NAV, isItemActive } from "./nav-config";
 
 export default function MobileBottomNav({
@@ -21,7 +21,7 @@ export default function MobileBottomNav({
   // On the immersive map the shell renders its own copy above the overlay; the
   // layout copy would sit buried but focusable beneath it (duplicate landmark,
   // ghost tab stops). Both flags are NEXT_PUBLIC, so this is client-safe.
-  if (!inMapShell && pathname === "/map" && mapImmersiveShellEnabled()) {
+  if (!inMapShell && pathname === "/map" && tattooMapEnabled()) {
     return null;
   }
 

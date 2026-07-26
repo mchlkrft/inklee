@@ -26,14 +26,12 @@ import type { MapFilterKind, MapViewport } from "@inklee/shared/map-core-state";
 // The ONE rendering engine for the map redesign. This is the discovery map's
 // proven, founder-tuned MapLibre setup (2026-07-20 colors, no client
 // clustering, the Q7 signal ring, labels minzoom 10) lifted verbatim out of
-// the boxed discovery-map-client into a reusable canvas that reports viewport
-// changes and selections up, and exposes an imperative flyTo. Every shell
-// (immersive, and later public) renders through this one component; the boxed
-// discovery-map-client stays as the flag-off path until this is verified, then
-// retires.
+// the retired boxed discovery client into a reusable canvas that reports
+// viewport changes and selections upward. The immersive shell is the only
+// consumer today; the future public shell renders through this same core.
 
 // Category ink on the branded base (dark: mustard/rosa/bone; light: charcoal
-// family). Kept in lockstep with the legacy client until it is removed.
+// family).
 const CATEGORY_COLOR_DARK: Record<MapLocationCategory, string> = {
   tattoo_studio: "#e9b22b",
   private_studio: "#db88b9",
