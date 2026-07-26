@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
+  Info,
   MapPin,
   Minus,
   Moon,
@@ -112,6 +113,7 @@ export default function ImmersiveMapShell({
   });
   const [railExpanded, setRailExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
+  const [attributionOpen, setAttributionOpen] = useState(false);
   const [inViewPins, setInViewPins] = useState<PublicMapPin[]>([]);
   const [expandedPin, setExpandedPin] = useState<PublicMapPin | null>(null);
 
@@ -333,7 +335,7 @@ export default function ImmersiveMapShell({
     // The scheme drives both the basemap and the semantic tokens, so dark/light
     // is one switch and the whole surface is native-ready.
     <div
-      className={`fixed inset-0 z-[60] bg-[color:var(--color-shell-bg)] p-3 text-brand-bone ${
+      className={`fixed inset-0 z-[60] bg-[color:var(--color-shell-bg)] p-3 pb-[calc(env(safe-area-inset-bottom,0px)_+_2.75rem)] text-brand-bone md:pb-3 ${
         scheme === "dark" ? "dark" : ""
       }`}
       data-appearance={scheme === "light" ? "light" : undefined}
@@ -368,7 +370,7 @@ export default function ImmersiveMapShell({
             the rail. */}
         {viewMode === "list" ? (
           <div
-            className={`absolute bottom-[calc(env(safe-area-inset-bottom)_+_6.5rem)] left-3 right-3 top-[64px] z-20 touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur transition-[left] duration-200 md:bottom-3 md:right-auto md:w-[340px] ${
+            className={`absolute bottom-[4.5rem] left-3 right-3 top-[64px] z-20 touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur transition-[left] duration-200 md:bottom-3 md:right-auto md:w-[340px] ${
               railExpanded ? "md:left-[232px]" : "md:left-[88px]"
             }`}
           >
@@ -624,7 +626,7 @@ export default function ImmersiveMapShell({
         ) : null}
         {/* Map/List toggle: on phones it floats above the bottom nav (clear of
             the raised center FAB); from md it sits on the bottom-3 baseline. */}
-        <div className="absolute bottom-[calc(env(safe-area-inset-bottom)_+_7rem)] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border bg-background/95 p-0.5 shadow-lg backdrop-blur md:bottom-3">
+        <div className="absolute bottom-[4.75rem] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border bg-background/95 p-0.5 shadow-lg backdrop-blur md:bottom-3">
           {(["map", "list"] as const).map((m) => (
             <button
               key={m}
@@ -645,34 +647,30 @@ export default function ImmersiveMapShell({
         {/* Attribution as a custom pill, so it matches the height + baseline of
             the count and the toggle (bottom-3, 30px). */}
         <div
-          className={`pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)_+_4.75rem)] right-3 z-20 h-[30px] max-w-[calc(50vw_-_3rem)] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur md:bottom-3 md:max-w-[60vw] ${
+          className={`pointer-events-auto absolute bottom-10 right-3 z-20 flex items-center md:bottom-3 ${
             scheme === "dark" ? "text-brand-rosa" : "text-muted-foreground"
           }`}
         >
-          <a
-            href="https://maplibre.org/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 transition-colors hover:text-foreground"
+          {/* Phones: a collapsed round "i" pill; tapping unfolds the links
+              (the wide pill wrapped and sat off-center at phone widths). */}
+          {attributionOpen ? (
+            <div className="mr-2 flex h-10 max-w-[calc(100vw_-_7.5rem)] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur md:hidden">
+              <AttributionLinks />
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setAttributionOpen((v) => !v)}
+            aria-expanded={attributionOpen}
+            aria-label="Map attribution"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-background/85 shadow-sm backdrop-blur transition-colors hover:text-foreground md:hidden"
           >
-            MapLibre
-          </a>
-          <a
-            href="https://carto.com/attributions"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 transition-colors hover:text-foreground"
-          >
-            © CARTO
-          </a>
-          <a
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate transition-colors hover:text-foreground"
-          >
-            © OpenStreetMap contributors
-          </a>
+            <Info className="h-4 w-4" aria-hidden />
+          </button>
+          {/* md+: the flat pill, unchanged. */}
+          <div className="hidden h-[30px] max-w-[60vw] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur md:flex">
+            <AttributionLinks />
+          </div>
         </div>
 
         {/* Selected city panel (bottom sheet on mobile, bottom-right card on
@@ -684,7 +682,7 @@ export default function ImmersiveMapShell({
             aria-modal="false"
             aria-label={`Artists in ${selectedCity.cityLabel}`}
             tabIndex={-1}
-            className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)_+_0.75rem)] z-40 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur lg:bottom-3 lg:left-auto lg:right-3 lg:z-20 lg:w-80"
+            className="absolute inset-x-3 bottom-10 z-40 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur md:bottom-3 lg:left-auto lg:right-3 lg:z-20 lg:w-80"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -739,7 +737,7 @@ export default function ImmersiveMapShell({
             aria-modal="false"
             aria-label={selected.name}
             tabIndex={-1}
-            className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)_+_0.75rem)] z-40 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur lg:bottom-3 lg:left-auto lg:right-3 lg:z-20 lg:w-80"
+            className="absolute inset-x-3 bottom-10 z-40 max-w-sm space-y-2 rounded-2xl border border-border bg-background/95 p-3 shadow-lg outline-none backdrop-blur md:bottom-3 lg:left-auto lg:right-3 lg:z-20 lg:w-80"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -813,5 +811,37 @@ export default function ImmersiveMapShell({
           screen). Open panels stack above it (z-40) like a bottom sheet. */}
       <MobileBottomNav inMapShell />
     </div>
+  );
+}
+
+// The three license links, shared by the desktop pill and the phone unfold.
+function AttributionLinks() {
+  return (
+    <>
+      <a
+        href="https://maplibre.org/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="shrink-0 transition-colors hover:text-foreground"
+      >
+        MapLibre
+      </a>
+      <a
+        href="https://carto.com/attributions"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="shrink-0 transition-colors hover:text-foreground"
+      >
+        © CARTO
+      </a>
+      <a
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="truncate transition-colors hover:text-foreground"
+      >
+        © OpenStreetMap contributors
+      </a>
+    </>
   );
 }

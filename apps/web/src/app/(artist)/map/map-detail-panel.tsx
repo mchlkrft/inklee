@@ -104,7 +104,7 @@ export default function MapDetailPanel({
       aria-modal="false"
       aria-label={pin.name}
       tabIndex={-1}
-      className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)_+_0.75rem)] z-40 flex max-h-[72vh] flex-col supports-[height:1dvh]:max-h-[72dvh] overflow-hidden rounded-2xl border border-border bg-background/95 shadow-lg outline-none backdrop-blur lg:bottom-3 lg:top-3 lg:left-auto lg:right-3 lg:w-96 lg:max-h-none"
+      className="absolute inset-x-3 bottom-10 z-40 flex max-h-[72vh] flex-col supports-[height:1dvh]:max-h-[72dvh] overflow-hidden rounded-2xl border border-border bg-background/95 shadow-lg outline-none backdrop-blur md:bottom-3 lg:bottom-3 lg:top-3 lg:left-auto lg:right-3 lg:w-96 lg:max-h-none"
     >
       <div className="flex items-start justify-between gap-2 border-b border-border p-3">
         <div className="min-w-0">
