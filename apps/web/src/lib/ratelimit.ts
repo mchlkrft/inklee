@@ -210,3 +210,15 @@ const publicMapSearchRl = makeLimit(
 export async function checkPublicMapSearchRateLimit(ip: string) {
   return check(publicMapSearchRl, ip);
 }
+
+// Studio media proxy (go-live plan S2b): image fan-out, so the ceiling is far
+// above the detail budget. One studio page can request a logo plus a dozen
+// photos, and browsers parallelize them; CDN hits never reach the function,
+// so this only meters misses and enumeration attempts.
+const studioMediaRl = makeLimit(
+  Ratelimit.slidingWindow(300, "1 m"),
+  "inklee:studio-media",
+);
+export async function checkStudioMediaRateLimit(ip: string) {
+  return check(studioMediaRl, ip);
+}

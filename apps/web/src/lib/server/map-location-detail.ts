@@ -1,5 +1,6 @@
 import "server-only";
 import { serviceClient } from "@/lib/supabase/service";
+import { publicMapEnabled } from "@/lib/map-features";
 import {
   getStudioStyles,
   type StudioStylesForDisplay,
@@ -80,10 +81,11 @@ async function loadDetail(id: string): Promise<LoadedDetail | null> {
   let timeline: StudioTimeline | null = null;
   let requestable = false;
   let ownerUserId: string | null = null;
+  let studioSlug: string | null = null;
   if (studioProfileId) {
     const { data: studio } = await serviceClient
       .from("studio_profiles")
-      .select("owner_user_id, publication_status, guest_spot_status")
+      .select("owner_user_id, publication_status, guest_spot_status, slug")
       .eq("id", studioProfileId)
       .maybeSingle();
     ownerUserId = (studio?.owner_user_id as string | null) ?? null;
@@ -91,6 +93,15 @@ async function loadDetail(id: string): Promise<LoadedDetail | null> {
       studio?.publication_status === "published" &&
       studio.guest_spot_status === "accepting";
     if (studio?.publication_status === "published") {
+      // Only a claimed + published studio has a rendering entity page, and
+      // only once the public surface is live: /studios/[slug] 404s while the
+      // flag is off, so exposing the slug earlier would put a dead link on
+      // the authed map. Gated at the source so both link sites and the
+      // mobile twin inherit it.
+      studioSlug =
+        claimed && publicMapEnabled()
+          ? ((studio.slug as string | null) ?? null)
+          : null;
       [houseRules, timeline, styles] = await Promise.all([
         getPublishedHouseRules(studioProfileId),
         getStudioGuestTimeline(studioProfileId),
@@ -122,6 +133,7 @@ async function loadDetail(id: string): Promise<LoadedDetail | null> {
       houseRules,
       timeline,
       requestable,
+      studioSlug,
     },
     ownerUserId,
   };

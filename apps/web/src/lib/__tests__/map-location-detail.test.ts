@@ -146,6 +146,7 @@ describe("getPublicMapLocationDetail (anonymous plane)", () => {
         "possiblyClosed",
         "requestable",
         "signal",
+        "studioSlug",
         "styles",
         "timeline",
         "unverified",

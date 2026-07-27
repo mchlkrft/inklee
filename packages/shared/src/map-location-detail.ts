@@ -63,6 +63,12 @@ export type MapLocationDetailShared = {
   houseRules: { key: string; content: string }[];
   timeline: StudioTimeline | null;
   requestable: boolean;
+  /**
+   * The claimed studio's public entity page slug (/studios/<slug>), when it
+   * has one and is published. Null for seeds, drafts, and unclaimed rows, so
+   * the map only ever links to a page that actually renders (S2b).
+   */
+  studioSlug: string | null;
 };
 
 /** Viewer-dependent decoration; never part of a public payload. */

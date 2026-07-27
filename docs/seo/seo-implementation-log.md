@@ -26,6 +26,30 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 
 ---
 
+### 2026-07-27 — Public map slices S2 and S2b: `/map` robots correction and the claimed studio entity page (built, dark)
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** "Public tattoo map and local studio discovery" (the 2026-07-23 ratified decision, implemented here for the first time: `/map` as a `noindex, follow` utility, `/studios/{studio-slug}` as the canonical entity page for claimed profiles past the full quality gate, unclaimed seeds never indexable, city and style pages untouched). No new keyword ownership, no new intent, no proposal filed: this builds exactly what the decision log already assigned. Founder decision D1 (`DECISIONS.md`, 2026-07-27) moved the entity pages into the v1 public launch.
+
+**Files changed:** `apps/web/src/app/(map)/map/page.tsx` and `(map)/map/[id]/page.tsx` (moved out of `(artist)`, own metadata), `apps/web/src/app/studios/[slug]/page.tsx` (new), `apps/web/src/app/studios/sitemap.ts` (new), `apps/web/src/app/api/studio-media/[studioId]/[file]/route.ts` (new), `apps/web/src/app/robots.ts`, `apps/web/src/lib/jsonld.ts`, `packages/shared/src/studio-page.ts` (new), `apps/web/src/lib/server/studio-page.ts` (new), `apps/web/src/lib/server/studios.ts`, `apps/web/src/lib/server/map-location-detail.ts`, `packages/shared/src/map-location-detail.ts`, tests, this log.
+
+**Implementation:** Two corrections and one new surface, all dark behind `publicMapEnabled()`.
+
+Corrections: `/map` and `/map/[id]` previously rendered `noindex, nofollow` (inherited from the `(artist)` layout) and inherited the root layout's canonical to `/`, contradicting the strategy's `noindex, follow` and self-canonical requirement. Both now declare their own `robots: { index: false, follow: true }` and self-referencing canonicals. No sitemap or `MARKETING_ROUTES` change.
+
+New surface: `/studios/[slug]`, the canonical public entity page for a claimed studio. Indexation is decided by one pure gate (`studioPageIndexability`) implementing the strategy's eight conditions as per-row checks: claimed, published, publish minimums recomputed at read time, map entry approved with no possibly-closed state and no open duplicate suggestion, a real description, a city or country, and the public surface live. Anything failing renders `noindex, follow`; anything not claimed, published and approved returns 404 rather than a thin page. `WebPage` + `TattooParlor` + `BreadcrumbList` JSON-LD is emitted only on gate-passing pages, carries only what the page visibly renders, and never emits `aggregateRating`, reviews, opening hours, or the stored social link (claim evidence, not owner-published content). Street address and `GeoCoordinates` are published only when the owner shows the exact address AND the category is not `private_studio`.
+
+Slug: `studio_profiles.slug` (reserved since 0078, never routed) is minted at claim approval and at first publish, validated against `RESERVED_SLUGS`, and never changes afterwards, so a page that has been indexable keeps its URL with no redirect table. Media: a stable proxy at `/api/studio-media/{studioId}/{file}` re-checks the render gate per request and streams from the still-private bucket, because an indexable page must not reference expiring signed URLs; `robots.ts` gained a narrow `allow` for that prefix so the images stay crawlable under the blanket `/api/` disallow. Sitemap: `/studios/sitemap.xml`, generated from the indexability gate alone, deliberately separate from `MARKETING_ROUTES` so studio URLs can never reach IndexNow, and announced in `robots.txt` only when the public surface is live.
+
+**Validation performed:** `pnpm typecheck` clean, `pnpm lint` 0 errors, full vitest suite green with 51 new tests across the gate, slug minting, JSON-LD constraints, the server read model, and page metadata per gate state (including: a throttled request is never indexable, a private studio never publishes its address or point, an open duplicate blocks indexation, and everything is `noindex` while the public map is dark). Production build clean with `/studios/[slug]` and `/studios/sitemap.xml` registered. A 3-lens adversarial review (SEO/legal, security/privacy, correctness) ran against the slice; its findings are applied, including dropping the claim-evidence social link from `sameAs`, the robots allow for the media proxy, and making a throttled response non-indexable.
+
+**Remaining issues:** Nothing is indexable yet: every surface here is dark behind `publicMapEnabled()`, and the gate's `publicSurfaceReady` condition means the sitemap is empty and every page `noindex` until the flip. Production currently has zero claimed studios and zero studio profiles (measured 2026-07-27), so the first indexable page will appear only after a real claim is approved and published. City and style directory pages remain unbuilt and out of scope per the strategy.
+
+**Commit:** _(added on commit)_
+
+---
+
 ### 2026-07-26 — Tattoo map integrated into the marketing narrative (no indexation change, public links gated)
 
 **Implemented by:** Claude Code

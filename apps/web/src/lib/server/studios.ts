@@ -1164,6 +1164,27 @@ export async function setPublicationCore(
     .eq("owner_user_id", userId);
   if (error) return { error: "Could not update your studio." };
 
+  // First publish mints the permanent public slug (/studios/<slug>). One
+  // assignment site, never recomputed: a later rename keeps the URL, so a
+  // page that has been indexable never silently moves (go-live plan S2b).
+  // Best-effort: a slug failure must not fail an otherwise valid publish;
+  // the page simply has no public URL until the next publish retries it.
+  if (publish) {
+    try {
+      const { ensureStudioSlug } = await import("@/lib/server/studio-page");
+      const minted = await ensureStudioSlug(studioId);
+      if (minted.error) {
+        console.error("[studios] slug minting failed:", minted.error, {
+          studioId,
+        });
+      }
+    } catch (err) {
+      // Enforced by code, not by comment: a slug failure never fails an
+      // otherwise valid publish.
+      console.error("[studios] slug minting threw:", err);
+    }
+  }
+
   // "Unpublish to take it off the map" must be true (integration sweep
   // finding): unpublishing hides the linked map entry; republishing sends it
   // back through admin review (the cockpit already renders that state).
@@ -1363,7 +1384,7 @@ export async function approveClaimCore(
   const { data: location } = await serviceClient
     .from("map_locations")
     .select(
-      "id, name, address, city, country, postal_code, claim_status, studio_profile_id",
+      "id, name, address, city, country, postal_code, category, claim_status, studio_profile_id",
     )
     .eq("id", locationId)
     .maybeSingle();
@@ -1394,6 +1415,13 @@ export async function approveClaimCore(
         city: (location.city as string | null) ?? null,
         country: (location.country as string | null) ?? null,
         postal_code: (location.postal_code as string | null) ?? null,
+        // A private studio starts APPROXIMATE, never at the column default
+        // of 'exact': the owner was never asked at claim time, and the locked
+        // scope rule is that a private studio is not shown at its exact
+        // position. They can opt into showing the address in the editor.
+        ...((location.category as string) === "private_studio"
+          ? { address_visibility: "approximate" }
+          : {}),
         settings: { social_links: [claim.social_link] },
       })
       .select("id")
@@ -1425,6 +1453,23 @@ export async function approveClaimCore(
           : "This location is already claimed.",
       };
     }
+  }
+
+  // Mint the permanent public slug at approval too, not only at first
+  // publish: the studio starts as a draft, but assigning here means the URL
+  // is settled before any public surface can reference it (go-live plan S2b).
+  // Best-effort by construction, like the publish path.
+  try {
+    const { ensureStudioSlug } = await import("@/lib/server/studio-page");
+    const minted = await ensureStudioSlug(studioId);
+    if (minted.error) {
+      console.error("[studios] slug minting failed at claim approval:", {
+        studioId,
+        error: minted.error,
+      });
+    }
+  } catch (err) {
+    console.error("[studios] slug minting threw at claim approval:", err);
   }
 
   const now = new Date().toISOString();

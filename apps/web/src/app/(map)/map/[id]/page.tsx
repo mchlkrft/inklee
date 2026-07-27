@@ -172,6 +172,14 @@ export default async function MapLocationPage({
           )}
         </div>
         <p className="text-sm text-muted-foreground">{categoryLabel}</p>
+        {shared.studioSlug ? (
+          <Link
+            href={`/studios/${shared.studioSlug}`}
+            className="inline-block text-xs text-foreground underline underline-offset-2"
+          >
+            Open the studio page
+          </Link>
+        ) : null}
         {shared.claimed && shared.lastConfirmedAt ? (
           <p className="text-xs text-muted-foreground">
             Confirmed by the studio on{" "}

@@ -386,7 +386,17 @@ export default function MapDetailPanel({
         )}
       </div>
 
-      <div className="border-t border-border p-3">
+      <div className="space-y-2 border-t border-border p-3">
+        {/* A claimed + published studio has its own public entity page; the
+            in-map detail links out to it (S2b). */}
+        {detail?.studioSlug ? (
+          <Link
+            href={`/studios/${detail.studioSlug}`}
+            className="block rounded-md border border-border px-3 py-3 text-center text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-2"
+          >
+            Open the studio page
+          </Link>
+        ) : null}
         <Link
           href={`/map/${pin.id}`}
           className="block rounded-md border border-border px-3 py-3 text-center text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-2"

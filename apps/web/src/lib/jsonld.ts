@@ -56,6 +56,68 @@ export function webPageSchema(input: {
   };
 }
 
+/**
+ * A claimed studio's entity markup (go-live plan S2b). Emitted ONLY for pages
+ * that pass the full indexability gate, and only from owner-declared,
+ * consented data that is also visible on the page.
+ *
+ * Deliberately NOT emitted, per the ratified SEO strategy: `aggregateRating`
+ * or any review markup (no review system exists), `openingHours` (never
+ * confirmed data), true coordinates or a street address for
+ * approximate-location studios (the caller passes geo only for studios
+ * showing an exact address), and anything inferred rather than declared.
+ */
+export function localBusinessSchema(input: {
+  name: string;
+  url: string;
+  description: string | null;
+  city: string | null;
+  country: string | null;
+  streetAddress: string | null;
+  geo: { lat: number; lng: number } | null;
+  images: string[];
+  sameAs: string[];
+}): JsonLd {
+  const address: Record<string, string> = { "@type": "PostalAddress" };
+  if (input.streetAddress) address.streetAddress = input.streetAddress;
+  if (input.city) address.addressLocality = input.city;
+  if (input.country) address.addressCountry = input.country;
+
+  const schema: JsonLd = {
+    "@context": "https://schema.org",
+    "@type": "TattooParlor",
+    name: input.name,
+    url: input.url,
+  };
+  if (input.description) schema.description = input.description;
+  if (Object.keys(address).length > 1) schema.address = address;
+  if (input.geo) {
+    schema.geo = {
+      "@type": "GeoCoordinates",
+      latitude: input.geo.lat,
+      longitude: input.geo.lng,
+    };
+  }
+  if (input.images.length > 0) schema.image = input.images;
+  if (input.sameAs.length > 0) schema.sameAs = input.sameAs;
+  return schema;
+}
+
+export function breadcrumbListSchema(
+  items: Array<{ name: string; url: string }>,
+): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+}
+
 /** @deprecated use FaqItem from @/lib/marketing */
 export type FaqEntry = FaqItem;
 
