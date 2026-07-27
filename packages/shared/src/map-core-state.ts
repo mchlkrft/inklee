@@ -76,6 +76,22 @@ export type QuantizedMapQuery = {
   zoom: number;
 };
 
+/**
+ * The ONE viewport-request builder both planes use (go-live plan S2 wiring):
+ * the public plane quantizes for cache-key collisions, the authed plane
+ * passes raw bounds through untouched. The canvas builds its fetch URL from
+ * this so the plane behavior is test-locked instead of inlined.
+ */
+export function viewportRequestQuery(
+  bounds: { west: number; south: number; east: number; north: number },
+  zoom: number,
+  publicPlane: boolean,
+): QuantizedMapQuery {
+  return publicPlane
+    ? quantizeViewportQuery(bounds, zoom)
+    : { ...bounds, zoom };
+}
+
 export function quantizeViewportQuery(
   bounds: { west: number; south: number; east: number; north: number },
   zoom: number,

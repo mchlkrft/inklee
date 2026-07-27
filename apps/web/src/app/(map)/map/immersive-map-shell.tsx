@@ -45,6 +45,12 @@ import {
   type MapFilterKind,
   type MapViewport,
 } from "@inklee/shared/map-core-state";
+import { publicMapEnabled } from "@/lib/map-features";
+import {
+  STUDIO_DATA_CREDIT,
+  DATA_ATTRIBUTION_PATH,
+  DATA_ATTRIBUTION_LINK_LABEL,
+} from "@inklee/shared/map-attribution";
 import { toggleWatchAction } from "./actions";
 import MapSearchBox from "./map-search-box";
 import MapCanvas, {
@@ -116,8 +122,23 @@ export default function ImmersiveMapShell({
   const [attributionOpen, setAttributionOpen] = useState(false);
   const [inViewPins, setInViewPins] = useState<PublicMapPin[]>([]);
   const [expandedPin, setExpandedPin] = useState<PublicMapPin | null>(null);
+  const [pinsFailed, setPinsFailed] = useState(false);
 
   const showOverlays = capabilities.canSeePersonalOverlays;
+  // The anonymous plane (go-live plan S2): same shell, public capability
+  // layer. No rail or bottom nav (the artist chrome), no artists layer (D2),
+  // sign-in walls instead of gated actions, and the experimental banner.
+  const isPublic = capabilities.isPublic;
+
+  // Sign-in wall for the header: captures the CURRENT map state (it lives in
+  // the URL) at click time, so signing in returns the visitor to the exact
+  // viewport. Panel CTAs use static per-target hrefs instead.
+  const signInHere = useCallback(() => {
+    const next = encodeURIComponent(
+      window.location.pathname + window.location.search,
+    );
+    window.location.assign(`/login?next=${next}`);
+  }, []);
 
   const filterOptions = useMemo<{ key: MapFilterKind; label: string }[]>(
     () => [
@@ -166,8 +187,11 @@ export default function ImmersiveMapShell({
   }, [filterOpen]);
 
   // Artists in town: one consent-gated, floored, city-level fetch (shared by
-  // the canvas badges and the city panel).
+  // the canvas badges and the city panel). NEVER on the public plane: founder
+  // decision D2 postpones the artists layer entirely there (the route would
+  // refuse the anonymous request anyway; not fetching keeps the plane clean).
   useEffect(() => {
+    if (isPublic) return;
     const abort = new AbortController();
     fetch("/api/map/artists", { signal: abort.signal })
       .then((r) => (r.ok ? r.json() : null))
@@ -178,7 +202,7 @@ export default function ImmersiveMapShell({
         // Offline or aborted: the map works without the artist layer.
       });
     return () => abort.abort();
-  }, []);
+  }, [isPublic]);
 
   // --- URL state (one model) -------------------------------------------------
   const writeUrl = useCallback(
@@ -335,9 +359,11 @@ export default function ImmersiveMapShell({
     // The scheme drives both the basemap and the semantic tokens, so dark/light
     // is one switch and the whole surface is native-ready.
     <div
-      className={`fixed inset-0 z-[60] bg-[color:var(--color-shell-bg)] p-3 pb-[calc(env(safe-area-inset-bottom,0px)_+_2.75rem)] text-brand-bone md:pb-3 ${
-        scheme === "dark" ? "dark" : ""
-      }`}
+      className={`fixed inset-0 z-[60] bg-[color:var(--color-shell-bg)] p-3 text-brand-bone md:pb-3 ${
+        isPublic
+          ? "pb-[calc(env(safe-area-inset-bottom,0px)_+_0.75rem)]"
+          : "pb-[calc(env(safe-area-inset-bottom,0px)_+_2.75rem)]"
+      } ${scheme === "dark" ? "dark" : ""}`}
       data-appearance={scheme === "light" ? "light" : undefined}
     >
       <div className="map-immersive relative h-full w-full overflow-hidden rounded-[24px] border border-[color:var(--color-shell-hover-strong)]">
@@ -362,7 +388,33 @@ export default function ImmersiveMapShell({
           onViewChange={handleViewChange}
           onStats={setStats}
           onPins={setInViewPins}
+          publicPlane={isPublic}
+          onPinsError={setPinsFailed}
         />
+
+        {/* Failed viewport load: keep the last pins on screen but say so and
+            offer a retry (the silently empty map was the historical failure
+            mode; go-live plan S2). */}
+        {pinsFailed ? (
+          <div className="absolute left-1/2 top-[64px] z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/95 py-1 pl-3.5 pr-1 text-xs text-foreground shadow-lg backdrop-blur">
+            <span>Map data did not load.</span>
+            <button
+              type="button"
+              onClick={() => canvasRef.current?.refetchPins()}
+              className="rounded-full bg-foreground px-3 py-1.5 text-xs text-background transition-opacity hover:opacity-90"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        {/* Public plane: the experimental framing, always visible (Q3
+            decision: an experimental surface evolving with the community). */}
+        {isPublic && !pinsFailed ? (
+          <p className="pointer-events-none absolute left-1/2 top-[64px] z-20 max-w-[calc(100vw-5rem)] -translate-x-1/2 truncate rounded-full bg-background/85 px-3.5 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur">
+            An experimental map. It grows and improves with the community.
+          </p>
+        ) : null}
 
         {/* List view: the accessible alternative to canvas markers. Shares the
             map's filtered in-view pins (one dataset, one filter). On phones it
@@ -371,7 +423,11 @@ export default function ImmersiveMapShell({
         {viewMode === "list" ? (
           <div
             className={`absolute bottom-[4.5rem] left-3 right-3 top-[64px] z-20 touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur transition-[left] duration-200 md:bottom-3 md:right-auto md:w-[340px] ${
-              railExpanded ? "md:left-[232px]" : "md:left-[88px]"
+              isPublic
+                ? "md:left-3"
+                : railExpanded
+                  ? "md:left-[232px]"
+                  : "md:left-[88px]"
             }`}
           >
             <p className="mb-2 px-1 text-xs text-muted-foreground">
@@ -437,8 +493,10 @@ export default function ImmersiveMapShell({
             }`}
           >
             <Link
-              href="/dashboard"
-              aria-label="inklee — go to dashboard"
+              href={isPublic ? "/" : "/dashboard"}
+              aria-label={
+                isPublic ? "Go to the inklee homepage" : "Go to your dashboard"
+              }
               className="inline-flex items-center"
             >
               <RandomizedLogo
@@ -526,8 +584,27 @@ export default function ImmersiveMapShell({
         </div>
 
         {/* Top-right: zoom pill (md+; pinch covers zoom on touch), then the
-            dark/light toggle (44px touch target on phones). */}
+            dark/light toggle (44px touch target on phones). On the public
+            plane a sign-in row leads the stack: the conversion actions live in
+            the panels; this is the persistent way in. */}
         <div className="absolute right-3 top-3 z-30 flex flex-col items-end gap-2">
+          {isPublic ? (
+            <div className="hidden items-center gap-2 md:flex">
+              <button
+                type="button"
+                onClick={signInHere}
+                className="flex h-9 items-center rounded-full border border-border bg-background/95 px-4 text-xs text-foreground shadow-lg backdrop-blur transition-colors hover:bg-muted/30"
+              >
+                Sign in
+              </button>
+              <Link
+                href="/signup"
+                className="flex h-9 items-center rounded-full bg-foreground px-4 text-xs text-background shadow-lg transition-opacity hover:opacity-90"
+              >
+                Create account
+              </Link>
+            </div>
+          ) : null}
           <div className="hidden flex-col overflow-hidden rounded-full border border-border bg-background/95 shadow-lg backdrop-blur md:flex">
             <button
               type="button"
@@ -567,58 +644,86 @@ export default function ImmersiveMapShell({
           </button>
         </div>
 
-        {/* Left: the platform nav (real SidebarItem), collapsed + full-height +
-            floating, so it stays in lockstep with the rest of the menu. */}
-        <nav
-          aria-label="Primary"
-          className={`absolute bottom-3 left-3 top-[64px] z-30 hidden flex-col rounded-[22px] border border-[color:var(--color-shell-hover-strong)] bg-[color:var(--color-shell-bg)] text-brand-bone shadow-lg transition-[width] duration-200 md:flex ${
-            railExpanded ? "w-52" : "w-16"
-          }`}
-        >
-          <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
-            {RAIL_ITEMS.map((item) => (
-              <SidebarItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                Icon={item.icon}
-                active={isItemActive(pathname, item)}
-                collapsed={!railExpanded}
-              />
-            ))}
-          </div>
-          <div className="p-2">
+        {/* Public phones: a bottom conversion bar where the app's bottom nav
+            would sit (the panels stack above it like a bottom sheet). */}
+        {isPublic ? (
+          <div className="absolute inset-x-3 bottom-3 z-30 flex items-center gap-2 md:hidden">
             <button
               type="button"
-              onClick={() => setRailExpanded((v) => !v)}
-              aria-label={
-                railExpanded ? "Collapse navigation" : "Expand navigation"
-              }
-              aria-expanded={railExpanded}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[color:var(--color-shell-fg-mute)] transition-colors hover:bg-[color:var(--color-shell-hover-strong)] hover:text-brand-bone"
+              onClick={signInHere}
+              className="flex h-11 flex-1 items-center justify-center rounded-full border border-border bg-background/95 px-4 text-sm text-foreground shadow-lg backdrop-blur transition-colors hover:bg-muted/30"
             >
-              {railExpanded ? (
-                <ChevronLeft
-                  className="h-[18px] w-[18px] shrink-0"
-                  aria-hidden
-                />
-              ) : (
-                <ChevronRight
-                  className="h-[18px] w-[18px] shrink-0"
-                  aria-hidden
-                />
-              )}
-              {railExpanded ? <span>Collapse</span> : null}
+              Sign in
             </button>
+            <Link
+              href="/signup"
+              className="flex h-11 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-sm text-background shadow-lg transition-opacity hover:opacity-90"
+            >
+              Create account
+            </Link>
           </div>
-        </nav>
+        ) : null}
+
+        {/* Left: the platform nav (real SidebarItem), collapsed + full-height +
+            floating, so it stays in lockstep with the rest of the menu. The
+            anonymous plane gets no artist chrome (S2): no rail, no bottom
+            nav; its ways in are the logo, the sign-in row and the panel CTAs. */}
+        {isPublic ? null : (
+          <nav
+            aria-label="Primary"
+            className={`absolute bottom-3 left-3 top-[64px] z-30 hidden flex-col rounded-[22px] border border-[color:var(--color-shell-hover-strong)] bg-[color:var(--color-shell-bg)] text-brand-bone shadow-lg transition-[width] duration-200 md:flex ${
+              railExpanded ? "w-52" : "w-16"
+            }`}
+          >
+            <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
+              {RAIL_ITEMS.map((item) => (
+                <SidebarItem
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  Icon={item.icon}
+                  active={isItemActive(pathname, item)}
+                  collapsed={!railExpanded}
+                />
+              ))}
+            </div>
+            <div className="p-2">
+              <button
+                type="button"
+                onClick={() => setRailExpanded((v) => !v)}
+                aria-label={
+                  railExpanded ? "Collapse navigation" : "Expand navigation"
+                }
+                aria-expanded={railExpanded}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[color:var(--color-shell-fg-mute)] transition-colors hover:bg-[color:var(--color-shell-hover-strong)] hover:text-brand-bone"
+              >
+                {railExpanded ? (
+                  <ChevronLeft
+                    className="h-[18px] w-[18px] shrink-0"
+                    aria-hidden
+                  />
+                ) : (
+                  <ChevronRight
+                    className="h-[18px] w-[18px] shrink-0"
+                    aria-hidden
+                  />
+                )}
+                {railExpanded ? <span>Collapse</span> : null}
+              </button>
+            </div>
+          </nav>
+        )}
 
         {/* Bottom row, one height: in-view count (left, clear of the rail),
             the map/list toggle (center), the MapLibre attribution (right). */}
         {viewMode === "map" && !selected && !selectedCity ? (
           <p
             className={`pointer-events-none absolute bottom-3 z-20 hidden h-[30px] max-w-[42vw] truncate rounded-full bg-background/85 px-3.5 text-xs leading-[30px] text-muted-foreground shadow-sm backdrop-blur transition-[left] duration-200 md:block ${
-              railExpanded ? "left-[232px]" : "left-[88px]"
+              isPublic
+                ? "left-3"
+                : railExpanded
+                  ? "left-[232px]"
+                  : "left-[88px]"
             }`}
           >
             {statsText}
@@ -645,11 +750,13 @@ export default function ImmersiveMapShell({
         </div>
 
         {/* Attribution as a custom pill, so it matches the height + baseline of
-            the count and the toggle (bottom-3, 30px). */}
+            the count and the toggle (bottom-3, 30px). Public phones: lifted
+            clear of the bottom conversion bar so the compliance surface never
+            loses tap target to it. */}
         <div
-          className={`pointer-events-auto absolute bottom-10 right-3 z-20 flex items-center md:bottom-3 ${
-            scheme === "dark" ? "text-brand-rosa" : "text-muted-foreground"
-          }`}
+          className={`pointer-events-auto absolute right-3 z-20 flex items-center md:bottom-3 ${
+            isPublic ? "bottom-[4.75rem]" : "bottom-10"
+          } ${scheme === "dark" ? "text-brand-rosa" : "text-muted-foreground"}`}
         >
           {/* Phones: a collapsed round "i" pill; tapping unfolds the links
               (the wide pill wrapped and sat off-center at phone widths). */}
@@ -703,7 +810,10 @@ export default function ImmersiveMapShell({
                 ✕
               </button>
             </div>
-            {selectedCity.artists.length > 0 ? (
+            {/* Named artists only where the capability allows it (defense in
+                depth: the public plane never receives cities at all, D2). */}
+            {capabilities.canSeeNamedArtists &&
+            selectedCity.artists.length > 0 ? (
               <ul className="max-h-44 space-y-1 overflow-y-auto overscroll-contain">
                 {selectedCity.artists.map((a) => (
                   <li key={a.slug}>
@@ -777,7 +887,14 @@ export default function ImmersiveMapShell({
                 >
                   {watched.has(selected.id) ? "Watching ✓" : "Watch"}
                 </button>
-              ) : null}
+              ) : (
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/map/${selected.id}`)}`}
+                  className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-1.5"
+                >
+                  Sign in to watch
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => setExpandedPin(selected)}
@@ -808,13 +925,20 @@ export default function ImmersiveMapShell({
           which would leave the map a navigation dead end with the rail hidden.
           Re-render the same nav inside the overlay (it is fixed + md:hidden +
           safe-area aware, so it lands exactly where it does on every other
-          screen). Open panels stack above it (z-40) like a bottom sheet. */}
-      <MobileBottomNav inMapShell />
+          screen). Open panels stack above it (z-40) like a bottom sheet.
+          Never on the public plane: the artist chrome is authed-only; public
+          phones get the conversion bar inside the frame instead. */}
+      {isPublic ? null : <MobileBottomNav inMapShell />}
     </div>
   );
 }
 
-// The three license links, shared by the desktop pill and the phone unfold.
+// The license links, shared by the desktop pill and the phone unfold. The
+// basemap credits are always due; the STUDIO-DATA credit joins them with the
+// public flip, rendered per the counsel-approved module contract: the
+// STUDIO_DATA_CREDIT string verbatim, followed by the "Licences and notices"
+// link to /data-attribution (all three imported from
+// @inklee/shared/map-attribution, never restated).
 function AttributionLinks() {
   return (
     <>
@@ -842,6 +966,19 @@ function AttributionLinks() {
       >
         © OpenStreetMap contributors
       </a>
+      {publicMapEnabled() ? (
+        <>
+          <span className="truncate" title={STUDIO_DATA_CREDIT}>
+            {STUDIO_DATA_CREDIT}
+          </span>
+          <Link
+            href={DATA_ATTRIBUTION_PATH}
+            className="shrink-0 transition-colors hover:text-foreground"
+          >
+            {DATA_ATTRIBUTION_LINK_LABEL}
+          </Link>
+        </>
+      ) : null}
     </>
   );
 }

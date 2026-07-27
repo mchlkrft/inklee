@@ -23,6 +23,7 @@ import {
 import type { TravelMapStop } from "@inklee/shared/travel-map";
 import {
   normalizeViewportBounds,
+  viewportRequestQuery,
   type MapFilterKind,
   type MapViewport,
 } from "@inklee/shared/map-core-state";
@@ -81,6 +82,8 @@ export type MapCanvasHandle = {
   flyTo: (lng: number, lat: number, zoom?: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
+  /** Re-run the viewport fetch (the shell's retry after a failed load). */
+  refetchPins: () => void;
 };
 
 export type MapCanvasStats = {
@@ -105,6 +108,19 @@ type Props = {
   onStats: (stats: MapCanvasStats) => void;
   /** The current filtered in-view pins, so the list view shares one dataset. */
   onPins: (pins: PublicMapPin[]) => void;
+  /**
+   * Anonymous plane (go-live plan S2): the viewport fetch quantizes its
+   * request URL (grid-snapped bounds, integer zoom) so the CDN-cached public
+   * responses actually collide; the authed plane keeps raw bounds because its
+   * responses are never shared-cached.
+   */
+  publicPlane: boolean;
+  /**
+   * Fired with true when a viewport fetch fails (non-ok or network), false on
+   * the next success. The shell renders the retry state; the canvas keeps the
+   * last data so the map never silently empties.
+   */
+  onPinsError?: (failed: boolean) => void;
 };
 
 function MapCanvasInner(
@@ -121,6 +137,8 @@ function MapCanvasInner(
     onViewChange,
     onStats,
     onPins,
+    publicPlane,
+    onPinsError,
   }: Props,
   ref: React.Ref<MapCanvasHandle>,
 ) {
@@ -140,6 +158,10 @@ function MapCanvasInner(
   const onViewChangeRef = useRef(onViewChange);
   const onStatsRef = useRef(onStats);
   const onPinsRef = useRef(onPins);
+  const onPinsErrorRef = useRef(onPinsError);
+  // The viewport fetch is defined inside the init effect; the handle's
+  // refetchPins reaches it through this ref.
+  const fetchViewportRef = useRef<() => void>(() => {});
   useEffect(() => {
     pinsRef.current = pins;
   }, [pins]);
@@ -152,6 +174,7 @@ function MapCanvasInner(
     onViewChangeRef.current = onViewChange;
     onStatsRef.current = onStats;
     onPinsRef.current = onPins;
+    onPinsErrorRef.current = onPinsError;
   });
 
   useImperativeHandle(
@@ -171,6 +194,9 @@ function MapCanvasInner(
       },
       zoomOut: () => {
         mapRef.current?.zoomOut({ duration: prefersReducedMotion() ? 0 : 300 });
+      },
+      refetchPins: () => {
+        fetchViewportRef.current();
       },
     }),
     [],
@@ -243,35 +269,41 @@ function MapCanvasInner(
         b.getEast(),
         b.getNorth(),
       );
+      // Public plane: quantize the request so shared-cache keys collide
+      // (grid-snapped superset bbox + integer zoom); extra pins land
+      // offscreen. Authed plane: raw bounds, responses are never shared.
+      const q = viewportRequestQuery(nb, map.getZoom(), publicPlane);
       const params = new URLSearchParams({
-        west: String(nb.west),
-        south: String(nb.south),
-        east: String(nb.east),
-        north: String(nb.north),
-        zoom: String(map.getZoom()),
+        west: String(q.west),
+        south: String(q.south),
+        east: String(q.east),
+        north: String(q.north),
+        zoom: String(q.zoom),
       });
       fetch(`/api/map/locations?${params.toString()}`, {
         signal: abort.signal,
       })
-        .then((r) => (r.ok ? r.json() : null))
+        .then((r) => {
+          if (!r.ok) throw new Error(`pins_${r.status}`);
+          return r.json();
+        })
         .then(
-          (
-            body: {
-              pins: PublicMapPin[];
-              capped: boolean;
-              total?: number;
-            } | null,
-          ) => {
-            if (!body) return;
+          (body: { pins: PublicMapPin[]; capped: boolean; total?: number }) => {
             setPins(body.pins);
             setCapped(body.capped);
             setTotalInView(body.total ?? body.pins.length);
+            onPinsErrorRef.current?.(false);
           },
         )
-        .catch(() => {
-          // Aborted or offline: keep the last data on screen.
+        .catch((err: unknown) => {
+          // Aborted (a newer viewport superseded this fetch): not an error.
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          // Keep the last data on screen, but SAY it failed: the silently
+          // empty map was the historical failure mode (go-live plan S2).
+          onPinsErrorRef.current?.(true);
         });
     };
+    fetchViewportRef.current = fetchViewport;
     const scheduleFetch = () => {
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(fetchViewport, 300);

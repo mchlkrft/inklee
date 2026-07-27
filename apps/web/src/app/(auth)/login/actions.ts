@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { checkLoginRateLimit } from "@/lib/ratelimit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { sanitizeReturnPath } from "@/lib/return-path";
 
 type State = { error: string } | null;
 
@@ -41,5 +42,11 @@ export async function loginAction(
     redirect("/onboarding/welcome");
   }
 
-  redirect("/dashboard");
+  // Return target from a sign-in wall (the public map, go-live plan S2).
+  // Sanitized to a same-origin relative path; anything else falls back to the
+  // dashboard. Accounts without a profile still route through onboarding
+  // above (resuming the intended action after onboarding is a named
+  // fast-follow, not this slice).
+  const next = sanitizeReturnPath(formData.get("next"));
+  redirect(next ?? "/dashboard");
 }

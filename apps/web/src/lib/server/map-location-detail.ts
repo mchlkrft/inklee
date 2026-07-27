@@ -63,6 +63,16 @@ async function loadDetail(id: string): Promise<LoadedDetail | null> {
   const claimed = (data.claim_status as string) === "claimed";
   const studioProfileId = data.studio_profile_id as string | null;
 
+  // Structural guard (locked scope rule: a private studio is never shown at
+  // its exact position): unclaimed seeded private_studio rows carry the true
+  // street address from the seed sources, so the read model withholds it
+  // regardless of what the row says. The S3/D3 data remediation (display
+  // offset + nulled address) makes this permanent at the data layer; this
+  // guard makes the rule hold by construction either way. A CLAIMED private
+  // studio's address visibility is owner-controlled upstream.
+  const withholdAddress =
+    (data.category as string) === "private_studio" && !claimed;
+
   const signals = await activeSignalsByLocation([id]);
 
   let styles: StudioStylesForDisplay | null = null;
@@ -99,7 +109,9 @@ async function loadDetail(id: string): Promise<LoadedDetail | null> {
       lastConfirmedAt: (data.last_confirmed_at as string | null) ?? null,
       possiblyClosed: Boolean(data.possibly_closed),
       signal: signals.get(id) ?? null,
-      address: (data.address as string | null) ?? null,
+      address: withholdAddress
+        ? null
+        : ((data.address as string | null) ?? null),
       city: (data.city as string | null) ?? null,
       country: (data.country as string | null) ?? null,
       website: safeHttpUrl(data.website_url as string | null),

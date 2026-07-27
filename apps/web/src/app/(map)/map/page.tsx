@@ -1,14 +1,79 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { tattooMapEnabled } from "@/lib/map-features";
+import { tattooMapEnabled, publicMapEnabled } from "@/lib/map-features";
 import { listTravelJourney, hasTravelEntries } from "@/lib/server/travel-map";
 import {
   groupJourneyByTrip,
   type TravelMapStop,
 } from "@inklee/shared/travel-map";
-import { artistMapCapabilities } from "@inklee/shared/map-core-state";
+import {
+  artistMapCapabilities,
+  PUBLIC_MAP_CAPABILITIES,
+} from "@inklee/shared/map-core-state";
 import { BRAND, PAST_GREY } from "./map-style";
+
+// The auth-optional map route (go-live plan S2). /map moved OUT of the
+// (artist) group so one URL can serve both planes over the one shared core:
+// a signed-in artist gets exactly the pre-S2 experience (immersive shell,
+// personal overlays SSR'd below, authed capabilities), an anonymous visitor
+// gets the same shell with PUBLIC_MAP_CAPABILITIES while publicMapEnabled()
+// is on, and is redirected to /login exactly as before otherwise.
+//
+// What the (artist) layout used to provide is reintroduced deliberately: the
+// robots posture lives here (now the strategy's noindex, FOLLOW, with a
+// self-canonical stripped of viewport params), the dark-state auth redirect
+// lives below, and the workspace chrome plus the day-grain activity touch
+// come from the auth-aware (map) layout via the shared ArtistWorkspaceShell.
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+  alternates: { canonical: "/map" },
+  title: "Tattoo map",
+};
+
+// Discovery mode (Inklee 2.0 Phase 2): the tattoo map of studios and shops.
+// The personal plane (journey + watched ids) is SSR'd ONLY on the authed
+// branch; the anonymous document never embeds personal data (S2 invariant).
+async function DiscoveryMapPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { default: ImmersiveMapShell } = await import("./immersive-map-shell");
+
+  if (!user) {
+    if (!publicMapEnabled()) redirect("/login");
+    return (
+      <ImmersiveMapShell
+        journey={[]}
+        watchedIds={[]}
+        capabilities={PUBLIC_MAP_CAPABILITIES}
+      />
+    );
+  }
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const [journey, { data: watchedData }] = await Promise.all([
+    listTravelJourney(supabase, user.id, todayKey),
+    supabase
+      .from("watched_studios")
+      .select("map_location_id")
+      .eq("artist_user_id", user.id),
+  ]);
+  const watchedIds = (watchedData ?? []).map(
+    (w) => w.map_location_id as string,
+  );
+
+  return (
+    <ImmersiveMapShell
+      journey={journey}
+      watchedIds={watchedIds}
+      capabilities={artistMapCapabilities(user.id)}
+    />
+  );
+}
 
 function fmtDate(d: string): string {
   return new Date(`${d}T00:00:00`).toLocaleDateString("en-US", {
@@ -64,46 +129,10 @@ function StopRow({ stop, n }: { stop: TravelMapStop; n: number }) {
   );
 }
 
-// Discovery mode (Inklee 2.0 Phase 2, flag-gated): the tattoo map of studios
-// and shops with the personal journey as a toggleable overlay. Reachable by
-// every artist, no travel entries required.
-async function DiscoveryMapPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const [journey, { data: watchedData }] = await Promise.all([
-    listTravelJourney(supabase, user.id, todayKey),
-    supabase
-      .from("watched_studios")
-      .select("map_location_id")
-      .eq("artist_user_id", user.id),
-  ]);
-  const watchedIds = (watchedData ?? []).map(
-    (w) => w.map_location_id as string,
-  );
-
-  // Immersive shell (map redesign Slice 1): the full-viewport map core is THE
-  // discovery surface. The legacy boxed discovery card was retired 2026-07-25
-  // (founder direction after the prod soak + the tablet/mobile optimization);
-  // NEXT_PUBLIC_TATTOO_MAP remains the feature kill switch above.
-  const { default: ImmersiveMapShell } = await import("./immersive-map-shell");
-  return (
-    <ImmersiveMapShell
-      journey={journey}
-      watchedIds={watchedIds}
-      capabilities={artistMapCapabilities(user.id)}
-    />
-  );
-}
-
 // The classic journey map (pre-2.0 behavior, active while the map flag is
-// off). Plots the artist's guest-spot travel (trips -> legs -> studios). Only
-// available once there is something to show: with no trip or studio the
-// artist is sent back to Guest Spots.
+// off). Authed-only, exactly as before, and the (map) layout restores the
+// full workspace chrome for signed-in users, so the kill-switch fallback
+// renders exactly as it did under the (artist) group.
 export default async function TravelMapPage() {
   if (tattooMapEnabled()) return DiscoveryMapPage();
 

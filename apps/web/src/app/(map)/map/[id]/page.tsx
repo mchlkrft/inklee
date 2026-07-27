@@ -1,47 +1,55 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { serviceClient } from "@/lib/supabase/service";
-import { tattooMapEnabled } from "@/lib/map-features";
+import { tattooMapEnabled, publicMapEnabled } from "@/lib/map-features";
+import { getClientIp } from "@/lib/get-client-ip";
+import { checkPublicMapDetailRateLimit } from "@/lib/ratelimit";
+import RandomizedLogo from "@/components/randomized-logo";
+import {
+  STUDIO_DATA_CREDIT,
+  DATA_ATTRIBUTION_PATH,
+  DATA_ATTRIBUTION_LINK_LABEL,
+} from "@inklee/shared/map-attribution";
 import { MAP_LOCATION_CATEGORY_LABELS } from "@inklee/shared/map-directory";
 import {
   HOUSE_RULE_LABELS,
   type HouseRuleKey,
 } from "@inklee/shared/studio-profile";
-import { getPublishedHouseRules } from "@/lib/server/studios";
-import {
-  getStudioStyles,
-  type StudioStylesForDisplay,
-} from "@/lib/server/studio-styles";
-import {
-  getStudioGuestTimeline,
-  type StudioTimeline,
-  type TimelineEntry,
-} from "@/lib/server/guest-spots";
-import { activeSignalsByLocation } from "@/lib/server/studio-signals";
 import {
   STUDIO_SIGNAL_LABELS,
   isStudioSignalType,
 } from "@inklee/shared/studio-signals";
 import { formatDateKey } from "@inklee/shared/date-utils";
+import type { TimelineEntry } from "@inklee/shared/map-location-detail";
+import {
+  getMapLocationDetail,
+  getPublicMapLocationDetail,
+  type MapLocationDetailShared,
+} from "@/lib/server/map-location-detail";
 import WatchButton from "./watch-button";
 import ReportIssue from "./report-issue";
 
-// Logged-in only and noindex by default (open question Q3 keeps seeded pages
-// out of search until decided otherwise).
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-};
-
-function safeHttpUrl(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const u = new URL(value);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
-  } catch {
-    return null;
-  }
+// The studio's full page, auth-optional since go-live plan S2 and refactored
+// onto the ONE detail read-model (it used to duplicate the queries inline).
+// Signed-in artists get the pre-S2 page (watch, report, request); anonymous
+// visitors get the viewer-independent payload with sign-in walls that carry
+// the intended action as a return target. Anonymous access exists only while
+// publicMapEnabled() is on; otherwise the pre-S2 login redirect stands.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  // noindex per the ratified SEO strategy (unclaimed entries are never
+  // indexable and the in-map entity URL is not the canonical studio page);
+  // follow + self-canonical so the crawl path stays clean.
+  return {
+    robots: { index: false, follow: true },
+    alternates: { canonical: `/map/${id}` },
+  };
 }
 
 export default async function MapLocationPage({
@@ -54,80 +62,94 @@ export default async function MapLocationPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user && !publicMapEnabled()) redirect("/login");
   const { id } = await params;
 
-  // Approved rows only; everything else is invisible (fail closed).
-  const { data } = await serviceClient
-    .from("map_locations")
-    .select(
-      "id, name, category, address, city, country, website_url, instagram_handle, phone, opening_hours, claim_status, moderation_status, last_confirmed_at, is_seed, possibly_closed",
-    )
-    .eq("id", id)
-    .eq("moderation_status", "approved")
-    .maybeSingle();
-  if (!data) notFound();
-
-  const { data: watch } = await supabase
-    .from("watched_studios")
-    .select("id")
-    .eq("map_location_id", id)
-    .eq("artist_user_id", user.id)
-    .maybeSingle();
-
-  // Claimed + published studios can receive guest spot requests.
-  const { data: studioLink } = await serviceClient
-    .from("map_locations")
-    .select("studio_profile_id")
-    .eq("id", id)
-    .maybeSingle();
-  let requestable = false;
-  let ownStudio = false;
-  let houseRules: Array<{ key: string; content: string }> = [];
-  let timeline: StudioTimeline | null = null;
-  let styles: StudioStylesForDisplay | null = null;
-  if (studioLink?.studio_profile_id) {
-    const { data: studio } = await serviceClient
-      .from("studio_profiles")
-      .select("owner_user_id, publication_status, guest_spot_status")
-      .eq("id", studioLink.studio_profile_id as string)
-      .maybeSingle();
-    // invitation_only stays un-requestable: the setting exists to stop
-    // unsolicited requests.
-    requestable =
-      studio?.publication_status === "published" &&
-      studio.guest_spot_status === "accepting";
-    ownStudio = studio?.owner_user_id === user.id;
-    if (studio?.publication_status === "published") {
-      [houseRules, timeline, styles] = await Promise.all([
-        getPublishedHouseRules(studioLink.studio_profile_id as string),
-        getStudioGuestTimeline(studioLink.studio_profile_id as string),
-        getStudioStyles(studioLink.studio_profile_id as string),
-      ]);
+  // The anonymous SSR read carries the SAME abuse control as its API twin
+  // (S1 invariant: the auth gate's replacement is the per-IP limiter;
+  // refuse-before-work, fail-closed without Redis in production). Without
+  // this, the page route would be an unmetered anonymous path to the
+  // database that ignores the API budgets entirely.
+  if (!user) {
+    const { allowed } = await checkPublicMapDetailRateLimit(
+      getClientIp(await headers()),
+    );
+    if (!allowed) {
+      return (
+        <div className="mx-auto max-w-2xl space-y-3 p-6 text-center">
+          <p className="text-sm font-medium text-foreground">
+            The map is busy right now.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Give it a minute, then reload this page.
+          </p>
+        </div>
+      );
     }
   }
 
-  const signals = await activeSignalsByLocation([id]);
-  const activeSignal = signals.get(id) ?? null;
+  // Approved rows only; everything else is invisible (fail closed). The
+  // authed branch composes the viewer decoration (watched, ownStudio); the
+  // anonymous branch structurally cannot carry it.
+  let shared: MapLocationDetailShared | null = null;
+  let viewer: { watched: boolean; ownStudio: boolean } | null = null;
+  if (user) {
+    const detail = await getMapLocationDetail(id, user.id);
+    if (detail) {
+      shared = detail;
+      viewer = { watched: detail.watched, ownStudio: detail.ownStudio };
+    }
+  } else {
+    shared = await getPublicMapLocationDetail(id);
+  }
+  if (!shared) notFound();
+
+  const signInTo = (next: string) => `/login?next=${encodeURIComponent(next)}`;
 
   const categoryLabel =
     MAP_LOCATION_CATEGORY_LABELS[
-      data.category as keyof typeof MAP_LOCATION_CATEGORY_LABELS
-    ] ?? (data.category as string);
-  const website = safeHttpUrl(data.website_url as string | null);
-  const instagram = data.instagram_handle as string | null;
-  const claimed = (data.claim_status as string) === "claimed";
-  // Unverified = a directory-compiled seed pin nobody has claimed. Its
-  // details are a snapshot and can be stale, so we say so rather than
-  // presenting it as confirmed.
-  const unverified = Boolean(data.is_seed) && !claimed;
-  const possiblyClosed = Boolean(data.possibly_closed);
-  const place = [data.address, data.city, data.country]
+      shared.category as keyof typeof MAP_LOCATION_CATEGORY_LABELS
+    ] ?? shared.category;
+  const place = [shared.address, shared.city, shared.country]
     .filter(Boolean)
     .join(", ");
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
+      {/* Anonymous visitors get the minimal public chrome the (map) layout
+          deliberately does not provide: a way home, a way in, and the
+          experimental framing. Signed-in artists have the full workspace
+          chrome from the layout instead. */}
+      {viewer ? null : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Link
+              href="/"
+              aria-label="Go to the inklee homepage"
+              className="inline-flex items-center"
+            >
+              <RandomizedLogo height={18} />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={signInTo(`/map/${id}`)}
+                className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-full bg-foreground px-3 py-1.5 text-xs text-background transition-opacity hover:opacity-90"
+              >
+                Create account
+              </Link>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            An experimental map. It grows and improves with the community.
+          </p>
+        </div>
+      )}
       <header className="space-y-1">
         <Link
           href="/map"
@@ -137,9 +159,9 @@ export default async function MapLocationPage({
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-foreground">
-            {data.name as string}
+            {shared.name}
           </h1>
-          {claimed ? (
+          {shared.claimed ? (
             <span className="rounded-full bg-brand-mustard/20 px-2 py-0.5 text-xs text-brand-mustard">
               Claimed
             </span>
@@ -150,15 +172,15 @@ export default async function MapLocationPage({
           )}
         </div>
         <p className="text-sm text-muted-foreground">{categoryLabel}</p>
-        {claimed && data.last_confirmed_at ? (
+        {shared.claimed && shared.lastConfirmedAt ? (
           <p className="text-xs text-muted-foreground">
             Confirmed by the studio on{" "}
-            {formatDateKey((data.last_confirmed_at as string).slice(0, 10))}.
+            {formatDateKey(shared.lastConfirmedAt.slice(0, 10))}.
           </p>
         ) : null}
       </header>
 
-      {possiblyClosed ? (
+      {shared.possiblyClosed ? (
         <section className="rounded-2xl border border-brand-red/40 bg-brand-red/10 p-4">
           <p className="text-sm font-medium text-foreground">Possibly closed</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -169,7 +191,7 @@ export default async function MapLocationPage({
         </section>
       ) : null}
 
-      {unverified ? (
+      {shared.unverified ? (
         <section className="rounded-2xl border border-border bg-muted/20 p-4">
           <p className="text-sm text-foreground">
             Unverified listing. We compiled this from public map data, so the
@@ -182,13 +204,13 @@ export default async function MapLocationPage({
         </section>
       ) : null}
 
-      {activeSignal && isStudioSignalType(activeSignal) ? (
+      {shared.signal && isStudioSignalType(shared.signal) ? (
         <section className="rounded-2xl border border-brand-rosa/40 bg-brand-rosa/10 p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
             Right now
           </p>
           <p className="text-sm font-medium text-foreground">
-            {STUDIO_SIGNAL_LABELS[activeSignal]}
+            {STUDIO_SIGNAL_LABELS[shared.signal]}
           </p>
         </section>
       ) : null}
@@ -202,33 +224,31 @@ export default async function MapLocationPage({
             <p className="text-sm text-foreground">{place}</p>
           </div>
         ) : null}
-        {(data.opening_hours as string | null) ? (
+        {shared.openingHours ? (
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Opening hours
             </p>
-            <p className="text-sm text-foreground">
-              {data.opening_hours as string}
-            </p>
+            <p className="text-sm text-foreground">{shared.openingHours}</p>
           </div>
         ) : null}
-        {(data.phone as string | null) ? (
+        {shared.phone ? (
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Phone
             </p>
             <a
-              href={`tel:${(data.phone as string).replace(/[^\d+]/g, "")}`}
+              href={`tel:${shared.phone.replace(/[^\d+]/g, "")}`}
               className="text-sm text-foreground underline-offset-2 hover:underline"
             >
-              {data.phone as string}
+              {shared.phone}
             </a>
           </div>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          {website ? (
+          {shared.website ? (
             <a
-              href={website}
+              href={shared.website}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
@@ -236,32 +256,41 @@ export default async function MapLocationPage({
               Website
             </a>
           ) : null}
-          {instagram ? (
+          {shared.instagram ? (
             <a
-              href={`https://instagram.com/${encodeURIComponent(instagram)}`}
+              href={`https://instagram.com/${encodeURIComponent(shared.instagram)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
             >
-              @{instagram}
+              @{shared.instagram}
             </a>
           ) : null}
-          <WatchButton mapLocationId={id} initialWatched={Boolean(watch)} />
+          {viewer ? (
+            <WatchButton mapLocationId={id} initialWatched={viewer.watched} />
+          ) : (
+            <Link
+              href={signInTo(`/map/${id}`)}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+            >
+              Sign in to watch
+            </Link>
+          )}
         </div>
       </section>
 
-      {claimed && styles && !styles.isEmpty ? (
+      {shared.claimed && shared.styles && !shared.styles.isEmpty ? (
         <section className="space-y-3 rounded-2xl border border-border p-4">
           <h2 className="text-sm font-semibold text-foreground">
             Styles represented
           </h2>
-          {styles.specialties.length > 0 ? (
+          {shared.styles.specialties.length > 0 ? (
             <div className="space-y-1.5">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Studio specialties
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {styles.specialties.map((s) => (
+                {shared.styles.specialties.map((s) => (
                   <span
                     key={s.key}
                     className="rounded-full bg-muted px-2.5 py-1 text-xs text-foreground"
@@ -272,13 +301,13 @@ export default async function MapLocationPage({
               </div>
             </div>
           ) : null}
-          {styles.guestStyles.length > 0 ? (
+          {shared.styles.guestStyles.length > 0 ? (
             <div className="space-y-1.5">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Guest artist styles
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {styles.guestStyles.map((s) => (
+                {shared.styles.guestStyles.map((s) => (
                   <span
                     key={s.key}
                     className="rounded-full bg-brand-rosa/15 px-2.5 py-1 text-xs text-foreground"
@@ -299,20 +328,20 @@ export default async function MapLocationPage({
         </section>
       ) : null}
 
-      {claimed &&
-      timeline &&
-      (timeline.current.length > 0 ||
-        timeline.upcoming.length > 0 ||
-        timeline.past.length > 0) ? (
+      {shared.claimed &&
+      shared.timeline &&
+      (shared.timeline.current.length > 0 ||
+        shared.timeline.upcoming.length > 0 ||
+        shared.timeline.past.length > 0) ? (
         <section className="space-y-3 rounded-2xl border border-border p-4">
           <h2 className="text-sm font-semibold text-foreground">
             Guest artists
           </h2>
           {(
             [
-              ["Now", timeline.current],
-              ["Coming up", timeline.upcoming],
-              ["Past", timeline.past],
+              ["Now", shared.timeline.current],
+              ["Coming up", shared.timeline.upcoming],
+              ["Past", shared.timeline.past],
             ] as Array<[string, TimelineEntry[]]>
           )
             .filter(([, entries]) => entries.length > 0)
@@ -354,11 +383,11 @@ export default async function MapLocationPage({
         </section>
       ) : null}
 
-      {claimed && houseRules.length > 0 ? (
+      {shared.claimed && shared.houseRules.length > 0 ? (
         <section className="space-y-3 rounded-2xl border border-border p-4">
           <h2 className="text-sm font-semibold text-foreground">House rules</h2>
           <ul className="space-y-2">
-            {houseRules.map((rule) => (
+            {shared.houseRules.map((rule) => (
               <li key={rule.key} className="text-sm">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
                   {HOUSE_RULE_LABELS[rule.key as HouseRuleKey] ?? rule.key}
@@ -372,25 +401,34 @@ export default async function MapLocationPage({
         </section>
       ) : null}
 
-      {claimed ? (
-        requestable && !ownStudio ? (
+      {shared.claimed ? (
+        shared.requestable && !viewer?.ownStudio ? (
           <div className="space-y-2 rounded-2xl border border-border p-4">
             <p className="text-sm text-foreground">
               This studio takes guest spot requests.
             </p>
-            <Link
-              href={`/map/${id}/request`}
-              className="inline-block rounded-md bg-foreground px-4 py-2 text-sm text-background transition-opacity hover:opacity-90"
-            >
-              Request a guest spot
-            </Link>
+            {viewer ? (
+              <Link
+                href={`/map/${id}/request`}
+                className="inline-block rounded-md bg-foreground px-4 py-2 text-sm text-background transition-opacity hover:opacity-90"
+              >
+                Request a guest spot
+              </Link>
+            ) : (
+              <Link
+                href={signInTo(`/map/${id}/request`)}
+                className="inline-block rounded-md bg-foreground px-4 py-2 text-sm text-background transition-opacity hover:opacity-90"
+              >
+                Sign in to request a guest spot
+              </Link>
+            )}
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
             This place manages its own page.
           </p>
         )
-      ) : data.category === "supply_shop" ? (
+      ) : shared.category === "supply_shop" ? (
         <p className="text-xs text-muted-foreground">
           Nobody runs this page yet.
         </p>
@@ -401,7 +439,9 @@ export default async function MapLocationPage({
             spot requests from travelling artists.
           </p>
           <Link
-            href={`/studio/claim/${id}`}
+            href={
+              viewer ? `/studio/claim/${id}` : signInTo(`/studio/claim/${id}`)
+            }
             className="inline-block rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
           >
             Claim this studio
@@ -409,10 +449,42 @@ export default async function MapLocationPage({
         </div>
       )}
 
-      {claimed ? null : (
+      {shared.claimed ? null : viewer ? (
         <div className="pt-1">
           <ReportIssue mapLocationId={id} />
         </div>
+      ) : (
+        <p className="pt-1 text-xs text-muted-foreground">
+          Something wrong with this listing? You can{" "}
+          <Link
+            href="/legal/report"
+            className="text-foreground underline underline-offset-2"
+          >
+            report it here
+          </Link>
+          , or{" "}
+          <Link
+            href={signInTo(`/map/${id}`)}
+            className="text-foreground underline underline-offset-2"
+          >
+            sign in
+          </Link>{" "}
+          to suggest a correction on the listing itself.
+        </p>
+      )}
+
+      {/* The studio-data credit (counsel-approved wording, verbatim) on the
+          anonymous entity surface; signed-in artists see it on the map pill. */}
+      {viewer ? null : (
+        <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+          {STUDIO_DATA_CREDIT}{" "}
+          <Link
+            href={DATA_ATTRIBUTION_PATH}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            {DATA_ATTRIBUTION_LINK_LABEL}
+          </Link>
+        </p>
       )}
     </div>
   );

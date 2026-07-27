@@ -28,6 +28,7 @@ export default function MapSearchBox({
   const [results, setResults] = useState<PublicMapPin[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,14 +50,25 @@ export default function MapSearchBox({
     fetch(`/api/map/search?q=${encodeURIComponent(trimmed)}`, {
       signal: abort.signal,
     })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body: { results: PublicMapPin[] } | null) => {
-        setResults(body?.results ?? []);
+      .then((r) => {
+        // Failure is not an empty result: a 429 (the public plane's
+        // per-keystroke limit) or a 5xx must never render "No studios
+        // found." (go-live plan S2: no swallowed search failures).
+        if (!r.ok) throw new Error(`search_${r.status}`);
+        return r.json();
+      })
+      .then((body: { results: PublicMapPin[] }) => {
+        setResults(body.results ?? []);
+        setFailed(false);
         setActive(0);
         setLoading(false);
       })
-      .catch(() => {
-        // Aborted (superseded) or offline: leave the last results in place.
+      .catch((err: unknown) => {
+        // Aborted (superseded by the next keystroke): leave the last state.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setResults([]);
+        setFailed(true);
+        setLoading(false);
       });
   }, []);
 
@@ -178,7 +190,11 @@ export default function MapSearchBox({
         <ul className="mt-1.5 max-h-72 overflow-y-auto overscroll-contain rounded-xl border border-border bg-background/98 py-1 shadow-lg backdrop-blur max-md:fixed max-md:inset-x-3 max-md:top-[68px] max-md:mt-0 max-md:max-h-[50dvh]">
           {results.length === 0 ? (
             <li className="px-3 py-2 text-xs text-muted-foreground">
-              {loading ? "Searching…" : "No studios found."}
+              {loading
+                ? "Searching…"
+                : failed
+                  ? "Search is not available right now. Wait a moment, then try again."
+                  : "No studios found."}
             </li>
           ) : (
             results.map((pin, i) => (

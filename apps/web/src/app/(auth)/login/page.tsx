@@ -24,6 +24,16 @@ function UrlErrorBanner() {
   );
 }
 
+// Carries a ?next= return target (the public map's sign-in walls) into the
+// form so the action can send the artist back to what they were doing. The
+// action re-validates it server-side (same-origin relative paths only).
+function ReturnPathField() {
+  const params = useSearchParams();
+  const next = params.get("next");
+  if (!next) return null;
+  return <input type="hidden" name="next" value={next} />;
+}
+
 export default function LoginPage() {
   const [state, action, pending] = useActionState<State, FormData>(
     loginAction,
@@ -48,6 +58,9 @@ export default function LoginPage() {
       </div>
 
       <form action={action} className="space-y-4">
+        <Suspense fallback={null}>
+          <ReturnPathField />
+        </Suspense>
         {state?.error ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/[0.06] px-3 py-2">
             <p className="text-sm text-destructive">{state.error}</p>

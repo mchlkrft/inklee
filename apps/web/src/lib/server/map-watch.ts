@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "@/lib/supabase/service";
 
 // Watch/unwatch a map location. ONE core shared by the web server action
-// (apps/web/src/app/(artist)/map/actions.ts) and the mobile route
+// (apps/web/src/app/(map)/map/actions.ts) and the mobile route
 // (/api/mobile/map/locations/[id]/watch), per the one-source-of-truth rule.
 // The watch row is written with the USER-SCOPED client (own-row RLS from
 // migration 0076); the approved check runs first via the service client so

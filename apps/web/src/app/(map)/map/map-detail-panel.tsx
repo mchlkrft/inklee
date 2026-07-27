@@ -16,12 +16,21 @@ import {
 } from "@inklee/shared/studio-profile";
 import { formatDateKey } from "@inklee/shared/date-utils";
 import type { MapCapabilities } from "@inklee/shared/map-core-state";
-import type { MapLocationDetail } from "@/lib/server/map-location-detail";
+import type {
+  MapLocationDetailShared,
+  MapViewerLocationState,
+} from "@inklee/shared/map-location-detail";
 
 // The immersive in-canvas detail: the read essentials for a selected studio,
 // fetched on demand from /api/map/locations/[id], so "View details" never
 // leaves the map. Deeper actions (claim, request a guest spot, report) link out
 // to the studio's own routes - the map initiates, it does not duplicate them.
+//
+// The wire detail is plane-dependent (go-live plan S1/S2): the authed response
+// carries the viewer decoration (watched, ownStudio), the public response
+// structurally lacks it, so the panel types it as optional and every gated
+// action renders from the capability object with a sign-in wall fallback.
+type PanelDetail = MapLocationDetailShared & Partial<MapViewerLocationState>;
 
 function Section({
   title,
@@ -58,7 +67,7 @@ export default function MapDetailPanel({
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const [detail, setDetail] = useState<MapLocationDetail | null>(null);
+  const [detail, setDetail] = useState<PanelDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -80,13 +89,17 @@ export default function MapDetailPanel({
     const abort = new AbortController();
     fetch(`/api/map/locations/${pin.id}`, { signal: abort.signal })
       .then((r) => (r.ok ? r.json() : null))
-      .then((body: { detail: MapLocationDetail } | null) => {
+      .then((body: { detail: PanelDetail } | null) => {
         if (body?.detail) setDetail(body.detail);
         else setError(true);
         setLoading(false);
       })
-      .catch(() => {
-        // Aborted (a new selection) or offline: leave the last state.
+      .catch((err: unknown) => {
+        // Aborted (a new selection): leave the last state. A real network
+        // failure surfaces the error state instead of loading forever.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(true);
+        setLoading(false);
       });
     return () => abort.abort();
   }, [pin.id]);
@@ -221,7 +234,14 @@ export default function MapDetailPanel({
                 >
                   {watched ? "Watching ✓" : "Watch"}
                 </button>
-              ) : null}
+              ) : (
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/map/${pin.id}`)}`}
+                  className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-1.5"
+                >
+                  Sign in to watch
+                </Link>
+              )}
             </div>
             {watchError ? (
               <p className="text-xs text-brand-red">{watchError}</p>
@@ -333,11 +353,33 @@ export default function MapDetailPanel({
             ) : null}
 
             {detail.requestable && !detail.ownStudio ? (
+              capabilities.canApplyGuest ? (
+                <Link
+                  href={`/map/${pin.id}/request`}
+                  className="block rounded-md bg-foreground px-3 py-3 text-center text-xs text-background transition-opacity hover:opacity-90 lg:py-2"
+                >
+                  Request a guest spot
+                </Link>
+              ) : (
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/map/${pin.id}/request`)}`}
+                  className="block rounded-md bg-foreground px-3 py-3 text-center text-xs text-background transition-opacity hover:opacity-90 lg:py-2"
+                >
+                  Sign in to request a guest spot
+                </Link>
+              )
+            ) : null}
+
+            {!detail.claimed && pin.category !== "supply_shop" ? (
               <Link
-                href={`/map/${pin.id}/request`}
-                className="block rounded-md bg-foreground px-3 py-3 text-center text-xs text-background transition-opacity hover:opacity-90 lg:py-2"
+                href={
+                  capabilities.canClaim
+                    ? `/studio/claim/${pin.id}`
+                    : `/login?next=${encodeURIComponent(`/studio/claim/${pin.id}`)}`
+                }
+                className="block rounded-md border border-border px-3 py-3 text-center text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-2"
               >
-                Request a guest spot
+                Claim this studio
               </Link>
             ) : null}
           </>

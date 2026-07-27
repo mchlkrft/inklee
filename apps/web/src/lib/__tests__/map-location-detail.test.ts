@@ -161,6 +161,41 @@ describe("getPublicMapLocationDetail (anonymous plane)", () => {
     expect(detail?.requestable).toBe(false);
     expect(detail?.styles).toBeNull();
   });
+
+  it("withholds the street address of an unclaimed private studio by construction", async () => {
+    tableData["map_locations"] = {
+      data: {
+        ...APPROVED_SEED.data,
+        category: "private_studio",
+        address: "Privatweg 5",
+      },
+    };
+    const detail = await getPublicMapLocationDetail("loc-1");
+    expect(detail?.address).toBeNull();
+    expect(detail?.city).toBe("Berlin");
+
+    // A CLAIMED private studio's visibility is owner-controlled upstream, so
+    // the guard does not apply there.
+    tableData["map_locations"] = {
+      data: {
+        ...APPROVED_SEED.data,
+        category: "private_studio",
+        address: "Privatweg 5",
+        claim_status: "claimed",
+        is_seed: false,
+        studio_profile_id: "studio-1",
+      },
+    };
+    tableData["studio_profiles"] = {
+      data: {
+        owner_user_id: "owner-1",
+        publication_status: "published",
+        guest_spot_status: "not_accepting",
+      },
+    };
+    const claimed = await getPublicMapLocationDetail("loc-1");
+    expect(claimed?.address).toBe("Privatweg 5");
+  });
 });
 
 describe("getMapLocationDetail (authed composition)", () => {
