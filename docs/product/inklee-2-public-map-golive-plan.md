@@ -139,7 +139,11 @@ Copy sweep across all five slices: zero em dashes in user-visible strings, no Ap
 
 **Moderation intake: acknowledged by the founder 2026-07-27.** They are ready to meet the DSA procedure's 24-hour acknowledgement bar for a public audience, across the map report queue, the claims queue, and the live Art. 16/21 intake on `/legal/report`. Gate line closed.
 
-Still open: the **visual pass** over the flipped surfaces (a flag-on production preview is served locally for exactly this). The e2e obligation is closed locally; confirm the CI `e2e` job goes green on `5c7f52a` as the final tick.
+**Visual pass: DONE, founder-confirmed 2026-07-27.** Served locally as a dev server with `NEXT_PUBLIC_PUBLIC_MAP=true` forced on against production Supabase, reviewed anonymously in an incognito window across `/map`, `/map/[id]`, `/`, `/guest-spot-booking` and `/data-attribution`, plus the signed-in plane for the shared-chrome comparison. (It has to be a dev server, not `next start`: a production build forces `NODE_ENV=production`, where the rate limiter fails closed without Upstash and the map renders empty. That is a local-preview artifact, not a product defect, and it cost a debugging cycle once already.)
+
+One change came out of the pass and shipped with it: the attribution pill is now ONE collapsed `Info` control at every width, collapsed by default, compact when open, and raised above the map/list toggle when open. See the attribution note in §4 for the open counsel item this creates.
+
+The e2e obligation is closed locally; confirm the CI `e2e` job goes green as the final tick.
 
 - Verify the marketing flip end to end with the flag forced on in preview: nav, footer, both CTA modes, `/data-attribution` un-404s, no `/map` link anywhere while dark (the existing regression tests).
 - `docs/web-native-parity.md`: add the deliberate web-only row for the public shell (founder rule: the register is updated in the same change).
@@ -177,8 +181,8 @@ Every line verifiable, no judgment calls at flip time:
 - [x] Public pins AND detail payload structural-subset tests green; zero personal fields anonymously reachable (unit-tested, including a literal key allowlist).
 - [x] Capability fields load-bearing: resolution unit-tested on both planes; each field drives its gated rendering in the shell, panel, and entity page.
 - [x] Flag-off refusal: with `NEXT_PUBLIC_PUBLIC_MAP` unset, every public branch refuses anonymous requests (unit-tested at the resolver and per route).
-- [ ] Anonymous `/map` and `/map/[id]` render with explicit `noindex, follow` and self-canonicals **against rendered HTML** (spec written in `tests/e2e/public-map.spec.ts`; confirm the CI e2e job is green).
-- [ ] Anonymous chrome and the no-personal-data document verified in the served DOM (same spec; confirm CI).
+- [x] Anonymous `/map` and `/map/[id]` render with explicit `noindex, follow` and self-canonicals **against rendered HTML** (`tests/e2e/public-map.spec.ts`, executed green 2026-07-27).
+- [x] Anonymous chrome and the no-personal-data document verified in the served DOM (same spec, executed green). This line earned its keep: the run caught the public shell serializing the personal-plane prop names into the anonymous document, fixed in `5c7f52a`. Re-verified against real production data in the visual pass (`watchedIds`, `journey`, `bookingCount`: zero occurrences).
 - [x] Error and empty states render on forced API failure (pins retry state and search failure state; no silent empty map).
 - [x] Authed experience regression-clean: the workspace chrome, personal overlays, watch, and request flows are unchanged after the route move (shared `ArtistWorkspaceShell`), 1647 unit tests green.
 - [x] Rollback rehearsed: production builds executed with the flags on and off; the emitted `robots.txt` and route set revert, the API branches re-close (unit-tested), and the collector carve-out re-closes (unit-tested).
@@ -186,15 +190,15 @@ Every line verifiable, no judgment calls at flip time:
 **Legal and compliance**
 - [x] Source-type verification re-run (2026-07-27: exactly overture_maps, osm, brave_search; OSM approved = 3,582, matching the counsel note; re-run again at flip time if the seeding stack changes).
 - [x] Studio-data credit rendered verbatim on the map attribution pill and on the studio entity page, with the approved "Licences and notices" link (all three constants imported from the shared module, never restated).
-- [ ] Studio-data credit rendered on the map surface, linking `/data-attribution`.
+- [~] Studio-data credit rendered on the map surface, linking `/data-attribution`. **Rendered, but behind a click as of 2026-07-27.** The attribution pill is now one collapsed `Info` control at every width (founder direction, confirmed in the visual pass), so the anonymous `/map` document ships with no attribution text at all until the control is opened; because this custom pill replaced MapLibre's built-in attribution control, the basemap credits moved behind the click too, not just the studio-data credit. Defensible as the standard interactive-map pattern (an always-visible, labelled ⓘ; Mapbox and Apple Maps do the same, and OSM's attribution guidance contemplates it), and the full notices still render uncollapsed on `/map/[id]`, `/studios/[slug]` and `/data-attribution` so no surface depends on this control alone. **But the counsel note of 2026-07-26 approved a rendering contract, and this changes the rendering on the surface the licences are about. Founder to get a short confirmation from counsel; not a re-opening of Q20.** One-line fallback if counsel prefers belt and braces: keep a permanent micro-credit (`© OSM`) beside the button with everything else behind the ⓘ, which is the exact Mapbox pattern and costs nothing in compactness.
 - [x] Migration 0111 applied and verified live (2026-07-27: columns + index + full backfill; Brave overwrite = the measured 10 rows, zero remaining).
-- [ ] `/data-attribution` reachable with the flag on: licences, Foursquare NOTICE, dated change statement, Art. 14 disclosure, Art. 21 route.
+- [x] `/data-attribution` reachable with the flag on: licences, Foursquare NOTICE, dated change statement, Art. 14 disclosure, Art. 21 route (served 200 and reviewed in the 2026-07-27 visual pass).
 - [x] Seeded `private_studio` remediation in force (D3 as recommended, 2026-07-27: zero affected rows measured in prod; enforced structurally by the read-model guard + the seed-lane writer guard, both test-locked).
 - [x] Moderation intake staffed for a public audience; the Art. 16/21 24-hour acknowledgement bar **acknowledged by the founder 2026-07-27**. The surfaces this commits to: the correction and report queue at `/admin/map/reports`, the claims queue at `/admin/map/claims`, and the public Art. 16 notice-and-action plus Art. 21 delisting intake on `/legal/report` (already live), all per `docs/dsa-moderation-procedure.md` v2.
 
 **Privacy**
-- [ ] Artists layer absent from the public plane entirely: no public branch on `/api/map/artists`, no counts, no names, no badges (D2).
-- [ ] No journey, watch, block, or viewer data in any anonymous payload or SSR page (tested).
+- [x] Artists layer absent from the public plane entirely: no public branch on `/api/map/artists`, no counts, no names, no badges (D2; unit-tested and e2e-asserted that the layer is never fetched anonymously).
+- [x] No journey, watch, block, or viewer data in any anonymous payload or SSR page. Unit-tested on the payloads, and now asserted on the served document too, which is what caught the prop-name leak (`5c7f52a`).
 - [ ] Approximate-location studios render display coordinates only, on the map AND on entity pages (existing shaper guarantee re-asserted on the public branch).
 
 **SEO**

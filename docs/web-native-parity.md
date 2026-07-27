@@ -74,8 +74,20 @@ no decision against it), ~ = partial.
 | Public (logged-out) map | unbuilt. Q20 licensing CLOSED 2026-07-26 (attribution only, OSM restored to the credit); remaining gates are engineering: credit component, `/data-attribution` page, GDPR Art. 14/21 surface, provenance on `map_locations` | n/a (app is artists-only) | 🌐 |
 | Marketing narrative for the map (homepage section, `/guest-spot-booking` section, FAQ items) | ✅ 2026-07-26, gated on `tattooMapEnabled()` | 🌐 (the app has no marketing pages; the store listings are a separate surface) | 🌐 |
 | Public-map entry points (pill nav `Map`, footer `Tattoo map`, "Open the tattoo map" CTAs) | built but DARK behind `NEXT_PUBLIC_PUBLIC_MAP` (`publicMapEnabled()` = platform gate AND public gate) | n/a | 🌐 |
+| Map attribution surface (basemap credits + `STUDIO_DATA_CREDIT` + `/data-attribution` link) | one collapsed `Info` pill at every width, collapsed by default (founder direction 2026-07-27); full notices render uncollapsed on `/map/[id]`, `/studios/[slug]`, `/data-attribution` | **none rendered** | ⬜ tracked gap, see note below |
 | Claimed studio entity page `/studios/{slug}` (public, gate-indexable) | built 2026-07-27, DARK behind `publicMapEnabled()` (go-live plan S2b, founder D1) | 🌐 web-only BY DECISION: it is a public SEO/entity surface for visitors, and the app is artists-only. The app links a claimed studio to its web page only when the public surface is live | 🌐 |
 | `studioSlug` on the shared map-detail payload | ✅ served by `/api/map/locations/[id]` | ✅ additively present on `/api/mobile/map/locations/[id]` (same shared type); native does not render it yet, and it is null while the public map is dark | ~ by design |
+
+**Note on the attribution gap (found 2026-07-27, does not gate the web flip).**
+The native discovery map renders the same basemap tiles and the same seeded
+studio rows as web, and currently shows **no attribution of any kind**: no
+basemap credit, no `STUDIO_DATA_CREDIT`, no link to `/data-attribution`. The
+web flip is unaffected (this is a web-only launch), but the underlying ODbL /
+CDLA-Permissive-2.0 / Apache-2.0 obligations attach to the Produced Work, not
+to whether its audience is public, so an artists-only audience does not remove
+them. The shared strings already exist in `@inklee/shared/map-attribution`, so
+the fix is a rendering task on `travel/discover`, not a new contract. Raise
+with counsel alongside the collapsed-pill question rather than separately.
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
 

@@ -777,16 +777,25 @@ export default function ImmersiveMapShell({
         {/* Attribution as a custom pill, so it matches the height + baseline of
             the count and the toggle (bottom-3, 30px). Public phones: lifted
             clear of the bottom conversion bar so the compliance surface never
-            loses tap target to it. */}
+            loses tap target to it.
+
+            ONE collapsed "i" affordance at every width (founder direction
+            2026-07-27; phones already behaved this way). The button itself is
+            always visible and labelled, so the credits stay one predictable
+            click away rather than hidden. The full notices additionally render
+            plainly, never collapsed, on /map/[id], /studios/[slug] and
+            /data-attribution, so no surface depends on this control alone. */}
         <div
-          className={`pointer-events-auto absolute right-3 z-20 flex items-center md:bottom-3 ${
-            isPublic ? "bottom-[4.75rem]" : "bottom-10"
-          } ${scheme === "dark" ? "text-brand-rosa" : "text-muted-foreground"}`}
+          className={`pointer-events-auto absolute right-3 flex items-center md:bottom-3 ${
+            // Open, this outranks the map/list toggle (z-30) so the unfolded
+            // credits are never clipped by it.
+            attributionOpen ? "z-40" : "z-20"
+          } ${isPublic ? "bottom-[4.75rem]" : "bottom-10"} ${
+            scheme === "dark" ? "text-brand-rosa" : "text-muted-foreground"
+          }`}
         >
-          {/* Phones: a collapsed round "i" pill; tapping unfolds the links
-              (the wide pill wrapped and sat off-center at phone widths). */}
           {attributionOpen ? (
-            <div className="mr-2 flex h-10 max-w-[calc(100vw_-_7.5rem)] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur md:hidden">
+            <div className="mr-2 flex h-10 max-w-[calc(100vw_-_7.5rem)] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur md:h-[30px] md:max-w-[72vw] md:gap-1.5 md:px-3 md:text-[10px]">
               <AttributionLinks />
             </div>
           ) : null}
@@ -795,14 +804,10 @@ export default function ImmersiveMapShell({
             onClick={() => setAttributionOpen((v) => !v)}
             aria-expanded={attributionOpen}
             aria-label="Map attribution"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-background/85 shadow-sm backdrop-blur transition-colors hover:text-foreground md:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-background/85 shadow-sm backdrop-blur transition-colors hover:text-foreground md:h-[30px] md:w-[30px]"
           >
-            <Info className="h-4 w-4" aria-hidden />
+            <Info className="h-4 w-4 md:h-3.5 md:w-3.5" aria-hidden />
           </button>
-          {/* md+: the flat pill, unchanged. */}
-          <div className="hidden h-[30px] max-w-[60vw] items-center gap-2 overflow-hidden rounded-full bg-background/85 px-3.5 text-[11px] shadow-sm backdrop-blur md:flex">
-            <AttributionLinks />
-          </div>
         </div>
 
         {/* Selected city panel (bottom sheet on mobile, bottom-right card on
