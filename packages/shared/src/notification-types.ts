@@ -20,6 +20,7 @@ export type NotificationType =
   | "guest_spot_passed"
   | "guest_spot_dates"
   | "guest_spot_cancelled"
+  | "studio_claim_approved"
   | "system_warning"
   | "info";
 

@@ -115,21 +115,22 @@ export default async function StudioCockpitPage() {
             this just adds the studio side.
           </p>
         </header>
+        {/* Charcoal card: a live claim is the one thing on this page carrying
+            state, so it uses the app's dark-chrome shell tokens to lift off the
+            bone workspace instead of reading as another bordered box. */}
         {claims.length > 0 ? (
-          <div className="space-y-2 rounded-2xl border border-border p-5">
-            <h2 className="text-sm font-semibold text-foreground">
-              Your claims
-            </h2>
+          <div className="space-y-2 rounded-2xl border border-shell-border bg-shell-bg p-5">
+            <h2 className="text-sm font-semibold text-shell-fg">Your claims</h2>
             <ul className="space-y-1.5">
               {claims.map((c) => (
                 <li
                   key={c.id}
                   className="flex items-center justify-between gap-2 text-sm"
                 >
-                  <span className="text-foreground">
+                  <span className="text-shell-fg">
                     {c.locationName}
                     {c.locationCity ? (
-                      <span className="text-muted-foreground">
+                      <span className="text-shell-fg-dim">
                         {" "}
                         · {c.locationCity}
                       </span>
@@ -138,8 +139,12 @@ export default async function StudioCockpitPage() {
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs ${
                       c.status === "pending" || c.status === "approved"
-                        ? "bg-brand-mustard/20 text-brand-mustard"
-                        : "bg-muted text-muted-foreground"
+                        ? // Solid mustard, charcoal text: the canonical brand
+                          // pairing, and the only high-contrast way to carry
+                          // mustard on a dark surface (mustard-on-charcoal text
+                          // alone is too dim to read at this size).
+                          "bg-brand-mustard font-medium text-brand-charcoal"
+                        : "bg-shell-hover text-shell-fg-dim"
                     }`}
                   >
                     {CLAIM_STATUS_LABELS[c.status] ?? "Decided"}

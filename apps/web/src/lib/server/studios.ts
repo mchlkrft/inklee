@@ -1488,6 +1488,20 @@ export async function approveClaimCore(
       error:
         "Approved, but the other claims on this location could not be auto-rejected. Reject them from the queue.",
     };
+
+  // Tell the claimant. Deliberately AFTER every write above and deliberately
+  // best-effort: the approval is already committed, so a mail or feed failure
+  // must not read as a failed approval and tempt a second run.
+  try {
+    const { notifyClaimApproved } =
+      await import("@/lib/server/studio-claim-notifications");
+    await notifyClaimApproved({
+      claimantId,
+      studioName: location.name as string,
+    });
+  } catch (err) {
+    console.error("[studios] claim approval notification threw:", err);
+  }
   return {};
 }
 
