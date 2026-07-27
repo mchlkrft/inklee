@@ -47,6 +47,7 @@ import {
 } from "@inklee/shared/map-core-state";
 import { publicMapEnabled } from "@/lib/map-features";
 import { trackPublicEvent } from "@/lib/public-analytics/collector";
+import { usePublicMapPlane } from "@/lib/public-analytics/public-map-plane";
 import {
   STUDIO_DATA_CREDIT,
   DATA_ATTRIBUTION_PATH,
@@ -134,6 +135,11 @@ export default function ImmersiveMapShell({
   // layer. No rail or bottom nav (the artist chrome), no artists layer (D2),
   // sign-in walls instead of gated actions, and the experimental banner.
   const isPublic = capabilities.isPublic;
+
+  // Tell the collector which plane it is on. `/map` serves both audiences on
+  // one path, so without this the acquisition numbers would count signed-in
+  // artists browsing their own workspace from the flip onward.
+  usePublicMapPlane(isPublic);
 
   // Sign-in wall for the header: captures the CURRENT map state (it lives in
   // the URL) at click time, so signing in returns the visitor to the exact

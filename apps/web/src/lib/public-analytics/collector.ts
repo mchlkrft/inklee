@@ -56,6 +56,30 @@ const PRIVATE_PREFIXES = [
 const MAP_PREFIX = "/map";
 const AUTHED_MAP_PATTERNS = [/^\/map\/[^/]+\/request\/?$/];
 
+/**
+ * `/map` is the first route that serves BOTH planes on ONE path: the same URL
+ * is an anonymous acquisition surface for a visitor and the artist workspace
+ * for a signed-in artist. A prefix rule cannot tell them apart, so from the
+ * flip onward the carve-out above would pour artist browsing into the
+ * acquisition numbers, which is precisely what the collector exists not to do.
+ *
+ * The plane is only knowable from the session, which is resolved server-side,
+ * so the anonymous shells publish it here (see `usePublicMapPlane`).
+ *
+ * Deliberately FAIL-CLOSED: the default is "not the public plane", so a missed
+ * or mis-ordered marker under-counts anonymous map traffic rather than
+ * contaminating acquisition with artist behaviour. Under-counting is visible
+ * and recoverable; contamination is silent and poisons the soak numbers the
+ * flip is judged on. The marker is published from an effect in the page
+ * subtree, and React runs effects children-first while the collector's own
+ * effect sits in the ROOT layout, so the marker always lands first.
+ */
+let publicMapPlaneActive = false;
+
+export function setPublicMapPlane(active: boolean): void {
+  publicMapPlaneActive = active;
+}
+
 /** Artist subdomains (mikey.inkl.ee) and hub subdomains serve only public
  *  pages: authed cookies cannot flow to *.inkl.ee (see proxy.ts), so the
  *  main-host private-prefix list does not apply there. */
@@ -70,6 +94,7 @@ export function isTrackablePath(pathname: string, hostname?: string): boolean {
     pathname === MAP_PREFIX || pathname.startsWith(`${MAP_PREFIX}/`);
   if (inMap) {
     if (!publicMapEnabled()) return false;
+    if (!publicMapPlaneActive) return false;
     return !AUTHED_MAP_PATTERNS.some((re) => re.test(pathname));
   }
   return !PRIVATE_PREFIXES.some(

@@ -7,6 +7,7 @@ import { tattooMapEnabled, publicMapEnabled } from "@/lib/map-features";
 import { getClientIp } from "@/lib/get-client-ip";
 import { checkPublicMapDetailRateLimit } from "@/lib/ratelimit";
 import RandomizedLogo from "@/components/randomized-logo";
+import PublicMapPlaneMarker from "@/lib/public-analytics/public-map-plane";
 import {
   STUDIO_DATA_CREDIT,
   DATA_ATTRIBUTION_PATH,
@@ -122,6 +123,9 @@ export default async function MapLocationPage({
           chrome from the layout instead. */}
       {viewer ? null : (
         <div className="space-y-2">
+          {/* Anonymous plane: this path serves artists too, and the collector
+              defaults to excluding it, so the public branch opts itself in. */}
+          <PublicMapPlaneMarker />
           <div className="flex items-center justify-between gap-2">
             <Link
               href="/"

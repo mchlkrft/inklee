@@ -1,3 +1,5 @@
+import { DATA_ATTRIBUTION_PATH } from "@inklee/shared/map-attribution";
+
 // Single source for the app's environment config. Read EXPO_PUBLIC_* once,
 // validate, and export typed values so screens never re-read process.env or
 // duplicate fallbacks (the API base previously had two different defaults — ""
@@ -48,4 +50,8 @@ export const config = {
    *  `publicArtistUrl(slug, { subpath: "/waitlist" })`. */
   waitlistUrl: (slug: string) =>
     `${PUBLIC_BASE.replace(/^https:\/\//, `https://${slug}.`)}/waitlist`,
+  /** Full licences, notices and the dated change statement for map data. Path
+   *  comes from the shared attribution module so web and native can never
+   *  drift; this is the apex host, not a slug subdomain. */
+  dataAttributionUrl: () => `${PUBLIC_BASE}${DATA_ATTRIBUTION_PATH}`,
 } as const;

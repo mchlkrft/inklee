@@ -1,6 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 
-import { isTrackablePath } from "@/lib/public-analytics/collector";
+import {
+  isTrackablePath,
+  setPublicMapPlane,
+} from "@/lib/public-analytics/collector";
 import {
   PUBLIC_EVENTS,
   validatePublicEvent,
@@ -16,6 +19,9 @@ import { GROWTH_EVENT_SCHEMAS } from "@/lib/growth/event-catalogue";
  *    after a rollback.
  * 2. A map event carrying identifying data. The registry's allowlist is the
  *    enforcement; these tests prove it rejects ids, names, and free text.
+ * 3. The dual-plane hazard: `/map` serves anonymous visitors AND signed-in
+ *    artists on the SAME path, so the flag alone cannot classify it. The plane
+ *    marker must be required, and its absence must exclude rather than include.
  */
 
 const ORIGINAL_TATTOO = process.env.NEXT_PUBLIC_TATTOO_MAP;
@@ -33,23 +39,27 @@ function flags(tattoo: string | undefined, publicMap: string | undefined) {
 afterEach(() => {
   setEnv("NEXT_PUBLIC_TATTOO_MAP", ORIGINAL_TATTOO);
   setEnv("NEXT_PUBLIC_PUBLIC_MAP", ORIGINAL_PUBLIC);
+  setPublicMapPlane(false);
 });
 
 describe("isTrackablePath: the /map carve-out follows the flip", () => {
   it("keeps /map private while the public map is dark", () => {
     flags("true", undefined);
+    setPublicMapPlane(true);
     expect(isTrackablePath("/map")).toBe(false);
     expect(isTrackablePath("/map/loc-1")).toBe(false);
   });
 
   it("tracks the public map once it is live", () => {
     flags("true", "true");
+    setPublicMapPlane(true);
     expect(isTrackablePath("/map")).toBe(true);
     expect(isTrackablePath("/map/loc-1")).toBe(true);
   });
 
   it("never tracks the authed guest-spot request route, in either state", () => {
     flags("true", "true");
+    setPublicMapPlane(true);
     expect(isTrackablePath("/map/loc-1/request")).toBe(false);
     expect(isTrackablePath("/map/loc-1/request/")).toBe(false);
     flags("true", undefined);
@@ -58,11 +68,49 @@ describe("isTrackablePath: the /map carve-out follows the flip", () => {
 
   it("leaves every other private prefix alone", () => {
     flags("true", "true");
+    setPublicMapPlane(true);
     expect(isTrackablePath("/dashboard")).toBe(false);
     expect(isTrackablePath("/settings/map")).toBe(false);
     expect(isTrackablePath("/bookings/requests")).toBe(false);
     expect(isTrackablePath("/studios/black-needle")).toBe(true);
     expect(isTrackablePath("/")).toBe(true);
+  });
+});
+
+describe("isTrackablePath: /map is dual-plane, so the flag is not enough", () => {
+  it("does NOT track a signed-in artist on /map after the flip", () => {
+    // The whole point: same path, same flag state, different audience. Only the
+    // anonymous shell publishes the plane, so the artist workspace is excluded.
+    flags("true", "true");
+    setPublicMapPlane(false);
+    expect(isTrackablePath("/map")).toBe(false);
+    expect(isTrackablePath("/map/loc-1")).toBe(false);
+  });
+
+  it("fails CLOSED when the plane is unknown", () => {
+    // No marker published at all (a page that forgot, or an effect that never
+    // ran). Under-counting anonymous traffic is recoverable; silently mixing
+    // artist behaviour into acquisition is not.
+    flags("true", "true");
+    expect(isTrackablePath("/map")).toBe(false);
+  });
+
+  it("re-closes when the anonymous shell unmounts", () => {
+    flags("true", "true");
+    setPublicMapPlane(true);
+    expect(isTrackablePath("/map")).toBe(true);
+    setPublicMapPlane(false);
+    expect(isTrackablePath("/map")).toBe(false);
+  });
+
+  it("leaves non-map paths untouched by the plane marker", () => {
+    // The marker is scoped to the dual-plane route; it must not become a
+    // global tracking switch.
+    flags("true", "true");
+    setPublicMapPlane(false);
+    expect(isTrackablePath("/")).toBe(true);
+    expect(isTrackablePath("/studios/black-needle")).toBe(true);
+    expect(isTrackablePath("/dashboard")).toBe(false);
   });
 });
 

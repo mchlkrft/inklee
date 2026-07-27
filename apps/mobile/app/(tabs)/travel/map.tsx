@@ -26,6 +26,7 @@ import { Screen } from "@/components/Screen";
 import { AdaptiveSheet } from "@/components/AdaptiveSheet";
 import { ErrorState } from "@/components/ErrorState";
 import { TravelIcon } from "@/components/TravelIcon";
+import MapAttribution from "@/components/map/MapAttribution";
 import { useApiQuery } from "@/lib/api";
 import { brandMapStyle, mapInk } from "@/lib/map-style";
 import { useColors, useThemePreference } from "@/lib/theme";
@@ -224,6 +225,13 @@ export default function TravelMapScreen() {
             </Text>
           </Pressable>
         ) : null}
+
+        {/* Data credits, collapsed. Top-LEFT on this screen: the top-right is
+            the Trips chip, and the bottom overlays grow upward from one
+            baseline. Same tiles as discover, so the same credits are due. */}
+        <View style={{ position: "absolute", top: 12, left: 12 }}>
+          <MapAttribution />
+        </View>
 
         {selected ? (
           <View

@@ -54,6 +54,7 @@ import { useCapability } from "@/lib/capabilities";
 import { brandMapStyle } from "@/lib/map-style";
 import { useColors, useThemePreference } from "@/lib/theme";
 import MapDetailSheet from "@/components/map/MapDetailSheet";
+import MapAttribution from "@/components/map/MapAttribution";
 
 // The native tattoo map (discovery surface): the same shared map core the web
 // immersive shell renders — one basemap (brandMapStyle), one pin vocabulary
@@ -504,6 +505,9 @@ export default function DiscoverMapScreen() {
               color={filter !== "all" ? "#1e1e1e" : colors.bone}
             />
           </Pressable>
+          {/* Data credits, collapsed. Every bottom corner here is taken by an
+              overlay that grows upward, so this rides the top control row. */}
+          <MapAttribution />
         </View>
 
         {/* Search results dropdown. */}
