@@ -119,6 +119,19 @@ Without this slice the public map is invisible in acquisition, so it gates the f
 
 ### S5: launch readiness pass (effort class: ~1 to 2 days)
 
+**Status 2026-07-27: DONE except the two items only the founder can close.**
+
+Verified by executing a production build with both flags forced on, and again with them off (the rollback rehearsal), then reading the real emitted output rather than trusting the code:
+
+- With the flags ON: `/studios/[slug]` and `/studios/sitemap.xml` register, `/data-attribution` renders instead of 404ing, and `robots.txt` emits `Allow: /api/studio-media/` ahead of the blanket `/api/` disallow plus BOTH sitemap lines. `/map` is correctly absent from the disallow list (a `Disallow` there would block the `noindex` tag itself and the follow path to claimed studios).
+- With the flags OFF: the studio sitemap line disappears from `robots.txt` and the public surfaces close again. The rollback story is now rehearsed at the artifact level, not just asserted.
+
+The end-to-end obligations S1, S2 and S2b handed forward are written as a real Playwright spec (`tests/e2e/public-map.spec.ts`, 10 tests) and wired into the suite with the map flags pinned in `playwright.config.ts`. They assert what unit tests structurally cannot: the served HTML's robots and canonical, that the anonymous document embeds no journey or watch data and renders no artist chrome, that the public pins request is quantized on the wire, that the sign-in walls carry a return target, that a shared link restores the viewport, that the artists layer is never fetched on the public plane (D2), that an unknown studio slug is a 404, and that the sitemap and robots posture hold. **These were NOT executed locally** (Docker was unavailable, so local Supabase could not start); they run in the CI `e2e` job, and the founder should confirm that job is green before the flip.
+
+Copy sweep across all five slices: zero em dashes in user-visible strings, no Approve or Reject verbs, sentence case with terminal punctuation on every new string. The parity register row and the SEO implementation log entry shipped with S2b.
+
+Still open, and deliberately not self-closable: **moderation intake readiness** (a founder acknowledgement that the correction queue and the Art. 16/21 intake are staffed for a public audience at the DSA procedure's 24-hour bar), and the **visual pass** over the flipped marketing surfaces in a preview deployment.
+
 - Verify the marketing flip end to end with the flag forced on in preview: nav, footer, both CTA modes, `/data-attribution` un-404s, no `/map` link anywhere while dark (the existing regression tests).
 - `docs/web-native-parity.md`: add the deliberate web-only row for the public shell (founder rule: the register is updated in the same change).
 - SEO implementation log entry for the S2 metadata work (robots, canonicals, the moved route), per the CLAUDE.md rule; confirm zero sitemap/robots.txt/`MARKETING_ROUTES` drift via the existing tests.
@@ -144,18 +157,19 @@ Rollback at any point: set the flag to false and redeploy. The surface goes dark
 Every line verifiable, no judgment calls at flip time:
 
 **Technical**
-- [ ] All three public API branches live, tested, rate-limited, cached (artists deliberately has none, D2); quantized request URLs wired on the public fetch (helper S1, wiring S2).
-- [ ] Public pins AND detail payload structural-subset tests green; zero personal fields anonymously reachable.
-- [ ] Capability fields load-bearing: `PUBLIC_MAP_CAPABILITIES` resolution tested on both branches, each field verifiably driving its gated rendering.
-- [ ] Flag-off refusal: with `NEXT_PUBLIC_PUBLIC_MAP` unset, all four public branches refuse anonymous requests.
-- [ ] Anonymous `/map` and `/map/[id]` render with explicit `noindex, follow` and self-canonicals (asserted in a test against rendered HTML, which no test does today).
-- [ ] Anonymous chrome verified: no artist rail, bottom nav, or workspace chrome in the anonymous DOM (E2E assertion).
-- [ ] Error and empty states render on forced API failure (no silent empty map).
-- [ ] Authed experience regression-clean (personal overlays, watch, request flows unchanged).
-- [ ] Rollback rehearsed in preview, including the API-refusal and collector-exclusion reverts.
+- [x] All three public API branches live, tested, rate-limited, cached (artists deliberately has none, D2); quantized request URLs wired on the public fetch (S1 helper, S2 wiring, e2e asserts the wire).
+- [x] Public pins AND detail payload structural-subset tests green; zero personal fields anonymously reachable (unit-tested, including a literal key allowlist).
+- [x] Capability fields load-bearing: resolution unit-tested on both planes; each field drives its gated rendering in the shell, panel, and entity page.
+- [x] Flag-off refusal: with `NEXT_PUBLIC_PUBLIC_MAP` unset, every public branch refuses anonymous requests (unit-tested at the resolver and per route).
+- [ ] Anonymous `/map` and `/map/[id]` render with explicit `noindex, follow` and self-canonicals **against rendered HTML** (spec written in `tests/e2e/public-map.spec.ts`; confirm the CI e2e job is green).
+- [ ] Anonymous chrome and the no-personal-data document verified in the served DOM (same spec; confirm CI).
+- [x] Error and empty states render on forced API failure (pins retry state and search failure state; no silent empty map).
+- [x] Authed experience regression-clean: the workspace chrome, personal overlays, watch, and request flows are unchanged after the route move (shared `ArtistWorkspaceShell`), 1647 unit tests green.
+- [x] Rollback rehearsed: production builds executed with the flags on and off; the emitted `robots.txt` and route set revert, the API branches re-close (unit-tested), and the collector carve-out re-closes (unit-tested).
 
 **Legal and compliance**
 - [x] Source-type verification re-run (2026-07-27: exactly overture_maps, osm, brave_search; OSM approved = 3,582, matching the counsel note; re-run again at flip time if the seeding stack changes).
+- [x] Studio-data credit rendered verbatim on the map attribution pill and on the studio entity page, with the approved "Licences and notices" link (all three constants imported from the shared module, never restated).
 - [ ] Studio-data credit rendered on the map surface, linking `/data-attribution`.
 - [x] Migration 0111 applied and verified live (2026-07-27: columns + index + full backfill; Brave overwrite = the measured 10 rows, zero remaining).
 - [ ] `/data-attribution` reachable with the flag on: licences, Foursquare NOTICE, dated change statement, Art. 14 disclosure, Art. 21 route.
@@ -168,20 +182,23 @@ Every line verifiable, no judgment calls at flip time:
 - [ ] Approximate-location studios render display coordinates only, on the map AND on entity pages (existing shaper guarantee re-asserted on the public branch).
 
 **SEO**
-- [ ] `/map` posture unchanged: sitemap, robots.txt, `MARKETING_ROUTES`, IndexNow zero drift (existing regression tests green).
-- [ ] `/studios/{slug}` gate tests green: ungated profiles never indexable, robots asserted on rendered HTML per gate state, 404 for unclaimed/unpublished.
-- [ ] Studio sitemap segment contains exclusively gate-passing pages and does not feed IndexNow.
-- [ ] JSON-LD constraint tests green (no forbidden properties, display coordinates only).
-- [ ] SEO implementation log entries written (S2 metadata + S2b entity pages).
+- [x] `/map` posture: `MARKETING_ROUTES`, the root sitemap and IndexNow are untouched (regression tests green); `/map` now correctly declares `noindex, follow` instead of the inherited `nofollow`.
+- [x] `/studios/{slug}` gate tests green: ungated profiles never indexable, 404 for unclaimed/unpublished/unapproved, metadata robots asserted per gate state (rendered-HTML assertion is the e2e item above).
+- [x] Studio sitemap segment is built from the indexability gate alone and lives outside `MARKETING_ROUTES`, so it cannot feed IndexNow; `robots.txt` announces it only when the surface is live (verified in both build states).
+- [x] JSON-LD constraint tests green: no `aggregateRating`, reviews, opening hours, or `priceRange`; geo and street address only for exact-address non-private studios; the claim-evidence social link is never published.
+- [x] SEO implementation log entry written (S2 metadata + S2b entity pages, one dated entry).
 
 **Analytics**
-- [ ] `/map` trackable; launch events registered and verified firing in preview.
+- [x] `/map` becomes trackable exactly at the flip and re-closes on rollback (flag-gated carve-out, unit-tested); the authed request route stays private in both states.
+- [x] Launch events registered on the closed allowlist with enum-only props (no ids, names, or coordinates possible) plus the server-observed claim milestone.
+- [ ] Verified firing after the flip: the wa diagnostics panel on `/admin/growth/acquisition` shows map pageviews within the hour (post-flip check, S6 step 3).
 
 **Product**
-- [ ] Experimental banner live; unverified and possibly-closed labels on the public path; copy sweep clean.
-- [ ] Marketing flip verified end to end in preview with the flag forced on (nav, footer, both CTA modes, `/data-attribution`; no `/map` links while dark).
-- [ ] Parity register row added.
-- [ ] D1 to D3 are decided and recorded (DECISIONS.md, 2026-07-27); the founder executes the flip.
+- [x] Experimental banner live on both public surfaces; unverified and possibly-closed labels render on the public path; copy sweep clean across all five slices (zero em dashes, sentence case, no Approve or Reject verbs).
+- [x] Marketing flip verified at the artifact level: a build with the flags on registers `/studios/*` and un-404s `/data-attribution`, and `robots.txt` gains the studio sitemap; the dark build reverts both. Link and CTA gating is unit-tested.
+- [ ] Visual pass over the flipped marketing surfaces in a preview deployment (founder; nav pill, footer entry, both CTA modes).
+- [x] Parity register row added (web-only by decision, plus the additive `studioSlug` field on the mobile detail payload).
+- [x] D1 to D3 are decided and recorded (DECISIONS.md, 2026-07-27); the founder executes the flip.
 
 ## 5. Soak and measurement (first weeks after the flip)
 

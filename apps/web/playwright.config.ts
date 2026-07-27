@@ -46,6 +46,11 @@ const webServerEnv: Record<string, string> = {
   UPSTASH_REDIS_REST_URL: "",
   UPSTASH_REDIS_REST_TOKEN: "",
   NEXT_PUBLIC_PUBLIC_BIO_DOMAIN: "",
+  // The tattoo map and its PUBLIC shell are both on for e2e: the public-map
+  // spec is the only place the anonymous plane's rendered HTML, chrome, and
+  // request shapes are asserted end to end (go-live plan S5).
+  NEXT_PUBLIC_TATTOO_MAP: "true",
+  NEXT_PUBLIC_PUBLIC_MAP: "true",
 };
 
 export default defineConfig({
