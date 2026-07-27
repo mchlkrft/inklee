@@ -101,6 +101,21 @@ Stored columns per event: `event_name`, `artist_id`, `source` (`web` | `mobile`)
   indicator ahead of first requests; individual copies appear on the artist growth timeline
   (`/admin/accounts/[id]`).
 
+### studio_claim_submitted
+
+- **Props**: none.
+- **Dedupe**: none; repeatable, because an owner may claim more than one location over time and
+  each submission is a real funnel event. Abuse is capped by the claim rate limiter (3 per user per
+  day), not by a dedupe key.
+- **Fires**: `submitClaimAction` in `apps/web/src/app/(artist)/studio/actions.ts`, after
+  `submitClaimCore` succeeds. Server-observed only (not in `CLIENT_INGESTIBLE_EVENTS`).
+- **Platform coverage**: web live; native has no claim flow (web-only by decision, see
+  `docs/web-native-parity.md`).
+- **Answers**: the authenticated end of the studio claim funnel, whose anonymous start is the
+  public `studio_claim_started` event in `apps/web/src/lib/public-analytics/event-registry.ts`.
+  Together they measure the claim loop the public map exists to drive (go-live plan S4). Carries no
+  location dimension on purpose: which studio was claimed is not a growth dimension.
+
 ## The mobile ingestion endpoint
 
 `POST /api/mobile/events` (`apps/web/src/app/api/mobile/events/route.ts`):

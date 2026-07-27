@@ -42,6 +42,14 @@ export const GROWTH_EVENT_SCHEMAS = {
       ]),
     })
     .strict(),
+  /**
+   * A studio claim was submitted (the authenticated end of the claim funnel
+   * whose anonymous start is the public `studio_claim_started` event).
+   * Server-observed; repeatable, since a claim can be filed on more than one
+   * location over time and each is a real funnel event. Deliberately carries
+   * no location id: which studio someone claimed is not a growth dimension.
+   */
+  studio_claim_submitted: z.object({}).strict(),
 } as const;
 
 export type GrowthEventName = keyof typeof GROWTH_EVENT_SCHEMAS;
@@ -82,6 +90,11 @@ export function dedupeKeyFor(
       return artistId;
     case "booking_link_copied":
       return null; // repeatable
+    case "studio_claim_submitted":
+      // Repeatable: a claim can be filed on more than one location over time,
+      // and each submission is a real funnel event. The per-user daily cap
+      // lives in the claim rate limiter, not here.
+      return null;
   }
 }
 

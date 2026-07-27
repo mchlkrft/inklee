@@ -131,6 +131,51 @@ export const PUBLIC_EVENTS = {
     clientEmittable: false,
     emitter: "Server-side in the booking submit action (app/[slug]/actions.ts)",
   },
+
+  // --- Public tattoo map (go-live plan S4) --------------------------------
+  // Coarse by construction: no studio id, name, city, or coordinates ever
+  // enters a prop. The allowlist below is the enforcement, and the map's own
+  // privacy line (which studio a visitor looked at is their business) is why
+  // there is no per-studio dimension here at all.
+  map_studio_opened: {
+    description:
+      "A studio detail surface was opened from the public map (panel, full page, or a deep link).",
+    category: "acquisition",
+    isConversion: false,
+    properties: { surface: ["panel", "page", "studio_page"] },
+    clientEmittable: true,
+    emitter: "Public map detail panel + /map/[id] + /studios/[slug]",
+  },
+  map_filter_applied: {
+    description:
+      "A filter was applied on the public map. The filter TYPE only, never its value.",
+    category: "acquisition",
+    isConversion: false,
+    properties: { filter_type: ["category", "signals", "search"] },
+    clientEmittable: true,
+    emitter: "Public map shell (filter menu + search box)",
+  },
+  map_signup_cta_clicked: {
+    description:
+      "A sign-in or create-account call to action was clicked from a public map surface.",
+    category: "acquisition",
+    isConversion: false,
+    properties: {
+      surface: ["map_shell", "map_detail", "studio_page"],
+      intent: ["sign_in", "create_account", "claim", "watch", "guest_spot"],
+    },
+    clientEmittable: true,
+    emitter: "Public map shell + detail panel + /studios/[slug] walls",
+  },
+  studio_claim_started: {
+    description:
+      "The studio claim form was opened from a public map surface (the top of the claim funnel).",
+    category: "registration",
+    isConversion: false,
+    properties: {},
+    clientEmittable: true,
+    emitter: "Claim call to action on the public map surfaces",
+  },
 } as const satisfies Record<string, PublicEventDefinition>;
 
 export type PublicEventName = keyof typeof PUBLIC_EVENTS;

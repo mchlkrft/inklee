@@ -105,6 +105,10 @@ The claimed reward surface, gate-driven so it carries zero thin-page risk: ungat
 
 ### S4: analytics and measurement (effort class: ~2 to 3 days)
 
+**Status 2026-07-27: BUILT, dark with the rest of the surface.** Delivered: the `/map` carve-out in the collector's private prefixes, gated on `publicMapEnabled()` so a rollback restores today's exclusion, with `/map/<id>/request` staying private in both states (an authed workflow route a prefix rule cannot exclude); four public map events registered on the closed allowlist (`map_studio_opened`, `map_filter_applied`, `map_signup_cta_clicked`, `studio_claim_started`), each carrying enum-only props so a studio id, name, city, or coordinate cannot enter a payload even by mistake, and none marked a conversion (account creation stays the conversion); client emitters on the public shell, the detail panel, and the entity page walls; the server-observed `studio_claim_submitted` milestone closing the claim funnel from the authenticated end; the catalogue documentation both registries require; and 9 tests pinning the carve-out's behaviour across the flip and the allowlist's rejection of identifying props.
+
+Deliberately NOT in this slice, per the plan and the standing privacy line: cockpit map tabs, the meaningful-action metric definitions (Q28 waits for real data), and any instrumentation of watch or trip intent.
+
 Without this slice the public map is invisible in acquisition, so it gates the flip.
 
 - Carve `/map` out of `PRIVATE_PREFIXES` in `lib/public-analytics/collector.ts`, gated on `publicMapEnabled()` so a rollback restores today's exclusion instead of leaving signed-in artists' map visits flowing into the acquisition collector (keeping authed-only subpaths excluded as needed).

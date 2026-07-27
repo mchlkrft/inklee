@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { tattooMapEnabled } from "@/lib/map-features";
+import { recordGrowthEvent } from "@/lib/growth/record-event";
 import {
   createStudioCore,
   deleteStudioPhotoCore,
@@ -175,6 +176,12 @@ export async function submitClaimAction(
   if (!user) return { error: "Not signed in." };
   const result = await submitClaimCore(user.id, mapLocationId, input);
   if (!result.error) {
+    // The claim funnel's authenticated end (go-live plan S4). Server-recorded
+    // so it cannot be forged, coarse so it carries nothing about WHICH studio.
+    void recordGrowthEvent(
+      { event: "studio_claim_submitted", props: {} },
+      { artistId: user.id, source: "web", email: user.email },
+    );
     revalidatePath("/studio");
     revalidatePath(`/map/${mapLocationId}`);
   }

@@ -46,6 +46,7 @@ import {
   type MapViewport,
 } from "@inklee/shared/map-core-state";
 import { publicMapEnabled } from "@/lib/map-features";
+import { trackPublicEvent } from "@/lib/public-analytics/collector";
 import {
   STUDIO_DATA_CREDIT,
   DATA_ATTRIBUTION_PATH,
@@ -134,6 +135,10 @@ export default function ImmersiveMapShell({
   // the URL) at click time, so signing in returns the visitor to the exact
   // viewport. Panel CTAs use static per-target hrefs instead.
   const signInHere = useCallback(() => {
+    trackPublicEvent("map_signup_cta_clicked", {
+      surface: "map_shell",
+      intent: "sign_in",
+    });
     const next = encodeURIComponent(
       window.location.pathname + window.location.search,
     );
@@ -263,6 +268,8 @@ export default function ImmersiveMapShell({
       setWatchError(null);
       setExpandedPin(null);
       setSelected(pin);
+      // Coarse by construction: the surface, never which studio.
+      trackPublicEvent("map_studio_opened", { surface: "panel" });
       writeUrl({ selectedId: pin.id }, true);
     },
     [writeUrl],
@@ -279,6 +286,14 @@ export default function ImmersiveMapShell({
   const changeFilter = useCallback(
     (next: MapFilterKind) => {
       setFilter(next);
+      // Filter TYPE only, never its value: the collector's allowlist forbids
+      // free text, and which category someone browsed is not a growth
+      // dimension worth carrying.
+      if (next !== "all") {
+        trackPublicEvent("map_filter_applied", {
+          filter_type: next === "signals" ? "signals" : "category",
+        });
+      }
       writeUrl({ filter: next }, false);
     },
     [writeUrl],
@@ -599,6 +614,12 @@ export default function ImmersiveMapShell({
               </button>
               <Link
                 href="/signup"
+                onClick={() =>
+                  trackPublicEvent("map_signup_cta_clicked", {
+                    surface: "map_shell",
+                    intent: "create_account",
+                  })
+                }
                 className="flex h-9 items-center rounded-full bg-foreground px-4 text-xs text-background shadow-lg transition-opacity hover:opacity-90"
               >
                 Create account
@@ -890,6 +911,12 @@ export default function ImmersiveMapShell({
               ) : (
                 <Link
                   href={`/login?next=${encodeURIComponent(`/map/${selected.id}`)}`}
+                  onClick={() =>
+                    trackPublicEvent("map_signup_cta_clicked", {
+                      surface: "map_detail",
+                      intent: "watch",
+                    })
+                  }
                   className="rounded-md border border-border px-3 py-2.5 text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-1.5"
                 >
                   Sign in to watch

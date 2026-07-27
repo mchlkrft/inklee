@@ -15,6 +15,7 @@ const VALID_PROPS: Record<GrowthEventName, Record<string, string>> = {
   onboarding_completed: {},
   page_published: {},
   booking_link_copied: { surface: "dashboard" },
+  studio_claim_submitted: {},
 };
 
 const LINK_COPY_SURFACES = [

@@ -11,6 +11,7 @@
 
 import type { PublicEventName } from "./event-registry";
 import { PUBLIC_EVENTS } from "./event-registry";
+import { publicMapEnabled } from "@/lib/map-features";
 
 const INTERNAL_KEY = "inklee_internal";
 const SESSION_CONTEXT_KEY = "inklee_wa_session";
@@ -37,9 +38,23 @@ const PRIVATE_PREFIXES = [
   "/reset-password",
   "/unsubscribe",
   "/instagram",
-  "/map",
   "/dev",
 ];
+
+/**
+ * `/map` is private while the public map is dark (it is an authed artist
+ * surface, and artist behaviour never belongs in the acquisition collector).
+ * The moment the public shell is live it becomes the top of a real
+ * acquisition funnel, so it must be trackable, or the map is invisible in
+ * `/admin/growth` (go-live plan S4).
+ *
+ * Flag-gated so a rollback restores today's exclusion instead of leaving
+ * signed-in artists' map visits flowing into the public collector.
+ * `/map/<id>/request` stays private in both states: it is an authed-only
+ * workflow route that a prefix rule cannot exclude.
+ */
+const MAP_PREFIX = "/map";
+const AUTHED_MAP_PATTERNS = [/^\/map\/[^/]+\/request\/?$/];
 
 /** Artist subdomains (mikey.inkl.ee) and hub subdomains serve only public
  *  pages: authed cookies cannot flow to *.inkl.ee (see proxy.ts), so the
@@ -51,6 +66,12 @@ function isPublicSubdomain(hostname: string): boolean {
 
 export function isTrackablePath(pathname: string, hostname?: string): boolean {
   if (hostname && isPublicSubdomain(hostname)) return true;
+  const inMap =
+    pathname === MAP_PREFIX || pathname.startsWith(`${MAP_PREFIX}/`);
+  if (inMap) {
+    if (!publicMapEnabled()) return false;
+    return !AUTHED_MAP_PATTERNS.some((re) => re.test(pathname));
+  }
   return !PRIVATE_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );

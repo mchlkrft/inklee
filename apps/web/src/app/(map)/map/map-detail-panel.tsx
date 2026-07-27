@@ -16,6 +16,7 @@ import {
 } from "@inklee/shared/studio-profile";
 import { formatDateKey } from "@inklee/shared/date-utils";
 import type { MapCapabilities } from "@inklee/shared/map-core-state";
+import { trackPublicEvent } from "@/lib/public-analytics/collector";
 import type {
   MapLocationDetailShared,
   MapViewerLocationState,
@@ -376,6 +377,16 @@ export default function MapDetailPanel({
                   capabilities.canClaim
                     ? `/studio/claim/${pin.id}`
                     : `/login?next=${encodeURIComponent(`/studio/claim/${pin.id}`)}`
+                }
+                onClick={() =>
+                  trackPublicEvent(
+                    capabilities.canClaim
+                      ? "studio_claim_started"
+                      : "map_signup_cta_clicked",
+                    capabilities.canClaim
+                      ? undefined
+                      : { surface: "map_detail", intent: "claim" },
+                  )
                 }
                 className="block rounded-md border border-border px-3 py-3 text-center text-xs text-foreground transition-colors hover:bg-muted/30 lg:py-2"
               >
