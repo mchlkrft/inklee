@@ -36,6 +36,8 @@ What public data source is legally safe enough for first studio seeding?
 
 **REVERSED 2026-07-22 (founder): the map GOES PUBLIC as an experimental, community-evolving surface.** This supersedes the 2026-07-19 logged-in-only resolution below. The public surface is one capability layer on a single shared map core (not a separate map product); it ships last in the rollout and only after its prerequisites close: the Q20 Overture/Foursquare licensing re-check (legal), a DSA `moderation_statements` writer (counsel item Q14), and SEO keyword/page ownership through the SEO strategy owner per the CLAUDE.md split (no filter-combination indexable pages; do not cannibalize `/guest-spot-booking`). Full detail + the shared-core architecture in `docs/product/inklee-2-map-redesign-audit-and-plan.md`.
 
+**Update 2026-07-27.** The map future-scope pass the founder required before any public go-live has landed: `docs/product/inklee-2-map-growth-strategy.md` (long-term direction, growth loops, feature portfolio, horizons) plus the build plan's "Future map growth track". The sequence is now: slice planning against Horizon 1 → go-live → features step by step. Two decisions the roadmap folded into the scope pass are recorded as Q21 (public artist presence tier) and the migration 0111 timing note (unchanged: apply with the shell).
+
 **Prerequisite status 2026-07-26.** Of the three above: the **DSA writer shipped** 2026-07-23 (`lib/server/moderation-statements.ts`, wired into three moderation actions) and **SEO ownership was ratified** 2026-07-23 into the canonical strategy (`/map` public but `noindex`, no keyword ownership). **Q20 is the only original prerequisite still open**, and only in part (see Q20 below). What now gates the flip is mostly engineering, not decisions: the attribution UI and `/data-attribution` page, provenance carried to `map_locations`, the GDPR surface, the DSA procedure scope extension, and the public shell itself. The marketing entry points are already built and held dark behind `NEXT_PUBLIC_PUBLIC_MAP` (`docs/marketing/public-map-marketing-integration-audit.md`).
 
 **RESOLVED 2026-07-19 (founder): the map stays logged-in only.** Seeded
@@ -261,3 +263,81 @@ What must ship before the flip is otherwise unchanged (corrected credit string o
 
 - What it blocks: the **public** launch of seeded studio data. The logged-in map is unaffected. **The legal question is now closed** (attribution only, OSM restored to the credit). What remains before the flip is engineering: the corrected credit component, the `/data-attribution` page, provenance carried to `map_locations`, and the GDPR Art. 14/21 surface.
 - Decide by: before the public shell publishes any seeded row. Owner: founder + counsel. **Closed 2026-07-26.**
+
+## Added 2026-07-27 (map future scope)
+
+Raised during the map future-scope pass (`inklee-2-map-growth-strategy.md`). Same rule as everything above: postponed on purpose, never resolved silently inside an implementation task. Feature-level detail that does not need a founder, legal, privacy, cost, or usage decision is deliberately NOT here; it lives in the growth strategy's portfolio classifications.
+
+### Q21. Public artist presence visibility tier
+
+`map_visibility='listed'` was consented for an artist-only surface, and `account_blocks` filtering keys off the viewer id, which an anonymous request does not have, so named artists on the public plane would bypass blocks and repurpose the original consent. The decision: does Inklee add a public-presence consent tier (for example private / visible to claimed studio owners / visible to signed-in users / public), and does it cover current city only or also future destinations and the looking-for-guest-spots state?
+
+**Founder decision 2026-07-27 (go-live plan D2, DECISIONS.md):** the artists-in-town layer is postponed ENTIRELY on the public plane for the v1 public launch; not even anonymous counts ship. The authed layer is unchanged. This defers rather than resolves this question: when the layer is revisited for the public plane, whether counts-only (the earlier standing recommendation, floored at `MIN_ANON_ARTIST_COUNT = 3`) or a named tier, it comes back through this question first.
+
+- Why open: this is a consent-basis change, a safety question (naming future whereabouts), and a product question about what the public map is for. It is a one-way door once strangers can see names.
+- What it blocks: named artists and the looking-for-guest-spots badge on the public plane. Blocks nothing on the logged-in map. The public shell can launch counts-only without this.
+- Decide by: before any named artist data reaches an anonymous viewer. Owner: founder (consent design may need counsel review).
+
+### Q22. Map watch-and-alert model (channels, preferences, volume)
+
+The growth strategy's watch-and-alert loop needs alerts beyond the one shipped kind (signal to watcher, in-app only, founder decision under Q7). But no per-type preference surface exists for notifications TO the artist (in-app, push, or alert email; the only per-type toggle surface in the product is /settings/emails, which governs the artist's outgoing client booking emails, a different domain), no cron writes in-app notifications today, scheduled work is daily-only on the current plan, and mobile push taps into map surfaces dead-end on installed builds until a store build extends the tap-routing allowlist. The decision: which alert types exist, on which channels, with what default volume, and what the preference surface looks like.
+
+- Why open: notification overload is a named 2.0 risk; channel choices are founder calls (Q7 and Q9 both were); the preference surface is a real build with its own design.
+- What it blocks: the group B alert candidates (B5 opportunity alerts, B6 profile-update alerts, B7 trip-overlap alerts, B8 guest-artist activity alerts), the trip-linked city and studio alerts (group D item 12), and the wider loop 3 alert vocabulary. The shipped signal notification continues unchanged.
+- Decide by: before the first new alert type ships. Needs a short design pass, not just a yes/no.
+
+### Q23. Shared collection and tour privacy model
+
+Collections (saved studio lists, trip research, shareable tours) may be private, shared by link, or public where explicitly chosen. Private notes, application status, exact private travel details, and confidential studio information must never appear in shared views. The decision: the exact visibility ladder, whether share-by-link counts as public for consent purposes, and what a privacy-safe public tour may show about future whereabouts.
+
+- Why open: sharing future travel is the exact exposure the presence consent system protects against; a link-shared collection is effectively public.
+- What it blocks: group B saved lists only in their shared form, group D item 11 (shared tour view), and loop 4. Private-only lists could ship without this.
+- Decide by: before any collection becomes visible to anyone but its owner. If a shared collection ever becomes an indexable document, that additionally requires an SEO proposal first.
+
+### Q24. Studio request board: evolution of temporary signals or new entity
+
+The shipped signal system already carries typed, expiring, rate-limited, owner-attributed studio needs. A request board would add dates, richer typing, and a browsable surface. The decision: evolve `studio_signals` (schema growth, cap rethink) or introduce a distinct request entity referencing it, and what happens to the locked 1 per owner per month cap when requests become useful rather than promotional.
+
+- Why open: the one-source-of-truth rule forbids a parallel post type without a documented reason; the cap is a locked founder decision; spam and moderation exposure changes with a browsable board.
+- What it blocks: group C item 4 and group I entirely; mutual interest (Q-free, but pointless without the board or richer signals).
+- Decide by: before any board or signal-expansion slice. Needs a short design pass over the 0092 schema first.
+
+### Q25. Embeddable presence scope
+
+Outward embeds (view this studio on Inklee, guest artists welcome, apply for a guest spot, artist travel dates) would be the second artifact family designed to leave the platform, after story cards. The decision: which embeds exist at all, what data classes they may carry, and the revocation model.
+
+- Why open: outward artifacts change the exposure surface (they render on sites Inklee does not control) and carry brand and consent questions.
+- What it blocks: group J entirely. Nothing else.
+- Decide by: before any embed ships. Postponed until the public shell is live and claimed density justifies it.
+
+### Q26. Studio map analytics privacy
+
+Owner-facing analytics (profile visits, watch counts, professional actions) require deciding what a studio may see about the people interacting with its profile. Counts-only is the obvious floor; anything naming or segmenting viewers crosses into new consent territory.
+
+- Why open: viewer privacy versus owner value is a product-and-privacy tradeoff the founder owns; it also shapes whether analytics is free or future paid value (Q27).
+- What it blocks: owner-facing map analytics wherever they surface (the studio cockpit analytics candidates and the group K studio map analytics item). Nothing shipped.
+- Decide by: before any owner-facing view or interaction metric ships. Recommendation on file: aggregate counts only, no viewer identity, no viewer lists.
+
+### Q27. Paid map visibility rules
+
+If promotional placement ever exists, the growth strategy fixes the floor: visibly labeled, separate from organic relevance, limited in volume, claimed and complete profiles only, never "best" or "recommended" without a real methodology, and basic public discovery never paywalled. The decision: whether paid visibility exists at all, in what form, and how it relates to the Q8 studio pricing question.
+
+- Why open: this is business-model work (pricing SoT `docs/product/pricing-model.md`, Q8 timing open); the map must not grow a monetization surface ahead of it. Explicitly rejected for now: selling placement before organic relevance rules exist.
+- What it blocks: group K promotional items only.
+- Decide by: with the Q8 studio pricing decision, not before. No pricing is proposed here.
+
+### Q28. City activation criteria and meaningful-action definitions
+
+The city activation loop needs a definition of "active" based on useful actions and quality, not pin count, and the measurement framework's "weekly meaningful map actions" metric needs its exact definition ratified (which actions count, dedupe rules, exclusions) before it drives decisions.
+
+- Why open: needs real usage data to calibrate (thresholds picked today would be guesses), and metric definitions are locked house-wide via `definitions-content.ts` + `docs/metric-definitions.md`, so a wrong early definition is expensive.
+- What it blocks: city activation campaigns (loop 6, steps 3 onward) and the cockpit map-metrics slice. The instrumentation slice itself (events + carve-out) does not need this decided.
+- Decide by: after the public shell has weeks of real data; propose definitions from observed behavior.
+
+### Q29. Public contribution recognition
+
+Correction and suggestion contributors may earn recognition (contributor status, confirmed-correction count, city progress). The growth strategy already rejects competitive public leaderboards. The decision: whether recognition is public at all, what it shows, and whether it touches the moderation queue's workload.
+
+- Why open: recognition shapes contribution quality and abuse incentives; public recognition of correction activity can also out a reporter, which the anonymous-report design protects.
+- What it blocks: the recognition layer of loop 5. Corrections themselves are shipped and unaffected.
+- Decide by: after real correction volume exists on the public map.

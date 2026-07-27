@@ -27,13 +27,29 @@ function safeHttpUrl(value: string | null): string | null {
   }
 }
 
-export type { MapLocationDetail } from "@inklee/shared/map-location-detail";
-import type { MapLocationDetail } from "@inklee/shared/map-location-detail";
+export type {
+  MapLocationDetail,
+  MapLocationDetailShared,
+} from "@inklee/shared/map-location-detail";
+import type {
+  MapLocationDetail,
+  MapLocationDetailShared,
+} from "@inklee/shared/map-location-detail";
 
-export async function getMapLocationDetail(
-  id: string,
-  userId: string,
-): Promise<MapLocationDetail | null> {
+// Go-live plan S1 split: `loadDetail` produces the viewer-INDEPENDENT payload
+// (plus the owner id, which never leaves this module); the public plane serves
+// that payload as-is, so an anonymous (and CDN-cached) response structurally
+// cannot carry viewer data. The authed composition below decorates it with the
+// viewer state and keeps the pre-split wire shape for the web panel and the
+// /api/mobile/map twin.
+
+type LoadedDetail = {
+  detail: MapLocationDetailShared;
+  /** Internal only: needed for the authed ownStudio decoration. */
+  ownerUserId: string | null;
+};
+
+async function loadDetail(id: string): Promise<LoadedDetail | null> {
   const { data } = await serviceClient
     .from("map_locations")
     .select(
@@ -47,28 +63,20 @@ export async function getMapLocationDetail(
   const claimed = (data.claim_status as string) === "claimed";
   const studioProfileId = data.studio_profile_id as string | null;
 
-  const [{ data: watch }, signals] = await Promise.all([
-    serviceClient
-      .from("watched_studios")
-      .select("id")
-      .eq("map_location_id", id)
-      .eq("artist_user_id", userId)
-      .maybeSingle(),
-    activeSignalsByLocation([id]),
-  ]);
+  const signals = await activeSignalsByLocation([id]);
 
   let styles: StudioStylesForDisplay | null = null;
   let houseRules: { key: string; content: string }[] = [];
   let timeline: StudioTimeline | null = null;
   let requestable = false;
-  let ownStudio = false;
+  let ownerUserId: string | null = null;
   if (studioProfileId) {
     const { data: studio } = await serviceClient
       .from("studio_profiles")
       .select("owner_user_id, publication_status, guest_spot_status")
       .eq("id", studioProfileId)
       .maybeSingle();
-    ownStudio = studio?.owner_user_id === userId;
+    ownerUserId = (studio?.owner_user_id as string | null) ?? null;
     requestable =
       studio?.publication_status === "published" &&
       studio.guest_spot_status === "accepting";
@@ -82,26 +90,60 @@ export async function getMapLocationDetail(
   }
 
   return {
-    id: data.id as string,
-    name: data.name as string,
-    category: data.category as string,
-    claimed,
-    unverified: Boolean(data.is_seed) && !claimed,
-    lastConfirmedAt: (data.last_confirmed_at as string | null) ?? null,
-    possiblyClosed: Boolean(data.possibly_closed),
-    signal: signals.get(id) ?? null,
-    address: (data.address as string | null) ?? null,
-    city: (data.city as string | null) ?? null,
-    country: (data.country as string | null) ?? null,
-    website: safeHttpUrl(data.website_url as string | null),
-    instagram: (data.instagram_handle as string | null) ?? null,
-    phone: (data.phone as string | null) ?? null,
-    openingHours: (data.opening_hours as string | null) ?? null,
+    detail: {
+      id: data.id as string,
+      name: data.name as string,
+      category: data.category as string,
+      claimed,
+      unverified: Boolean(data.is_seed) && !claimed,
+      lastConfirmedAt: (data.last_confirmed_at as string | null) ?? null,
+      possiblyClosed: Boolean(data.possibly_closed),
+      signal: signals.get(id) ?? null,
+      address: (data.address as string | null) ?? null,
+      city: (data.city as string | null) ?? null,
+      country: (data.country as string | null) ?? null,
+      website: safeHttpUrl(data.website_url as string | null),
+      instagram: (data.instagram_handle as string | null) ?? null,
+      phone: (data.phone as string | null) ?? null,
+      openingHours: (data.opening_hours as string | null) ?? null,
+      styles,
+      houseRules,
+      timeline,
+      requestable,
+    },
+    ownerUserId,
+  };
+}
+
+/**
+ * The public (anonymous) plane read: viewer-independent by construction.
+ * Serve this body with the public cache headers and nothing else.
+ */
+export async function getPublicMapLocationDetail(
+  id: string,
+): Promise<MapLocationDetailShared | null> {
+  const loaded = await loadDetail(id);
+  return loaded?.detail ?? null;
+}
+
+/** The authed composition: the shared payload plus the viewer decoration. */
+export async function getMapLocationDetail(
+  id: string,
+  userId: string,
+): Promise<MapLocationDetail | null> {
+  const [loaded, { data: watch }] = await Promise.all([
+    loadDetail(id),
+    serviceClient
+      .from("watched_studios")
+      .select("id")
+      .eq("map_location_id", id)
+      .eq("artist_user_id", userId)
+      .maybeSingle(),
+  ]);
+  if (!loaded) return null;
+  return {
+    ...loaded.detail,
     watched: Boolean(watch),
-    styles,
-    houseRules,
-    timeline,
-    requestable,
-    ownStudio,
+    ownStudio: loaded.ownerUserId !== null && loaded.ownerUserId === userId,
   };
 }

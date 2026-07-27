@@ -179,3 +179,34 @@ const guestSpotRl = makeLimit(
 export async function checkGuestSpotRequestRateLimit(userId: string) {
   return check(guestSpotRl, userId);
 }
+
+// Public map data plane (go-live plan S1): per-IP ceilings on the anonymous
+// branches of /api/map/*. CDN cache hits never reach the function, so the
+// limiter only sees misses. Pins is generous (pans are debounced 300 ms, so
+// even sustained panning stays under it), detail is per click, and search is
+// the tightest because it fires per keystroke. Fails closed in production
+// when Upstash is unconfigured, the same posture as every public form. The
+// authed branches stay unlimited, exactly as before.
+const publicMapPinsRl = makeLimit(
+  Ratelimit.slidingWindow(240, "1 m"),
+  "inklee:map-public-pins",
+);
+export async function checkPublicMapPinsRateLimit(ip: string) {
+  return check(publicMapPinsRl, ip);
+}
+
+const publicMapDetailRl = makeLimit(
+  Ratelimit.slidingWindow(60, "1 m"),
+  "inklee:map-public-detail",
+);
+export async function checkPublicMapDetailRateLimit(ip: string) {
+  return check(publicMapDetailRl, ip);
+}
+
+const publicMapSearchRl = makeLimit(
+  Ratelimit.slidingWindow(45, "1 m"),
+  "inklee:map-public-search",
+);
+export async function checkPublicMapSearchRateLimit(ip: string) {
+  return check(publicMapSearchRl, ip);
+}

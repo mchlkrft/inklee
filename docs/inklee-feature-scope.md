@@ -29,7 +29,7 @@ Tattoo bookings live in Instagram DMs: scattered references, lost dates, ghosted
 
 ## What Inklee is not (scope guardrails)
 
-- Not a client-facing marketplace or discovery platform: clients come from the artist's own audience. (The Inklee 2.0 guest spot map is artist-facing discovery of studios and shops; it never surfaces artists to clients.)
+- Not a client-facing marketplace or discovery platform: clients come from the artist's own audience. (Updated 2026-07-27: the Inklee 2.0 tattoo map is becoming a public discovery layer for studios and places, per `docs/product/inklee-2-map-growth-strategy.md`. The guardrail that survives: no client self-booking through the map, no client accounts, and artists appear on public surfaces only under explicit consent. Store copy must not describe the public map until it is actually live.)
 - Not a client-side app: clients use the web page and email only.
 - Not a generic scheduler: every field, status and flow is tattoo-native (placement, size, references, flash, guest spots, deposits).
 - Not a payment middleman: deposits settle directly into the artist's own Stripe account; the artist is the merchant of record and Inklee never holds funds.

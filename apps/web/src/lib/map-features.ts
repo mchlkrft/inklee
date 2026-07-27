@@ -47,6 +47,18 @@ export function publicMapEnabled(): boolean {
   return tattooMapEnabled() && process.env.NEXT_PUBLIC_PUBLIC_MAP === "true";
 }
 
+// The /api/map/* branch policy (go-live plan S1). One pure decision, unit
+// tested, shared by every map data route: a signed-in user always gets the
+// authed plane; an anonymous request gets the public plane ONLY while
+// publicMapEnabled() is on, and is refused exactly as before otherwise. This
+// is the server-side half of the fail-closed rollback story: flipping
+// NEXT_PUBLIC_PUBLIC_MAP off re-closes the data plane, not just the UI.
+export type PublicMapApiPolicy = "authed" | "public" | "unauthorized";
+export function publicMapApiPolicy(hasUser: boolean): PublicMapApiPolicy {
+  if (hasUser) return "authed";
+  return publicMapEnabled() ? "public" : "unauthorized";
+}
+
 // RETIRED 2026-07-25: `mapImmersiveShellEnabled()` + NEXT_PUBLIC_MAP_IMMERSIVE_SHELL.
 // The immersive shell soaked in prod (flipped 2026-07-22, founder-verified) and
 // is now THE discovery surface whenever `tattooMapEnabled()`; the legacy boxed

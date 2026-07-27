@@ -1,6 +1,6 @@
 # Inklee 2.0: guest spot map and studio network
 
-Status: planning foundation, written 2026-07-17; extended 2026-07-18 with sixteen founder-selected feature extensions (marked "Extension (2026-07-18)" in their sections). Build status lives in the build plan: Phase 1 core and Phase 2 slice 1 are shipped behind the flag; everything else including all extensions is planning only. This document is the product source of truth for the Inklee 2.0 track until superseded.
+Status: planning foundation, written 2026-07-17; extended 2026-07-18 with sixteen founder-selected feature extensions (marked "Extension (2026-07-18)" in their sections). This document remains the product source of truth for the locked Inklee 2.0 studio-network scope (roles, guest spot workflow, groups, shops, reputation design, privacy planes). Two later layers sit on top of it: the 2026-07-22 founder decisions in `inklee-2-map-redesign-audit-and-plan.md` (map goes public, one shared map core, guest naming default) and the 2026-07-27 map growth strategy in `inklee-2-map-growth-strategy.md`, which owns the map's long-term product direction, growth loops, future feature portfolio, and planning horizons. Where this document's audience statements conflict with those later decisions, the later decision wins; the affected sections carry dated supersession notes below. Build status lives exclusively in the build plan (the status line that previously summarized it here went stale and was removed 2026-07-27).
 
 Companion docs:
 
@@ -8,6 +8,8 @@ Companion docs:
 - Phased build plan: `docs/product/inklee-2-build-plan.md`
 - Collision audit against Inklee 1.x: `docs/product/inklee-2-collision-audit.md`
 - Schema proposal + permission matrix (Phase 0 draft): `docs/product/inklee-2-schema-proposal.md`
+- Map redesign audit + founder decisions (2026-07-22): `docs/product/inklee-2-map-redesign-audit-and-plan.md`
+- Map growth strategy, long-term direction (2026-07-27): `docs/product/inklee-2-map-growth-strategy.md`
 
 ## 1. What this is
 
@@ -28,6 +30,8 @@ This is not a feature extension of 1.x. It is a second product layer with its ow
 - Understanding the tattoo scene in a destination city
 
 ### Audience
+
+> **Superseded 2026-07-22 (founder, Q3 reversal); recorded here 2026-07-27.** The "strictly artist-facing" audience lock below no longer holds for the map surface. The map goes public as an experimental, community-evolving surface: one shared map core with capability layers, where the public, authenticated artist, and studio-owner experiences are the same technical product. The current audience definition (public visitors + artists + studio owners, account creation as the conversion) and the long-term direction live in `inklee-2-map-growth-strategy.md`; the SEO posture lives in `docs/seo/inklee-seo-strategy.md`. What survives from the original lock: no client self-booking through the map, clients still come from the artist's own audience for bookings, and nothing leaks artist or studio data to logged-out visitors beyond what the public capability layer and its consent gates explicitly allow. The original text is kept below for decision history.
 
 Strictly artist-facing. The map is for tattoo artists and studio-related accounts. A public client-facing version may exist far in the future and is out of scope for this entire planning phase. Nothing in the 2.0 architecture may leak artist or studio data to logged-out visitors unless a decision explicitly makes a surface public (see open question Q3 on seeded pages).
 
@@ -364,7 +368,7 @@ Artist actions on the map:
 - View public artists in town and anonymous artist counts
 - Use the existing travel plan feature rather than a duplicate (the map links into `/travel`, it does not reinvent it)
 
-No saved cities in this version. Watched or marked studios are enough.
+No saved cities in this version. Watched or marked studios are enough. (Note 2026-07-27: this stands as the v1 bound; saved cities are now classified as a future retention candidate requiring validation in `inklee-2-map-growth-strategy.md` §7 group B.)
 
 **Extension (2026-07-18): temporary studio signals.** Temporary map posts grow into a typed signal system:
 
@@ -389,7 +393,7 @@ No saved cities in this version. Watched or marked studios are enough.
 
 Named here so implementation tasks do not drift into them:
 
-- Client-facing map or any logged-out consumer surface
+- Client-facing map or any logged-out consumer surface *(superseded 2026-07-22 for the map surface itself: the map goes public per the Q3 reversal, see the Audience note in §1 and `inklee-2-map-growth-strategy.md`. What remains excluded: client accounts, client self-booking through the map, and any client-facing marketplace behavior.)*
 - Events, conventions, flash days, and walk-in days as map event OBJECTS (the object model must leave room for an event type later, but no event entities ship in the first build; temporary studio signals may reference them as short-lived text, and the Phase 6 flash day planner is group-scoped, not map-scoped)
 - Saved cities
 - Direct booking of guest spot slots (request-based only)

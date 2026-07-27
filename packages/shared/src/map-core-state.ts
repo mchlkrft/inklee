@@ -57,6 +57,49 @@ export function normalizeViewportBounds(
 }
 
 // ---------------------------------------------------------------------------
+// Public-plane cache quantization (go-live plan S1). A CDN caches on the
+// literal request URL, and the canvas reports raw fractional bounds + zoom, so
+// without snapping no two real viewports would ever share a cache entry. The
+// PUBLIC pins fetch quantizes its query through this helper: bounds snap
+// OUTWARD to a zoom-derived grid (the response covers a superset of the
+// requested viewport, so rendering stays correct; extra pins fall offscreen)
+// and zoom floors to an integer. Deterministic and exactly idempotent (the
+// grid step is a binary-exact fraction of 360), so equal viewports always
+// produce byte-equal URLs. The AUTHED plane keeps raw bounds: its responses
+// are never shared-cached, and precision costs nothing there.
+
+export type QuantizedMapQuery = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  zoom: number;
+};
+
+export function quantizeViewportQuery(
+  bounds: { west: number; south: number; east: number; north: number },
+  zoom: number,
+): QuantizedMapQuery {
+  const z = Math.min(
+    22,
+    Math.max(0, Math.floor(Number.isFinite(zoom) ? zoom : 3)),
+  );
+  // ~1/8 of the viewport width per grid step: coarse enough that nearby
+  // visitors collide on one cache entry, fine enough that the padded bbox
+  // stays a modest superset.
+  const step = 360 / 2 ** (z + 3);
+  const floorTo = (v: number) => Math.floor(v / step) * step;
+  const ceilTo = (v: number) => Math.ceil(v / step) * step;
+  return {
+    west: Math.max(-180, floorTo(bounds.west)),
+    south: Math.max(-90, floorTo(bounds.south)),
+    east: Math.min(180, ceilTo(bounds.east)),
+    north: Math.min(90, ceilTo(bounds.north)),
+    zoom: z,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // One filter state. Mirrors the discovery chip set exactly so the same state
 // drives the map AND (later) the list, with no second filtering path. Category
 // values come from the single map-directory vocabulary.
@@ -124,6 +167,18 @@ export function artistMapCapabilities(viewerId: string): MapCapabilities {
     canSeeNamedArtists: true,
     viewerId,
   };
+}
+
+/**
+ * The ONE session-to-capabilities resolution (go-live plan S1). Server routes
+ * and shells resolve the viewer through this instead of hand-rolling
+ * `user ? ... : ...` capability logic, so the public plane can never drift
+ * from PUBLIC_MAP_CAPABILITIES. A null viewer IS the public plane.
+ */
+export function resolveMapCapabilities(
+  viewerId: string | null,
+): MapCapabilities {
+  return viewerId ? artistMapCapabilities(viewerId) : PUBLIC_MAP_CAPABILITIES;
 }
 
 // ---------------------------------------------------------------------------

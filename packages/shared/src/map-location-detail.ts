@@ -33,7 +33,14 @@ export type StudioTimeline = {
   past: TimelineEntry[];
 };
 
-export type MapLocationDetail = {
+// Public/authed plane split (go-live plan S1): the SHARED detail is the
+// viewer-independent payload both planes agree on; the viewer state is an
+// authed-only decoration. The public data plane serves MapLocationDetailShared
+// so an anonymous (and CDN-cacheable) response STRUCTURALLY cannot carry
+// viewer data; the authed wire shape (web panel + /api/mobile/map) is the
+// composition and stays byte-compatible with what shipped before the split.
+
+export type MapLocationDetailShared = {
   id: string;
   name: string;
   category: string;
@@ -52,10 +59,23 @@ export type MapLocationDetail = {
   instagram: string | null;
   phone: string | null;
   openingHours: string | null;
-  watched: boolean;
   styles: StudioStylesForDisplay | null;
   houseRules: { key: string; content: string }[];
   timeline: StudioTimeline | null;
   requestable: boolean;
+};
+
+/** Viewer-dependent decoration; never part of a public payload. */
+export type MapViewerLocationState = {
+  watched: boolean;
   ownStudio: boolean;
 };
+
+/**
+ * The runtime key list of the viewer decoration, for structural-subset tests:
+ * a public detail payload must contain NONE of these keys.
+ */
+export const VIEWER_DETAIL_KEYS = ["watched", "ownStudio"] as const;
+
+export type MapLocationDetail = MapLocationDetailShared &
+  MapViewerLocationState;

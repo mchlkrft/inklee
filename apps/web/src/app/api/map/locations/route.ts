@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
-import { tattooMapEnabled, mapPinsV2Enabled } from "@/lib/map-features";
+import { mapPinsV2Enabled } from "@/lib/map-features";
 import {
   MAP_LOCATION_CATEGORIES,
   parseMapBBox,
@@ -11,6 +10,11 @@ import {
   type PublicMapPin,
 } from "@inklee/shared/map-directory";
 import { activeSignalsByLocation } from "@/lib/server/studio-signals";
+import {
+  resolveMapApiAccess,
+  PUBLIC_MAP_CACHE_HEADERS,
+  AUTHED_MAP_CACHE_HEADERS,
+} from "@/lib/server/map-public-access";
 
 export const runtime = "nodejs";
 
@@ -27,19 +31,17 @@ export type MapLocationsResponse = {
   total: number;
 };
 
-// Logged-in artists only (the map is not client-facing, scope section 1);
-// reads go through the service client + the tested public shaper, never
+// Dual-plane since go-live plan S1: signed-in artists get the authed plane
+// (unchanged), anonymous visitors get the public plane while
+// publicMapEnabled() is on (rate limited, CDN-cacheable), and are refused
+// exactly as before otherwise. The pins body is viewer-independent by
+// construction (toPublicMapPin), so both planes share it; only headers differ.
+// Reads go through the service client + the tested public shaper, never
 // through client-side table access (house RLS rule).
 export async function GET(request: Request) {
-  if (!tattooMapEnabled()) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const access = await resolveMapApiAccess(request, "pins");
+  if (access.kind === "refused") {
+    return access.response;
   }
 
   const url = new URL(request.url);
@@ -110,5 +112,10 @@ export async function GET(request: Request) {
     capped: total > pins.length,
     total,
   };
-  return NextResponse.json(body);
+  return NextResponse.json(body, {
+    headers:
+      access.kind === "public"
+        ? PUBLIC_MAP_CACHE_HEADERS
+        : AUTHED_MAP_CACHE_HEADERS,
+  });
 }

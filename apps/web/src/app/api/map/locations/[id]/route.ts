@@ -1,31 +1,48 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { tattooMapEnabled } from "@/lib/map-features";
-import { getMapLocationDetail } from "@/lib/server/map-location-detail";
+import {
+  getMapLocationDetail,
+  getPublicMapLocationDetail,
+} from "@/lib/server/map-location-detail";
+import {
+  resolveMapApiAccess,
+  PUBLIC_MAP_CACHE_HEADERS,
+  AUTHED_MAP_CACHE_HEADERS,
+} from "@/lib/server/map-public-access";
 
 export const runtime = "nodejs";
 
-// Single map-location detail for the immersive in-canvas panel. Logged-in only
-// (the map is not client-facing, scope section 1); reads go through the tested
-// server read-model, approved rows only.
+// Single map-location detail for the in-canvas panel. Dual-plane since
+// go-live plan S1: the plane split is decided by the capability object, not an
+// ad-hoc user check. The authed plane gets the composed detail (shared payload
+// + viewer decoration: watched, ownStudio) exactly as before; the public plane
+// gets the viewer-independent shared payload, which STRUCTURALLY cannot carry
+// viewer data, so it is safe to shared-cache.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!tattooMapEnabled()) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const access = await resolveMapApiAccess(request, "detail");
+  if (access.kind === "refused") {
+    return access.response;
   }
   const { id } = await params;
-  const detail = await getMapLocationDetail(id, user.id);
+
+  // Headers follow the PLANE (access.kind), never the body branch: an authed
+  // response must stay private/no-store even if a future capability shape
+  // serves an authed viewer the shared payload (canSeePersonalOverlays=false
+  // does not exist today, but the invariant must hold by construction, not by
+  // accident of current capability values).
+  const headers =
+    access.kind === "public"
+      ? PUBLIC_MAP_CACHE_HEADERS
+      : AUTHED_MAP_CACHE_HEADERS;
+
+  const detail =
+    access.kind === "authed" && access.capabilities.canSeePersonalOverlays
+      ? await getMapLocationDetail(id, access.userId)
+      : await getPublicMapLocationDetail(id);
   if (!detail) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  return NextResponse.json({ detail });
+  return NextResponse.json({ detail }, { headers });
 }

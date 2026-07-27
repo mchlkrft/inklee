@@ -20,6 +20,12 @@ export type MapArtistsResponse = {
 // MIN_ANON_ARTIST_COUNT per city (Q13), and the named list respects account
 // blocks in both directions. City count is small, so no viewport filtering:
 // one response covers the map and the client slices by view.
+//
+// DELIBERATELY authed-only, unlike the other map data routes (go-live plan
+// S1): founder decision D2 (2026-07-27, DECISIONS.md) postpones the
+// artists-in-town layer ENTIRELY on the public plane, not even anonymous
+// counts. Do not add a public branch here; any future public presence, counts
+// or named, goes back through open question Q21 first.
 export async function GET() {
   if (!tattooMapEnabled()) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
