@@ -161,6 +161,25 @@ The e2e obligation is closed locally; confirm the CI `e2e` job goes green as the
 
 ### S6: go/no-go and the map flip (founder execution)
 
+**🏁 FLIPPED 2026-07-27 on founder go-ahead.** `NEXT_PUBLIC_PUBLIC_MAP=true`
+created on the Vercel `inklee` production target, with
+`NEXT_PUBLIC_TATTOO_MAP=true` re-verified as still set first (the flag is an
+AND; with the platform gate off the flip silently no-ops). This commit is the
+redeploy that bakes the `NEXT_PUBLIC_` value into the client bundle, since the
+value is inlined at build time and the deploy preceding the env change does not
+carry it.
+
+Verification standing behind the go: **37/37 e2e from a cold `.next` on the
+actual flipped HEAD** (not an older commit), 1658 unit tests, web and mobile
+typecheck clean, founder visual pass confirmed, counsel approval on the
+collapsed attribution rendering, and the whole §4 gate closed on the
+engineering side.
+
+Rollback stays one operation: set the flag to false and redeploy. What does not
+revert is called out under the rollback paragraph below (migration 0111 is
+one-way by design, and downstream shared caches may serve already-public
+payloads for up to the TTL window).
+
 This is the MAP flip, independent of and unrelated to the BM-2.0 Plus consumer flip (`PLUS_CONSUMER_LAUNCH_ENABLED`, its own procedure in the roadmap); neither gates the other.
 
 Run the gate checklist (§4). Then:
