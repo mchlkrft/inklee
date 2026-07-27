@@ -90,6 +90,8 @@ The claimed reward surface, gate-driven so it carries zero thin-page risk: ungat
 
 ### S3: data and trust review items (effort class: ~2 to 4 days; gates the flip)
 
+**Status 2026-07-27: DONE, all measurements recorded.** (1) The standing source-type verification PASSED: production carries exactly three source types (overture_maps 95,160 candidates, osm 12,658, brave_search 3,882; no manual_instagram or artist_suggestion rows), all covered by the approved credit string; OSM-derived approved studios measured 3,582, matching the counsel note exactly. (2) Migration 0111 applied and verified live: both provenance columns plus the partial index exist, backfill covers every location row (approved: 67,599 Overture, 3,582 OSM, 10 Brave, summing to the known 71,191), and the irreversible Q17 Brave-title overwrite touched the measured **10** terminal-status rows, zero remaining (the "~3.6k" figure circulating in earlier docs was a conflation with the OSM count and has been corrected where it appeared). (3) D3 turned out vacuous in data: **zero** approved unclaimed `private_studio` rows exist in prod, so no data migration was needed; the remediation is enforced structurally instead, by the S2 read-model guard plus a new writer guard in the seed/admin lane row builder (deterministic coarse offset and withheld address for any future `private_studio` conversion, test-locked). (4) The `possibly_closed` and unverified labels were code-verified on the shared payload both planes render.
+
 - Seeded `private_studio` coordinate remediation (decision D3, decided 2026-07-27 as recommended): measure how many approved `private_studio` rows exist and what they display, then apply the deterministic display offset to unclaimed `private_studio` rows (the same mechanism owner studios use) and null their street address on the map row. Consider a code-side guard in the detail read model alongside the data fix, so the rule holds structurally and not only for rows the migration touched. The locked scope rule "a private studio cannot be shown at its exact map position" must hold for every rendered row before anonymous eyes reach the map (the S1 review confirmed the detail payload serves addresses verbatim today, which is why this item gates the flip).
 - Apply migration 0111 (provenance columns and backfill on `map_locations`, plus the irreversible Q17 Brave-title overwrite of reviewed candidates). Before applying, measure and record the actual affected count (`select count(*) from map_seed_candidates where source_type='brave_search' and status in ('converted','rejected')`); no evidenced count exists in any doc today and the overwrite cannot be undone. Locked timing: with the shell, which is now. Follow the migration footgun rules: verify effects live before any bookkeeping repair.
 - Re-run the standing source-type verification (distinct `source_type` values in `map_seed_candidates` plus the OSM-derived approved count) and confirm the rendered credit string covers every source in the result. This check exists because skipping it once already produced a wrong counsel answer.
@@ -143,11 +145,11 @@ Every line verifiable, no judgment calls at flip time:
 - [ ] Rollback rehearsed in preview, including the API-refusal and collector-exclusion reverts.
 
 **Legal and compliance**
-- [ ] Source-type verification re-run; credit string covers every source found.
+- [x] Source-type verification re-run (2026-07-27: exactly overture_maps, osm, brave_search; OSM approved = 3,582, matching the counsel note; re-run again at flip time if the seeding stack changes).
 - [ ] Studio-data credit rendered on the map surface, linking `/data-attribution`.
-- [ ] Migration 0111 applied and verified live.
+- [x] Migration 0111 applied and verified live (2026-07-27: columns + index + full backfill; Brave overwrite = the measured 10 rows, zero remaining).
 - [ ] `/data-attribution` reachable with the flag on: licences, Foursquare NOTICE, dated change statement, Art. 14 disclosure, Art. 21 route.
-- [ ] Seeded `private_studio` remediation applied and verified (D3 signed off).
+- [x] Seeded `private_studio` remediation in force (D3 as recommended, 2026-07-27: zero affected rows measured in prod; enforced structurally by the read-model guard + the seed-lane writer guard, both test-locked).
 - [ ] Moderation intake staffed for a public audience; Art. 16/21 24-hour acknowledgement SLA acknowledged by the founder (S5).
 
 **Privacy**

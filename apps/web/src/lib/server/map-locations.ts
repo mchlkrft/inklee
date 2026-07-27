@@ -10,6 +10,7 @@ import {
   type MapLocationSource,
   type MapModerationStatus,
 } from "@inklee/shared/map-directory";
+import { approximateDisplayPosition } from "@inklee/shared/studio-profile";
 import { getSeedCapPerBucket } from "@/lib/server/map-settings";
 import {
   persistDuplicateSuggestions,
@@ -101,20 +102,37 @@ export function locationRowFromInput(
   input: MapLocationFormInput,
   bucket: string,
 ) {
+  // Locked scope rule (S3/D3 forward guard): a private studio is never shown
+  // at its exact position or street address. Owner-created private studios
+  // handle this through address_visibility in the studio flow; THIS builder
+  // is the admin/seed lane, where a seeded private_studio row would otherwise
+  // land at its true coordinates with the address from the source. Offset is
+  // deterministic (seeded by name+coords, so re-saves do not wander) and the
+  // address is withheld. Measured 2026-07-27: zero approved unclaimed
+  // private_studio rows existed in prod, so this guard plus the read-model
+  // guard IS the D3 remediation; no data migration was needed.
+  const privateSeed = input.category === "private_studio";
+  const display = privateSeed
+    ? approximateDisplayPosition(
+        `${input.name.trim()}:${input.latitude}:${input.longitude}`,
+        input.latitude,
+        input.longitude,
+      )
+    : { latitude: input.latitude, longitude: input.longitude };
   return {
     source: input.source,
     category: input.category,
     name: input.name.trim(),
     latitude: input.latitude,
     longitude: input.longitude,
-    // Admin-curated entries render at their true position; the approximate
-    // offset applies only to owner studios with that visibility choice.
-    display_latitude: input.latitude,
-    display_longitude: input.longitude,
-    address: input.address?.trim() || null,
+    // Admin-curated entries render at their true position; private studios
+    // always get the coarse offset (see the guard above).
+    display_latitude: display.latitude,
+    display_longitude: display.longitude,
+    address: privateSeed ? null : input.address?.trim() || null,
     city: input.city?.trim() || null,
     country: input.country?.trim() || null,
-    postal_code: input.postalCode?.trim() || null,
+    postal_code: privateSeed ? null : input.postalCode?.trim() || null,
     google_place_id: input.googlePlaceId?.trim() || null,
     website_url: input.websiteUrl?.trim() || null,
     instagram_handle: normalizeInstagramHandle(input.instagramHandle),
