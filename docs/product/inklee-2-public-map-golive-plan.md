@@ -130,7 +130,9 @@ The end-to-end obligations S1, S2 and S2b handed forward are written as a real P
 
 Copy sweep across all five slices: zero em dashes in user-visible strings, no Approve or Reject verbs, sentence case with terminal punctuation on every new string. The parity register row and the SEO implementation log entry shipped with S2b.
 
-Still open, and deliberately not self-closable: **moderation intake readiness** (a founder acknowledgement that the correction queue and the Art. 16/21 intake are staffed for a public audience at the DSA procedure's 24-hour bar), and the **visual pass** over the flipped marketing surfaces in a preview deployment.
+**Moderation intake: acknowledged by the founder 2026-07-27.** They are ready to meet the DSA procedure's 24-hour acknowledgement bar for a public audience, across the map report queue, the claims queue, and the live Art. 16/21 intake on `/legal/report`. Gate line closed.
+
+Still open: the **visual pass** over the flipped surfaces (a flag-on production preview is served locally for exactly this), and confirming the **CI e2e job** is green.
 
 - Verify the marketing flip end to end with the flag forced on in preview: nav, footer, both CTA modes, `/data-attribution` un-404s, no `/map` link anywhere while dark (the existing regression tests).
 - `docs/web-native-parity.md`: add the deliberate web-only row for the public shell (founder rule: the register is updated in the same change).
@@ -174,7 +176,7 @@ Every line verifiable, no judgment calls at flip time:
 - [x] Migration 0111 applied and verified live (2026-07-27: columns + index + full backfill; Brave overwrite = the measured 10 rows, zero remaining).
 - [ ] `/data-attribution` reachable with the flag on: licences, Foursquare NOTICE, dated change statement, Art. 14 disclosure, Art. 21 route.
 - [x] Seeded `private_studio` remediation in force (D3 as recommended, 2026-07-27: zero affected rows measured in prod; enforced structurally by the read-model guard + the seed-lane writer guard, both test-locked).
-- [ ] Moderation intake staffed for a public audience; Art. 16/21 24-hour acknowledgement SLA acknowledged by the founder (S5).
+- [x] Moderation intake staffed for a public audience; the Art. 16/21 24-hour acknowledgement bar **acknowledged by the founder 2026-07-27**. The surfaces this commits to: the correction and report queue at `/admin/map/reports`, the claims queue at `/admin/map/claims`, and the public Art. 16 notice-and-action plus Art. 21 delisting intake on `/legal/report` (already live), all per `docs/dsa-moderation-procedure.md` v2.
 
 **Privacy**
 - [ ] Artists layer absent from the public plane entirely: no public branch on `/api/map/artists`, no counts, no names, no badges (D2).
