@@ -45,13 +45,12 @@ async function DiscoveryMapPage() {
 
   if (!user) {
     if (!publicMapEnabled()) redirect("/login");
-    return (
-      <ImmersiveMapShell
-        journey={[]}
-        watchedIds={[]}
-        capabilities={PUBLIC_MAP_CAPABILITIES}
-      />
-    );
+    // The personal-plane props are OMITTED, not passed empty: anything named
+    // here is serialized into the RSC payload inline in the document, so
+    // passing `watchedIds={[]}` would put the personal-plane shape in the
+    // anonymous HTML even with no data in it. The public document carries no
+    // trace of the personal plane at all (e2e-locked).
+    return <ImmersiveMapShell capabilities={PUBLIC_MAP_CAPABILITIES} />;
   }
 
   const todayKey = new Date().toISOString().slice(0, 10);

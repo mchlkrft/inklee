@@ -57,6 +57,14 @@ export default async function globalSetup(_config: FullConfig) {
     `/${artistA.slug}/waitlist`,
     "/bookings/requests/00000000-0000-0000-0000-000000000000",
     "/admin",
+    // The public map plane. `/map` pulls in maplibre and is the heaviest route
+    // in the app, so a cold compile of it mid-run starves every other spec's
+    // navigation until it finishes. Warm it (and the pages the public-map spec
+    // reaches) with the rest.
+    "/map",
+    "/map/00000000-0000-0000-0000-000000000000",
+    "/studios/e2e-warmup-not-a-studio",
+    "/studios/sitemap.xml",
   ];
   await Promise.allSettled(
     warmupRoutes.map((r) =>

@@ -56,6 +56,13 @@ const webServerEnv: Record<string, string> = {
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 60_000,
+  // Every worker shares ONE `next dev` server, so parallelism past a handful is
+  // not free: workers compete for the same Turbopack compile queue and a cold
+  // route can starve unrelated specs until they blow the timeout. Playwright's
+  // default (half the CPU cores) means a 20-core dev box runs 10 workers and
+  // fails ~9 specs on `page.goto` timeouts that have nothing to do with the code
+  // under test. Capped explicitly: the run is both green and faster this way.
+  workers: 2,
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
   globalSetup: "./tests/e2e/global-setup.ts",

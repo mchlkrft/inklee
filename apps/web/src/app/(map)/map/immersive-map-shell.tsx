@@ -72,12 +72,16 @@ import MapDetailPanel from "./map-detail-panel";
 const RAIL_ITEMS = SIDEBAR_NAV.flatMap((group) => group.items);
 
 export default function ImmersiveMapShell({
-  journey,
-  watchedIds,
+  // Personal plane, authed-only and therefore OPTIONAL: the public shell
+  // omits them entirely so the anonymous document's RSC payload carries no
+  // personal-plane prop at all, not even an empty one (go-live plan S2
+  // invariant, locked by tests/e2e/public-map.spec.ts).
+  journey = [],
+  watchedIds = [],
   capabilities,
 }: {
-  journey: TravelMapStop[];
-  watchedIds: string[];
+  journey?: TravelMapStop[];
+  watchedIds?: string[];
   capabilities: MapCapabilities;
 }) {
   const pathname = usePathname();
