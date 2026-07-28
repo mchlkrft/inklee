@@ -80,6 +80,17 @@ export function largeProjectsAllowed(overrides: AccountOverrides): boolean {
   );
 }
 
+/** GRANT: true => the artist may create and run discount codes (Plus build
+ *  P5). Paused => codes stop APPLYING at checkout and no new ones can be
+ *  created, but existing rows are kept: a code is a promise an artist made
+ *  publicly, and deleting it would be worse than pausing it. */
+export function goodsDiscountsAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("goods_discounts") &&
+    canAccess(overrides, "goods_discounts")
+  );
+}
+
 /** RESTRICTION: true => the artist may EDIT custom email-template bodies.
  *  Paused => true for everyone. Existing bodies always keep SENDING regardless;
  *  only editing is gated. */

@@ -15,6 +15,7 @@ import {
 } from "@/lib/order-fulfillment";
 import { createNotification } from "@/lib/notifications";
 import { ACTIVE_FEE_SCHEDULE_VERSION } from "@inklee/shared/fee-schedule";
+import { recordDiscountRedemption } from "@/lib/server/discounts";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { customerLabel } from "@/lib/booking-domain";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
@@ -484,11 +485,15 @@ export async function POST(request: Request) {
       id: string;
       status: string;
       subtotal_amount: string | number;
+      discount_code_id: string | null;
+      discount_amount: string | number | null;
     } | null = null;
     if (orderId) {
       const { data: orderRow } = await serviceClient
         .from("orders")
-        .select("id, status, booking_id, subtotal_amount")
+        .select(
+          "id, status, booking_id, subtotal_amount, discount_code_id, discount_amount",
+        )
         .eq("id", orderId)
         .single();
       if (!orderRow || orderRow.booking_id !== bookingId) {
@@ -730,6 +735,19 @@ export async function POST(request: Request) {
           .eq("order_id", order.id);
         const items = (itemRows ?? []) as PaidOrderItem[];
         await decrementInventory(items);
+
+        // Discount redemption (P5b). Recorded only when the order actually
+        // reached paid, and inside the same once-only flip gate, so a code's
+        // cap counts real sales rather than abandoned baskets. The unique
+        // (code, order) constraint makes a redelivery a no-op regardless.
+        if (order.discount_code_id) {
+          await recordDiscountRedemption({
+            discountCodeId: order.discount_code_id as string,
+            artistId: booking.artist_id as string,
+            orderId: order.id as string,
+            amountMinor: Math.round(Number(order.discount_amount ?? 0) * 100),
+          });
+        }
         goodsLines = items
           .filter((r) => r.type === "product")
           .map((r) => ({

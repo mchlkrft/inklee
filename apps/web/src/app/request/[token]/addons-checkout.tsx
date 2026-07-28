@@ -85,6 +85,9 @@ function CheckoutInner({
   const [processing, setProcessing] = useState(false);
   const [paid, setPaid] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountEur, setDiscountEur] = useState(0);
+  const [discountNote, setDiscountNote] = useState<string | null>(null);
 
   const rowMax = (row: Row) =>
     Math.min(MAX_ADDON_QUANTITY, row.stock ?? MAX_ADDON_QUANTITY);
@@ -99,7 +102,10 @@ function CheckoutInner({
     (sum, r) => sum + r.price * (qty[r.key] ?? 0),
     0,
   );
-  const total = depositAmount + goodsTotal;
+  // The discount the server confirmed for the current basket. Never computed
+  // here: the client showing a reduction the server did not grant is the one
+  // way this feature can lie about a price.
+  const total = depositAmount + goodsTotal - discountEur;
 
   const handlePay = async () => {
     if (!stripe || !elements) return;
@@ -115,12 +121,21 @@ function CheckoutInner({
       }));
 
     // Sync the PaymentIntent + order to the current selection before charging.
-    const prep = await prepareCheckoutAction(token, JSON.stringify(selections));
+    const prep = await prepareCheckoutAction(
+      token,
+      JSON.stringify(selections),
+      discountCode.trim() || undefined,
+    );
     if ("error" in prep) {
       setError(prep.error);
       setProcessing(false);
       return;
     }
+    // A code that did not apply does NOT stop the payment: the client pays the
+    // undiscounted amount and is told why, because refusing a booking over a
+    // mistyped promo code would cost the artist the sale.
+    setDiscountEur(prep.discountEur ?? 0);
+    setDiscountNote(prep.discountError ?? null);
 
     const { error: stripeError } = await stripe.confirmPayment({
       elements,
@@ -225,11 +240,46 @@ function CheckoutInner({
             <span>{formatPrice(goodsTotal, currency)}</span>
           </div>
         )}
+        {discountEur > 0 && (
+          <div className="flex justify-between text-muted-foreground">
+            <span>Discount</span>
+            <span>-{formatPrice(discountEur, currency)}</span>
+          </div>
+        )}
         <div className="flex justify-between border-t border-border pt-1 font-medium text-foreground">
           <span>Total</span>
           <span>{formatPrice(total, currency)}</span>
         </div>
       </div>
+
+      {goodsTotal > 0 && (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="discount-code"
+            className="text-xs text-muted-foreground"
+          >
+            Discount code (optional)
+          </label>
+          <input
+            id="discount-code"
+            value={discountCode}
+            onChange={(e) => {
+              setDiscountCode(e.target.value.toUpperCase());
+              // Any edit invalidates the server's answer for the old code, so
+              // clear both rather than leave a stale reduction on screen.
+              setDiscountEur(0);
+              setDiscountNote(null);
+            }}
+            placeholder="SUMMER25"
+            autoCapitalize="characters"
+            autoComplete="off"
+            className="w-full rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm uppercase text-foreground placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground">
+            {discountNote ?? "Applied to goods when you pay."}
+          </p>
+        </div>
+      )}
 
       <PaymentElement options={{ layout: "tabs" }} />
 

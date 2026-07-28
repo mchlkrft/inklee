@@ -44,6 +44,7 @@ const FEATURE_LABELS: Record<EntitlementFeature, string> = {
   form_conditional: "Conditional booking-form questions",
   form_custom: "Custom confirmation page + URL slug",
   large_projects: "Large-project mode",
+  goods_discounts: "Discount codes",
 };
 
 // Mirrors the artist-facing labels on /settings/payouts so admin and artist

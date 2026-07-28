@@ -5,6 +5,7 @@ import {
   resolveOrderFee,
   type FeeSyncResult,
 } from "@/lib/server/order-fee-sync";
+import { resolveDiscount } from "@/lib/server/discounts";
 import { goodsBaseMinorFromLines } from "@inklee/shared/order-fees";
 import { bookingSchema } from "@/lib/booking-schema";
 import {
@@ -309,11 +310,23 @@ export async function cancelCustomerBookingAction(
 // (re)creates the pending order + items, and syncs the existing deposit
 // PaymentIntent's amount + metadata so confirmPayment charges exactly the
 // current selection. Passing an empty selection resets it to deposit-only.
-type PrepareResult = { ok: true; totalEur: number } | { error: string };
+type PrepareResult =
+  | {
+      ok: true;
+      totalEur: number;
+      /** What the code took off, so the basket can show the line. */
+      discountEur?: number;
+      /** Set when a supplied code did NOT apply. The checkout continues at
+       *  full price regardless: refusing a payment over a mistyped promo code
+       *  would cost the artist a booking. */
+      discountError?: string;
+    }
+  | { error: string };
 
 export async function prepareCheckoutAction(
   token: string,
   selectionsJson: string,
+  discountCode?: string,
 ): Promise<PrepareResult> {
   if (!token) return { error: "Invalid link." };
   const tokenHash = hashToken(token);
@@ -457,8 +470,19 @@ export async function prepareCheckoutAction(
   const computed = computeAddonLines(products, selections);
   if (!computed.ok) return { error: computed.error };
 
-  const subtotal =
-    Math.round((depositAmount + computed.goodsAmount) * 100) / 100;
+  // Discount (P5b). Applied to the GOODS subtotal only: the deposit is tattoo
+  // service value the artist quoted, and a shop code reaching it would reduce
+  // the artist's own money.
+  const goodsMinor = Math.round(computed.goodsAmount * 100);
+  const discount = await resolveDiscount({
+    artistId: booking.artist_id as string,
+    rawCode: discountCode,
+    subtotalMinor: goodsMinor,
+    currency: "eur",
+  });
+  const discountedGoodsMinor = Math.max(0, goodsMinor - discount.discountMinor);
+
+  const subtotal = Math.round(depositAmount * 100 + discountedGoodsMinor) / 100;
 
   // Replace any prior pending order for this booking (idempotent re-prepare).
   await serviceClient
@@ -483,11 +507,15 @@ export async function prepareCheckoutAction(
       // Today an order has no discounts, VAT or shipping, so the goods base is
       // the product lines. goodsBaseMinorFromLines is where those deductions
       // will be applied when they exist.
+      // The fee base is the subtotal AFTER discounts (spec section 10). This
+      // is the wiring that the P5a engine was built for and could not have
+      // been correct before discounts existed.
       goodsBaseMinor: goodsBaseMinorFromLines(
         computed.lines.map((l) => ({
           type: "product",
           totalMinor: Math.round(l.totalAmount * 100),
         })),
+        { discountsMinor: discount.discountMinor },
       ),
       intent,
     });
@@ -509,6 +537,8 @@ export async function prepareCheckoutAction(
       platform_fee_amount: fee.applicationFeeMinor / 100,
       fee_schedule_version: fee.scheduleVersion,
       goods_fee_amount: fee.goodsFeeMinor / 100,
+      discount_code_id: discount.codeId,
+      discount_amount: discount.discountMinor / 100,
       currency: "eur",
     })
     .select("id")
@@ -562,5 +592,10 @@ export async function prepareCheckoutAction(
     return { error: "Could not prepare the payment. Try again." };
   }
 
-  return { ok: true, totalEur: subtotal };
+  return {
+    ok: true,
+    totalEur: subtotal,
+    discountEur: discount.discountMinor / 100,
+    discountError: discount.error ?? undefined,
+  };
 }

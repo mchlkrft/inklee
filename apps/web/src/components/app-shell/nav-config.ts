@@ -79,6 +79,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
         children: [
           { label: "Products", href: "/goods" },
           { label: "Sales", href: "/goods/sales" },
+          { label: "Discounts", href: "/goods/discounts" },
         ],
       },
       { label: "Guest Spots", href: "/travel", icon: MapPin },

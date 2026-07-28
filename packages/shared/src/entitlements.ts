@@ -83,6 +83,10 @@ export const ENTITLEMENT_FEATURES = [
   // Large-project mode (Plus build P4): the specialized intake at
   // /{slug}/project and the project records it creates.
   "large_projects",
+  // Goods tools (Plus build P5). Discount codes first: the approved goods fee
+  // applies to the subtotal AFTER discounts, so the fee base is not correct
+  // until they exist.
+  "goods_discounts",
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 
