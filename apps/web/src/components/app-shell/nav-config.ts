@@ -55,6 +55,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
           { label: "Overview", href: "/bookings/overview" },
           { label: "Calendar", href: "/bookings/calendar" },
           { label: "Deposits", href: "/bookings/deposits" },
+          { label: "Projects", href: "/bookings/projects" },
           { label: "My Booking Form", href: "/bookings/booking-form" },
           { label: "Booking Settings", href: "/bookings/settings" },
         ],

@@ -249,6 +249,14 @@ function RootNavigator() {
           options={{ ...stackHeader, title: "Insights" }}
         />
         <Stack.Screen
+          name="projects/index"
+          options={{ ...stackHeader, title: "Projects" }}
+        />
+        <Stack.Screen
+          name="projects/[id]"
+          options={{ ...stackHeader, title: "Project" }}
+        />
+        <Stack.Screen
           name="waitlist/index"
           options={{ ...stackHeader, title: "Waitlist" }}
         />

@@ -108,6 +108,7 @@ top control row instead, which is also where the platform maps put theirs.
 | Custom confirmation page (P3d) | `bookings/booking-form` editor + gated render on `request/submitted` | `settings/booking-form/confirmation` screen + GET/POST `/api/mobile/booking-form/confirmation`, both through the SAME `saveConfirmationCore` (next build) | ✅ |
 | Custom URL slug (P3e) | `settings/profile` rename form with an explicit consequence confirmation | `settings/slug` screen + GET/POST `/api/mobile/settings/slug`, both through the SAME `renameSlugCore` (next build) | ✅ |
 | Scheduled books-open date (P3f) | `booking_opens_at` in all 3 web books forms; public page shows the date | native `settings/books` date field + `bookingOpensAt` on PUT `/settings/books` (next build); absent key means unchanged, so pre-P3f builds cannot clear it | ✅ |
+| Large-project mode (P4) | public intake `/{slug}/project` (404s when un-entitled); artist list + detail at `/bookings/projects`, status transitions, private note, attach/detach sessions | `projects/index` + `projects/[id]` screens; GET `/api/mobile/projects`, GET/PATCH `/api/mobile/projects/[id]`, all through the SAME cores (next build). WEB-ONLY by design within it: the public intake (a visitor surface) and attaching a session (needs the booking picker, which is a bigger native surface; tracked) | ~ |
 | Conditional booking-form questions (P3) | condition editor in `bookings/form/field-form.tsx`; public form renders through the shared `resolveFieldVisibility`; server re-resolves in `validateCustomAnswers` | `settings/booking-form/[fieldId]` condition section; GET `/api/mobile/booking-form` emits `custom.condition` + server-derived `conditionSources`, POST/PATCH persist `condition` (next build). Both editors ALWAYS send the condition back, because the write replaces it (omitting would clear a condition the artist never touched) | ✅ |
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
@@ -121,6 +122,20 @@ design: admin, marketing pages, legal pages, public artist pages, client
 magic-link portal (D: app is artists-only).
 
 ## Update log
+
+- **2026-07-28 — Plus P4 large-project mode, web + native:** migration `0115`
+  adds `projects`, `project_media` and ONE nullable `booking_requests.project_id`.
+  That column is the whole design: sessions are not a new entity, they are
+  ordinary booking requests carrying a project id, so deposits, the calendar,
+  reminders and every lifecycle email keep working through pipelines that
+  already exist. New `large_projects` capability, GRANT-shaped, which gates the
+  public intake and the CREATION of projects but deliberately not READING or
+  managing existing ones: a downgrade must never hide long-term records that
+  have live bookings attached. The intake 404s rather than showing a message
+  when un-entitled, because a half-working sub-path tells a client the artist
+  takes project enquiries when they do not. Media reuses the private `bookings`
+  bucket under a `projects/` prefix and is served through short-lived signed
+  URLs, since these are body photographs.
 
 - **2026-07-28 — Plus P3 booking form (P3b-P3f), web + native:** visual
   templates on the public page, cover image and colour unified onto the

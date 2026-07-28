@@ -80,6 +80,9 @@ export const ENTITLEMENT_FEATURES = [
   // question logic, and the form-specific customization that is not styling.
   "form_conditional",
   "form_custom",
+  // Large-project mode (Plus build P4): the specialized intake at
+  // /{slug}/project and the project records it creates.
+  "large_projects",
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 

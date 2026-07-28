@@ -65,6 +65,21 @@ export function formCustomAllowed(overrides: AccountOverrides): boolean {
   );
 }
 
+/** GRANT: true => large-project mode. Gates the PUBLIC intake at
+ *  /{slug}/project (which 404s otherwise, so an un-entitled artist's page has
+ *  no half-working sub-path) and the creation of new project records.
+ *
+ *  It deliberately does NOT gate READING existing projects: a downgrade must
+ *  never hide an artist's own long-term records, some of which have live
+ *  bookings attached. Same principle as email templates, which keep sending
+ *  after editing is gated. */
+export function largeProjectsAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("large_projects") &&
+    canAccess(overrides, "large_projects")
+  );
+}
+
 /** RESTRICTION: true => the artist may EDIT custom email-template bodies.
  *  Paused => true for everyone. Existing bodies always keep SENDING regardless;
  *  only editing is gated. */

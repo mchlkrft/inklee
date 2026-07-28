@@ -268,28 +268,28 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
   },
   {
     name: "Large-project mode",
-    entitlementKey: "large_projects (proposed)",
+    entitlementKey: "large_projects",
     productArea: "large-projects",
     freeBehavior: "Not available",
     plusBehavior:
       "Specialized intake at a sub-path creating a long-term project record with lifecycle; sessions link to booking requests",
     legacyBehavior: "none",
     scope: "artist",
-    serverEnforcement: "absent",
-    databaseEnforcement: "absent", // no project/session/linkage schema anywhere
-    frontendBehavior: "absent",
-    mobileSupport: "absent",
+    serverEnforcement: "exists", // largeProjectsAllowed on the intake route AND re-checked inside submitProjectIntakeCore
+    databaseEnforcement: "exists", // migration 0115: RLS SELECT-only for the owner, status/scale/coverage CHECKs, budget-range constraint
+    frontendBehavior: "exists",
+    mobileSupport: "partial", // list + detail + status + note are native; the public intake is a visitor surface (web), attaching a session is web-only for now
     downgradeBehavior:
-      "Existing projects readable; new intakes off (records never deleted)",
+      "Existing projects stay readable AND manageable (status, notes, session links); only the public intake and NEW records stop. Nothing is deleted",
     feeImpact: "per-session deposits ride the existing deposit plane",
     analyticsEvents:
-      "project_intake_submitted, project_status_changed (required)",
+      "project_intake_submitted, project_status_changed (still required; not emitted yet, lands with the P6 analytics plane)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
     operationalState:
-      "greenfield; flash-intake sub-path pattern is the template",
-    testCoverage: "absent",
-    launchReadiness: "build",
+      "BUILT 2026-07-28 (migration 0115). Live, not parked: with zero Plus artists the intake 404s for everyone, so it is inert today. DEFERRED by design: the client portal view of a project, and project-specific lifecycle emails (v1 sends none, so the intake ends on the shared confirmation page)",
+    testCoverage: "exists", // 23 shared-model tests + 16 server-core tests incl. fail-closed intake and transition refusal
+    launchReadiness: "ready",
   },
   // ------------------------------------------------------------------ goods
   {

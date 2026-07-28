@@ -28,6 +28,7 @@ import type { AnalyticsMetrics } from "./analytics";
 import type { BooksSettings } from "./books-settings";
 import type { CustomFieldType, FieldCondition } from "./custom-fields";
 import type { ConfirmationPageSettings } from "./confirmation-page";
+import type { ProjectRecord, ProjectStatus } from "./projects";
 import type { DashboardWidgets } from "./dashboard-settings";
 import type { DepositState } from "./deposit-state";
 import type { StripeMode } from "./deposit-settings";
@@ -809,6 +810,37 @@ export type MobileBookingFormFieldInput = {
 export type MobileBookingFormSettingsUpdate = {
   key: string;
   value: boolean;
+};
+
+/** GET /api/mobile/projects — the artist's long-term project records (Plus
+ *  build P4). Reading is never entitlement-gated; `entitled` only says whether
+ *  NEW enquiries are being taken, so the app never re-derives a plan rule. */
+export type MobileProjectList = {
+  entitled: boolean;
+  /** The public intake URL, server-derived. Null before a slug is claimed. */
+  intakeUrl: string | null;
+  projects: {
+    id: string;
+    title: string;
+    status: ProjectStatus;
+    customerEmail: string;
+    scale: string;
+    bodyAreas: string[];
+    createdAt: string;
+  }[];
+};
+
+/** GET /api/mobile/projects/:id. `mediaUrls` are SHORT-LIVED signed URLs
+ *  generated per request: the bucket is private and these are body
+ *  photographs, so they must not be cached as if they were permanent. */
+export type MobileProjectDetail = {
+  project: ProjectRecord;
+  mediaUrls: string[];
+  sessions: {
+    id: string;
+    status: string;
+    preferredDate: string | null;
+  }[];
 };
 
 /** GET /api/mobile/booking-form/confirmation — the custom confirmation page
