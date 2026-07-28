@@ -68,6 +68,27 @@ per refund carrying the *cumulative* `amount_refunded`, and Stripe redelivers
 events. Never add a delta; compute the total that should have been applied and
 move only the difference under a row lock.
 
+## Plus build: the legal architecture is SETTLED — build first, counsel last
+
+Founder rule (2026-07-28). The consumer / withdrawal / VAT / subscription
+architecture and the Plus feature DIRECTION are counsel-confirmed. Do NOT
+pause feature work to ask for counsel approval per component, do not mark
+build items "counsel-gated", and do not reopen the confirmed inputs (digital
+service classification, withdrawal-vs-cancellation split, immediate-performance
+consent, online withdrawal function, data preservation on withdrawal,
+proportional compensation, versioned consent evidence, artist-as-seller for
+goods). Re-asking counsel per feature is exactly the overhead this rule exists
+to prevent.
+
+The ONE remaining counsel gate is FINAL implementation sign-off, after the
+product and draft documents exist: final Terms, checkout disclosures,
+declarations and wordings, the online withdrawal flow, and the implementation
+itself. Sequence: build → complete final drafts → submit the finished thing →
+apply corrections → record approval against the final versioned artifacts →
+only then activate consumer billing. Draft legal copy is never described as
+approved merely because the posture is confirmed. Full posture:
+`docs/product/plus-product-spec.md` §1.
+
 ## Native app changes: update the parity register
 
 `docs/web-native-parity.md` is the single tracked web-vs-native parity view
