@@ -27,6 +27,7 @@ import {
 import { STYLE_SEED } from "@inklee/shared/map-directory";
 import { formatMoneyShort } from "@inklee/shared/money";
 import { humanStatusLabel } from "@inklee/shared/status-labels";
+import { formatDateKey } from "@inklee/shared/date-utils";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -241,7 +242,10 @@ function ProjectDetail({
                 }`}
               >
                 <Text className="text-sm text-foreground">
-                  {s.preferredDate ?? "No date"} · {humanStatusLabel(s.status)}
+                  {s.preferredDate
+                    ? formatDateKey(s.preferredDate)
+                    : "No date"}{" "}
+                  · {humanStatusLabel(s.status)}
                 </Text>
               </Pressable>
             ))}

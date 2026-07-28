@@ -32,16 +32,21 @@ const eur = (minor: number) => `€${(minor / 100).toFixed(2)}`;
 
 function DiscountForm({
   entitled,
+  existing,
   onDone,
 }: {
   entitled: boolean;
+  /** Set when editing. Without this the save core's edit path existed but was
+   *  unreachable: an artist could create a code and switch it off, but never
+   *  fix a typo in the amount or extend an end date. */
+  existing?: DiscountRow;
   onDone: () => void;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     saveDiscountAction,
     null,
   );
-  const [kind, setKind] = useState<DiscountKind>("percent");
+  const [kind, setKind] = useState<DiscountKind>(existing?.kind ?? "percent");
 
   // In an effect, not during render: calling onDone() while rendering sets
   // state on the parent mid-render, which React warns about and which can
@@ -73,12 +78,11 @@ function DiscountForm({
           name="code"
           required
           maxLength={DISCOUNT_CODE_MAX}
+          defaultValue={existing?.code ?? ""}
           placeholder="SUMMER25"
-          // Uppercased as they type, matching how it is stored and compared, so
-          // the field never looks different from what a client will type.
-          onChange={(e) => {
-            e.target.value = e.target.value.toUpperCase();
-          }}
+          // Rendered uppercase by the class and normalized on save. Mutating
+          // e.target.value in onChange would fight React's value tracking on
+          // an uncontrolled input for no visible gain.
           className={`${FIELD} font-mono uppercase`}
         />
         <p className="text-xs text-muted-foreground">
@@ -113,6 +117,7 @@ function DiscountForm({
             min={kind === "percent" ? 1 : 0.5}
             max={kind === "percent" ? 100 : undefined}
             step={kind === "percent" ? 1 : 0.5}
+            defaultValue={existing ? existing.value / 100 : ""}
             required
             className={FIELD}
           />
@@ -133,6 +138,11 @@ function DiscountForm({
             type="number"
             min={0}
             step={1}
+            defaultValue={
+              existing && existing.min_subtotal_minor > 0
+                ? existing.min_subtotal_minor / 100
+                : ""
+            }
             placeholder="0"
             className={FIELD}
           />
@@ -150,6 +160,7 @@ function DiscountForm({
             type="number"
             min={1}
             step={1}
+            defaultValue={existing?.max_redemptions ?? ""}
             placeholder="Unlimited"
             className={FIELD}
           />
@@ -161,13 +172,25 @@ function DiscountForm({
           <label htmlFor="startsAt" className="text-xs text-muted-foreground">
             Starts (optional)
           </label>
-          <input id="startsAt" name="startsAt" type="date" className={FIELD} />
+          <input
+            id="startsAt"
+            name="startsAt"
+            type="date"
+            defaultValue={existing?.starts_at?.slice(0, 10) ?? ""}
+            className={FIELD}
+          />
         </div>
         <div className="space-y-1.5">
           <label htmlFor="endsAt" className="text-xs text-muted-foreground">
             Ends (optional)
           </label>
-          <input id="endsAt" name="endsAt" type="date" className={FIELD} />
+          <input
+            id="endsAt"
+            name="endsAt"
+            type="date"
+            defaultValue={existing?.ends_at?.slice(0, 10) ?? ""}
+            className={FIELD}
+          />
         </div>
       </div>
 
@@ -177,7 +200,13 @@ function DiscountForm({
           disabled={pending || !entitled}
           className="rounded-full bg-brand-mustard px-5 py-1.5 text-xs font-medium text-brand-charcoal disabled:opacity-50"
         >
-          {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Create code"}
+          {pending ? (
+            <Spinner className="w-4 h-4 mx-auto" />
+          ) : existing ? (
+            "Save changes"
+          ) : (
+            "Create code"
+          )}
         </button>
         <button
           type="button"
@@ -199,6 +228,7 @@ export default function DiscountList({
   entitled: boolean;
 }) {
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -211,49 +241,68 @@ export default function DiscountList({
       )}
 
       <ul className="space-y-2">
-        {codes.map((c) => (
-          <li
-            key={c.id}
-            className={`rounded-md border border-border px-4 py-3 ${
-              c.active ? "" : "opacity-60"
-            }`}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm text-foreground">
-                {c.code}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {discountLabel(c, eur)}
-              </span>
-              {!c.active && (
-                <span className="rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground">
-                  Off
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {c.max_redemptions
-                ? `${c.used} of ${c.max_redemptions} used`
-                : `${c.used} used`}
-              {c.min_subtotal_minor > 0 &&
-                ` · minimum ${eur(c.min_subtotal_minor)}`}
-              {c.ends_at &&
-                ` · ends ${new Date(c.ends_at).toLocaleDateString("en-GB")}`}
-            </p>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  await setDiscountActiveAction(c.id, !c.active);
-                })
-              }
-              className="mt-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        {codes.map((c) =>
+          editingId === c.id ? (
+            <li key={c.id}>
+              <DiscountForm
+                entitled={entitled}
+                existing={c}
+                onDone={() => setEditingId(null)}
+              />
+            </li>
+          ) : (
+            <li
+              key={c.id}
+              className={`rounded-md border border-border px-4 py-3 ${
+                c.active ? "" : "opacity-60"
+              }`}
             >
-              {c.active ? "Switch off" : "Switch on"}
-            </button>
-          </li>
-        ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm text-foreground">
+                  {c.code}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {discountLabel(c, eur)}
+                </span>
+                {!c.active && (
+                  <span className="rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground">
+                    Off
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {c.max_redemptions
+                  ? `${c.used} of ${c.max_redemptions} used`
+                  : `${c.used} used`}
+                {c.min_subtotal_minor > 0 &&
+                  ` · minimum ${eur(c.min_subtotal_minor)}`}
+                {c.ends_at &&
+                  ` · ends ${new Date(c.ends_at).toLocaleDateString("en-GB")}`}
+              </p>
+              <div className="mt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingId(c.id)}
+                  className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await setDiscountActiveAction(c.id, !c.active);
+                    })
+                  }
+                  className="text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                >
+                  {c.active ? "Switch off" : "Switch on"}
+                </button>
+              </div>
+            </li>
+          ),
+        )}
       </ul>
 
       {adding ? (

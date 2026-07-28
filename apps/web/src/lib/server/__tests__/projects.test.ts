@@ -323,3 +323,39 @@ describe("client status notification", () => {
     expect(r.ok).toBe(true);
   });
 });
+
+// Upload ceilings (audit fix). Server actions accept a 52 MB body, and 12
+// unguarded phone photos clear that comfortably; without this the visitor
+// fills in a long intake, waits, and gets an opaque failure.
+describe("intake upload ceilings", () => {
+  const file = (bytes: number, name = "p.jpg") =>
+    ({ name, size: bytes, type: "image/jpeg" }) as unknown as File;
+
+  it("refuses a single oversized photo before processing it", async () => {
+    const r = await submitProjectIntakeCore("artist-1", validIntake, [
+      file(11 * 1024 * 1024),
+    ]);
+    expect(r).toMatchObject({ ok: false, field: "images" });
+    expect(processImage).not.toHaveBeenCalled();
+  });
+
+  it("refuses a set that is individually fine but too much together", async () => {
+    const files = Array.from({ length: 6 }, () => file(8 * 1024 * 1024));
+    const r = await submitProjectIntakeCore("artist-1", validIntake, files);
+    expect(r).toMatchObject({ ok: false, field: "images" });
+    expect(processImage).not.toHaveBeenCalled();
+  });
+
+  it("accepts a reasonable set", async () => {
+    processImage.mockResolvedValue({
+      buffer: Buffer.from([1, 2, 3]),
+      width: 100,
+      height: 100,
+    });
+    const r = await submitProjectIntakeCore("artist-1", validIntake, [
+      file(2 * 1024 * 1024),
+      file(3 * 1024 * 1024),
+    ]);
+    expect(r.ok).toBe(true);
+  });
+});

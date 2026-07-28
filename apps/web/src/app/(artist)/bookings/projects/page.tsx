@@ -12,7 +12,6 @@ import {
   type ProjectRecord,
   type ProjectStatus,
 } from "@inklee/shared/projects";
-import BookingsNav from "@/components/bookings-nav";
 
 export const metadata = { title: "Projects" };
 
@@ -57,8 +56,6 @@ export default async function ProjectsPage({
 
   return (
     <div className="space-y-8">
-      <BookingsNav />
-
       <div className="space-y-1">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Projects

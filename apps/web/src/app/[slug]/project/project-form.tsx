@@ -14,6 +14,8 @@ import {
   PROJECT_MAX_BODY_AREAS,
   PROJECT_MAX_STYLES,
   PROJECT_MAX_IMAGES,
+  PROJECT_MAX_IMAGE_BYTES,
+  PROJECT_MAX_TOTAL_BYTES,
 } from "@inklee/shared/projects";
 import { STYLE_SEED } from "@inklee/shared/map-directory";
 import { submitProjectIntakeAction } from "./actions";
@@ -84,6 +86,7 @@ export default function ProjectForm({
   const [bodyAreas, setBodyAreas] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
   const [imageCount, setImageCount] = useState(0);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const toggle = (list: string[], set: (v: string[]) => void, key: string) =>
     set(list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);
@@ -333,15 +336,40 @@ export default function ProjectForm({
           type="file"
           accept="image/*"
           multiple
-          onChange={(e) => setImageCount(e.target.files?.length ?? 0)}
+          onChange={(e) => {
+            // Checked here, not only on the server: a visitor who has just
+            // filled in a long intake should learn a photo is too big while
+            // they can still swap it, not after a slow upload fails.
+            const files = Array.from(e.target.files ?? []);
+            setImageCount(files.length);
+            const tooBig = files.find((f) => f.size > PROJECT_MAX_IMAGE_BYTES);
+            const total = files.reduce((n, f) => n + f.size, 0);
+            if (tooBig) {
+              setImageError(
+                `"${tooBig.name}" is over ${Math.round(PROJECT_MAX_IMAGE_BYTES / 1024 / 1024)} MB. Pick a smaller version.`,
+              );
+            } else if (total > PROJECT_MAX_TOTAL_BYTES) {
+              setImageError(
+                `Those photos add up to more than ${Math.round(PROJECT_MAX_TOTAL_BYTES / 1024 / 1024)} MB. Send fewer, or smaller ones.`,
+              );
+            } else {
+              setImageError(null);
+            }
+          }}
           className="w-full text-sm text-muted-foreground file:mr-3 file:rounded-full file:border-0 file:bg-foreground/10 file:px-4 file:py-2 file:text-sm file:text-foreground"
         />
-        <p className="text-xs text-muted-foreground">
-          Photos of the area and of any tattoos already there help{" "}
-          {artistFirstName} plan properly.
-          {imageCount > PROJECT_MAX_IMAGES &&
-            ` Only the first ${PROJECT_MAX_IMAGES} will be sent.`}
-        </p>
+        {imageError ? (
+          <p className="text-xs text-destructive" role="alert">
+            {imageError}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Photos of the area and of any tattoos already there help{" "}
+            {artistFirstName} plan properly.
+            {imageCount > PROJECT_MAX_IMAGES &&
+              ` Only the first ${PROJECT_MAX_IMAGES} will be sent.`}
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -381,7 +409,7 @@ export default function ProjectForm({
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || !!imageError}
         className="w-full rounded-full bg-brand-mustard px-6 py-3 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Send enquiry"}

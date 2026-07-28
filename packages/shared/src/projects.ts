@@ -198,6 +198,18 @@ export const PROJECT_MAX_STYLES = 5;
 /** Body photographs plus references. Higher than a booking's cap because the
  *  whole point of this intake is assessing existing coverage across areas. */
 export const PROJECT_MAX_IMAGES = 12;
+/**
+ * Per-file and total upload ceilings.
+ *
+ * The total matters more than it looks: server actions accept a 52 MB body
+ * (next.config `serverActions.bodySizeLimit`), and 12 unguarded phone photos
+ * clear that comfortably. Without a client-side check the visitor fills in a
+ * long intake, waits, and gets an opaque failure with nothing to correct. The
+ * booking form caps 5 files at 10 MB for the same reason; this surface allows
+ * more photos, so it needs a TOTAL as well as a per-file limit.
+ */
+export const PROJECT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const PROJECT_MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 
 const optionalText = (max: number) =>
   z

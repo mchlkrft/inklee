@@ -88,6 +88,7 @@ function CheckoutInner({
   const [discountCode, setDiscountCode] = useState("");
   const [discountEur, setDiscountEur] = useState(0);
   const [discountNote, setDiscountNote] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
 
   const rowMax = (row: Row) =>
     Math.min(MAX_ADDON_QUANTITY, row.stock ?? MAX_ADDON_QUANTITY);
@@ -107,23 +108,53 @@ function CheckoutInner({
   // way this feature can lie about a price.
   const total = depositAmount + goodsTotal - discountEur;
 
+  const selectionsPayload = () =>
+    JSON.stringify(
+      rows
+        .filter((r) => (qty[r.key] ?? 0) > 0)
+        .map((r) => ({
+          productId: r.productId,
+          variantId: r.variantId,
+          quantity: qty[r.key],
+        })),
+    );
+
+  /**
+   * Apply the code as its own step.
+   *
+   * This exists because doing it inside handlePay charged the card in the same
+   * tick the discount resolved: the client never saw the discounted total
+   * before paying, and a REJECTED code was explained only after the money had
+   * moved. A displayed total that differs from the amount charged is not
+   * something to be clever about, even when the difference is in their favour.
+   */
+  const handleApplyCode = async () => {
+    if (!discountCode.trim()) return;
+    setApplying(true);
+    setError(null);
+    const prep = await prepareCheckoutAction(
+      token,
+      selectionsPayload(),
+      discountCode.trim(),
+    );
+    setApplying(false);
+    if ("error" in prep) {
+      setError(prep.error);
+      return;
+    }
+    setDiscountEur(prep.discountEur ?? 0);
+    setDiscountNote(prep.discountError ?? null);
+  };
+
   const handlePay = async () => {
     if (!stripe || !elements) return;
     setProcessing(true);
     setError(null);
 
-    const selections = rows
-      .filter((r) => (qty[r.key] ?? 0) > 0)
-      .map((r) => ({
-        productId: r.productId,
-        variantId: r.variantId,
-        quantity: qty[r.key],
-      }));
-
     // Sync the PaymentIntent + order to the current selection before charging.
     const prep = await prepareCheckoutAction(
       token,
-      JSON.stringify(selections),
+      selectionsPayload(),
       discountCode.trim() || undefined,
     );
     if ("error" in prep) {
@@ -131,9 +162,9 @@ function CheckoutInner({
       setProcessing(false);
       return;
     }
-    // A code that did not apply does NOT stop the payment: the client pays the
-    // undiscounted amount and is told why, because refusing a booking over a
-    // mistyped promo code would cost the artist the sale.
+    // Kept in sync in case the basket changed since the code was applied. The
+    // client has already SEEN this number via the Apply step below, so this is
+    // a reconciliation rather than a surprise.
     setDiscountEur(prep.discountEur ?? 0);
     setDiscountNote(prep.discountError ?? null);
 
@@ -260,23 +291,46 @@ function CheckoutInner({
           >
             Discount code (optional)
           </label>
-          <input
-            id="discount-code"
-            value={discountCode}
-            onChange={(e) => {
-              setDiscountCode(e.target.value.toUpperCase());
-              // Any edit invalidates the server's answer for the old code, so
-              // clear both rather than leave a stale reduction on screen.
-              setDiscountEur(0);
-              setDiscountNote(null);
-            }}
-            placeholder="SUMMER25"
-            autoCapitalize="characters"
-            autoComplete="off"
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm uppercase text-foreground placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <p className="text-xs text-muted-foreground">
-            {discountNote ?? "Applied to goods when you pay."}
+          <div className="flex gap-2">
+            <input
+              id="discount-code"
+              value={discountCode}
+              onChange={(e) => {
+                setDiscountCode(e.target.value.toUpperCase());
+                // Any edit invalidates the server's answer for the old code,
+                // so clear both rather than leave a stale reduction on screen.
+                setDiscountEur(0);
+                setDiscountNote(null);
+              }}
+              placeholder="SUMMER25"
+              autoCapitalize="characters"
+              autoComplete="off"
+              aria-describedby="discount-note"
+              className="w-full flex-1 rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm uppercase text-foreground placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={handleApplyCode}
+              disabled={applying || !discountCode.trim()}
+              className="shrink-0 rounded-md border border-border px-4 text-sm text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
+            >
+              {applying ? "Checking" : "Apply"}
+            </button>
+          </div>
+          <p
+            id="discount-note"
+            // Announced when it changes: the result of applying a code is the
+            // whole point of pressing the button, and a sighted user sees the
+            // total move while a screen-reader user would otherwise get
+            // nothing.
+            role="status"
+            aria-live="polite"
+            className="text-xs text-muted-foreground"
+          >
+            {discountNote ??
+              (discountEur > 0
+                ? "Code applied."
+                : "Applies to goods, not the deposit.")}
           </p>
         </div>
       )}

@@ -358,6 +358,9 @@ export default function UnifiedFieldList({
           // ── Custom field row ────────────────────────────────────────────────
           const { field } = row;
           const isActive = localActive[field.id] ?? field.active;
+          // Computed once per row: it walks the sibling list, and calling it
+          // twice (guard + render) doubled that for every field.
+          const conditionHint = conditionSummary(field, customFields);
 
           if (editingId === field.id) {
             return (
@@ -408,9 +411,9 @@ export default function UnifiedFieldList({
                 {/* Without this a conditional question looks identical to an
                     always-shown one in the list, and the artist has no way to
                     tell why it is missing from their own form preview. */}
-                {conditionSummary(field, customFields) && (
+                {conditionHint && (
                   <p className="mt-0.5 text-xs text-muted-foreground/70 truncate">
-                    {conditionSummary(field, customFields)}
+                    {conditionHint}
                   </p>
                 )}
               </div>

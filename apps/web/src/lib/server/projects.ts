@@ -7,6 +7,8 @@ import {
   canTransitionProject,
   isProjectStatus,
   PROJECT_MAX_IMAGES,
+  PROJECT_MAX_IMAGE_BYTES,
+  PROJECT_MAX_TOTAL_BYTES,
   PROJECT_NOTE_MAX,
   PROJECT_SCALES,
   BODY_AREAS,
@@ -98,6 +100,27 @@ export async function submitProjectIntakeCore(
   const realImages = images
     .filter((f) => f && f.size > 0)
     .slice(0, PROJECT_MAX_IMAGES);
+
+  // The client checks these too, so a visitor can correct a photo while they
+  // still have the file picker open. This is the enforcement copy: a crafted
+  // post, or a stale page, must not be able to hand `processImage` an
+  // arbitrarily large buffer.
+  const oversized = realImages.find((f) => f.size > PROJECT_MAX_IMAGE_BYTES);
+  if (oversized) {
+    return {
+      ok: false,
+      error: "One of the photos is too large. Pick a smaller version.",
+      field: "images",
+    };
+  }
+  const totalBytes = realImages.reduce((n, f) => n + f.size, 0);
+  if (totalBytes > PROJECT_MAX_TOTAL_BYTES) {
+    return {
+      ok: false,
+      error: "Those photos add up to too much. Send fewer, or smaller ones.",
+      field: "images",
+    };
+  }
 
   // Client portal token (P4 follow-up). Only the hash is stored, exactly like
   // the booking portal (0004): the database never holds a credential that
