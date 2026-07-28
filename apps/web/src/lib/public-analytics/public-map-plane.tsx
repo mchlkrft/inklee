@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { setPublicMapPlane } from "./collector";
+import { setPublicMapPlane, trackPublicPageview } from "./collector";
 
 /**
  * Publish the ANONYMOUS map plane to the collector (go-live plan S4 follow-up).
@@ -20,6 +20,23 @@ export function usePublicMapPlane(isPublic: boolean): void {
   useEffect(() => {
     if (!isPublic) return;
     setPublicMapPlane(true);
+    // Claim the pageview here rather than trusting effect ordering.
+    //
+    // The collector's own effect lives in the ROOT layout, and the first
+    // version of this hook assumed React's children-before-parents effect
+    // order would always put the marker first. That holds inside ONE commit,
+    // but `(map)/loading.tsx` puts this subtree behind a Suspense boundary:
+    // the layout commits with the fallback, the collector runs and sees no
+    // plane, and by the time the shell streams in the effect has already run
+    // and will not re-fire for an unchanged pathname. Measured in production
+    // 2026-07-28: the control page recorded, every anonymous /map view did
+    // not. Failing closed meant zero contamination and zero data.
+    //
+    // trackPublicPageview dedupes on the last recorded path and does not mark
+    // a path as recorded when it bails out, so calling it from both places is
+    // safe in either order: whichever runs once the plane is set wins, and the
+    // other is a no-op.
+    trackPublicPageview(window.location.pathname);
     return () => setPublicMapPlane(false);
   }, [isPublic]);
 }
