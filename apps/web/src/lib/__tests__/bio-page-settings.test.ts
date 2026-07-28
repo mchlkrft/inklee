@@ -6,6 +6,10 @@ import {
   isModuleVisible,
   countBlocksByType,
   canAddBlock,
+  isFeatureBlock,
+  BIO_FEATURE_BLOCK_TYPES,
+  BIO_BLOCK_TYPES,
+  BIO_BLOCK_META,
   DEFAULT_BIO_PAGE,
   MAX_BOOKING_POLICY,
   MAX_HEADLINE,
@@ -294,11 +298,17 @@ describe("countBlocksByType / canAddBlock", () => {
         { type: "link", url: "https://x.com" },
       ],
     }).blocks;
-    expect(countBlocksByType(blocks)).toEqual({
+    // The map is exhaustive over BIO_BLOCK_TYPES, which now includes the
+    // feature blocks (P2b), so assert the counted types rather than pinning
+    // the full key set here (the exhaustiveness is covered separately).
+    expect(countBlocksByType(blocks)).toMatchObject({
       headline: 2,
       text: 0,
       link: 1,
     });
+    expect(Object.keys(countBlocksByType(blocks)).sort()).toEqual(
+      [...BIO_BLOCK_TYPES].sort(),
+    );
     expect(canAddBlock(blocks, "headline")).toBe(true);
     expect(canAddBlock(blocks, "text")).toBe(true);
 
@@ -327,5 +337,76 @@ describe("visibleModules / isModuleVisible", () => {
     expect(visibleModules(s)).toEqual(["links", "shop"]);
     expect(isModuleVisible(s, "policy")).toBe(false);
     expect(isModuleVisible(s, "links")).toBe(true);
+  });
+});
+
+describe("feature blocks (Plus build P2b)", () => {
+  it("parses each feature block with no content payload", () => {
+    for (const type of BIO_FEATURE_BLOCK_TYPES) {
+      const { blocks } = parseBioPageSettings({ blocks: [{ type }] });
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].type).toBe(type);
+      expect(blocks[0]).not.toHaveProperty("text");
+      expect(blocks[0]).not.toHaveProperty("url");
+    }
+  });
+
+  it("caps feature blocks at ONE each, enforced in the PARSER", () => {
+    // Not just the editor: a stale client or a hand-edited payload must not be
+    // able to store two shop sections.
+    const { blocks } = parseBioPageSettings({
+      blocks: [{ type: "goods" }, { type: "goods" }, { type: "goods" }],
+    });
+    expect(blocks).toHaveLength(1);
+    expect(canAddBlock(blocks, "goods")).toBe(false);
+  });
+
+  it("still allows ten content blocks per type", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      type: "link",
+      label: `L${i}`,
+      url: "https://example.com",
+    }));
+    expect(parseBioPageSettings({ blocks: many }).blocks).toHaveLength(10);
+  });
+
+  it("mixes feature and content blocks in the artist's order", () => {
+    const { blocks } = parseBioPageSettings({
+      blocks: [
+        { type: "books_status" },
+        { type: "headline", text: "Shop" },
+        { type: "goods" },
+      ],
+    });
+    expect(blocks.map((b) => b.type)).toEqual([
+      "books_status",
+      "headline",
+      "goods",
+    ]);
+  });
+
+  it("gives every block type editor copy", () => {
+    for (const type of BIO_BLOCK_TYPES) {
+      expect(BIO_BLOCK_META[type].label.length).toBeGreaterThan(0);
+      expect(BIO_BLOCK_META[type].addLabel.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("narrows with isFeatureBlock, keeping union access on the else branch", () => {
+    const { blocks } = parseBioPageSettings({
+      blocks: [
+        { type: "flash" },
+        { type: "link", label: "x", url: "https://example.com" },
+      ],
+    });
+    const feature = blocks.filter(isFeatureBlock);
+    expect(feature).toHaveLength(1);
+    expect(feature[0].type).toBe("flash");
+  });
+
+  it("drops an unknown block type", () => {
+    expect(
+      parseBioPageSettings({ blocks: [{ type: "carousel" }] }).blocks,
+    ).toHaveLength(0);
   });
 });

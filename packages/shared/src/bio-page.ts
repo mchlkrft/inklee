@@ -23,12 +23,44 @@ export const BIO_MODULE_ORDER: readonly BioModuleKey[] = [
   "shop",
 ];
 
-export type BioBlockType = "headline" | "text" | "link";
+// Two families of block. CONTENT blocks (headline/text/link) carry their own
+// text and are unlimited-ish per type. FEATURE blocks (Plus build P2b) carry
+// NO content: they surface data the artist already maintains elsewhere, so a
+// feature block is just presence + position, and it renders nothing when the
+// underlying data is empty. That is why they cap at ONE each: two "available
+// flash" sections on one page is never what an artist means.
+export type BioBlockType =
+  | "headline"
+  | "text"
+  | "link"
+  | "booking_form"
+  | "goods"
+  | "guest_spots"
+  | "flash"
+  | "books_status";
+
+/** Blocks that render the artist's existing data and hold no content. */
+export const BIO_FEATURE_BLOCK_TYPES = [
+  "booking_form",
+  "goods",
+  "guest_spots",
+  "flash",
+  "books_status",
+] as const;
+export type BioFeatureBlockType = (typeof BIO_FEATURE_BLOCK_TYPES)[number];
+
+export function isFeatureBlockType(v: unknown): v is BioFeatureBlockType {
+  return (
+    typeof v === "string" &&
+    (BIO_FEATURE_BLOCK_TYPES as readonly string[]).includes(v)
+  );
+}
 
 export const BIO_BLOCK_TYPES: readonly BioBlockType[] = [
   "headline",
   "text",
   "link",
+  ...BIO_FEATURE_BLOCK_TYPES,
 ];
 
 /** Editor labels for each block type (shared by the web + app editors). */
@@ -39,6 +71,11 @@ export const BIO_BLOCK_META: Record<
   headline: { label: "Headline", addLabel: "Add headline" },
   text: { label: "Text", addLabel: "Add text" },
   link: { label: "Link", addLabel: "Add link" },
+  booking_form: { label: "Booking form", addLabel: "Add booking form" },
+  goods: { label: "Shop", addLabel: "Add shop" },
+  guest_spots: { label: "Guest spots", addLabel: "Add guest spots" },
+  flash: { label: "Flash", addLabel: "Add flash" },
+  books_status: { label: "Books status", addLabel: "Add books status" },
 };
 
 export type BioHeadlineBlock = { id: string; type: "headline"; text: string };
@@ -52,7 +89,20 @@ export type BioLinkBlock = {
 };
 
 /** One arrangeable item on the Hub body. */
-export type BioBlock = BioHeadlineBlock | BioTextBlock | BioLinkBlock;
+/** A content-free block that renders the artist's existing data. */
+export type BioFeatureBlock = { id: string; type: BioFeatureBlockType };
+
+export type BioBlock =
+  | BioHeadlineBlock
+  | BioTextBlock
+  | BioLinkBlock
+  | BioFeatureBlock;
+
+/** Narrow a block to the feature family. Takes the BLOCK (not its type) so
+ *  callers keep discriminated-union narrowing on the else branch. */
+export function isFeatureBlock(block: BioBlock): block is BioFeatureBlock {
+  return isFeatureBlockType(block.type);
+}
 
 /** Social platforms shown as the Hub's icon row. Each key maps to a single
  *  brand glyph path in bio-social-icons.ts, rendered identically on web + app;
@@ -261,6 +311,12 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
   const o = raw as Record<string, unknown>;
   if (!isBioBlockType(o.type)) return null;
 
+  // Feature blocks hold no content: presence and position are the whole
+  // payload, so there is nothing to sanitize and nothing that can be empty.
+  if (isFeatureBlockType(o.type)) {
+    return { id: blockId(o, `${o.type}-${index}`), type: o.type };
+  }
+
   if (o.type === "headline" || o.type === "text") {
     const max = o.type === "headline" ? MAX_HEADLINE : MAX_TEXT;
     const text =
@@ -305,11 +361,9 @@ function parseBlocks(obj: Record<string, unknown>): BioBlock[] {
   const source = Array.isArray(obj.blocks)
     ? obj.blocks
     : legacyToRawBlocks(obj);
-  const counts: Record<BioBlockType, number> = {
-    headline: 0,
-    text: 0,
-    link: 0,
-  };
+  const counts = Object.fromEntries(
+    BIO_BLOCK_TYPES.map((k) => [k, 0]),
+  ) as Record<BioBlockType, number>;
   // The id drives React keys AND identity-based edit/remove in both editors, so
   // a duplicate id (two equal explicit ids, or an explicit id equal to another
   // block's positional fallback) would corrupt the wrong row. The parser is the
@@ -320,7 +374,10 @@ function parseBlocks(obj: Record<string, unknown>): BioBlock[] {
   source.forEach((raw, index) => {
     const block = parseOneBlock(raw, index);
     if (!block) return;
-    if (counts[block.type] >= MAX_BLOCKS_PER_TYPE) return;
+    // The parser is the enforcement point for the cap, not just the editor:
+    // a stale client or a hand-edited payload must not be able to store two
+    // shop sections.
+    if (counts[block.type] >= maxBlocksOfType(block.type)) return;
     counts[block.type] += 1;
     let id = block.id;
     if (seenIds.has(id)) id = `${block.type}-${index}`;
@@ -371,18 +428,23 @@ export function parseBioPageSettings(raw: unknown): BioPageSettings {
 export function countBlocksByType(
   blocks: BioBlock[],
 ): Record<BioBlockType, number> {
-  const counts: Record<BioBlockType, number> = {
-    headline: 0,
-    text: 0,
-    link: 0,
-  };
+  const counts = Object.fromEntries(
+    BIO_BLOCK_TYPES.map((k) => [k, 0]),
+  ) as Record<BioBlockType, number>;
   for (const b of blocks) counts[b.type] += 1;
   return counts;
 }
 
+/** The per-type cap. Feature blocks cap at ONE: they surface a whole section
+ *  of the artist's data, so a second copy is never what someone means, and
+ *  duplicates would render the same shop or flash list twice. */
+export function maxBlocksOfType(type: BioBlockType): number {
+  return isFeatureBlockType(type) ? 1 : MAX_BLOCKS_PER_TYPE;
+}
+
 /** Whether another block of `type` may be added (under the per-type cap). */
 export function canAddBlock(blocks: BioBlock[], type: BioBlockType): boolean {
-  return countBlocksByType(blocks)[type] < MAX_BLOCKS_PER_TYPE;
+  return countBlocksByType(blocks)[type] < maxBlocksOfType(type);
 }
 
 export function isModuleVisible(

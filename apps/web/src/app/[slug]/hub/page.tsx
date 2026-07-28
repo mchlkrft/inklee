@@ -7,7 +7,13 @@ import { serviceClient } from "@/lib/supabase/service";
 import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { surfaceAppearance } from "@/lib/server/appearance";
 import { templateStyles } from "@inklee/shared/page-template-styles";
-import { parseBioPageSettings, BIO_SOCIAL_META } from "@/lib/bio-page-settings";
+import { loadHubFeatureData } from "@/lib/server/hub-feature-data";
+import { HubFeatureBlock } from "./feature-blocks";
+import {
+  parseBioPageSettings,
+  BIO_SOCIAL_META,
+  isFeatureBlock,
+} from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import { apexHref, publicArtistUrl, publicHubUrl } from "@/lib/public-url";
 import { clampDescription } from "@/lib/seo";
@@ -91,6 +97,15 @@ export default async function ArtistHubPage({
   // surfaceAppearance, not here.
   const tpl = templateStyles(appearance.resolved.template);
 
+  // Feature-block data (P2b). Queried ONLY for the blocks this artist actually
+  // added, so a plain link hub still costs exactly one profile read.
+  const featureData = await loadHubFeatureData({
+    artistId: profile.id as string,
+    settings,
+    blocks,
+    bookingUrl,
+  });
+
   const pageStyle: React.CSSProperties = {
     ...(coverImage
       ? {
@@ -171,16 +186,23 @@ export default async function ArtistHubPage({
         <div className="mt-8 w-full space-y-3">
           {/* The artist's booking page as the built-in primary action, pinned
               above the arrangeable blocks. Booking stays separate; this is just
-              a link to it. */}
-          <a
-            href={bookingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 rounded-2xl bg-brand-mustard px-5 py-4 text-sm font-semibold text-brand-charcoal shadow-sm transition-transform hover:-translate-y-0.5"
-          >
-            <CalendarCheck className="h-4 w-4" aria-hidden />
-            Book a tattoo
-          </a>
+              a link to it.
+
+              SUPPRESSED when the artist added a booking_form block (P2b): that
+              block is the same CTA under their own placement, and rendering
+              both would put two identical buttons on the page. Artists who add
+              no block keep today's pinned default exactly. */}
+          {!blocks.some((b) => b.type === "booking_form") && (
+            <a
+              href={bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-brand-mustard px-5 py-4 text-sm font-semibold text-brand-charcoal shadow-sm transition-transform hover:-translate-y-0.5"
+            >
+              <CalendarCheck className="h-4 w-4" aria-hidden />
+              Book a tattoo
+            </a>
+          )}
 
           {/* The artist's ordered blocks: headlines + text render inline, link
               blocks render as buttons (inactive links are hidden). */}
@@ -197,6 +219,19 @@ export default async function ArtistHubPage({
                 <p key={block.id} className={tpl.text}>
                   {block.text}
                 </p>
+              );
+            }
+            // Feature blocks (P2b): content-free, rendered from the artist's
+            // existing data. Each returns null when its data is empty, so an
+            // added-but-unused block never leaves a bare heading on the page.
+            if (isFeatureBlock(block)) {
+              return (
+                <HubFeatureBlock
+                  key={block.id}
+                  type={block.type}
+                  data={featureData}
+                  tpl={tpl}
+                />
               );
             }
             if (!block.isActive) return null;

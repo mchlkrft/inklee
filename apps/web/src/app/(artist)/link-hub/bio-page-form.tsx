@@ -13,6 +13,7 @@ import {
   BIO_BLOCK_TYPES,
   BIO_BLOCK_META,
   canAddBlock,
+  isFeatureBlockType,
   type BioBlock,
   type BioBlockType,
   type BioSocial,
@@ -45,8 +46,25 @@ function newId(): string {
     : `block-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
+/** What each feature block will show, so the artist knows what they added and
+ *  why it may render nothing yet. */
+const FEATURE_BLOCK_HINTS: Record<string, string> = {
+  booking_form:
+    "Shows your booking button. Replaces the default one at the top.",
+  goods:
+    "Shows your shop, with a few product images. Hidden while your shop is empty.",
+  guest_spots:
+    "Shows your upcoming guest spots. Hidden while you have none planned.",
+  flash:
+    "Shows how much flash is available. Hidden while you have none published.",
+  books_status: "Shows whether your books are open or closed.",
+};
+
 function makeBlock(type: BioBlockType): BioBlock {
   const id = newId();
+  // Feature blocks (P2b) carry no content: presence and position are the whole
+  // payload, so there is nothing to seed and nothing for the artist to fill in.
+  if (isFeatureBlockType(type)) return { id, type };
   if (type === "link")
     return { id, type: "link", label: "", url: "", isActive: true };
   if (type === "headline") return { id, type: "headline", text: "" };
@@ -245,6 +263,15 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
                   </button>
                 </div>
               </div>
+
+              {/* Feature blocks have nothing to fill in: they show the data
+                  the artist already keeps elsewhere. Say so, so the card does
+                  not read as a broken empty editor. */}
+              {isFeatureBlockType(block.type) && (
+                <p className="text-xs text-muted-foreground">
+                  {FEATURE_BLOCK_HINTS[block.type]}
+                </p>
+              )}
 
               {block.type === "headline" && (
                 <>

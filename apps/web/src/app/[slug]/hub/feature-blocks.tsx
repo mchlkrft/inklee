@@ -1,0 +1,150 @@
+import Image from "next/image";
+import { CalendarCheck, Plane, Sparkles, ShoppingBag } from "lucide-react";
+import type { BioFeatureBlockType } from "@/lib/bio-page-settings";
+import type { TemplateStyles } from "@inklee/shared/page-template-styles";
+
+// Hub feature blocks (Plus build P2b). Each renders data the artist already
+// maintains elsewhere, and each returns NULL when that data is empty, so an
+// added-but-unused block never leaves a bare heading on a public page.
+//
+// These are deliberately compact and OUTBOUND: the hub is a link-in-bio
+// surface whose job is routing, so a block summarises and links to the real
+// page rather than reimplementing it. The booking page keeps the full shop,
+// travel and flash experiences.
+
+export type HubFeatureData = {
+  booksOpen: boolean;
+  bookingUrl: string;
+  productCount: number;
+  productThumbs: string[];
+  tripCount: number;
+  nextTripLabel: string | null;
+  flashCount: number;
+};
+
+function SectionHeading({
+  children,
+  tpl,
+}: {
+  children: React.ReactNode;
+  tpl: TemplateStyles;
+}) {
+  return <p className={`pt-2 ${tpl.headline}`}>{children}</p>;
+}
+
+export function HubFeatureBlock({
+  type,
+  data,
+  tpl,
+}: {
+  type: BioFeatureBlockType;
+  data: HubFeatureData;
+  tpl: TemplateStyles;
+}) {
+  if (type === "booking_form") {
+    return (
+      <a
+        href={data.bookingUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 rounded-2xl bg-brand-mustard px-5 py-4 text-sm font-semibold text-brand-charcoal shadow-sm transition-transform hover:-translate-y-0.5"
+      >
+        <CalendarCheck className="h-4 w-4" aria-hidden />
+        {data.booksOpen ? "Book a tattoo" : "See booking details"}
+      </a>
+    );
+  }
+
+  if (type === "books_status") {
+    return (
+      <div
+        className={`flex items-center gap-2 rounded-full border border-brand-bone/25 px-4 py-2 text-sm text-brand-bone/85 ${
+          tpl.centered ? "justify-center" : "justify-start"
+        }`}
+      >
+        <span
+          aria-hidden
+          className={`h-2 w-2 rounded-full ${
+            data.booksOpen ? "bg-brand-green" : "bg-brand-bone/40"
+          }`}
+        />
+        {data.booksOpen ? "Books are open" : "Books are closed"}
+      </div>
+    );
+  }
+
+  if (type === "goods") {
+    if (data.productCount === 0) return null;
+    return (
+      <a
+        href={data.bookingUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-2xl border border-brand-bone/20 p-4 transition-colors hover:border-brand-bone/40"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium text-brand-bone">
+          <ShoppingBag className="h-4 w-4" aria-hidden />
+          Shop
+        </span>
+        {data.productThumbs.length > 0 && (
+          <span className="mt-3 flex gap-2">
+            {data.productThumbs.map((src) => (
+              <span
+                key={src}
+                className="relative h-14 w-14 overflow-hidden rounded-md bg-brand-bone/10"
+              >
+                <Image src={src} alt="" fill className="object-cover" />
+              </span>
+            ))}
+          </span>
+        )}
+        <span className="mt-2 block text-xs text-brand-bone/60">
+          {data.productCount === 1 ? "1 item" : `${data.productCount} items`}
+        </span>
+      </a>
+    );
+  }
+
+  if (type === "guest_spots") {
+    if (data.tripCount === 0) return null;
+    return (
+      <div className="rounded-2xl border border-brand-bone/20 p-4">
+        <SectionHeading tpl={tpl}>
+          <span className="flex items-center gap-2">
+            <Plane className="h-4 w-4" aria-hidden />
+            Guest spots
+          </span>
+        </SectionHeading>
+        {data.nextTripLabel && (
+          <p className="mt-1 text-sm text-brand-bone/75">
+            {data.nextTripLabel}
+          </p>
+        )}
+        <p className="mt-1 text-xs text-brand-bone/60">
+          {data.tripCount === 1
+            ? "1 trip planned"
+            : `${data.tripCount} trips planned`}
+        </p>
+      </div>
+    );
+  }
+
+  // flash
+  if (data.flashCount === 0) return null;
+  return (
+    <a
+      href={`${data.bookingUrl}/flash`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center justify-between gap-3 rounded-2xl border border-brand-bone/20 px-4 py-3.5 transition-colors hover:border-brand-bone/40"
+    >
+      <span className="flex items-center gap-2 text-sm font-medium text-brand-bone">
+        <Sparkles className="h-4 w-4" aria-hidden />
+        Available flash
+      </span>
+      <span className="text-xs text-brand-bone/60">
+        {data.flashCount === 1 ? "1 design" : `${data.flashCount} designs`}
+      </span>
+    </a>
+  );
+}

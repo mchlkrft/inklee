@@ -44,6 +44,7 @@ import {
   MAX_LINK_LABEL,
   MAX_SOCIALS,
   canAddBlock,
+  isFeatureBlockType,
   type BioBlock,
   type BioBlockType,
   type BioPageSettings,
@@ -96,9 +97,25 @@ type BlockPatch = Partial<{
   isActive: boolean;
 }>;
 
+/** What each feature block will show. Kept in step with the web editor's copy
+ *  so an artist sees the same explanation on both platforms. */
+const FEATURE_BLOCK_HINTS: Record<string, string> = {
+  booking_form:
+    "Shows your booking button. Replaces the default one at the top.",
+  goods:
+    "Shows your shop, with a few product images. Hidden while your shop is empty.",
+  guest_spots:
+    "Shows your upcoming guest spots. Hidden while you have none planned.",
+  flash:
+    "Shows how much flash is available. Hidden while you have none published.",
+  books_status: "Shows whether your books are open or closed.",
+};
+
 function makeBlock(type: BioBlockType): BioBlock {
   // Any non-empty id works: the server keeps it, else derives a stable fallback.
   const id = `${type}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  // Feature blocks (P2b) carry no content.
+  if (isFeatureBlockType(type)) return { id, type };
   if (type === "link") return { id, type: "link", label: "", url: "", isActive: true };
   if (type === "headline") return { id, type: "headline", text: "" };
   return { id, type: "text", text: "" };
@@ -398,7 +415,13 @@ function HubForm({
                   </View>
                 </View>
 
-                {block.type === "headline" ? (
+                {isFeatureBlockType(block.type) ? (
+                  // Feature blocks have nothing to fill in: they show data the
+                  // artist already keeps elsewhere.
+                  <Text className="text-xs text-shell-dim">
+                    {FEATURE_BLOCK_HINTS[block.type]}
+                  </Text>
+                ) : block.type === "headline" ? (
                   <TextField
                     value={block.text}
                     onChangeText={(v) =>
