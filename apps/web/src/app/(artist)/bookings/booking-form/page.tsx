@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { CustomFieldDef } from "@/lib/custom-fields";
+import { normalizeFieldRow } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
@@ -37,7 +38,11 @@ export default async function BookingFormPage() {
   const profileSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   const formSettings = parseFormSettings(profileSettings.form_settings);
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
-  const customFieldIds = ((fields ?? []) as CustomFieldDef[]).map((f) => f.id);
+  // One normalized list: the editor seeds its condition controls from these
+  // rows, so a malformed stored condition must resolve to "always show" here
+  // exactly as it does on the public form.
+  const customFields: CustomFieldDef[] = (fields ?? []).map(normalizeFieldRow);
+  const customFieldIds = customFields.map((f) => f.id);
   const initialOrder = Array.isArray(profileSettings.field_order)
     ? (profileSettings.field_order as string[])
     : buildDefaultFieldOrder(customFieldIds);
@@ -146,9 +151,9 @@ export default async function BookingFormPage() {
           </p>
         </div>
         <UnifiedFieldList
-          key={fields?.length ?? 0}
+          key={customFields.length}
           initialSettings={formSettings}
-          customFields={(fields as CustomFieldDef[]) ?? []}
+          customFields={customFields}
           initialOrder={initialOrder}
         />
       </section>

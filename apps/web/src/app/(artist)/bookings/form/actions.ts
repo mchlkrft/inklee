@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
-import { fieldConfigSchema, labelToKey } from "@/lib/custom-fields";
+import {
+  fieldConfigSchema,
+  labelToKey,
+  parseFieldCondition,
+} from "@/lib/custom-fields";
 import { buildDefaultFieldOrder, insertFieldId } from "@/lib/form-settings";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
@@ -17,6 +21,18 @@ async function getUser() {
     data: { user },
   } = await supabase.auth.getUser();
   return { supabase, user };
+}
+
+/** Read the condition the editor submits as JSON. Anything unparseable or
+ *  unrecognised becomes null, i.e. "always show": the failure mode of a bad
+ *  payload must be an extra visible question, never a silently hidden one. */
+function parseConditionInput(raw: FormDataEntryValue | null) {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  try {
+    return parseFieldCondition(JSON.parse(raw));
+  } catch {
+    return null;
+  }
 }
 
 export async function createFieldAction(
@@ -36,6 +52,10 @@ export async function createFieldAction(
     help_text:
       (formData.get("help_text") as string | null)?.trim() || undefined,
     options: parseOptions(formData.get("options") as string | null),
+    // Conditional questions (P3). An empty field means "always show"; a
+    // malformed payload parses to null the same way, so a bad client can
+    // never hide a question rather than showing it.
+    condition: parseConditionInput(formData.get("condition")),
   };
 
   const parsed = fieldConfigSchema.safeParse(raw);
@@ -92,6 +112,7 @@ export async function createFieldAction(
       placeholder: data.placeholder ?? null,
       help_text: data.help_text ?? null,
       options: data.options,
+      condition: data.condition ?? null,
       active: true,
       position,
     })
@@ -160,6 +181,10 @@ export async function updateFieldAction(
     help_text:
       (formData.get("help_text") as string | null)?.trim() || undefined,
     options: parseOptions(formData.get("options") as string | null),
+    // Conditional questions (P3). An empty field means "always show"; a
+    // malformed payload parses to null the same way, so a bad client can
+    // never hide a question rather than showing it.
+    condition: parseConditionInput(formData.get("condition")),
   };
 
   const parsed = fieldConfigSchema.safeParse(raw);
@@ -177,6 +202,7 @@ export async function updateFieldAction(
       placeholder: data.placeholder ?? null,
       help_text: data.help_text ?? null,
       options: data.options,
+      condition: data.condition ?? null,
     })
     .eq("id", id)
     .eq("artist_id", user.id);

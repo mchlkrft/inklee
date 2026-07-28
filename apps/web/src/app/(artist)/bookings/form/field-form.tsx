@@ -28,9 +28,13 @@ const TYPE_LABELS: Record<string, string> = {
 export default function FieldForm({
   field,
   onDone,
+  allFields = [],
 }: {
   field?: CustomFieldDef;
   onDone: () => void;
+  /** Sibling fields, so a condition can name a controlling question. Only
+   *  fields EARLIER than this one are offerable (see below). */
+  allFields?: CustomFieldDef[];
 }) {
   const isEdit = !!field;
   const action = isEdit ? updateFieldAction : createFieldAction;
@@ -44,6 +48,36 @@ export default function FieldForm({
   const [keyTouched, setKeyTouched] = useState(isEdit);
   const [type, setType] = useState<string>(field?.type ?? "short_text");
   const [options, setOptions] = useState<string[]>(field?.options ?? []);
+  const [condKey, setCondKey] = useState<string>(
+    field?.condition?.fieldKey ?? "",
+  );
+  const [condOp, setCondOp] = useState<string>(
+    field?.condition?.operator ?? "equals",
+  );
+  const [condValue, setCondValue] = useState<string>(
+    field?.condition?.value ?? "",
+  );
+
+  // Offerable controllers: choice fields that come BEFORE this one. Editing an
+  // existing field uses its position; a NEW field is appended last, so every
+  // existing choice field qualifies.
+  const controllerOptions = allFields.filter(
+    (f) =>
+      f.active &&
+      !f.deleted_at &&
+      (f.type === "select" || f.type === "radio" || f.type === "checkbox") &&
+      f.key !== key &&
+      (field ? f.position < field.position : true),
+  );
+  const controllerField = controllerOptions.find((f) => f.key === condKey);
+  const conditionJson = condKey
+    ? JSON.stringify({
+        fieldKey: condKey,
+        operator: condOp,
+        value:
+          condOp === "equals" || condOp === "not_equals" ? condValue : null,
+      })
+    : "";
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -181,6 +215,98 @@ export default function FieldForm({
         />
         <span className="text-sm text-muted-foreground">Required field</span>
       </label>
+
+      {/* Always submitted, even when the editor below is not rendered: the
+          update action replaces the stored condition with whatever arrives, so
+          an absent input would silently WIPE a condition whenever the artist
+          edits a field whose controller is no longer offerable (reordered,
+          archived). State is seeded from the stored condition, so that case
+          round-trips it untouched. */}
+      <input type="hidden" name="condition" value={conditionJson} />
+
+      {/* Conditional questions (P3). Only fields BEFORE this one can control
+          it: that makes evaluation a single ordered pass and a cycle
+          impossible, rather than needing a cycle check the artist would have
+          to understand. Choice fields only, because "equals" against free
+          text is a trap nobody wins. */}
+      {controllerOptions.length > 0 && (
+        <div className="space-y-2 rounded-md border border-border p-3">
+          <p className="text-sm text-foreground">
+            Only show this question when
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={condKey}
+              onChange={(e) => {
+                setCondKey(e.target.value);
+                // The stored answer belongs to the previous question's option
+                // list, so keeping it would compare against a value the new
+                // one never offers.
+                setCondValue("");
+                const next = allFields.find((f) => f.key === e.target.value);
+                if (next?.type === "checkbox") setCondOp("answered");
+              }}
+              aria-label="Controlling question"
+              className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">Always show</option>
+              {controllerOptions.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            {condKey && (
+              <>
+                <select
+                  value={condOp}
+                  onChange={(e) => setCondOp(e.target.value)}
+                  aria-label="Condition"
+                  className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground"
+                >
+                  {/* A checkbox has no options, so there is nothing for "is"
+                      to compare against: ticked / unticked is exactly what
+                      answered / not answered mean there. */}
+                  {controllerField?.type === "checkbox" ? (
+                    <>
+                      <option value="answered">is ticked</option>
+                      <option value="not_answered">is not ticked</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="equals">is</option>
+                      <option value="not_equals">is not</option>
+                      <option value="answered">is answered</option>
+                      <option value="not_answered">is not answered</option>
+                    </>
+                  )}
+                </select>
+                {(condOp === "equals" || condOp === "not_equals") && (
+                  <select
+                    value={condValue}
+                    onChange={(e) => setCondValue(e.target.value)}
+                    aria-label="Answer"
+                    className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground"
+                  >
+                    <option value="">Choose an answer</option>
+                    {controllerField?.options.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </>
+            )}
+          </div>
+          {condKey && (
+            <p className="text-xs text-muted-foreground">
+              Hidden questions are never required, so someone who does not see
+              this can still submit the form.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-3 pt-1">
         <button

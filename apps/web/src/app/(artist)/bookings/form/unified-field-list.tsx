@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef } from "react";
 import type { FormSettings } from "@/lib/form-settings";
 import type { CustomFieldDef } from "@/lib/custom-fields";
+import { conditionSummary } from "@/lib/custom-fields";
 import {
   saveFormSettingsAction,
   saveFieldOrderAction,
@@ -356,7 +357,11 @@ export default function UnifiedFieldList({
           if (editingId === field.id) {
             return (
               <div key={field.id} className="p-0">
-                <FieldForm field={field} onDone={() => setEditingId(null)} />
+                <FieldForm
+                  field={field}
+                  allFields={customFields}
+                  onDone={() => setEditingId(null)}
+                />
               </div>
             );
           }
@@ -394,6 +399,14 @@ export default function UnifiedFieldList({
                     </span>
                   )}
                 </div>
+                {/* Without this a conditional question looks identical to an
+                    always-shown one in the list, and the artist has no way to
+                    tell why it is missing from their own form preview. */}
+                {conditionSummary(field, customFields) && (
+                  <p className="mt-0.5 text-xs text-muted-foreground/70 truncate">
+                    {conditionSummary(field, customFields)}
+                  </p>
+                )}
               </div>
 
               <Toggle
@@ -432,7 +445,10 @@ export default function UnifiedFieldList({
       {/* Add custom field */}
       {addMode ? (
         <div className="mt-2">
-          <FieldForm onDone={() => setAddMode(false)} />
+          <FieldForm
+            allFields={customFields}
+            onDone={() => setAddMode(false)}
+          />
         </div>
       ) : (
         <button

@@ -6,7 +6,10 @@ import Link from "next/link";
 import { submitBookingAction } from "./actions";
 import { trackPublicEvent } from "@/lib/public-analytics/collector";
 import { SIZES, SIZE_LABELS } from "@/lib/booking-schema";
-import type { CustomFieldDef } from "@/lib/custom-fields";
+import {
+  resolveFieldVisibility,
+  type CustomFieldDef,
+} from "@/lib/custom-fields";
 import CustomFieldInput from "@/components/custom-field-input";
 import type { FormSettings } from "@/lib/form-settings";
 import {
@@ -131,6 +134,17 @@ export default function BookingForm({
   const [igVal, setIgVal] = useState("");
   const [emailVal, setEmailVal] = useState("");
   const [placementVal, setPlacementVal] = useState("");
+  // Conditional questions (P3): the current custom answers, captured by the
+  // delegated form onChange below.
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>(
+    {},
+  );
+  // Same ordered pass the server runs, so a chained condition (A controls B,
+  // B controls C) hides and shows the same fields on both sides.
+  const visibleCustomKeys = resolveFieldVisibility(
+    customFields,
+    customAnswers,
+  ).visible;
   const [refVal, setRefVal] = useState("");
 
   // Image management — stable IDs decouple annotation tracking from array order
@@ -749,16 +763,46 @@ export default function BookingForm({
       default: {
         // Custom field — look up by UUID in the active customFields list
         const cf = customFields.find((f) => f.id === key);
-        return cf ? (
-          <CustomFieldInput field={cf} error={err(`cf_${cf.key}`)} />
-        ) : null;
+        if (!cf) return null;
+        // Conditional questions (P3): a hidden field unmounts, so its value is
+        // not submitted and its `required` attribute cannot block the form.
+        // The server re-evaluates visibility independently, so this is UX, not
+        // the enforcement point.
+        if (!visibleCustomKeys.has(cf.key)) return null;
+        return <CustomFieldInput field={cf} error={err(`cf_${cf.key}`)} />;
       }
     }
   }
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form
+        onSubmit={handleSubmit}
+        // Conditional questions (P3). The custom inputs are uncontrolled
+        // (name-based, read at submit), so rather than rewriting all seven
+        // input types into controlled components, capture their values here by
+        // delegation. Change events bubble, so one handler tracks every answer
+        // and re-evaluates which conditional fields are visible.
+        onChange={(e) => {
+          const t = e.target as unknown as HTMLInputElement;
+          if (!t?.name?.startsWith("cf_")) return;
+          const key = t.name.slice(3);
+          const value =
+            t.type === "checkbox" ? (t.checked ? "on" : "") : t.value;
+          setCustomAnswers((prev) => {
+            if (prev[key] === value) return prev;
+            // Keep only the answers of fields that are still visible. A field
+            // that unmounts loses its uncontrolled DOM value, so a remembered
+            // answer would keep a downstream question on screen that the
+            // server (which never receives it) would hide.
+            return resolveFieldVisibility(customFields, {
+              ...prev,
+              [key]: value,
+            }).effectiveAnswers;
+          });
+        }}
+        className="space-y-8"
+      >
         {state?.error && !state.field && (
           <p className="text-sm text-destructive">{state.error}</p>
         )}

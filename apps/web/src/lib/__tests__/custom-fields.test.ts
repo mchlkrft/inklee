@@ -4,6 +4,10 @@ import {
   labelToKey,
   formatCustomAnswer,
   fieldConfigSchema,
+  parseFieldCondition,
+  isFieldVisible,
+  resolveFieldVisibility,
+  conditionSummary,
 } from "../custom-fields";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "../custom-fields";
 
@@ -18,6 +22,7 @@ const makeField = (
   required: false,
   placeholder: null,
   help_text: null,
+  condition: null,
   options: ["fair", "medium", "dark"],
   active: true,
   position: 0,
@@ -320,5 +325,406 @@ describe("formatCustomAnswer", () => {
     expect(
       formatCustomAnswer({ key: "k", label: "L", type: "number", value: 42 }),
     ).toBe("42");
+  });
+});
+
+// --- Conditional questions (P3) ---------------------------------------------
+// The contract these pin: a hidden field is not required AND its answer is not
+// stored, and any condition that cannot be resolved leaves the field VISIBLE.
+
+const controller = makeField({
+  id: "ctrl",
+  key: "style",
+  label: "Style",
+  type: "select",
+  options: ["colour", "blackwork"],
+  position: 0,
+});
+
+const dependent = (condition: CustomFieldDef["condition"], extra = {}) =>
+  makeField({
+    id: "dep",
+    key: "colour_notes",
+    label: "Colour notes",
+    type: "short_text",
+    options: [],
+    position: 1,
+    condition,
+    ...extra,
+  });
+
+describe("parseFieldCondition", () => {
+  it("returns null for junk", () => {
+    expect(parseFieldCondition(null)).toBeNull();
+    expect(parseFieldCondition("nope")).toBeNull();
+    expect(
+      parseFieldCondition({ fieldKey: "9bad", operator: "equals" }),
+    ).toBeNull();
+    expect(
+      parseFieldCondition({ fieldKey: "style", operator: "gt" }),
+    ).toBeNull();
+  });
+  it("rejects equals without a value rather than defaulting one", () => {
+    expect(
+      parseFieldCondition({ fieldKey: "style", operator: "equals", value: "" }),
+    ).toBeNull();
+  });
+  it("drops the value for value-less operators", () => {
+    expect(
+      parseFieldCondition({
+        fieldKey: "style",
+        operator: "answered",
+        value: "colour",
+      }),
+    ).toEqual({ fieldKey: "style", operator: "answered", value: null });
+  });
+});
+
+describe("isFieldVisible", () => {
+  const fields = (c: CustomFieldDef["condition"]) => [controller, dependent(c)];
+
+  it("shows a field with no condition", () => {
+    expect(isFieldVisible(dependent(null), {}, fields(null))).toBe(true);
+  });
+
+  it("equals matches only the chosen answer", () => {
+    const c = {
+      fieldKey: "style",
+      operator: "equals" as const,
+      value: "colour",
+    };
+    expect(isFieldVisible(dependent(c), { style: "colour" }, fields(c))).toBe(
+      true,
+    );
+    expect(
+      isFieldVisible(dependent(c), { style: "blackwork" }, fields(c)),
+    ).toBe(false);
+    expect(isFieldVisible(dependent(c), {}, fields(c))).toBe(false);
+  });
+
+  it("not_equals treats an unanswered controller as not-equal", () => {
+    const c = {
+      fieldKey: "style",
+      operator: "not_equals" as const,
+      value: "colour",
+    };
+    expect(isFieldVisible(dependent(c), {}, fields(c))).toBe(true);
+    expect(isFieldVisible(dependent(c), { style: "colour" }, fields(c))).toBe(
+      false,
+    );
+  });
+
+  it("reads an unticked checkbox as not answered", () => {
+    const box = makeField({
+      id: "ctrl",
+      key: "consent",
+      label: "Consent",
+      type: "checkbox",
+      options: [],
+      position: 0,
+    });
+    const c = {
+      fieldKey: "consent",
+      operator: "answered" as const,
+      value: null,
+    };
+    const all = [box, dependent(c)];
+    expect(isFieldVisible(dependent(c), { consent: "on" }, all)).toBe(true);
+    expect(isFieldVisible(dependent(c), { consent: "false" }, all)).toBe(false);
+  });
+
+  it("fails OPEN when the controller is missing, archived or not earlier", () => {
+    const c = { fieldKey: "gone", operator: "equals" as const, value: "x" };
+    expect(isFieldVisible(dependent(c), {}, [controller, dependent(c)])).toBe(
+      true,
+    );
+
+    const archived = { ...controller, active: false };
+    const c2 = {
+      fieldKey: "style",
+      operator: "equals" as const,
+      value: "colour",
+    };
+    expect(isFieldVisible(dependent(c2), {}, [archived, dependent(c2)])).toBe(
+      true,
+    );
+
+    const later = { ...controller, position: 5 };
+    expect(isFieldVisible(dependent(c2), {}, [later, dependent(c2)])).toBe(
+      true,
+    );
+  });
+});
+
+describe("validateCustomAnswers with conditions", () => {
+  const cond = {
+    fieldKey: "style",
+    operator: "equals" as const,
+    value: "colour",
+  };
+
+  it("does not require a hidden field", () => {
+    const dep = dependent(cond, { required: true });
+    const res = validateCustomAnswers({ style: "blackwork" }, [
+      controller,
+      dep,
+    ]);
+    expect(res.ok).toBe(true);
+  });
+
+  it("still requires a visible field", () => {
+    const dep = dependent(cond, { required: true });
+    const res = validateCustomAnswers({ style: "colour" }, [controller, dep]);
+    expect(res).toMatchObject({ ok: false, field: "cf_colour_notes" });
+  });
+
+  it("discards an answer submitted for a hidden field", () => {
+    const dep = dependent(cond);
+    const res = validateCustomAnswers(
+      { style: "blackwork", colour_notes: "smuggled" },
+      [controller, dep],
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.answers.map((a: CustomAnswerSnapshot) => a.key)).toEqual([
+      "style",
+    ]);
+  });
+
+  it("keeps the answer when the condition is met", () => {
+    const dep = dependent(cond);
+    const res = validateCustomAnswers(
+      { style: "colour", colour_notes: "warm reds" },
+      [controller, dep],
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.answers.map((a: CustomAnswerSnapshot) => a.key)).toEqual([
+      "style",
+      "colour_notes",
+    ]);
+  });
+});
+
+describe("fieldConfigSchema conditions", () => {
+  const base = {
+    key: "colour_notes",
+    label: "Colour notes",
+    type: "short_text" as const,
+    required: false,
+    options: [],
+  };
+  it("rejects a self-dependency", () => {
+    const r = fieldConfigSchema.safeParse({
+      ...base,
+      condition: { fieldKey: "colour_notes", operator: "equals", value: "x" },
+    });
+    expect(r.success).toBe(false);
+  });
+  it("rejects equals with no value", () => {
+    const r = fieldConfigSchema.safeParse({
+      ...base,
+      condition: { fieldKey: "style", operator: "equals", value: null },
+    });
+    expect(r.success).toBe(false);
+  });
+  it("accepts answered with no value", () => {
+    const r = fieldConfigSchema.safeParse({
+      ...base,
+      condition: { fieldKey: "style", operator: "answered", value: null },
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("resolveFieldVisibility chains", () => {
+  // A -> B -> C. B's answer must not count while B itself is hidden, or a
+  // stale answer would keep C on screen and diverge from the server.
+  const a = makeField({
+    id: "a",
+    key: "style",
+    label: "Style",
+    type: "select",
+    options: ["colour", "blackwork"],
+    position: 0,
+  });
+  const b = makeField({
+    id: "b",
+    key: "shading",
+    label: "Shading",
+    type: "select",
+    options: ["soft", "hard"],
+    position: 1,
+    condition: { fieldKey: "style", operator: "equals", value: "colour" },
+  });
+  const c = makeField({
+    id: "c",
+    key: "shading_notes",
+    label: "Shading notes",
+    type: "short_text",
+    options: [],
+    position: 2,
+    condition: { fieldKey: "shading", operator: "equals", value: "soft" },
+  });
+  const all = [a, b, c];
+
+  it("hides C when B is hidden, even with a stale B answer present", () => {
+    const { visible } = resolveFieldVisibility(all, {
+      style: "blackwork",
+      shading: "soft",
+    });
+    expect(visible.has("shading")).toBe(false);
+    expect(visible.has("shading_notes")).toBe(false);
+  });
+
+  it("shows the whole chain when each link holds", () => {
+    const { visible } = resolveFieldVisibility(all, {
+      style: "colour",
+      shading: "soft",
+    });
+    expect(visible.has("shading")).toBe(true);
+    expect(visible.has("shading_notes")).toBe(true);
+  });
+
+  it("validateCustomAnswers discards the whole hidden chain", () => {
+    const res = validateCustomAnswers(
+      { style: "blackwork", shading: "soft", shading_notes: "smuggled" },
+      all,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.answers.map((x: CustomAnswerSnapshot) => x.key)).toEqual([
+      "style",
+    ]);
+  });
+});
+
+describe("conditionSummary", () => {
+  const style = makeField({
+    id: "a",
+    key: "style",
+    label: "Style",
+    type: "select",
+    options: ["colour"],
+    position: 0,
+  });
+  const consent = makeField({
+    id: "b",
+    key: "consent",
+    label: "Consent",
+    type: "checkbox",
+    options: [],
+    position: 0,
+  });
+  const dep = (condition: CustomFieldDef["condition"], position = 1) =>
+    makeField({
+      id: "dep",
+      key: "notes",
+      label: "Notes",
+      type: "short_text",
+      options: [],
+      position,
+      condition,
+    });
+
+  it("returns null when there is no condition", () => {
+    expect(conditionSummary(dep(null), [style])).toBeNull();
+  });
+
+  it("names the controller and the answer", () => {
+    expect(
+      conditionSummary(
+        dep({ fieldKey: "style", operator: "equals", value: "colour" }),
+        [style],
+      ),
+    ).toBe('Shown when "Style" is colour');
+  });
+
+  it("says ticked for a checkbox controller", () => {
+    expect(
+      conditionSummary(
+        dep({ fieldKey: "consent", operator: "answered", value: null }),
+        [consent],
+      ),
+    ).toBe('Shown when "Consent" is ticked');
+  });
+
+  it("states the fail-open outcome when the controller is gone", () => {
+    expect(
+      conditionSummary(
+        dep({ fieldKey: "missing", operator: "equals", value: "x" }),
+        [style],
+      ),
+    ).toBe("Always shown now, because the question it depended on is gone");
+  });
+
+  it("states the fail-open outcome after a reorder puts it first", () => {
+    const d = dep(
+      { fieldKey: "style", operator: "equals", value: "colour" },
+      0,
+    );
+    expect(conditionSummary(d, [{ ...style, position: 1 }, d])).toBe(
+      "Always shown now, because it no longer comes after the question it depends on",
+    );
+  });
+
+  it("contains no em-dash (founder copy rule)", () => {
+    const all = [
+      conditionSummary(
+        dep({ fieldKey: "style", operator: "equals", value: "c" }),
+        [style],
+      ),
+      conditionSummary(
+        dep({ fieldKey: "style", operator: "not_equals", value: "c" }),
+        [style],
+      ),
+      conditionSummary(
+        dep({ fieldKey: "style", operator: "answered", value: null }),
+        [style],
+      ),
+      conditionSummary(
+        dep({ fieldKey: "gone", operator: "answered", value: null }),
+        [style],
+      ),
+    ];
+    for (const s of all) expect(s).not.toContain("—");
+  });
+});
+
+describe("resolveFieldVisibility effectiveAnswers", () => {
+  // The public form prunes its captured answers to this map, so a question the
+  // client stops showing cannot keep a downstream question alive.
+  const a = makeField({
+    id: "a",
+    key: "style",
+    label: "Style",
+    type: "select",
+    options: ["colour", "blackwork"],
+    position: 0,
+  });
+  const b = makeField({
+    id: "b",
+    key: "shading",
+    label: "Shading",
+    type: "select",
+    options: ["soft"],
+    position: 1,
+    condition: { fieldKey: "style", operator: "equals", value: "colour" },
+  });
+
+  it("drops the answers of hidden fields", () => {
+    const { effectiveAnswers } = resolveFieldVisibility([a, b], {
+      style: "blackwork",
+      shading: "soft",
+    });
+    expect(effectiveAnswers).toEqual({ style: "blackwork" });
+  });
+
+  it("keeps them while the field is visible", () => {
+    const { effectiveAnswers } = resolveFieldVisibility([a, b], {
+      style: "colour",
+      shading: "soft",
+    });
+    expect(effectiveAnswers).toEqual({ style: "colour", shading: "soft" });
   });
 });

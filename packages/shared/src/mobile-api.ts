@@ -26,7 +26,7 @@
 
 import type { AnalyticsMetrics } from "./analytics";
 import type { BooksSettings } from "./books-settings";
-import type { CustomFieldType } from "./custom-fields";
+import type { CustomFieldType, FieldCondition } from "./custom-fields";
 import type { DashboardWidgets } from "./dashboard-settings";
 import type { DepositState } from "./deposit-state";
 import type { StripeMode } from "./deposit-settings";
@@ -755,7 +755,18 @@ export type MobileBookingFormField = {
     placeholder: string | null;
     helpText: string | null;
     options: string[];
+    /** Conditional questions (P3). Null = always shown. Parsed server-side, so
+     *  the client never sees an unvalidated shape. */
+    condition: FieldCondition | null;
+    /** One-line summary of the condition for the list row, resolved against
+     *  the sibling fields server-side (so it states the same fail-open outcome
+     *  the public form will produce). Null when there is no condition. */
+    conditionLabel: string | null;
   } | null;
+  /** Choice fields BEFORE this row, i.e. the only ones a condition may name.
+   *  Server-derived so the app never re-implements the ordering rule. Empty
+   *  for standard rows and for the first custom row. */
+  conditionSources: { key: string; label: string; options: string[] }[];
 };
 
 /** GET /api/mobile/booking-form — aggregate for the booking-form editor screen
@@ -786,6 +797,10 @@ export type MobileBookingFormFieldInput = {
   placeholder?: string;
   help_text?: string;
   options?: string[];
+  /** Conditional questions (P3). Omitting it CLEARS any stored condition on
+   *  update, so an editor that can render conditions must always send back
+   *  what it loaded. */
+  condition?: FieldCondition | null;
 };
 
 /** POST /api/mobile/booking-form/settings — one FormSettings boolean

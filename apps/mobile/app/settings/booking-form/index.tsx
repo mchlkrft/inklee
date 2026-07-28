@@ -437,6 +437,14 @@ function FieldEditRow({
             {field.label}
           </Text>
           <Text className="mt-0.5 text-xs text-shell-mute">{typeLine}</Text>
+          {/* Without this a conditional question looks identical to an
+              always-shown one, and the artist cannot tell why it is missing
+              from their own form. */}
+          {field.custom?.conditionLabel ? (
+            <Text className="mt-0.5 text-xs text-shell-dim">
+              {field.custom.conditionLabel}
+            </Text>
+          ) : null}
         </View>
 
         {field.alwaysOn ? (

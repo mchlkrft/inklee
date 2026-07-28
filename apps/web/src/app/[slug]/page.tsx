@@ -10,7 +10,7 @@ import ShopTeaser from "./shop-teaser";
 import TravelCard from "./travel-card";
 import { InterestSelectionsProvider } from "./interest-selections-context";
 import { formatSlotDisplay } from "@/lib/timezone";
-import type { CustomFieldDef } from "@/lib/custom-fields";
+import { normalizeFieldRow, type CustomFieldDef } from "@/lib/custom-fields";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
@@ -246,7 +246,12 @@ export default async function ArtistPublicPage({
     .is("deleted_at", null)
     .order("position", { ascending: true });
 
-  customFields = (rawCustomFields as CustomFieldDef[]) ?? [];
+  // Parse the stored condition jsonb through the shared normalizer (P3): an
+  // unparsed row would carry an arbitrary object where a FieldCondition is
+  // expected, and visibility would evaluate against unvalidated shape.
+  customFields = (rawCustomFields ?? []).map((r) =>
+    normalizeFieldRow(r as Record<string, unknown>),
+  );
 
   const fieldOrder: string[] = Array.isArray(profileSettings.field_order)
     ? (profileSettings.field_order as string[])

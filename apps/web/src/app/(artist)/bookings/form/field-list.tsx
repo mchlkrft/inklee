@@ -53,7 +53,11 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
         {fields.map((field, idx) => (
           <div key={field.id}>
             {mode === field.id ? (
-              <FieldForm field={field} onDone={() => setMode(null)} />
+              <FieldForm
+                field={field}
+                allFields={fields}
+                onDone={() => setMode(null)}
+              />
             ) : (
               <div className="rounded-md border border-border px-4 py-3 flex items-center gap-3">
                 <div className="flex flex-col gap-0.5 shrink-0">
@@ -135,7 +139,7 @@ export default function FieldList({ fields }: { fields: CustomFieldDef[] }) {
       </div>
 
       {mode === "add" ? (
-        <FieldForm onDone={() => setMode(null)} />
+        <FieldForm allFields={fields} onDone={() => setMode(null)} />
       ) : (
         <button
           type="button"

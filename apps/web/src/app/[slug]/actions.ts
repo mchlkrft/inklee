@@ -11,7 +11,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
-import { validateCustomAnswers } from "@/lib/custom-fields";
+import { validateCustomAnswers, normalizeFieldRow } from "@/lib/custom-fields";
 import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
@@ -202,7 +202,13 @@ export async function submitBookingAction(
       .is("deleted_at", null)
       .order("position");
 
-    const fields = (activeFields as CustomFieldDef[]) ?? [];
+    // normalizeFieldRow, not a cast: `condition` is jsonb, so an unparsed row
+    // would hand isFieldVisible a shape it never validated, on the one path
+    // where visibility decides whether a required question can block a real
+    // booking.
+    const fields: CustomFieldDef[] = (activeFields ?? []).map(
+      normalizeFieldRow,
+    );
     const rawCustom: Record<string, string> = {};
     for (const field of fields) {
       const val = formData.get(`cf_${field.key}`);

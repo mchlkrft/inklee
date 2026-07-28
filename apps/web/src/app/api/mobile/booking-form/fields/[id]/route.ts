@@ -51,6 +51,10 @@ export async function PATCH(
       placeholder: data.placeholder ?? null,
       help_text: data.help_text ?? null,
       options: data.options,
+      // Only written when the client actually sent the key (see
+      // normalizeFieldInput): a pre-P3 build must not clear a condition it
+      // cannot see.
+      ...(data.condition !== undefined ? { condition: data.condition } : {}),
     })
     .eq("id", id)
     .eq("artist_id", userId);

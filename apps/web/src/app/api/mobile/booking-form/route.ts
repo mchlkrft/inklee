@@ -12,6 +12,7 @@ import { parseBooksSettings } from "@/lib/books-settings";
 import { queryOpenSlotCount } from "@/lib/server/slots";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
 import type { CustomFieldDef } from "@/lib/custom-fields";
+import { normalizeFieldRow, conditionSummary } from "@/lib/custom-fields";
 import type {
   MobileBookingForm,
   MobileBookingFormField,
@@ -114,10 +115,29 @@ function stdRow(cfg: StdConfig, fs: FormSettings): MobileBookingFormField {
           ]
         : [],
     custom: null,
+    conditionSources: [],
   };
 }
 
-function customRow(f: CustomFieldDef): MobileBookingFormField {
+/** Choice fields positioned before `f`, i.e. the ones its condition may name.
+ *  Derived here rather than in the app so both editors apply one rule: a field
+ *  can only depend on an EARLIER one, which is what makes a cycle impossible. */
+function conditionSourcesFor(f: CustomFieldDef, all: CustomFieldDef[]) {
+  return all
+    .filter(
+      (c) =>
+        c.active &&
+        !c.deleted_at &&
+        (c.type === "select" || c.type === "radio" || c.type === "checkbox") &&
+        c.position < f.position,
+    )
+    .map((c) => ({ key: c.key, label: c.label, options: c.options ?? [] }));
+}
+
+function customRow(
+  f: CustomFieldDef,
+  all: CustomFieldDef[],
+): MobileBookingFormField {
   return {
     id: f.id,
     kind: "custom",
@@ -137,7 +157,10 @@ function customRow(f: CustomFieldDef): MobileBookingFormField {
       placeholder: f.placeholder,
       helpText: f.help_text,
       options: f.options ?? [],
+      condition: f.condition,
+      conditionLabel: conditionSummary(f, all),
     },
+    conditionSources: conditionSourcesFor(f, all),
   };
 }
 
@@ -174,7 +197,9 @@ export async function GET(req: Request) {
   if (fieldsRes.error) return mobileError(500, fieldsRes.error.message);
 
   const profile = profileRes.data;
-  const customFields = (fieldsRes.data ?? []) as CustomFieldDef[];
+  const customFields: CustomFieldDef[] = (fieldsRes.data ?? []).map(
+    normalizeFieldRow,
+  );
   const openSlotCount = "count" in slotCount ? slotCount.count : 0;
 
   const profileSettings = (profile.settings ?? {}) as Record<string, unknown>;
@@ -211,7 +236,7 @@ export async function GET(req: Request) {
     }
     const cf = customFields.find((f) => f.id === key);
     if (cf) {
-      rows.push(customRow(cf));
+      rows.push(customRow(cf, customFields));
       usedCustom.add(key);
     }
   }
@@ -219,7 +244,7 @@ export async function GET(req: Request) {
     if (!usedStd.has(s.id)) rows.push(stdRow(s, formSettings));
   }
   for (const cf of customFields) {
-    if (!usedCustom.has(cf.id)) rows.push(customRow(cf));
+    if (!usedCustom.has(cf.id)) rows.push(customRow(cf, customFields));
   }
 
   const body: MobileBookingForm = {

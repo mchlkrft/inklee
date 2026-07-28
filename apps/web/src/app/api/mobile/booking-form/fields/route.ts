@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       placeholder: data.placeholder ?? null,
       help_text: data.help_text ?? null,
       options: data.options,
+      condition: data.condition ?? null,
       active: true,
       position,
     })

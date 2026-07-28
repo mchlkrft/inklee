@@ -103,6 +103,7 @@ top control row instead, which is also where the platform maps put theirs.
 | Active-product cap + archived state + order-guarded delete | web action archives ordered products instead of deleting, explains the outcome | mobile DELETE returns additive `archived: true`; app alerts the outcome (next build); old builds see a normal delete and the row reappears archived on refresh | ✅ |
 | Analytics gate (`analytics`) | DEFINED, NOT WIRED (audit 2026-07-28) | same: mobile analytics route ungated | ⬜ wired in Plus stage P6 with the boundary decision |
 | Shared appearance system (`appearance_custom`) | `/settings/appearance` editor + resolver on hub and booking form | `settings/page-appearance` screen + GET/PATCH `/api/mobile/settings/appearance`, both wrapping the SAME `saveAppearanceCore` (next build). Named "Page appearance" because the app's settings index already has an Appearance section for the APP's own theme, which is a different thing | ✅ |
+| Conditional booking-form questions (P3) | condition editor in `bookings/form/field-form.tsx`; public form renders through the shared `resolveFieldVisibility`; server re-resolves in `validateCustomAnswers` | `settings/booking-form/[fieldId]` condition section; GET `/api/mobile/booking-form` emits `custom.condition` + server-derived `conditionSources`, POST/PATCH persist `condition` (next build). Both editors ALWAYS send the condition back, because the write replaces it (omitting would clear a condition the artist never touched) | ✅ |
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
 
@@ -115,6 +116,22 @@ design: admin, marketing pages, legal pages, public artist pages, client
 magic-link portal (D: app is artists-only).
 
 ## Update log
+
+- **2026-07-28 — Conditional booking-form questions (Plus P3), web + native:**
+  migration `0114` adds a nullable `condition` jsonb to `custom_fields`; the
+  shared module owns the parser, the single-pass resolver and the validation.
+  Both editors ship together because the write REPLACES the stored condition,
+  so an editor that could not render one would silently clear it. Two
+  correctness notes worth keeping: the resolver walks fields in position order
+  carrying only answers of already-visible fields (a chained A→B→C condition
+  would otherwise keep C on screen off a stale answer to a hidden B, diverging
+  from the server), and a checkbox controller offers only ticked / not ticked,
+  because "is" has no option list to compare against and would serialise to an
+  empty value the parser correctly discards. Requires a fresh EAS build for the
+  native editor. Older builds are safe: the mobile PATCH distinguishes an
+  ABSENT `condition` key (leave the stored one alone) from an explicit null
+  (clear it), so a pre-P3 build editing a conditional field cannot wipe a
+  condition it never rendered.
 
 - **2026-07-27 — Map attribution reaches native:** `MapAttribution` added to
   `travel/discover` and `travel/map`, closing a real compliance gap (the app

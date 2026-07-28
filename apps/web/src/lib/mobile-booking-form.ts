@@ -4,7 +4,7 @@
 // empty optional -> undefined, drop non-string / empty options) so the shared
 // zod schema sees identical input from both clients.
 
-import { labelToKey } from "@/lib/custom-fields";
+import { labelToKey, parseFieldCondition } from "@/lib/custom-fields";
 
 // Path params land in uuid-typed .eq() filters; a non-UUID would surface a raw
 // Postgres 22P02 as a 500. Guard first and 404 instead.
@@ -49,6 +49,15 @@ export function normalizeFieldInput(body: unknown): Record<string, unknown> {
           (o): o is string => typeof o === "string" && o.trim() !== "",
         )
       : [],
+    // Conditional questions (P3). An OMITTED key is left undefined so the
+    // PATCH route can leave the stored condition alone: builds shipped before
+    // P3 never send the key and never render a condition, so treating absence
+    // as null would let them silently clear one. A key that IS present goes
+    // through the shared parser, where anything malformed becomes null
+    // ("always show") rather than a hidden question.
+    ...("condition" in b
+      ? { condition: parseFieldCondition(b.condition) }
+      : {}),
   };
 }
 

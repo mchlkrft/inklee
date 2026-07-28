@@ -10,7 +10,10 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react-native";
-import type { CustomFieldType } from "@inklee/shared/custom-fields";
+import type {
+  CustomFieldType,
+  FieldConditionOperator,
+} from "@inklee/shared/custom-fields";
 import type {
   MobileBookingForm,
   MobileBookingFormField,
@@ -53,6 +56,35 @@ const TYPE_OPTIONS: readonly { value: CustomFieldType; label: string }[] = [
 ];
 
 const OPTION_TYPES: readonly CustomFieldType[] = ["select", "radio"];
+// Types a condition can compare against. Free text is excluded on purpose:
+// "equals" against something the client typed is a trap nobody wins.
+const CHOICE_TYPES: readonly CustomFieldType[] = [
+  "select",
+  "radio",
+  "checkbox",
+];
+// Same four operators the shared schema accepts, in the web editor's order.
+const CONDITION_OPERATORS: readonly {
+  value: FieldConditionOperator;
+  label: string;
+}[] = [
+  { value: "equals", label: "Is" },
+  { value: "not_equals", label: "Is not" },
+  { value: "answered", label: "Is answered" },
+  { value: "not_answered", label: "Is not answered" },
+];
+
+// A checkbox has no option list, so there is nothing for "is" to compare
+// against. Ticked / unticked is exactly what answered / not_answered mean for
+// a checkbox, so those two are the whole vocabulary.
+const CHECKBOX_OPERATORS: readonly {
+  value: FieldConditionOperator;
+  label: string;
+}[] = [
+  { value: "answered", label: "Is ticked" },
+  { value: "not_answered", label: "Is not ticked" },
+];
+
 const PLACEHOLDER_TYPES: readonly CustomFieldType[] = [
   "short_text",
   "long_text",
@@ -67,7 +99,24 @@ export default function CustomFieldEditorScreen() {
   const q = useApiQuery<MobileBookingForm>("/booking-form");
   const themed = useColors();
 
-  if (isNew) return <FieldForm field={null} />;
+  // A new field is appended last, so every existing choice field is an
+  // offerable controller. For an existing field the server already applied the
+  // "earlier only" rule and sent conditionSources.
+  const newFieldSources = (q.data?.fields ?? [])
+    .filter(
+      (f) =>
+        f.kind === "custom" &&
+        f.custom !== null &&
+        f.enabled &&
+        CHOICE_TYPES.includes(f.custom.type),
+    )
+    .map((f) => ({
+      key: f.custom!.key,
+      label: f.label,
+      options: f.custom!.options,
+    }));
+
+  if (isNew) return <FieldForm field={null} sources={newFieldSources} />;
 
   if (!q.data) {
     return (
@@ -103,10 +152,18 @@ export default function CustomFieldEditorScreen() {
       </Screen>
     );
   }
-  return <FieldForm field={field} />;
+  return <FieldForm field={field} sources={field.conditionSources ?? []} />;
 }
 
-function FieldForm({ field }: { field: MobileBookingFormField | null }) {
+type ConditionSource = { key: string; label: string; options: string[] };
+
+function FieldForm({
+  field,
+  sources,
+}: {
+  field: MobileBookingFormField | null;
+  sources: ConditionSource[];
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const c = useColors();
@@ -123,11 +180,22 @@ function FieldForm({ field }: { field: MobileBookingFormField | null }) {
   const [options, setOptions] = useState<string[]>(
     field?.custom?.options ?? [],
   );
+  const [condKey, setCondKey] = useState(
+    field?.custom?.condition?.fieldKey ?? "",
+  );
+  const [condOp, setCondOp] = useState<FieldConditionOperator>(
+    field?.custom?.condition?.operator ?? "equals",
+  );
+  const [condValue, setCondValue] = useState(
+    field?.custom?.condition?.value ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const showOptions = OPTION_TYPES.includes(type);
   const showPlaceholder = PLACEHOLDER_TYPES.includes(type);
+  const condSource = sources.find((s) => s.key === condKey);
+  const needsCondValue = condOp === "equals" || condOp === "not_equals";
 
   function changeType(next: CustomFieldType) {
     setType(next);
@@ -152,6 +220,10 @@ function FieldForm({ field }: { field: MobileBookingFormField | null }) {
       setError("Add at least 2 options.");
       return;
     }
+    if (condKey && needsCondValue && !condValue) {
+      setError("Choose the answer this question depends on.");
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -169,6 +241,16 @@ function FieldForm({ field }: { field: MobileBookingFormField | null }) {
           : undefined,
         help_text: helpText.trim() || undefined,
         options: cleanOptions,
+        // Always sent: the route replaces the stored condition with whatever
+        // arrives, so omitting it would clear a condition the artist never
+        // touched.
+        condition: condKey
+          ? {
+              fieldKey: condKey,
+              operator: condOp,
+              value: needsCondValue ? condValue : null,
+            }
+          : null,
       };
       if (field) {
         await apiPatch(`/booking-form/fields/${field.id}`, payload);
@@ -213,9 +295,7 @@ function FieldForm({ field }: { field: MobileBookingFormField | null }) {
                   <TextField
                     value={opt}
                     onChangeText={(v) =>
-                      setOptions((cur) =>
-                        cur.map((o, j) => (j === i ? v : o)),
-                      )
+                      setOptions((cur) => cur.map((o, j) => (j === i ? v : o)))
                     }
                     placeholder={`Option ${i + 1}`}
                     maxLength={100}
@@ -284,6 +364,59 @@ function FieldForm({ field }: { field: MobileBookingFormField | null }) {
             ios_backgroundColor="rgba(0,0,0,0.35)"
           />
         </View>
+
+        {sources.length > 0 ? (
+          <>
+            <FieldLabel>Only show this question when</FieldLabel>
+            <RadioList
+              options={[
+                { value: "", label: "Always show" },
+                ...sources.map((s) => ({ value: s.key, label: s.label })),
+              ]}
+              value={condKey}
+              onChange={(v) => {
+                setCondKey(v);
+                // The stored answer belongs to the old controller's option
+                // list, so keeping it would submit a value that question never
+                // offers.
+                setCondValue("");
+                const next = sources.find((s) => s.key === v);
+                if (next && next.options.length === 0) setCondOp("answered");
+              }}
+            />
+            {condKey ? (
+              <>
+                <FieldLabel>Condition</FieldLabel>
+                <RadioList
+                  options={
+                    condSource && condSource.options.length === 0
+                      ? CHECKBOX_OPERATORS
+                      : CONDITION_OPERATORS
+                  }
+                  value={condOp}
+                  onChange={(v) => setCondOp(v as FieldConditionOperator)}
+                />
+                {needsCondValue && condSource ? (
+                  <>
+                    <FieldLabel>Answer</FieldLabel>
+                    <RadioList
+                      options={condSource.options.map((o) => ({
+                        value: o,
+                        label: o,
+                      }))}
+                      value={condValue}
+                      onChange={setCondValue}
+                    />
+                  </>
+                ) : null}
+                <Text className="mb-3 text-xs text-shell-dim">
+                  Hidden questions are never required, so someone who does not
+                  see this can still submit the form.
+                </Text>
+              </>
+            ) : null}
+          </>
+        ) : null}
 
         {error ? (
           <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
