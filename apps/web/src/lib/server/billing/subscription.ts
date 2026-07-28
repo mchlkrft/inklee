@@ -3,6 +3,10 @@ import { serviceClient } from "@/lib/supabase/service";
 import type { ContractCustomerType } from "@/lib/billing";
 import { requireStripe } from "./client";
 import { assertLiveBillingAllowedFor } from "./activation";
+import {
+  resolveFounderOffer,
+  recordFounderOfferRedemption,
+} from "./founder-offer";
 
 // Subscription checkout create path. Isolated from deposits: distinct metadata
 // namespace (billing_flow / artist_id, never booking_id), subscription mode,
@@ -20,15 +24,19 @@ export const PLUS_PRICE_LOOKUP = "inklee_plus_monthly_eur";
 // year, then 30 EUR per year; counsel approved 2026-07-25) resolves by its own
 // lookup key. Both modes carry a Price with this key since 2026-07-25: LIVE
 // price_1Tx1zSHkG0exykzF6eSxVQIj + test price_1Tx1zQQi3Lu5kKnKH1fiXuvF
-// (30.00 EUR/year, tax_behavior=inclusive). The first-year 24.00 comes from
-// the coupon below, applied automatically to every yearly checkout so the
-// charged total always matches the advertised "24 first year, then 30".
+// (30.00 EUR/year, tax_behavior=inclusive). The list price is 30; the
+// first-year 24.00 is the FOUNDER OFFER, not a property of the yearly plan.
 export const PLUS_YEARLY_PRICE_LOOKUP = "inklee_plus_yearly_eur";
 
-// The first-year discount: a duration=once coupon created under this fixed id
-// in BOTH modes from the same constant, so display math (base minus off) and
-// the applied discount cannot drift. 600 minor units = 6.00 EUR off the first
-// yearly invoice (30.00 -> 24.00).
+// The founder-offer discount: a duration=once coupon created under this fixed
+// id in BOTH modes from the same constant, so display math (base minus off)
+// and the applied discount cannot drift. 600 minor units = 6.00 EUR off the
+// first yearly invoice (30.00 -> 24.00).
+//
+// CORRECTED 2026-07-28: this coupon is NOT applied to every yearly checkout.
+// It belongs to the first 100 eligible subscribers inside the enrollment
+// window (see founder-offer.ts). Any display of the discounted first-year
+// total must therefore be conditioned on eligibility, never assumed.
 export const PLUS_YEARLY_FIRST_YEAR_COUPON = "inklee-plus-yearly-first-year";
 export const PLUS_YEARLY_FIRST_YEAR_OFF_MINOR = 600;
 
@@ -45,11 +53,17 @@ export const lookupKeyForInterval = (interval: PlusBillingInterval): string =>
  *  checkout panel falls back to its price-on-next-step sentence. */
 export async function getPlusPriceDisplay(
   billingInterval: PlusBillingInterval = "monthly",
+  /** Pass the viewer's artist id to show the founder-offer first-year total
+   *  ONLY when they are actually eligible for it. Omitted = list price only. */
+  viewerArtistId?: string,
 ): Promise<{
   label: string;
   interval: string;
-  /** Yearly only: the discounted first-year total ("24.00 EUR"), derived from
-   *  the same base Price and the same off-constant the checkout coupon uses. */
+  /** Yearly only, and ONLY for a founder-offer-eligible viewer: the discounted
+   *  first-year total ("24.00 EUR"), derived from the same base Price and the
+   *  same off-constant the checkout coupon uses. Undefined otherwise, because
+   *  showing a price the checkout will not charge is exactly the drift the
+   *  counsel price-display condition forbids. */
   firstYearLabel?: string;
 } | null> {
   try {
@@ -65,6 +79,20 @@ export async function getPlusPriceDisplay(
     const currency = price.currency.toUpperCase();
     const amount = (price.unit_amount / 100).toFixed(2);
     if (billingInterval === "yearly") {
+      // Only an eligible viewer is shown the founder first-year total: the
+      // displayed price and the charged price must come from the same
+      // decision, and checkout applies the coupon only on eligibility.
+      const eligible = viewerArtistId
+        ? (
+            await resolveFounderOffer({
+              artistId: viewerArtistId,
+              billingInterval: "yearly",
+            })
+          ).eligible
+        : false;
+      if (!eligible) {
+        return { label: `${amount} ${currency} per ${interval}`, interval };
+      }
       const firstYearMinor = Math.max(
         0,
         price.unit_amount - PLUS_YEARLY_FIRST_YEAR_OFF_MINOR,
@@ -168,6 +196,29 @@ export async function createSubscriptionCheckout(input: {
   // Art. 8(2) CRD wording must state the actual renewal cadence, so the text
   // varies with the interval of the Price being charged.
   const renewalCadence = billingInterval === "yearly" ? "year" : "month";
+
+  // Founder-offer eligibility, decided and RECORDED before any Stripe object
+  // exists. Recording first is what makes the cohort cap hold under
+  // concurrency: the unique cohort position rejects the loser of a race, and a
+  // caller that loses simply gets no discount rather than an over-cap grant.
+  let founderOffer: {
+    eligible: boolean;
+    cohortPosition: number | null;
+  } | null = null;
+  const decision = await resolveFounderOffer({
+    artistId: input.artistId,
+    billingInterval,
+  });
+  if (decision.eligible && decision.cohortPosition !== null) {
+    const won = await recordFounderOfferRedemption({
+      artistId: input.artistId,
+      stripeCustomerId: customerId,
+      cohortPosition: decision.cohortPosition,
+      reason: decision.reason,
+    });
+    founderOffer = won ? decision : null;
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -192,9 +243,14 @@ export async function createSubscriptionCheckout(input: {
       billing_interval: billingInterval,
     },
     client_reference_id: input.artistId,
-    // The advertised first-year yearly total (24.00) is enforced here, not in
-    // copy: every yearly checkout carries the duration=once coupon.
-    ...(billingInterval === "yearly"
+    // FOUNDER OFFER (corrected 2026-07-28). The first-year discount is NOT
+    // universal: it belongs to the first 100 eligible subscribers inside the
+    // enrollment window, yearly only, one per account. Eligibility is decided
+    // server-side by resolveFounderOffer and recorded before the Stripe object
+    // is created, so a lost concurrency race applies no discount. With no
+    // policy row the offer is closed and no checkout carries a coupon, which
+    // is the current state.
+    ...(founderOffer?.eligible
       ? { discounts: [{ coupon: PLUS_YEARLY_FIRST_YEAR_COUPON }] }
       : {}),
     // Pre-contract reinforcement shown next to the pay button (Art. 8(2) CRD

@@ -163,7 +163,7 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     termsClaim: "none",
     operationalState: "unbuilt; NOTE hub is PERMANENTLY FREE by founder decision (features.ts) - gating needs that revisited",
     testCoverage: "absent",
-    launchReadiness: "blocked-decision", // the permanently-free-hub decision must be reconciled first
+    launchReadiness: "build", // hub-free reconciliation closed 2026-07-28 (features.ts)
   },
   {
     name: "Linkhub analytics",
@@ -338,9 +338,9 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     pricingPageClaim: "3% all-in today (needs update)",
     termsClaim: "deposit fee named in money copy (needs update)",
     operationalState:
-      "BLOCKED-DECISION: Free 3% implies Free card-deposit collection vs the D-d Plus-gating economics",
+      "RESOLVED 2026-07-28: card collection is PLUS-ONLY, so there is no Free rate (n/a, not 3%). Approved rates live in fee-schedule.ts as v2, DEFINED but NOT ACTIVE until P7 plus accountant sign-off.",
     testCoverage: "partial",
-    launchReadiness: "blocked-decision",
+    launchReadiness: "build",
   },
   {
     name: "Goods platform fee",
@@ -424,9 +424,9 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     pricingPageClaim: "Higher limits",
     termsClaim: "Terms section 11 names higher limits",
     operationalState:
-      "BLOCKED-DECISION: the 2026-07-28 provisional table (5/1/5 to 30/10/50) conflicts with ratified+advertised numbers",
+      "RESOLVED 2026-07-28: the 2026-07-25 ratification and published plan copy are AUTHORITATIVE (fields 3/30, trips 3/100, studios 5/50, products 3/25). The provisional 5/1/5 to 30/10/50 values are superseded and must not reappear. One canonical source: CANONICAL_CAPS in entitlements.ts.",
     testCoverage: "partial",
-    launchReadiness: "blocked-decision",
+    launchReadiness: "build",
   },
   {
     name: "Founder offer (first 100, 24 EUR/year)",
@@ -446,9 +446,9 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     pricingPageClaim: "none yet",
     termsClaim: "none",
     operationalState:
-      "CONTRADICTION RETURNED TO FOUNDER: the 24-EUR first-year coupon is coded UNIVERSAL for yearly, not first-100-capped",
+      "CORRECTED 2026-07-28: the universal yearly coupon is REMOVED. Eligibility is decided server-side (founder-offer.ts) against a policy row that must exist for the offer to be open, so the default state is closed. The cap holds under concurrency via a unique cohort position; one per account, non-transferable, and cancelling never frees a slot.",
     testCoverage: "absent",
-    launchReadiness: "blocked-decision",
+    launchReadiness: "build",
   },
 ];
 

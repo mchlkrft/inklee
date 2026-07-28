@@ -265,7 +265,7 @@ supersedes parts of the mapping above:
   5% / Plus 1% on the subtotal after discounts ex VAT and shipping; the old
   D22 goods model (5% + 3% card fee) is superseded. Goods stop being a parked
   "maybe" and become part of the sellable package.
-- **Deposit fee differentiates by tier**: Free 3% / Plus 0.5%, superseding the
+- **Appointment payment fee is Plus-only**: Free cannot collect card payments at all (n/a), Plus pays 0.5%, superseding the
   flat-3% OQ-7 ratification. Fee savings become the measurable proof of Plus
   value (message hierarchy: presentation, efficiency, savings), surfaced in a
   Plus savings dashboard.

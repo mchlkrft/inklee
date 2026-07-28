@@ -115,7 +115,7 @@ Product and order records are never deleted because an account downgrades.
 
 **Goods fee** applies to: product subtotal after discounts, excluding VAT and shipping. Free 5%, Plus 1%. Never calculated on VAT, shipping, refunded value, tips (unless separately approved), or pass-through taxes/statutory fees. **The fee schedule version is stored on every transaction.**
 
-**Deposit fee** applies only to the deposit amount successfully collected through Inklee. Free 3%, Plus **0.5%**. Never calculated from the estimated total tattoo price, a manually reported final price, an amount not processed through Inklee, or cancelled/failed attempts.
+**Appointment payment fee** applies to eligible tattoo-service value successfully collected through Inklee (deposits, remaining balances, full tattoo payments). **Free: not applicable** (Free cannot collect card payments at all, see the payment boundary in ); **Plus 0.5%**. Never calculated from the estimated total tattoo price, a manually reported final price, an amount not processed through Inklee, or cancelled/failed attempts.
 
 Stripe processing fees remain separately identified in both cases; the combined deduction is never described as one Inklee fee.
 

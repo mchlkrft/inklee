@@ -48,7 +48,22 @@ export const PERSONAL_SCOPE: EntitlementScope = { kind: "personal" };
 // Plus feature set that lands with the paid billing slice (placeholders so the
 // override UI + canAccess() are ready for them).
 export const ENTITLEMENT_FEATURES = [
+  // The ORIGINAL broad payment key. Kept as the live gate for card deposit
+  // collection so nothing changes under existing accounts; the finer keys
+  // below are the vocabulary the payment package is built against (founder
+  // direction 2026-07-28: one broad `deposits` key must not stand for all
+  // payment behaviour). They resolve together commercially as one Plus payment
+  // package while staying conceptually distinct in the system.
   "deposits",
+  // Payment capability vocabulary (Plus payment scope, 2026-07-28).
+  // Free keeps manual/offline tracking; every CARD collection path is Plus.
+  "manual_deposit_tracking",
+  "card_deposit_collection",
+  "appointment_balance_collection",
+  "full_appointment_payment_collection",
+  "appointment_payment_line_items",
+  "appointment_payment_refunds",
+  "appointment_payment_insights",
   "branding",
   "custom_templates",
   "extra_fields",
@@ -79,7 +94,10 @@ export type EntitlementLimit = (typeof ENTITLEMENT_LIMITS)[number];
 
 // Baseline features granted by each plan tier (before per-account overrides).
 const PLAN_FEATURES: Record<PlanTier, readonly EntitlementFeature[]> = {
-  free: [],
+  // Free keeps MANUAL/OFFLINE payment tracking (founder direction 2026-07-28:
+  // "preserve current behaviour"). Every Inklee CARD collection path is Plus.
+  // This is the only baseline Free feature; everything else stays Plus.
+  free: ["manual_deposit_tracking"],
   plus: ENTITLEMENT_FEATURES,
 };
 
@@ -88,19 +106,60 @@ const PLAN_FEATURES: Record<PlanTier, readonly EntitlementFeature[]> = {
 // founder 2026-07-25 (pricing-model.md OQ-4; DECISIONS.md pricing-ratifications
 // row): 30 custom fields / 100 active trips / 50 studios, matching the shipped
 // PLUS_BENEFITS copy on the plan page.
+/**
+ * THE CANONICAL CAP REGISTRY (founder direction 2026-07-28).
+ *
+ * One source that drives entitlement resolution, server enforcement,
+ * pricing-page copy, plan comparison UI, admin display, grandfathering, tests
+ * and product documentation. Nothing may restate these numbers; anything that
+ * needs them imports from here.
+ *
+ * AUTHORITY: the 2026-07-25 ratification and the already-published plan copy.
+ * The later provisional values (Free 5 fields / 1 trip, Plus 10 trips) are
+ * explicitly SUPERSEDED and must not reappear: Plus 10 trips would have
+ * REDUCED a benefit already advertised as 100.
+ *
+ * Changing a Free cap DOWNWARD requires re-running the legacy_free_v1 grant
+ * computation first (see computeLegacyFreeV1Grant), because grants were
+ * computed against the caps in force at cutover.
+ */
+export const CANONICAL_CAPS: Record<
+  EntitlementLimit,
+  { free: number | null; plus: number | null; label: string; ratified: string }
+> = {
+  custom_fields: {
+    free: 3,
+    plus: 30,
+    label: "Custom booking-form fields",
+    ratified: "2026-07-25",
+  },
+  active_trips: {
+    free: 3,
+    plus: 100,
+    label: "Active or upcoming trips",
+    ratified: "2026-07-25",
+  },
+  studio_library: {
+    free: 5,
+    plus: 50,
+    label: "Studio library items",
+    ratified: "2026-07-25",
+  },
+  active_products: {
+    free: 3,
+    plus: 25,
+    label: "Active goods products",
+    ratified: "2026-07-28",
+  },
+};
+
 const PLAN_LIMITS: Record<PlanTier, Record<EntitlementLimit, number | null>> = {
-  free: {
-    custom_fields: 3,
-    active_trips: 3,
-    studio_library: 5,
-    active_products: 3, // confirmed 2026-07-28 (plus-product-spec.md section 9)
-  },
-  plus: {
-    custom_fields: 30, // ratified 2026-07-25
-    active_trips: 100, // ratified 2026-07-25
-    studio_library: 50, // ratified 2026-07-25
-    active_products: 25, // confirmed 2026-07-28 (plus-product-spec.md section 9)
-  },
+  free: Object.fromEntries(
+    ENTITLEMENT_LIMITS.map((k) => [k, CANONICAL_CAPS[k].free]),
+  ) as Record<EntitlementLimit, number | null>,
+  plus: Object.fromEntries(
+    ENTITLEMENT_LIMITS.map((k) => [k, CANONICAL_CAPS[k].plus]),
+  ) as Record<EntitlementLimit, number | null>,
 };
 
 // Why an account is on its current plan. `paid` = a Stripe subscription (written

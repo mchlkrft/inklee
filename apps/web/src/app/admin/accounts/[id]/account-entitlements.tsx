@@ -25,7 +25,16 @@ import {
 // table and audit-logs the change.
 
 const FEATURE_LABELS: Record<EntitlementFeature, string> = {
-  deposits: "Card deposit collection",
+  deposits: "Card deposit collection (legacy key)",
+  // Payment capability vocabulary (2026-07-28). Free keeps manual tracking;
+  // every card collection path is Plus.
+  manual_deposit_tracking: "Manual / offline payment tracking",
+  card_deposit_collection: "Card deposit collection",
+  appointment_balance_collection: "Remaining balance collection",
+  full_appointment_payment_collection: "Full tattoo payment collection",
+  appointment_payment_line_items: "Additional itemized charges",
+  appointment_payment_refunds: "Payment refunds",
+  appointment_payment_insights: "Appointment payment insights",
   branding: "Branding control",
   custom_templates: "Custom email templates",
   extra_fields: "Extra custom fields",

@@ -42,8 +42,11 @@ export default async function PlanPage() {
   // hides the yearly option (fail-safe).
   const showUpgrade = PLUS_CONSUMER_LAUNCH_ENABLED && tier === "free";
   const plusPrice = showUpgrade ? await getPlusPriceDisplay() : null;
+  // The viewer id is passed so the founder first-year total shows ONLY to an
+  // eligible viewer; everyone else sees the list price, which is what their
+  // checkout will actually charge.
   const plusYearlyPrice = showUpgrade
-    ? await getPlusPriceDisplay("yearly")
+    ? await getPlusPriceDisplay("yearly", user!.id)
     : null;
 
   // The concrete withdrawal deadline (Art. 11a step 2), resolved only for a Plus
