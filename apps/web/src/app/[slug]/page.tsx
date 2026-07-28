@@ -15,6 +15,7 @@ import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicBrandingHidden } from "@/lib/server/public-branding";
+import { surfaceAppearance } from "@/lib/server/appearance";
 import {
   dateKeyInTimeZone,
   formatDateKey,
@@ -135,6 +136,14 @@ export default async function ArtistPublicPage({
 
   const coverImage = resolveCoverImage(profileSettings.cover_image_url);
   const coverColor = resolveCoverColor(profileSettings.cover_color);
+
+  // Shared appearance system (P1b). The booking form and the shop teaser it
+  // hosts both render inside this surface, so one resolution covers both.
+  const appearance = await surfaceAppearance(
+    profile.id as string,
+    profileSettings,
+    "bookingForm",
+  );
 
   // Bio Page settings — the custom LINKS moved to the standalone Link Hub
   // (/<slug>/hub, ME-11); the booking page keeps only the booking-policy text
@@ -572,7 +581,12 @@ export default async function ArtistPublicPage({
         </header>
 
         <main
-          data-appearance="light"
+          // Shared appearance system (P1b). This was hardcoded "light", which
+          // is why books_settings.form_appearance was written for months and
+          // never read. The resolver defaults to light, so an artist who never
+          // set a theme renders exactly as before.
+          data-appearance={appearance.theme}
+          style={appearance.cssVars as React.CSSProperties}
           className="relative -mt-8 flex-1 rounded-t-[28px] bg-[color:var(--color-workspace-bg)] px-6 pt-10 pb-12 text-foreground md:px-8"
         >
           <div className="mx-auto w-full max-w-lg space-y-8">

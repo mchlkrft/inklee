@@ -277,6 +277,11 @@ export default function SettingsHubScreen() {
             onPress={() => router.push("/waitlist")}
           />
           <SettingsRow
+            label="Page appearance"
+            divider
+            onPress={() => router.push("/settings/page-appearance")}
+          />
+          <SettingsRow
             label="Home widgets"
             divider
             onPress={() => router.push("/settings/dashboard")}

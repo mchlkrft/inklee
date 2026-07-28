@@ -102,6 +102,7 @@ top control row instead, which is also where the platform maps put theirs.
 | Entitlement caps (fields/trips/studios/products) | enforced on all create paths + product unarchive | same guards on all mobile routes, 403 `cap_reached`; app shows the cap message stripped of purchase steering via `plan-errors.ts` (next build) | ✅ |
 | Active-product cap + archived state + order-guarded delete | web action archives ordered products instead of deleting, explains the outcome | mobile DELETE returns additive `archived: true`; app alerts the outcome (next build); old builds see a normal delete and the row reappears archived on refresh | ✅ |
 | Analytics gate (`analytics`) | DEFINED, NOT WIRED (audit 2026-07-28) | same: mobile analytics route ungated | ⬜ wired in Plus stage P6 with the boundary decision |
+| Shared appearance system (`appearance_custom`) | `/settings/appearance` editor + resolver on hub and booking form | `settings/page-appearance` screen + GET/PATCH `/api/mobile/settings/appearance`, both wrapping the SAME `saveAppearanceCore` (next build). Named "Page appearance" because the app's settings index already has an Appearance section for the APP's own theme, which is a different thing | ✅ |
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
 

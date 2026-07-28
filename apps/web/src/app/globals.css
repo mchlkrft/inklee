@@ -183,6 +183,35 @@
   }
 }
 
+/* Shared appearance system (Plus build P1). The server emits these custom
+   properties onto a public surface's wrapper ONLY when the artist customized
+   something, so an unconfigured page sets none of them and every rule below
+   falls back to the value the surface already used. That is what lets the
+   system be wired everywhere before any editor exists.
+
+   --appearance-accent        artist accent (brand swatch or hex)
+   --appearance-font          curated font stack
+   --appearance-button-radius button corner radius */
+
+[style*="--appearance-font"] {
+  font-family: var(--appearance-font);
+}
+
+/* The accent re-points the semantic primary token, so every existing
+   bg-primary / text-primary consumer picks it up without touching markup.
+   Foreground stays the surface's own contrast token: an artist-picked hue
+   must never decide readable text colour on a public page. */
+[style*="--appearance-accent"] {
+  --primary: var(--appearance-accent);
+  --ring: var(--appearance-accent);
+}
+
+[style*="--appearance-button-radius"] button,
+[style*="--appearance-button-radius"] a[role="button"],
+[style*="--appearance-button-radius"] [data-appearance-button] {
+  border-radius: var(--appearance-button-radius);
+}
+
 /* Email templates modal backdrop */
 dialog[open]::backdrop {
   background: rgba(0, 0, 0, 0.55);

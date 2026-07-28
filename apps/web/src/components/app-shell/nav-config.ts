@@ -106,6 +106,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
         match: ["/settings", "/support"],
         children: [
           { label: "Profile", href: "/settings/profile" },
+          { label: "Appearance", href: "/settings/appearance" },
           ...(tattooMapEnabled()
             ? [{ label: "Map presence", href: "/settings/map" }]
             : []),

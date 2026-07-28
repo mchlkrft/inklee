@@ -2,6 +2,7 @@ import SectionNav from "./section-nav";
 
 const ITEMS = [
   { label: "Profile", href: "/settings/profile" },
+  { label: "Appearance", href: "/settings/appearance" },
   { label: "Emails", href: "/settings/emails" },
   { label: "Calendar", href: "/settings/calendar" },
   { label: "Payouts", href: "/settings/payouts" },
