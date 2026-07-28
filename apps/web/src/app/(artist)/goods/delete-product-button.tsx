@@ -9,6 +9,29 @@ export default function DeleteProductButton({ id }: { id: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [archivedNotice, setArchivedNotice] = useState(false);
+
+  // The order guard converted the delete into an archive: explain the outcome
+  // (it is not an error), then return to the list where the product now shows
+  // as archived.
+  if (archivedNotice) {
+    return (
+      <div className="space-y-2 rounded-md border border-border p-3">
+        <p className="text-sm text-foreground">
+          This product has orders, so it was archived instead of deleted.
+          Archived products stay out of your shop and don&apos;t count toward
+          your product limit.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/goods")}
+          className="rounded-full border border-border px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Back to goods
+        </button>
+      </div>
+    );
+  }
 
   if (!confirming) {
     return (
@@ -38,6 +61,10 @@ export default function DeleteProductButton({ id }: { id: string }) {
               const result = await deleteProductAction(id);
               if (result && "error" in result) {
                 setError(result.error);
+                return;
+              }
+              if (result && "archived" in result && result.archived) {
+                setArchivedNotice(true);
                 return;
               }
               router.push("/goods");

@@ -93,6 +93,16 @@ bottom-corner control would disappear the moment a pin is tapped. It rides the
 top control row instead, which is also where the platform maps put theirs.
 **Reaches devices with the next EAS build.**
 
+## Plus entitlement gates (added 2026-07-28; rows were missing, which is a bug per the founder rule)
+
+| Feature | Web | Native | Status |
+|---|---|---|---|
+| Branding removal gate (`branding`) | server-rendered on all public pages, fail-safe | n/a by design (public pages are web-only surfaces; the app has no public renderer) | 🌐 |
+| Custom-template edit gate (`custom_templates`) | save action refuses pre-upsert | mobile route 403s `not_entitled` pre-upsert; the app maps the code to IAP-safe copy via `plan-errors.ts` (next build) | ✅ |
+| Entitlement caps (fields/trips/studios/products) | enforced on all create paths + product unarchive | same guards on all mobile routes, 403 `cap_reached`; app shows the cap message stripped of purchase steering via `plan-errors.ts` (next build) | ✅ |
+| Active-product cap + archived state + order-guarded delete | web action archives ordered products instead of deleting, explains the outcome | mobile DELETE returns additive `archived: true`; app alerts the outcome (next build); old builds see a normal delete and the row reappears archived on refresh | ✅ |
+| Analytics gate (`analytics`) | DEFINED, NOT WIRED (audit 2026-07-28) | same: mobile analytics route ungated | ⬜ wired in Plus stage P6 with the boundary decision |
+
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
 
 Bookings (list/detail/approve/reject/cancel/deposits), calendar + appointments,

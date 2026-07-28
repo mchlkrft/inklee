@@ -59,3 +59,8 @@ germany-units.json
 osm-tattoo-*.json
 overture-*.json
 *-units.json
+
+# Root-anchored: local supabase-CLI scratch created by running `npx supabase`
+# from the repo root (the real project lives at apps/web/supabase). Its
+# .temp/start-secrets/ carries local-stack keys that must never enter history.
+/supabase/

@@ -26,14 +26,34 @@ export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
   other: "Other",
 };
 
-export const PRODUCT_STATUSES = ["active", "hidden", "sold_out"] as const;
+// `archived` (migration 0112, Plus build P0): out of the shop, out of the
+// active-product cap, never deleted. Products that orders reference are
+// archived instead of deleted, so order history always keeps its product.
+// Every public read is a positive allowlist, so archived can never leak.
+export const PRODUCT_STATUSES = [
+  "active",
+  "hidden",
+  "sold_out",
+  "archived",
+] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
 export const PRODUCT_STATUS_LABELS: Record<ProductStatus, string> = {
   active: "Active",
   hidden: "Hidden",
   sold_out: "Sold out",
+  archived: "Archived",
 };
+
+/** Statuses that count against the active-product cap (Free 3 / Plus 25,
+ *  plus-product-spec.md section 9). Everything except archived counts: hidden
+ *  and sold-out products are still part of the artist's working catalogue, so
+ *  rotating products through hidden cannot defeat the cap. */
+export const CAP_COUNTED_PRODUCT_STATUSES = [
+  "active",
+  "hidden",
+  "sold_out",
+] as const;
 
 // Currencies an artist can price goods in (lowercase ISO codes, stored as-is;
 // formatPrice uppercases for display). A traveling artist can price in the local

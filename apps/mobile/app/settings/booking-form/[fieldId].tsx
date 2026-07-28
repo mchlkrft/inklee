@@ -33,6 +33,7 @@ import {
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import { useScreenView } from "@/lib/analytics";
+import { planBoundaryMessage } from "@/lib/plan-errors";
 
 // Custom-field editor — the native port of the web FieldForm. fieldId "new"
 // creates; anything else edits that field (seeded from the cached
@@ -178,7 +179,7 @@ function FieldForm({ field }: { field: MobileBookingFormField | null }) {
       router.back();
     } catch (e) {
       captureError(e, { op: "saveBookingFormField" });
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setError(planBoundaryMessage(e, "Couldn't save. Try again."));
       setSaving(false);
     }
   }

@@ -72,9 +72,10 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     analyticsEvents: "none required",
     pricingPageClaim: "Your branding only, no Inklee footer",
     termsClaim: "Terms section 11 names footer removal",
-    operationalState: "PARKED in DISABLED_CAPABILITIES (un-park after e2e verification pass)",
-    testCoverage: "partial", // gate-shape tests only; e2e pass open
-    launchReadiness: "build",
+    operationalState:
+      "UN-PARKED 2026-07-28 after the e2e verification pass (branding-entitlement.spec.ts, served-HTML both directions)",
+    testCoverage: "exists", // gate shape + served-HTML e2e both directions
+    launchReadiness: "ready",
   },
   {
     name: "Linkhub layout templates (Clean, Portfolio, Bold, Editorial)",
@@ -246,7 +247,7 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     pricingPageClaim: "Custom booking email templates",
     termsClaim: "Terms section 11 names custom templates",
     operationalState: "PARKED (moot: zero templates exist in prod); subjects force-reset by design",
-    testCoverage: "partial", // gate shape tested; save-rejection paths untested
+    testCoverage: "exists", // P0 2026-07-28: rejection paths pinned on BOTH surfaces (web pre-upsert refusal, mobile 403 not_entitled, fail-open blip)
     launchReadiness: "build",
   },
   {
@@ -280,17 +281,19 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     plusBehavior: "25 active products",
     legacyBehavior: "unaudited vs the new package (flagged)",
     scope: "artist",
-    serverEnforcement: "partial", // module exists; cap entirely absent; ARCHIVED state absent
-    databaseEnforcement: "partial", // enum lacks archived; hard-delete bug (goods/actions.ts:502)
+    serverEnforcement: "exists", // P0 2026-07-28: cap on create + unarchive, web + mobile; order-guarded delete archives
+    databaseEnforcement: "exists", // archived enum value (0112); guard tests pin the fail-safe direction
     frontendBehavior: "exists",
-    mobileSupport: "exists", // goods CRUD has native routes
-    downgradeBehavior: "MUST be: over-cap products keep selling? or hide-new-only? DEFINE; records never deleted",
+    mobileSupport: "exists", // same guards on all routes; app explains the archive outcome (next build)
+    downgradeBehavior:
+      "Block-new keep-existing (cap gates create + unarchive only; existing over-cap products keep selling); records never deleted",
     feeImpact: "goods platform fee lane",
     analyticsEvents: "product_created, order_paid (order events exist server-side)",
     pricingPageClaim: "none yet",
     termsClaim: "none (goods marketplace wording = final counsel deliverable)",
-    operationalState: "checkout parked behind GOODS_COMMERCE_ENABLED; display/CRUD live",
-    testCoverage: "partial",
+    operationalState:
+      "checkout parked behind GOODS_COMMERCE_ENABLED; display/CRUD live; the product cap lands DARK (entitlement_caps stays parked until P7)",
+    testCoverage: "exists", // goods-guard tests: cap boundary, fail-open, order-guard fail-safe
     launchReadiness: "build",
   },
   {

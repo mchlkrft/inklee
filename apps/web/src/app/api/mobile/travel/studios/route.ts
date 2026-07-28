@@ -13,6 +13,7 @@ import {
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
 import type { MobileStudiosResponse } from "@inklee/shared/mobile-api";
+import { MOBILE_PLAN_LIMIT_MESSAGES } from "@/lib/server/plan-limit-messages";
 
 export const runtime = "nodejs";
 
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
     if (gate.blocked) {
       return mobileError(
         403,
-        `You've reached the ${gate.cap}-studio limit on your current plan. Upgrade to Plus to add more.`,
+        MOBILE_PLAN_LIMIT_MESSAGES.studioLibrary(gate.cap),
         "cap_reached",
       );
     }

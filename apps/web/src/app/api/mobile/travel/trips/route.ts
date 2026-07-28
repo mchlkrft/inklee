@@ -7,6 +7,7 @@ import {
 import { normalizeTripInput } from "@/lib/mobile-travel";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
+import { MOBILE_PLAN_LIMIT_MESSAGES } from "@/lib/server/plan-limit-messages";
 import type {
   MobileTrip,
   MobileTripsResponse,
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
     if (gate.blocked) {
       return mobileError(
         403,
-        `You've reached the ${gate.cap}-active trip limit on your current plan. Upgrade to Plus to add more.`,
+        MOBILE_PLAN_LIMIT_MESSAGES.activeTrips(gate.cap),
         "cap_reached",
       );
     }

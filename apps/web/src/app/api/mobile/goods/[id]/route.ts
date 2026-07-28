@@ -9,6 +9,10 @@ import {
   sweepGoodsStorage,
 } from "@/lib/server/mobile-goods-server";
 import { maxProductImages, toPriceNumber } from "@/lib/goods";
+import {
+  checkProductCap,
+  productHasOrderReferences,
+} from "@/lib/server/goods-guard";
 import type {
   MobileProductDetail,
   MobileProductVariant,
@@ -109,12 +113,18 @@ export async function PUT(
 
   const { data: existing, error: readErr } = await supabase
     .from("products")
-    .select("id")
+    .select("id, status")
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
   if (readErr) return mobileError(500, readErr.message);
   if (!existing) return mobileError(404, "Product not found.", "not_found");
+
+  // Leaving `archived` re-enters the active-product cap (Free 3 / Plus 25).
+  if (existing.status === "archived" && v.status !== "archived") {
+    const capErr = await checkProductCap(supabase, userId);
+    if (capErr) return mobileError(403, capErr, "cap_reached");
+  }
 
   const { error } = await supabase
     .from("products")
@@ -159,6 +169,7 @@ export async function DELETE(
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
+  if (!imageRow) return mobileError(404, "Product not found.", "not_found");
   const allImageUrls: string[] = Array.isArray(imageRow?.image_urls)
     ? (imageRow!.image_urls as string[])
     : [];
@@ -167,6 +178,21 @@ export async function DELETE(
     !allImageUrls.includes(imageRow.image_url as string)
   ) {
     allImageUrls.push(imageRow.image_url as string);
+  }
+
+  // ORDER GUARD (P0, mirrors deleteProductAction): a product any order line
+  // references is ARCHIVED, never deleted, and its images are kept. Response
+  // stays additive for installed builds: `ok` keeps its shape, `archived` is a
+  // new optional field (wire policy).
+  if (await productHasOrderReferences(id)) {
+    const { error: archiveErr } = await supabase
+      .from("products")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("artist_id", userId);
+    if (archiveErr) return mobileError(500, archiveErr.message);
+    await revalidatePublicPage(supabase, userId);
+    return mobileOk({ ok: true, archived: true });
   }
 
   const { error } = await supabase

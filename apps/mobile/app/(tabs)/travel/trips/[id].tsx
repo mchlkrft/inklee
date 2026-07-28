@@ -44,6 +44,7 @@ import {
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
+import { planBoundaryMessage } from "@/lib/plan-errors";
 
 export default function TripScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -121,7 +122,7 @@ function CreateTrip() {
       leave(() => router.replace(`/travel/trips/${id}`));
     } catch (e) {
       captureError(e, { op: "createTrip" });
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setError(planBoundaryMessage(e, "Couldn't save. Try again."));
       setSaving(false);
     }
   }
@@ -224,7 +225,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
       leave();
     } catch (e) {
       captureError(e, { op: "saveTrip" });
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setError(planBoundaryMessage(e, "Couldn't save. Try again."));
       setSaving(false);
     }
   }
@@ -497,7 +498,7 @@ function AddLeg({
       onAdded();
     } catch (e) {
       captureError(e, { op: "addLeg" });
-      setError(e instanceof Error ? e.message : "Couldn't add. Try again.");
+      setError(planBoundaryMessage(e, "Couldn't add. Try again."));
     } finally {
       setBusy(false);
     }

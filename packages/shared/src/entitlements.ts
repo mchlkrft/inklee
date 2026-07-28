@@ -66,6 +66,9 @@ export const ENTITLEMENT_LIMITS = [
   "custom_fields",
   "active_trips",
   "studio_library",
+  // Non-archived products (Plus package, confirmed 2026-07-28,
+  // plus-product-spec.md section 9). Archived products never count.
+  "active_products",
 ] as const;
 export type EntitlementLimit = (typeof ENTITLEMENT_LIMITS)[number];
 
@@ -85,11 +88,13 @@ const PLAN_LIMITS: Record<PlanTier, Record<EntitlementLimit, number | null>> = {
     custom_fields: 3,
     active_trips: 3,
     studio_library: 5,
+    active_products: 3, // confirmed 2026-07-28 (plus-product-spec.md section 9)
   },
   plus: {
     custom_fields: 30, // ratified 2026-07-25
     active_trips: 100, // ratified 2026-07-25
     studio_library: 50, // ratified 2026-07-25
+    active_products: 25, // confirmed 2026-07-28 (plus-product-spec.md section 9)
   },
 };
 

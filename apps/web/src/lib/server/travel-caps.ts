@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "./entitlement-gates";
+import { MOBILE_PLAN_LIMIT_MESSAGES } from "@/lib/server/plan-limit-messages";
 
 // The active_trips cap must ALSO be enforced when a future-dated leg is added to
 // a not-yet-active trip: adding such a leg is what makes a trip "active", so the
@@ -44,7 +45,7 @@ export async function checkTripLegCap(
       .size;
     const gate = capState(overrides, "active_trips", count);
     if (gate.blocked) {
-      return `You've reached the ${gate.cap}-active trip limit on your current plan. Upgrade to Plus to add more.`;
+      return MOBILE_PLAN_LIMIT_MESSAGES.activeTrips(gate.cap);
     }
     return null;
   } catch (e) {

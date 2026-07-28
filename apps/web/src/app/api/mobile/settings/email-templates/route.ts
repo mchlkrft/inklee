@@ -21,6 +21,7 @@ import type {
   MobileEmailTemplatesResponse,
 } from "@inklee/shared/mobile-api";
 import { writeAudit } from "@/lib/audit";
+import { MOBILE_PLAN_LIMIT_MESSAGES } from "@/lib/server/plan-limit-messages";
 
 export const runtime = "nodejs";
 
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
     if (!canEditTemplates(overrides)) {
       return mobileError(
         403,
-        "Custom email templates are a Plus feature. Upgrade to Plus to edit them.",
+        MOBILE_PLAN_LIMIT_MESSAGES.templatesNotEntitled,
         "not_entitled",
       );
     }

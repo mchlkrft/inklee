@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import { createHash } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import {
@@ -200,12 +201,35 @@ export async function recordDurableConfirmation(input: {
     if (existing) return;
   }
 
+  // P0 (2026-07-28): the confirmation STAMPS the accepted terms version. The
+  // buyer's acceptance evidence is the terms_acceptance consent row written at
+  // checkout, so the version comes from there (scoped to this artist's latest
+  // acceptance; there is exactly one live contract per artist by design).
+  // Fail-soft to null rather than blocking a statutory confirmation: the
+  // consent row itself remains the primary evidence, and check 11 of the
+  // legal-artifact validator reports null stamps as a gap.
+  let termsVersion: string | null = null;
+  try {
+    const { data: consent } = await serviceClient
+      .from("billing_consent_records")
+      .select("consent_version")
+      .eq("artist_id", input.artistId)
+      .eq("consent_type", "terms_acceptance")
+      .order("consented_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    termsVersion = (consent?.consent_version as string | null) ?? null;
+  } catch {
+    // keep null
+  }
+
   const { data: row, error: insErr } = await serviceClient
     .from("billing_contract_confirmations")
     .insert({
       artist_id: input.artistId,
       billing_subscription_id: input.billingSubscriptionId,
       stripe_invoice_id: input.stripeInvoiceId ?? null,
+      terms_version: termsVersion,
       delivery_channel: "email",
       delivery_status: "pending",
       generated_at: now,
@@ -216,6 +240,10 @@ export async function recordDurableConfirmation(input: {
   // (0110); it is sending, so stop here rather than send a duplicate.
   if (insErr && (insErr as { code?: string }).code === "23505") return;
 
+  // Hoisted so the delivery-status updates below can stamp payload_hash (the
+  // hash of the generated confirmation content, 0106 DDL) whether the send
+  // succeeded or failed after generation.
+  let generatedBody: string | null = null;
   try {
     const { data: userData } = await serviceClient.auth.admin.getUserById(
       input.artistId,
@@ -295,6 +323,7 @@ export async function recordDurableConfirmation(input: {
         : input.kind === "cancellation"
           ? "Your Inklee Plus cancellation is confirmed"
           : "Your Inklee Plus subscription is confirmed";
+    generatedBody = `${subject}\n\n${body}`;
 
     await sendEmail({
       to: email,
@@ -310,6 +339,7 @@ export async function recordDurableConfirmation(input: {
         .update({
           delivery_status: "sent",
           delivered_at: new Date().toISOString(),
+          payload_hash: confirmationPayloadHash(generatedBody),
         })
         .eq("id", row.id);
     }
@@ -321,10 +351,25 @@ export async function recordDurableConfirmation(input: {
     if (row?.id) {
       await serviceClient
         .from("billing_contract_confirmations")
-        .update({ delivery_status: "failed" })
+        .update({
+          delivery_status: "failed",
+          // The content hash still records WHAT was generated when the
+          // failure came after generation (send failures); null when the
+          // failure preceded the body build.
+          ...(generatedBody
+            ? { payload_hash: confirmationPayloadHash(generatedBody) }
+            : {}),
+        })
         .eq("id", row.id);
     }
   }
+}
+
+/** SHA-256 of the generated confirmation content (subject + body), the 0106
+ *  `payload_hash` column: tamper-evidence tying the stored row to the exact
+ *  text the subscriber was sent. */
+function confirmationPayloadHash(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
 }
 
 export async function withdrawSubscriptionCore(input: {

@@ -4,6 +4,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { revalidatePublicPage } from "@/lib/server/mobile-goods-server";
+import { checkProductCap } from "@/lib/server/goods-guard";
 import { isProductStatus } from "@/lib/goods";
 
 export const runtime = "nodejs";
@@ -35,12 +36,19 @@ export async function PATCH(
 
   const { data: existing, error: readErr } = await supabase
     .from("products")
-    .select("id")
+    .select("id, status")
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
   if (readErr) return mobileError(500, readErr.message);
   if (!existing) return mobileError(404, "Product not found.", "not_found");
+
+  // Leaving `archived` re-enters the active-product cap (Free 3 / Plus 25);
+  // unguarded, unarchiving would bypass the create-time gate.
+  if (existing.status === "archived" && status !== "archived") {
+    const capErr = await checkProductCap(supabase, userId);
+    if (capErr) return mobileError(403, capErr, "cap_reached");
+  }
 
   const { error } = await supabase
     .from("products")

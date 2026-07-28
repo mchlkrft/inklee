@@ -12,6 +12,7 @@ import {
 } from "@/lib/mobile-booking-form";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
+import { MOBILE_PLAN_LIMIT_MESSAGES } from "@/lib/server/plan-limit-messages";
 
 export const runtime = "nodejs";
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     if (gate.blocked) {
       return mobileError(
         403,
-        `You've reached the ${gate.cap}-field limit on your current plan. Upgrade to Plus to add more.`,
+        MOBILE_PLAN_LIMIT_MESSAGES.customFields(gate.cap),
         "cap_reached",
       );
     }

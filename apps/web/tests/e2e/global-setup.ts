@@ -55,6 +55,9 @@ export default async function globalSetup(_config: FullConfig) {
     "/request/warmup-token",
     `/${artistA.slug}`,
     `/${artistA.slug}/waitlist`,
+    // The hub route joined the suite with the branding-entitlement spec; a
+    // cold compile of it mid-run starves unrelated navigations.
+    `/${artistA.slug}/hub`,
     "/bookings/requests/00000000-0000-0000-0000-000000000000",
     "/admin",
     // The public map plane. `/map` pulls in maplibre and is the heaviest route

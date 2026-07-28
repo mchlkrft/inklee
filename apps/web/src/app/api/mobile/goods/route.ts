@@ -5,6 +5,7 @@ import {
 } from "@/lib/server/mobile-auth";
 import { normalizeProductInput } from "@/lib/mobile-goods";
 import { revalidatePublicPage } from "@/lib/server/mobile-goods-server";
+import { checkProductCap } from "@/lib/server/goods-guard";
 import { toPriceNumber } from "@/lib/goods";
 import type {
   MobileProduct,
@@ -72,6 +73,10 @@ export async function POST(req: Request) {
   const parsed = normalizeProductInput(raw);
   if (!parsed.ok) return mobileError(400, parsed.error);
   const v = parsed.value;
+
+  // Active-product cap (Free 3 / Plus 25), same guard the web action runs.
+  const capErr = await checkProductCap(supabase, userId);
+  if (capErr) return mobileError(403, capErr, "cap_reached");
 
   const { count } = await supabase
     .from("products")

@@ -37,6 +37,7 @@ import { VISIBILITY_OPTIONS, invalidateTravel } from "@/lib/travel";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
+import { planBoundaryMessage } from "@/lib/plan-errors";
 
 export default function StudioScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -153,7 +154,7 @@ function StudioForm({
       leave();
     } catch (e) {
       captureError(e, { op: "saveStudio" });
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setError(planBoundaryMessage(e, "Couldn't save. Try again."));
       setSaving(false);
     }
   }

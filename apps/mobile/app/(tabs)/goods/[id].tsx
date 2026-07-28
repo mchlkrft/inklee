@@ -49,6 +49,7 @@ import {
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
 import { colors } from "@/lib/tokens";
+import { planBoundaryMessage } from "@/lib/plan-errors";
 
 type Category = (typeof PRODUCT_CATEGORY_OPTIONS)[number]["value"];
 type Status = (typeof PRODUCT_STATUS_OPTIONS)[number]["value"];
@@ -409,7 +410,7 @@ function ProductForm({
       if (!isNew) {
         void invalidateGoods(queryClient);
       }
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setError(planBoundaryMessage(e, "Couldn't save. Try again."));
       setSaving(false);
     }
   }
@@ -418,8 +419,19 @@ function ProductForm({
     setSaving(true);
     setError(null);
     try {
-      await apiDelete(`/goods/${id}`);
+      const res = await apiDelete<{ ok: boolean; archived?: boolean }>(
+        `/goods/${id}`,
+      );
       await invalidateGoods(queryClient);
+      // The server's order guard converts a delete into an archive when any
+      // order references the product (never delete sold products). Say so
+      // instead of letting the still-listed archived row read as a failure.
+      if (res?.archived) {
+        Alert.alert(
+          "Archived instead",
+          "This product has orders, so it was archived instead of deleted. Archived products stay out of your shop and don't count toward your product limit.",
+        );
+      }
       leave();
     } catch (e) {
       captureError(e, { op: "deleteProduct" });

@@ -25,6 +25,7 @@ import { useApiQuery, apiPost } from "@/lib/api";
 import { useScreenView } from "@/lib/analytics";
 import { captureError } from "@/lib/telemetry";
 import { useColors } from "@/lib/theme";
+import { planBoundaryMessage } from "@/lib/plan-errors";
 
 const BODY_MAX = 2000;
 const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
@@ -148,7 +149,7 @@ function TemplateForm({
       backTimer.current = setTimeout(() => router.back(), 700);
     } catch (e) {
       captureError(e, { op: "saveEmailTemplate" });
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setError(planBoundaryMessage(e, "Couldn't save. Try again."));
     } finally {
       setSaving(false);
     }

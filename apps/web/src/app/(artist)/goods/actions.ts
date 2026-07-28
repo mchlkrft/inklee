@@ -27,11 +27,22 @@ import {
   reconcileVariants,
   type VariantInput,
 } from "@/lib/server/goods-variants";
+import {
+  checkProductCap,
+  productHasOrderReferences,
+} from "@/lib/server/goods-guard";
 import { ownedGoodsStoragePath } from "@/lib/server/mobile-goods-server";
 import type { ProductFormValues } from "./product-form";
 import type { VariantInputRow } from "./product-form-fields";
 
 type State = { error: string } | { success: true } | null;
+
+/** Delete outcome: `archived: true` when the order guard converted the delete
+ *  into an archive (not an error; the UI explains it as an outcome). */
+export type DeleteProductState =
+  | { error: string }
+  | { success: true; archived?: true }
+  | null;
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -338,6 +349,11 @@ export async function createProductAction(
   if ("error" in variantsRes) return variantsRes;
   const f = parsed.value;
 
+  // Active-product cap (Free 3 / Plus 25, spec section 9), before any insert
+  // or upload. Archived products never count.
+  const capErr = await checkProductCap(supabase, user.id);
+  if (capErr) return { error: capErr };
+
   // New products go to the end of the sort order.
   const { count } = await supabase
     .from("products")
@@ -407,7 +423,7 @@ export async function updateProductAction(
   // Ownership: the RLS-bound select only returns the row if it's the user's.
   const { data: existing } = await supabase
     .from("products")
-    .select("id")
+    .select("id, status")
     .eq("id", id)
     .eq("artist_id", user.id)
     .single();
@@ -418,6 +434,13 @@ export async function updateProductAction(
   const variantsRes = parseVariants(formData.get("variants"));
   if ("error" in variantsRes) return variantsRes;
   const f = parsed.value;
+
+  // Leaving `archived` re-enters the active-product cap; unguarded, an edit
+  // that flips the status would bypass the create-time gate entirely.
+  if (existing.status === "archived" && f.status !== "archived") {
+    const capErr = await checkProductCap(supabase, user.id);
+    if (capErr) return { error: capErr };
+  }
 
   // Fetch the current image list so we can diff against the keep-list, plus
   // updated_at as the optimistic-concurrency token (FU-18). Falls back to
@@ -492,25 +515,42 @@ export async function updateProductAction(
   return { success: true };
 }
 
-export async function deleteProductAction(id: string): Promise<State> {
+export async function deleteProductAction(
+  id: string,
+): Promise<DeleteProductState> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  // Variants cascade via FK. No order_items reference products yet (Slice 75);
-  // when they do, guard this with an order check and archive instead of delete.
+  // Ownership check doubles as the image snapshot read below.
   //
-  // Snapshot the image URLs first so storage cleanup can include every
-  // per-image file (multi-image, migration 0038) plus the legacy single-image
-  // path for products never re-saved post-0038.
+  // ORDER GUARD (P0, fixes the stale Slice-75 promise): order_items has
+  // referenced products since 0036 with ON DELETE SET NULL, so hard-deleting
+  // a product that any order line references strands paid order rows with a
+  // null product. Such products are ARCHIVED instead: out of the shop, out of
+  // the cap, images kept (the artist may restore it later).
   const { data: imageRow } = await supabase
     .from("products")
     .select("image_urls, image_url")
     .eq("id", id)
     .eq("artist_id", user.id)
     .single();
+  if (!imageRow) return { error: "Product not found." };
+
+  if (await productHasOrderReferences(id)) {
+    const { error: archiveErr } = await supabase
+      .from("products")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("artist_id", user.id);
+    if (archiveErr) return { error: archiveErr.message };
+    revalidatePath("/goods");
+    revalidatePath(`/goods/${id}`);
+    await revalidatePublicPage(user.id);
+    return { success: true, archived: true };
+  }
   const allImageUrls: string[] = Array.isArray(imageRow?.image_urls)
     ? (imageRow!.image_urls as string[])
     : [];
@@ -667,6 +707,21 @@ export async function setProductStatusAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
   if (!isProductStatus(status)) return { error: "Invalid status." };
+
+  // Leaving `archived` re-enters the active-product cap.
+  if (status !== "archived") {
+    const { data: current } = await supabase
+      .from("products")
+      .select("status")
+      .eq("id", id)
+      .eq("artist_id", user.id)
+      .single();
+    if (!current) return { error: "Product not found." };
+    if (current.status === "archived") {
+      const capErr = await checkProductCap(supabase, user.id);
+      if (capErr) return { error: capErr };
+    }
+  }
 
   const { error } = await supabase
     .from("products")

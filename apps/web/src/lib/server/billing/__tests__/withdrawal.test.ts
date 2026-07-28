@@ -160,7 +160,10 @@ vi.mock("@/lib/server/billing/reconcile", () => ({
 }));
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
-import { withdrawSubscriptionCore } from "@/lib/server/billing/withdrawal";
+import {
+  recordDurableConfirmation,
+  withdrawSubscriptionCore,
+} from "@/lib/server/billing/withdrawal";
 
 const DAY = 86_400_000;
 const nowMs = Date.parse("2026-07-24T12:00:00Z");
@@ -451,5 +454,49 @@ describe("withdrawSubscriptionCore", () => {
     // Already canceled: do not re-cancel, but still reconcile the downgrade.
     expect(h.stripe.cancel).not.toHaveBeenCalled();
     expect(h.reconcile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("recordDurableConfirmation stamps the contract evidence (P0 2026-07-28)", () => {
+  it("stamps terms_version from the buyer's acceptance and payload_hash from the generated content", async () => {
+    // The buyer's checkout acceptance is the version source (the invariant:
+    // checkout acceptance -> confirmation restatement).
+    h.store.billing_consent_records.push({
+      id: "c-1",
+      artist_id: "artist-1",
+      consent_type: "terms_acceptance",
+      consent_version: "2026-07-24",
+      consented_at: "2026-07-28T10:00:00.000Z",
+    });
+
+    await recordDurableConfirmation({
+      artistId: "artist-1",
+      billingSubscriptionId: "sub-row-1",
+      kind: "purchase",
+      stripeInvoiceId: "in_1",
+    });
+
+    expect(h.store.billing_contract_confirmations).toHaveLength(1);
+    const row = h.store.billing_contract_confirmations[0];
+    expect(row.terms_version).toBe("2026-07-24");
+    // Delivered, and the content hash ties the row to the exact generated text.
+    expect(row.delivery_status).toBe("sent");
+    expect(String(row.payload_hash)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("keeps terms_version null (never blocks) when no acceptance row exists", async () => {
+    await recordDurableConfirmation({
+      artistId: "artist-1",
+      billingSubscriptionId: "sub-row-1",
+      kind: "cancellation",
+      receivedAt: "2026-07-28T09:00:00.000Z",
+      effectiveAt: "2026-08-28T00:00:00.000Z",
+    });
+
+    expect(h.store.billing_contract_confirmations).toHaveLength(1);
+    const row = h.store.billing_contract_confirmations[0];
+    expect(row.terms_version ?? null).toBeNull();
+    expect(row.delivery_status).toBe("sent");
+    expect(String(row.payload_hash)).toMatch(/^[0-9a-f]{64}$/);
   });
 });
