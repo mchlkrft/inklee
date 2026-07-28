@@ -12,11 +12,14 @@ import { useScreenView } from "@/lib/analytics";
 import { planBoundaryMessage } from "@/lib/plan-errors";
 import {
   APPEARANCE_THEMES,
+  PAGE_TEMPLATES,
+  PAGE_TEMPLATE_META,
   APPEARANCE_FONTS,
   BUTTON_TREATMENTS,
   BUTTON_RADII,
   type AppearanceSettings,
   type AppearanceTheme,
+  type PageTemplate,
   type AppearanceFontId,
   type ButtonTreatment,
   type ButtonRadius,
@@ -87,6 +90,7 @@ export default function PageAppearanceScreen() {
   const q = useApiQuery<Response>("/settings/appearance");
 
   const [theme, setTheme] = useState<AppearanceTheme | null>(null);
+  const [template, setTemplate] = useState<PageTemplate | null>(null);
   const [accent, setAccent] = useState<string | null>(null);
   const [font, setFont] = useState<AppearanceFontId | null>(null);
   const [treatment, setTreatment] = useState<ButtonTreatment | null>(null);
@@ -99,6 +103,7 @@ export default function PageAppearanceScreen() {
     if (q.data && theme === null) {
       const g = q.data.appearance.global;
       setTheme(g.theme);
+      setTemplate(g.template);
       setAccent(g.accent);
       setFont(g.font);
       setTreatment(g.buttonTreatment);
@@ -165,6 +170,22 @@ export default function PageAppearanceScreen() {
           </Card>
         )}
 
+        <SectionLabel>Layout</SectionLabel>
+        <Card>
+          <View className="flex-row flex-wrap">
+            {PAGE_TEMPLATES.map((id) => (
+              <Chip
+                key={id}
+                label={PAGE_TEMPLATE_META[id].label}
+                active={template === id}
+                onPress={() => {
+                  touch();
+                  setTemplate(id);
+                }}
+              />
+            ))}
+          </View>
+        </Card>
         <SectionLabel>Theme</SectionLabel>
         <Card>
           <View className="flex-row flex-wrap">

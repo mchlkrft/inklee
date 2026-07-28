@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   parseAppearance,
   isAppearanceTheme,
+  isPageTemplate,
   isAppearanceFontId,
   isButtonTreatment,
   isButtonRadius,
@@ -28,6 +29,7 @@ import { appearanceCustomAllowed } from "./entitlement-gates";
 
 export type AppearanceInput = {
   theme?: unknown;
+  template?: unknown;
   accent?: unknown;
   font?: unknown;
   buttonTreatment?: unknown;
@@ -45,6 +47,7 @@ export type AppearanceWriteResult =
 function normalize(input: AppearanceInput) {
   const out: Record<string, unknown> = {};
   if (isAppearanceTheme(input.theme)) out.theme = input.theme;
+  if (isPageTemplate(input.template)) out.template = input.template;
   if ("accent" in input) out.accent = sanitizeCoverColor(input.accent);
   if (isAppearanceFontId(input.font)) out.font = input.font;
   if (isButtonTreatment(input.buttonTreatment))

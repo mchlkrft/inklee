@@ -66,6 +66,17 @@ export function canChargeCheckoutAddons(settings: unknown): boolean {
 // helper were dead placeholders (read nowhere in web, mobile, or shared code)
 // and were removed in BM-2.0 so nothing implies a bio paywall exists. Do not
 // reintroduce a bio flag unless a real, server-enforced bio entitlement ships.
+//
+// RECONCILED 2026-07-28 with the confirmed Plus package (plus-product-spec.md
+// section 3), which defines a Free AND a Plus Inklee page. The two decisions do
+// not conflict: the HUB ITSELF stays permanently free and fully functional
+// (unlimited links, custom text sections, a professionally designed default
+// layout, and the spec's explicit "do not deliberately make the Free page
+// visually poor"). What Plus adds is CUSTOMIZATION on top: layout templates,
+// the custom appearance layer, and the rich blocks. That is gated by the
+// server-enforced `appearance_custom` / `page_templates` entitlements, which is
+// exactly the "real, server-enforced entitlement" this note asked for. Still no
+// flag gating the hub's existence, and there must never be one.
 
 /**
  * RS-3 master park switch (money-scope reset 2026-06-03). Parks the PAYABLE

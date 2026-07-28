@@ -54,6 +54,7 @@ export async function PATCH(req: Request) {
 
   const result = await saveAppearanceCore(supabase, userId, {
     theme: body.theme,
+    template: body.template,
     ...("accent" in body ? { accent: body.accent } : {}),
     font: body.font,
     buttonTreatment: body.buttonTreatment,

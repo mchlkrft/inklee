@@ -41,6 +41,9 @@ export type SurfaceAppearance = {
  *  only. Everything the custom layer adds falls back to the default. */
 function freeTierView(resolved: ResolvedAppearance): ResolvedAppearance {
   return {
+    // Everything not listed below falls back to the default, which includes
+    // the `clean` template: Free gets ONE fixed layout, and it is a real
+    // designed template rather than a stripped one (spec section 3).
     ...DEFAULT_APPEARANCE,
     // Kept on Free because these are exactly today's free features.
     theme: resolved.theme,

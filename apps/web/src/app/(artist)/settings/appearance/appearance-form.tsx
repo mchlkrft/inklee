@@ -3,12 +3,15 @@
 import { useActionState, useState } from "react";
 import {
   APPEARANCE_THEMES,
+  PAGE_TEMPLATES,
+  PAGE_TEMPLATE_META,
   APPEARANCE_FONTS,
   BUTTON_TREATMENTS,
   BUTTON_RADII,
   fontStackFor,
   type AppearanceSettings,
   type AppearanceTheme,
+  type PageTemplate,
   type AppearanceFontId,
   type ButtonTreatment,
   type ButtonRadius,
@@ -70,6 +73,7 @@ export default function AppearanceForm({
   const g = appearance.global;
 
   const [theme, setTheme] = useState<AppearanceTheme>(g.theme);
+  const [template, setTemplate] = useState<PageTemplate>(g.template);
   const [accent, setAccent] = useState<string | null>(g.accent);
   const [font, setFont] = useState<AppearanceFontId>(g.font);
   const [treatment, setTreatment] = useState<ButtonTreatment>(
@@ -91,11 +95,39 @@ export default function AppearanceForm({
       {/* Hidden inputs carry the controlled values; the visible controls are
           buttons so a keyboard user gets one tab stop per option group. */}
       <input type="hidden" name="theme" value={theme} />
+      <input type="hidden" name="template" value={template} />
       <input type="hidden" name="accent" value={accent ?? ""} />
       <input type="hidden" name="font" value={font} />
       <input type="hidden" name="buttonTreatment" value={treatment} />
       <input type="hidden" name="buttonRadius" value={radius} />
 
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-semibold text-foreground">
+          Layout
+        </legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {PAGE_TEMPLATES.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTemplate(id)}
+              aria-pressed={template === id}
+              className={`rounded-md border-2 px-4 py-3 text-left transition-colors ${
+                template === id
+                  ? "border-foreground bg-foreground/5"
+                  : "border-border hover:border-foreground/40"
+              }`}
+            >
+              <span className="block text-sm font-medium text-foreground">
+                {PAGE_TEMPLATE_META[id].label}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {PAGE_TEMPLATE_META[id].description}
+              </span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-foreground">Theme</legend>
         <div className="flex flex-wrap gap-2">

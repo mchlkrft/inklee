@@ -121,6 +121,50 @@ const RADIUS_CSS: Record<ButtonRadius, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Layout templates (Plus build P2). The four confirmed initial templates
+// (plus-product-spec.md section 3). "clean" is the Free layout and the
+// default: a Free artist's page keeps a professionally designed default
+// experience, and the spec's rule that the Free page is never deliberately
+// made poor is enforced by that default being a real template, not a
+// stripped one.
+
+export const PAGE_TEMPLATES = [
+  "clean",
+  "portfolio",
+  "bold",
+  "editorial",
+] as const;
+export type PageTemplate = (typeof PAGE_TEMPLATES)[number];
+
+export const PAGE_TEMPLATE_META: Record<
+  PageTemplate,
+  { label: string; description: string }
+> = {
+  clean: {
+    label: "Clean",
+    description: "Calm and centred. The default.",
+  },
+  portfolio: {
+    label: "Portfolio",
+    description: "Bigger imagery, work first.",
+  },
+  bold: {
+    label: "Bold",
+    description: "Large type, high contrast.",
+  },
+  editorial: {
+    label: "Editorial",
+    description: "Left-aligned, magazine feel.",
+  },
+};
+
+export function isPageTemplate(v: unknown): v is PageTemplate {
+  return (
+    typeof v === "string" && (PAGE_TEMPLATES as readonly string[]).includes(v)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The surfaces that may override the global appearance. Adding a surface here
 // is the whole cost of putting it on the system.
 
@@ -147,6 +191,7 @@ export function isAppearanceSurface(v: unknown): v is AppearanceSurface {
  *  declares ONLY what it changes, and everything else inherits the global. */
 export type AppearanceOverride = {
   theme?: AppearanceTheme;
+  template?: PageTemplate;
   accent?: string | null;
   font?: AppearanceFontId;
   buttonTreatment?: ButtonTreatment;
@@ -157,6 +202,7 @@ export type AppearanceOverride = {
 /** The resolved, complete appearance for one surface. */
 export type ResolvedAppearance = {
   theme: AppearanceTheme;
+  template: PageTemplate;
   /** Brand swatch id or #hex; null = the Inklee default accent. */
   accent: string | null;
   font: AppearanceFontId;
@@ -175,6 +221,7 @@ export const DEFAULT_APPEARANCE: ResolvedAppearance = {
   // Light matches what every public surface renders today (the booking page
   // hardcodes data-appearance="light"), so the default is a no-op visually.
   theme: "light",
+  template: "clean",
   accent: null,
   font: "inklee",
   buttonTreatment: "solid",
@@ -208,6 +255,7 @@ function parseResolved(
   const o = raw as Record<string, unknown>;
   return {
     theme: isAppearanceTheme(o.theme) ? o.theme : base.theme,
+    template: isPageTemplate(o.template) ? o.template : base.template,
     accent: "accent" in o ? sanitizeCoverColor(o.accent) : base.accent,
     font: isAppearanceFontId(o.font) ? o.font : base.font,
     buttonTreatment: isButtonTreatment(o.buttonTreatment)
@@ -228,6 +276,7 @@ function parseOverride(raw: unknown): AppearanceOverride | null {
   const o = raw as Record<string, unknown>;
   const out: AppearanceOverride = {};
   if (isAppearanceTheme(o.theme)) out.theme = o.theme;
+  if (isPageTemplate(o.template)) out.template = o.template;
   if ("accent" in o) out.accent = sanitizeCoverColor(o.accent);
   if (isAppearanceFontId(o.font)) out.font = o.font;
   if (isButtonTreatment(o.buttonTreatment))
@@ -302,6 +351,7 @@ export function resolveAppearance(
   if (!override) return { ...settings.global };
   return {
     theme: override.theme ?? settings.global.theme,
+    template: override.template ?? settings.global.template,
     accent:
       override.accent !== undefined ? override.accent : settings.global.accent,
     font: override.font ?? settings.global.font,

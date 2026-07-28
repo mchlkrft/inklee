@@ -26,6 +26,7 @@ export async function saveAppearanceAction(
 
   const result = await saveAppearanceCore(supabase, user.id, {
     theme: raw("theme"),
+    template: raw("template"),
     // An empty accent means "no accent", which must clear rather than be
     // dropped, so it is passed explicitly as null.
     accent: formData.has("accent") ? (raw("accent") ?? null) : undefined,

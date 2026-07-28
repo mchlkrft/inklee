@@ -6,7 +6,10 @@ import {
   DEFAULT_APPEARANCE,
   APPEARANCE_FONTS,
   fontStackFor,
+  PAGE_TEMPLATES,
+  PAGE_TEMPLATE_META,
 } from "@inklee/shared/appearance";
+import { templateStyles } from "@inklee/shared/page-template-styles";
 import { COVER_COLORS } from "@inklee/shared/cover-colors";
 
 // The shared appearance system's contract (Plus build P1). The load-bearing
@@ -170,5 +173,61 @@ describe("appearanceCssVars", () => {
     for (const f of APPEARANCE_FONTS) {
       expect(f.stack.split(",").length).toBeGreaterThan(1);
     }
+  });
+});
+
+describe("layout templates (P2)", () => {
+  it("defaults to clean, which IS the pre-template hub layout", () => {
+    expect(DEFAULT_APPEARANCE.template).toBe("clean");
+    // The default template must be a REAL designed layout, not a stripped
+    // one: the spec forbids deliberately making the Free page poor.
+    expect(templateStyles("clean").main).toContain("max-w-md");
+    expect(templateStyles("clean").centered).toBe(true);
+  });
+
+  it("every template supplies every style slot", () => {
+    for (const id of PAGE_TEMPLATES) {
+      const s = templateStyles(id);
+      for (const [slot, value] of Object.entries(s)) {
+        if (slot === "centered") continue;
+        expect(String(value).length, `${id}.${slot}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("every template has editor-facing copy", () => {
+    for (const id of PAGE_TEMPLATES) {
+      expect(PAGE_TEMPLATE_META[id].label.length).toBeGreaterThan(0);
+      expect(PAGE_TEMPLATE_META[id].description.length).toBeGreaterThan(0);
+      // Copy rules: sentence case, no em-dashes.
+      expect(PAGE_TEMPLATE_META[id].description).not.toContain("—");
+    }
+  });
+
+  it("parses a template and rejects an unknown one", () => {
+    expect(
+      parseAppearance({ appearance: { global: { template: "bold" } } }).global
+        .template,
+    ).toBe("bold");
+    expect(
+      parseAppearance({ appearance: { global: { template: "neon" } } }).global
+        .template,
+    ).toBe("clean");
+  });
+
+  it("resolves a per-surface template override", () => {
+    const s = parseAppearance({
+      appearance: {
+        global: { template: "bold" },
+        surfaces: { hub: { template: "editorial" } },
+      },
+    });
+    expect(resolveAppearance(s, "hub").template).toBe("editorial");
+    expect(resolveAppearance(s, "bookingForm").template).toBe("bold");
+  });
+
+  it("falls back to clean for an unknown template id at render time", () => {
+    // Defensive: a value that somehow bypasses the parser must not blank a page.
+    expect(templateStyles("nope" as never)).toEqual(templateStyles("clean"));
   });
 });

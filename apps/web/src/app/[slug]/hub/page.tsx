@@ -6,6 +6,7 @@ import { CalendarCheck, ExternalLink } from "lucide-react";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { surfaceAppearance } from "@/lib/server/appearance";
+import { templateStyles } from "@inklee/shared/page-template-styles";
 import { parseBioPageSettings, BIO_SOCIAL_META } from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import { apexHref, publicArtistUrl, publicHubUrl } from "@/lib/public-url";
@@ -85,6 +86,11 @@ export default async function ArtistHubPage({
     "hub",
   );
 
+  // Layout template (P2). Free resolves to `clean`, which IS today's layout,
+  // so an existing hub is byte-identical; the entitlement boundary lives in
+  // surfaceAppearance, not here.
+  const tpl = templateStyles(appearance.resolved.template);
+
   const pageStyle: React.CSSProperties = {
     ...(coverImage
       ? {
@@ -116,9 +122,9 @@ export default async function ArtistHubPage({
         <div aria-hidden className="absolute inset-0 bg-brand-charcoal/70" />
       )}
 
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col items-center px-6 pt-16 pb-10 text-center">
+      <main className={`relative z-10 ${tpl.main}`}>
         {profile.logo_url && (
-          <div className="relative h-24 w-24 overflow-hidden rounded-full ring-2 ring-brand-bone/25">
+          <div className={tpl.avatar}>
             <Image
               src={profile.logo_url}
               alt={profile.display_name}
@@ -127,11 +133,9 @@ export default async function ArtistHubPage({
             />
           </div>
         )}
-        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-brand-bone">
-          {profile.display_name}
-        </h1>
+        <h1 className={tpl.name}>{profile.display_name}</h1>
         {(profile.location || profile.instagram_handle) && (
-          <div className="mt-1 flex items-center justify-center gap-2 text-sm text-brand-bone/65">
+          <div className={tpl.meta}>
             {profile.location && <span>{profile.location}</span>}
             {profile.location && profile.instagram_handle && (
               <span aria-hidden>·</span>
@@ -142,13 +146,13 @@ export default async function ArtistHubPage({
           </div>
         )}
         {!hasTextBlock && profile.bio && (
-          <p className="mt-3 max-w-sm text-sm leading-relaxed text-brand-bone/75">
-            {profile.bio}
-          </p>
+          <p className={tpl.bio}>{profile.bio}</p>
         )}
 
         {socials.length > 0 && (
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
+          <div
+            className={`mt-5 flex flex-wrap items-center gap-4 ${tpl.socials}`}
+          >
             {socials.map((s) => (
               <a
                 key={s.platform}
@@ -183,20 +187,14 @@ export default async function ArtistHubPage({
           {blocks.map((block) => {
             if (block.type === "headline") {
               return (
-                <p
-                  key={block.id}
-                  className="pt-2 text-base font-semibold text-brand-bone"
-                >
+                <p key={block.id} className={`pt-2 ${tpl.headline}`}>
                   {block.text}
                 </p>
               );
             }
             if (block.type === "text") {
               return (
-                <p
-                  key={block.id}
-                  className="text-sm leading-relaxed text-brand-bone/75"
-                >
+                <p key={block.id} className={tpl.text}>
                   {block.text}
                 </p>
               );
@@ -208,7 +206,7 @@ export default async function ArtistHubPage({
                 href={block.url}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="flex items-center justify-between gap-3 rounded-2xl bg-brand-bone px-5 py-4 text-sm font-medium text-brand-charcoal shadow-sm transition-transform hover:-translate-y-0.5"
+                className={`flex items-center justify-between gap-3 shadow-sm transition-transform hover:-translate-y-0.5 ${tpl.link}`}
               >
                 <span className="truncate">{block.label}</span>
                 <ExternalLink

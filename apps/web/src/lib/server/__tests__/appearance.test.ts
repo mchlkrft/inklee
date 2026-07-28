@@ -94,3 +94,37 @@ describe("surfaceAppearance entitlement boundary", () => {
     }
   });
 });
+
+describe("template entitlement (P2)", () => {
+  it("entitled: the chosen template resolves", async () => {
+    appearanceCustomAllowed.mockReturnValue(true);
+    const a = await surfaceAppearance(
+      "artist-1",
+      { appearance: { global: { template: "bold" } } },
+      "hub",
+    );
+    expect(a.resolved.template).toBe("bold");
+  });
+
+  it("NOT entitled: falls back to the clean Free layout, never a blank page", async () => {
+    appearanceCustomAllowed.mockReturnValue(false);
+    const a = await surfaceAppearance(
+      "artist-1",
+      { appearance: { global: { template: "editorial" } } },
+      "hub",
+    );
+    expect(a.resolved.template).toBe("clean");
+  });
+
+  it("a downgrade keeps the stored template for a later re-upgrade", async () => {
+    const settings = { appearance: { global: { template: "portfolio" } } };
+    appearanceCustomAllowed.mockReturnValue(false);
+    expect(
+      (await surfaceAppearance("a", settings, "hub")).resolved.template,
+    ).toBe("clean");
+    appearanceCustomAllowed.mockReturnValue(true);
+    expect(
+      (await surfaceAppearance("a", settings, "hub")).resolved.template,
+    ).toBe("portfolio");
+  });
+});
