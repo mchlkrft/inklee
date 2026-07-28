@@ -85,6 +85,32 @@ export async function productHasOrderReferences(
   }
   if ((direct ?? []).length > 0) return true;
 
+  // Booking interests count too (P5 decision, carried from the P0 review).
+  //
+  // The two levels disagreed: the variant reconcile already counted interests,
+  // while this product-level guard counted only paid order lines. So deleting
+  // a product that a client had picked and the artist had APPROVED silently
+  // dropped that line from checkout composition. The client sees an item they
+  // were told they could add simply vanish, with nothing explaining it.
+  //
+  // Counted at every status, like the variant reconcile, rather than only
+  // `available`: a pending interest is one artist click from being approved,
+  // and archiving instead of deleting costs the artist nothing (archived
+  // products do not count against the active-product cap, migration 0112).
+  const { data: interest, error: interestErr } = await serviceClient
+    .from("booking_interests")
+    .select("id")
+    .eq("product_id", productId)
+    .limit(1);
+  if (interestErr) {
+    Sentry.captureException(interestErr, {
+      tags: { action: "product_interest_ref_check" },
+      extra: { productId },
+    });
+    return true; // fail SAFE toward archiving, like every other leg here
+  }
+  if ((interest ?? []).length > 0) return true;
+
   const { data: variantIds, error: variantListErr } = await serviceClient
     .from("product_variants")
     .select("id")
@@ -113,5 +139,24 @@ export async function productHasOrderReferences(
     });
     return true;
   }
-  return (viaVariant ?? []).length > 0;
+  if ((viaVariant ?? []).length > 0) return true;
+
+  // The interest check by variant as well. The product-level check above
+  // catches the normal case, but `booking_interests.product_id` is nullable
+  // (the checkout allowlist skips rows without one), so a row that names only
+  // a variant would otherwise slip through both.
+  const { data: interestViaVariant, error: interestVariantErr } =
+    await serviceClient
+      .from("booking_interests")
+      .select("id")
+      .in("variant_id", ids)
+      .limit(1);
+  if (interestVariantErr) {
+    Sentry.captureException(interestVariantErr, {
+      tags: { action: "product_interest_ref_check_variant" },
+      extra: { productId },
+    });
+    return true;
+  }
+  return (interestViaVariant ?? []).length > 0;
 }

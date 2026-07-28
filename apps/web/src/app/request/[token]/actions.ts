@@ -1,6 +1,11 @@
 "use server";
 
 import { serviceClient } from "@/lib/supabase/service";
+import {
+  resolveOrderFee,
+  type FeeSyncResult,
+} from "@/lib/server/order-fee-sync";
+import { goodsBaseMinorFromLines } from "@inklee/shared/order-fees";
 import { bookingSchema } from "@/lib/booking-schema";
 import {
   sendArtistCancellationByCustomer,
@@ -369,8 +374,19 @@ export async function prepareCheckoutAction(
       .eq("booking_id", booking.id)
       .eq("status", "pending");
     try {
+      // The fee has to come back DOWN too (P5a). Emptying the basket after a
+      // prepare that added goods would otherwise leave the goods-lane fee on
+      // an intent that no longer carries any goods.
+      const intent = await stripe.paymentIntents.retrieve(intentId);
+      const fee = await resolveOrderFee({
+        artistId: booking.artist_id as string,
+        depositMinor: Math.round(depositAmount * 100),
+        goodsBaseMinor: 0,
+        intent,
+      });
       await stripe.paymentIntents.update(intentId, {
         amount: Math.round(depositAmount * 100),
+        application_fee_amount: fee.applicationFeeMinor,
         metadata: { ...baseMeta, order_id: "" },
       });
     } catch {
@@ -451,6 +467,34 @@ export async function prepareCheckoutAction(
     .eq("booking_id", booking.id)
     .eq("status", "pending");
 
+  // Platform fee across BOTH lanes (P5a). Until this existed the intent's
+  // amount rose with the goods while its application_fee_amount stayed at the
+  // deposit's, so every goods sale rode along at a 0% take. Computed before
+  // the insert so the order row records what was actually charged.
+  //
+  // Under the ACTIVE schedule the goods rate is 0%, so this changes no live
+  // number today; P7 flips the rates with accountant approval.
+  let fee: FeeSyncResult;
+  try {
+    const intent = await stripe.paymentIntents.retrieve(intentId);
+    fee = await resolveOrderFee({
+      artistId: booking.artist_id as string,
+      depositMinor: Math.round(depositAmount * 100),
+      // Today an order has no discounts, VAT or shipping, so the goods base is
+      // the product lines. goodsBaseMinorFromLines is where those deductions
+      // will be applied when they exist.
+      goodsBaseMinor: goodsBaseMinorFromLines(
+        computed.lines.map((l) => ({
+          type: "product",
+          totalMinor: Math.round(l.totalAmount * 100),
+        })),
+      ),
+      intent,
+    });
+  } catch {
+    return { error: "Could not prepare the payment. Try again." };
+  }
+
   const { data: order, error: orderErr } = await serviceClient
     .from("orders")
     .insert({
@@ -462,6 +506,9 @@ export async function prepareCheckoutAction(
       deposit_amount: depositAmount,
       goods_amount: computed.goodsAmount,
       subtotal_amount: subtotal,
+      platform_fee_amount: fee.applicationFeeMinor / 100,
+      fee_schedule_version: fee.scheduleVersion,
+      goods_fee_amount: fee.goodsFeeMinor / 100,
       currency: "eur",
     })
     .select("id")
@@ -505,6 +552,9 @@ export async function prepareCheckoutAction(
   try {
     await stripe.paymentIntents.update(intentId, {
       amount: Math.round(subtotal * 100),
+      // Absolute, never a delta: re-preparing the basket must converge, not
+      // accumulate.
+      application_fee_amount: fee.applicationFeeMinor,
       metadata: { ...baseMeta, order_id: orderId },
     });
   } catch {

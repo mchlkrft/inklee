@@ -124,3 +124,56 @@ describe("productHasOrderReferences", () => {
     expect(await productHasOrderReferences("p-1")).toBe(true);
   });
 });
+
+// P5 decision (carried from the P0 review): the product-level guard now counts
+// booking_interests, matching the variant reconcile, which always did. Before
+// this, deleting a product a client had picked and the artist had APPROVED
+// silently dropped that line from checkout composition.
+describe("productHasOrderReferences and booking interests", () => {
+  it("archives when an approved interest references the product", async () => {
+    serviceTables.order_items = [];
+    serviceTables.booking_interests = [{ id: "i1" }];
+    expect(await productHasOrderReferences("p1")).toBe(true);
+  });
+
+  it("archives when a PENDING interest references it, not just an approved one", async () => {
+    // A pending interest is one artist click from approved, and archiving
+    // instead of deleting costs nothing (archived products are outside the cap).
+    serviceTables.order_items = [];
+    serviceTables.booking_interests = [{ id: "i-pending" }];
+    expect(await productHasOrderReferences("p1")).toBe(true);
+  });
+
+  it("archives when an interest names only a VARIANT of the product", async () => {
+    // booking_interests.product_id is nullable, so a variant-only row would
+    // otherwise slip past both the product and the order-line checks.
+    serviceTables.order_items = [];
+    serviceTables.booking_interests = [];
+    serviceTables.product_variants = [{ id: "v1" }];
+    let call = 0;
+    const original = serviceTables.booking_interests;
+    Object.defineProperty(serviceTables, "booking_interests", {
+      configurable: true,
+      get() {
+        // First read is the product-level check (empty), second is by variant.
+        call += 1;
+        return call >= 2 ? [{ id: "i2" }] : original;
+      },
+    });
+    expect(await productHasOrderReferences("p1")).toBe(true);
+    delete (serviceTables as Record<string, unknown>).booking_interests;
+  });
+
+  it("still deletes when nothing references the product at all", async () => {
+    serviceTables.order_items = [];
+    serviceTables.booking_interests = [];
+    serviceTables.product_variants = [];
+    expect(await productHasOrderReferences("p1")).toBe(false);
+  });
+
+  it("fails SAFE toward archiving when the interest read errors", async () => {
+    serviceTables.order_items = [];
+    serviceErrors.booking_interests = { message: "db down" };
+    expect(await productHasOrderReferences("p1")).toBe(true);
+  });
+});

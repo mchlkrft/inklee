@@ -14,6 +14,7 @@ import {
   type PaidOrderItem,
 } from "@/lib/order-fulfillment";
 import { createNotification } from "@/lib/notifications";
+import { ACTIVE_FEE_SCHEDULE_VERSION } from "@inklee/shared/fee-schedule";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { customerLabel } from "@/lib/booking-domain";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
@@ -247,6 +248,107 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true });
   }
 
+  // Payment disputes (Plus build P5a). Until now `charge.dispute.*` reached NO
+  // Inklee code path at all: a chargeback on an Inklee-collected deposit was
+  // invisible to the artist and to us, and the first anyone knew of it was a
+  // balance that did not add up.
+  //
+  // What this does NOT do is move money. The approved policy retains the
+  // platform fee on a dispute only "where legally and contractually
+  // permitted", which is not something a webhook can evaluate, so the fee
+  // treatment is deliberately left as a decision (see fee-refund-policy.ts)
+  // rather than automated into a guess. Recording it and telling the artist is
+  // the whole job here.
+  if (event.type.startsWith("charge.dispute.")) {
+    const dispute = event.data.object as Stripe.Dispute;
+    const intentId =
+      typeof dispute.payment_intent === "string"
+        ? dispute.payment_intent
+        : (dispute.payment_intent?.id ?? null);
+    if (!intentId) return NextResponse.json({ received: true });
+
+    const { data: booking } = await serviceClient
+      .from("booking_requests")
+      .select("id, artist_id, customer_email, customer_handle")
+      .eq("deposit_payment_intent_id", intentId)
+      .single();
+    if (!booking) return NextResponse.json({ received: true });
+
+    // Idempotent per dispute AND per status: Stripe redelivers, and one
+    // dispute legitimately moves through several statuses (needs_response ->
+    // under_review -> won/lost), each of which is worth its own row. Keyed on
+    // both so a redelivery of the same status logs once.
+    const action = `dispute_${dispute.status}`;
+    const { data: existing } = await serviceClient
+      .from("audit_log")
+      .select("id")
+      .eq("booking_id", booking.id)
+      .eq("action", action)
+      .contains("details", { dispute_id: dispute.id })
+      .limit(1);
+    if ((existing ?? []).length > 0) {
+      return NextResponse.json({ received: true, skipped: true });
+    }
+
+    await serviceClient.from("audit_log").insert({
+      booking_id: booking.id,
+      action,
+      details: {
+        via: "stripe_webhook",
+        dispute_id: dispute.id,
+        payment_intent_id: intentId,
+        status: dispute.status,
+        reason: dispute.reason,
+        currency: dispute.currency,
+        amount_minor: dispute.amount,
+        // The response deadline is the single most time-critical fact here.
+        evidence_due_by: dispute.evidence_details?.due_by ?? null,
+      },
+    });
+
+    // Notify only when the artist can still act or when it is resolved.
+    // Intermediate statuses would be noise on something already alarming.
+    const notifiable =
+      dispute.status === "needs_response" ||
+      dispute.status === "lost" ||
+      dispute.status === "won";
+    if (notifiable) {
+      const who = customerLabel(
+        booking.customer_handle,
+        booking.customer_email,
+        "A client",
+      );
+      const amount = `${dispute.currency.toUpperCase()} ${(dispute.amount / 100).toFixed(2)}`;
+      // `system_warning` rather than a new notification type: the mobile wire
+      // is additive-only and installed builds switch on this union, so a new
+      // value would reach devices that cannot render it.
+      await createNotification({
+        artistId: booking.artist_id as string,
+        type: "system_warning",
+        category: "booking_activity",
+        priority: dispute.status === "needs_response" ? "critical" : "high",
+        title:
+          dispute.status === "needs_response"
+            ? "Payment disputed"
+            : dispute.status === "won"
+              ? "Payment dispute resolved in your favour"
+              : "Payment dispute lost",
+        message:
+          dispute.status === "needs_response"
+            ? `${who} disputed their ${amount} payment through their bank. Stripe will be in touch about evidence.`
+            : dispute.status === "won"
+              ? `The ${amount} dispute was decided in your favour.`
+              : `The ${amount} dispute was decided against you and the money has been returned to the client.`,
+        ctaLabel: "View booking",
+        ctaHref: `/bookings/requests/${booking.id}`,
+        metadata: { booking_id: booking.id, dispute_id: dispute.id },
+      });
+    }
+
+    revalidateBookingViews(booking.id);
+    return NextResponse.json({ received: true });
+  }
+
   // P1-1: record a failed deposit card attempt for visibility (a declined card
   // otherwise leaves the booking silently in deposit_pending). Best-effort audit
   // only — no notification, since a card can be retried several times and we
@@ -477,6 +579,17 @@ export async function POST(request: Request) {
           updated_at: now,
           deposit_payment_intent_id: intent.id,
           customer_token_hash: newHash,
+          // Fee actuals (P5a). Recorded in the SAME atomic flip that marks the
+          // deposit paid, so a fee can never exist without its payment or a
+          // payment without its fee. `application_fee_amount` is Stripe's own
+          // number rather than a recomputation: what Inklee actually took is
+          // what Stripe says it took.
+          //
+          // For a combined deposit + goods payment this is the TOTAL across
+          // both lanes; the goods half is separately recorded on the order row
+          // by the prepare step, so the appointment half stays derivable.
+          platform_fee_collected_cents: intent.application_fee_amount ?? 0,
+          fee_schedule_version: ACTIVE_FEE_SCHEDULE_VERSION,
         })
         .eq("id", bookingId)
         .eq("status", "deposit_pending")
