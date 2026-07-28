@@ -107,17 +107,19 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
       "Full palette, curated font library, background images per surface, button styles, orderable sections",
     legacyBehavior: "none",
     scope: "artist",
-    serverEnforcement: "partial", // cover_color/cover_image sanitized+stored; everything else absent
-    databaseEnforcement: "absent",
-    frontendBehavior: "partial", // cover color+image render; form dark/light exists as DEAD CODE
-    mobileSupport: "partial", // hub editor has native twin; no appearance editor anywhere
-    downgradeBehavior: "Reverts to presets; stored appearance retained",
+    serverEnforcement: "partial", // P1a: model + resolver + `appearance_custom` gate live and enforced at render; only the hub surface wired so far
+    databaseEnforcement: "exists", // settings.appearance JSONB, parser-validated (closed vocabularies, http-only URLs)
+    frontendBehavior: "partial", // hub consumes the tokens; 5 surfaces + both editors remain (P1b)
+    mobileSupport: "absent", // native editor is P1b
+    downgradeBehavior:
+      "Drops ONLY the custom layer (typography, buttons, per-surface overrides); theme + preset accent + background survive as Free features, so a downgrade never blanks a page. Stored config retained for re-upgrade.",
     feeImpact: "none",
-    analyticsEvents: "appearance_changed (required)",
+    analyticsEvents: "appearance_changed (required, P1b with the editor)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
-    operationalState: "unbuilt (keystone: the shared appearance system)",
-    testCoverage: "absent",
+    operationalState:
+      "P1a foundation shipped dark (capability parked; emits zero css vars until an artist customizes)",
+    testCoverage: "exists", // 23 tests: parser incl. hostile input, override precedence, entitlement boundary, fail-safe
     launchReadiness: "build",
   },
   {

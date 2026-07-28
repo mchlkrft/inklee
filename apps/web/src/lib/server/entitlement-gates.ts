@@ -28,6 +28,18 @@ export function brandingRemoved(overrides: AccountOverrides): boolean {
   return !isCapabilityDisabled("branding") && canAccess(overrides, "branding");
 }
 
+/** GRANT (like branding): true => the artist gets the CUSTOM appearance layer
+ *  (typography, button treatment, per-surface overrides, non-preset accents).
+ *  Paused => everyone renders the Free appearance, which is exactly today's
+ *  behaviour, so pausing is visually inert. Free artists keep their preset
+ *  cover color, cover image and theme either way. */
+export function appearanceCustomAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("appearance_custom") &&
+    canAccess(overrides, "appearance_custom")
+  );
+}
+
 /** RESTRICTION: true => the artist may EDIT custom email-template bodies.
  *  Paused => true for everyone. Existing bodies always keep SENDING regardless;
  *  only editing is gated. */

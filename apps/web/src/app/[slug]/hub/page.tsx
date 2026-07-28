@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CalendarCheck, ExternalLink } from "lucide-react";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicBrandingHidden } from "@/lib/server/public-branding";
+import { surfaceAppearance } from "@/lib/server/appearance";
 import { parseBioPageSettings, BIO_SOCIAL_META } from "@/lib/bio-page-settings";
 import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import { apexHref, publicArtistUrl, publicHubUrl } from "@/lib/public-url";
@@ -74,15 +75,28 @@ export default async function ArtistHubPage({
   const coverColor = resolveCoverColor(settings.cover_color);
   const bookingUrl = publicArtistUrl(slug);
 
-  const pageStyle: React.CSSProperties = coverImage
-    ? {
-        backgroundImage: `url(${coverImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }
-    : coverColor
-      ? { backgroundColor: coverColor }
-      : {};
+  // Shared appearance system (Plus build P1). Emits nothing when the artist
+  // customized nothing, so an unconfigured hub renders byte-identically to
+  // before; the legacy cover fields are read through by the parser, so a Free
+  // artist's existing look is unchanged either way.
+  const appearance = await surfaceAppearance(
+    profile.id as string,
+    settings,
+    "hub",
+  );
+
+  const pageStyle: React.CSSProperties = {
+    ...(coverImage
+      ? {
+          backgroundImage: `url(${coverImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }
+      : coverColor
+        ? { backgroundColor: coverColor }
+        : {}),
+    ...(appearance.cssVars as React.CSSProperties),
+  };
 
   // Footer links leave the artist namespace for apex-only routes, so they
   // must be host-aware. The hub renders on THREE hosts (apex path,
@@ -94,6 +108,7 @@ export default async function ArtistHubPage({
 
   return (
     <div
+      data-appearance={appearance.theme}
       className="relative flex min-h-screen flex-col bg-brand-charcoal text-brand-bone"
       style={pageStyle}
     >

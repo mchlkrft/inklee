@@ -31,6 +31,7 @@ const FEATURE_LABELS: Record<EntitlementFeature, string> = {
   extra_fields: "Extra custom fields",
   extra_trips: "Extra trips / studios",
   analytics: "Personal analytics",
+  appearance_custom: "Custom appearance",
 };
 
 // Mirrors the artist-facing labels on /settings/payouts so admin and artist

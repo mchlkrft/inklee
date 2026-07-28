@@ -54,6 +54,11 @@ export const ENTITLEMENT_FEATURES = [
   "extra_fields",
   "extra_trips",
   "analytics",
+  // The shared appearance system (Plus build P1): custom colors, curated
+  // typography, button treatment, background images, per-surface overrides.
+  // Free keeps the preset cover color + cover image it has today, which the
+  // appearance parser reads through, so a Free artist loses nothing.
+  "appearance_custom",
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 
