@@ -112,3 +112,37 @@ The audit refuses to mark a feature paid merely because it looks advanced. Each 
 - **Goods add-ons are a transaction feature, not a hard Plus gate**, because the ability to sell to an already-converting buyer is a revenue behavior a free artist would gladly pay a per-transaction fee for; reserving inventory, unlimited variants, and sales analytics as the Plus or Studio entitlement is the right split. The 0% goods take must be fixed first.
 
 Features that must stay Free and why: the public page, the form, the request FSM, calendar, waitlist, books and slots, manual deposits, client notes, the customer portal, transactional emails and reminders, flash, the bio hub, map browsing, and support. They are acquisition, activation, core retention, trust and safety, and network supply. Paywalling any of them suppresses the top of the funnel or breaks booking safety.
+
+---
+
+## 4. Confirmed package deltas (2026-07-28, the full-package directive)
+
+The founder confirmed the complete Plus package on 2026-07-28; product SoT =
+`docs/product/plus-product-spec.md`. This section records what changes in this
+matrix. The base matrix above remains correct for everything it covers; these
+rows extend or supersede it. (New entitlement keys here are (proposed) until
+the canonical capability registry lands.)
+
+| Feature | Entitlement key | Free | Plus | Notes |
+| --- | --- | --- | --- | --- |
+| Linkhub layout templates (Clean, Portfolio, Bold, Editorial) | `page_templates` (proposed) | one fixed layout | four templates | new build |
+| Custom colors, curated typography, background image, button styles, section layouts | `appearance_custom` (proposed) | presets only | full | via the SHARED appearance system (spec section 8), one config consumed by hub, artist page, booking form, large-project intake, goods shop, guest-spot surfaces |
+| Custom SEO title and description | `page_seo` (proposed) | default | custom | |
+| Linkhub analytics (views, link clicks, CTR, sources, conversions, 12mo detail + lifetime aggregates) | `analytics` (existing key, widened) | **none** | full | becomes part of the wider Plus insights system; event retention defined separately from aggregate retention |
+| Booking-form customization (custom colors, templates, cover image, branding removal, custom confirmation page, form email templates, custom slug) | `form_custom` (proposed) | preset themes + logo | full | ONE primary form stays the model |
+| Conditional booking-form questions | `form_conditional` (proposed) | no | yes | |
+| Large-project mode (long-term project record + lifecycle) | `large_projects` (proposed) | no | yes | Plus-only intake mode; smallest coherent v1 first; NOT a duplicate booking system |
+| Goods selling (physical only) | `goods_module` | **yes, 3 active products** | 25 active products | goods are NOT Plus-only; archived exempt from cap; records never deleted on downgrade |
+| Goods Plus tools (variants, inventory, preorders, scheduled drops, discounts, bundles, collections, shop customization, sales analytics) | `goods_tools` (proposed) | no | yes | drops are the headline tattoo-scene feature |
+| Goods platform fee | fee, not entitlement | **5%** | **1%** | on subtotal after discounts, ex VAT and shipping; SUPERSEDES D22; fee schedule version stored per transaction |
+| Deposit platform fee | fee, not entitlement | **3%** | **0.5%** | SUPERSEDES OQ-7 flat-3%; only on deposits actually collected through Inklee |
+| Fee-savings dashboard | `savings_dashboard` (proposed) | prompts in billing/revenue surfaces only | full dashboard | claims only from actual eligible transaction data |
+| Custom domains | out of v1 | no | post-launch extension | audit + recommendation only for now |
+
+**Tension recorded, not resolved:** section 3 above argues "card deposits are
+Plus, not Free" on the Custom-Connect cost basis (~2 EUR/month per active
+connected account). The confirmed fee table gives Free a 3% deposit rate,
+which only has meaning if Free artists can collect card deposits, and which
+would put the Connect account cost on Inklee for every active Free depositor.
+Returned to the founder as an explicit flag (spec section 10); neither this
+matrix nor the spec silently resolves it.

@@ -37,10 +37,19 @@ does this account have X" must be answerable from the resolution result alone
 (base posture + which grant), never from scattered account-age or created-at
 checks.
 
-## 2. Minimum sellable Plus v1 (provisional, founder 2026-07-28)
+## 2. Minimum sellable Plus v1 (SUPERSEDED same day by the full-package directive)
 
-Provisional until the legacy-usage dry run (§3) is reviewed; the caps table is
-subject to that review by explicit founder instruction.
+> **SUPERSEDED 2026-07-28 (later the same day):** the founder confirmed the
+> FULL Plus package and a full-package launch posture: no reduced v1, no
+> coming-soon promises. The complete package definition now lives in
+> **`docs/product/plus-product-spec.md`** (positioning, Inklee page + 4
+> templates, shared appearance system, booking-form customization,
+> large-project mode, Linkhub analytics, goods + fee differentiation, savings
+> dashboard, refund-fee policy). The boundaries below remain useful as the
+> per-capability enforcement bars (the branding/templates/analytics/caps
+> sections still describe what "enforced" means), but the LAUNCH SCOPE is the
+> spec's §15 package, not this minimum. The caps table below keeps its
+> conflict flag: still provisional, still awaiting the founder's caps ruling.
 
 ### Branding
 

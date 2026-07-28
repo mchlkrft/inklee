@@ -251,3 +251,30 @@ flowchart TD
 ```
 
 The diagram encodes the strategy: account creation is the main conversion goal, the map and claim flow are the studio-owner top of funnel, transaction revenue (deposits and goods) is the low-friction base, and subscriptions (Plus then Studio) are the recurring and expansion layers on top.
+
+---
+
+## Update 2026-07-28: the confirmed Plus package changes this map
+
+The founder's full-package directive (product SoT
+`docs/product/plus-product-spec.md`, ratified in `DECISIONS.md` 2026-07-28)
+supersedes parts of the mapping above:
+
+- **The revenue model gains a second per-transaction lane.** Goods selling is
+  confirmed for FREE artists (3 active products) with a platform fee of Free
+  5% / Plus 1% on the subtotal after discounts ex VAT and shipping; the old
+  D22 goods model (5% + 3% card fee) is superseded. Goods stop being a parked
+  "maybe" and become part of the sellable package.
+- **Deposit fee differentiates by tier**: Free 3% / Plus 0.5%, superseding the
+  flat-3% OQ-7 ratification. Fee savings become the measurable proof of Plus
+  value (message hierarchy: presentation, efficiency, savings), surfaced in a
+  Plus savings dashboard.
+- **Plus identity shifts from "polish on a complete free workflow" to a
+  package**: appearance system + page templates + booking-form customization +
+  large-project mode + Linkhub analytics + goods tools + fee advantages. The
+  section above that frames Plus as low-risk conversion levers understates the
+  confirmed scope.
+- **Launch posture: full package only.** No reduced v1, no coming-soon.
+- **Open economics question (explicit, unresolved):** the "card deposits are
+  Plus because Connect costs ~2 EUR/month per active account" argument
+  collides with a Free 3% deposit rate. Flagged to the founder in the spec.
