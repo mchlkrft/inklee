@@ -23,6 +23,10 @@ const REQUIRED = {
     "proration_policy_approved",
     "consumer_refund_creditnote_tested",
     "consumer_pricing_display_approved",
+    // The founder-recorded go-live decision (2026-07-28): compliance says
+    // sales are allowed, this key says they are ON. Keep in lockstep with
+    // REQUIRED_APPROVAL_KEYS in apps/web/src/lib/server/billing/config.ts.
+    "consumer_sales_launch_approved",
   ],
 };
 

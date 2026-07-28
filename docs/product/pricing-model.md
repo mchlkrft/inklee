@@ -1,6 +1,17 @@
 # Inklee pricing model (consolidated handoff)
 
-**Date:** 2026-07-25. **Owner:** founder (Michel Kraeft). **Compiled by:** engineering.
+**Date:** 2026-07-25, status sections corrected 2026-07-28. **Owner:** founder (Michel Kraeft). **Compiled by:** engineering.
+
+> **How to read status in this document (convention added 2026-07-28):** every
+> factual claim belongs to exactly one of these classes, and the class is named
+> where ambiguity is possible. **Proposed** = a recommendation nobody has
+> ratified. **Approved** = ratified by the named owner (founder / counsel /
+> accountant), with the date. **Test-mode configuration** = Stripe test-mode
+> objects, never chargeable. **Production configuration** = live-mode objects.
+> **Gate state** = what `scripts/billing/gate-status.cjs` prints against the
+> production database at the stated date; the script is the source of truth and
+> this document is a snapshot that goes stale. **Historical note** = true when
+> written, kept for context, not current fact.
 **Purpose:** the single overview of what Inklee charges, what each price buys, what
 each stream nets, which pricing questions are still open, what each depends on, and
 a direct recommendation per open question. Everything here is sourced from
@@ -31,7 +42,7 @@ Inklee is the seller only for the subscription.
 | # | Item | Price | Billing | Status |
 |---|---|---|---|---|
 | 1 | Free Starter | 0 EUR | n/a | **Live** (is the product today) |
-| 2 | Inklee Plus, monthly | **3.00 EUR/month, final price (no VAT added)** | Monthly, auto-renews, cancel any time, 14-day withdrawal | **Built, dark** (no live Stripe Price; gate b2c 1/7; `PLUS_CONSUMER_LAUNCH_ENABLED=false`) |
+| 2 | Inklee Plus, monthly | **3.00 EUR/month, final price (no VAT added)** (approved: founder ratified 2026-07-25) | Monthly, auto-renews, cancel any time, 14-day withdrawal | **Built, dark, launch HELD by founder decision 2026-07-28.** Production configuration exists (live Price via lookup `inklee_plus_monthly_eur` since 2026-07-25). Compliance gate: see §6. Sales stay off until the commercial-readiness gate passes and the founder records `consumer_sales_launch_approved` |
 | 3 | Inklee Plus, yearly | 24 EUR first year, then 30 EUR/year | Yearly, auto-renews | **Built + enabled 2026-07-25** (counsel approved yearly billing; Prices `inklee_plus_yearly_eur` live in both modes, 30/year inclusive + auto first-year coupon `inklee-plus-yearly-first-year` 6 off once; `PLUS_YEARLY_ENABLED=true`; follow-up: renewal-reminder email due before the first renewals, mid-2027) |
 | 4 | Founder window | First N subscribers at 24 EUR/year (~2 EUR/mo) | Via Stripe promotion code + `max_redemptions` | Mechanic resolved 2026-07-23; **N and window end open** (business-model.md recommends first 100) |
 | 5 | Studio tier | ~25 EUR/month flat per studio (not per-seat, D7) | Monthly | **Teaser only.** Not priced, not built; gated on Q8 + ≥5 inbound studio inquiries |
@@ -39,9 +50,13 @@ Inklee is the seller only for the subscription.
 | 7 | Goods take (parked) | Decided D22: 5% platform fee + 3% card fee on card-paid goods; pickup-only free | Per transaction | Parked behind `GOODS_COMMERCE_ENABLED`; **currently coded at 0% take — must be fixed before unparking** |
 | 8 | Fee sponsorship | Admin waives Inklee's 3% per artist, optional expiry + budget cap (`fee_sponsor_cap_cents`, null = unlimited) | Per artist | Live; all-or-nothing per deposit; release only against settlement-booked amounts (migration 0100) |
 
-Price identity in code: the ONLY price reference is the Stripe lookup key
-`inklee_plus_monthly_eur_test` (`settings/plan/actions.ts:21`). **No EUR amount
-exists anywhere in code**; the amount lives in Stripe + the (unseeded)
+Price identity in code (corrected 2026-07-28; the earlier `_test` lookup key
+here was a historical note that had gone stale): prices are resolved by the
+stable lookup keys `inklee_plus_monthly_eur` and `inklee_plus_yearly_eur`
+(`lookupKeyForInterval`, `lib/server/billing/subscription.ts`). Both test-mode
+and production configurations carry a Price under each key since 2026-07-25;
+the same code path resolves whichever mode the running key belongs to. **No EUR
+amount exists anywhere in code**; the amount lives in Stripe + the (unseeded)
 `pricing_plans.marketing_display_minor` column. Billing is **web-only** (D17, no
 Apple/Google IAP).
 
@@ -114,22 +129,31 @@ cover fixed infra.
 
 ## 6. Launch state (what blocks a real charge)
 
-Gate (additive; prod is always live-mode): **technical 4/4 · b2b 4/7 · b2c 1/7.**
-The launch gate is the **b2c set** (D1). Remaining b2c keys:
+**Gate state as of 2026-07-28** (source of truth: `scripts/billing/gate-status.cjs`
+against production; this is a snapshot): **technical 4/4 · b2b 7/7 · b2c 7/8.**
+All 18 compliance keys were recorded by 2026-07-26 and every version-bound
+artifact still resolves (validated by `scripts/legal/verify-legal-artifacts.cjs`,
+green 2026-07-28).
 
-| Key | Owner | State |
-|---|---|---|
-| `consumer_withdrawal_copy_approved` | Counsel | **Answered APPROVED 2026-07-24** subject to conditions; needs recording (version-bound) after the condition edits are confirmed |
-| `proration_policy_approved` | Counsel + accountant | Counsel confirmed; **accountant co-sign pending** |
-| `withdrawal_function_operational` | Eng | Ready to record after deploy |
-| `durable_confirmation_operational` | Eng | Ready to record after deploy |
-| `consumer_refund_creditnote_tested` | Eng | **Built 2026-07-24/25** (credit-note tax snapshot on withdrawal refund); record after deploy |
-| `consumer_pricing_display_approved` | Founder + accountant | **Open — see OQ-1** |
-| `consumer_classification_approved` | Counsel | ✅ recorded |
+The open key is deliberate. `consumer_sales_launch_approved` (added 2026-07-28)
+is the founder's recorded go-live decision, distinct from compliance: the 18
+keys say consumer sales are *allowed*, this one says they are *on*. The server
+asserts the full b2c set before creating any Stripe checkout object, so consumer
+billing is refused server-side regardless of `PLUS_CONSUMER_LAUNCH_ENABLED`
+(which is UI visibility only, not a billing control).
 
-Plus: a **live Stripe Price** (`stripe_prod_verified`), the `invoice_config_approved`
-accountant key (gated on the C7/A2 registration answer), then flip
-`PLUS_CONSUMER_LAUNCH_ENABLED` (re-rolls the Terms hash → quick counsel re-confirm).
+**Launch is HELD by founder decision 2026-07-28** pending the commercial-readiness
+gate: Plus must actually deliver its marketed package before it is sold. The
+blocking facts at the time of the decision: `branding` (the one grant-shaped
+Plus capability, and the Terms §11 headline perk) is parked in production
+`DISABLED_CAPABILITIES`; the other three marketed capabilities are
+restriction-shaped and currently permissive for every free account, so Plus
+buys almost nothing distinct. See `DECISIONS.md` (2026-07-28 row) and the
+commercial-readiness gate for the full launch criteria.
+
+The historical per-key table that stood here (b2c 1/7, owners, pending
+recordings) described the 2026-07-25 state and is superseded by the recorded
+approvals; consult `gate-status.cjs` output rather than any table in a doc.
 Counsel's four launch-blocking conditions: (1) credit-note flow finished — **done in
 code**; (2) durable confirmation restates the immediate-start consent — **done in
 code**; (3) price-adjacent-to-pay-button — **waiting on OQ-1**; (4) § 312k

@@ -126,3 +126,62 @@ describe("activation gate (server reader)", () => {
     await expect(assertLiveBillingAllowedFor("b2b")).rejects.toThrow(/boom/);
   });
 });
+
+describe("the launch decision is a DB approval, not a code constant", () => {
+  // Founder direction 2026-07-28: "a hidden pricing button is not a billing
+  // control". The full COMPLIANCE set (the 18 keys recorded 2026-07) must NOT
+  // open consumer sales by itself; the founder's recorded
+  // consumer_sales_launch_approved row is the go-live control. Nothing in this
+  // test touches PLUS_CONSUMER_LAUNCH_ENABLED, which is exactly the point:
+  // the constant does not appear anywhere in the money path.
+  const FULL_COMPLIANCE_SET = [
+    row("schema_deployed", "technical"),
+    row("webhook_tested", "technical"),
+    row("reconciliation_tested", "technical"),
+    row("isolation_tested", "technical"),
+    row("tax_policy_approved", "b2b"),
+    row("business_declaration_approved", "b2b"),
+    row("terms_approved", "b2b"),
+    row("invoice_config_approved", "b2b"),
+    row("pricing_display_approved", "b2b"),
+    row("stripe_prod_verified", "b2b"),
+    row("refund_handling_tested", "b2b"),
+    row("consumer_classification_approved", "b2c"),
+    row("consumer_withdrawal_copy_approved", "b2c"),
+    row("withdrawal_function_operational", "b2c"),
+    row("durable_confirmation_operational", "b2c"),
+    row("proration_policy_approved", "b2c"),
+    row("consumer_refund_creditnote_tested", "b2c"),
+    row("consumer_pricing_display_approved", "b2c"),
+  ];
+
+  it("refuses consumer billing on the full compliance set alone (18/18 is not launch)", async () => {
+    forceLiveMode();
+    selectMock.mockResolvedValue({ data: FULL_COMPLIANCE_SET, error: null });
+    await expect(assertLiveBillingAllowedFor("b2c")).rejects.toBeInstanceOf(
+      BillingActivationError,
+    );
+    const r = await evaluateLiveBilling("b2c");
+    expect(r.allowed).toBe(false);
+    expect(r.missing).toContain("consumer_sales_launch_approved");
+  });
+
+  it("opens only once the founder's launch approval row is recorded", async () => {
+    forceLiveMode();
+    selectMock.mockResolvedValue({
+      data: [
+        ...FULL_COMPLIANCE_SET,
+        row("consumer_sales_launch_approved", "b2c"),
+      ],
+      error: null,
+    });
+    await expect(assertLiveBillingAllowedFor("b2c")).resolves.toBeUndefined();
+  });
+
+  it("leaves the b2b group untouched (the launch key is consumer-only)", async () => {
+    forceLiveMode();
+    selectMock.mockResolvedValue({ data: FULL_COMPLIANCE_SET, error: null });
+    const r = await evaluateLiveBilling("b2b");
+    expect(r.allowed).toBe(true);
+  });
+});

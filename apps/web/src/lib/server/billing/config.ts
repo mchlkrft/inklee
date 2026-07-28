@@ -52,5 +52,16 @@ export const REQUIRED_APPROVAL_KEYS: Record<ApprovalGroup, string[]> = {
     "proration_policy_approved", // accountant + counsel
     "consumer_refund_creditnote_tested", // eng
     "consumer_pricing_display_approved", // founder + accountant
+    // The LAUNCH DECISION itself, founder-recorded (2026-07-28 direction: "a
+    // hidden pricing button is not a billing control"). The seven keys above
+    // say consumer sales are ALLOWED; this one says they are ON. Without it
+    // the b2c gate stays closed server-side, so a direct action call, a stale
+    // client, a replayed request, or an accidentally-true
+    // PLUS_CONSUMER_LAUNCH_ENABLED cannot create a live consumer contract:
+    // createSubscriptionCheckout asserts this group before any Stripe object.
+    // The UI constant remains VISIBILITY only. Statutory paths (withdrawal,
+    // cancellation) and webhooks never assert the gate, so closing it cannot
+    // strand an existing subscriber's rights.
+    "consumer_sales_launch_approved", // founder (the go-live decision)
   ],
 };
