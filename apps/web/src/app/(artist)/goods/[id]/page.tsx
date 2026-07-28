@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { goodsSchedulingAllowed } from "@/lib/server/entitlement-gates";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -11,6 +13,15 @@ import {
 } from "@/lib/goods";
 import ProductForm, { type ProductFormValues } from "../product-form";
 import DeleteProductButton from "../delete-product-button";
+
+/** UTC timestamptz -> the "YYYY-MM-DDTHH:mm" a datetime-local input expects,
+ *  in the viewer's local time. */
+function toDateTimeLocal(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 type RawProduct = {
   id: string;
@@ -24,6 +35,9 @@ type RawProduct = {
   status: string;
   pickup_note: string | null;
   quantity: number | null;
+  available_from: string | null;
+  preorder: boolean | null;
+  low_stock_threshold: number | null;
   is_public_visible: boolean;
   is_checkout_addon: boolean;
 };
@@ -49,12 +63,23 @@ export default async function EditProductPage({
   const { data: rawProduct } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon, available_from, preorder, low_stock_threshold",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
     .single();
   if (!rawProduct) notFound();
+
+  // Drops, preorders and stock alerts are Plus (P5c). Presentation only: the
+  // save action strips the values server-side regardless.
+  let schedulingEntitled = false;
+  try {
+    schedulingEntitled = goodsSchedulingAllowed(
+      await getAccountOverrides(user!.id),
+    );
+  } catch {
+    schedulingEntitled = false;
+  }
   const row = rawProduct as unknown as RawProduct;
 
   // Only active variants surface in the edit list — hidden ones are
@@ -87,6 +112,17 @@ export default async function EditProductPage({
     isPublicVisible: row.is_public_visible,
     isCheckoutAddon: row.is_checkout_addon,
     imageUrl: row.image_url,
+    // Drops (P5c). datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time; the
+    // column is a UTC timestamptz, so it is converted rather than sliced, or
+    // an artist in CEST would see their 18:00 drop as 16:00.
+    availableFrom: row.available_from
+      ? toDateTimeLocal(row.available_from)
+      : "",
+    preorder: row.preorder === true,
+    lowStockThreshold:
+      row.low_stock_threshold !== null && row.low_stock_threshold !== undefined
+        ? String(row.low_stock_threshold)
+        : "",
     imageUrls: Array.isArray(row.image_urls)
       ? row.image_urls
       : row.image_url
@@ -122,7 +158,11 @@ export default async function EditProductPage({
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Edit product
       </h1>
-      <ProductForm product={product} variants={variants} />
+      <ProductForm
+        product={product}
+        variants={variants}
+        schedulingEntitled={schedulingEntitled}
+      />
       <div className="max-w-2xl border-t border-border pt-6">
         <DeleteProductButton id={row.id} />
       </div>

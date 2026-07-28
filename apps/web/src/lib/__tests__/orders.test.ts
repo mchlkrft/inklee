@@ -205,3 +205,56 @@ describe("computeAddonLines", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+// Gate 3 of 3 for drops (P5c). The catalogue already filters upcoming products
+// out, so reaching the composer means a stale basket held across the drop time
+// or a crafted payload. A drop that can be beaten by keeping a tab open is not
+// a drop, which is why this gate exists at all.
+describe("computeAddonLines and drops", () => {
+  const NOW = Date.parse("2026-07-15T12:00:00Z");
+  const dropping: AddonProduct = {
+    ...print,
+    id: "p-drop",
+    title: "Limited print",
+    availableFrom: "2026-08-01T18:00:00Z",
+    preorder: false,
+  };
+
+  it("refuses a product whose drop has not arrived", () => {
+    const r = computeAddonLines(
+      [dropping],
+      [{ productId: "p-drop", variantId: null, quantity: 1 }],
+      NOW,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("hasn't dropped yet");
+  });
+
+  it("allows it once the drop time has passed", () => {
+    const r = computeAddonLines(
+      [dropping],
+      [{ productId: "p-drop", variantId: null, quantity: 1 }],
+      Date.parse("2026-08-02T00:00:00Z"),
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("allows it before the drop when preorder is on", () => {
+    const r = computeAddonLines(
+      [{ ...dropping, preorder: true }],
+      [{ productId: "p-drop", variantId: null, quantity: 1 }],
+      NOW,
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  // Every product that existed before drops has no availableFrom at all.
+  it("leaves products without a drop time completely unaffected", () => {
+    const r = computeAddonLines(
+      [print],
+      [{ productId: "p-print", variantId: null, quantity: 1 }],
+      NOW,
+    );
+    expect(r.ok).toBe(true);
+  });
+});

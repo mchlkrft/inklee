@@ -16,9 +16,11 @@ export type ProductFormValues = ProductFormFieldValues & { id: string };
 export default function ProductForm({
   product,
   variants = [],
+  schedulingEntitled = false,
 }: {
   product: ProductFormValues;
   variants?: VariantInputRow[];
+  schedulingEntitled?: boolean;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     updateProductAction,
@@ -28,7 +30,11 @@ export default function ProductForm({
   return (
     <form action={action} className="max-w-2xl space-y-6">
       <input type="hidden" name="id" value={product.id} />
-      <ProductFormFields initial={product} variants={variants} />
+      <ProductFormFields
+        initial={product}
+        variants={variants}
+        schedulingEntitled={schedulingEntitled}
+      />
 
       {state && "error" in state && (
         <p className="text-sm text-destructive">{state.error}</p>

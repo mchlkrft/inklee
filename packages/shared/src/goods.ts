@@ -201,6 +201,12 @@ export type PublicProduct = {
   price: number;
   currency: string;
   soldOut: boolean;
+  /** Drops and preorders (P5c). Server-resolved so the client never
+   *  re-implements the availability rule, and additive so an older reader
+   *  simply ignores it. */
+  availabilityState?: "available" | "upcoming" | "preorder" | "sold_out";
+  /** Ready-to-render badge, or null when the product needs none. */
+  availabilityLabel?: string | null;
   pickupNote: string | null;
   /** True when the artist has marked this product as an appointment add-on AND
    *  it's active EUR; gates the interest-marking UI in the public shop. */

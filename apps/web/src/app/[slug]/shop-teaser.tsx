@@ -37,12 +37,15 @@ function CardImage({
   urls,
   alt,
   soldOut,
+  availabilityBadge,
   fallbackLabel,
   onZoom,
 }: {
   urls: string[];
   alt: string;
   soldOut: boolean;
+  /** Server-resolved drop / preorder / sold-out label (P5c), or null. */
+  availabilityBadge?: string | null;
   fallbackLabel: string;
   onZoom?: (idx: number) => void;
 }) {
@@ -85,9 +88,11 @@ function CardImage({
           {fallbackLabel}
         </div>
       )}
-      {soldOut && (
+      {/* One badge slot. The server already decided which state wins, so the
+          client never has to reconcile "sold out" against "drops Friday". */}
+      {availabilityBadge && (
         <span className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-bone">
-          Sold out
+          {availabilityBadge}
         </span>
       )}
       {hasMultiple && (
@@ -312,6 +317,9 @@ function ProductCard({
         urls={p.imageUrls}
         alt={p.title}
         soldOut={p.soldOut}
+        availabilityBadge={
+          p.availabilityLabel ?? (p.soldOut ? "Sold out" : null)
+        }
         fallbackLabel={PRODUCT_CATEGORY_LABELS[p.category]}
         onZoom={(i) => onZoom(p.imageUrls, p.title, i)}
       />

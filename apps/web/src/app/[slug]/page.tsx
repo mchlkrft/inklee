@@ -20,6 +20,7 @@ import { applyConditionEntitlement } from "@/lib/server/form-entitlements";
 import { accentHex } from "@inklee/shared/appearance";
 import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { bookingTemplateStyles } from "@inklee/shared/booking-template-styles";
+import { shopAvailabilityResolver } from "@/lib/server/shop-availability";
 import {
   dateKeyInTimeZone,
   formatDateKey,
@@ -172,7 +173,7 @@ export default async function ArtistPublicPage({
     const { data: rawProducts } = await serviceClient
       .from("products")
       .select(
-        "id, title, category, image_url, image_urls, price_amount, currency, status, pickup_note, is_checkout_addon, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+        "id, title, category, image_url, image_urls, price_amount, currency, status, pickup_note, is_checkout_addon, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
       )
       .eq("artist_id", profile.id)
       .eq("is_public_visible", true)
@@ -199,12 +200,25 @@ export default async function ArtistPublicPage({
       status: string;
       pickup_note: string | null;
       is_checkout_addon: boolean;
+      quantity: number | null;
+      available_from: string | null;
+      preorder: boolean | null;
       product_variants: RawVariant[] | null;
     };
 
     const rows = (rawProducts ?? []) as unknown as RawProduct[];
+    // GATE 2 of 3 for drops (P5c). Unlike the payable catalogue, an upcoming
+    // product is deliberately KEPT here and labelled: announcing a drop is the
+    // whole point, and hiding it until the moment it opens would defeat the
+    // feature. It is simply not purchasable until then.
+    // Bound to ONE instant for the whole page, in a server module: reading the
+    // clock during render is an impure call, and evaluating each card against
+    // its own millisecond could show a drop as open on one and closed on the
+    // next.
+    const resolveAvailability = shopAvailabilityResolver();
     shopProducts = rows.map((p) => {
       const currency = typeof p.currency === "string" ? p.currency : "eur";
+      const { availability, label: availabilityBadge } = resolveAvailability(p);
       // image_urls is canonical post-0038; fall back to legacy image_url so
       // any row that hasn't been re-saved still renders.
       const imageUrls =
@@ -221,7 +235,10 @@ export default async function ArtistPublicPage({
         imageUrl: imageUrls[0] ?? null,
         price: toPriceNumber(p.price_amount),
         currency,
-        soldOut: p.status === "sold_out",
+        soldOut: availability.state === "sold_out",
+        availabilityState:
+          availability.state === "unavailable" ? undefined : availability.state,
+        availabilityLabel: availabilityBadge,
         pickupNote: p.pickup_note,
         // Interest is a signal, not a checkout commitment — any visible,
         // active, EUR product can be flagged. Decoupled from paid checkout
@@ -229,9 +246,12 @@ export default async function ArtistPublicPage({
         // NOT on `isGoodsCommerceEnabled()` (that flag still parks only the
         // payable add-on path). The deposit-time checkout still gates on
         // is_checkout_addon + the commerce flag separately.
+        // An upcoming product cannot be flagged as wanted either: the artist
+        // has not opened it yet, and an approved interest would be a promise
+        // about something not on sale.
         interestEligible:
           canUseGoods(profileSettings) &&
-          p.status === "active" &&
+          availability.purchasable &&
           currency === "eur",
         variants: [...(p.product_variants ?? [])]
           .sort((a, b) => a.sort_order - b.sort_order)

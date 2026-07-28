@@ -4,6 +4,7 @@
 // and the webhook both derive from these numbers — never trust client totals.
 
 import type { ProductStatus } from "@/lib/goods";
+import { productAvailability } from "@inklee/shared/product-availability";
 
 export const MAX_ADDON_QUANTITY = 10;
 export const DEPOSIT_LINE_TITLE = "Tattoo deposit";
@@ -24,6 +25,11 @@ export type AddonProduct = {
   status: ProductStatus;
   isCheckoutAddon: boolean;
   quantity: number | null; // product-level stock, null = unlimited
+  /** Drops and preorders (P5c). Optional so existing callers and fixtures
+   *  keep compiling; absent means "available now", which is what every
+   *  product was before drops existed. */
+  availableFrom?: string | null;
+  preorder?: boolean;
   variants: AddonVariant[];
 };
 
@@ -60,6 +66,8 @@ function round2(n: number): number {
 export function computeAddonLines(
   products: AddonProduct[],
   selections: AddonSelection[],
+  /** Injected so tests can pin a drop boundary rather than race the clock. */
+  nowMs: number = Date.now(),
 ): ComputedAddons {
   const byId = new Map(products.map((p) => [p.id, p]));
   const lines: OrderLine[] = [];
@@ -97,6 +105,30 @@ export function computeAddonLines(
       return { ok: false, error: "One of the items is no longer available." };
     if (!product.isCheckoutAddon || product.status !== "active") {
       return { ok: false, error: `"${product.title}" is no longer available.` };
+    }
+
+    // GATE 3 of 3 for drops (P5c). The catalogue already filters upcoming
+    // products out, so reaching here means either a stale basket held across
+    // the drop time or a crafted payload. Re-checked because this is the gate
+    // that runs immediately before money moves, and a drop that can be beaten
+    // by keeping a tab open is not a drop.
+    const availability = productAvailability(
+      {
+        status: product.status,
+        availableFrom: product.availableFrom ?? null,
+        preorder: product.preorder === true,
+        stockQuantity: product.quantity,
+      },
+      nowMs,
+    );
+    if (!availability.purchasable) {
+      return {
+        ok: false,
+        error:
+          availability.state === "upcoming"
+            ? `"${product.title}" hasn't dropped yet.`
+            : `"${product.title}" is no longer available.`,
+      };
     }
 
     const activeVariants = product.variants.filter(

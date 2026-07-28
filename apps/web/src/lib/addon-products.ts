@@ -4,6 +4,7 @@
 // the service-role client — the customer has no auth session.
 
 import { serviceClient } from "@/lib/supabase/service";
+import { productAvailability } from "@inklee/shared/product-availability";
 import {
   isProductStatus,
   toPriceNumber,
@@ -36,6 +37,8 @@ type RawProduct = {
   status: string;
   is_checkout_addon: boolean;
   quantity: number | null;
+  available_from?: string | null;
+  preorder?: boolean;
   product_variants: RawVariant[] | null;
 };
 
@@ -65,7 +68,7 @@ export async function getInterestEligibleProducts(
   const { data } = await serviceClient
     .from("products")
     .select(
-      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
     )
     .eq("artist_id", artistId)
     .eq("is_public_visible", true)
@@ -74,7 +77,25 @@ export async function getInterestEligibleProducts(
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
-  const rows = (data ?? []) as unknown as RawProduct[];
+  // GATE 1 of 3 for drops and preorders (P5c). A product whose drop time has
+  // not arrived is filtered OUT of the payable catalogue entirely, so it can
+  // neither be selected nor smuggled in by a crafted payload. It still appears
+  // on the shop teaser (gate 2) as an announcement.
+  const nowMs = Date.now();
+  const rows = ((data ?? []) as unknown as RawProduct[]).filter(
+    (p) =>
+      productAvailability(
+        {
+          status: typeof p.status === "string" ? p.status : "active",
+          availableFrom: p.available_from ?? null,
+          preorder: p.preorder === true,
+          // Product-level stock. Variant stock is enforced separately by the
+          // line composer, which already owns per-variant availability.
+          stockQuantity: p.quantity ?? null,
+        },
+        nowMs,
+      ).purchasable,
+  );
   return rows.map((p) => ({
     id: p.id,
     title: p.title,

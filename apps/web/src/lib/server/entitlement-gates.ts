@@ -91,6 +91,22 @@ export function goodsDiscountsAllowed(overrides: AccountOverrides): boolean {
   );
 }
 
+/** GRANT: true => the artist may SET a drop time, a preorder flag or a
+ *  low-stock threshold (Plus build P5c).
+ *
+ *  Deliberately gates the WRITE only, never the read. An existing drop date is
+ *  always honoured, including for an artist who downgrades, because the other
+ *  direction would put a limited piece on sale before its announced time. That
+ *  is the opposite of the conditional-questions gate, where ignoring the rule
+ *  shows MORE and is therefore the safe direction: here, ignoring the rule
+ *  sells something early, which is the harm the feature exists to prevent. */
+export function goodsSchedulingAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("goods_scheduling") &&
+    canAccess(overrides, "goods_scheduling")
+  );
+}
+
 /** RESTRICTION: true => the artist may EDIT custom email-template bodies.
  *  Paused => true for everyone. Existing bodies always keep SENDING regardless;
  *  only editing is gated. */

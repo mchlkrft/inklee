@@ -131,6 +131,7 @@ describe("capability registry", () => {
       "form_custom",
       "large_projects",
       "goods_discounts",
+      "goods_scheduling",
       "tattoo_map",
     ]);
     expect(isCapability("deposits")).toBe(true);

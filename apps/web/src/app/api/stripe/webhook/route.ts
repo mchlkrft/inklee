@@ -734,7 +734,27 @@ export async function POST(request: Request) {
           )
           .eq("order_id", order.id);
         const items = (itemRows ?? []) as PaidOrderItem[];
-        await decrementInventory(items);
+        const lowStock = await decrementInventory(items);
+
+        // Low-stock alerts (P5c). Inside the once-only flip gate, and each hit
+        // has already stamped its own alerted-at, so a redelivery cannot
+        // notify twice even if it somehow reached here.
+        for (const hit of lowStock) {
+          await createNotification({
+            artistId: booking.artist_id as string,
+            type: "system_warning",
+            category: "booking_activity",
+            priority: "medium",
+            title: "Running low",
+            message:
+              hit.stockLeft === 0
+                ? `"${hit.title}" just sold out.`
+                : `"${hit.title}" is down to ${hit.stockLeft} left.`,
+            ctaLabel: "Open the product",
+            ctaHref: `/goods/${hit.productId}`,
+            metadata: { product_id: hit.productId },
+          });
+        }
 
         // Discount redemption (P5b). Recorded only when the order actually
         // reached paid, and inside the same once-only flip gate, so a code's

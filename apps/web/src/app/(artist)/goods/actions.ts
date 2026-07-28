@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { guardedSharp } from "@/lib/image-guard";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { goodsSchedulingAllowed } from "@/lib/server/entitlement-gates";
 import {
   parsePriceInput,
   parseOptionalPriceInput,
@@ -35,6 +37,15 @@ import { ownedGoodsStoragePath } from "@/lib/server/mobile-goods-server";
 import type { ProductFormValues } from "./product-form";
 import type { VariantInputRow } from "./product-form-fields";
 
+/** UTC timestamptz -> the "YYYY-MM-DDTHH:mm" a datetime-local input expects,
+ *  in the viewer's local time. */
+function toDateTimeLocal(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 type State = { error: string } | { success: true } | null;
 
 /** Delete outcome: `archived: true` when the order guard converted the delete
@@ -58,6 +69,10 @@ type ProductFields = {
   quantity: number | null;
   isPublicVisible: boolean;
   isCheckoutAddon: boolean;
+  /** Drops and preorders (P5c). Null availableFrom = available now. */
+  availableFrom: string | null;
+  preorder: boolean;
+  lowStockThreshold: number | null;
 };
 
 function parseQuantity(
@@ -131,8 +146,30 @@ function parseProductFields(
       quantity: qtyRes.value,
       isPublicVisible: visRaw === "on",
       isCheckoutAddon: formData.get("is_checkout_addon") === "on",
+      availableFrom: parseDropTime(formData.get("available_from")),
+      preorder: formData.get("preorder") === "on",
+      lowStockThreshold: parseThreshold(formData.get("low_stock_threshold")),
+      // Whether the artist may actually USE the three fields above is decided
+      // server-side by applySchedulingEntitlement, not here: parsing is not
+      // permission.
     },
   };
+}
+
+/** A datetime-local value ("2026-08-01T18:00") or empty. Anything unparseable
+ *  becomes null, i.e. available now: a bad drop time must never freeze a
+ *  product out of an artist's own shop. */
+function parseDropTime(raw: FormDataEntryValue | null): string | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function parseThreshold(raw: FormDataEntryValue | null): number | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
 }
 
 function parseVariants(
@@ -333,6 +370,37 @@ async function revalidatePublicPage(userId: string) {
   if (profile?.slug) revalidatePath(`/${profile.slug}`);
 }
 
+/**
+ * Apply the scheduling entitlement to the parsed fields.
+ *
+ * Drops, preorders and low-stock alerts are Plus (spec section 9). An
+ * un-entitled artist's values are DROPPED rather than rejected: the rest of
+ * their product save is perfectly valid, and failing the whole form over a
+ * field they cannot use would be worse than quietly not applying it. The form
+ * only shows these fields when entitled, so this is the enforcement copy.
+ *
+ * Existing values on the row are untouched by this, because the write below
+ * only sets what it is given.
+ */
+async function applySchedulingEntitlement(
+  artistId: string,
+  f: ProductFields,
+): Promise<ProductFields> {
+  let allowed = false;
+  try {
+    allowed = goodsSchedulingAllowed(await getAccountOverrides(artistId));
+  } catch {
+    allowed = false;
+  }
+  if (allowed) return f;
+  return {
+    ...f,
+    availableFrom: null,
+    preorder: false,
+    lowStockThreshold: null,
+  };
+}
+
 export async function createProductAction(
   _prev: State,
   formData: FormData,
@@ -347,7 +415,7 @@ export async function createProductAction(
   if ("error" in parsed) return parsed;
   const variantsRes = parseVariants(formData.get("variants"));
   if ("error" in variantsRes) return variantsRes;
-  const f = parsed.value;
+  const f = await applySchedulingEntitlement(user.id, parsed.value);
 
   // Active-product cap (Free 3 / Plus 25, spec section 9), before any insert
   // or upload. Archived products never count.
@@ -374,6 +442,9 @@ export async function createProductAction(
       is_public_visible: f.isPublicVisible,
       is_checkout_addon: f.isCheckoutAddon,
       quantity: f.quantity,
+      available_from: f.availableFrom,
+      preorder: f.preorder,
+      low_stock_threshold: f.lowStockThreshold,
       sort_order: count ?? 0,
     })
     .select("id")
@@ -433,7 +504,7 @@ export async function updateProductAction(
   if ("error" in parsed) return parsed;
   const variantsRes = parseVariants(formData.get("variants"));
   if ("error" in variantsRes) return variantsRes;
-  const f = parsed.value;
+  const f = await applySchedulingEntitlement(user.id, parsed.value);
 
   // Leaving `archived` re-enters the active-product cap; unguarded, an edit
   // that flips the status would bypass the create-time gate entirely.
@@ -448,11 +519,13 @@ export async function updateProductAction(
   // migration 0038.
   const { data: prevRow } = await supabase
     .from("products")
-    .select("image_urls, image_url, updated_at")
+    .select("image_urls, image_url, updated_at, quantity")
     .eq("id", id)
     .eq("artist_id", user.id)
     .single();
   if (!prevRow) return { error: "Product not found." };
+  // Needed to spot a restock, which re-arms the low-stock alert (P5c).
+  const prevQuantity = (prevRow.quantity as number | null) ?? null;
   const prevImageUrls: string[] = Array.isArray(prevRow.image_urls)
     ? (prevRow.image_urls as string[])
     : prevRow.image_url
@@ -486,6 +559,18 @@ export async function updateProductAction(
       is_public_visible: f.isPublicVisible,
       is_checkout_addon: f.isCheckoutAddon,
       quantity: f.quantity,
+      // Drops, preorders and the low-stock threshold (P5c).
+      available_from: f.availableFrom,
+      preorder: f.preorder,
+      low_stock_threshold: f.lowStockThreshold,
+      // A RESTOCK re-arms the alert. Without this a product alerts once in its
+      // life and then goes quiet forever, which is worse than no alert at all
+      // because the artist believes they are being watched.
+      ...(f.quantity !== null &&
+      prevQuantity !== null &&
+      f.quantity > prevQuantity
+        ? { low_stock_alerted_at: null }
+        : {}),
       image_urls: imageUrls,
       image_url: imageUrls[0] ?? null,
       updated_at: new Date().toISOString(),
@@ -609,7 +694,7 @@ export async function loadProductForEditAction(
   const { data: rawProduct } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon, available_from, preorder, low_stock_threshold",
     )
     .eq("id", id)
     .eq("artist_id", user.id)
@@ -627,6 +712,9 @@ export async function loadProductForEditAction(
     status: string;
     pickup_note: string | null;
     quantity: number | null;
+    available_from: string | null;
+    preorder: boolean | null;
+    low_stock_threshold: number | null;
     is_public_visible: boolean;
     is_checkout_addon: boolean;
   };
@@ -663,6 +751,17 @@ export async function loadProductForEditAction(
     isPublicVisible: row.is_public_visible,
     isCheckoutAddon: row.is_checkout_addon,
     imageUrl: row.image_url,
+    // Drops (P5c). datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time; the
+    // column is a UTC timestamptz, so it is converted rather than sliced, or
+    // an artist in CEST would see their 18:00 drop as 16:00.
+    availableFrom: row.available_from
+      ? toDateTimeLocal(row.available_from)
+      : "",
+    preorder: row.preorder === true,
+    lowStockThreshold:
+      row.low_stock_threshold !== null && row.low_stock_threshold !== undefined
+        ? String(row.low_stock_threshold)
+        : "",
     // image_urls is the canonical multi-image source post-migration 0038; fall
     // back to ARRAY[image_url] for rows that haven't been re-saved yet.
     imageUrls: Array.isArray(row.image_urls)

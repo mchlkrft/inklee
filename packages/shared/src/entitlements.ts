@@ -87,6 +87,9 @@ export const ENTITLEMENT_FEATURES = [
   // applies to the subtotal AFTER discounts, so the fee base is not correct
   // until they exist.
   "goods_discounts",
+  // Scheduled drops, preorders and low-stock alerts (spec section 9:
+  // "Preorders, scheduled product drops" and inventory tracking).
+  "goods_scheduling",
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 

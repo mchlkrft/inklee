@@ -33,6 +33,10 @@ export type ProductFormFieldValues = {
   // Multi-image (migration 0038). imageUrl stays as the legacy single hero for
   // back-compat; imageUrls is the canonical list driving the multi-image picker.
   imageUrls: string[];
+  /** Drops and preorders (P5c). `availableFrom` is a datetime-local value. */
+  availableFrom: string;
+  preorder: boolean;
+  lowStockThreshold: string;
 };
 
 export type VariantInputRow = {
@@ -86,9 +90,13 @@ function NewFileInput({ file }: { file: File }) {
 
 export default function ProductFormFields({
   initial,
+  schedulingEntitled = false,
   variants: initialVariants = [],
 }: {
   initial?: Partial<ProductFormFieldValues>;
+  /** Drops, preorders and stock alerts are Plus (P5c). Presentation only: the
+   *  save action strips these values for an un-entitled artist regardless. */
+  schedulingEntitled?: boolean;
   variants?: VariantInputRow[];
 }) {
   // Trigger input — the one the picker writes to. No `name` so it doesn't
@@ -362,6 +370,63 @@ export default function ProductFormFields({
           </div>
         )}
       </div>
+
+      {/* Drops, preorders and low-stock alerts (P5c) */}
+      {schedulingEntitled && (
+        <div className="space-y-3 rounded-md border border-border p-4">
+          <p className="text-sm text-foreground">Release</p>
+
+          <div className="space-y-1.5">
+            <label htmlFor="pf-drop" className={LABEL}>
+              Drops at <span className="text-xs">(optional)</span>
+            </label>
+            <input
+              id="pf-drop"
+              name="available_from"
+              type="datetime-local"
+              defaultValue={initial?.availableFrom ?? ""}
+              className={INPUT}
+            />
+            <p className="text-xs text-muted-foreground">
+              Until then it shows on your shop with the date, and nobody can buy
+              it.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              name="preorder"
+              defaultChecked={initial?.preorder ?? false}
+              className="accent-foreground"
+            />
+            <span className="text-sm text-muted-foreground">
+              Allow preorders before the drop, and past zero stock
+            </span>
+          </label>
+
+          <div className="space-y-1.5">
+            <label htmlFor="pf-low" className={LABEL}>
+              Tell me when stock reaches{" "}
+              <span className="text-xs">(optional)</span>
+            </label>
+            <input
+              id="pf-low"
+              name="low_stock_threshold"
+              type="number"
+              min="0"
+              inputMode="numeric"
+              defaultValue={initial?.lowStockThreshold ?? ""}
+              placeholder="Never"
+              className={`${INPUT} w-28`}
+            />
+            <p className="text-xs text-muted-foreground">
+              One notification when a sale takes you to this number. Restocking
+              resets it.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Price + Currency */}
       <div className="flex gap-3">
