@@ -30,6 +30,20 @@ function getAppOrigin(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? FALLBACK_APP_URL;
 }
 
+/** The app origin, for absolute links in email. Exported so senders never
+ *  rebuild it from the env var themselves (the app has been wrong about the
+ *  host before). */
+export function appOrigin(): string {
+  return getAppOrigin();
+}
+
+/** A client's project portal link (P4 follow-up). Apex-only: the portal is a
+ *  platform surface, not part of an artist's namespace, so it must not be
+ *  slug-prefixed by the subdomain proxy. */
+export function projectPortalUrl(token: string): string {
+  return `${getAppOrigin()}/project/${token}`;
+}
+
 /** Bare hostname for the bio short domain when subdomain mode is
  *  enabled, or null when path mode applies. Tolerant of users who set
  *  the env var with a protocol prefix or trailing slash. */

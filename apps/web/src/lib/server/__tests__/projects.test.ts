@@ -42,6 +42,21 @@ vi.mock("@/lib/server/entitlement-gates", () => ({
 vi.mock("@/lib/image-processing", () => ({
   processImage: (...a: unknown[]) => processImage(...a),
 }));
+vi.mock("@/lib/notifications", () => ({ createNotification: vi.fn() }));
+vi.mock("@/lib/public-url", () => ({
+  appOrigin: () => "https://inklee.app",
+  projectPortalUrl: (t: string) => `https://inklee.app/project/${t}`,
+}));
+const sendProjectReceivedClient = vi.fn();
+const sendProjectStatusClient = vi.fn();
+vi.mock("@/lib/email/project-emails", () => ({
+  sendProjectReceivedClient: (...a: unknown[]) =>
+    sendProjectReceivedClient(...a),
+  sendProjectReceivedArtist: vi.fn(),
+  sendProjectStatusClient: (...a: unknown[]) => sendProjectStatusClient(...a),
+  clientNotifiableStatus: (s: string) =>
+    ["consultation", "active", "completed", "declined"].includes(s),
+}));
 vi.mock("@/lib/supabase/service", () => ({
   serviceClient: {
     from: (table: string) => {
@@ -60,6 +75,18 @@ vi.mock("@/lib/supabase/service", () => ({
         };
       }
       if (table === "booking_requests") return { update: bookingUpdate };
+      if (table === "profiles") {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: { display_name: "Ada", email: "ada@example.com" },
+                }),
+            }),
+          }),
+        };
+      }
       return { insert: vi.fn(() => Promise.resolve({ error: null })) };
     },
     storage: {
@@ -100,7 +127,10 @@ beforeEach(() => {
 describe("submitProjectIntakeCore", () => {
   it("creates a project for an entitled artist", async () => {
     const r = await submitProjectIntakeCore("artist-1", validIntake, []);
-    expect(r).toEqual({ ok: true, projectId: "proj-1" });
+    expect(r).toMatchObject({ ok: true, projectId: "proj-1" });
+    // The client portal token is minted at intake and returned so the caller
+    // can land them on their own page.
+    if (r.ok) expect(r.portalToken).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("refuses when the artist is not entitled", async () => {
@@ -212,5 +242,84 @@ describe("linkBookingToProjectCore", () => {
     updateOutcome = { error: null, count: 0 };
     const r = await linkBookingToProjectCore("artist-1", "book-x", null);
     expect(r).toMatchObject({ ok: false, code: "not_found" });
+  });
+});
+
+// Client status emails (P4 follow-up). The two properties that matter: they
+// fire on the TRANSITION rather than on every save, and only for statuses
+// that mean something to a client.
+describe("client status notification", () => {
+  it("emails the client on a notifiable transition", async () => {
+    currentProject = {
+      ...projectRow,
+      status: "submitted",
+      customer_email: "c@example.com",
+      customer_token_hash: "oldhash",
+      client_notified_status: null,
+      title: "Back piece",
+    };
+    await setProjectStatusCore("artist-1", "proj-1", "active");
+    expect(sendProjectStatusClient).toHaveBeenCalledTimes(1);
+  });
+
+  // An artist moving active -> consultation -> active would otherwise email
+  // twice about the same thing.
+  it("does not email twice for the same status", async () => {
+    currentProject = {
+      ...projectRow,
+      status: "consultation",
+      customer_email: "c@example.com",
+      customer_token_hash: "oldhash",
+      client_notified_status: "active",
+      title: "Back piece",
+    };
+    await setProjectStatusCore("artist-1", "proj-1", "active");
+    expect(sendProjectStatusClient).not.toHaveBeenCalled();
+  });
+
+  // "Someone is thinking about it" is not an update, and archiving is the
+  // artist tidying their own list.
+  it("stays quiet on statuses that are not the client's business", async () => {
+    for (const s of ["under_review", "archived"]) {
+      vi.clearAllMocks();
+      currentProject = {
+        ...projectRow,
+        status: "submitted",
+        customer_email: "c@example.com",
+        customer_token_hash: "oldhash",
+        client_notified_status: null,
+      };
+      await setProjectStatusCore("artist-1", "proj-1", s);
+      expect(sendProjectStatusClient, s).not.toHaveBeenCalled();
+    }
+  });
+
+  // A project created before the portal existed has no token, so there is no
+  // working link to send.
+  it("stays quiet when the project predates the portal", async () => {
+    currentProject = {
+      ...projectRow,
+      status: "submitted",
+      customer_email: "c@example.com",
+      customer_token_hash: null,
+      client_notified_status: null,
+    };
+    await setProjectStatusCore("artist-1", "proj-1", "active");
+    expect(sendProjectStatusClient).not.toHaveBeenCalled();
+  });
+
+  // The status change itself must succeed even when the client cannot be
+  // reached: the artist's board is the source of truth, not the mail provider.
+  it("still reports success when the email throws", async () => {
+    sendProjectStatusClient.mockRejectedValueOnce(new Error("smtp down"));
+    currentProject = {
+      ...projectRow,
+      status: "submitted",
+      customer_email: "c@example.com",
+      customer_token_hash: "oldhash",
+      client_notified_status: null,
+    };
+    const r = await setProjectStatusCore("artist-1", "proj-1", "active");
+    expect(r.ok).toBe(true);
   });
 });

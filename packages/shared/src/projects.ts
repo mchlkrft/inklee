@@ -287,6 +287,13 @@ export type ProjectRecord = {
   consultation_method: string | null;
   status: ProjectStatus;
   artist_note: string | null;
+  /** SHA-256 of the client's portal token. The plaintext exists only in the
+   *  email that carried it; a status update ROTATES this rather than trying to
+   *  recover it, so exactly one link is live at a time. */
+  customer_token_hash: string | null;
+  /** The last status the CLIENT was emailed about, so a status email fires on
+   *  the transition rather than on every save. */
+  client_notified_status: string | null;
   created_at: string;
   updated_at: string;
   decided_at: string | null;

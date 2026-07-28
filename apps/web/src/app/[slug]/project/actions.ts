@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { serviceClient } from "@/lib/supabase/service";
 import { submitProjectIntakeCore } from "@/lib/server/projects";
 import { PROJECT_MAX_IMAGES } from "@inklee/shared/projects";
+import { projectPortalUrl } from "@/lib/public-url";
 
 type State = { error: string; field?: string } | null;
 
@@ -62,8 +63,9 @@ export async function submitProjectIntakeAction(
 
   if (!result.ok) return { error: result.error, field: result.field };
 
-  // Same confirmation screen the booking intake uses, so a client who sends
-  // both an enquiry and a booking is not shown two different endings. `email=0`
-  // because no project email is sent in v1.
-  redirect(`/request/submitted?slug=${encodeURIComponent(slug)}&email=0`);
+  // Straight to their own project page rather than a generic confirmation:
+  // the client just spent several minutes on a long intake, and the useful
+  // ending is the thing they can come back to. The same link is in their
+  // receipt email, so losing this tab costs nothing.
+  redirect(projectPortalUrl(result.portalToken));
 }

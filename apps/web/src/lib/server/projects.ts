@@ -8,11 +8,23 @@ import {
   isProjectStatus,
   PROJECT_MAX_IMAGES,
   PROJECT_NOTE_MAX,
+  PROJECT_SCALES,
+  BODY_AREAS,
+  labelForKey,
   type ProjectRecord,
+  type ProjectStatus,
 } from "@inklee/shared/projects";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { largeProjectsAllowed } from "./entitlement-gates";
 import { processImage } from "@/lib/image-processing";
+import { createNotification } from "@/lib/notifications";
+import { appOrigin, projectPortalUrl } from "@/lib/public-url";
+import {
+  sendProjectReceivedClient,
+  sendProjectReceivedArtist,
+  sendProjectStatusClient,
+  clientNotifiableStatus,
+} from "@/lib/email/project-emails";
 
 // Server cores for large-project mode (Plus build P4).
 //
@@ -24,7 +36,7 @@ import { processImage } from "@/lib/image-processing";
 // artist may create projects at all".
 
 export type ProjectSubmitResult =
-  | { ok: true; projectId: string }
+  | { ok: true; projectId: string; portalToken: string }
   | { ok: false; error: string; field?: string };
 
 /** Where project media lives. The existing private `bookings` bucket under a
@@ -87,10 +99,22 @@ export async function submitProjectIntakeCore(
     .filter((f) => f && f.size > 0)
     .slice(0, PROJECT_MAX_IMAGES);
 
+  // Client portal token (P4 follow-up). Only the hash is stored, exactly like
+  // the booking portal (0004): the database never holds a credential that
+  // would grant access if it leaked, and the plaintext lives only in the email
+  // that carries it.
+  const crypto = await import("crypto");
+  const portalToken = crypto.randomBytes(32).toString("hex");
+  const portalTokenHash = crypto
+    .createHash("sha256")
+    .update(portalToken)
+    .digest("hex");
+
   const { data: inserted, error: insertError } = await serviceClient
     .from("projects")
     .insert({
       artist_id: artistId,
+      customer_token_hash: portalTokenHash,
       customer_email: data.customerEmail.toLowerCase(),
       customer_handle: data.customerHandle ?? null,
       title: data.title,
@@ -164,7 +188,86 @@ export async function submitProjectIntakeCore(
     }
   }
 
-  return { ok: true, projectId };
+  // Tell both sides. Best-effort by design: the project record is the thing
+  // that matters, and an email-provider outage must not fail an intake the
+  // client already completed. Failures are logged inside each sender.
+  await notifyProjectSubmitted({
+    artistId,
+    projectId,
+    portalToken,
+    title: data.title,
+    customerEmail: data.customerEmail,
+    customerHandle: data.customerHandle ?? null,
+    scale: data.scale,
+    bodyAreas: data.bodyAreas,
+  });
+
+  return { ok: true, projectId, portalToken };
+}
+
+/** The intake fan-out: an in-app notification plus one email each way. */
+async function notifyProjectSubmitted(args: {
+  artistId: string;
+  projectId: string;
+  portalToken: string;
+  title: string;
+  customerEmail: string;
+  customerHandle: string | null;
+  scale: string;
+  bodyAreas: string[];
+}): Promise<void> {
+  try {
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("display_name, email")
+      .eq("id", args.artistId)
+      .single();
+    const artistName =
+      (profile?.display_name as string | null) ?? "your artist";
+    const clientLabel = args.customerHandle
+      ? `@${args.customerHandle.replace(/^@/, "")}`
+      : args.customerEmail;
+
+    await createNotification({
+      artistId: args.artistId,
+      type: "booking_request",
+      category: "booking_activity",
+      priority: "high",
+      title: "New project enquiry",
+      message: `${clientLabel} sent a project enquiry: ${args.title}`,
+      ctaLabel: "Open the project",
+      ctaHref: `/bookings/projects/${args.projectId}`,
+      metadata: { project_id: args.projectId },
+    });
+
+    await sendProjectReceivedClient({
+      to: args.customerEmail,
+      artistName,
+      projectTitle: args.title,
+      portalUrl: projectPortalUrl(args.portalToken),
+    });
+
+    const artistEmail = profile?.email as string | null | undefined;
+    if (artistEmail) {
+      await sendProjectReceivedArtist({
+        to: artistEmail,
+        projectTitle: args.title,
+        clientLabel,
+        scaleLabel: labelForKey(PROJECT_SCALES, args.scale),
+        areasLabel:
+          args.bodyAreas
+            .map((a) => labelForKey(BODY_AREAS, a))
+            .filter(Boolean)
+            .join(", ") || null,
+        projectUrl: `${appOrigin()}/bookings/projects/${args.projectId}`,
+      });
+    }
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { action: "project_intake_notify" },
+      extra: { projectId: args.projectId },
+    });
+  }
 }
 
 export type ProjectMutationResult =
@@ -232,7 +335,63 @@ export async function setProjectStatusCore(
     .eq("artist_id", artistId);
 
   if (error) return { ok: false, error: "Couldn't save. Try again." };
+
+  // Tell the client, but only about transitions that mean something to them,
+  // and only ONCE per status. `client_notified_status` is what makes the
+  // second half true: without it, moving active -> consultation -> active
+  // would email twice about the same thing.
+  await notifyProjectStatus(project, next);
+
   return { ok: true };
+}
+
+async function notifyProjectStatus(
+  project: ProjectRecord,
+  next: ProjectStatus,
+): Promise<void> {
+  if (!clientNotifiableStatus(next)) return;
+  if (project.client_notified_status === next) return;
+  if (!project.customer_token_hash) return; // pre-portal project, no link to send
+
+  try {
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("display_name")
+      .eq("id", project.artist_id)
+      .single();
+
+    // The plaintext token is not recoverable from its hash, by design, so the
+    // email cannot re-send the original link. It ROTATES instead, exactly like
+    // the booking portal does on deposit payment: a fresh token goes out with
+    // this email and the previous one stops working. One live link at a time
+    // is also the safer property, since these emails accumulate in an inbox.
+    const crypto = await import("crypto");
+    const token = crypto.randomBytes(32).toString("hex");
+    const hash = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Rotate BEFORE sending. If the update fails we have not yet promised the
+    // client a link that would not resolve; if the send fails afterwards, the
+    // worst case is a working link nobody received, and the next transition
+    // issues another.
+    const { error: rotateError } = await serviceClient
+      .from("projects")
+      .update({ customer_token_hash: hash, client_notified_status: next })
+      .eq("id", project.id);
+    if (rotateError) return;
+
+    await sendProjectStatusClient({
+      to: project.customer_email,
+      artistName: (profile?.display_name as string | null) ?? "Your artist",
+      projectTitle: project.title,
+      status: next,
+      portalUrl: projectPortalUrl(token),
+    });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { action: "project_status_notify" },
+      extra: { projectId: project.id, status: next },
+    });
+  }
 }
 
 /** Save the artist's private working note. Never shown to the client. */

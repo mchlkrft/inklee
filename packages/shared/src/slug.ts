@@ -65,6 +65,12 @@ export const RESERVED_SLUGS = new Set([
   "bookings",
   "request",
   "requests",
+  // The client project portal lives at /project/<token> (P4 follow-up). An
+  // artist holding this slug would shadow it: Next resolves the static segment
+  // first, so /project/<their-hub> would route into the portal instead of
+  // their page.
+  "project",
+  "projects",
   "calendar",
   "clients",
   "waitlist",
