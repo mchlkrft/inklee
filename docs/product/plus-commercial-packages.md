@@ -169,14 +169,76 @@ the UI constant. Rollback of the UI constant alone no longer leaves a live
 money path exposed, and deleting the approval row re-closes billing
 server-side.
 
-## 6. Open items
+## 6. Audit results (2026-07-28, 13-agent adversarial pass)
+
+The enforcement audit and the grandfathering dry run ran the same day the gate
+was directed. Facts that bind the open items:
+
+- **Custom templates are ALREADY server-enforced** on both save paths (web
+  action refuses pre-upsert; mobile 403s `not_entitled`), and the SEND path is
+  deliberately never gated so saved templates keep working. The §2 requirement
+  is met code-side; what remains is tests for the rejection paths and mobile
+  handling of `not_entitled` (raw error today, no upsell).
+- **Analytics enforcement is DEFINED BUT UNWIRED**: `canSeeAdvancedAnalytics`
+  exists with ZERO production call sites; web `/analytics` and the mobile
+  analytics route serve the full metric set to free accounts. Un-pausing the
+  capability changes nothing. Wire it or de-scope the claim before launch.
+  (`docs/architecture/capability-registry.md:46` falsely claims it is wired —
+  registry drift to fix.)
+- **Caps are already enforced on ALL create paths** (web + mobile,
+  count-before-insert, block-new/keep-existing), at the RATIFIED numbers: free
+  3/3/5, plus 30/100/50. **The §2 provisional table conflicts with these**
+  (Free fields 5 vs 3; Free trips 1 vs 3; Plus trips 10 vs the
+  already-advertised 100). Adopting §2's numbers requires explicit founder
+  re-ratification, and if Free trips drop below 3 the `legacy_free_v1` grant
+  computation must re-run first (grants were computed against the old caps).
+- **Branding enforcement verified server-side already**: footer server-rendered
+  on all 5 public-page surfaces, fail-safe (a plan-read error keeps the
+  footer), no client bypass; grandfathering correctly never grants it. What
+  blocks un-parking is the §2 end-to-end verification pass (incl. cached pages
+  and mobile previews), not missing enforcement code.
+- **Marketing claims needing founder review**: "Take full appointment payments
+  by card" has NO feature or code path anywhere (grep-empty; presumably a
+  deposit-rails restatement); "fully customisable booking template" is backed
+  only by the field-count cap.
+- **Grandfathering dry run** (production, read-only): 19 profiles, 5 active
+  non-tester artists, 4 already tagged `legacy_free_v1` (all
+  `{custom_templates:true}`, empty limits), 0 further eligible. ZERO accounts
+  have any custom template. Under §2's proposed caps exactly ONE account
+  exceeds anything: the founder's own tester (comp Plus). **Zero real free
+  artists would change behavior.** Public booking forms cannot break at
+  enforcement (create-time gating only; render path never slices).
+- **Studio-library item defined**: one row in the `studios` table = the
+  artist's personal trip-planner library. The founder's §2 exclusion list is
+  cleanly excluded structurally (ownership/claims/map/bookings/clients live in
+  disjoint tables the cap never touches; memberships and guest-artist
+  relationships have no table yet). The 5/50 cap is implementable as specified.
+- **Two residual money-path notes**: the Stripe Customer Portal's live config
+  has subscription_update and pause disabled (verified), but hosted "Renew"
+  can undo an at-period-end cancellation and a card update can revive
+  `past_due` — post-purchase by design, uncoverable by a server guard, control
+  = the portal configuration itself. And the billing webhook can flip an
+  account to `plus` from Stripe state alone (an out-of-band Dashboard
+  subscription on a customer with `artist_id` metadata) — Sentry-flagged,
+  hardening option: validate the price id in reconcile.
+- **Durable-confirmation gap (proposal, not applied)**: the confirmation
+  artifact's `terms_version`/`payload_hash` columns exist but the insert omits
+  them, so the consent row is the sole acceptance evidence. Should be closed
+  before the first real purchase.
+
+## 7. Open items
 
 | Item | Owner | State |
 |---|---|---|
-| Analytics Free/Plus boundary definition | Founder + eng | Open; blocks analytics enforcement |
-| Studio-library item definition + clean-exclusion feasibility | Eng (dry run) → founder | Open; blocks the library cap |
-| Dry-run report review | Founder | Open; blocks all cap enforcement |
-| Custom-template server enforcement | Eng | Open (§4.2) |
-| Branding end-to-end verification | Eng | Open; blocks un-parking `branding` |
-| `commercial-readiness.cjs` script | Eng | Open |
+| Caps table conflict: §2 provisional vs ratified/advertised 30/100/50 | **Founder** | Open; blocks cap changes (audit above) |
+| Analytics Free/Plus boundary + WIRING the defined gate | Founder (boundary) + eng (wiring) | Open; blocks the analytics claim |
+| "Full appointment payments" + "fully customisable template" claims | **Founder** | Open; confirm intent or soften copy |
+| Branding end-to-end verification pass | Eng | Open; the only blocker to un-parking `branding` |
+| Dry-run report review | **Founder** | Delivered above; review closes it |
+| Rejection-path tests (template save, mobile 403s, cap blocks) | Eng | Open |
+| Mobile `not_entitled` / `cap_reached` handling (upsell affordance) | Eng | Open |
+| Durable confirmation: stamp `terms_version` + `payload_hash` | Eng | Open; before first purchase |
+| Parity-register rows for branding/templates/analytics gates | Eng | Open (founder rule: absent rows are bugs) |
+| `commercial-readiness.cjs` script | Eng | Open; §4 is the spec |
 | Comp-expiry sweep (OQ-8) | Eng | Open, launch-adjacent |
+| Capability-registry drift (`capability-registry.md:46`) | Eng | Open |

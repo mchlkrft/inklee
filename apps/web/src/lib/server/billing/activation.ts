@@ -3,6 +3,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import {
   assertLiveBillingAllowed,
   evaluateActivationGate,
+  BillingActivationError,
   type ActivationApproval,
   type ActivationResult,
   type ApprovalGroup,
@@ -64,6 +65,45 @@ export async function evaluateLiveBilling(
     requiredKeys: REQUIRED_APPROVAL_KEYS,
     currentArtifacts,
   });
+}
+
+/** The per-contract-type LAUNCH keys (founder direction 2026-07-28): distinct
+ *  from the compliance sets, these are the recorded go-live decisions. The
+ *  consumer key also sits inside the b2c required set, so the b2c group is
+ *  "allowed AND on"; the business key is deliberately STANDALONE — the
+ *  activation chain is additive (b2c requires every b2b key), so putting a
+ *  business launch key into the b2b group would force a business launch
+ *  decision before any consumer sale, which is backwards (the business tier is
+ *  deferred under D1 while consumer launches first). */
+const SALES_LAUNCH_KEYS = {
+  consumer: "consumer_sales_launch_approved",
+  business: "business_sales_launch_approved",
+} as const;
+
+export type SalesContractType = keyof typeof SALES_LAUNCH_KEYS;
+
+/** Throwing guard for OPENING a sales path (creating a new paid contract),
+ *  asserted BEFORE the consent write and before any Stripe object. Distinct
+ *  from assertLiveBillingAllowedFor: that one answers "is charging this group
+ *  compliant", this one answers "has the founder recorded the decision to
+ *  SELL this contract type". Fails closed on read errors (the reader throws),
+ *  and is a test-mode no-op like the group gate so the flow still dogfoods. */
+export async function assertSalesLaunchApproved(
+  contractType: SalesContractType,
+): Promise<void> {
+  const mode = resolveBillingMode();
+  if (mode === "test") return;
+  const key = SALES_LAUNCH_KEYS[contractType];
+  const approvals = await getActivationApprovals();
+  const row = approvals.find((a) => a.approvalKey === key);
+  if (!row?.approved) {
+    const group: ApprovalGroup = contractType === "consumer" ? "b2c" : "b2b";
+    throw new BillingActivationError(
+      group,
+      [key],
+      `${contractType} sales are not launched: '${key}' is not recorded.`,
+    );
+  }
 }
 
 /** Throwing guard for the money path. Call before any live charge. In test

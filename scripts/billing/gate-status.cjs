@@ -45,6 +45,15 @@ const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
     console.log(`\n[${g}] ${done.length}/${REQUIRED[g].length}`);
     for (const k of REQUIRED[g]) console.log(`  ${have.has(k) ? "OK " : "-- "} ${k}`);
   }
+  // Standalone launch keys (checked by assertSalesLaunchApproved by NAME, not
+  // via group evaluation). The consumer key also appears inside b2c above; the
+  // business key is standalone on purpose: the chain is additive, so putting
+  // it in the b2b group would make consumer launch depend on a business
+  // launch decision.
+  console.log("\n[launch] per-contract-type sales keys");
+  for (const k of ["consumer_sales_launch_approved", "business_sales_launch_approved"]) {
+    console.log(`  ${have.has(k) ? "OK " : "-- "} ${k}`);
+  }
   await sql.end();
 })().catch((e) => {
   console.error(e.message);

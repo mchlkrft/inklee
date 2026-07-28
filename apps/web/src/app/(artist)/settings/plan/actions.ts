@@ -11,6 +11,10 @@ import {
 import { PLUS_YEARLY_ENABLED } from "@/lib/plus-launch-config";
 import { withdrawSubscriptionCore } from "@/lib/server/billing/withdrawal";
 import { requireStripe } from "@/lib/server/billing/client";
+import {
+  assertLiveBillingAllowedFor,
+  assertSalesLaunchApproved,
+} from "@/lib/server/billing/activation";
 import { getLegalDoc } from "@/lib/legal/documents";
 import { BillingActivationError } from "@/lib/billing";
 import {
@@ -48,6 +52,18 @@ async function startCheckout(input: {
     termsHash: string | null;
   }) => ConsentRow[];
 }): Promise<CheckoutResult> {
+  // THE ORDER HERE IS LOAD-BEARING (2026-07-28 audit findings 1-3). Both gates
+  // run BEFORE the consent insert and before any Stripe object: a refused call
+  // must leave no trace, not a terms_acceptance row for a purchase that never
+  // existed. The launch key is per contract type, so the deferred business
+  // path is refused server-side too (PLUS_BUSINESS_TIER_ENABLED is client-side
+  // rendering only and guards nothing). createSubscriptionCheckout asserts the
+  // group again internally; the repeat is deliberate defense in depth.
+  await assertSalesLaunchApproved(input.contractType);
+  await assertLiveBillingAllowedFor(
+    input.contractType === "consumer" ? "b2c" : "b2b",
+  );
+
   const stripe = requireStripe();
   const prices = await stripe.prices.list({
     lookup_keys: [lookupKeyForInterval(input.billingInterval)],
@@ -57,16 +73,23 @@ async function startCheckout(input: {
   const price = prices.data[0];
   if (!price) return { message: "Plus isn't available yet." };
 
-  // Read the current Terms version defensively (the activation gate relies on the
-  // same read); a failure must not block a valid order, so it falls back to null.
-  let termsVersion = "unknown";
-  let termsHash: string | null = null;
+  // The Terms read FAILS CLOSED (founder direction 2026-07-28, legal artifact
+  // integrity): the acceptance row is the buyer's contract evidence, so a row
+  // stamped "unknown"/null would break the invariant that checkout acceptance
+  // references the active version. Refusing the order beats recording an
+  // unverifiable acceptance. (The earlier fallback-to-unknown posture is
+  // superseded; scripts/legal/verify-legal-artifacts.cjs check 10 audits any
+  // historical rows.)
+  let termsVersion: string;
+  let termsHash: string;
   try {
     const terms = getLegalDoc("terms");
     termsVersion = terms.version;
     termsHash = terms.versionHash;
   } catch {
-    // fall through with the unknown/null fallback
+    return {
+      message: "Plus isn't available right now. Please try again shortly.",
+    };
   }
 
   const now = new Date().toISOString();

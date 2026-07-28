@@ -11,6 +11,10 @@ const h = vi.hoisted(() => ({
   createCheckout: vi.fn(),
   getLegalDoc: vi.fn(),
   withdrawCore: vi.fn(),
+  // The pre-consent gates (2026-07-28): per-contract-type launch key + the
+  // group compliance gate, both asserted BEFORE the consent write.
+  assertLaunch: vi.fn(),
+  assertGroupGate: vi.fn(),
   // Mutable launch flags so tests can exercise both sides of the yearly gate.
   flags: { yearly: false },
 }));
@@ -39,6 +43,10 @@ vi.mock("@/lib/plus-launch-config", () => ({
   },
 }));
 vi.mock("@/lib/legal/documents", () => ({ getLegalDoc: h.getLegalDoc }));
+vi.mock("@/lib/server/billing/activation", () => ({
+  assertSalesLaunchApproved: (t: unknown) => h.assertLaunch(t),
+  assertLiveBillingAllowedFor: (g: unknown) => h.assertGroupGate(g),
+}));
 vi.mock("@/lib/server/billing/withdrawal", () => ({
   withdrawSubscriptionCore: (a: unknown) => h.withdrawCore(a),
 }));
@@ -63,6 +71,8 @@ beforeEach(() => {
     .mockReset()
     .mockReturnValue({ version: "2026-07-23", versionHash: "hash_abc" });
   h.withdrawCore.mockReset();
+  h.assertLaunch.mockReset().mockResolvedValue(undefined);
+  h.assertGroupGate.mockReset().mockResolvedValue(undefined);
   h.flags.yearly = false;
 });
 
@@ -137,18 +147,42 @@ describe("confirmBusinessCheckoutAction", () => {
     });
   });
 
-  it("still orders if the Terms read fails (binds Terms to unknown/null)", async () => {
+  it("REFUSES the order when the Terms read fails (no unknown-version acceptance)", async () => {
+    // Inverted 2026-07-28 (founder legal-artifact-integrity direction): the
+    // acceptance row is the buyer's contract evidence, so an order must never
+    // record consent_version "unknown". The earlier posture ordered anyway.
     h.getLegalDoc.mockImplementation(() => {
       throw new Error("content not bundled");
     });
     const r = await confirmBusinessCheckoutAction({
       businessUseDeclared: true,
     });
-    expect(r).toEqual({ url: "https://checkout.stripe/x" });
-    const rows = h.insert.mock.calls[0][0] as Array<Record<string, unknown>>;
-    const terms = rows.find((x) => x.consent_type === "terms_acceptance")!;
-    expect(terms.consent_version).toBe("unknown");
-    expect(terms.consent_hash).toBeNull();
+    expect(r).toEqual({
+      message: "Plus isn't available right now. Please try again shortly.",
+    });
+    expect(h.insert).not.toHaveBeenCalled();
+    expect(h.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("refuses BEFORE the consent write when business sales are not launched", async () => {
+    // The launch key is per contract type and asserted first: a refused call
+    // leaves no terms_acceptance row for a purchase that never existed.
+    h.assertLaunch.mockRejectedValue(
+      new BillingActivationError(
+        "b2b",
+        ["business_sales_launch_approved"],
+        "not launched",
+      ),
+    );
+    const r = await confirmBusinessCheckoutAction({
+      businessUseDeclared: true,
+    });
+    expect(r).toEqual({
+      message: "Plus isn't available yet. We're finishing the last checks.",
+    });
+    expect(h.assertLaunch).toHaveBeenCalledWith("business");
+    expect(h.insert).not.toHaveBeenCalled();
+    expect(h.createCheckout).not.toHaveBeenCalled();
   });
 });
 
@@ -216,6 +250,23 @@ describe("startPlusConsumerCheckoutAction (v1 consumer-first)", () => {
     expect(r).toEqual({
       message: "Plus isn't available yet. We're finishing the last checks.",
     });
+  });
+
+  it("refuses BEFORE the consent write when consumer sales are not launched", async () => {
+    h.assertLaunch.mockRejectedValue(
+      new BillingActivationError(
+        "b2c",
+        ["consumer_sales_launch_approved"],
+        "not launched",
+      ),
+    );
+    const r = await startPlusConsumerCheckoutAction();
+    expect(r).toEqual({
+      message: "Plus isn't available yet. We're finishing the last checks.",
+    });
+    expect(h.assertLaunch).toHaveBeenCalledWith("consumer");
+    expect(h.insert).not.toHaveBeenCalled();
+    expect(h.createCheckout).not.toHaveBeenCalled();
   });
 
   it("refuses yearly while PLUS_YEARLY_ENABLED is off, recording nothing", async () => {

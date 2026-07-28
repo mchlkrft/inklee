@@ -16,6 +16,7 @@ vi.mock("@/lib/server/billing/artifacts", () => ({
 
 import {
   assertLiveBillingAllowedFor,
+  assertSalesLaunchApproved,
   evaluateLiveBilling,
 } from "@/lib/server/billing/activation";
 
@@ -183,5 +184,61 @@ describe("the launch decision is a DB approval, not a code constant", () => {
     selectMock.mockResolvedValue({ data: FULL_COMPLIANCE_SET, error: null });
     const r = await evaluateLiveBilling("b2b");
     expect(r.allowed).toBe(true);
+  });
+
+  // The per-contract-type sales assertion (2026-07-28 audit findings 2-3): the
+  // BUSINESS path had no launch control at all — b2b compliance is 7/7 open and
+  // PLUS_BUSINESS_TIER_ENABLED is client-side rendering only — so a direct POST
+  // could open a live business checkout for a tier deferred under D1.
+  describe("assertSalesLaunchApproved", () => {
+    it("refuses business sales on full compliance (no standalone key)", async () => {
+      forceLiveMode();
+      selectMock.mockResolvedValue({ data: FULL_COMPLIANCE_SET, error: null });
+      await expect(
+        assertSalesLaunchApproved("business"),
+      ).rejects.toBeInstanceOf(BillingActivationError);
+    });
+
+    it("refuses consumer sales without the launch key", async () => {
+      forceLiveMode();
+      selectMock.mockResolvedValue({ data: FULL_COMPLIANCE_SET, error: null });
+      await expect(
+        assertSalesLaunchApproved("consumer"),
+      ).rejects.toBeInstanceOf(BillingActivationError);
+    });
+
+    it("passes each contract type only on ITS OWN recorded key", async () => {
+      forceLiveMode();
+      selectMock.mockResolvedValue({
+        data: [
+          ...FULL_COMPLIANCE_SET,
+          row("consumer_sales_launch_approved", "b2c"),
+        ],
+        error: null,
+      });
+      await expect(
+        assertSalesLaunchApproved("consumer"),
+      ).resolves.toBeUndefined();
+      // The consumer key must NOT open business sales.
+      await expect(
+        assertSalesLaunchApproved("business"),
+      ).rejects.toBeInstanceOf(BillingActivationError);
+    });
+
+    it("fails closed when the approvals read errors", async () => {
+      forceLiveMode();
+      selectMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+      await expect(assertSalesLaunchApproved("consumer")).rejects.toThrow(
+        /boom/,
+      );
+    });
+
+    it("is a no-op in test mode (dogfooding keeps working)", async () => {
+      forceTestMode();
+      await expect(
+        assertSalesLaunchApproved("business"),
+      ).resolves.toBeUndefined();
+      expect(selectMock).not.toHaveBeenCalled();
+    });
   });
 });
