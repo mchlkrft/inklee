@@ -91,6 +91,9 @@ function BooksForm({ initial }: { initial: MobileBooksSettings }) {
   const [windowEndsAt, setWindowEndsAt] = useState<string | null>(
     initial.booking_window_ends_at,
   );
+  const [opensAt, setOpensAt] = useState<string | null>(
+    initial.booking_opens_at,
+  );
   const initialMode: BookingMode =
     initial.bookingMode === "fixed_slots" ? "fixed_slots" : "preferred_date";
   const [mode, setMode] = useState<BookingMode>(initialMode);
@@ -155,6 +158,7 @@ function BooksForm({ initial }: { initial: MobileBooksSettings }) {
       await apiPut("/settings/books", {
         open,
         bookingCap,
+        bookingOpensAt: opensAt,
         bookingWindowEndsAt: windowEndsAt,
         booksClosedMessage: closedMessage.trim() || null,
       });
@@ -216,6 +220,27 @@ function BooksForm({ initial }: { initial: MobileBooksSettings }) {
           keyboardType="number-pad"
           hint="Pause requests after this many are open."
         />
+
+        <DateField
+          label="Open books on (optional)"
+          value={opensAt}
+          onChange={setOpensAt}
+          minimumDate={new Date()}
+        />
+        <View className="-mt-1 mb-3 flex-row items-center justify-between">
+          <Text className="flex-1 pr-3 text-xs text-shell-dim">
+            Your page shows the date and stays closed until then.
+          </Text>
+          {opensAt ? (
+            <Pressable
+              onPress={() => setOpensAt(null)}
+              hitSlop={8}
+              className="active:opacity-70"
+            >
+              <Text className="text-xs font-medium text-accent">Clear</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         <DateField
           label="Close books on (optional)"
@@ -280,9 +305,7 @@ function BooksForm({ initial }: { initial: MobileBooksSettings }) {
               hitSlop={8}
               className="active:opacity-70"
             >
-              <Text className="text-label font-medium text-accent">
-                Manage
-              </Text>
+              <Text className="text-label font-medium text-accent">Manage</Text>
             </Pressable>
           </View>
         ) : null}

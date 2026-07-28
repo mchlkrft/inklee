@@ -10,6 +10,8 @@ import {
   fieldErrorMessage,
   normalizeFieldInput,
 } from "@/lib/mobile-booking-form";
+import { conditionWriteAllowed } from "@/lib/server/form-entitlements";
+import { CONDITION_NOT_ENTITLED } from "@/lib/server/plan-limit-messages";
 
 export const runtime = "nodejs";
 
@@ -40,6 +42,26 @@ export async function PATCH(
     return mobileError(400, fieldErrorMessage(parsed.error.issues[0]));
   }
   const data = parsed.data;
+
+  // Conditional questions are Plus (P3). Same read-then-compare as the web
+  // update action, so an unchanged condition survives an unrelated edit. Note
+  // `data.condition` is undefined when a pre-P3 build omitted the key, and
+  // undefined is falsy, so those requests take the allowed path unchanged.
+  const { data: current } = await supabase
+    .from("custom_fields")
+    .select("condition")
+    .eq("id", id)
+    .eq("artist_id", userId)
+    .single();
+  if (
+    !(await conditionWriteAllowed(
+      userId,
+      data.condition,
+      current?.condition ?? null,
+    ))
+  ) {
+    return mobileError(403, CONDITION_NOT_ENTITLED, "not_entitled");
+  }
 
   const { error } = await supabase
     .from("custom_fields")

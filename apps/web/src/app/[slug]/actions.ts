@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import crypto from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { validateCustomAnswers, normalizeFieldRow } from "@/lib/custom-fields";
+import { applyConditionEntitlement } from "@/lib/server/form-entitlements";
 import { createNotification } from "@/lib/notifications";
 import type { CustomFieldDef, CustomAnswerSnapshot } from "@/lib/custom-fields";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
@@ -206,8 +207,12 @@ export async function submitBookingAction(
     // would hand isFieldVisible a shape it never validated, on the one path
     // where visibility decides whether a required question can block a real
     // booking.
-    const fields: CustomFieldDef[] = (activeFields ?? []).map(
-      normalizeFieldRow,
+    // The same entitlement strip the render applies (P3d), so the server can
+    // never enforce a condition the page did not honour: for an un-entitled
+    // artist every question both shows AND validates.
+    const fields: CustomFieldDef[] = await applyConditionEntitlement(
+      artistId,
+      (activeFields ?? []).map(normalizeFieldRow),
     );
     const rawCustom: Record<string, string> = {};
     for (const field of fields) {

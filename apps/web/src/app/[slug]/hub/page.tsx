@@ -6,6 +6,8 @@ import { CalendarCheck, ExternalLink } from "lucide-react";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { surfaceAppearance } from "@/lib/server/appearance";
+import { accentHex } from "@inklee/shared/appearance";
+import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { templateStyles } from "@inklee/shared/page-template-styles";
 import { loadHubFeatureData } from "@/lib/server/hub-feature-data";
 import { HubFeatureBlock } from "./feature-blocks";
@@ -14,7 +16,6 @@ import {
   BIO_SOCIAL_META,
   isFeatureBlock,
 } from "@/lib/bio-page-settings";
-import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import { apexHref, publicArtistUrl, publicHubUrl } from "@/lib/public-url";
 import { clampDescription } from "@/lib/seo";
 import { SocialIcon } from "./social-icon";
@@ -78,8 +79,6 @@ export default async function ArtistHubPage({
   // Fall back to the profile bio under the name only when the artist hasn't
   // added their own text block, so an unconfigured Hub still says something.
   const hasTextBlock = blocks.some((b) => b.type === "text");
-  const coverImage = resolveCoverImage(settings.cover_image_url);
-  const coverColor = resolveCoverColor(settings.cover_color);
   const bookingUrl = publicArtistUrl(slug);
 
   // Shared appearance system (Plus build P1). Emits nothing when the artist
@@ -96,6 +95,13 @@ export default async function ArtistHubPage({
   // so an existing hub is byte-identical; the entitlement boundary lives in
   // surfaceAppearance, not here.
   const tpl = templateStyles(appearance.resolved.template);
+
+  // Cover image + colour through the same resolved appearance the booking page
+  // uses (P3c), so the two public surfaces cannot disagree about an artist's
+  // cover. Both were previously read straight from settings, which meant a
+  // per-surface override was parsed and then ignored.
+  const coverImage = appearance.resolved.backgroundImageUrl;
+  const coverColor = accentHex(appearance.resolved.accent, COVER_COLORS);
 
   // Feature-block data (P2b). Queried ONLY for the blocks this artist actually
   // added, so a plain link hub still costs exactly one profile read.

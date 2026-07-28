@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { TextArea } from "@/components/TextArea";
 import { getCalendars } from "expo-localization";
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { ArrowUpRight, Check, Slash } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -68,6 +69,7 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
   const [location, setLocation] = useState(initial.location ?? "");
   const [timezone, setTimezone] = useState(initial.timezone ?? "");
   const [coverColor, setCoverColor] = useState(initial.coverColor ?? "");
+  const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -188,6 +190,17 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
           </Pressable>
         ) : null}
 
+        {previewUrl ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change your public link"
+            onPress={() => router.push("/settings/slug")}
+            className="mb-2 flex-row items-center justify-center px-6 active:opacity-70"
+          >
+            <Text className="text-sm text-shell-dim">Change link</Text>
+          </Pressable>
+        ) : null}
+
         <SectionLabel size="sm">Profile</SectionLabel>
         <Card>
           <TextField
@@ -239,7 +252,9 @@ function ProfileForm({ initial }: { initial: MobileProfile }) {
             <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
           ) : null}
           {saved && !error ? (
-            <Text className="mb-3 text-sm text-success-fg">Profile updated.</Text>
+            <Text className="mb-3 text-sm text-success-fg">
+              Profile updated.
+            </Text>
           ) : null}
 
           <Button
@@ -300,11 +315,7 @@ function CoverSwatch({
         }}
       >
         {selected ? (
-          <Check
-            size={14}
-            strokeWidth={3}
-            color={hex ? fg : colors.bone}
-          />
+          <Check size={14} strokeWidth={3} color={hex ? fg : colors.bone} />
         ) : hex === null ? (
           <Slash size={12} color="rgba(229,225,213,0.7)" />
         ) : null}

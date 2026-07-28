@@ -103,6 +103,11 @@ top control row instead, which is also where the platform maps put theirs.
 | Active-product cap + archived state + order-guarded delete | web action archives ordered products instead of deleting, explains the outcome | mobile DELETE returns additive `archived: true`; app alerts the outcome (next build); old builds see a normal delete and the row reappears archived on refresh | ✅ |
 | Analytics gate (`analytics`) | DEFINED, NOT WIRED (audit 2026-07-28) | same: mobile analytics route ungated | ⬜ wired in Plus stage P6 with the boundary decision |
 | Shared appearance system (`appearance_custom`) | `/settings/appearance` editor + resolver on hub and booking form | `settings/page-appearance` screen + GET/PATCH `/api/mobile/settings/appearance`, both wrapping the SAME `saveAppearanceCore` (next build). Named "Page appearance" because the app's settings index already has an Appearance section for the APP's own theme, which is a different thing | ✅ |
+| Booking-form visual templates (P3b) | 4 templates on the public page via `bookingTemplateStyles`; `clean` byte-identical to the pre-P3b markup | n/a by design: the public page is a web surface. The template PICKER is already native (`settings/page-appearance`, P1b) and now drives this page too | 🌐 |
+| Cover image + colour through one resolver (P3c) | both public pages read `appearance.resolved`; `lib/public-cover.ts` deleted | the app edits the cover on `settings/profile` as before; nothing native reads the resolver | 🌐 |
+| Custom confirmation page (P3d) | `bookings/booking-form` editor + gated render on `request/submitted` | `settings/booking-form/confirmation` screen + GET/POST `/api/mobile/booking-form/confirmation`, both through the SAME `saveConfirmationCore` (next build) | ✅ |
+| Custom URL slug (P3e) | `settings/profile` rename form with an explicit consequence confirmation | `settings/slug` screen + GET/POST `/api/mobile/settings/slug`, both through the SAME `renameSlugCore` (next build) | ✅ |
+| Scheduled books-open date (P3f) | `booking_opens_at` in all 3 web books forms; public page shows the date | native `settings/books` date field + `bookingOpensAt` on PUT `/settings/books` (next build); absent key means unchanged, so pre-P3f builds cannot clear it | ✅ |
 | Conditional booking-form questions (P3) | condition editor in `bookings/form/field-form.tsx`; public form renders through the shared `resolveFieldVisibility`; server re-resolves in `validateCustomAnswers` | `settings/booking-form/[fieldId]` condition section; GET `/api/mobile/booking-form` emits `custom.condition` + server-derived `conditionSources`, POST/PATCH persist `condition` (next build). Both editors ALWAYS send the condition back, because the write replaces it (omitting would clear a condition the artist never touched) | ✅ |
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
@@ -116,6 +121,20 @@ design: admin, marketing pages, legal pages, public artist pages, client
 magic-link portal (D: app is artists-only).
 
 ## Update log
+
+- **2026-07-28 — Plus P3 booking form (P3b-P3f), web + native:** visual
+  templates on the public page, cover image and colour unified onto the
+  appearance resolver (which deleted `lib/public-cover.ts` and, with it, a
+  second cover implementation that silently beat any per-surface override),
+  the custom confirmation page, the custom URL slug, and the scheduled
+  books-open date. Two new capability keys, `form_conditional` and
+  `form_custom`, both GRANT-shaped so pausing either reverts to today's
+  behaviour. The conditional-questions gate is the interesting one: an
+  un-entitled artist's conditions are STRIPPED on read so every question
+  shows, because the alternative (honouring a condition for someone who is
+  not entitled) keeps questions hidden from their clients and nobody notices
+  until a booking arrives missing information. Stored conditions are never
+  destroyed, and an unchanged one rides along on unrelated edits.
 
 - **2026-07-28 — Conditional booking-form questions (Plus P3), web + native:**
   migration `0114` adds a nullable `condition` jsonb to `custom_fields`; the

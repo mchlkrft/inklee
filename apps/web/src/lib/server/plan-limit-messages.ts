@@ -27,4 +27,13 @@ export const MOBILE_PLAN_LIMIT_MESSAGES = {
     `You've reached the ${capNoun(cap, "product")} limit on your current plan. Archive a product to make room.`,
   templatesNotEntitled:
     "Custom email templates aren't included in your current plan.",
+  conditionalQuestions:
+    "Conditional questions aren't included in your current plan.",
 } as const;
+
+/** The conditional-questions refusal, exported standalone because the WEB
+ *  actions use the identical wording here (P3). This is one of the few strings
+ *  where the surfaces deliberately agree: there is nothing to steer toward
+ *  that the sentence does not already say. */
+export const CONDITION_NOT_ENTITLED =
+  MOBILE_PLAN_LIMIT_MESSAGES.conditionalQuestions;

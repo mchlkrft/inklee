@@ -43,12 +43,20 @@ export default function SettingsLayout() {
         options={{ title: "Booking policy" }}
       />
       <Stack.Screen name="profile" options={{ title: "Edit profile" }} />
+      <Stack.Screen name="slug" options={{ title: "Public link" }} />
       <Stack.Screen name="books" options={{ title: "Booking settings" }} />
       <Stack.Screen name="slots/index" options={{ title: "Time slots" }} />
       <Stack.Screen name="slots/new" options={{ title: "Add slots" }} />
       <Stack.Screen
         name="booking-form/index"
         options={{ title: "Booking form" }}
+      />
+      {/* Registered BEFORE the dynamic route for readability; expo-router
+          resolves the static segment first either way, so /confirmation is
+          never captured as a fieldId. */}
+      <Stack.Screen
+        name="booking-form/confirmation"
+        options={{ title: "Confirmation page" }}
       />
       <Stack.Screen
         name="booking-form/[fieldId]"
@@ -75,10 +83,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="account" options={{ title: "Account & security" }} />
       <Stack.Screen name="support/index" options={{ title: "Support" }} />
       <Stack.Screen name="support/new" options={{ title: "New request" }} />
-      <Stack.Screen
-        name="support/[id]"
-        options={{ title: "Support ticket" }}
-      />
+      <Stack.Screen name="support/[id]" options={{ title: "Support ticket" }} />
     </Stack>
   );
 }

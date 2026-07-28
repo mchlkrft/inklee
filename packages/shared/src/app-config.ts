@@ -32,6 +32,8 @@ export const CAPABILITIES = [
   "analytics", // paused => advanced analytics visible to everyone
   "entitlement_caps", // paused => custom-field/trip/studio/product caps not enforced
   "appearance_custom", // paused => every surface renders the Free appearance (today's look)
+  "form_conditional", // paused => booking-form conditions ignored, every question shows
+  "form_custom", // paused => the default confirmation page for everyone
   // The native tattoo-map surface (map-features.ts note: the mobile map ships
   // capability-killable; the web env flag stays the web launch gate for now):
   "tattoo_map", // paused => native map hidden + /api/mobile/map/* refuses

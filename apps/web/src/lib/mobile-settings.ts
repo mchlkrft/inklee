@@ -152,6 +152,19 @@ export function normalizeBooksConfig(
     }
   }
 
+  // Scheduled open date (P3f). Absent key => unchanged, exactly like every
+  // other field here, so a pre-P3f build cannot clear a date it never showed.
+  if ("bookingOpensAt" in b) {
+    const opens = b.bookingOpensAt;
+    if (opens === null) {
+      next.booking_opens_at = null;
+    } else if (typeof opens === "string") {
+      next.booking_opens_at = opens.trim() || null;
+    } else {
+      return { ok: false, error: "Invalid books-open date." };
+    }
+  }
+
   if ("bookingWindowEndsAt" in b) {
     const win = b.bookingWindowEndsAt;
     if (win === null) {

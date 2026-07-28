@@ -240,6 +240,7 @@ was directed. Facts that bind the open items:
 | Item | Owner | State |
 |---|---|---|
 | Caps table conflict: §2 provisional vs ratified/advertised 30/100/50 | **Founder** | Open; blocks cap changes (audit above) |
+| **Cover image is listed Plus-only but has been a live Free feature for months** | **Founder** | Open; found building P3c 2026-07-28. Spec §6 says cover image Free=no / Plus=yes, but `settings.cover_image_url` ships free today and 3 of 19 production artists use one. Enforcing the spec strips a working feature from real artists, which the grandfathering rule forbids; leaving it free means the §6 row is wrong. Built as grandfathered (Free keeps it via `freeTierView`), pending the founder's call: either amend §6 to "cover image: yes / yes, per-surface override Plus" or grandfather the existing three explicitly and gate new ones |
 | Analytics Free/Plus boundary + WIRING the defined gate | Founder (boundary) + eng (wiring) | Open; blocks the analytics claim |
 | "Full appointment payments" + "fully customisable template" claims | **Founder** | Open; confirm intent or soften copy |
 | Branding end-to-end verification pass | Eng | Open; the only blocker to un-parking `branding` |

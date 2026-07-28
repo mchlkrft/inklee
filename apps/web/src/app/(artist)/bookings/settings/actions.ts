@@ -122,6 +122,8 @@ export async function saveAvailabilityAction(
 
   const windowEndsAt =
     (formData.get("booking_window_ends_at") as string) || null;
+  // Scheduled open date (P3f), the counterpart to the close date above.
+  const opensAt = (formData.get("booking_opens_at") as string) || null;
 
   const closedMessage =
     (formData.get("books_closed_message") as string)?.trim() || null;
@@ -147,6 +149,7 @@ export async function saveAvailabilityAction(
           ...currentBooks,
           // books_open is managed by toggleBooksOpenAction — preserve from DB
           booking_cap: bookingCap,
+          booking_opens_at: opensAt,
           booking_window_ends_at: windowEndsAt,
           books_closed_message: closedMessage,
         },

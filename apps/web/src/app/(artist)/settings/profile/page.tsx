@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "./profile-form";
+import SlugForm from "./slug-form";
+import { publicArtistUrl } from "@/lib/public-url";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { formCustomAllowed } from "@/lib/server/entitlement-gates";
 
 export default async function ProfileSettingsPage() {
   const supabase = await createClient();
@@ -14,6 +18,20 @@ export default async function ProfileSettingsPage() {
     .single();
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
+
+  // Custom URL slug (P3e). The prefix is derived from the real public URL so
+  // the form shows the address clients actually use (subdomain or path form),
+  // not a second hardcoded guess at it.
+  const slug = (profile?.slug as string | null) ?? null;
+  const publicHost = slug
+    ? publicArtistUrl(slug).replace(new RegExp(`${slug}$`), "")
+    : "";
+  let slugEntitled = false;
+  try {
+    slugEntitled = formCustomAllowed(await getAccountOverrides(user!.id));
+  } catch {
+    slugEntitled = false;
+  }
 
   return (
     <div className="space-y-8 max-w-2xl">
@@ -36,6 +54,24 @@ export default async function ProfileSettingsPage() {
         )}
       </div>
       <ProfileForm profile={profile} />
+
+      {slug && (
+        <section className="space-y-3 border-t border-border pt-6">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              Public link
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The address you share with clients.
+            </p>
+          </div>
+          <SlugForm
+            currentSlug={slug}
+            entitled={slugEntitled}
+            publicHost={publicHost}
+          />
+        </section>
+      )}
     </div>
   );
 }

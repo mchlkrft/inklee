@@ -359,6 +359,16 @@ export default function BookingFormScreen() {
             onPress={() => router.push("/settings/booking-form/new")}
           />
         </View>
+
+        <SectionLabel>Confirmation page</SectionLabel>
+        <Text className="mb-3 text-sm text-shell-dim">
+          What a client sees right after sending a request.
+        </Text>
+        <Button
+          label="Edit confirmation page"
+          variant="secondary"
+          onPress={() => router.push("/settings/booking-form/confirmation")}
+        />
       </ScrollView>
     </Screen>
   );

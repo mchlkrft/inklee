@@ -173,10 +173,15 @@ function GripIcon() {
 export default function UnifiedFieldList({
   initialSettings,
   customFields,
+  conditionsEntitled = false,
   initialOrder,
 }: {
   initialSettings: FormSettings;
   customFields: CustomFieldDef[];
+  /** Plus gate for conditional questions (P3). Un-entitled artists see the
+   *  existing conditions explained but cannot set new ones; the server refuses
+   *  the write either way. */
+  conditionsEntitled?: boolean;
   initialOrder: string[];
 }) {
   const [settings, setSettings] = useState(initialSettings);
@@ -360,6 +365,7 @@ export default function UnifiedFieldList({
                 <FieldForm
                   field={field}
                   allFields={customFields}
+                  conditionsEntitled={conditionsEntitled}
                   onDone={() => setEditingId(null)}
                 />
               </div>
@@ -447,6 +453,7 @@ export default function UnifiedFieldList({
         <div className="mt-2">
           <FieldForm
             allFields={customFields}
+            conditionsEntitled={conditionsEntitled}
             onDone={() => setAddMode(false)}
           />
         </div>

@@ -12,6 +12,11 @@ import {
 import { buildDefaultFieldOrder, insertFieldId } from "@/lib/form-settings";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
+import { conditionWriteAllowed } from "@/lib/server/form-entitlements";
+// Deliberately the SAME string the mobile routes serve: there is nothing to
+// steer toward here that the sentence does not already say, so the usual
+// web-may-steer / app-must-not split has nothing to split.
+import { CONDITION_NOT_ENTITLED } from "@/lib/server/plan-limit-messages";
 
 type State = { error: string } | { success: true } | null;
 
@@ -100,6 +105,12 @@ export async function createFieldAction(
     .limit(1);
 
   const position = (existing?.[0]?.position ?? -1) + 1;
+
+  // Conditional questions are Plus (P3). A new field has nothing to preserve,
+  // so an un-entitled artist simply cannot create one with a condition.
+  if (!(await conditionWriteAllowed(user.id, data.condition, null))) {
+    return { error: CONDITION_NOT_ENTITLED };
+  }
 
   const { data: inserted, error } = await supabase
     .from("custom_fields")
@@ -191,6 +202,25 @@ export async function updateFieldAction(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const data = parsed.data;
+
+  // Conditional questions are Plus (P3). Read what the row already holds so an
+  // UNCHANGED condition survives an unrelated edit: losing form logic as a
+  // side effect of renaming a field would be a silent data loss.
+  const { data: current } = await supabase
+    .from("custom_fields")
+    .select("condition")
+    .eq("id", id)
+    .eq("artist_id", user.id)
+    .single();
+  if (
+    !(await conditionWriteAllowed(
+      user.id,
+      data.condition,
+      current?.condition ?? null,
+    ))
+  ) {
+    return { error: CONDITION_NOT_ENTITLED };
+  }
 
   const { error } = await supabase
     .from("custom_fields")

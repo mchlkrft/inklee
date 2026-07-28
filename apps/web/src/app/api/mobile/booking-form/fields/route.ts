@@ -13,6 +13,8 @@ import {
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
 import { MOBILE_PLAN_LIMIT_MESSAGES } from "@/lib/server/plan-limit-messages";
+import { conditionWriteAllowed } from "@/lib/server/form-entitlements";
+import { CONDITION_NOT_ENTITLED } from "@/lib/server/plan-limit-messages";
 
 export const runtime = "nodejs";
 
@@ -72,6 +74,11 @@ export async function POST(req: Request) {
     .order("position", { ascending: false })
     .limit(1);
   const position = (existing?.[0]?.position ?? -1) + 1;
+
+  // Conditional questions are Plus (P3), same gate as the web create action.
+  if (!(await conditionWriteAllowed(userId, data.condition, null))) {
+    return mobileError(403, CONDITION_NOT_ENTITLED, "not_entitled");
+  }
 
   const { data: inserted, error } = await supabase
     .from("custom_fields")

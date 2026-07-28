@@ -40,6 +40,31 @@ export function appearanceCustomAllowed(overrides: AccountOverrides): boolean {
   );
 }
 
+/** GRANT: true => booking-form questions may carry show/hide conditions.
+ *  Paused => false => conditions are IGNORED and every question shows, which
+ *  is the downgrade behaviour the capability registry specifies: a condition
+ *  is never destroyed, it just stops hiding anything. That direction is the
+ *  safe one, because the alternative (honouring conditions for an artist who
+ *  is no longer entitled) would keep questions hidden from their clients. */
+export function conditionalQuestionsAllowed(
+  overrides: AccountOverrides,
+): boolean {
+  return (
+    !isCapabilityDisabled("form_conditional") &&
+    canAccess(overrides, "form_conditional")
+  );
+}
+
+/** GRANT: true => the non-visual booking-form customization (custom
+ *  confirmation page, custom URL slug). The VISUAL layer is `appearance_custom`
+ *  and is deliberately not duplicated here. Paused => the default confirmation
+ *  page for everyone, which is exactly today's behaviour. */
+export function formCustomAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("form_custom") && canAccess(overrides, "form_custom")
+  );
+}
+
 /** RESTRICTION: true => the artist may EDIT custom email-template bodies.
  *  Paused => true for everyone. Existing bodies always keep SENDING regardless;
  *  only editing is gated. */

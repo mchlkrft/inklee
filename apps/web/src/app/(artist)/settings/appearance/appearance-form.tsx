@@ -105,6 +105,9 @@ export default function AppearanceForm({
         <legend className="text-sm font-semibold text-foreground">
           Layout
         </legend>
+        <p className="text-xs text-muted-foreground">
+          Applies to your Inklee page and your booking form.
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {PAGE_TEMPLATES.map((id) => (
             <button

@@ -16,6 +16,10 @@ import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { surfaceAppearance } from "@/lib/server/appearance";
+import { applyConditionEntitlement } from "@/lib/server/form-entitlements";
+import { accentHex } from "@inklee/shared/appearance";
+import { COVER_COLORS } from "@inklee/shared/cover-colors";
+import { bookingTemplateStyles } from "@inklee/shared/booking-template-styles";
 import {
   dateKeyInTimeZone,
   formatDateKey,
@@ -24,7 +28,6 @@ import {
 import { clampDescription } from "@/lib/seo";
 import { apexHref, publicArtistUrl } from "@/lib/public-url";
 import { parseBioPageSettings, isModuleVisible } from "@/lib/bio-page-settings";
-import { resolveCoverColor, resolveCoverImage } from "@/lib/public-cover";
 import {
   isProductCategory,
   toPriceNumber,
@@ -134,9 +137,6 @@ export default async function ArtistPublicPage({
   const profileSettings = (profile.settings ?? {}) as Record<string, unknown>;
   const formSettings = parseFormSettings(profileSettings.form_settings);
 
-  const coverImage = resolveCoverImage(profileSettings.cover_image_url);
-  const coverColor = resolveCoverColor(profileSettings.cover_color);
-
   // Shared appearance system (P1b). The booking form and the shop teaser it
   // hosts both render inside this surface, so one resolution covers both.
   const appearance = await surfaceAppearance(
@@ -144,6 +144,18 @@ export default async function ArtistPublicPage({
     profileSettings,
     "bookingForm",
   );
+  // Cover image + colour now come from the resolved appearance rather than
+  // being read from settings a second time (P3c). The parser synthesizes both
+  // from the legacy `cover_image_url` / `cover_color`, so an artist who never
+  // opened the appearance editor is unchanged, while a Plus artist who set a
+  // bookingForm override finally gets it applied here instead of silently
+  // losing to the legacy read.
+  const coverImage = appearance.resolved.backgroundImageUrl;
+  const coverColor = accentHex(appearance.resolved.accent, COVER_COLORS);
+  // Visual templates (P3b). Free resolves to `clean` server-side, and `clean`
+  // is byte-identical to the classes this page carried inline before, so an
+  // un-entitled artist's page is unchanged.
+  const tpl = bookingTemplateStyles(appearance.resolved.template);
 
   // Bio Page settings — the custom LINKS moved to the standalone Link Hub
   // (/<slug>/hub, ME-11); the booking page keeps only the booking-policy text
@@ -249,8 +261,11 @@ export default async function ArtistPublicPage({
   // Parse the stored condition jsonb through the shared normalizer (P3): an
   // unparsed row would carry an arbitrary object where a FieldCondition is
   // expected, and visibility would evaluate against unvalidated shape.
-  customFields = (rawCustomFields ?? []).map((r) =>
-    normalizeFieldRow(r as Record<string, unknown>),
+  customFields = await applyConditionEntitlement(
+    profile.id as string,
+    (rawCustomFields ?? []).map((r) =>
+      normalizeFieldRow(r as Record<string, unknown>),
+    ),
   );
 
   const fieldOrder: string[] = Array.isArray(profileSettings.field_order)
@@ -419,7 +434,7 @@ export default async function ArtistPublicPage({
   const booksSettings = parseBooksSettings(profileSettings.books_settings);
   // One shared derivation (same as the booking-submit gate + mobile /me, /home):
   // an expired booking window keeps the books closed even while the flag is on.
-  const { booksOpen, windowExpired } = deriveBooksOpen(
+  const { booksOpen, windowExpired, notYetOpen } = deriveBooksOpen(
     booksSettings,
     todayInTimeZone(profile.timezone ?? "Europe/Berlin"),
   );
@@ -450,7 +465,15 @@ export default async function ArtistPublicPage({
   const artistFirstName = profile.display_name.split(" ")[0];
   let closedMessage = "Books are currently closed.";
   let closedHint: string | undefined = "Check back soon.";
-  if (windowExpired && booksSettings.booking_window_ends_at) {
+  // A scheduled open date takes precedence over every other reason: it is the
+  // only one that tells the visitor exactly when to come back, which is the
+  // whole point of announcing it.
+  if (notYetOpen && booksSettings.booking_opens_at) {
+    closedMessage = `Books open on ${formatDateKey(
+      booksSettings.booking_opens_at,
+    )}.`;
+    closedHint = "Join the waitlist to hear first.";
+  } else if (windowExpired && booksSettings.booking_window_ends_at) {
     closedMessage = `Books were open until ${formatDateKey(
       booksSettings.booking_window_ends_at,
     )} and are now closed.`;
@@ -492,16 +515,16 @@ export default async function ArtistPublicPage({
   return (
     <InterestSelectionsProvider>
       <div className="flex min-h-screen flex-col bg-brand-charcoal text-brand-bone">
-        <header className="relative px-6 pt-12 pb-16" style={headerStyle}>
+        <header className={tpl.header} style={headerStyle}>
           {coverImage && (
             <div
               aria-hidden
               className="absolute inset-0 bg-brand-charcoal/55"
             />
           )}
-          <div className="relative z-10 mx-auto flex max-w-lg flex-col items-center space-y-3 text-center">
+          <div className={tpl.headerInner}>
             {profile.logo_url && (
-              <div className="relative h-28 w-28 overflow-hidden rounded-full ring-2 ring-brand-bone/25">
+              <div className={tpl.logo}>
                 <Image
                   src={profile.logo_url}
                   alt={profile.display_name}
@@ -511,11 +534,9 @@ export default async function ArtistPublicPage({
               </div>
             )}
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight text-brand-bone">
-                {profile.display_name}
-              </h1>
+              <h1 className={tpl.name}>{profile.display_name}</h1>
               {(profile.location || profile.instagram_handle) && (
-                <div className="flex items-center justify-center gap-2 text-sm text-brand-bone/65">
+                <div className={tpl.meta}>
                   {profile.location && <span>{profile.location}</span>}
                   {profile.location && profile.instagram_handle && (
                     <span aria-hidden>·</span>
@@ -533,13 +554,9 @@ export default async function ArtistPublicPage({
                 </div>
               )}
             </div>
-            {profile.bio && (
-              <p className="max-w-sm text-sm leading-relaxed text-brand-bone/70">
-                {profile.bio}
-              </p>
-            )}
+            {profile.bio && <p className={tpl.bio}>{profile.bio}</p>}
             {(futureTrips.length > 0 || shopProducts.length > 0) && (
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <div className={tpl.chips}>
                 {futureTrips.length > 0 && <TravelCard trips={futureTrips} />}
                 {shopProducts.length > 0 && (
                   <ShopTeaser
@@ -592,15 +609,13 @@ export default async function ArtistPublicPage({
           // set a theme renders exactly as before.
           data-appearance={appearance.theme}
           style={appearance.cssVars as React.CSSProperties}
-          className="relative -mt-8 flex-1 rounded-t-[28px] bg-[color:var(--color-workspace-bg)] px-6 pt-10 pb-12 text-foreground md:px-8"
+          className={tpl.panel}
         >
-          <div className="mx-auto w-full max-w-lg space-y-8">
+          <div className={tpl.panelInner}>
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                  Booking request
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <h2 className={tpl.heading}>Booking request</h2>
+                <p className={tpl.subheading}>
                   Fill in the details and I&apos;ll get back to you.
                 </p>
               </div>

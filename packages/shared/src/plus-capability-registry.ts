@@ -148,7 +148,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     name: "Plus Linkhub blocks (booking form, goods, guest spots, flash, books-open, gallery)",
     entitlementKey: "page_blocks (proposed)",
     productArea: "inklee-page",
-    freeBehavior: "Standard links + custom text sections (text sections shipped free, stays free)",
+    freeBehavior:
+      "Standard links + custom text sections (text sections shipped free, stays free)",
     plusBehavior: "Six rich blocks",
     legacyBehavior: "none",
     scope: "artist",
@@ -161,7 +162,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     analyticsEvents: "block_added, block_clicked (required)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
-    operationalState: "unbuilt; NOTE hub is PERMANENTLY FREE by founder decision (features.ts) - gating needs that revisited",
+    operationalState:
+      "unbuilt; NOTE hub is PERMANENTLY FREE by founder decision (features.ts) - gating needs that revisited",
     testCoverage: "absent",
     launchReadiness: "build", // hub-free reconciliation closed 2026-07-28 (features.ts)
   },
@@ -172,7 +174,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     freeBehavior: "None",
     plusBehavior:
       "Views, link clicks, CTR, sources, booking + goods conversions, 12-month detail, lifetime aggregates",
-    legacyBehavior: "none (analytics deliberately excluded from legacy_free_v1)",
+    legacyBehavior:
+      "none (analytics deliberately excluded from legacy_free_v1)",
     scope: "artist",
     serverEnforcement: "absent", // canSeeAdvancedAnalytics has ZERO call sites
     databaseEnforcement: "absent", // no artist-keyed events, no click tables
@@ -180,64 +183,74 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     mobileSupport: "absent",
     downgradeBehavior: "Access ends; aggregates retained per retention policy",
     feeImpact: "none",
-    analyticsEvents: "page_view (hostname substrate exists), link_click (ABSENT, needs beacon + table)",
+    analyticsEvents:
+      "page_view (hostname substrate exists), link_click (ABSENT, needs beacon + table)",
     pricingPageClaim: "Advanced booking analytics (overclaims today)",
     termsClaim: "Terms section 11 names deeper analytics",
-    operationalState: "capability paused AND unwired; near-parallel data plane required",
+    operationalState:
+      "capability paused AND unwired; near-parallel data plane required",
     testCoverage: "absent",
     launchReadiness: "build",
   },
   // ------------------------------------------------------------ booking form
   {
     name: "Booking-form customization (colors, templates, cover image, confirmation page, custom slug)",
-    entitlementKey: "form_custom (proposed)",
+    entitlementKey: "form_custom (+ appearance_custom for the visual layer)",
     productArea: "booking-form",
-    freeBehavior: "Preset themes, artist logo, standard layout",
+    freeBehavior:
+      "Preset themes, artist logo, the clean layout, existing cover image (grandfathered, see below)",
     plusBehavior:
       "Custom colors, visual templates, cover image, custom confirmation page, custom URL slug",
     legacyBehavior: "none",
     scope: "artist",
-    serverEnforcement: "partial", // form_appearance persists but is DEAD CODE (editor unmounted, public page hardcodes light)
-    databaseEnforcement: "absent",
-    frontendBehavior: "partial",
-    mobileSupport: "partial", // form settings have native twins; appearance web-only by old decision
-    downgradeBehavior: "Reverts to presets; settings retained",
+    serverEnforcement: "exists", // P3b-P3f: templates via surfaceAppearance, confirmation + slug via formCustomAllowed, both refused server-side
+    databaseEnforcement: "absent", // settings-JSONB family; no DB-level rule, same as every sibling
+    frontendBehavior: "exists",
+    mobileSupport: "exists", // confirmation + slug have native screens and shared cores; the public renderer is web by design
+    downgradeBehavior:
+      "Clean layout, default confirmation page, slug frozen at its current value (never reset); all settings retained",
     feeImpact: "none",
     analyticsEvents: "none required",
-    pricingPageClaim: "Fully customisable booking template (overclaims today: only the field cap backs it)",
+    pricingPageClaim:
+      "Fully customisable booking template (now backed by templates + confirmation page + slug + the appearance layer)",
     termsClaim: "none",
-    operationalState: "fragments exist; system unbuilt",
-    testCoverage: "absent",
-    launchReadiness: "build",
+    operationalState:
+      "BUILT 2026-07-28. form_custom is live (not parked): with zero Plus artists it grants nothing, so it is inert today. OPEN: the spec lists cover image as Plus-only but it has shipped FREE for months and 3 of 19 production artists use one; built grandfathered pending the founder decision recorded in plus-commercial-packages.md §7",
+    testCoverage: "exists", // booking-template-styles, confirmation-page, slug-rename
+    launchReadiness: "ready",
   },
   {
     name: "Conditional booking-form questions",
-    entitlementKey: "form_conditional (proposed)",
+    entitlementKey: "form_conditional",
     productArea: "booking-form",
     freeBehavior: "Flat question list (custom fields capped Free 3)",
     plusBehavior: "Conditional show/hide logic on questions",
     legacyBehavior: "none",
     scope: "artist",
-    serverEnforcement: "absent", // no condition column, no condition-aware validation
-    databaseEnforcement: "absent",
-    frontendBehavior: "absent",
-    mobileSupport: "absent",
-    downgradeBehavior: "Conditions ignored (all questions show); definitions retained",
+    serverEnforcement: "exists", // migration 0114 + condition-aware validateCustomAnswers + applyConditionEntitlement on render AND submit
+    databaseEnforcement: "absent", // nullable jsonb by design; the rule is behavioural, not a constraint
+    frontendBehavior: "exists",
+    mobileSupport: "exists", // native editor + conditionSources on the mobile read; absent-key PATCH protects pre-P3 builds
+    downgradeBehavior:
+      "Conditions ignored (all questions SHOW, never hide); definitions retained, and an unchanged condition survives an unrelated field edit",
     feeImpact: "none",
     analyticsEvents: "none required",
     pricingPageClaim: "none yet",
     termsClaim: "none",
-    operationalState: "unbuilt; correctness-sensitive (required-field logic)",
-    testCoverage: "absent",
-    launchReadiness: "build",
+    operationalState:
+      "BUILT 2026-07-28 (P3a + the P3d gate). Live, not parked: with zero Plus artists it grants nothing, so conditions are stripped for everyone today and every question shows",
+    testCoverage: "exists", // 25 shared-model tests + form-entitlements boundary tests
+    launchReadiness: "ready",
   },
   {
     name: "Custom email templates",
     entitlementKey: "custom_templates",
     productArea: "booking-form",
     freeBehavior: "Default Inklee lifecycle emails; sends never degraded",
-    plusBehavior: "Custom body per lifecycle type; form-specific templates once a form entity exists",
-    legacyBehavior: "GRANTED (all 4 legacy_free_v1 rows carry custom_templates)",
+    plusBehavior:
+      "Custom body per lifecycle type; form-specific templates once a form entity exists",
+    legacyBehavior:
+      "GRANTED (all 4 legacy_free_v1 rows carry custom_templates)",
     scope: "artist",
     serverEnforcement: "exists", // both save paths refuse pre-upsert (verified 2026-07-28)
     databaseEnforcement: "exists",
@@ -248,7 +261,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     analyticsEvents: "none required",
     pricingPageClaim: "Custom booking email templates",
     termsClaim: "Terms section 11 names custom templates",
-    operationalState: "PARKED (moot: zero templates exist in prod); subjects force-reset by design",
+    operationalState:
+      "PARKED (moot: zero templates exist in prod); subjects force-reset by design",
     testCoverage: "exists", // P0 2026-07-28: rejection paths pinned on BOTH surfaces (web pre-upsert refusal, mobile 403 not_entitled, fail-open blip)
     launchReadiness: "build",
   },
@@ -265,12 +279,15 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     databaseEnforcement: "absent", // no project/session/linkage schema anywhere
     frontendBehavior: "absent",
     mobileSupport: "absent",
-    downgradeBehavior: "Existing projects readable; new intakes off (records never deleted)",
+    downgradeBehavior:
+      "Existing projects readable; new intakes off (records never deleted)",
     feeImpact: "per-session deposits ride the existing deposit plane",
-    analyticsEvents: "project_intake_submitted, project_status_changed (required)",
+    analyticsEvents:
+      "project_intake_submitted, project_status_changed (required)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
-    operationalState: "greenfield; flash-intake sub-path pattern is the template",
+    operationalState:
+      "greenfield; flash-intake sub-path pattern is the template",
     testCoverage: "absent",
     launchReadiness: "build",
   },
@@ -290,7 +307,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     downgradeBehavior:
       "Block-new keep-existing (cap gates create + unarchive only; existing over-cap products keep selling); records never deleted",
     feeImpact: "goods platform fee lane",
-    analyticsEvents: "product_created, order_paid (order events exist server-side)",
+    analyticsEvents:
+      "product_created, order_paid (order events exist server-side)",
     pricingPageClaim: "none yet",
     termsClaim: "none (goods marketplace wording = final counsel deliverable)",
     operationalState:
@@ -310,12 +328,14 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     databaseEnforcement: "partial",
     frontendBehavior: "partial",
     mobileSupport: "partial",
-    downgradeBehavior: "Tool access ends; product data + orders retained untouched",
+    downgradeBehavior:
+      "Tool access ends; product data + orders retained untouched",
     feeImpact: "discounts feed the fee base (subtotal after discounts)",
     analyticsEvents: "drop_scheduled, discount_redeemed (required)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
-    operationalState: "preorders/drops/discounts/bundles/collections all greenfield",
+    operationalState:
+      "preorders/drops/discounts/bundles/collections all greenfield",
     testCoverage: "absent",
     launchReadiness: "build",
   },
@@ -332,8 +352,10 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     databaseEnforcement: "absent", // no fee schedule version column
     frontendBehavior: "partial", // fee shown flat
     mobileSupport: "partial",
-    downgradeBehavior: "Next transaction prices at the Free rate; past fees untouched",
-    feeImpact: "SUPERSEDES OQ-7 flat-3%; fee actuals must start persisting (savings dashboard input)",
+    downgradeBehavior:
+      "Next transaction prices at the Free rate; past fees untouched",
+    feeImpact:
+      "SUPERSEDES OQ-7 flat-3%; fee actuals must start persisting (savings dashboard input)",
     analyticsEvents: "fee snapshot per transaction (required)",
     pricingPageClaim: "3% all-in today (needs update)",
     termsClaim: "deposit fee named in money copy (needs update)",
@@ -355,7 +377,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     frontendBehavior: "absent",
     mobileSupport: "absent",
     downgradeBehavior: "Next transaction at Free rate",
-    feeImpact: "SUPERSEDES D22; platform_fee_amount must be written per order + schedule version",
+    feeImpact:
+      "SUPERSEDES D22; platform_fee_amount must be written per order + schedule version",
     analyticsEvents: "fee snapshot per transaction (required)",
     pricingPageClaim: "none",
     termsClaim: "none (goods marketplace wording = counsel deliverable)",
@@ -376,11 +399,13 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     frontendBehavior: "partial",
     mobileSupport: "partial",
     downgradeBehavior: "n/a",
-    feeImpact: "voluntary refunds return proportional fee; disputes/fraud retain where permitted; artist cancel retains only non-recoverables",
+    feeImpact:
+      "voluntary refunds return proportional fee; disputes/fraud retain where permitted; artist cancel retains only non-recoverables",
     analyticsEvents: "refund events exist in audit_log",
     pricingPageClaim: "none",
     termsClaim: "cancellation/refund wording = counsel deliverable",
-    operationalState: "policy-as-data unbuilt; charge.dispute.* webhooks do not exist",
+    operationalState:
+      "policy-as-data unbuilt; charge.dispute.* webhooks do not exist",
     testCoverage: "partial",
     launchReadiness: "build",
   },
@@ -389,7 +414,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     entitlementKey: "savings_dashboard (proposed)",
     productArea: "insights",
     freeBehavior: "Savings prompts only in billing/revenue surfaces, no popups",
-    plusBehavior: "Fees paid, saved vs Free, subscription cost, net benefit, break-even, comparison period",
+    plusBehavior:
+      "Fees paid, saved vs Free, subscription cost, net benefit, break-even, comparison period",
     legacyBehavior: "none",
     scope: "artist",
     serverEnforcement: "absent",
@@ -397,7 +423,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     frontendBehavior: "absent",
     mobileSupport: "absent",
     downgradeBehavior: "Dashboard hidden; data retained",
-    feeImpact: "consumes persisted fee actuals; claims only from actual eligible transactions",
+    feeImpact:
+      "consumes persisted fee actuals; claims only from actual eligible transactions",
     analyticsEvents: "n/a (it IS an analytics surface)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
@@ -412,13 +439,15 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     productArea: "platform",
     freeBehavior: "fields 3, trips 3, studios 5 (ratified + enforced today)",
     plusBehavior: "fields 30, trips 100, studios 50 (ratified + advertised)",
-    legacyBehavior: "per-limit overrides only where cutover exceeded (all 4 rows empty)",
+    legacyBehavior:
+      "per-limit overrides only where cutover exceeded (all 4 rows empty)",
     scope: "artist",
     serverEnforcement: "exists", // all create paths, web + mobile, verified 2026-07-28
     databaseEnforcement: "partial",
     frontendBehavior: "partial", // save-error-only discovery; no proactive cap UI
     mobileSupport: "partial", // enforced; no cap_reached handling
-    downgradeBehavior: "Over-cap rows read-only-new (block new creates, keep existing)",
+    downgradeBehavior:
+      "Over-cap rows read-only-new (block new creates, keep existing)",
     feeImpact: "none",
     analyticsEvents: "cap_hit (proposed)",
     pricingPageClaim: "Higher limits",
@@ -433,7 +462,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     entitlementKey: "n/a (Stripe promotion code)",
     productArea: "platform",
     freeBehavior: "n/a",
-    plusBehavior: "First 100 subscribers, 24 EUR first year, yearly-only, 6-month window",
+    plusBehavior:
+      "First 100 subscribers, 24 EUR first year, yearly-only, 6-month window",
     legacyBehavior: "n/a",
     scope: "artist",
     serverEnforcement: "partial", // yearly plan + auto coupon wired; the FIRST-100 mechanic absent

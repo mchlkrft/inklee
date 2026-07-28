@@ -27,6 +27,7 @@
 import type { AnalyticsMetrics } from "./analytics";
 import type { BooksSettings } from "./books-settings";
 import type { CustomFieldType, FieldCondition } from "./custom-fields";
+import type { ConfirmationPageSettings } from "./confirmation-page";
 import type { DashboardWidgets } from "./dashboard-settings";
 import type { DepositState } from "./deposit-state";
 import type { StripeMode } from "./deposit-settings";
@@ -808,6 +809,14 @@ export type MobileBookingFormFieldInput = {
 export type MobileBookingFormSettingsUpdate = {
   key: string;
   value: boolean;
+};
+
+/** GET /api/mobile/booking-form/confirmation — the custom confirmation page
+ *  (Plus build P3d) plus whether the artist may actually use it. `entitled`
+ *  is server-resolved so the app never re-derives a plan rule. */
+export type MobileConfirmationPage = {
+  confirmation: ConfirmationPageSettings;
+  entitled: boolean;
 };
 
 /** POST /api/mobile/booking-form/order — the full displayed key array

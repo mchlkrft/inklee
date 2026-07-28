@@ -29,9 +29,14 @@ export default function FieldForm({
   field,
   onDone,
   allFields = [],
+  conditionsEntitled = false,
 }: {
   field?: CustomFieldDef;
   onDone: () => void;
+  /** Plus gate (P3). When false the artist cannot ADD a condition, but one
+   *  that already exists is still shown and still round-trips on save, so an
+   *  unrelated edit never silently strips it. */
+  conditionsEntitled?: boolean;
   /** Sibling fields, so a condition can name a controlling question. Only
    *  fields EARLIER than this one are offerable (see below). */
   allFields?: CustomFieldDef[];
@@ -229,7 +234,14 @@ export default function FieldForm({
           impossible, rather than needing a cycle check the artist would have
           to understand. Choice fields only, because "equals" against free
           text is a trap nobody wins. */}
-      {controllerOptions.length > 0 && (
+      {controllerOptions.length > 0 && !conditionsEntitled && !condKey && (
+        <p className="rounded-md border border-border p-3 text-xs text-muted-foreground">
+          Showing a question only when an earlier answer matches is part of
+          Plus.
+        </p>
+      )}
+
+      {controllerOptions.length > 0 && (conditionsEntitled || condKey) && (
         <div className="space-y-2 rounded-md border border-border p-3">
           <p className="text-sm text-foreground">
             Only show this question when

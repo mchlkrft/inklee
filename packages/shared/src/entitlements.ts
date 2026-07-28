@@ -74,6 +74,12 @@ export const ENTITLEMENT_FEATURES = [
   // Free keeps the preset cover color + cover image it has today, which the
   // appearance parser reads through, so a Free artist loses nothing.
   "appearance_custom",
+  // Booking form (Plus build P3). `appearance_custom` already governs the
+  // VISUAL layer of every public surface, including the booking form's
+  // templates and cover image, so these two cover only what it does not:
+  // question logic, and the form-specific customization that is not styling.
+  "form_conditional",
+  "form_custom",
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 

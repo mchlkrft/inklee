@@ -100,6 +100,7 @@ describe("normalizeBooksConfig", () => {
       value: {
         books_open: false,
         booking_cap: 5,
+        booking_opens_at: null,
         booking_window_ends_at: "2026-08-01",
         books_closed_message: "Back in August",
         form_appearance: "light",
@@ -113,6 +114,7 @@ describe("normalizeBooksConfig", () => {
       booking_cap: 5,
       books_closed_message: "On break",
       booking_window_ends_at: "2026-09-01",
+      booking_opens_at: "2026-07-01",
     };
     const r = normalizeBooksConfig({ open: true, bookingCap: null }, current);
     expect(r.ok).toBe(true);
@@ -120,6 +122,7 @@ describe("normalizeBooksConfig", () => {
       expect(r.value.booking_cap).toBeNull(); // explicit null clears
       expect(r.value.books_closed_message).toBe("On break"); // omitted → preserved
       expect(r.value.booking_window_ends_at).toBe("2026-09-01"); // omitted → preserved
+      expect(r.value.booking_opens_at).toBe("2026-07-01"); // omitted → preserved
       expect(r.value.books_open).toBe(true);
     }
   });

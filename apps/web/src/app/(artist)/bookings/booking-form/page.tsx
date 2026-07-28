@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import { normalizeFieldRow } from "@/lib/custom-fields";
+import { parseConfirmationPage } from "@inklee/shared/confirmation-page";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import {
+  formCustomAllowed,
+  conditionalQuestionsAllowed,
+} from "@/lib/server/entitlement-gates";
+import ConfirmationForm from "./confirmation-form";
 import { parseFormSettings, buildDefaultFieldOrder } from "@/lib/form-settings";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
@@ -42,6 +49,22 @@ export default async function BookingFormPage() {
   // rows, so a malformed stored condition must resolve to "always show" here
   // exactly as it does on the public form.
   const customFields: CustomFieldDef[] = (fields ?? []).map(normalizeFieldRow);
+
+  // Confirmation page (P3d). Parsed rather than read raw so the editor opens
+  // showing exactly what a visitor would see.
+  const confirmation = parseConfirmationPage(
+    ((profile?.settings ?? {}) as Record<string, unknown>).confirmation_page,
+  );
+  let formCustomEntitled = false;
+  let conditionsEntitled = false;
+  try {
+    const overrides = await getAccountOverrides(user!.id);
+    formCustomEntitled = formCustomAllowed(overrides);
+    conditionsEntitled = conditionalQuestionsAllowed(overrides);
+  } catch {
+    formCustomEntitled = false;
+    conditionsEntitled = false;
+  }
   const customFieldIds = customFields.map((f) => f.id);
   const initialOrder = Array.isArray(profileSettings.field_order)
     ? (profileSettings.field_order as string[])
@@ -155,6 +178,23 @@ export default async function BookingFormPage() {
           initialSettings={formSettings}
           customFields={customFields}
           initialOrder={initialOrder}
+          conditionsEntitled={conditionsEntitled}
+        />
+      </section>
+
+      {/* Confirmation page (P3d) */}
+      <section className="space-y-4">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Confirmation page
+          </h2>
+          <p className="mt-1.5 text-sm text-foreground">
+            What a client sees right after sending a request.
+          </p>
+        </div>
+        <ConfirmationForm
+          initial={confirmation}
+          entitled={formCustomEntitled}
         />
       </section>
     </div>

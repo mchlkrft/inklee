@@ -111,6 +111,25 @@ export default function AvailabilityForm({
 
         <div className="space-y-1.5">
           <label
+            htmlFor="booking_opens_at"
+            className="text-sm font-medium text-foreground"
+          >
+            Open books on{" "}
+            <span className="text-sm text-muted-foreground">(optional)</span>
+          </label>
+          <DateInput
+            id="booking_opens_at"
+            name="booking_opens_at"
+            defaultValue={settings.booking_opens_at ?? ""}
+            className="w-full rounded-md border-2 border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <p className="text-sm text-muted-foreground">
+            Your page shows the date and stays closed until then.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label
             htmlFor="booking_window_ends_at"
             className="text-sm font-medium text-foreground"
           >
