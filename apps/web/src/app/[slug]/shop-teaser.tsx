@@ -15,6 +15,10 @@ import {
   type PublicProduct,
 } from "@/lib/goods";
 import { MAX_INTEREST_QUANTITY } from "@/lib/booking-interests";
+import {
+  groupProductsByCollection,
+  type ProductCollection,
+} from "@inklee/shared/collections";
 import { useInterestSelections } from "./interest-selections-context";
 
 function unitPriceFor(
@@ -381,10 +385,13 @@ function ProductCard({
 
 export default function ShopTeaser({
   products,
+  collections = [],
   itemBg = null,
   artistName,
 }: {
   products: PublicProduct[];
+  /** Visible collections in the artist's order (P5d). Empty = one flat list. */
+  collections?: ProductCollection[];
   // Background for the overlay product cards — the artist's chosen header
   // color, or null to fall back to charcoal (used when there's a cover image).
   itemBg?: string | null;
@@ -449,6 +456,8 @@ export default function ShopTeaser({
   }, [open, lightbox]);
 
   if (products.length === 0) return null;
+
+  const groups = groupProductsByCollection(products, collections);
 
   const totalSelectedQty = selections.reduce(
     (n, s) => n + (s.quantity > 0 ? s.quantity : 0),
@@ -602,18 +611,40 @@ export default function ShopTeaser({
               </div>
             )}
 
-            <ul className="mx-auto mt-8 grid w-full max-w-7xl grid-cols-2 gap-3 sm:grid-cols-3 lg:mt-12 lg:grid-cols-5 lg:gap-4">
-              {products.map((p) => (
-                <ProductCard
-                  key={p.id}
-                  p={p}
-                  itemBg={itemBg}
-                  currentInCart={currentInCart}
-                  onAdd={addToCart}
-                  onZoom={(urls, alt, idx) => setLightbox({ urls, alt, idx })}
-                />
-              ))}
-            </ul>
+            {/* Collections (P5d). Grouping is computed server-side and passed
+                in; a shop with no collections yields exactly one unnamed group,
+                so this renders identically to before for everyone else. */}
+            {groups.map((group, gi) => (
+              <div key={group.collection?.id ?? "ungrouped"}>
+                {group.collection && (
+                  <h3 className="mx-auto mt-10 max-w-7xl text-sm font-medium uppercase tracking-[0.14em] text-brand-bone/60 lg:mt-14">
+                    {group.collection.name}
+                  </h3>
+                )}
+                <ul
+                  className={`mx-auto grid w-full max-w-7xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4 ${
+                    group.collection
+                      ? "mt-4"
+                      : gi === 0
+                        ? "mt-8 lg:mt-12"
+                        : "mt-8"
+                  }`}
+                >
+                  {group.products.map((p) => (
+                    <ProductCard
+                      key={p.id}
+                      p={p}
+                      itemBg={itemBg}
+                      currentInCart={currentInCart}
+                      onAdd={addToCart}
+                      onZoom={(urls, alt, idx) =>
+                        setLightbox({ urls, alt, idx })
+                      }
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))}
             <p className="mx-auto mt-8 max-w-xl text-center text-sm text-brand-bone/70 lg:mt-12">
               Mark anything you&apos;d like to grab at your appointment. The
               artist confirms what&apos;s available when accepting your request.

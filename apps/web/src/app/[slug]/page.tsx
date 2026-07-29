@@ -21,6 +21,7 @@ import { accentHex } from "@inklee/shared/appearance";
 import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { bookingTemplateStyles } from "@inklee/shared/booking-template-styles";
 import { shopAvailabilityResolver } from "@/lib/server/shop-availability";
+import type { ProductCollection } from "@inklee/shared/collections";
 import {
   dateKeyInTimeZone,
   formatDateKey,
@@ -169,11 +170,12 @@ export default async function ArtistPublicPage({
   // those gain interest-marking controls so the client can signal "I want to
   // buy this at the appointment" before the artist accepts the request.
   let shopProducts: PublicProduct[] = [];
+  let shopCollections: ProductCollection[] = [];
   if (isModuleVisible(bioPage, "shop") && canUseGoods(profileSettings)) {
     const { data: rawProducts } = await serviceClient
       .from("products")
       .select(
-        "id, title, category, image_url, image_urls, price_amount, currency, status, pickup_note, is_checkout_addon, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+        "id, title, category, image_url, image_urls, price_amount, currency, status, pickup_note, is_checkout_addon, quantity, available_from, preorder, collection_id, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
       )
       .eq("artist_id", profile.id)
       .eq("is_public_visible", true)
@@ -203,6 +205,7 @@ export default async function ArtistPublicPage({
       quantity: number | null;
       available_from: string | null;
       preorder: boolean | null;
+      collection_id: string | null;
       product_variants: RawVariant[] | null;
     };
 
@@ -215,6 +218,22 @@ export default async function ArtistPublicPage({
     // clock during render is an impure call, and evaluating each card against
     // its own millisecond could show a drop as open on one and closed on the
     // next.
+    // Collections (P5d). Only the VISIBLE ones are sent to the client: a
+    // hidden collection's products still render, in the ungrouped remainder,
+    // so hiding a section never quietly unpublishes stock.
+    const { data: rawCollections } = await serviceClient
+      .from("product_collections")
+      .select("id, name, position, is_public_visible")
+      .eq("artist_id", profile.id)
+      .eq("is_public_visible", true)
+      .order("position", { ascending: true });
+    shopCollections = (rawCollections ?? []).map((c) => ({
+      id: c.id as string,
+      name: c.name as string,
+      position: c.position as number,
+      isPublicVisible: true,
+    }));
+
     const resolveAvailability = shopAvailabilityResolver();
     shopProducts = rows.map((p) => {
       const currency = typeof p.currency === "string" ? p.currency : "eur";
@@ -236,6 +255,7 @@ export default async function ArtistPublicPage({
         price: toPriceNumber(p.price_amount),
         currency,
         soldOut: availability.state === "sold_out",
+        collectionId: p.collection_id,
         availabilityState:
           availability.state === "unavailable" ? undefined : availability.state,
         availabilityLabel: availabilityBadge,
@@ -581,6 +601,7 @@ export default async function ArtistPublicPage({
                 {shopProducts.length > 0 && (
                   <ShopTeaser
                     products={shopProducts}
+                    collections={shopCollections}
                     itemBg={goodsItemBg}
                     artistName={profile.display_name}
                   />

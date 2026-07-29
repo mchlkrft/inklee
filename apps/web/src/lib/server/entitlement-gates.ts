@@ -107,6 +107,18 @@ export function goodsSchedulingAllowed(overrides: AccountOverrides): boolean {
   );
 }
 
+/** GRANT: true => the artist may create and arrange shop collections.
+ *  Paused => collections cannot be edited and the public shop renders ONE
+ *  ungrouped list, which is exactly how it looks today. Existing collection
+ *  rows and their product assignments are kept, so re-entitling restores the
+ *  arrangement rather than asking the artist to rebuild it. */
+export function goodsCollectionsAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("goods_collections") &&
+    canAccess(overrides, "goods_collections")
+  );
+}
+
 /** RESTRICTION: true => the artist may EDIT custom email-template bodies.
  *  Paused => true for everyone. Existing bodies always keep SENDING regardless;
  *  only editing is gated. */

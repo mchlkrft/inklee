@@ -90,6 +90,8 @@ export const ENTITLEMENT_FEATURES = [
   // Scheduled drops, preorders and low-stock alerts (spec section 9:
   // "Preorders, scheduled product drops" and inventory tracking).
   "goods_scheduling",
+  // Shop organization: product collections (spec section 9, "collections").
+  "goods_collections",
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 

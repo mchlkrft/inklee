@@ -37,6 +37,7 @@ export const CAPABILITIES = [
   "large_projects", // paused => the /{slug}/project intake 404s; existing records stay readable
   "goods_discounts", // paused => codes stop applying at checkout; existing ones are kept, not deleted
   "goods_scheduling", // paused => no NEW drops/preorders can be set; existing drop dates are still honoured
+  "goods_collections", // paused => no collection edits; the public shop falls back to one ungrouped list
   // The native tattoo-map surface (map-features.ts note: the mobile map ships
   // capability-killable; the web env flag stays the web launch gate for now):
   "tattoo_map", // paused => native map hidden + /api/mobile/map/* refuses

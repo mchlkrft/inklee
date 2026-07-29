@@ -201,6 +201,9 @@ export type PublicProduct = {
   price: number;
   currency: string;
   soldOut: boolean;
+  /** Which collection this product sits in on the public shop (P5d). Null or
+   *  absent means ungrouped, which is every product before collections. */
+  collectionId?: string | null;
   /** Drops and preorders (P5c). Server-resolved so the client never
    *  re-implements the availability rule, and additive so an older reader
    *  simply ignores it. */
