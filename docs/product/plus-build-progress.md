@@ -38,7 +38,6 @@ and `goods_collections` stays ungranted.
 | Audit fixes | `1f8b5e9` | Seven findings from the self-audit of the above |
 | P5c | `9ce0b21` | Scheduled drops, preorders, low-stock alerts (migration 0119) |
 | P5d | `d890a07` | ❌ **RETRACTED.** Shipped broken; see the defect record below |
-| Native parity | `0de2034` | Native discount + product-scheduling editors (COMPLETE, not paused) |
 
 Migrations 0114-0120 are applied to production and verified there.
 
@@ -46,6 +45,129 @@ Migrations 0114-0120 are applied to production and verified there.
 (`we_1TpPmyHkG0exykzFYTq26SyV`) now subscribes to
 `charge.dispute.created/updated/closed`, so the P5a dispute handler is
 actually reachable. Verified by re-reading the endpoint.
+
+---
+
+## Corrected: local-master topology (2026-07-29)
+
+This log previously listed `0de2034` (native discount + product-scheduling
+editors) in the "Completed and pushed" table as `COMPLETE, not paused`. That
+was false on both counts: `0de2034` was committed directly to local `master`
+and was **never pushed** to `origin/master`, and it was never reviewed.
+Verified by comparing tips: local `master` was `0de2034` (one commit ahead of
+`origin/master`, which sat at `d890a07`); `git log --oneline -5 origin/master`
+showed `d890a07` at the top with no `0de2034`.
+
+**Decision:** local `master` is reset to `origin/master` so master stops
+carrying unreviewed, unpushed work. No push was made in either direction; this
+is a local ref change only, run on this machine (`git branch -f master
+origin/master`). Local `master` now points at `d890a07`, matching
+`origin/master` exactly.
+
+**Verification behind the decision, not just the tips:**
+- `feat/native-goods-parity`'s tip IS `0de2034` (the identical commit object,
+  same tree hash `0875b2d3`), not a copy of it. Nothing is lost by moving
+  `master`'s ref elsewhere; the object stays permanently reachable from that
+  branch.
+- No other local ref, tag, or worktree pointed at `0de2034`. `master`'s
+  reflog retains it (`master@{1}`) as a machine-local safety net, but that is
+  not durable — the branch is the real record.
+- Reset confirmed lossless and non-disruptive: no worktree had `master`
+  checked out at the time.
+
+**Correction to this section's first version:** it originally claimed `0de2034`
+"does not ride in on the P5d branch." That was wrong and is retracted here
+rather than silently fixed. `git log -1 --format=%P 0de2034` shows its parent
+is `d890a07`, and `feat/p5d-collections` was branched from `0de2034` itself,
+not from `d890a07` directly — `0de2034` is the base commit every one of the
+eight P5d-rebuild commits (`805358d` through `264ec6d`) sits on
+(`git log --oneline d890a07..feat/p5d-collections` lists `0de2034` as the
+oldest entry). **The `master`-ref reset does not, by itself, keep `0de2034`
+out of master.** The moment `feat/p5d-collections` is merged, `0de2034` merges
+with it, unreviewed, regardless of what `master`'s local ref points at right
+now. If `0de2034` is meant to land only via its own review on
+`feat/native-goods-parity`, `feat/p5d-collections` itself would need to be
+rebased onto `d890a07` to drop `0de2034` from its ancestry before that merge —
+a history rewrite on the collections branch, not performed here and not
+something to do without it being asked for explicitly.
+
+**Rationale for the ref reset itself.** Master carrying an unpushed, unreviewed
+commit is exactly the failure mode the P5d retraction (`d890a07`) already
+burned us on once: a claim of "done" that the branch state did not back up.
+Resetting local master to the remote removes that discrepancy for master's own
+ref. It does not resolve the deeper fact above, which is a separate, still-open
+decision.
+
+### Isolation feasibility: could `0de2034` be rebased out of `feat/p5d-collections`?
+
+Founder intent on record is that native discount parity stays in progress,
+paused for P5d completion. As the branch stands, finishing P5d is what
+un-pauses it, since `0de2034` is its base commit. Tested whether rebasing it
+out is a clean mechanical fix.
+
+**File-level intersection**, comparing files `0de2034` changed (vs `d890a07`)
+against files the eight P5d commits change combined (vs `0de2034`): four files
+overlap out of ~40 touched total —
+`apps/mobile/app/(tabs)/goods/index.tsx`,
+`docs/product/plus-build-progress.md` (this file),
+`docs/web-native-parity.md`, and
+`packages/shared/src/mobile-api.ts`.
+
+**Content dependency, checked per file, not assumed from the overlap:**
+- `packages/shared/src/mobile-api.ts` — no dependency. `0de2034` inserts two
+  type blocks mid-file (around the product-detail and discount-list types);
+  P5d's `MobileCollectionList` type is appended at end-of-file and references
+  nothing `0de2034` added. Independent content, same file.
+- `apps/mobile/app/(tabs)/goods/index.tsx` — real conflict. P5d inserts a
+  "Collections" button using `0de2034`'s "Discount codes" button as the diff's
+  context anchor. Trivial to resolve by hand (both buttons stay, either order),
+  but not a clean apply.
+- `apps/mobile/app/(tabs)/goods/_layout.tsx` — P5d only adds a `collections`
+  route registration; it does not reference `0de2034`'s `discounts` route. No
+  dependency, and `0de2034` never touched this file, so it is not in the
+  intersection at all.
+- `docs/web-native-parity.md` — real conflict. P5d's diff carries the
+  "Drops/preorders" and "Discount codes" parity-table rows as unchanged
+  context around the row it actually edits, and those rows only read `✅` in
+  the tree that already has `0de2034` applied. Without it they are still
+  `⬜`, so the context will not match.
+- Migrations: confirmed clean. `0120` was introduced in `d890a07` itself,
+  which is the intended new base, so it is not touched or replayed by the
+  rebase. `0121`-`0123` appear only in the P5d commits, never in `0de2034`.
+
+**Empirical test**, on a throwaway branch (`tmp/worker-rebase-probe-1`, built
+from `feat/p5d-collections`, deleted after): `git rebase --onto d890a07
+0de2034` was run for real. It conflicted on the FIRST replayed commit
+(`805358d`), six separate hunks, entirely in `docs/product/plus-build-progress.md`
+— this file's own narrative log, rewritten by nearly every P5d commit, doesn't
+apply against a tree missing `0de2034`'s edits to it. Aborted after confirming
+the conflict rather than resolving all eight commits by hand, which was not
+authorised. `feat/p5d-collections` itself was never touched (confirmed
+unchanged at `264ec6d` before and after); the probe branch was deleted.
+
+**Read:** the product/schema surface (migrations, RLS, server cores, the
+actual collections feature) is genuinely independent of `0de2034` — no logic
+dependency anywhere. The conflicts are concentrated in two narrative docs
+(`plus-build-progress.md` itself and `web-native-parity.md`) plus one trivial
+UI-button ordering conflict. That makes a rebase mechanically low-risk to the
+feature but higher-risk to get right on the docs: resolving eight rounds of
+conflicts in a log that has already had two recorded self-inflicted errors
+this session (the `8b3e0a1` bad hash, the "does not ride in" self-contradiction
+above) is exactly the kind of manual, repetitive text surgery that produces a
+third one. Recommendation is for the supervisor to weigh against option (b):
+either isolate via a careful rebase (feature code cheap, docs need real
+attention across all eight commits) or accept the coupling and bring `0de2034`
+formally into this gate's review scope, overriding the "paused" intent on the
+record rather than leaving it silently contradicted. Not decided here.
+
+**Process note, not a P5d finding:** this repo checkout is shared with other
+agents on the team (no per-agent worktree). Mid-analysis, this file's
+uncommitted edits briefly vanished and the reflog showed a `tmp/rebase-probe`
+rebase over the exact same eight commits had already run and been cleaned up,
+which nobody had reported yet. It resolved without data loss this time. Flagged
+to the supervisor directly; noted here only so a future reader of this section
+knows the empirical test above was re-run cleanly by this worker after that,
+on a distinctly-named branch, and its content is first-hand.
 
 ---
 
@@ -127,7 +249,7 @@ found a live production defect this branch had nothing to do with.
 | # | Finding | Resolution |
 |---|---|---|
 | A1 | CRITICAL. `test:db` loaded no env, so all tests SKIPPED and the suite exited 0 having asserted nothing | `vitest.db.config.ts` loads `.env.e2e` with `override: true`; `tests/db/helpers/db-env.ts` throws instead of skipping |
-| A2 | HIGH. `discount_codes` has the SAME defect, in production, on the revenue path | Migration `0123` + `tests/db/discounts-rls.test.ts` (9 tests) |
+| A2 | HIGH. `discount_codes` has the SAME defect, in production, on the revenue path | Migration `0123` + `tests/db/discounts-rls.test.ts` (8 tests) |
 | A3 | HIGH. `0121`'s comment certified `discount_codes` as a healthy precedent. False | Comment corrected to name `projects` only, and to record the false claim rather than quietly delete it |
 | A4 | MEDIUM. Migrations not idempotent | Already fixed in Gate B; re-verified by re-running all three under `ON_ERROR_STOP` |
 | A5 | MEDIUM. Policies untargeted, so they also applied to `anon` | `TO authenticated` on all nine policies across `0121`/`0122`/`0123` |
@@ -196,7 +318,131 @@ deploy; production has zero such rows, and the join keeps that safe elsewhere.
 
 Local database reset from zero: all 124 migrations apply clean in order.
 
-### Milestone 3: server behaviour — DONE (`8b3e0a1`)
+### Red run: the 5 tests added since the 31-test count above, executed 2026-07-29
+
+The evidence above reconciles to 31 tests (10 collections + 13 collection-items
++ 8 discounts). The suite is now 36 (10 + 18 + 8, `grep -c '\bit('` per file).
+Five tests were added after that evidence was captured and had never been
+shown to fail before passing: 3 in `describe("cross-ownership is
+unrepresentable, not merely denied")` and 2 in `describe("archive
+lifecycle")`, both in `collection-items-rls.test.ts`. This gate's own history
+(the first cross-owner test that passed for the wrong reason, `23505` masking
+a `23503`) is exactly why a red run and not a code read is required here.
+
+**Baseline**, both composite FKs present:
+
+```
+$ pnpm test:db
+◇ injected env (5) from .env.e2e
+ Test Files  3 passed (3)
+      Tests  36 passed (36)
+```
+
+**Red.** Dropped both `product_collection_items_collection_fk` and
+`product_collection_items_product_fk` directly on the local stack
+(`alter table product_collection_items drop constraint ...`), confirmed gone
+via `pg_constraint`, then ran the suite:
+
+```
+$ pnpm test:db
+ ❯ tests/db/collection-items-rls.test.ts (18 tests | 4 failed) 1965ms
+     × cascades membership away when a product is hard-deleted
+     × refuses a cross-owner membership even as the service role
+     × refuses a membership whose artist_id disagrees with its parents
+     × deleting a collection removes membership but never the products
+
+ FAIL  ... > cross-ownership is unrepresentable, not merely denied > refuses a cross-owner membership even as the service role
+AssertionError: the FK must reject this: expected null not to be null
+
+ FAIL  ... > cross-ownership is unrepresentable, not merely denied > refuses a membership whose artist_id disagrees with its parents
+AssertionError: expected a foreign-key violation: expected undefined to be '23503'
+
+ FAIL  ... > archive lifecycle > deleting a collection removes membership but never the products
+AssertionError: expected [ Array(1) ] to have a length of +0 but got 1
+
+ FAIL  ... > legacy column compatibility > cascades membership away when a product is hard-deleted
+AssertionError: expected [ Array(1) ] to have a length of +0 but got 1
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  4 failed | 32 passed (36)
+```
+
+**Four failures, not three, and the right reasons in each case:**
+
+- Both cross-ownership tests failed with `error` = `null` / `error?.code` =
+  `undefined` — the row inserted successfully. That is the correct failure
+  mode: it proves the FK, not the unique constraint, was rejecting these rows
+  before. A `23505` here would have meant the test was fooled again the same
+  way milestone 3 already caught once; it did not happen.
+- The third cross-ownership test, `still accepts a correct row as the service
+  role`, is a positive control and correctly stayed **green**: it inserts a
+  legitimate, non-duplicate row, which needs no FK to succeed. Its
+  "unproven" status was about never having been red, not about being expected
+  to fail here, and running it alongside the two negative tests is what
+  confirms the drop didn't just block every write outright — the same
+  distinction A8 already established for the write-policy tests.
+- One of the two archive-lifecycle tests failed: `deleting a collection
+  removes membership but never the products`. It has a real droppable
+  dependency, `product_collection_items_collection_fk`'s `on delete cascade`,
+  which is what removes membership rows when their collection is deleted;
+  without it the row is simply orphaned instead of cascaded away. **The other
+  archive-lifecycle test, the archive/restore round trip, has no droppable
+  dependency on these constraints and stayed green throughout.** It tests that
+  updating `archived_at` doesn't disturb membership, which was never
+  guaranteed by the FK, the RLS policy, or any trigger — there is nothing in
+  this schema that WOULD touch `product_collection_items` on an
+  `archived_at` update, so nothing to red/green here. Reported plainly rather
+  than dropping something unrelated to manufacture a failure.
+- One failure outside the named list of 5: `cascades membership away when a
+  product is hard-deleted`, from `describe("legacy column compatibility")`,
+  which milestone 2's evidence already counted among the "proven" 13. It
+  depends on `product_collection_items_product_fk`'s cascade the same way the
+  archive-lifecycle deletion test depends on the collection-side FK. It was
+  not on the named list because it predates the 5 unproven tests, but the same
+  drop invalidates it, and that is worth recording as a second, independent
+  confirmation that the FK is load-bearing rather than a coincidence of this
+  one drop.
+
+**Restore, and a real finding about how NOT to do it.** The assignment said to
+restore by re-running `0122`. Tried that literally first, against the
+already-migrated local stack:
+
+```
+$ docker exec -i supabase_db_inklee psql -U postgres -d postgres < supabase/migrations/0122_collection_items.sql
+NOTICE:  relation "product_collection_items" already exists, skipping
+CREATE TABLE
+...
+```
+
+The constraints did NOT come back (`pg_constraint` still empty for both
+names). `create table if not exists` is a no-op once the table exists, and
+both FKs are declared inline inside that `create table`, so replaying the raw
+file against a live, already-migrated database cannot restore them — this is
+a real limitation of `0122`'s idempotency, not a mistake in how it was
+invoked, and it means "just re-run the migration" is not a safe repair path
+for this specific kind of drift in production either, should it ever occur
+there. Restored properly instead via a full local reset (`supabase db
+reset`), which replays all migrations against an empty database rather than
+against a state that already satisfies the `if not exists` guards. The first
+reset attempt failed the container bootstrap outright (`error running
+container: exit 1`) and left the local database with **zero tables** — a
+real, if transient, incident on a stack other people on this team also use.
+Retried immediately; the second attempt applied all migrations `0001`-`0123`
+cleanly, including the composite FK block and the notice-skipped legacy
+objects, and finished. `pg_constraint` confirmed both FKs back, and:
+
+```
+$ pnpm test:db
+◇ injected env (5) from .env.e2e
+ Test Files  3 passed (3)
+      Tests  36 passed (36)
+```
+
+36/36. The full reset also re-proves A4 more thoroughly than a single-file
+replay would: all 124 migrations, not just `0121`-`0123`, applied clean from
+zero in one pass.
+
+### Milestone 3: server behaviour — DONE (`8554e63`)
 
 Proceeding while Gate A re-review is outstanding is a deliberate call, not an
 assumption of approval: this is branch-only, activates nothing, and the
@@ -320,7 +566,7 @@ lints clean.
 | Goods sales analytics | Belongs with the P6 analytics plane rather than duplicating a second reporting path. |
 | Shop customization beyond the appearance system | The shared appearance system already covers the visual layer; what remains is unspecified. |
 | Variants+ beyond today's basic set | No concrete requirement recorded beyond what exists. |
-| Fresh EAS build | The two native editors (`0de2034`) are on master but not on devices. Batch with the P5d native work rather than burning a build per slice. |
+| Fresh EAS build | The two native editors (`0de2034`) are on `feat/native-goods-parity`, not on master (local master was reset to `origin/master` 2026-07-29; see the topology correction above) and not on devices. Batch with the P5d native work rather than burning a build per slice. |
 | Bundles | Unchanged: still the largest unstarted P5 item, after P5d is genuinely complete. |
 | Cover image Free-vs-Plus conflict | Founder decision, logged in `plus-commercial-packages.md` §7. |
 

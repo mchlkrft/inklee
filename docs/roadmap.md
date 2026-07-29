@@ -14,7 +14,16 @@
 
 **🔧 Update 2026-07-29 (Plus stages P3 to P5 built; P5d REBUILT and deliberately held; session handed to an agent team).** Running state SoT is **`docs/product/plus-build-progress.md`**, a supervisor-readable file kept current as work happens; read it before the detail below.
 
-Shipped to master: **P3** conditional booking-form questions (`e28c62d`, migration `0114`) plus the booking-form visual layer (`879ddbb`: templates, cover unification, confirmation page, custom slug, scheduled books-open); **P4** large-project mode (`536b067`, `0115`) and the client portal + project emails (`54ec5fc`, `0117`); **P5a** the platform fee engine, fee actuals, refund-policy data and dispute handling (`4687c19`, `0116`); **P5b** discount codes (`7e504db`, `0118`); **P5c** drops, preorders and low-stock alerts (`9ce0b21`, `0119`); native discount + scheduling editors (`0de2034`); and `1f8b5e9`, seven fixes from a self-audit of the above, the worst being a checkout that charged before displaying the discount. **Live config change:** the Stripe LIVE webhook now subscribes to `charge.dispute.created/updated/closed`, so the P5a handler is actually reachable. Migrations `0114`-`0120` are applied to production.
+Shipped to master: **P3** conditional booking-form questions (`e28c62d`, migration `0114`) plus the booking-form visual layer (`879ddbb`: templates, cover unification, confirmation page, custom slug, scheduled books-open); **P4** large-project mode (`536b067`, `0115`) and the client portal + project emails (`54ec5fc`, `0117`); **P5a** the platform fee engine, fee actuals, refund-policy data and dispute handling (`4687c19`, `0116`); **P5b** discount codes (`7e504db`, `0118`); **P5c** drops, preorders and low-stock alerts (`9ce0b21`, `0119`); and `1f8b5e9`, seven fixes from a self-audit of the above, the worst being a checkout that charged before displaying the discount. **Live config change:** the Stripe LIVE webhook now subscribes to `charge.dispute.created/updated/closed`, so the P5a handler is actually reachable. Migrations `0114`-`0120` are applied to production.
+
+**Correction, 2026-07-29:** this paragraph previously listed native discount +
+scheduling editors (`0de2034`) as shipped to master. That was false: `0de2034`
+was committed directly to local `master` and never pushed to `origin/master`.
+Local `master` has since been reset to match `origin/master`; the commit lives
+on branch `feat/native-goods-parity` and, unresolved as of this writing, is
+also the base commit `feat/p5d-collections` was branched from. See
+`docs/product/plus-build-progress.md`, "Corrected: local-master topology," for
+the full record and the open isolation question.
 
 **🔴 P5d (shop collections) was RETRACTED and REBUILT, and is the one stage NOT on master.** `d890a07` was pushed claiming completion while the feature could not write a single row: migration `0120` created the table with RLS enabled and a `SELECT` policy only, while every write runs on the user-scoped client. Every test for it was a pure-function test, so the gate stayed green. Reviewing that defect found **the identical defect in `discount_codes`, already in production on the revenue path** — artists cannot save a discount code, and the RLS rejection surfaces as "Couldn't save. Try again." forever. Both are repaired forward (`0121`, `0123`); `0120` was never edited. The durable rules are in memory `rls-write-policy-gap`, and the class of test that catches it now exists as `apps/web/tests/db/` (`pnpm test:db`), wired into CI.
 
