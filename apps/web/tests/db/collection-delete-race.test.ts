@@ -53,6 +53,12 @@ import { PgSession } from "./helpers/pg-session";
  *     artist_id = … for update;` before the DELETE), md5 `cabb8e77…`: GREEN,
  *     51/51 across the whole `tests/db` suite. So the test is not
  *     unsatisfiable, and the fix in 0124's own header is the right one.
+ *     NOTE: the SHIPPED body is `bb9260dc…`, not `cabb8e77…`. Same lock, same
+ *     behaviour; only the explanatory comments differ, and `prosrc` includes
+ *     comments, so the fingerprint moves whenever the body's comments are
+ *     edited. Treat these md5s as identifying a RUN, never as a schema check.
+ *     Independently re-verified against `bb9260dc…`: red on `8554a78c…`,
+ *     green on `bb9260dc…`, 51/51.
  *  3. NEAR MISS, and the reason this test is worth its runtime: the same fix
  *     with `for no key update` (md5 `2169b377…`) stays RED, `blockedFor=2030ms
  *     blockedByWriter=1`. FOR NO KEY UPDATE does not conflict with the FOR KEY

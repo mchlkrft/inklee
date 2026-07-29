@@ -40,6 +40,51 @@
 -- apps/web/tests/db/collection-delete-race.test.ts, which must be shown RED
 -- against the one-statement body before it is trusted.
 --
+-- ============================================================================
+-- THIS SAFETY IS INHERITED, NOT INTRINSIC. It rests on TWO objects declared in
+-- OTHER migrations, and dropping either one silently restores the data loss
+-- while this function's own text stays exactly as you see it. Both were proven
+-- by execution, not argued.
+--
+--  1. `0121`'s UPDATE policy "artist updates own collections". Under RLS,
+--     `select ... for update` requires the UPDATE policy, not just SELECT.
+--     Without it the locking read matches ZERO rows and returns NO ERROR, so
+--     `perform` succeeds, no lock is taken, and the delete below proceeds on a
+--     stale snapshot exactly as the one-statement version did. Verified by
+--     dropping that policy alone: the regression test went red with the FIXED
+--     body in place (`blockedByWriter=1`, membership destroyed).
+--
+--  2. `0122`'s composite FK `product_collection_items_collection_fk`. It is
+--     what makes a child insert take FOR KEY SHARE on this parent row, which is
+--     the lock `for update` conflicts with. Without it there is nothing to
+--     block on: verified by dropping it, the RPC returned 'deleted' THREE
+--     SECONDS BEFORE the writer committed, leaving an ORPHANED membership row
+--     (`blockedBy=0, cols=0, items=1`). Note AGENTS.md records that these
+--     composite FKs have gone missing in this repo before.
+--
+-- So do not treat "the function still contains `for update`" as evidence the
+-- race is closed. The regression test is the real sentinel and it caught case
+-- 1 immediately. Its blind spot: `tests/db/` runs against a LOCAL stack only,
+-- so equivalent drift in PRODUCTION would be caught by nothing. Verify both
+-- objects by catalog read when verifying this migration in prod.
+--
+-- KNOWN, ACCEPTED, UNTESTED: the lock is taken BEFORE eligibility is known, so
+-- a refusal now waits too. A populated+live collection with a concurrent
+-- membership write in flight blocks until that writer finishes; if it exceeds
+-- `authenticated`'s 8s statement_timeout the caller gets 57014, which
+-- collections.ts maps to the generic "Couldn't delete." rather than the correct
+-- "archive it first". Data-safe (verified: collection and membership both
+-- survive), but the wrong message. The regression test cannot see this because
+-- it blocks ~2s, well under the ceiling.
+--
+-- A deadlock (40P01) is also newly POSSIBLE where the one-statement version had
+-- none, because this body holds an exclusive row lock even on collections it
+-- refuses. It needs two locking statements in ONE transaction to trigger, and
+-- deleteCollectionCore issues one RPC per PostgREST request, i.e. one
+-- transaction and one lock, so it is currently UNREACHABLE from the app. It
+-- becomes reachable the moment anything wraps this RPC in a larger transaction.
+-- ============================================================================
+--
 -- Mirrors `canDeleteCollection` exactly: memberCount === 0 || archivedAt,
 -- i.e. archived bypasses the population check, empty collections are always
 -- eligible.

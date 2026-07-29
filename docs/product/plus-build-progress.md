@@ -1155,6 +1155,37 @@ What actually remains before a merge is safe:
 Suite movement across this work, recorded because unchanged counts were the tell
 that hid the original defect: unit **2028 -> 2114**, DB **36 -> 51**.
 
+### Carried forward from the independent verification of the #19 fix
+
+The fix was CONFIRMED by a read-only verifier that tried eight ways to break it,
+including the two failure modes a naive race test cannot see (a fix that passes
+by never deleting, and one using `for no key update`, which does not conflict
+with `FOR KEY SHARE` and so looks identical while losing the same data). It also
+found three things worth carrying:
+
+1. **The safety is INHERITED, and this is the important one.** It depends on
+   `0121`'s UPDATE policy (under RLS, `select ... for update` needs UPDATE, not
+   just SELECT; without it the locking read matches zero rows and returns NO
+   error, so no lock is taken) and on `0122`'s composite FK (which is what makes
+   a child insert take `FOR KEY SHARE` at all). Dropping either one was proven
+   to restore data loss with the fixed function text unchanged. **Both must be
+   catalog-verified in production**, not just locally: `tests/db/` runs against
+   a local stack, so equivalent drift in prod is caught by nothing. Recorded in
+   `0124`'s header.
+2. **Refuse path can now stall.** The lock is taken before eligibility is known,
+   so a refusal waits on a concurrent membership write. Past `authenticated`'s
+   8s `statement_timeout` the caller gets 57014, which `collections.ts` maps to
+   the generic "Couldn't delete." instead of "archive it first". Data-safe
+   (verified: both rows survive), wrong message, no test. Accepted for now and
+   documented rather than fixed, because it is a message defect on a rare
+   concurrent path and widening scope here is how the original defect shipped.
+3. **A deadlock (40P01) is newly possible** where the one-statement version had
+   none, because the body holds an exclusive row lock even on collections it
+   refuses. It requires two locking statements in ONE transaction;
+   `deleteCollectionCore` issues one RPC per request, so it is **unreachable
+   from the app today** and becomes reachable only if something wraps this RPC
+   in a larger transaction.
+
 Deferred, with reasons recorded in the open task register at the top of this
 file: **#12** (`setDiscountActiveCore` ungated, non-blocker because
 `resolveDiscount` re-gates at apply time) and **#18** (the four Hub jobs swallow
