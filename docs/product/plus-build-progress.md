@@ -1129,9 +1129,9 @@ Gate C clean, base commit `0de2034` reviewed clean).
 
 What actually remains before a merge is safe:
 
-1. **Apply `0121`, `0122` and `0124` to production and catalog-verify them
-   BEFORE the merge**, not after. See the ordering constraint above. This is
-   the only item on this list that can hurt a live visitor.
+1. ~~**Apply `0121`, `0122` and `0124` to production and catalog-verify them
+   BEFORE the merge.**~~ **DONE 2026-07-29**, before the merge, as required.
+   See "Production application" below.
 2. ~~**Task #19, the `deleteCollectionCore` TOCTOU.**~~ **CLOSED** (`4d406f9`).
    `0124` now locks the parent `for update` in its OWN earlier statement, so the
    delete's re-check runs on a fresh snapshot. Regression test
@@ -1199,3 +1199,67 @@ on web. This cannot be fixed from the server; see the wire hazard in
 
 Still open from earlier stages, unchanged: fee schedule v2 activation and
 refund policy v1 (both accountant), bundles, goods sales analytics.
+
+---
+
+## Production application of `0121`, `0122`, `0124` (2026-07-29)
+
+Applied **before** the merge, which is the required order: merging is deploying,
+and the branch queries `product_collection_items` at ten sites while production
+did not have the table.
+
+**Command.** `supabase db push --include-all`. The `--include-all` is not
+optional here and the reason is worth keeping: `0123` had been cherry-picked
+ahead and was already applied, so `0121` and `0122` sort BEFORE the last remote
+migration. A plain `db push` refuses with `LegacyDbPushMissingRemoteError`. Two
+dry runs first, the second confirming the exact set (`0121`, `0122`, `0124`, no
+seeds, no roles).
+
+**Lock risk, measured rather than assumed.** `0122` builds
+`products_id_artist_key`, which takes ACCESS EXCLUSIVE on `products`. Production
+`products` holds **7 rows** (`profiles` 19, `product_collections` 0,
+`discount_codes` 0), so the build was instantaneous. Row counts after the push
+were identical to before: nothing was rewritten.
+
+**Verified by catalog read, object by object, never by re-running a migration**
+(AGENTS.md footgun). All PRESENT in production: the `product_collection_items`
+table; `product_collections.archived_at`; both composite FKs; both parent unique
+keys (`product_collections_id_artist_key`, `products_id_artist_key`); the
+`products_sync_legacy_collection` trigger; 4 policies on `product_collections`
+and 4 on `product_collection_items`; `delete_collection_if_eligible` with
+`prosecdef=false`, its body carrying the `for update`, and grants
+`authenticated=true / anon=false`. Ledger tail: `0120,0121,0122,0123,0124`.
+
+**Both objects the `#19` fix silently depends on were verified explicitly**,
+because the catalog is where that dependency is either satisfied or not:
+`0121`'s `artist updates own collections` (cmd=UPDATE) and `0122`'s
+`product_collection_items_collection_fk`. Dropping either reopens the race with
+the function text unchanged, and `tests/db/` cannot see production.
+
+**PostgREST schema cache closed with LIVE calls**, because a correct catalog is
+not sufficient evidence: `GET /rest/v1/product_collection_items` returned
+**HTTP 200** where it had returned `PGRST205`, and the RPC returned `"gone"`
+(HTTP 200) rather than `PGRST202`. The RPC probe used a random UUID that matches
+no row, so it deleted nothing.
+
+**Rollback, recorded because no down migrations exist.** Reverting the merge
+would leave all of this live. Both new tables are EMPTY in production, so the
+undo is safe today and gets less safe the moment an artist creates a collection:
+
+```sql
+drop function if exists delete_collection_if_eligible(uuid, uuid);
+drop trigger if exists products_sync_legacy_collection on products;
+drop function if exists sync_legacy_collection();
+drop table if exists product_collection_items;
+alter table product_collections drop column if exists archived_at;
+drop policy if exists "artist inserts own collections" on product_collections;
+drop policy if exists "artist updates own collections" on product_collections;
+drop policy if exists "artist deletes own collections" on product_collections;
+-- delete from supabase_migrations.schema_migrations where version in ('0121','0122','0124');
+```
+
+Leave `products_id_artist_key` and `product_collections_id_artist_key` in place;
+they are additive unique keys and dropping them is riskier than keeping them.
+
+**Not done, and still gating:** the merge itself, and the fresh EAS build that
+must precede granting `goods_collections`.
