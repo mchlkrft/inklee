@@ -4,7 +4,7 @@
 progress can be monitored without interrupting implementation. The PLAN lives
 in `plus-build-plan.md`; this file is the running state of executing it.
 
-Last updated: 2026-07-29. Milestone 2 (Gate B schema) ready for review. Branch `feat/p5d-collections`.
+Last updated: 2026-07-29. All six P5d milestones BUILT on `feat/p5d-collections`. Gate A findings resolved; **awaiting specialist re-review**. Nothing pushed to master, nothing activated.
 
 ---
 
@@ -14,9 +14,14 @@ Last updated: 2026-07-29. Milestone 2 (Gate B schema) ready for review. Branch `
 Plus package. Everything lands dark or Free-invisible; consumer billing stays
 closed throughout (DB-backed launch key untouched).
 
-**P5d is NOT complete.** The claim in `d890a07` was wrong and is retracted.
-Rebuilding the whole capability against the approved design on
-`feat/p5d-collections`. Status: **in implementation**.
+**P5d was rebuilt, not patched.** The completion claim in `d890a07` was wrong
+and is retracted. All six milestones of the approved design are now built on
+`feat/p5d-collections`: schema repair, many-to-many model, server behaviour,
+Hub block, native management, docs.
+
+Status: **built, awaiting Gate A re-review.** The gate is not self-approved.
+Nothing is pushed to master, migrations `0121`-`0123` are applied locally only,
+and `goods_collections` stays ungranted.
 
 ---
 
@@ -285,10 +290,25 @@ web can drag to reorder, the app cannot. The reorder cores and both reorder ops
 are built and wired server-side, so the native gesture is purely additive
 whenever it earns the surface.
 
-### Milestone 6 (current): docs, registry, full suite
+### Milestone 6: docs, registry, full suite — DONE
 
-Remaining: capability-registry entry, the collections section in the goods
-docs, and the e2e pass.
+The capability was already registered, but its registry row had gone false in
+two ways and both mattered:
+
+- it named `setProductCollectionCore`, a core that no longer exists;
+- it said "the public grouping is a pure shared function and needs no gate of
+  its own". True of the function, wrong about the feature. Without a gate on
+  the READ, an artist who lapsed to Free kept a grouped public shop. The gate
+  now lives with the read that feeds it, and the row says so.
+
+`plus-build-plan.md`'s P5d row still read "DONE" and asserted the one-to-one
+design with the exact reasoning this rebuild overturned. Rewritten to record
+what actually happened, including the retraction and the `discount_codes`
+repair, because an execution source of truth that describes a shipped-broken
+feature as done is worse than no row.
+
+Full suite: 2028 unit, 36 authenticated DB, 39 e2e, both typechecks and both
+lints clean.
 
 ## Blocked or postponed
 
@@ -308,16 +328,24 @@ docs, and the e2e pass.
 
 ## Next intended action
 
-Gate A re-review by the specialist. All nine findings are resolved, with the
-red/green evidence above; the gate is not self-approved.
+**Gate A re-review by the specialist**, then a supervisor decision on merge.
+All nine findings are resolved with red/green evidence; the gate is not
+self-approved. Milestones 3-6 were built while it is outstanding, which was a
+deliberate call: the work is branch-only, activates nothing, and the capability
+stays ungranted. If re-review changes the schema, the server layer above it is
+what moves.
 
-Milestone 3 is prepared and starts on approval: read and write through the join
-table, assign the next collection position on create, make updates sparse, add
-the archive / restore / eligible-delete lifecycle, remove the cap, and enforce
-entitlement plus kill switch at the public read with a flat-shop fallback.
+Two items for the SUPERVISOR rather than the specialist:
 
-One item for the supervisor rather than the specialist: `0123` repairs a
-production defect on the revenue path, found inside a P5d review but unrelated
-to P5d. It is currently queued behind the whole collections branch. Whether it
-should be cherry-picked ahead of that as its own change is a sequencing call,
-not an engineering one.
+1. **`0123` repairs a production defect on the revenue path**, found inside a
+   P5d review but unrelated to P5d. Artists cannot save discount codes today.
+   It is currently queued behind the whole collections branch. Cherry-picking
+   it ahead as its own change is a sequencing call, not an engineering one.
+2. **A fresh EAS build is a prerequisite before `goods_collections` is granted
+   to anyone.** Installed builds predate the `featured_collection` block type
+   and would crash on the Link Hub screen if an artist featured a collection on
+   web. This cannot be fixed from the server; see the wire-hazard section in
+   `web-native-parity.md`.
+
+Still open from earlier stages, unchanged: fee schedule v2 activation and
+refund policy v1 (both accountant), bundles, goods sales analytics.
