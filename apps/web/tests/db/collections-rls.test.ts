@@ -211,18 +211,28 @@ describe("product_collections cross-account isolation", () => {
   });
 
   it("cannot re-assign a collection to itself via UPDATE", async () => {
-    const { data: made } = await owner.client
+    const { data: made, error: madeErr } = await owner.client
       .from("product_collections")
       .insert({ artist_id: owner.id, name: "Owned" })
       .select("id")
       .single();
+    expect(madeErr, madeErr?.message).toBeNull();
+
     // The owner may target the row, but WITH CHECK rejects the new shape.
+    // Asserts the specific code rather than just non-null: found during an
+    // independent audit that this test had the same under-specified shape as
+    // the "refuses an INSERT" test above before A8's fix, just never named.
+    // Verified empirically rather than assumed: `artist_id = auth.uid()` in
+    // WITH CHECK is what fails here, so it is an RLS rejection, not a
+    // different kind of error that would also satisfy a bare not-null check.
     const { error } = await owner.client
       .from("product_collections")
       .update({ artist_id: other.id })
       .eq("id", made!.id)
       .select("id");
-    expect(error).not.toBeNull();
+    expect(error?.code, "expected an RLS rejection, not another error").toBe(
+      "42501",
+    );
   });
 
   it("cannot DELETE another artist's collection", async () => {

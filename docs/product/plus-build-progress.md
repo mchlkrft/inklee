@@ -277,8 +277,18 @@ $ pnpm test:db
  Test Files  3 passed (3) | Tests  31 passed (31)
 ```
 
-**Red/green on the policies themselves.** All nine write policies dropped on the
-local stack:
+**Red/green on the policies themselves.** **Correction (L1, found during the
+correction-set review):** this originally said "all nine write policies
+dropped." Wrong wording: `0121`-`0123` created 9 policies total, but only 8 of
+them are write policies (3 on `product_collections`, 3 on
+`product_collection_items`, 2 on `discount_codes`); the 9th is
+`product_collection_items`'s SELECT policy, a genuine new read policy on a new
+table, not a leftover miscount. The original record does not say, and cannot
+now be reconstructed after the fact, whether that historical drop included the
+SELECT policy alongside the 8 write ones — the commands run at the time were
+not preserved verbatim. Recorded here as an open gap rather than guessed at;
+task #9's named-per-test red run replaces this ambiguity with an unambiguous,
+freshly-verified record rather than trying to patch this one after the fact.
 
 ```
  Test Files  3 failed (3) | Tests  18 failed | 13 skipped (31)
@@ -441,6 +451,102 @@ $ pnpm test:db
 36/36. The full reset also re-proves A4 more thoroughly than a single-file
 replay would: all 124 migrations, not just `0121`-`0123`, applied clean from
 zero in one pass.
+
+### Correction set: N1/N2 test rigor, L1/L2/L6 (2026-07-29)
+
+`db-reviewer` escalated to CHANGES REQUIRED after pulling on the
+policy-arithmetic thread and finding two new HIGH findings, both inside
+`collection-items-rls.test.ts` (Gate B, never in Gate A's original scope). The
+migrations themselves needed no changes; the tests protecting them could not
+fail.
+
+**N1 (HIGH), fixed.** Three cross-account tests asserted only
+`expect(error).not.toBeNull()`: `cannot file ANOTHER artist's product into its
+own collection`, `cannot file its own product into ANOTHER artist's
+collection`, `cannot claim a membership row by naming someone else as owner`.
+With the INSERT policy entirely absent, "everything is rejected" satisfies
+that assertion exactly as well as "cross-account is rejected" — the same
+vacuous-pass shape A8 already fixed once, on a sibling file, never swept here.
+
+Fixed by adding a same-owner positive control on a FRESH row before each (not
+a reused one — the file already has a comment elsewhere about why reuse
+produces a false pass from the wrong constraint), then asserting a specific
+error code instead of non-null. **The code was verified empirically, not
+assumed**, against the live local stack: all three actually return `42501`
+(RLS rejection), not `23503` (foreign-key violation) as the review's own
+hypothesis suggested for the two FK-parent-mismatch cases. Reasoned out after
+the fact: `WITH CHECK` is evaluated for an authenticated, non-service-role
+client before the composite FK is ever consulted, so RLS rejects the row on
+its own `EXISTS` clauses or `artist_id` check first — the FK becomes the
+active guarantee only once RLS is out of the picture, which is what the
+service-role tests in "cross-ownership is unrepresentable" already exercise.
+All three ended up the same code, so no test-name differentiation was needed;
+recorded as verified rather than silently matching the hypothesis.
+
+**Independent audit, as asked, not inherited.** Checked `collections-rls.test.ts`
+and `discounts-rls.test.ts` myself for the same two patterns rather than
+taking "clean" on trust.
+- `discounts-rls.test.ts`: clean. Every write in the file destructures
+  `{ data, error }` or `{ error }` explicitly and asserts on it, including two
+  places that already assert specific codes (`42501` twice). No bare
+  `not.toBeNull()`, no undestructured write.
+- `collections-rls.test.ts`: clean of the discard pattern (N2) — every setup
+  write is destructured for `data` and immediately dereferenced via `made!.id`,
+  which throws loudly on a null/undefined result rather than passing
+  vacuously; less explicit than checking `error` directly, but not exploitable
+  the way N2's four named tests were. **Found one instance of the N1 pattern
+  the review didn't name**: `cannot re-assign a collection to itself via
+  UPDATE` used the same bare `not.toBeNull()`. Fixed it the same way — checked
+  the setup insert's error, verified the real code empirically (`42501`,
+  same `WITH CHECK` mechanism), and asserted that instead.
+
+**N2 (HIGH), fixed.** Four tests discarded a write's result entirely (no
+destructuring at all), so a silent RLS rejection was invisible and the final
+assertion was satisfied by "nothing was ever written": `removes a product from
+a collection without touching the product`, `cannot read another artist's
+membership rows`, `cascades membership away when a product is hard-deleted`,
+`deleting a collection removes membership but never the products`. Every
+setup and mutation write in all four now captures `{ error }` and asserts
+`toBeNull()` at the point of the call, so a failure surfaces where it happens.
+
+**N2-minor (LOW), fixed.** `removes the mirrored row when the legacy column is
+cleared` never confirmed the mirror existed BEFORE clearing, so its guarantee
+was borrowed from a sibling test rather than proven locally. Added the
+precondition assertion.
+
+**All fixes verified green together:**
+```
+$ pnpm test:db
+ Test Files  3 passed (3)
+      Tests  36 passed (36)
+```
+
+**L1, fixed above** where the miscounted claim lived (see the correction
+inline in the A4 evidence block above): 8 write + 1 read, not "nine write."
+
+**L2 (git-history question), closed N/A.** Asked whether an already-installed
+native build might still have a single-collection picker writing
+`products.collection_id` directly, since native has no OTA. The commit range
+that matters is the one actually shipped: `c00341a` (the commit behind
+installed build `da93749b`) up to `d890a07` (current `origin/master`) — note
+the review cited the range in the opposite order; corrected here after
+checking `git merge-base --is-ancestor` both ways. `git log --oneline
+c00341a..d890a07 -S"collection_id" -- apps/mobile` and the same search for
+`collectionId` both return nothing, and `git grep` for either term against
+`apps/mobile` AT `c00341a` itself also returns nothing. No native picker
+writing `collection_id` ever existed on any build that shipped. N/A, checked
+rather than assumed.
+
+**L6 (idempotency), proven.** With `0121` applied, ran `0122` twice back to
+back under `-v ON_ERROR_STOP=1` directly against the local stack: exit 0 both
+times (all statements report `NOTICE ... skipping` or succeed; nothing
+aborts). `pnpm test:db` after both runs: 36/36 green. This is a different
+claim from the one found while restoring the dropped FKs during the red run
+above (`0122` does not CONVERGE — replaying it cannot restore a constraint
+someone dropped by hand, because the composite FKs live inside a `create
+table if not exists` that no-ops once the table exists). Both are true at
+once and are not in tension: safe to re-run without erroring is not the same
+guarantee as re-run repairs drift.
 
 ### Milestone 3: server behaviour — DONE (`8554e63`)
 

@@ -154,7 +154,7 @@ describe("collection membership, owner", () => {
   });
 
   it("removes a product from a collection without touching the product", async () => {
-    const { data: extra } = await owner.client
+    const { data: extra, error: extraErr } = await owner.client
       .from("products")
       .insert({
         artist_id: owner.id,
@@ -164,16 +164,23 @@ describe("collection membership, owner", () => {
       })
       .select("id")
       .single();
-    await owner.client.from("product_collection_items").insert({
-      collection_id: owner.collectionId,
-      product_id: extra!.id,
-      artist_id: owner.id,
-    });
-    await owner.client
+    expect(extraErr, extraErr?.message).toBeNull();
+
+    const { error: insertErr } = await owner.client
+      .from("product_collection_items")
+      .insert({
+        collection_id: owner.collectionId,
+        product_id: extra!.id,
+        artist_id: owner.id,
+      });
+    expect(insertErr, insertErr?.message).toBeNull();
+
+    const { error: deleteErr } = await owner.client
       .from("product_collection_items")
       .delete()
       .eq("collection_id", owner.collectionId)
       .eq("product_id", extra!.id);
+    expect(deleteErr, deleteErr?.message).toBeNull();
 
     const { data: stillThere } = await owner.client
       .from("products")
@@ -186,7 +193,41 @@ describe("collection membership, owner", () => {
 describe("collection membership, cross-account", () => {
   // The FK proves the row exists; it says nothing about who owns it. Without
   // the EXISTS clauses in the policy, both of these would succeed.
+  //
+  // All three below assert 42501, not a foreign-key code, and that was
+  // verified rather than assumed (probed directly against the local stack):
+  // WITH CHECK is evaluated for an authenticated, non-service-role client
+  // before the composite FK is ever consulted, so RLS rejects these rows on
+  // its own EXISTS clauses / artist_id check first. The FK only becomes the
+  // active guarantee once RLS is out of the picture, which is exactly what
+  // the service-role tests in "cross-ownership is unrepresentable" below
+  // exercise.
+  //
+  // Each also carries its own same-owner positive control on a FRESH row,
+  // not a reused one: A8's original fix (in collections-rls.test.ts) never
+  // got swept to this file, so all three previously asserted only
+  // `not.toBeNull()`, which "every insert is blocked" satisfies just as well
+  // as "cross-account inserts are blocked" — the exact class of vacuous pass
+  // this gate exists to catch.
   it("cannot file ANOTHER artist's product into its own collection", async () => {
+    const { data: ownProduct, error: setupErr } = await owner.client
+      .from("products")
+      .insert({
+        artist_id: owner.id,
+        title: "N1 control product",
+        price_amount: 8,
+        currency: "eur",
+      })
+      .select("id")
+      .single();
+    expect(setupErr, setupErr?.message).toBeNull();
+    const control = await owner.client.from("product_collection_items").insert({
+      collection_id: owner.collectionId,
+      product_id: ownProduct!.id,
+      artist_id: owner.id,
+    });
+    expect(control.error, control.error?.message).toBeNull();
+
     const { error } = await owner.client
       .from("product_collection_items")
       .insert({
@@ -194,10 +235,25 @@ describe("collection membership, cross-account", () => {
         product_id: other.productId,
         artist_id: owner.id,
       });
-    expect(error, "foreign product must be rejected").not.toBeNull();
+    expect(error?.code, "expected an RLS rejection, not another error").toBe(
+      "42501",
+    );
   });
 
   it("cannot file its own product into ANOTHER artist's collection", async () => {
+    const { data: ownCollection, error: setupErr } = await owner.client
+      .from("product_collections")
+      .insert({ artist_id: owner.id, name: "N1 control collection" })
+      .select("id")
+      .single();
+    expect(setupErr, setupErr?.message).toBeNull();
+    const control = await owner.client.from("product_collection_items").insert({
+      collection_id: ownCollection!.id,
+      product_id: owner.productId,
+      artist_id: owner.id,
+    });
+    expect(control.error, control.error?.message).toBeNull();
+
     const { error } = await owner.client
       .from("product_collection_items")
       .insert({
@@ -205,10 +261,30 @@ describe("collection membership, cross-account", () => {
         product_id: owner.productId,
         artist_id: owner.id,
       });
-    expect(error, "foreign collection must be rejected").not.toBeNull();
+    expect(error?.code, "expected an RLS rejection, not another error").toBe(
+      "42501",
+    );
   });
 
   it("cannot claim a membership row by naming someone else as owner", async () => {
+    const { data: ownProduct, error: setupErr } = await owner.client
+      .from("products")
+      .insert({
+        artist_id: owner.id,
+        title: "N1 control product 2",
+        price_amount: 8,
+        currency: "eur",
+      })
+      .select("id")
+      .single();
+    expect(setupErr, setupErr?.message).toBeNull();
+    const control = await owner.client.from("product_collection_items").insert({
+      collection_id: owner.collectionId,
+      product_id: ownProduct!.id,
+      artist_id: owner.id,
+    });
+    expect(control.error, control.error?.message).toBeNull();
+
     const { error } = await owner.client
       .from("product_collection_items")
       .insert({
@@ -216,15 +292,24 @@ describe("collection membership, cross-account", () => {
         product_id: other.productId,
         artist_id: other.id,
       });
-    expect(error).not.toBeNull();
+    expect(error?.code, "expected an RLS rejection, not another error").toBe(
+      "42501",
+    );
   });
 
   it("cannot read another artist's membership rows", async () => {
-    await other.client.from("product_collection_items").insert({
-      collection_id: other.collectionId,
-      product_id: other.productId,
-      artist_id: other.id,
-    });
+    const { error: setupErr } = await other.client
+      .from("product_collection_items")
+      .insert({
+        collection_id: other.collectionId,
+        product_id: other.productId,
+        artist_id: other.id,
+      });
+    expect(
+      setupErr,
+      "setup insert must succeed, or the read-hiding assertion below proves nothing",
+    ).toBeNull();
+
     const { data } = await owner.client
       .from("product_collection_items")
       .select("id")
@@ -265,7 +350,7 @@ describe("legacy column compatibility", () => {
   });
 
   it("removes the mirrored row when the legacy column is cleared", async () => {
-    const { data: prod } = await owner.client
+    const { data: prod, error: insertErr } = await owner.client
       .from("products")
       .insert({
         artist_id: owner.id,
@@ -276,11 +361,25 @@ describe("legacy column compatibility", () => {
       })
       .select("id")
       .single();
+    expect(insertErr, insertErr?.message).toBeNull();
 
-    await owner.client
+    // Precondition: the mirror must exist BEFORE clearing, or "it's gone
+    // after clearing" borrows its guarantee from a sibling test instead of
+    // proving anything itself.
+    const { data: mirroredBefore } = await owner.client
+      .from("product_collection_items")
+      .select("id")
+      .eq("product_id", prod!.id);
+    expect(
+      mirroredBefore,
+      "the mirror must exist before it can be cleared",
+    ).toHaveLength(1);
+
+    const { error: updateErr } = await owner.client
       .from("products")
       .update({ collection_id: null })
       .eq("id", prod!.id);
+    expect(updateErr, updateErr?.message).toBeNull();
 
     const { data: gone } = await owner.client
       .from("product_collection_items")
@@ -315,7 +414,7 @@ describe("legacy column compatibility", () => {
   });
 
   it("cascades membership away when a product is hard-deleted", async () => {
-    const { data: prod } = await owner.client
+    const { data: prod, error: prodErr } = await owner.client
       .from("products")
       .insert({
         artist_id: owner.id,
@@ -325,13 +424,22 @@ describe("legacy column compatibility", () => {
       })
       .select("id")
       .single();
-    await owner.client.from("product_collection_items").insert({
-      collection_id: owner.collectionId,
-      product_id: prod!.id,
-      artist_id: owner.id,
-    });
+    expect(prodErr, prodErr?.message).toBeNull();
 
-    await owner.client.from("products").delete().eq("id", prod!.id);
+    const { error: itemErr } = await owner.client
+      .from("product_collection_items")
+      .insert({
+        collection_id: owner.collectionId,
+        product_id: prod!.id,
+        artist_id: owner.id,
+      });
+    expect(itemErr, itemErr?.message).toBeNull();
+
+    const { error: deleteErr } = await owner.client
+      .from("products")
+      .delete()
+      .eq("id", prod!.id);
+    expect(deleteErr, deleteErr?.message).toBeNull();
 
     const { data: rows } = await owner.client
       .from("product_collection_items")
@@ -469,12 +577,14 @@ describe("archive lifecycle", () => {
   });
 
   it("deleting a collection removes membership but never the products", async () => {
-    const { data: c } = await owner.client
+    const { data: c, error: cErr } = await owner.client
       .from("product_collections")
       .insert({ artist_id: owner.id, name: "Doomed section" })
       .select("id")
       .single();
-    const { data: p } = await owner.client
+    expect(cErr, cErr?.message).toBeNull();
+
+    const { data: p, error: pErr } = await owner.client
       .from("products")
       .insert({
         artist_id: owner.id,
@@ -484,13 +594,22 @@ describe("archive lifecycle", () => {
       })
       .select("id")
       .single();
-    await owner.client.from("product_collection_items").insert({
-      collection_id: c!.id,
-      product_id: p!.id,
-      artist_id: owner.id,
-    });
+    expect(pErr, pErr?.message).toBeNull();
 
-    await owner.client.from("product_collections").delete().eq("id", c!.id);
+    const { error: itemErr } = await owner.client
+      .from("product_collection_items")
+      .insert({
+        collection_id: c!.id,
+        product_id: p!.id,
+        artist_id: owner.id,
+      });
+    expect(itemErr, itemErr?.message).toBeNull();
+
+    const { error: deleteErr } = await owner.client
+      .from("product_collections")
+      .delete()
+      .eq("id", c!.id);
+    expect(deleteErr, deleteErr?.message).toBeNull();
 
     const { data: items } = await owner.client
       .from("product_collection_items")
