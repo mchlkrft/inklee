@@ -548,6 +548,71 @@ table if not exists` that no-ops once the table exists). Both are true at
 once and are not in tension: safe to re-run without erroring is not the same
 guarantee as re-run repairs drift.
 
+### Gate A closing: named-list red run (2026-07-29)
+
+Hardened requirement: a NAMED per-test pass/fail list, not aggregate counts —
+aggregates are exactly what let the original defect slip ("18 failed | 13
+skipped" cannot tell anyone WHICH tests failed). Three rounds, all with
+`vitest --reporter=verbose`, against the now-fixed test files.
+
+**Baseline.** 36/36 named and green (all three files listed individually; not
+reproduced here for length, see the raw run).
+
+**Round A: drop `product_collection_items`'s three write policies** (INSERT,
+UPDATE, DELETE; SELECT left in place), targeting N1 and N2 directly. 11 of 36
+failed, named:
+- N1's three targets (`cannot file ANOTHER artist's product...`, `cannot file
+  its own product into ANOTHER artist's collection`, `cannot claim a
+  membership row by naming someone else as owner`) all failed — on their own
+  new positive control, which is the correct failure mode: it proves nothing
+  can write at all before the test ever reaches its ownership-specific
+  assertion.
+- N2's four targets all failed, each on the specific write whose error is now
+  captured, exactly where N2's fix intended.
+- Four collateral failures, correctly explained rather than left as noise:
+  `adds a product to a collection` and `puts ONE product in TWO
+  collections...` fail because they write directly; `refuses the same product
+  twice` changes from `23505` to `42501` because the FIRST insert of the pair
+  now fails at RLS before a second attempt can hit the unique constraint;
+  `keeps membership and order across an archive/restore round trip` fails at
+  its own fixture setup (it inserts 3 membership rows before ever reaching the
+  archive/restore assertions) — this is NOT evidence of a droppable
+  dependency on the composite FKs (there still isn't one, see the earlier red
+  run), it depends on the INSERT policy purely to build its fixture, same as
+  every other test that creates a row.
+- Everything using the legacy-column trigger path (`mirrors a legacy...`,
+  `is idempotent...`) and the three service-role tests in "cross-ownership is
+  unrepresentable" stayed green, correctly: the trigger is `SECURITY DEFINER`
+  and the service role bypasses RLS, so neither depends on these policies.
+
+**Round B: restore, then drop the two composite FKs**, re-running the
+original 5-unproven-test scenario against the rewritten file. Same 4 failures
+as the earlier red run, same codes (`null`, `undefined`, never `23505`) —
+reproducible. **N1's three tests stayed green in this round**, which is the
+other half of proving they test the right thing: RLS rejects them before the
+FK is ever consulted, so removing the FK changes nothing for them.
+
+**Restore, final round: 36/36, named, all green** (listed individually in the
+raw run; every test in all three files passed).
+
+**Incident during the final round, disclosed in full.** Immediately after
+`supabase db reset`, the suite failed all 36 as `AuthRetryableFetchError` —
+not a test or policy problem. Traced via `docker logs supabase_kong_inklee`:
+Kong (the local gateway) held a stale upstream IP for the auth container from
+before the reset restarted it, and refused the connection outright
+(`connect() failed (111: Connection refused)`) rather than re-resolving.
+Confirmed via `curl http://127.0.0.1:54321/auth/v1/health` returning 502
+directly, independent of the test framework. Fixed by restarting Kong
+(`docker restart supabase_kong_inklee`), which forced it to re-resolve; health
+check returned 200 and the suite passed clean on the next run. Not a
+regression in anything built this session — a known class of Docker
+networking issue when a dependent container restarts and the gateway does
+not — but recorded because a future reset hitting the same thing should not
+be mistaken for a real failure.
+
+**Full validation, this final state:** typecheck clean, `eslint tests/db/`
+clean, unit 2028/2028, `test:db` 36/36.
+
 ### Milestone 3: server behaviour — DONE (`8554e63`)
 
 Proceeding while Gate A re-review is outstanding is a deliberate call, not an
