@@ -51,6 +51,24 @@ GRANT SELECT (
   address_confirmation, status, evidence_note, created_at
 ) ON location_claims TO authenticated;
 
+-- Mirror of 0125_appointment_payments.sql.
+--
+-- This one is a TABLE-level revoke rather than a column-level one, and it is
+-- the whole second layer of that table's guarantee: payment_allocations is
+-- written only by the service role at settlement, and an artist who could
+-- insert one could inflate their own collected total and manufacture dispute
+-- evidence. RLS with no permissive policy already denies insert/update/delete,
+-- but TRUNCATE ignores RLS entirely, so without this line an `authenticated`
+-- client can empty the table locally.
+--
+-- Found by execution, not by reading: on a freshly reset local stack in the
+-- as-delivered state, `truncate payment_allocations` as `authenticated`
+-- SUCCEEDED, because the blanket GRANT ALL above had already clobbered the
+-- migration's revoke. The gate that is meant to prove the layer exists could
+-- not have gone red without this.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_allocations
+  FROM anon, authenticated;
+
 -- Mirror of 0074_profiles_column_privileges.sql + the 0076 + 0084 + 0102 grant
 -- extensions:
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;

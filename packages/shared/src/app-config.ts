@@ -38,6 +38,11 @@ export const CAPABILITIES = [
   "goods_discounts", // paused => codes stop applying at checkout; existing ones are kept, not deleted
   "goods_scheduling", // paused => no NEW drops/preorders can be set; existing drop dates are still honoured
   "goods_collections", // paused => no collection edits; the public shop falls back to one ungrouped list
+  // Appointment payment requests (Plus build P9). ONE noun for the whole
+  // payment-request feature, the same way `deposits` is one noun for the whole
+  // card-deposit path; the SEVEN payment entitlement keys are the per-artist
+  // axis and are a different question from the platform-wide pause.
+  "appointment_payments", // paused => no payment request can be created, revised or sent; existing ones stay readable, cancellable and expirable
   // The native tattoo-map surface (map-features.ts note: the mobile map ships
   // capability-killable; the web env flag stays the web launch gate for now):
   "tattoo_map", // paused => native map hidden + /api/mobile/map/* refuses

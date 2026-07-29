@@ -1263,3 +1263,183 @@ they are additive unique keys and dropping them is riskier than keeping them.
 
 **Not done, and still gating:** the merge itself, and the fresh EAS build that
 must precede granting `goods_collections`.
+
+---
+
+## P9 appointment payments: A1, A2, and A2's independent test pass (2026-07-29)
+
+A separate track from P5d. Nothing below is committed, nothing is pushed, and
+neither migration has been applied to production.
+
+### What is on disk
+
+**A1 (the model and the schema).** `0125_appointment_payments.sql`;
+`packages/shared/src/appointment-payments.ts` (pure: no database, no network, no
+clock); `tests/db/appointment-payments-rls.test.ts`;
+`src/lib/__tests__/appointment-payments.test.ts`; a table-level `revoke` mirrored
+into `supabase/seed.sql`, because the seed's blanket `grant all` otherwise
+clobbers the migration's revoke and `truncate` ignores RLS.
+
+**A2 (the write path).** `0126_payment_request_send.sql` (`payment_requests.collects`,
+its two check constraints, a replacement body for
+`enforce_payment_request_immutability()` that adds `collects` to the frozen set,
+and the `send_payment_request` RPC); `src/lib/server/appointment-payments.ts`
+(create / revise / send / cancel / expire); `tests/db/payment-request-send-race.test.ts`;
+the `appointment_payments` capability registration.
+
+**A2's tests (this pass, written by a different engineer than the cores).**
+`src/lib/server/__tests__/appointment-payments.test.ts`,
+`tests/db/payment-request-concurrent-send.test.ts`,
+`tests/db/payment-request-collects-lifecycle.test.ts`.
+
+### Counts, measured, not carried forward from a previous note
+
+| Suite | Before this pass | After |
+| --- | --- | --- |
+| unit (`pnpm test`) | 2177 in 129 files | 2277 in 130 files |
+| db (`pnpm test:db`) | 125 in 7 files | 152 in 9 files |
+
+`pnpm typecheck` clean, `pnpm lint` 0 errors (16 pre-existing warnings, none in
+the new files). Both totals were re-measured after the last edit, and the db
+total was read from named per-test output rather than from an aggregate.
+
+### The part worth reading: what the new tests can actually catch
+
+A green suite is worth nothing until something has been broken in front of it,
+so every test in this pass was written against a NAMED single change that should
+turn it red, and then that change was applied and the result recorded. 18 changes
+to the TypeScript and 8 to the database (one object at a time, INSERT policies
+never touched), each run twice: once with the new files EXCLUDED (does the
+existing suite already catch this?) and once with them included. Files were
+restored byte-for-byte and the catalog was re-read and compared to a baseline
+after every one.
+
+**Every one of the 18 TypeScript mutations left the pre-existing suite at
+2177/2177 passed.** The cores shipped with zero tests of any kind, so that is
+the expected answer rather than a surprising one; it is recorded because it is
+the measurement that says the new file is load-bearing rather than decorative.
+Named examples, with the red they produced:
+
+- the entitlement gate computed and then ignored in `create` → **12 red**,
+  including every "a key granted individually unlocks exactly its own core" case.
+- `send` gating on an ASSUMED purpose instead of the stored `collects` → **3
+  red**, one of them because the refusal arrived with the wrong plan message.
+- an unknown RPC verdict treated as a successful send → **2 red**.
+- `cancel` reading zero affected rows as success → **6 red**.
+- `paid` added to the expirable statuses → **3 red**.
+- `expired` added to them (expiry stops being idempotent) → **4 red**.
+- a caller-supplied line total trusted instead of computed → **1 red**.
+- `revise` cancelling the predecessor immediately → **1 red**.
+- an `updatePaymentRequestCore` added to the module → **1 red**.
+- `0126` renaming a verdict token without the map following → **2 red**.
+
+**The database mutations are where the interesting result is.**
+
+- **0125's older immutability body re-deployed** (which is exactly what
+  re-running `0125` alone does, and which `0126`'s header names as its hazard):
+  the entire existing db suite stayed at **125/125 passed**. `collects` silently
+  leaves the frozen money-column set, every constraint, policy and index still
+  reads correct, and nothing that existed before this pass notices. The three new
+  tests go red, one of them naming the cause directly by reading `prosrc`.
+- **Both partial unique indexes dropped**, leaving `send_payment_request`'s own
+  "is another request already payable?" pre-check as the only defence. That
+  pre-check is a check-then-write on a snapshot, and the split is the whole
+  point: the SEQUENTIAL tests that go through it stay GREEN (including the
+  existing `refuses a second payable request for the same appointment`), while
+  the concurrent test goes red. Only ONE pre-existing test moves, A1's
+  `refuses a second SEND against the same appointment`, which inserts an already
+  committed second row and therefore measures the index rather than the race.
+- **The UPDATE policy's status floor removed from USING only** (INSERT, SELECT
+  and DELETE policies untouched, WITH CHECK untouched): the silent half of the
+  cancel floor. A1's money-floor tests stay green because they exercise WITH
+  CHECK, which is loud; what breaks is an artist cancelling a request that is
+  being paid, which returns zero rows and no error and is invisible to a caller
+  that only checks `error`.
+- **Two mutations did NOT produce the predicted red, and both were worth more
+  than the ones that did.** Removing the freeze's freshness qual
+  (`and sent_at is null and status in ('draft','ready')`) from
+  `send_payment_request` changed nothing at all: step 1's row lock means the
+  second tab has already returned `already_sent` long before that qual is
+  reached. The lock is the arbiter and the qual is the net under it, which is
+  now written down rather than assumed. Removing the LOCK instead turns the
+  second tab's answer into `gone` (red, and the artist is told their request
+  disappeared when it was in fact already sent); removing both makes the second
+  tab raise `23514` from the immutability trigger (red, refused by an exception
+  rather than by an answer). Prediction, then measurement, then the correction:
+  that is the only way the sequence of guards gets located correctly.
+
+### Three things that would have produced a green proving nothing
+
+**One of the new tests passed for the wrong reason, and the mutation run is what
+said so.** The first version of the cancel-floor tests sent the status filter
+that `cancelPaymentRequestCore` sends. With the UPDATE policy's USING floor
+removed they all stayed GREEN: the client-side `.in(...)` alone matched no rows,
+so they were pinning the core and not the database. Three tests were added that
+issue the same write WITHOUT the client-side filter, which is the shape of any
+future caller that forgets it, and those go red.
+
+**A precondition in `beforeAll` made the concurrency file unable to fail the
+mutation it exists for.** It asserted that the two partial unique indexes are
+deployed. Dropping them threw in the hook, and vitest reported the file as
+`4 skipped` rather than red: the summary line for a skipped file reads almost
+like a pass. The assertion is now its own test, so the same mutation produces
+two named reds, one naming the cause (`the arbiter this file measures is NOT
+deployed`) and one naming the damage (`two senders racing ONE appointment must
+not both end up payable … expected 2 to be 1`).
+
+> **Correction.** An earlier version of this section attributed that `4 skipped`
+> to a test file having been edited while a run was in flight. That was the
+> first occurrence and it was the wrong explanation: the same result reproduced
+> exactly with no edit at all, which is what identified the hook. Recorded
+> rather than deleted, because "it was a fluke of my own making" is precisely
+> the conclusion that would have left the hole in place.
+
+**`pg_blocking_pids` chains, so "backends blocked by the holder" is the wrong
+overlap measurement for two senders on ONE row.** The first version of the
+concurrent test asserted that the lock holder was blocking two backends. It went
+red on a run whose verdicts were plainly correct. Probed directly rather than
+reasoned about: with a holder on pid 2685, the first waiter reports
+`blockers [2685]` and the second reports `blockers [2688]`, the FIRST WAITER.
+Two backends waiting for the same row queue on a tuple lock, so the original
+holder does not appear in the second one's list at all. Lowering the threshold to
+1 would have made it pass while no longer measuring anything; counting PARKED
+SENDERS instead is chain-shaped and answers the question that was being asked.
+
+### Findings for whoever owns A2 next
+
+1. **"Every core refuses a Free artist" is FALSE by design, for two of the five.**
+   `cancel` and `expire` refuse nobody, deliberately: stopping a live request for
+   money must keep working for an artist who has lapsed to Free and while the
+   whole capability is paused, and expiry runs unattended. That is the right
+   call and it is now asserted from BOTH sides (the three money-asking cores
+   refuse; the two stopping cores do not even read the plan). It is called out
+   here because "cancel has no gate" and "cancel forgot its gate" look identical
+   in a diff. Also recorded in `docs/web-native-parity.md`, since a mobile route
+   adding its own check around cancel would break it on native only.
+2. **A1's `refuses a second SEND against the same appointment` carries a
+   concurrency claim that its own body cannot support** ("two sends racing cannot
+   both win"). It inserts a second row after the first has committed. The claim
+   is now backed behaviourally by `payment-request-concurrent-send.test.ts`,
+   which parks two real sends on one lock, proves they were in flight together,
+   and asserts that exactly one ends up payable, that the loser is refused for a
+   same-appointment reason, and that the loser is still sendable afterwards. The
+   control that a "refuse everything under contention" fix cannot pass: two sends
+   on two DIFFERENT appointments, same parking, both must succeed. Measured
+   red with the arbiter dropped: `#1="sent" #2="sent" parked=2
+   blockedByHolder=2 payable=[two ids]`, and the control stayed green in the
+   same run.
+3. **The module's exported surface is pinned.** "There is no code path that edits
+   a sent request" is a claim about something that does not exist, and the only
+   way to keep it true is to make adding one fail a test.
+4. **Still open, unchanged from A2's own handoff:** `appointment_payments` is not
+   in production `DISABLED_CAPABILITIES`; `isCapabilityDisabled` is fail-open, so
+   what keeps P9 dark is that nothing calls these cores and all seven entitlement
+   keys are Plus-only. Park the name before A3 wires Stripe.
+5. **Not covered here, and it is A3's:** nothing checks a request total against
+   the outstanding balance. `outstandingBalance` and `checkCollectable` exist in
+   the shared module and no core calls them, so today an artist can compose and
+   send a request for more than is owed. That is a deliberate slice boundary, not
+   an oversight, but it is a real hole until A3 lands.
+6. **Both migrations are unapplied to production**, in order, catalog-verified,
+   per the P5d lesson. `0125` takes ACCESS EXCLUSIVE on `booking_requests` and
+   `projects` while its composite unique keys build.

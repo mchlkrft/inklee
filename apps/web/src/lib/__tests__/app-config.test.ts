@@ -133,6 +133,12 @@ describe("capability registry", () => {
       "goods_discounts",
       "goods_scheduling",
       "goods_collections",
+      // P9 A2. Unlike the BM-2.0 names above, this one is NOT parked in
+      // DISABLED_CAPABILITIES: `isCapabilityDisabled` is fail-open, so an
+      // unlisted name disables nothing. What keeps P9 dark is that no action,
+      // route or screen calls its cores yet and all seven payment entitlement
+      // keys are Plus-only. Park it before A3 wires Stripe.
+      "appointment_payments",
       "tattoo_map",
     ]);
     expect(isCapability("deposits")).toBe(true);

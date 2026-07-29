@@ -118,6 +118,8 @@ top control row instead, which is also where the platform maps put theirs.
 | Scheduled books-open date (P3f) | `booking_opens_at` in all 3 web books forms; public page shows the date | native `settings/books` date field + `bookingOpensAt` on PUT `/settings/books` (next build); absent key means unchanged, so pre-P3f builds cannot clear it | ✅ |
 | Shop collections (P5d) | `/goods/collections` manager (many-to-many membership, per-collection order, archive/restore, eligible-delete) + grouped public shop | ✅ `(tabs)/goods/collections` + GET/POST/PATCH/DELETE `/api/mobile/goods/collections`, every write through the SAME cores, so the entitlement refusal and the delete-eligibility rule are one implementation (**branch-only**, `feat/p5d-collections`, `caa1be1` — NOT on master, so these routes do not exist in production; then a build). ONE deliberate difference: web can drag to reorder, the app cannot. The reorder cores and the `reorder` / `reorderProducts` ops exist and are wired server-side, so the native gesture is additive whenever it is worth the surface. The public shop stays web: it is a visitor surface | ~ |
 | Featured-collection Hub block (P5d) | `featured_collection` block in the Link Hub editor + rendered on `/<slug>/hub` | ✅ picker on `settings/link-hub`, fed by the `collections` key added to GET `/api/mobile/settings/hub` (**branch-only**, `feat/p5d-collections`, `25dda4f` — NOT on master; then a build, and that build is a HARD PREREQUISITE, see the wire hazard below). Both surfaces seed from the same shared parser, which drops a block naming nothing and keeps one block per collection | ✅ |
+| Appointment payment request cores (P9 A2) | `server/appointment-payments.ts`: create / revise / send / cancel / expire, plus migration `0126` (`payment_requests.collects`, the atomic `send_payment_request` RPC) | ⬜ NOT YET. A2 is cores only: no web action, no `/api/mobile/*` route, no screen on either side. The cores take the supabase client and the artist id precisely so A7's mobile routes wrap the SAME implementation rather than growing a second one, which is the whole reason this row exists before any native work. Web surfaces are A6, native twins are A7 (**uncommitted working tree**, nothing deployed). **A7 MUST NOT ADD A GATE OF ITS OWN**: create / revise / send are gated inside the cores, and cancel / expire are deliberately UNGATED so a lapsed or paused artist can still stop a live request for money. A mobile route that wraps cancel in an entitlement check would break that on native only, which is exactly the divergence this register exists to prevent. Both halves are pinned by `src/lib/server/__tests__/appointment-payments.test.ts` (the ungated pair asserts `getAccountOverrides` is never even called), and the module's exported surface is pinned there too, so a second core appearing for a native surface fails a test rather than a review | ⬜ |
+| `appointment_payments` capability (P9 A2) | new name in `CAPABILITIES`, so `GET /api/mobile/config` now emits it whenever it is paused | ✅ automatically, and safely: `disabledCapabilities` is typed `string[]` on the wire and consumers ignore names they do not know, which is the documented safe-ignore path for old builds. NOT a breaking wire change (contrast the `featured_collection` block type below: THAT is a union the app switches on). No new build is needed for installed apps to tolerate it; a build IS needed before any app surface can honour it | ✅ |
 | Drops, preorders, low-stock alerts (P5c) | product form fields + all 3 public availability gates; alert via the notification plane | ✅ the three fields on `(tabs)/goods/[id]`, gated by a server-resolved `schedulingEntitled` and stripped server-side regardless (next build). ONE deliberate difference: web takes a date AND time, the app takes a DATE and means the start of it, because a native datetime picker is not worth the surface for a field most artists set to "that Friday". The ALERT already reached native via the existing `system_warning` type | ✅ |
 | Discount codes (P5b) | artist editor at `/goods/discounts`; client code field in the portal checkout | ✅ `(tabs)/goods/discounts` screen + GET/POST/PATCH `/api/mobile/goods/discounts`, all writes through the SAME `saveDiscountCore` / `setDiscountActiveCore` (next build). The client checkout stays web: it is a visitor surface | ✅ |
 | Platform fee engine + fee actuals (P5a) | `computeOrderFees` / `resolveOrderFee` on the checkout prepare paths; actuals written by the webhook | n/a: the app never prices a payment. It reads the artist's plan and the existing deposit surfaces, both unchanged | 🌐 |
@@ -177,6 +179,26 @@ Two things follow, both done here:
   needs writing down rather than remembering.
 
 ## Update log
+
+- **2026-07-29 — P9 A2 appointment payment cores: one parity DECISION recorded,
+  no surface on either platform.** Nothing shipped, nothing deployed,
+  uncommitted working tree. The register gets an entry anyway because the rule
+  covers deliberate decisions, and this one is a trap A7 would otherwise walk
+  into: **asking for money is gated, stopping it is not.** `create`, `revise`
+  and `send` refuse a Free or paused artist inside the core; `cancel` and
+  `expire` refuse nobody, on purpose, because an artist who lapses to Free (or a
+  platform-wide pause) must never be left with a live request for money that
+  nobody can withdraw, and expiry is a safety property of a link that runs
+  unattended. A native route that added its own entitlement check around cancel
+  would produce exactly the divergence this file exists to catch, and it would
+  look like defensive coding while doing it. The asymmetry is asserted in the
+  unit suite rather than described only here.
+
+  The `appointment_payments` capability name is already in `CAPABILITIES` and is
+  emitted by `GET /api/mobile/config` (row above). Safe for installed builds:
+  `disabledCapabilities` is `string[]` and unknown names pass through. That is
+  NOT the case for a future `collects` value if any app ever switches on it, and
+  the wire-hazard section below is the reason to check before adding one.
 
 - **2026-07-29 — Plus P5d shop collections, web + native. ⚠️ BRANCH-ONLY, and
   it carries the first BREAKING wire change this register has recorded.**
