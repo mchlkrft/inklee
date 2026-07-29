@@ -10,7 +10,8 @@
     "lint": "pnpm --filter inklee lint",
     "test": "pnpm --filter inklee test",
     "test:e2e": "pnpm --filter inklee test:e2e",
-    "test:launch": "pnpm --filter inklee test:launch"
+    "test:launch": "pnpm --filter inklee test:launch",
+    "test:db": "pnpm --filter inklee test:db"
   },
   "devDependencies": {
     "husky": "^9.1.7"

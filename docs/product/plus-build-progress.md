@@ -4,7 +4,7 @@
 progress can be monitored without interrupting implementation. The PLAN lives
 in `plus-build-plan.md`; this file is the running state of executing it.
 
-Last updated: 2026-07-29, native parity slice complete, pending commit.
+Last updated: 2026-07-29. **P5d completion claim RETRACTED.** Rebuilding on `feat/p5d-collections`.
 
 ---
 
@@ -14,9 +14,9 @@ Last updated: 2026-07-29, native parity slice complete, pending commit.
 Plus package. Everything lands dark or Free-invisible; consumer billing stays
 closed throughout (DB-backed launch key untouched).
 
-P5d shipped. Now closing the two NATIVE PARITY GAPS that P5b and P5c opened
-(discount editor, drop/preorder fields), because an out-of-date parity row is
-a bug by the founder rule and these are the only two open ones.
+**P5d is NOT complete.** The claim in `d890a07` was wrong and is retracted.
+Rebuilding the whole capability against the approved design on
+`feat/p5d-collections`. Status: **in implementation**.
 
 ---
 
@@ -32,7 +32,8 @@ a bug by the founder rule and these are the only two open ones.
 | P5b | `7e504db` | Discount codes (migration 0118) |
 | Audit fixes | `1f8b5e9` | Seven findings from the self-audit of the above |
 | P5c | `9ce0b21` | Scheduled drops, preorders, low-stock alerts (migration 0119) |
-| P5d | `d890a07` | Product collections (migration 0120) |
+| P5d | `d890a07` | ❌ **RETRACTED.** Shipped broken; see the defect record below |
+| Native parity | `0de2034` | Native discount + product-scheduling editors (COMPLETE, not paused) |
 
 Migrations 0114-0120 are applied to production and verified there.
 
@@ -43,13 +44,63 @@ actually reachable. Verified by re-reading the endpoint.
 
 ---
 
-## In progress
+## Retracted: the P5d completion claim
 
-Nothing mid-flight. The native parity slice is done: both ⬜ rows in the parity
-register are now ✅, with no schema work, since both were editors over cores
-that already existed. All six acceptance criteria met.
+`d890a07` was pushed to master and migration `0120` applied to production
+while the feature does not work.
 
-**Both need a fresh EAS build to reach devices** (no OTA).
+**Root cause.** Migration 0120 created `product_collections` with RLS enabled
+and only a SELECT policy. Every write path (`saveCollectionCore`,
+`deleteCollectionCore`, `setProductCollectionCore`) runs on the USER-scoped
+Supabase client, so Postgres rejects every insert, update and delete.
+
+Reproduced on 2026-07-29 with an authenticated anon-key client against local
+Supabase:
+
+```
+AUTHENTICATED INSERT -> BLOCKED: new row violates row-level security
+policy for table "product_collections"
+```
+
+**Why the gate missed it.** The 13 tests I wrote exercise
+`groupProductsByCollection`, a pure function. Nothing in the suite touched the
+real permission model, and the two READ paths work (the SELECT policy exists),
+so typecheck, unit tests, e2e, lint and the production build were all green
+against a feature that cannot be used. Sibling tables in this repo (`projects`,
+`discount_codes`) are also SELECT-only, but their writes go through the SERVICE
+client; I copied the policy shape without checking which client the writes use.
+That is the exact class of mistake the earlier audit already caught me making:
+matching a sibling's surface without checking the constraint it relies on.
+
+**Standing correction:** any new RLS-protected table whose writes use the
+user-scoped client needs an authenticated regression test that fails without
+the write policy. Added to the required-test list below.
+
+---
+
+## In implementation: P5d rebuild
+
+Branch `feat/p5d-collections`. No intermediate pushes to master. Migration
+0120 is never edited; every repair is forward-only.
+
+### Milestone 1 (current): Gate A, write-policy repair
+
+- new migration adding INSERT/UPDATE/DELETE policies with
+  `USING (artist_id = auth.uid())` and `WITH CHECK (artist_id = auth.uid())`;
+- authenticated (non-service) regression tests covering owner CRUD and
+  cross-account rejection, which must fail if the policy is absent;
+- `pg_policies` evidence.
+
+### Milestones after Gate A
+
+2. Join table `product_collection_items` (many-to-many, per-collection
+   ordering), expand/migrate/verify, legacy column left in place.
+3. Server behaviour: next-position on create, sparse updates, archive /
+   restore / eligible-delete lifecycle, cap removal, entitlement + kill-switch
+   at public reads, flat-shop fallback.
+4. Featured-collection Linkhub block, parser-enforced.
+5. Native collection management, full parity list.
+6. Docs, capability registry, parity register, full test suite.
 
 ## Blocked or postponed
 
@@ -61,12 +112,14 @@ that already existed. All six acceptance criteria met.
 | Goods sales analytics | Belongs with the P6 analytics plane rather than duplicating a second reporting path. |
 | Shop customization beyond the appearance system | The shared appearance system already covers the visual layer; what remains is unspecified. |
 | Variants+ beyond today's basic set | No concrete requirement recorded beyond what exists. |
-| Fresh EAS build | The two native editors are on master but not on devices. Batched with whatever native work comes next rather than burning a build per slice. |
+| Fresh EAS build | The two native editors (`0de2034`) are on master but not on devices. Batch with the P5d native work rather than burning a build per slice. |
+| Bundles | Unchanged: still the largest unstarted P5 item, after P5d is genuinely complete. |
 | Cover image Free-vs-Plus conflict | Founder decision, logged in `plus-commercial-packages.md` §7. |
 
 ---
 
 ## Next intended action
 
-Commit and push the native parity slice. Bundles are then the largest unstarted
-P5 item, and now have collections to build on.
+Deliver Milestone 1 (Gate A): the write-policy repair migration plus
+authenticated database regression tests, then mark it ready for review. Do NOT
+proceed past Gate A without specialist approval.
