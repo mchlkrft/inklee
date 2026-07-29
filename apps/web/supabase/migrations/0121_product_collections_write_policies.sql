@@ -23,12 +23,19 @@
 -- rows may be targeted, `WITH CHECK` decides what the resulting row may look
 -- like. Without it an owner could update a row and hand it to another artist.
 
+-- Policies are dropped-then-created rather than created bare: Postgres has no
+-- `create policy if not exists`, so a bare create aborts a re-run, and a
+-- migration that cannot be safely retried is a migration that can strand a
+-- half-applied schema. Found by re-running this file during verification.
+drop policy if exists "artist inserts own collections" on product_collections;
 create policy "artist inserts own collections" on product_collections
   for insert with check (artist_id = auth.uid());
 
+drop policy if exists "artist updates own collections" on product_collections;
 create policy "artist updates own collections" on product_collections
   for update using (artist_id = auth.uid())
   with check (artist_id = auth.uid());
 
+drop policy if exists "artist deletes own collections" on product_collections;
 create policy "artist deletes own collections" on product_collections
   for delete using (artist_id = auth.uid());

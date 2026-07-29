@@ -4,7 +4,7 @@
 progress can be monitored without interrupting implementation. The PLAN lives
 in `plus-build-plan.md`; this file is the running state of executing it.
 
-Last updated: 2026-07-29. **P5d completion claim RETRACTED.** Rebuilding on `feat/p5d-collections`.
+Last updated: 2026-07-29. Milestone 2 (Gate B schema) ready for review. Branch `feat/p5d-collections`.
 
 ---
 
@@ -83,18 +83,38 @@ the write policy. Added to the required-test list below.
 Branch `feat/p5d-collections`. No intermediate pushes to master. Migration
 0120 is never edited; every repair is forward-only.
 
-### Milestone 1 (current): Gate A, write-policy repair
+### Milestone 1: Gate A, write-policy repair — DONE (`805358d`)
 
-- new migration adding INSERT/UPDATE/DELETE policies with
-  `USING (artist_id = auth.uid())` and `WITH CHECK (artist_id = auth.uid())`;
-- authenticated (non-service) regression tests covering owner CRUD and
-  cross-account rejection, which must fail if the policy is absent;
-- `pg_policies` evidence.
+Migration `0121`. 10 authenticated tests. Verified by DROPPING the policies and
+re-running: 9 of 10 fail; restored, 10 of 10 pass.
+
+### Milestone 2 (current): Gate B, the collection model
+
+Migration `0122`: `product_collection_items` (many-to-many, per-collection
+`position`, unique per collection+product, cascade FKs, ownership-safe RLS
+whose WITH CHECK verifies BOTH referenced rows), `product_collections.archived_at`,
+a backfill of every legacy assignment, and a trigger mirroring legacy
+`products.collection_id` writes into the new model.
+
+The trigger is not defensive theatre: `products` carries a FOR ALL policy, so
+any authenticated artist can still write `collection_id` straight through
+PostgREST. Without it the two models could silently disagree.
+
+`products.collection_id` is NOT dropped. That is the contract step, in a later
+migration, after production equivalence is verified.
+
+13 further authenticated tests: one product in two collections with
+independent positions, duplicate rejection, reorder, removal without touching
+the product, four cross-account cases, legacy mirroring / clearing /
+idempotency, and cascade on product delete.
+
+**Found and fixed during verification:** neither 0121 nor 0122 was idempotent,
+because Postgres has no `create policy if not exists` and a bare create aborts
+a re-run. Both now drop-then-create and re-run cleanly under `ON_ERROR_STOP`.
+Neither is in production yet, so both could still be corrected.
 
 ### Milestones after Gate A
 
-2. Join table `product_collection_items` (many-to-many, per-collection
-   ordering), expand/migrate/verify, legacy column left in place.
 3. Server behaviour: next-position on create, sparse updates, archive /
    restore / eligible-delete lifecycle, cap removal, entitlement + kill-switch
    at public reads, flat-shop fallback.
@@ -120,6 +140,7 @@ Branch `feat/p5d-collections`. No intermediate pushes to master. Migration
 
 ## Next intended action
 
-Deliver Milestone 1 (Gate A): the write-policy repair migration plus
-authenticated database regression tests, then mark it ready for review. Do NOT
-proceed past Gate A without specialist approval.
+Milestone 3: server behaviour. Read and write through the join table, assign
+the next collection position on create, make updates sparse, add the
+archive / restore / eligible-delete lifecycle, remove the cap, and enforce
+entitlement plus kill switch at the public read with a flat-shop fallback.
