@@ -3,6 +3,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { todayInTimeZone } from "@/lib/date-utils";
 import { canUseGoods } from "@/lib/features";
+import { publicCollectionsForArtist } from "./collections";
 import type { BioBlock } from "@/lib/bio-page-settings";
 import type { HubFeatureData } from "@/app/[slug]/hub/feature-blocks";
 
@@ -30,6 +31,7 @@ export async function loadHubFeatureData(input: {
     tripCount: 0,
     nextTripLabel: null,
     flashCount: 0,
+    featuredCollections: {},
   };
 
   // Books state is settings-only (no query), and two blocks read it.
@@ -106,6 +108,68 @@ export async function loadHubFeatureData(input: {
             [studio?.city, studio?.country].filter(Boolean).join(", ") ||
             first.title ||
             null;
+        }
+      })().catch(() => {}),
+    );
+  }
+
+  // Featured collections (P5d). Reference blocks, so what is loaded depends on
+  // WHICH collections the artist named, not merely on the type being present.
+  const featuredIds = input.blocks
+    .filter((b) => b.type === "featured_collection")
+    .map((b) => (b as { collectionId: string }).collectionId);
+
+  if (featuredIds.length > 0 && canUseGoods(input.settings)) {
+    jobs.push(
+      (async () => {
+        // Goes through the shared public read, so entitlement, the kill switch
+        // and the visible/archived filter are the SAME rules the shop uses. An
+        // unentitled artist gets nothing here, which renders as no block, and
+        // never as a broken one.
+        const { collections, memberships } = await publicCollectionsForArtist(
+          serviceClient,
+          input.artistId,
+        );
+        const wanted = collections.filter((c) => featuredIds.includes(c.id));
+        if (wanted.length === 0) return;
+
+        const productIds = [...new Set(memberships.map((m) => m.productId))];
+        const { data: products } = await serviceClient
+          .from("products")
+          .select("id, image_url, image_urls")
+          .eq("artist_id", input.artistId)
+          .eq("is_public_visible", true)
+          .in("status", ["active", "sold_out"])
+          .in("id", productIds.length > 0 ? productIds : [""]);
+
+        const thumbById = new Map<string, string | null>();
+        for (const p of products ?? []) {
+          const list = Array.isArray(p.image_urls)
+            ? (p.image_urls as string[])
+            : [];
+          thumbById.set(
+            p.id as string,
+            list[0] ?? (p.image_url as string | null) ?? null,
+          );
+        }
+
+        for (const c of wanted) {
+          // Only PURCHASABLE members count. A collection whose products are all
+          // draft or hidden is an empty section, and the block renders nothing
+          // rather than a heading over nothing.
+          const members = memberships
+            .filter((m) => m.collectionId === c.id)
+            .sort((a, b) => a.position - b.position)
+            .filter((m) => thumbById.has(m.productId));
+          if (members.length === 0) continue;
+          empty.featuredCollections[c.id] = {
+            name: c.name,
+            productCount: members.length,
+            thumbs: members
+              .map((m) => thumbById.get(m.productId) ?? null)
+              .filter((u): u is string => Boolean(u))
+              .slice(0, 3),
+          };
         }
       })().catch(() => {}),
     );

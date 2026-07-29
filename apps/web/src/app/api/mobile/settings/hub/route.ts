@@ -5,6 +5,8 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
+import { listCollectionsForArtist } from "@/lib/server/collections";
+import { liveCollections } from "@inklee/shared/collections";
 
 export const runtime = "nodejs";
 
@@ -27,7 +29,19 @@ export async function GET(req: Request) {
     return mobileError(500, error?.message ?? "Profile not found.");
   }
   const settings = (data.settings ?? {}) as Record<string, unknown>;
-  return mobileOk(parseBioPageSettings(settings.bio_page));
+
+  // ADDITIVE (P5d): the native editor needs names for the featured-collection
+  // picker, and an id alone is not something an artist can choose between.
+  // Only LIVE collections are offerable; featuring an archived one would make a
+  // block that renders nothing. An older build ignores the extra key.
+  const collections = liveCollections(
+    await listCollectionsForArtist(supabase, userId),
+  ).map((c) => ({ id: c.id, name: c.name }));
+
+  return mobileOk({
+    ...parseBioPageSettings(settings.bio_page),
+    collections,
+  });
 }
 
 // POST /api/mobile/settings/hub — save the Hub config. Ports the web

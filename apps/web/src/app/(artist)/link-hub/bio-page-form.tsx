@@ -29,6 +29,7 @@ type State =
 // Partial<BioBlock> over a discriminated union narrows to only the common keys
 // (id, type), so patches use an explicit field-union of every block's fields.
 type BlockPatch = Partial<{
+  collectionId: string;
   text: string;
   label: string;
   url: string;
@@ -60,11 +61,21 @@ const FEATURE_BLOCK_HINTS: Record<string, string> = {
   books_status: "Shows whether your books are open or closed.",
 };
 
-function makeBlock(type: BioBlockType): BioBlock {
+function makeBlock(type: BioBlockType, firstCollectionId?: string): BioBlock {
   const id = newId();
   // Feature blocks (P2b) carry no content: presence and position are the whole
   // payload, so there is nothing to seed and nothing for the artist to fill in.
   if (isFeatureBlockType(type)) return { id, type };
+  // A featured collection is seeded with a real one (P5d). A block added empty
+  // would be dropped by the parser on save, so the artist would add it, save,
+  // and find it gone.
+  if (type === "featured_collection") {
+    return {
+      id,
+      type: "featured_collection",
+      collectionId: firstCollectionId ?? "",
+    };
+  }
   if (type === "link")
     return { id, type: "link", label: "", url: "", isActive: true };
   if (type === "headline") return { id, type: "headline", text: "" };
@@ -76,7 +87,14 @@ function makeBlock(type: BioBlockType): BioBlock {
 // arranges freely, up to 10 of each. Booking policy + shop are booking-page
 // concerns and live in /bookings/settings, not here. The save action preserves
 // those fields so editing the Hub never touches them.
-export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
+export default function BioPageForm({
+  bioPage,
+  collections = [],
+}: {
+  bioPage: BioPageSettings;
+  /** The artist's LIVE collections, for the featured-collection picker. */
+  collections?: { id: string; name: string }[];
+}) {
   const [state, action, pending] = useActionState<State, FormData>(
     saveBioPageAction,
     null,
@@ -111,9 +129,22 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+  /** The first collection not already featured, so adding a second block does
+   *  not seed a duplicate the parser would then silently drop. */
+  const nextFreeCollectionId = (current: BioBlock[]): string | undefined => {
+    const used = new Set(
+      current
+        .filter((b) => b.type === "featured_collection")
+        .map((b) => (b as { collectionId: string }).collectionId),
+    );
+    return collections.find((c) => !used.has(c.id))?.id;
+  };
+
   const addBlock = (type: BioBlockType) =>
     setBlocks((prev) =>
-      canAddBlock(prev, type) ? [...prev, makeBlock(type)] : prev,
+      canAddBlock(prev, type)
+        ? [...prev, makeBlock(type, nextFreeCollectionId(prev))]
+        : prev,
     );
 
   const updateSocial = (index: number, patch: Partial<BioSocial>) =>
@@ -273,6 +304,47 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
                 </p>
               )}
 
+              {block.type === "featured_collection" && (
+                <>
+                  {collections.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      You have no collections yet. Make one under Goods,
+                      collections, and it will show up here.
+                    </p>
+                  ) : (
+                    <select
+                      value={block.collectionId}
+                      aria-label="Collection to feature"
+                      onChange={(e) =>
+                        patchBlock(block.id, { collectionId: e.target.value })
+                      }
+                      className={INPUT}
+                    >
+                      {/* A block can name a collection that has since been
+                          archived or deleted. Keeping that option present means
+                          the picker shows the artist what is actually saved
+                          rather than silently reassigning it to another
+                          collection the moment they open the editor. */}
+                      {!collections.some((c) => c.id === block.collectionId) &&
+                        block.collectionId && (
+                          <option value={block.collectionId}>
+                            (No longer available)
+                          </option>
+                        )}
+                      {collections.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Shows that collection with a few product images. Hidden
+                    while it is empty, hidden, or archived.
+                  </p>
+                </>
+              )}
+
               {block.type === "headline" && (
                 <>
                   <input
@@ -352,7 +424,14 @@ export default function BioPageForm({ bioPage }: { bioPage: BioPageSettings }) {
               key={type}
               type="button"
               onClick={() => addBlock(type)}
-              disabled={!canAddBlock(blocks, type)}
+              // Featuring needs something to feature, and something NOT ALREADY
+              // featured: seeding a duplicate would produce a block the parser
+              // drops on save.
+              disabled={
+                !canAddBlock(blocks, type) ||
+                (type === "featured_collection" &&
+                  !nextFreeCollectionId(blocks))
+              }
               className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted/30 disabled:opacity-40"
             >
               <Plus className="h-4 w-4" aria-hidden />

@@ -9,6 +9,7 @@ export default function GoodsLayout() {
     <Stack screenOptions={darkStackScreenOptions}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="[id]" options={{ title: "Product" }} />
+      <Stack.Screen name="collections" options={{ title: "Collections" }} />
     </Stack>
   );
 }

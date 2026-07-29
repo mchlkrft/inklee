@@ -29,6 +29,7 @@ import type { BooksSettings } from "./books-settings";
 import type { CustomFieldType, FieldCondition } from "./custom-fields";
 import type { ConfirmationPageSettings } from "./confirmation-page";
 import type { ProjectRecord, ProjectStatus } from "./projects";
+import type { DiscountKind } from "./discounts";
 import type { DashboardWidgets } from "./dashboard-settings";
 import type { DepositState } from "./deposit-state";
 import type { StripeMode } from "./deposit-settings";
@@ -660,6 +661,14 @@ export type MobileProductDetail = {
   pickupNote: string | null;
   quantity: number | null;
   isPublicVisible: boolean;
+  /** Drops, preorders and stock alerts (P5c). Additive: an older build simply
+   *  ignores them, and the route strips them for an un-entitled artist. */
+  availableFrom?: string | null;
+  preorder?: boolean;
+  lowStockThreshold?: number | null;
+  /** Whether the artist may SET the three fields above. Server-resolved so the
+   *  app never re-derives a plan rule. */
+  schedulingEntitled?: boolean;
   /** Legacy hero (imageUrls[0]); prefer imageUrls. */
   imageUrl: string | null;
   /** Canonical ordered image list — first entry is the hero everywhere. */
@@ -810,6 +819,26 @@ export type MobileBookingFormFieldInput = {
 export type MobileBookingFormSettingsUpdate = {
   key: string;
   value: boolean;
+};
+
+/** GET /api/mobile/goods/discounts — the artist's codes (Plus build P5b) with
+ *  usage counted from the redemption rows that actually enforce the cap.
+ *  `entitled` is server-resolved so the app never re-derives a plan rule. */
+export type MobileDiscountList = {
+  entitled: boolean;
+  codes: {
+    id: string;
+    code: string;
+    kind: DiscountKind;
+    /** Basis points for percent, minor units for fixed. */
+    value: number;
+    minSubtotalMinor: number;
+    maxRedemptions: number | null;
+    startsAt: string | null;
+    endsAt: string | null;
+    active: boolean;
+    used: number;
+  }[];
 };
 
 /** GET /api/mobile/projects — the artist's long-term project records (Plus
@@ -1096,3 +1125,22 @@ export type MobileBillingCancelResult =
   | { status: "not_active" }
   | { status: "already_scheduled"; effectiveAt: string | null }
   | { status: "scheduled"; effectiveAt: string | null };
+
+/** GET /api/mobile/goods/collections (P5d). Mirrors the web manager: every
+ *  collection (live AND archived, each with its member count) plus the products
+ *  and the membership rows, so the picker can render without a second call. */
+export type MobileCollectionList = {
+  entitled: boolean;
+  collections: {
+    id: string;
+    name: string;
+    position: number;
+    isPublicVisible: boolean;
+    archivedAt: string | null;
+    productCount: number;
+  }[];
+  products: { id: string; title: string }[];
+  /** Which product sits in which collection, and where. A product may appear
+   *  in several, which is the whole point of the join table. */
+  memberships: { collectionId: string; productId: string; position: number }[];
+};

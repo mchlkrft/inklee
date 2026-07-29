@@ -10,7 +10,7 @@ import { accentHex } from "@inklee/shared/appearance";
 import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { templateStyles } from "@inklee/shared/page-template-styles";
 import { loadHubFeatureData } from "@/lib/server/hub-feature-data";
-import { HubFeatureBlock } from "./feature-blocks";
+import { HubFeatureBlock, HubFeaturedCollectionBlock } from "./feature-blocks";
 import {
   parseBioPageSettings,
   BIO_SOCIAL_META,
@@ -230,6 +230,19 @@ export default async function ArtistHubPage({
             // Feature blocks (P2b): content-free, rendered from the artist's
             // existing data. Each returns null when its data is empty, so an
             // added-but-unused block never leaves a bare heading on the page.
+            // A reference block, so it is matched before the content-free
+            // feature family rather than inside it.
+            if (block.type === "featured_collection") {
+              return (
+                <HubFeaturedCollectionBlock
+                  key={block.id}
+                  collectionId={block.collectionId}
+                  data={featureData}
+                  tpl={tpl}
+                  shopUrl={bookingUrl}
+                />
+              );
+            }
             if (isFeatureBlock(block)) {
               return (
                 <HubFeatureBlock

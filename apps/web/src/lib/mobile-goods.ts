@@ -36,6 +36,12 @@ export type ProductInput = {
   pickupNote: string | null;
   quantity: number | null;
   isPublicVisible: boolean;
+  /** Drops, preorders and stock alerts (P5c). Optional so a pre-P5c build,
+   *  which sends none of them, keeps validating unchanged; whether they may be
+   *  WRITTEN is decided by the route's entitlement gate, not here. */
+  availableFrom?: string | null;
+  preorder?: boolean;
+  lowStockThreshold?: number | null;
 };
 
 /** Validate a product create/update payload (metadata only). */
@@ -108,6 +114,15 @@ export function normalizeProductInput(body: unknown): Result<ProductInput> {
       pickupNote,
       quantity,
       isPublicVisible,
+      // Passed through unvalidated on purpose: the ROUTE decides whether they
+      // may be written at all (entitlement) and normalizes them there, so
+      // validating a value the artist may not be allowed to set would only
+      // reject saves that were going to drop the field anyway.
+      availableFrom:
+        typeof b.availableFrom === "string" ? b.availableFrom : null,
+      preorder: b.preorder === true,
+      lowStockThreshold:
+        typeof b.lowStockThreshold === "number" ? b.lowStockThreshold : null,
     },
   };
 }

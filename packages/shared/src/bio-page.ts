@@ -37,7 +37,8 @@ export type BioBlockType =
   | "goods"
   | "guest_spots"
   | "flash"
-  | "books_status";
+  | "books_status"
+  | "featured_collection";
 
 /** Blocks that render the artist's existing data and hold no content. */
 export const BIO_FEATURE_BLOCK_TYPES = [
@@ -56,11 +57,23 @@ export function isFeatureBlockType(v: unknown): v is BioFeatureBlockType {
   );
 }
 
+// A THIRD family, and the only one that carries a reference rather than
+// content: `featured_collection` names one shop collection to surface on the
+// Hub (Plus build P5d). It is not a FEATURE block, because those are pure
+// presence and cap at one; several featured collections on one Hub is a
+// reasonable thing to want ("Prints" and "Winter drop" both up top). What is
+// never meant is the SAME collection twice, so the parser dedupes on
+// collectionId rather than capping the type at one.
+export function isReferenceBlockType(v: unknown): v is "featured_collection" {
+  return v === "featured_collection";
+}
+
 export const BIO_BLOCK_TYPES: readonly BioBlockType[] = [
   "headline",
   "text",
   "link",
   ...BIO_FEATURE_BLOCK_TYPES,
+  "featured_collection",
 ];
 
 /** Editor labels for each block type (shared by the web + app editors). */
@@ -76,6 +89,10 @@ export const BIO_BLOCK_META: Record<
   guest_spots: { label: "Guest spots", addLabel: "Add guest spots" },
   flash: { label: "Flash", addLabel: "Add flash" },
   books_status: { label: "Books status", addLabel: "Add books status" },
+  featured_collection: {
+    label: "Featured collection",
+    addLabel: "Add featured collection",
+  },
 };
 
 export type BioHeadlineBlock = { id: string; type: "headline"; text: string };
@@ -92,11 +109,21 @@ export type BioLinkBlock = {
 /** A content-free block that renders the artist's existing data. */
 export type BioFeatureBlock = { id: string; type: BioFeatureBlockType };
 
+/** Names one collection to surface on the Hub. Holds the reference only: the
+ *  name, the products and their order are read live, so renaming a collection
+ *  or rearranging it is reflected here without touching the Hub. */
+export type BioFeaturedCollectionBlock = {
+  id: string;
+  type: "featured_collection";
+  collectionId: string;
+};
+
 export type BioBlock =
   | BioHeadlineBlock
   | BioTextBlock
   | BioLinkBlock
-  | BioFeatureBlock;
+  | BioFeatureBlock
+  | BioFeaturedCollectionBlock;
 
 /** Narrow a block to the feature family. Takes the BLOCK (not its type) so
  *  callers keep discriminated-union narrowing on the else branch. */
@@ -317,6 +344,24 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
     return { id: blockId(o, `${o.type}-${index}`), type: o.type };
   }
 
+  // A featured collection is a REFERENCE. A block naming nothing is not an
+  // empty section to render, it is a broken one, so it is dropped exactly like
+  // an empty headline. Whether the id still resolves to a live collection is
+  // deliberately NOT checked here: this parser is pure and has no database, and
+  // the renderer already drops a collection it cannot read. Dropping it here on
+  // a failed lookup would also mean a transient read error silently deleting
+  // the artist's block from their saved settings.
+  if (isReferenceBlockType(o.type)) {
+    const collectionId =
+      typeof o.collectionId === "string" ? o.collectionId.trim() : "";
+    if (!collectionId) return null;
+    return {
+      id: blockId(o, `${o.type}-${index}`),
+      type: "featured_collection",
+      collectionId,
+    };
+  }
+
   if (o.type === "headline" || o.type === "text") {
     const max = o.type === "headline" ? MAX_HEADLINE : MAX_TEXT;
     const text =
@@ -370,10 +415,17 @@ function parseBlocks(obj: Record<string, unknown>): BioBlock[] {
   // single guarantor of unique ids for all three surfaces, so enforce it here
   // (mirrors parseSocials' per-platform dedupe).
   const seenIds = new Set<string>();
+  // One block per COLLECTION. The type cap alone would allow ten blocks all
+  // pointing at "Prints", which renders the same section ten times.
+  const seenCollections = new Set<string>();
   const out: BioBlock[] = [];
   source.forEach((raw, index) => {
     const block = parseOneBlock(raw, index);
     if (!block) return;
+    if (block.type === "featured_collection") {
+      if (seenCollections.has(block.collectionId)) return;
+      seenCollections.add(block.collectionId);
+    }
     // The parser is the enforcement point for the cap, not just the editor:
     // a stale client or a hand-edited payload must not be able to store two
     // shop sections.

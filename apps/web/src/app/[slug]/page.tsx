@@ -21,7 +21,11 @@ import { accentHex } from "@inklee/shared/appearance";
 import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { bookingTemplateStyles } from "@inklee/shared/booking-template-styles";
 import { shopAvailabilityResolver } from "@/lib/server/shop-availability";
-import type { ProductCollection } from "@inklee/shared/collections";
+import type {
+  ProductCollection,
+  CollectionMembership,
+} from "@inklee/shared/collections";
+import { publicCollectionsForArtist } from "@/lib/server/collections";
 import {
   dateKeyInTimeZone,
   formatDateKey,
@@ -171,6 +175,7 @@ export default async function ArtistPublicPage({
   // buy this at the appointment" before the artist accepts the request.
   let shopProducts: PublicProduct[] = [];
   let shopCollections: ProductCollection[] = [];
+  let shopMemberships: CollectionMembership[] = [];
   if (isModuleVisible(bioPage, "shop") && canUseGoods(profileSettings)) {
     const { data: rawProducts } = await serviceClient
       .from("products")
@@ -218,21 +223,17 @@ export default async function ArtistPublicPage({
     // clock during render is an impure call, and evaluating each card against
     // its own millisecond could show a drop as open on one and closed on the
     // next.
-    // Collections (P5d). Only the VISIBLE ones are sent to the client: a
-    // hidden collection's products still render, in the ungrouped remainder,
-    // so hiding a section never quietly unpublishes stock.
-    const { data: rawCollections } = await serviceClient
-      .from("product_collections")
-      .select("id, name, position, is_public_visible")
-      .eq("artist_id", profile.id)
-      .eq("is_public_visible", true)
-      .order("position", { ascending: true });
-    shopCollections = (rawCollections ?? []).map((c) => ({
-      id: c.id as string,
-      name: c.name as string,
-      position: c.position as number,
-      isPublicVisible: true,
-    }));
+    // Collections (P5d). One call, because the entitlement check, the kill
+    // switch and the visible/archived filtering all belong together with the
+    // read they gate: an unentitled artist gets empty arrays, which render as
+    // a flat shop with every product still purchasable. A downgrade to Free
+    // removes the grouping, never the goods.
+    const grouping = await publicCollectionsForArtist(
+      serviceClient,
+      profile.id,
+    );
+    shopCollections = grouping.collections;
+    shopMemberships = grouping.memberships;
 
     const resolveAvailability = shopAvailabilityResolver();
     shopProducts = rows.map((p) => {
@@ -602,6 +603,7 @@ export default async function ArtistPublicPage({
                   <ShopTeaser
                     products={shopProducts}
                     collections={shopCollections}
+                    memberships={shopMemberships}
                     itemBg={goodsItemBg}
                     artistName={profile.display_name}
                   />

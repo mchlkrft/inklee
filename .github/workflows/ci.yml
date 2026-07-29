@@ -94,6 +94,18 @@ jobs:
           NEXT_PUBLIC_APP_URL=http://localhost:3000
           EOF
 
+      # Database/RLS regression suite. Runs BEFORE Playwright: it needs no
+      # browser and no dev server, so a permissions regression fails in seconds
+      # instead of after a full e2e run.
+      #
+      # This job exists because nothing automated could catch the class of bug
+      # where a table has RLS enabled and no write policy. `pnpm test` collects
+      # `src/**` only, and every unit test for that feature exercised pure
+      # functions, so a table nobody could write to shipped green.
+      - name: Database RLS tests
+        working-directory: apps/web
+        run: pnpm test:db
+
       - name: Install Playwright Chromium
         working-directory: apps/web
         run: pnpm exec playwright install --with-deps chromium

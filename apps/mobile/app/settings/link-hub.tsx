@@ -28,6 +28,7 @@ import { TextField } from "@/components/TextField";
 import { TextArea } from "@/components/TextArea";
 import { IconButton } from "@/components/IconButton";
 import { SectionLabel } from "@/components/SectionLabel";
+import { FilterChip } from "@/components/Chip";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
@@ -90,7 +91,15 @@ function SocialGlyph({
 
 // Partial<BioBlock> over a discriminated union narrows to only the common keys
 // (id, type), so patches use an explicit field-union of every block's fields.
+/** The hub endpoint returns the shared settings PLUS the artist's live
+ *  collections, which the featured-collection picker needs names for. Optional
+ *  so the type stays honest about older responses. */
+type HubResponse = BioPageSettings & {
+  collections?: { id: string; name: string }[];
+};
+
 type BlockPatch = Partial<{
+  collectionId: string;
   text: string;
   label: string;
   url: string;
@@ -111,11 +120,16 @@ const FEATURE_BLOCK_HINTS: Record<string, string> = {
   books_status: "Shows whether your books are open or closed.",
 };
 
-function makeBlock(type: BioBlockType): BioBlock {
+function makeBlock(type: BioBlockType, firstCollectionId?: string): BioBlock {
   // Any non-empty id works: the server keeps it, else derives a stable fallback.
   const id = `${type}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   // Feature blocks (P2b) carry no content.
   if (isFeatureBlockType(type)) return { id, type };
+  // A featured collection is seeded with a real one (P5d): the parser drops a
+  // block naming nothing, so an empty one would vanish on save.
+  if (type === "featured_collection") {
+    return { id, type: "featured_collection", collectionId: firstCollectionId ?? "" };
+  }
   if (type === "link") return { id, type: "link", label: "", url: "", isActive: true };
   if (type === "headline") return { id, type: "headline", text: "" };
   return { id, type: "text", text: "" };
@@ -139,7 +153,7 @@ function buildSavedNote(droppedBlocks: number, droppedSocials: number): string {
 
 export default function LinkHubScreen() {
   useScreenView("settings_link_hub");
-  const q = useApiQuery<BioPageSettings>("/settings/hub");
+  const q = useApiQuery<HubResponse>("/settings/hub");
   const meQ = useApiQuery<MobileMe>("/me");
   const themed = useColors();
 
@@ -168,13 +182,14 @@ function HubForm({
   initial,
   slug,
 }: {
-  initial: BioPageSettings;
+  initial: HubResponse;
   slug: string | null;
 }) {
   const queryClient = useQueryClient();
   const colors = useColors();
 
   const [blocks, setBlocks] = useState<BioBlock[]>(initial.blocks);
+  const collections = initial.collections ?? [];
   const [socials, setSocials] = useState<BioSocial[]>(initial.socials);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,10 +220,23 @@ function HubForm({
       return next;
     });
   };
+  /** The first collection not already featured, so a second block does not
+   *  seed a duplicate the parser would then drop. */
+  const nextFreeCollectionId = (current: BioBlock[]): string | undefined => {
+    const used = new Set(
+      current
+        .filter((b) => b.type === "featured_collection")
+        .map((b) => (b as { collectionId: string }).collectionId),
+    );
+    return collections.find((c) => !used.has(c.id))?.id;
+  };
+
   const addBlock = (type: BioBlockType) => {
     dirty();
     setBlocks((prev) =>
-      canAddBlock(prev, type) ? [...prev, makeBlock(type)] : prev,
+      canAddBlock(prev, type)
+        ? [...prev, makeBlock(type, nextFreeCollectionId(prev))]
+        : prev,
     );
   };
 
@@ -386,7 +414,10 @@ function HubForm({
               >
                 <View className="mb-2 flex-row items-center justify-between">
                   <Text className="text-xs font-semibold uppercase tracking-widest text-shell-mute">
-                    {BIO_BLOCK_META[block.type].label}
+                    {/* Falls back rather than indexing blind: a build that
+                        predates a block type would otherwise read `.label` off
+                        undefined and take the whole screen down. */}
+                    {BIO_BLOCK_META[block.type]?.label ?? "Block"}
                   </Text>
                   <View className="flex-row items-center gap-1">
                     <IconButton
@@ -430,6 +461,41 @@ function HubForm({
                     placeholder="e.g. Fine-line tattoos in Berlin"
                     accessibilityLabel="Headline"
                   />
+                ) : null}
+
+                {block.type === "featured_collection" ? (
+                  collections.length === 0 ? (
+                    <Text className="text-xs text-shell-dim">
+                      You have no collections yet. Make one in your shop and it
+                      will show up here.
+                    </Text>
+                  ) : (
+                    <>
+                      <View className="flex-row flex-wrap gap-2">
+                        {collections.map((c) => (
+                          <FilterChip
+                            key={c.id}
+                            label={c.name}
+                            selected={block.collectionId === c.id}
+                            onPress={() =>
+                              patchBlock(block.id, { collectionId: c.id })
+                            }
+                          />
+                        ))}
+                      </View>
+                      {/* The saved id can point at a collection that has since
+                          been archived or deleted. Saying so beats showing a
+                          row of chips with none selected and no explanation. */}
+                      {!collections.some(
+                        (c) => c.id === block.collectionId,
+                      ) ? (
+                        <Text className="mt-2 text-xs text-shell-dim">
+                          The collection this was pointing at is no longer
+                          available. Pick another one.
+                        </Text>
+                      ) : null}
+                    </>
+                  )
                 ) : null}
 
                 {block.type === "text" ? (
@@ -490,11 +556,15 @@ function HubForm({
             {BIO_BLOCK_TYPES.map((type) => (
               <Button
                 key={type}
-                label={BIO_BLOCK_META[type].addLabel}
+                label={BIO_BLOCK_META[type]?.addLabel ?? type}
                 variant="secondary"
                 size="sm"
                 icon={Plus}
-                disabled={!canAddBlock(blocks, type)}
+                disabled={
+                  !canAddBlock(blocks, type) ||
+                  (type === "featured_collection" &&
+                    !nextFreeCollectionId(blocks))
+                }
                 onPress={() => addBlock(type)}
               />
             ))}

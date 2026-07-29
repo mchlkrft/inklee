@@ -33,6 +33,14 @@ no decision against it), ~ = partial.
   nothing leaks. Decision recorded 2026-07-26 — do not re-litigate in audits.
 - **No OTA:** native changes reach devices only via a new EAS build; rows below
   marked "(next build)" are on master but not on devices yet.
+- **"(branch-only)" is a WEAKER claim than "(next build)", added 2026-07-29.**
+  A row marked "(next build)" is on `origin/master`: it is deployed server-side
+  and one EAS build away from devices. A row marked "(branch-only)" is on an
+  unmerged branch: **nothing about it is deployed**, its server routes do not
+  exist in production, and it needs a merge AND a build. Do not conflate them.
+  The distinction was added because two P5d rows were marked "(next build)"
+  while living only on `feat/p5d-collections`, which reads to a merger as
+  "already shipped, just needs a build".
 
 ## Billing / account / subscription
 
@@ -108,9 +116,10 @@ top control row instead, which is also where the platform maps put theirs.
 | Custom confirmation page (P3d) | `bookings/booking-form` editor + gated render on `request/submitted` | `settings/booking-form/confirmation` screen + GET/POST `/api/mobile/booking-form/confirmation`, both through the SAME `saveConfirmationCore` (next build) | ✅ |
 | Custom URL slug (P3e) | `settings/profile` rename form with an explicit consequence confirmation | `settings/slug` screen + GET/POST `/api/mobile/settings/slug`, both through the SAME `renameSlugCore` (next build) | ✅ |
 | Scheduled books-open date (P3f) | `booking_opens_at` in all 3 web books forms; public page shows the date | native `settings/books` date field + `bookingOpensAt` on PUT `/settings/books` (next build); absent key means unchanged, so pre-P3f builds cannot clear it | ✅ |
-| Shop collections (P5d) | `/goods/collections` manager + grouped public shop | ⬜ no native collections editor yet (tracked in the P5 remainder). The public shop is a visitor surface and stays web | ⬜ |
-| Drops, preorders, low-stock alerts (P5c) | product form fields + all 3 public availability gates; alert via the notification plane | ⬜ the native product editor has no drop/preorder/threshold fields yet (tracked in the P5 remainder). The ALERT already reaches native: it uses the existing `system_warning` type, so no new wire value and no new build | ⬜ |
-| Discount codes (P5b) | artist editor at `/goods/discounts`; client code field in the portal checkout | ⬜ tracked gap: no native editor yet. The checkout is a CLIENT surface (web by design); the artist-side editor is a real native gap and is listed in the P5 remainder | ⬜ |
+| Shop collections (P5d) | `/goods/collections` manager (many-to-many membership, per-collection order, archive/restore, eligible-delete) + grouped public shop | ✅ `(tabs)/goods/collections` + GET/POST/PATCH/DELETE `/api/mobile/goods/collections`, every write through the SAME cores, so the entitlement refusal and the delete-eligibility rule are one implementation (**branch-only**, `feat/p5d-collections`, `caa1be1` — NOT on master, so these routes do not exist in production; then a build). ONE deliberate difference: web can drag to reorder, the app cannot. The reorder cores and the `reorder` / `reorderProducts` ops exist and are wired server-side, so the native gesture is additive whenever it is worth the surface. The public shop stays web: it is a visitor surface | ~ |
+| Featured-collection Hub block (P5d) | `featured_collection` block in the Link Hub editor + rendered on `/<slug>/hub` | ✅ picker on `settings/link-hub`, fed by the `collections` key added to GET `/api/mobile/settings/hub` (**branch-only**, `feat/p5d-collections`, `25dda4f` — NOT on master; then a build, and that build is a HARD PREREQUISITE, see the wire hazard below). Both surfaces seed from the same shared parser, which drops a block naming nothing and keeps one block per collection | ✅ |
+| Drops, preorders, low-stock alerts (P5c) | product form fields + all 3 public availability gates; alert via the notification plane | ✅ the three fields on `(tabs)/goods/[id]`, gated by a server-resolved `schedulingEntitled` and stripped server-side regardless (next build). ONE deliberate difference: web takes a date AND time, the app takes a DATE and means the start of it, because a native datetime picker is not worth the surface for a field most artists set to "that Friday". The ALERT already reached native via the existing `system_warning` type | ✅ |
+| Discount codes (P5b) | artist editor at `/goods/discounts`; client code field in the portal checkout | ✅ `(tabs)/goods/discounts` screen + GET/POST/PATCH `/api/mobile/goods/discounts`, all writes through the SAME `saveDiscountCore` / `setDiscountActiveCore` (next build). The client checkout stays web: it is a visitor surface | ✅ |
 | Platform fee engine + fee actuals (P5a) | `computeOrderFees` / `resolveOrderFee` on the checkout prepare paths; actuals written by the webhook | n/a: the app never prices a payment. It reads the artist's plan and the existing deposit surfaces, both unchanged | 🌐 |
 | Payment dispute handling (P5a) | `charge.dispute.*` recorded to audit_log + an artist notification | ✅ automatically: the notification uses the EXISTING `system_warning` type, so installed builds render it with no new wire value and no new build. A new notification type would have reached devices that cannot switch on it | ✅ |
 | Project client portal + emails (P4 follow-up) | `/project/<token>` client page; receipt, artist-alert and status emails | 🌐 the portal is a CLIENT surface and the app is artists-only. The artist half already reaches native: the new-enquiry alert uses the existing notification plane, so no new wire value and no new build | 🌐 |
@@ -127,7 +136,110 @@ security: ✅ at parity via the 93-route /api/mobile surface. Web-only by
 design: admin, marketing pages, legal pages, public artist pages, client
 magic-link portal (D: app is artists-only).
 
+## Wire hazard: a new BLOCK TYPE is not additive the way a new field is
+
+Recorded 2026-07-29, from the `featured_collection` block (P5d).
+
+The additive-only rule protects installed builds because an unknown KEY is
+ignored. A new block TYPE is different: the Link Hub editor renders every block
+the server sends, and it looked its label up with `BIO_BLOCK_META[block.type].label`.
+An installed build carries its own compiled copy of that map, so a block type
+added afterwards resolves to `undefined` and reading `.label` takes the whole
+screen down. The value is not ignored, it is dereferenced.
+
+Two things follow, both done here:
+
+- The native editor now falls back (`?.label ?? "Block"`) instead of indexing
+  blind, so the NEXT block type cannot crash a build that predates it. **This
+  protects builds made from the NEXT EAS build onward. It protects nothing that
+  exists today.**
+
+  > **Correction, 2026-07-29.** This bullet read "This protects builds from
+  > `da93749b` onward, not the ones already installed", which reads as though
+  > `da93749b` carries the fallback. It does not, and no build does yet.
+  > `da93749b` was built 2026-07-28 from `c00341a`; the fallback landed in
+  > `25dda4f`, which is on `feat/p5d-collections` and is not on master, let
+  > alone in a build. Verified directly rather than inferred:
+  > `git show c00341a:apps/mobile/app/settings/link-hub.tsx | grep BIO_BLOCK_META`
+  > returns `{BIO_BLOCK_META[block.type].label}` at line 372 and
+  > `BIO_BLOCK_META[type].addLabel` at 470 — the blind index, no `?.`, in the
+  > exact code that ships on devices today. The guarded form
+  > (`BIO_BLOCK_META[block.type]?.label ?? "Block"`) exists only in the working
+  > tree, at `link-hub.tsx:420` and `:559`. So the set of builds carrying the fallback is
+  > currently **empty**, and `da93749b` (the latest, and the one on devices) is
+  > among the vulnerable ones. Retracted in place rather than deleted, because
+  > "the fix already shipped to devices" is precisely the wrong thing for the
+  > next reader to believe here.
+- **A fresh EAS build is a prerequisite before `goods_collections` is granted
+  to anyone.** Builds that predate this change would crash on the Link Hub
+  screen if an artist featured a collection on web. Nothing can hit it today
+  (the capability is ungranted and the tier is dark), which is exactly why it
+  needs writing down rather than remembering.
+
 ## Update log
+
+- **2026-07-29 — Plus P5d shop collections, web + native. ⚠️ BRANCH-ONLY, and
+  it carries the first BREAKING wire change this register has recorded.**
+  Everything in this entry is on `feat/p5d-collections`, unmerged. Nothing here
+  is deployed and nothing here is on a device.
+
+  **Native collection management** (`caa1be1`, milestone 5):
+  `(tabs)/goods/collections` plus GET/POST/PATCH/DELETE
+  `/api/mobile/goods/collections`. Every write calls the same cores the web
+  actions call, so the entitlement refusal, the delete-eligibility rule and the
+  ordering behaviour are one implementation rather than two that agree today.
+  The five state-changing operations share ONE PATCH route discriminated by
+  `op`, rather than five endpoints: each is a single call with no body worth its
+  own route, and an unknown `op` is refused with 400, so a newer app calling an
+  older deployment gets a clear error instead of a silent no-op. Status mapping
+  is deliberate: **403** for `not_entitled` (the app maps it to IAP-safe copy
+  through `plan-errors.ts`), **409** for `not_eligible`, because a delete
+  refused for having products in it is a state conflict and not a malformed
+  request. ONE deliberate difference, recorded here rather than left implicit:
+  **web can drag to reorder, the app cannot.** The reorder cores and both
+  reorder ops are built and wired server-side, so the native gesture is purely
+  additive whenever it earns the surface.
+
+  **The `featured_collection` Link Hub block** (`25dda4f`, milestone 4): a THIRD
+  block family. The existing two are content blocks (which carry their own text)
+  and feature blocks (content-free, capped at one each). This one carries a
+  REFERENCE, so it needed its own rules. The parser drops a block naming
+  nothing, but deliberately does NOT resolve the reference: the parser is pure
+  and has no database, and dropping on a failed lookup would let a transient
+  read error silently delete the artist's saved block. The renderer drops a
+  dangling reference instead. Deduped by `collectionId` rather than capped at
+  one. The native picker is fed by a new `collections` key on GET
+  `/api/mobile/settings/hub`.
+
+  **🚨 THE WIRE HAZARD: adding a value to a union the app SWITCHES ON or INDEXES
+  BY is a BREAKING wire change, unlike adding a field.** This is the first time
+  the additive-only rule at the top of this file has failed, and it failed
+  because the rule's protection has a precondition nobody had written down: an
+  unknown KEY is ignored, but an unknown VALUE that gets used as a MAP INDEX is
+  **dereferenced**. The native Link Hub editor read
+  `BIO_BLOCK_META[block.type].label`. An installed build carries its own
+  compiled copy of that map, so a block type added afterwards resolves to
+  `undefined`, and reading `.label` off it takes the whole screen down. It
+  crashed the Link Hub screen on installed builds.
+
+  Two consequences, and only one of them is fixed:
+  - The editor now falls back (`?.label ?? "Block"`), so the NEXT block type
+    cannot crash a build that predates it. **This protects no build that exists
+    today** — see the correction under "Wire hazard" below.
+  - **A fresh EAS build is a HARD PREREQUISITE before `goods_collections` is
+    granted to anyone.** Builds already installed cannot be repaired from the
+    server. Nothing can hit it today (the capability is ungranted and the tier
+    is dark), which is exactly why it is written down rather than remembered.
+
+  **Web-only by decision, recorded as rows rather than omitted:** the grouped
+  public shop and the rendered `/<slug>/hub` block are visitor surfaces, and the
+  app is artists-only.
+
+  **Also relevant to this register, and NOT on master either:** `0de2034`
+  (native discount + product-scheduling editors) was previously recorded as
+  shipped. It was not. It is the base commit of `feat/p5d-collections` and lands
+  with that merge. Reviewed clean, no rebase, per founder decision 2026-07-29.
+  See `docs/product/p5d-base-commit-review.md`.
 
 - **2026-07-28 — Plus P4 large-project mode, web + native:** migration `0115`
   adds `projects`, `project_media` and ONE nullable `booking_requests.project_id`.

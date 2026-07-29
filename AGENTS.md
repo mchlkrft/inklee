@@ -26,6 +26,37 @@ The 2026-04-20 repair masked an unrun `0001_rls_policies.sql` for ~3 weeks until
 
 If the expected effects are missing, the migration has not actually run. Apply it manually (SQL editor or `supabase db push`) before repairing the bookkeeping.
 
+### Footgun: a migration that RE-RUNS without erroring has not necessarily CONVERGED
+
+Sibling of the one above, and the same shape: "the migration looks like it repairs this" turns out to be false at exactly the moment someone reaches for it during an incident.
+
+`create table if not exists` checks the **table's** existence. Anything declared **inline** in its column/constraint list — foreign keys, unique constraints, checks — is therefore skipped entirely once the table exists, and the run exits 0 having restored nothing:
+
+```
+NOTICE:  relation "product_collection_items" already exists, skipping
+CREATE TABLE
+```
+
+Found empirically on 2026-07-29: re-running `0122_collection_items.sql` after two composite FKs had been dropped restored neither, and reported success. Re-running had been certified "idempotent" on the basis that it does not error — which is a different property from converging to the intended schema.
+
+**Do not trust "re-run the migration" as a repair path. Verify the specific object:**
+
+- Constraints: `select conname from pg_constraint where conrelid = 'X'::regclass;`
+- Policies: `select policyname, cmd from pg_policies where tablename='X';`
+- Functions: `select proname from pg_proc where proname = 'X';`
+
+**Convergent patterns** (safe to rely on): per-item existence guards (`do $$ begin if not exists (select 1 from pg_constraint where conname='X') then alter table ... end if; end $$;`), and unconditional replaces (`drop policy if exists` then `create policy`, `create or replace function`, `drop trigger if exists` then `create trigger`). Drop-then-create is the strongest of these: it repairs a present-but-wrong-shaped object, which an existence guard skips over.
+
+**Non-convergent pattern:** objects declared inline inside `create table if not exists`.
+
+Note both properties can hold at once and are not in tension: a file can re-run cleanly under `ON_ERROR_STOP` (idempotent) **and** fail to restore a manually dropped constraint (non-convergent). Idempotent is not convergent. That is the whole point of this entry.
+
+**Status of `0122` itself, corrected 2026-07-29 (same day, later).** This paragraph previously read: "`0122` re-runs cleanly under `ON_ERROR_STOP` (idempotent) **and** fails to restore a manually dropped constraint (non-convergent)." That was true when written and is **no longer true**: commit `201fbfc` moved both composite foreign keys out of the inline `create table if not exists` into guarded `do $$ ... if not exists ... then alter table ... add constraint ... end if; end $$;` blocks, matching the pattern the file already used for its two parent unique keys. Convergence was proven by the route that disproved it: both FKs dropped by hand, `0122` re-run against the live already-migrated table, `pg_constraint` confirms both return. The same drop-then-rerun previously exited 0 having restored nothing.
+
+So **`0122` is now the reference implementation of the convergent pattern, not the counter-example.** Read it when you need the shape. The dated empirical finding at the top of this entry is kept verbatim and in the past tense, because the finding is what makes the general rule credible and it genuinely happened.
+
+The general rule is unchanged and is the durable part: a migration that re-runs without erroring has not necessarily converged, and no file's convergence should be assumed from the fact that someone once called it idempotent. Verify the specific object.
+
 ## Money path: deposits, Connect, sponsorship
 
 Full description in `docs/artist-account-and-payouts.md`. These four rules exist

@@ -2,6 +2,8 @@ import { ExternalLink } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
 import { publicHubUrl } from "@/lib/public-url";
+import { listCollectionsForArtist } from "@/lib/server/collections";
+import { liveCollections } from "@inklee/shared/collections";
 import BioPageForm from "./bio-page-form";
 
 export default async function BioPageSettingsPage() {
@@ -19,6 +21,12 @@ export default async function BioPageSettingsPage() {
   const settings = (profile?.settings ?? {}) as Record<string, unknown>;
   const bioPage = parseBioPageSettings(settings.bio_page);
   const hubUrl = profile?.slug ? publicHubUrl(profile.slug) : null;
+
+  // Only LIVE collections are offerable. Featuring an archived section would
+  // produce a block that renders nothing, which reads as a bug.
+  const collections = liveCollections(
+    await listCollectionsForArtist(supabase, user!.id),
+  ).map((c) => ({ id: c.id, name: c.name }));
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -45,7 +53,7 @@ export default async function BioPageSettingsPage() {
         </a>
       )}
 
-      <BioPageForm bioPage={bioPage} />
+      <BioPageForm bioPage={bioPage} collections={collections} />
     </div>
   );
 }

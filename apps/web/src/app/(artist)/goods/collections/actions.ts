@@ -5,7 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import {
   saveCollectionCore,
   deleteCollectionCore,
-  setProductCollectionCore,
+  setCollectionArchivedCore,
+  reorderCollectionsCore,
+  setProductCollectionsCore,
+  addProductToCollectionCore,
+  removeProductFromCollectionCore,
+  reorderCollectionProductsCore,
 } from "@/lib/server/collections";
 
 type State = { error: string } | { success: true } | null;
@@ -18,8 +23,14 @@ async function artist() {
   return { supabase, userId: user?.id ?? null };
 }
 
-/** Thin wrappers: the cap, the entitlement refusal and the ownership checks
- *  all live in the cores, so any future mobile route inherits them. */
+/** Every rule (entitlement refusal, delete eligibility, ownership, ordering)
+ *  lives in the cores, so the mobile routes inherit all of it and cannot
+ *  drift. These are thin wrappers plus cache invalidation. */
+function revalidateShop() {
+  revalidatePath("/goods/collections");
+  revalidatePath("/goods");
+}
+
 export async function saveCollectionAction(
   _prev: State,
   formData: FormData,
@@ -28,19 +39,19 @@ export async function saveCollectionAction(
   if (!userId) return { error: "Not signed in." };
 
   const id = (formData.get("id") as string) || undefined;
-  const result = await saveCollectionCore(
-    supabase,
-    userId,
-    {
-      name: formData.get("name"),
-      isPublicVisible: formData.get("is_public_visible") !== "off",
-    },
-    id,
-  );
+  // Sparse by construction: a key absent from the form is not sent, so the
+  // core leaves that column alone. Editing the name of a hidden collection
+  // must not quietly republish it.
+  const input: { name?: unknown; isPublicVisible?: unknown } = {};
+  if (formData.has("name")) input.name = formData.get("name");
+  if (formData.has("is_public_visible")) {
+    input.isPublicVisible = formData.get("is_public_visible") !== "off";
+  }
+
+  const result = await saveCollectionCore(supabase, userId, input, id);
   if (!result.ok) return { error: result.error };
 
-  revalidatePath("/goods/collections");
-  revalidatePath("/goods");
+  revalidateShop();
   return { success: true };
 }
 
@@ -51,19 +62,70 @@ export async function deleteCollectionAction(id: string): Promise<State> {
   const result = await deleteCollectionCore(supabase, userId, id);
   if (!result.ok) return { error: result.error };
 
-  revalidatePath("/goods/collections");
-  revalidatePath("/goods");
+  revalidateShop();
   return { success: true };
 }
 
-export async function setProductCollectionAction(
-  productId: string,
-  collectionId: string | null,
+export async function setCollectionArchivedAction(
+  id: string,
+  archived: boolean,
 ): Promise<State> {
   const { supabase, userId } = await artist();
   if (!userId) return { error: "Not signed in." };
 
-  const result = await setProductCollectionCore(
+  const result = await setCollectionArchivedCore(
+    supabase,
+    userId,
+    id,
+    archived,
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidateShop();
+  return { success: true };
+}
+
+export async function reorderCollectionsAction(
+  orderedIds: string[],
+): Promise<State> {
+  const { supabase, userId } = await artist();
+  if (!userId) return { error: "Not signed in." };
+
+  const result = await reorderCollectionsCore(supabase, userId, orderedIds);
+  if (!result.ok) return { error: result.error };
+
+  revalidateShop();
+  return { success: true };
+}
+
+/** The product editor holds the whole answer, so it sends the whole answer. */
+export async function setProductCollectionsAction(
+  productId: string,
+  collectionIds: string[],
+): Promise<State> {
+  const { supabase, userId } = await artist();
+  if (!userId) return { error: "Not signed in." };
+
+  const result = await setProductCollectionsCore(
+    supabase,
+    userId,
+    productId,
+    collectionIds,
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidateShop();
+  return { success: true };
+}
+
+export async function addProductToCollectionAction(
+  productId: string,
+  collectionId: string,
+): Promise<State> {
+  const { supabase, userId } = await artist();
+  if (!userId) return { error: "Not signed in." };
+
+  const result = await addProductToCollectionCore(
     supabase,
     userId,
     productId,
@@ -71,7 +133,44 @@ export async function setProductCollectionAction(
   );
   if (!result.ok) return { error: result.error };
 
-  revalidatePath("/goods");
-  revalidatePath("/goods/collections");
+  revalidateShop();
+  return { success: true };
+}
+
+export async function removeProductFromCollectionAction(
+  productId: string,
+  collectionId: string,
+): Promise<State> {
+  const { supabase, userId } = await artist();
+  if (!userId) return { error: "Not signed in." };
+
+  const result = await removeProductFromCollectionCore(
+    supabase,
+    userId,
+    productId,
+    collectionId,
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidateShop();
+  return { success: true };
+}
+
+export async function reorderCollectionProductsAction(
+  collectionId: string,
+  orderedProductIds: string[],
+): Promise<State> {
+  const { supabase, userId } = await artist();
+  if (!userId) return { error: "Not signed in." };
+
+  const result = await reorderCollectionProductsCore(
+    supabase,
+    userId,
+    collectionId,
+    orderedProductIds,
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidateShop();
   return { success: true };
 }
