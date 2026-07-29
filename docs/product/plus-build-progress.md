@@ -263,10 +263,32 @@ prerequisite: a fresh EAS build must ship before `goods_collections` is granted,
 because builds already installed cannot be fixed from the server. Nothing can
 hit it today, which is why it is written down rather than remembered.
 
-### Milestones after Gate A
+### Milestone 5: native collection management — DONE
 
-5. Native collection management, full parity list.
-6. Docs, capability registry, parity register, full test suite.
+`(tabs)/goods/collections` plus GET/POST/PATCH/DELETE
+`/api/mobile/goods/collections`. Every write calls the same cores the web
+actions call, so the entitlement refusal, the delete-eligibility rule and the
+ordering behaviour are one implementation rather than two that agree today.
+
+The five state-changing operations share one PATCH route discriminated by `op`,
+rather than five endpoints: each is a single call with no body worth its own
+route. An unknown `op` is refused with a 400, so a newer app calling an older
+deployment gets a clear error instead of a silent no-op.
+
+Status mapping is deliberate: 403 for `not_entitled` (the app maps it to
+IAP-safe copy through `plan-errors.ts`), 409 for `not_eligible`, because a
+delete refused for having products in it is a state conflict and not a
+malformed request.
+
+ONE deliberate difference, recorded in the register rather than left implicit:
+web can drag to reorder, the app cannot. The reorder cores and both reorder ops
+are built and wired server-side, so the native gesture is purely additive
+whenever it earns the surface.
+
+### Milestone 6 (current): docs, registry, full suite
+
+Remaining: capability-registry entry, the collections section in the goods
+docs, and the e2e pass.
 
 ## Blocked or postponed
 

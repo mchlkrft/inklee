@@ -1125,3 +1125,22 @@ export type MobileBillingCancelResult =
   | { status: "not_active" }
   | { status: "already_scheduled"; effectiveAt: string | null }
   | { status: "scheduled"; effectiveAt: string | null };
+
+/** GET /api/mobile/goods/collections (P5d). Mirrors the web manager: every
+ *  collection (live AND archived, each with its member count) plus the products
+ *  and the membership rows, so the picker can render without a second call. */
+export type MobileCollectionList = {
+  entitled: boolean;
+  collections: {
+    id: string;
+    name: string;
+    position: number;
+    isPublicVisible: boolean;
+    archivedAt: string | null;
+    productCount: number;
+  }[];
+  products: { id: string; title: string }[];
+  /** Which product sits in which collection, and where. A product may appear
+   *  in several, which is the whole point of the join table. */
+  memberships: { collectionId: string; productId: string; position: number }[];
+};
