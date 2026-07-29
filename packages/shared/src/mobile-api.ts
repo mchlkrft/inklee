@@ -29,6 +29,7 @@ import type { BooksSettings } from "./books-settings";
 import type { CustomFieldType, FieldCondition } from "./custom-fields";
 import type { ConfirmationPageSettings } from "./confirmation-page";
 import type { ProjectRecord, ProjectStatus } from "./projects";
+import type { DiscountKind } from "./discounts";
 import type { DashboardWidgets } from "./dashboard-settings";
 import type { DepositState } from "./deposit-state";
 import type { StripeMode } from "./deposit-settings";
@@ -660,6 +661,14 @@ export type MobileProductDetail = {
   pickupNote: string | null;
   quantity: number | null;
   isPublicVisible: boolean;
+  /** Drops, preorders and stock alerts (P5c). Additive: an older build simply
+   *  ignores them, and the route strips them for an un-entitled artist. */
+  availableFrom?: string | null;
+  preorder?: boolean;
+  lowStockThreshold?: number | null;
+  /** Whether the artist may SET the three fields above. Server-resolved so the
+   *  app never re-derives a plan rule. */
+  schedulingEntitled?: boolean;
   /** Legacy hero (imageUrls[0]); prefer imageUrls. */
   imageUrl: string | null;
   /** Canonical ordered image list — first entry is the hero everywhere. */
@@ -810,6 +819,26 @@ export type MobileBookingFormFieldInput = {
 export type MobileBookingFormSettingsUpdate = {
   key: string;
   value: boolean;
+};
+
+/** GET /api/mobile/goods/discounts — the artist's codes (Plus build P5b) with
+ *  usage counted from the redemption rows that actually enforce the cap.
+ *  `entitled` is server-resolved so the app never re-derives a plan rule. */
+export type MobileDiscountList = {
+  entitled: boolean;
+  codes: {
+    id: string;
+    code: string;
+    kind: DiscountKind;
+    /** Basis points for percent, minor units for fixed. */
+    value: number;
+    minSubtotalMinor: number;
+    maxRedemptions: number | null;
+    startsAt: string | null;
+    endsAt: string | null;
+    active: boolean;
+    used: number;
+  }[];
 };
 
 /** GET /api/mobile/projects — the artist's long-term project records (Plus

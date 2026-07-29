@@ -25,6 +25,7 @@ import { IconButton } from "@/components/IconButton";
 import { PillButton } from "@/components/PillButton";
 import { RadioList } from "@/components/RadioList";
 import { TextField } from "@/components/TextField";
+import { DateField } from "@/components/DateField";
 import { Segmented } from "@/components/Segmented";
 import { DangerButton } from "@/components/DangerButton";
 import { MultiImageField } from "@/components/MultiImageField";
@@ -145,6 +146,17 @@ function ProductForm({
   );
   const [description, setDescription] = useState(initial?.description ?? "");
   const [pickupNote, setPickupNote] = useState(initial?.pickupNote ?? "");
+  // Drops, preorders and stock alerts (P5c). Rendered only when the server
+  // says the artist may set them; it strips the values regardless.
+  const [availableFrom, setAvailableFrom] = useState<string | null>(
+    initial?.availableFrom ?? null,
+  );
+  const [preorder, setPreorder] = useState(initial?.preorder === true);
+  const [lowStock, setLowStock] = useState(
+    initial?.lowStockThreshold != null
+      ? String(initial.lowStockThreshold)
+      : "",
+  );
   const [quantity, setQuantity] = useState(
     initial?.quantity != null ? String(initial.quantity) : "",
   );
@@ -334,6 +346,9 @@ function ProductForm({
       // Web parity: the quantity input unmounts while options are on, so the
       // web stores NULL — per-variant stock takes over.
       quantity: hasOptions ? null : qty,
+      availableFrom,
+      preorder,
+      lowStockThreshold: lowStock.trim() === "" ? null : Number(lowStock.trim()),
       isPublicVisible,
     };
     const variantsBody: MobileProductVariantsUpdate = {
@@ -670,6 +685,64 @@ function ProductForm({
             keyboardType="number-pad"
             placeholder="Leave empty for unlimited"
           />
+        ) : null}
+
+        {initial?.schedulingEntitled ? (
+          <>
+            <DateField
+              label="Drops on (optional)"
+              value={availableFrom ? availableFrom.slice(0, 10) : null}
+              onChange={(d) =>
+                // The web editor takes a time too; the app takes a DATE and
+                // means the start of it. Shipping a native datetime picker for
+                // a field most artists set to "that Friday" is not worth the
+                // surface, and the stored value stays a full timestamp either
+                // way.
+                setAvailableFrom(d ? new Date(`${d}T00:00`).toISOString() : null)
+              }
+              minimumDate={new Date()}
+            />
+            <View className="-mt-1 mb-3 flex-row items-center justify-between">
+              <Text className="flex-1 pr-3 text-xs text-shell-dim">
+                Until then it shows on your shop with the date, and nobody can
+                buy it.
+              </Text>
+              {availableFrom ? (
+                <Pressable
+                  onPress={() => setAvailableFrom(null)}
+                  hitSlop={8}
+                  className="active:opacity-70"
+                >
+                  <Text className="text-xs font-medium text-accent">Clear</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
+              <View className="flex-1 pr-3">
+                <Text className="text-base text-foreground">Preorders</Text>
+                <Text className="mt-0.5 text-sm text-shell-dim">
+                  Sell before the drop, and past zero stock.
+                </Text>
+              </View>
+              <Switch
+                value={preorder}
+                onValueChange={setPreorder}
+                trackColor={{ false: "rgba(0,0,0,0.35)", true: themed.mustard }}
+                thumbColor={themed.bone}
+                ios_backgroundColor="rgba(0,0,0,0.35)"
+              />
+            </View>
+
+            <TextField
+              label="Tell me when stock reaches (optional)"
+              value={lowStock}
+              onChangeText={(v) => setLowStock(v.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
+              placeholder="Never"
+              hint="One notification when a sale takes you to this number. Restocking resets it."
+            />
+          </>
         ) : null}
 
         <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">

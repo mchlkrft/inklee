@@ -86,8 +86,16 @@ export default function GoodsList() {
       {/* Web hides the header create button when empty (the empty state has its
           own CTA); mirror that to avoid a duplicate button. */}
       {!isEmpty ? (
-        <View className="pb-3">
-          <Button label="New product" onPress={() => router.push("/goods/new")} />
+        <View className="pb-3 gap-2">
+          <Button
+            label="New product"
+            onPress={() => router.push("/goods/new")}
+          />
+          <Button
+            label="Discount codes"
+            variant="secondary"
+            onPress={() => router.push("/goods/discounts")}
+          />
         </View>
       ) : null}
     </>

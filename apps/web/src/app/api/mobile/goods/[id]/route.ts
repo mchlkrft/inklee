@@ -1,3 +1,5 @@
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { goodsSchedulingAllowed } from "@/lib/server/entitlement-gates";
 import {
   requireMobileUser,
   mobileOk,
@@ -23,6 +25,47 @@ export const runtime = "nodejs";
 // GET /api/mobile/goods/:id — the full editable product: metadata, the
 // canonical image list and the active variants (the loadProductForEditAction
 // projection, so the native editor sees exactly what the web modal sees).
+
+/**
+ * The scheduling fields to write, or nothing when the artist is not entitled.
+ *
+ * Mirrors applySchedulingEntitlement in the web action: the values are dropped
+ * rather than the save rejected. A plan-read blip drops them too, which is the
+ * conservative direction (no drop is set) rather than the destructive one.
+ */
+async function schedulingPatch(
+  artistId: string,
+  v: {
+    availableFrom?: unknown;
+    preorder?: unknown;
+    lowStockThreshold?: unknown;
+  },
+): Promise<Record<string, unknown>> {
+  let allowed = false;
+  try {
+    allowed = goodsSchedulingAllowed(await getAccountOverrides(artistId));
+  } catch {
+    allowed = false;
+  }
+  if (!allowed) return {};
+
+  const iso =
+    typeof v.availableFrom === "string" && v.availableFrom.trim() !== ""
+      ? new Date(v.availableFrom).toISOString()
+      : null;
+  const threshold =
+    typeof v.lowStockThreshold === "number" &&
+    Number.isFinite(v.lowStockThreshold) &&
+    v.lowStockThreshold >= 0
+      ? Math.round(v.lowStockThreshold)
+      : null;
+  return {
+    available_from: Number.isNaN(Date.parse(String(iso))) ? null : iso,
+    preorder: v.preorder === true,
+    low_stock_threshold: threshold,
+  };
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -35,13 +78,23 @@ export async function GET(
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, available_from, preorder, low_stock_threshold",
     )
     .eq("id", id)
     .eq("artist_id", userId)
     .maybeSingle();
   if (error) return mobileError(500, error.message);
   if (!data) return mobileError(404, "Product not found.", "not_found");
+
+  // Server-resolved so the app never re-derives a plan rule (P5c).
+  let schedulingEntitled = false;
+  try {
+    schedulingEntitled = goodsSchedulingAllowed(
+      await getAccountOverrides(userId),
+    );
+  } catch {
+    schedulingEntitled = false;
+  }
 
   // Hidden variants are soft-archived rows historical orders still reference;
   // the artist edits the active set (web parity: loadProductForEditAction).
@@ -79,6 +132,11 @@ export async function GET(
     status: data.status,
     pickupNote: data.pickup_note,
     quantity: data.quantity,
+    // Drops, preorders and stock alerts (P5c).
+    availableFrom: (data.available_from as string | null) ?? null,
+    preorder: data.preorder === true,
+    lowStockThreshold: (data.low_stock_threshold as number | null) ?? null,
+    schedulingEntitled,
     isPublicVisible: data.is_public_visible,
     imageUrl: data.image_url,
     imageUrls,
@@ -137,6 +195,11 @@ export async function PUT(
       status: v.status,
       pickup_note: v.pickupNote,
       quantity: v.quantity,
+      // Same gate the web action applies (P5c): an un-entitled artist's values
+      // are DROPPED rather than rejected, because the rest of their save is
+      // perfectly valid and failing the whole form over a field they cannot
+      // use would be worse.
+      ...(await schedulingPatch(userId, v)),
       is_public_visible: v.isPublicVisible,
       updated_at: new Date().toISOString(),
     })
