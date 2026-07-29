@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { dbEnv } from "./helpers/db-env";
 
 /**
  * Authenticated database tests for product_collection_items (P5d, Gate B).
@@ -12,11 +13,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * below are what prove it.
  */
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const LOCAL =
-  !!URL && /127\.0\.0\.1|localhost/.test(URL) && !!ANON && !!SERVICE;
+const { url: URL, anonKey: ANON, serviceKey: SERVICE } = dbEnv();
 
 const PASSWORD = "Passw0rd!123";
 
@@ -47,7 +44,7 @@ async function makeActor(label: string): Promise<Actor> {
   });
   if (pErr) throw pErr;
 
-  const client = createClient(URL as string, ANON as string);
+  const client = createClient(URL, ANON);
   const { error: sErr } = await client.auth.signInWithPassword({
     email,
     password: PASSWORD,
@@ -86,19 +83,17 @@ async function destroyActor(a: Actor | undefined) {
 }
 
 beforeAll(async () => {
-  if (!LOCAL) return;
-  admin = createClient(URL as string, SERVICE as string);
+  admin = createClient(URL, SERVICE);
   owner = await makeActor("owner");
   other = await makeActor("other");
 }, 60_000);
 
 afterAll(async () => {
-  if (!LOCAL) return;
   await destroyActor(owner);
   await destroyActor(other);
 }, 60_000);
 
-describe.skipIf(!LOCAL)("collection membership, owner", () => {
+describe("collection membership, owner", () => {
   it("adds a product to a collection", async () => {
     const { error } = await owner.client
       .from("product_collection_items")
@@ -188,7 +183,7 @@ describe.skipIf(!LOCAL)("collection membership, owner", () => {
   });
 });
 
-describe.skipIf(!LOCAL)("collection membership, cross-account", () => {
+describe("collection membership, cross-account", () => {
   // The FK proves the row exists; it says nothing about who owns it. Without
   // the EXISTS clauses in the policy, both of these would succeed.
   it("cannot file ANOTHER artist's product into its own collection", async () => {
@@ -238,7 +233,7 @@ describe.skipIf(!LOCAL)("collection membership, cross-account", () => {
   });
 });
 
-describe.skipIf(!LOCAL)("legacy column compatibility", () => {
+describe("legacy column compatibility", () => {
   // `products` carries a FOR ALL policy, so a client built before the join
   // table can still write collection_id directly. The trigger is what stops
   // the two models silently disagreeing.

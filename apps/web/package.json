@@ -17,7 +17,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:launch": "vitest run && playwright test",
+    "test:launch": "vitest run && vitest run --config vitest.db.config.ts && playwright test",
     "test:db": "vitest run --config vitest.db.config.ts"
   },
   "lint-staged": {

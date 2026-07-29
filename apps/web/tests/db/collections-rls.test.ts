@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { dbEnv } from "./helpers/db-env";
 
 /**
  * Authenticated database regression tests for product_collections (P5d, Gate A).
@@ -14,15 +15,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * that runs as the service role would pass either way and would be worthless
  * here, which is precisely the trap that produced the defect.
  *
- * Skipped (not failed) when no local Supabase is configured, so the default
- * unit run stays hermetic.
+ * FAILS LOUDLY when unconfigured. It used to skip, which is how the suite that
+ * proves the repair came to exit 0 having asserted nothing. `dbEnv()` also
+ * refuses any non-local target: these tests create and delete real users.
  */
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const LOCAL =
-  !!URL && /127\.0\.0\.1|localhost/.test(URL) && !!ANON && !!SERVICE;
+const { url: URL, anonKey: ANON, serviceKey: SERVICE } = dbEnv();
 
 const PASSWORD = "Passw0rd!123";
 
@@ -50,7 +48,7 @@ async function makeActor(label: string): Promise<Actor> {
     .upsert({ id, slug, display_name: `P5D ${label}` });
   if (profileError) throw profileError;
 
-  const client = createClient(URL as string, ANON as string);
+  const client = createClient(URL, ANON);
   const { error: signInError } = await client.auth.signInWithPassword({
     email,
     password: PASSWORD,
@@ -67,19 +65,17 @@ async function destroyActor(a: Actor | undefined) {
 }
 
 beforeAll(async () => {
-  if (!LOCAL) return;
-  admin = createClient(URL as string, SERVICE as string);
+  admin = createClient(URL, SERVICE);
   owner = await makeActor("owner");
   other = await makeActor("other");
 }, 60_000);
 
 afterAll(async () => {
-  if (!LOCAL) return;
   await destroyActor(owner);
   await destroyActor(other);
 }, 60_000);
 
-describe.skipIf(!LOCAL)("product_collections RLS, authenticated client", () => {
+describe("product_collections RLS, authenticated client", () => {
   it("lets an owner INSERT their own collection", async () => {
     const { data, error } = await owner.client
       .from("product_collections")
@@ -152,15 +148,31 @@ describe.skipIf(!LOCAL)("product_collections RLS, authenticated client", () => {
   });
 });
 
-describe.skipIf(!LOCAL)("product_collections cross-account isolation", () => {
+describe("product_collections cross-account isolation", () => {
   it("refuses an INSERT that names someone else as the owner", async () => {
+    // POSITIVE CONTROL FIRST, and it is the point of this test rather than
+    // setup noise. Asserting only that the foreign insert errors accepts the
+    // wrong error for the wrong reason: when every write policy was missing,
+    // this was the ONE cross-account test that still passed, because "all
+    // inserts are blocked" satisfies it just as well as "cross-account inserts
+    // are blocked". The control proves this client can insert at all, so the
+    // rejection below can only be about the ownership it named.
+    const control = await other.client
+      .from("product_collections")
+      .insert({ artist_id: other.id, name: "Control" })
+      .select("id")
+      .single();
+    expect(control.error, control.error?.message).toBeNull();
+
     // WITH CHECK is what stops this. USING alone would let it through.
     const { error } = await other.client
       .from("product_collections")
       .insert({ artist_id: owner.id, name: "Stolen" })
       .select("id")
       .single();
-    expect(error).not.toBeNull();
+    expect(error?.code, "expected an RLS rejection, not another error").toBe(
+      "42501",
+    );
   });
 
   it("cannot SELECT another artist's collection", async () => {

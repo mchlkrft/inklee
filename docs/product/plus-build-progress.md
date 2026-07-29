@@ -113,6 +113,84 @@ because Postgres has no `create policy if not exists` and a bare create aborts
 a re-run. Both now drop-then-create and re-run cleanly under `ON_ERROR_STOP`.
 Neither is in production yet, so both could still be corrected.
 
+### Gate A review response — all findings resolved, awaiting re-review
+
+The specialist returned **CHANGES REQUIRED** (`p5d-gate-a-specialist-review.md`).
+Every finding is resolved. The review was correct on all nine, and one of them
+found a live production defect this branch had nothing to do with.
+
+| # | Finding | Resolution |
+|---|---|---|
+| A1 | CRITICAL. `test:db` loaded no env, so all tests SKIPPED and the suite exited 0 having asserted nothing | `vitest.db.config.ts` loads `.env.e2e` with `override: true`; `tests/db/helpers/db-env.ts` throws instead of skipping |
+| A2 | HIGH. `discount_codes` has the SAME defect, in production, on the revenue path | Migration `0123` + `tests/db/discounts-rls.test.ts` (9 tests) |
+| A3 | HIGH. `0121`'s comment certified `discount_codes` as a healthy precedent. False | Comment corrected to name `projects` only, and to record the false claim rather than quietly delete it |
+| A4 | MEDIUM. Migrations not idempotent | Already fixed in Gate B; re-verified by re-running all three under `ON_ERROR_STOP` |
+| A5 | MEDIUM. Policies untargeted, so they also applied to `anon` | `TO authenticated` on all nine policies across `0121`/`0122`/`0123` |
+| A6 | MEDIUM. Local regex duplicated `assertSafeTarget` more weakly | `db-env.ts` calls the shared guard, then adds the narrower local-only allowlist |
+| A7 | LOW. Config documented a guarantee it did not implement | The guarantee is now implemented, in `db-env.ts` |
+| A8 | LOW. One cross-account test passed vacuously | Positive control inside the same test; asserts `42501` specifically |
+| A9 | LOW. The suite sat in no automated gate | Added to CI (`e2e` job, before Playwright) and to `test:launch` |
+
+**A1 evidence.** Unconfigured now fails rather than skips:
+
+```
+$ mv .env.e2e .env.e2e.tmpbak && pnpm test:db
+Error: Database RLS tests are not configured. Start a local stack ...
+Missing: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+ Test Files  3 failed (3) | Tests  no tests
+ ELIFECYCLE  Command failed with exit code 1
+```
+
+Configured, with no manual `set -a; . ./.env.e2e` in front of it, which is the
+part that previously did not work:
+
+```
+$ pnpm test:db
+◇ injected env (5) from .env.e2e
+ Test Files  3 passed (3) | Tests  31 passed (31)
+```
+
+**Red/green on the policies themselves.** All nine write policies dropped on the
+local stack:
+
+```
+ Test Files  3 failed (3) | Tests  18 failed | 13 skipped (31)
+```
+
+Restored by re-running `0121`, `0122` and `0123` (which re-proves A4):
+
+```
+ Test Files  3 passed (3) | Tests  31 passed (31)
+```
+
+The A8 fix is visible in that red run: `refuses an INSERT that names someone
+else as the owner` is now among the failures. It was the single test that
+passed with every write policy dropped, because "all inserts are blocked"
+satisfied a bare `error !== null` just as well as the isolation it claimed to
+check.
+
+**A2 is the serious one and it is not ours.** `discount_codes` shipped to
+production with RLS on, a SELECT policy only, and both write callers on the
+user-scoped client. Verified rather than inferred, at the call sites
+(`goods/discounts/actions.ts` → `createClient()`, `api/mobile/goods/discounts`
+→ `requireMobileUser()`) and in the database (`pg_policies` returns SELECT and
+nothing else). An artist saving a discount code gets `42501`, which
+`saveDiscountCore` maps to "Couldn't save. Try again." — a transient-sounding
+message for a permanent condition. `0123` grants INSERT and UPDATE only: DELETE
+stays withheld because the product deactivates rather than deletes, and the
+absent policy is now asserted so it reads as a decision rather than an omission.
+
+**Gate B advance note adopted.** The specialist's cross-ownership note was
+right that RLS is the weaker instrument here: policies bind client roles, and
+the service role bypasses them. `0122` now carries composite foreign keys
+(`(collection_id, artist_id)` and `(product_id, artist_id)` against new unique
+parent keys), so a row pairing one artist's collection with another's product is
+unrepresentable for **every** role. The backfill joins on matching ownership so
+a mismatched legacy pair is left for the verify step instead of aborting a
+deploy; production has zero such rows, and the join keeps that safe elsewhere.
+
+Local database reset from zero: all 124 migrations apply clean in order.
+
 ### Milestones after Gate A
 
 3. Server behaviour: next-position on create, sparse updates, archive /
@@ -140,7 +218,16 @@ Neither is in production yet, so both could still be corrected.
 
 ## Next intended action
 
-Milestone 3: server behaviour. Read and write through the join table, assign
-the next collection position on create, make updates sparse, add the
-archive / restore / eligible-delete lifecycle, remove the cap, and enforce
+Gate A re-review by the specialist. All nine findings are resolved, with the
+red/green evidence above; the gate is not self-approved.
+
+Milestone 3 is prepared and starts on approval: read and write through the join
+table, assign the next collection position on create, make updates sparse, add
+the archive / restore / eligible-delete lifecycle, remove the cap, and enforce
 entitlement plus kill switch at the public read with a flat-shop fallback.
+
+One item for the supervisor rather than the specialist: `0123` repairs a
+production defect on the revenue path, found inside a P5d review but unrelated
+to P5d. It is currently queued behind the whole collections branch. Whether it
+should be cherry-picked ahead of that as its own change is a sequencing call,
+not an engineering one.

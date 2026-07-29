@@ -25,14 +25,48 @@ create index if not exists product_collections_live_idx
   where archived_at is null;
 
 -- ---------------------------------------------------------------------------
+-- Composite parent keys, so the join table can reference (row, owner) as a
+-- unit rather than just (row).
+--
+-- Both are trivially unique already: `id` is the primary key of each table, so
+-- these add a guarantee Postgres could have inferred but cannot USE as an FK
+-- target without it being declared.
+--
+-- `add constraint` has no `if not exists`, so it is guarded: a migration that
+-- aborts on re-run can strand a half-applied schema.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'product_collections_id_artist_key'
+  ) then
+    alter table product_collections
+      add constraint product_collections_id_artist_key unique (id, artist_id);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'products_id_artist_key'
+  ) then
+    alter table products
+      add constraint products_id_artist_key unique (id, artist_id);
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- Membership.
 create table if not exists product_collection_items (
   id            uuid primary key default gen_random_uuid(),
-  collection_id uuid not null references product_collections(id) on delete cascade,
-  product_id    uuid not null references products(id) on delete cascade,
+  collection_id uuid not null,
+  product_id    uuid not null,
   -- Denormalized for single-column RLS (house convention, migration 0080).
-  -- Kept honest by the WITH CHECK below, which also verifies that BOTH
-  -- referenced rows belong to the same artist.
+  --
+  -- This column cannot drift, and that is enforced by the composite foreign
+  -- keys below rather than by anyone remembering to keep it in step: they bind
+  -- collection_id AND product_id to THIS artist_id, so a row pairing artist
+  -- A's collection with artist B's product is not a row Postgres will store.
+  --
+  -- RLS alone would not get there. Policies constrain client roles; the
+  -- service role bypasses them entirely, and the service client is what runs
+  -- webhooks, admin paths and backfills. A constraint holds for every role,
+  -- including a future caller nobody has written yet.
   artist_id     uuid not null references profiles(id) on delete cascade,
   -- Per-collection ordering. The same product can sit at position 0 in one
   -- collection and 7 in another, which is the whole point of the join table.
@@ -40,7 +74,16 @@ create table if not exists product_collection_items (
   created_at    timestamptz not null default now(),
   -- A product appears at most once in a given collection. This also makes the
   -- backfill and the legacy-mirror trigger below idempotent for free.
-  constraint product_collection_items_unique unique (collection_id, product_id)
+  constraint product_collection_items_unique unique (collection_id, product_id),
+
+  -- The cross-ownership guarantee. Each half carries artist_id, so both
+  -- parents must agree with each other AND with this row.
+  constraint product_collection_items_collection_fk
+    foreign key (collection_id, artist_id)
+    references product_collections(id, artist_id) on delete cascade,
+  constraint product_collection_items_product_fk
+    foreign key (product_id, artist_id)
+    references products(id, artist_id) on delete cascade
 );
 
 -- Rendering a collection: its products in order.
@@ -59,7 +102,7 @@ alter table product_collection_items enable row level security;
 -- half-applied schema. Found by re-running this file during verification.
 drop policy if exists "artist reads own collection items" on product_collection_items;
 create policy "artist reads own collection items" on product_collection_items
-  for select using (artist_id = auth.uid());
+  for select to authenticated using (artist_id = auth.uid());
 
 -- Writes additionally verify BOTH referenced rows. `artist_id = auth.uid()`
 -- alone would let an artist file someone else's product into their own
@@ -67,7 +110,7 @@ create policy "artist reads own collection items" on product_collection_items
 -- foreign id: the FK only proves the row exists, never who owns it.
 drop policy if exists "artist inserts own collection items" on product_collection_items;
 create policy "artist inserts own collection items" on product_collection_items
-  for insert with check (
+  for insert to authenticated with check (
     artist_id = auth.uid()
     and exists (
       select 1 from product_collections c
@@ -81,7 +124,7 @@ create policy "artist inserts own collection items" on product_collection_items
 
 drop policy if exists "artist updates own collection items" on product_collection_items;
 create policy "artist updates own collection items" on product_collection_items
-  for update using (artist_id = auth.uid())
+  for update to authenticated using (artist_id = auth.uid())
   with check (
     artist_id = auth.uid()
     and exists (
@@ -96,7 +139,7 @@ create policy "artist updates own collection items" on product_collection_items
 
 drop policy if exists "artist deletes own collection items" on product_collection_items;
 create policy "artist deletes own collection items" on product_collection_items
-  for delete using (artist_id = auth.uid());
+  for delete to authenticated using (artist_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
 -- BACKFILL every existing legacy assignment.
@@ -105,6 +148,17 @@ create policy "artist deletes own collection items" on product_collection_items
 -- running it after some rows already exist) adds nothing twice. Position is
 -- seeded from the product's own shop order, which is the only ordering that
 -- existed before per-collection ordering did.
+--
+-- THE JOIN IS THE POINT, not a shortcut for the `is not null` filter. The
+-- composite FK added above will REJECT a legacy pair whose product and
+-- collection have different owners, and a rejection here aborts the whole
+-- migration. Production was checked at Gate A review: 0 rows in
+-- `product_collections`, 0 non-null `products.collection_id`, so this backfill
+-- moves nothing there and cannot abort. The join keeps that true for any
+-- environment whose data is less clean: a mismatched legacy pair is left
+-- behind for the verify step to surface rather than taking the deploy down.
+-- The two counts are compared in the verify step precisely so "left behind"
+-- cannot pass unnoticed.
 insert into product_collection_items (collection_id, product_id, artist_id, position)
 select
   p.collection_id,
@@ -112,6 +166,9 @@ select
   p.artist_id,
   row_number() over (partition by p.collection_id order by p.sort_order, p.created_at) - 1
 from products p
+join product_collections c
+  on c.id = p.collection_id
+ and c.artist_id = p.artist_id
 where p.collection_id is not null
 on conflict (collection_id, product_id) do nothing;
 
