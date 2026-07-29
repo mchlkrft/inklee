@@ -49,7 +49,13 @@ Found empirically on 2026-07-29: re-running `0122_collection_items.sql` after tw
 
 **Non-convergent pattern:** objects declared inline inside `create table if not exists`.
 
-Note both properties can hold at once and are not in tension: `0122` re-runs cleanly under `ON_ERROR_STOP` (idempotent) **and** fails to restore a manually dropped constraint (non-convergent).
+Note both properties can hold at once and are not in tension: a file can re-run cleanly under `ON_ERROR_STOP` (idempotent) **and** fail to restore a manually dropped constraint (non-convergent). Idempotent is not convergent. That is the whole point of this entry.
+
+**Status of `0122` itself, corrected 2026-07-29 (same day, later).** This paragraph previously read: "`0122` re-runs cleanly under `ON_ERROR_STOP` (idempotent) **and** fails to restore a manually dropped constraint (non-convergent)." That was true when written and is **no longer true**: commit `201fbfc` moved both composite foreign keys out of the inline `create table if not exists` into guarded `do $$ ... if not exists ... then alter table ... add constraint ... end if; end $$;` blocks, matching the pattern the file already used for its two parent unique keys. Convergence was proven by the route that disproved it: both FKs dropped by hand, `0122` re-run against the live already-migrated table, `pg_constraint` confirms both return. The same drop-then-rerun previously exited 0 having restored nothing.
+
+So **`0122` is now the reference implementation of the convergent pattern, not the counter-example.** Read it when you need the shape. The dated empirical finding at the top of this entry is kept verbatim and in the past tense, because the finding is what makes the general rule credible and it genuinely happened.
+
+The general rule is unchanged and is the durable part: a migration that re-runs without erroring has not necessarily converged, and no file's convergence should be assumed from the fact that someone once called it idempotent. Verify the specific object.
 
 ## Money path: deposits, Connect, sponsorship
 

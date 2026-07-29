@@ -4,7 +4,11 @@
 **Gate:** A — write-policy repair.
 **Reviewed:** commit `805358d` "fix(collections): add the missing write policies (P5d Gate A)" on branch `feat/p5d-collections`.
 **Date:** 2026-07-29.
-**Approval state: CHANGES REQUIRED.**
+**Approval state: ✅ APPROVED (2026-07-29).** The original verdict on this
+review was CHANGES REQUIRED, and it is preserved below in the body exactly as
+written. The re-review verdict, the commit it was given against, and what
+changed between them are appended at the end of this file under
+"Re-review verdict". Read that section before acting on anything in the body.
 
 > This is a review artifact, not a task log. The supervisor owns the consolidated
 > task list; `docs/product/plus-build-progress.md` remains the single
@@ -409,3 +413,68 @@ production data was read beyond aggregate counts, and none was modified. The
 three write policies were dropped and restored on the **local** 127.0.0.1
 instance only, behind a hard host guard that refuses any non-local target, and
 the local database was re-verified green afterwards.
+
+---
+
+# Re-review verdict — APPROVED
+
+**Appended:** 2026-07-29, by the docs and record-integrity role.
+**Verdict:** ✅ **APPROVED.**
+**Given against:** `ca2b09c` `docs(p5d): record the named-list red run closing Gate A`, on `feat/p5d-collections`. That commit is the one carrying the named-per-test red run that closed the gate; the code and migration state it reviewed is `7679a0f` (the N1/N2 correction set) plus its parents back through `f090956`.
+**Original verdict:** CHANGES REQUIRED (see the head of this file), issued against `805358d`.
+
+**Provenance of this artifact.** The review itself was performed by the database/RLS specialist role during the 2026-07-29 three-role session. This section was written afterwards by the docs role to give a deploy-authorising gate a durable artifact, because it had none: the verdict existed only in session context, in commit messages (`7679a0f`, `ca2b09c`, `201fbfc`) and in `plus-build-progress.md`. **The docs role did not execute the review and did not re-run the evidence.** Every claim below is sourced to a commit or to the running log, and is cited as such. Where the record is incomplete, that is stated rather than filled in.
+
+## The path from CHANGES REQUIRED to APPROVED
+
+The gate did not pass quietly. It went to CHANGES REQUIRED **twice**.
+
+**Round 1 (against `805358d`).** Nine findings, A1-A9, listed in the body of this file. All nine resolved; the resolution table and its red/green evidence are in `docs/product/plus-build-progress.md` under "Gate A review response". The two that mattered most:
+
+- **A1 (CRITICAL).** `pnpm test:db` loaded no env, so all ten tests SKIPPED and the suite exited 0 having asserted nothing. The evidence artifact meant to prove the repair never ran. Fixed so an unconfigured target FAILS rather than skips.
+- **A2 (HIGH).** `discount_codes` carried the identical defect, unrepaired, **already in production, on the revenue path**. Repaired by `0123`, which the founder then cherry-picked ahead of this branch and shipped (`add324a`).
+
+**Round 2, the escalation (this is the part worth reading).** After A1-A9 were resolved, the re-review pulled on the policy-arithmetic thread and escalated **back to CHANGES REQUIRED** on two new HIGH findings, both in `collection-items-rls.test.ts` — a Gate B file that had never been in Gate A's original scope. The migrations needed no changes. The tests protecting them **could not fail**:
+
+- **N1 (HIGH).** Three cross-account tests asserted only `expect(error).not.toBeNull()`. With the INSERT policy entirely absent, "everything is rejected" satisfies that assertion exactly as well as "cross-account is rejected". This is the same vacuous-pass shape finding A8 had already fixed once, on a sibling file, never swept here.
+- **N2 (HIGH).** Four tests discarded a write's result with no destructuring at all, so a silent RLS rejection was invisible and the final assertion was satisfied by *nothing having been written*.
+
+An **eighth** could-not-fail test was then found by independent audit in a file the reviewer had already cleared (`collections-rls.test.ts`, `cannot re-assign a collection to itself via UPDATE`, same bare `not.toBeNull()` shape). Per `7679a0f`: the audit was run rather than inherited, and `discounts-rls.test.ts` checked clean.
+
+**What closed it.** A **named per-test** red run, three rounds, `vitest --reporter=verbose`. The hardened requirement was explicitly that aggregate counts are not acceptable evidence, because aggregates are exactly what let the original defect through: "18 failed | 13 skipped" cannot tell anyone WHICH tests failed. Recorded in `ca2b09c` and in `plus-build-progress.md` under "Gate A closing: named-list red run":
+
+- **Round A**, dropping `product_collection_items`'s three write policies: 11 of 36 failed, named. N1's three targets and N2's four targets all failed for the right reason, plus four collateral failures individually explained rather than left as noise.
+- **Round B**, restoring and instead dropping the two composite FKs: reproduced the earlier red run's same 4 failures with the same codes (`null`, `undefined`, never `23505`). **N1's three tests correctly stayed GREEN in this round**, which is the other half of the proof: RLS rejects those rows before the FK is ever consulted, so removing the FK must not change their outcome.
+- **Final round:** 36/36, named, all green.
+
+An error code was verified rather than assumed along the way, and contradicted the review's own hypothesis: all three N1 cases return `42501` (RLS), not `23503` (FK), because `WITH CHECK` is evaluated for a non-service-role client before the composite FK is consulted. Recorded as verified, not silently matched.
+
+## Re-review checklist — final state
+
+The checklist in the body of this file is left unticked as the historical artifact of round 1. Its final state:
+
+| Item | State | Where the evidence is |
+|---|---|---|
+| A1 config loads `.env.e2e`, unconfigured fails not skips | ✅ | `plus-build-progress.md`, "A1 evidence" (both the failing and passing runs pasted) |
+| A1 red/green pasted into `plus-build-progress.md` | ✅ | same section, superseded by the stronger named-list run |
+| A2 forward migration for `discount_codes` + sibling test | ✅ **and SHIPPED TO PRODUCTION** | `0123`; `add324a` on `origin/master`; `tests/db/discounts-rls.test.ts`, 8 tests |
+| A3 `0121` comment corrected to name `projects` only | ✅ | `f090956` |
+| A4 `DROP POLICY IF EXISTS` before each `CREATE POLICY` | ✅ | re-proven by full reset from zero |
+| A5 `TO authenticated` on all policies | ✅ | 9 policies across `0121`/`0122`/`0123` |
+| A6 `assertSafeTarget` called in the db suite | ✅ | `tests/db/helpers/db-env.ts` |
+| A7, A8, A9 | ✅ | A9 wired the suite into CI (`e2e` job) and `test:launch` |
+| N1, N2, N2-minor (round 2, not in the original checklist) | ✅ | `7679a0f`; named red run in `ca2b09c` |
+
+## Scope this verdict does NOT cover
+
+Stated explicitly so nobody reads an approved Gate A as an approved branch:
+
+- **Gate A covers the write-policy repair.** Milestones 3-6 are **Gate C** (`p5d-gate-c-review.md`). The branch's base commit `0de2034` is **`p5d-base-commit-review.md`**.
+- **`0124` and the `deleteCollectionCore` TOCTOU are NOT in this gate.** `0124` was written after this verdict. Its TOCTOU is **open**, reproduced three times, and `0124` does not close it.
+- **Approving Gate A does not authorise a merge.** Merging is deploying. See the ordering constraint in `plus-build-progress.md` and `docs/roadmap.md` §1: `0121`, `0122` and `0124` must be applied and **catalog-verified** before the merge, and `0123` must not be re-applied.
+
+## The durable rule this gate produced
+
+**A claim needs behavioural evidence when its truth depends on a SEQUENCE or a STATE TRANSITION.** A linear read does not settle those. Three claims in this gate were true on inspection and false in execution, and all three were temporal: a suite that exited 0 having asserted nothing (A1), tests that could not fail (A8, N1, N2, and the eighth), and a migration certified "idempotent" that restored nothing on replay (task #14). None of them were wrong on a single read.
+
+Corollary, now house style: **never write a comment asserting a safety property you have not executed.** `0124`'s retracted "nothing can happen between eligible and gone" is the counter-example that proves the rule, and it was written after this gate closed.

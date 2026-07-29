@@ -4,7 +4,121 @@
 progress can be monitored without interrupting implementation. The PLAN lives
 in `plus-build-plan.md`; this file is the running state of executing it.
 
-Last updated: 2026-07-29. All six P5d milestones BUILT on `feat/p5d-collections`. Gate A findings resolved; **awaiting specialist re-review**. Nothing pushed to master, nothing activated.
+Last updated: 2026-07-29 (second docs pass). All six P5d milestones BUILT on
+`feat/p5d-collections`. **Gate A is APPROVED and Gate C came back clean.**
+`0123` is IN PRODUCTION (`add324a`, cherry-picked ahead of the branch by founder
+decision, now the tip of `origin/master`). `0121`, `0122` and `0124` are still
+branch-local; `goods_collections` stays ungranted; nothing else is activated.
+
+> **Correction, this pass.** The line above previously read "Gate A findings
+> resolved; **awaiting specialist re-review**. Nothing pushed to master."
+> Both halves were false by the time they were read. Recorded rather than
+> deleted, per house style. Evidence: `git log -1 --format=%H origin/master`
+> returns `add324ab8b4bdd9824138fd5f610b934354ad8db`, whose subject is
+> `fix(goods): discount_codes had no write policies, blocking every artist save`;
+> `git branch -r --contains add324a` returns `origin/master`.
+
+**This file is the designated running SoT and it kept going stale faster than it
+was read.** Three separate passes have now had to correct it against `git`. If
+you are about to trust a commit count, a migration count or a gate state written
+here, re-derive it (`git rev-list --count origin/master..HEAD`,
+`ls apps/web/supabase/migrations/*.sql | wc -l`, `git log -1 origin/master`)
+before acting on it.
+
+---
+
+## Open task register (carried, not closed)
+
+Recorded 2026-07-29 because these lived only in session context and nowhere on
+disk. Each states the deferral REASON, so the next reader does not have to
+re-derive whether the deferral was safe.
+
+### Task #12 — `setDiscountActiveCore` is an ungated write. DEFERRED, non-blocker.
+
+`apps/web/src/lib/server/discount-write.ts:170-188`. The function takes
+`(supabase, artistId, id, active)` and goes straight to the `update`. There is
+no `goodsDiscountsAllowed` / `getAccountOverrides` check anywhere in it, and
+neither caller adds one: the web action
+(`app/(artist)/goods/discounts/actions.ts:52-63`) and the mobile route
+(`app/api/mobile/goods/discounts/route.ts:120-137`) both authenticate and then
+call the core directly.
+
+Its sibling `saveDiscountCore` DOES gate, at `discount-write.ts:59-65`
+(`if (!goodsDiscountsAllowed(await getAccountOverrides(artistId)))` →
+`not_entitled`). So the asymmetry is real, not imagined.
+
+**Why this is not a privilege bypass, and therefore not blocking.** An
+un-entitled artist who toggles an existing code back to `active: true` gains
+nothing, because the gate is re-evaluated at APPLY time, not only at write time.
+`resolveDiscount` (`apps/web/src/lib/server/discounts.ts:82-88`) checks
+`goodsDiscountsAllowed(await getAccountOverrides(args.artistId))` before it ever
+looks the code up, and returns `clientRejectionMessage("inactive")` when the
+artist is not entitled. The code's `active` column can say whatever it likes; it
+still takes no money off. The comment immediately above that check
+(`discounts.ts:79-81`) states the design intent explicitly: "The gate is checked
+on APPLY, not only on create: an artist who downgrades keeps their codes ... but
+the codes stop taking money off." The capability-registry row for
+`goods_discounts` (`docs/architecture/capability-registry.md:52`) says the same.
+
+**Pre-existing, not introduced by this branch.**
+`git log --oneline --diff-filter=A -- apps/web/src/lib/server/discount-write.ts`
+→ `7e504db feat(goods): discount codes (Plus P5b)`, which is on `origin/master`.
+`git log --oneline origin/master..HEAD -- apps/web/src/lib/server/discount-write.ts`
+returns nothing: `feat/p5d-collections` does not touch the file.
+
+**Second, separate defect in the same file, recorded here so it is not lost.**
+`saveDiscountCore`'s error mapping only special-cases `23505` (unique violation
+→ "You already have a code with that name."). Everything else falls through to
+the generic `return { ok: false, code: "failed", error: "Couldn't save. Try again." }`
+at `discount-write.ts:159`. That is the exact path a `42501` RLS rejection took,
+which is why the production defect `0123` fixed presented for weeks as a
+transient-sounding retry prompt on a permanent condition. `0123` removed the
+*cause*; the *mapping* is unchanged, so the next permanent write failure on this
+path will read the same way. Not fixed here (this is a docs-only pass).
+
+### Task #18 — the Hub feature jobs swallow every error. DEFERRED, pre-existing house pattern.
+
+`apps/web/src/lib/server/hub-feature-data.ts`. Four jobs are pushed onto the
+`jobs` array, and all four end in a bare `.catch(() => {})`:
+
+| Line | Job |
+|---|---|
+| `:70` | shop / product count + thumbs |
+| `:112` | guest spots |
+| `:174` | featured collections (added by this branch, `25dda4f`) |
+| `:189` | flash count |
+
+All four, no exceptions. This is deliberate and documented at the top of the
+file (`:13-16`): "Every query is independently optional and every failure
+degrades to 'no data', which the blocks render as nothing rather than as an
+error: a link-in-bio page must never break because a shop query blipped."
+
+**Pre-existing.** `git show origin/master:apps/web/src/lib/server/hub-feature-data.ts | grep -c "catch(() => {})"`
+returns `3`. The branch added the fourth (`:174`) by following the pattern the
+file already established, rather than by introducing it. Deferred on that basis:
+changing it means changing the house pattern for the whole file at once, which is
+a decision, not a fix. The cost is that a persistent failure in any of the four
+is indistinguishable from "the artist has nothing here", with no Sentry breadcrumb.
+
+### Task #15 — three DB tests. One of them is a MOCK and is in the wrong suite. A FOURTH is now needed.
+
+The three pre-registered tests remain open. The correction that matters:
+
+- **Test 1 is a MOCK.** It belongs in the UNIT suite
+  (`apps/web/src/lib/server/__tests__/`), not in `apps/web/tests/db/`.
+  `apps/web/tests/db/` is the authenticated-RLS gate: anon-key client plus a
+  real JWT against a real Postgres, which must FAIL rather than skip when
+  unconfigured (finding A1). A mocked test placed there inflates the DB count
+  without exercising a single policy, which is precisely the failure shape this
+  whole gate exists to prevent. Put it where its evidence value is honest.
+- Tests 2 and 3 stay in `tests/db/`.
+- **A fourth is now required: coverage of `delete_collection_if_eligible`,
+  the `0124` RPC.** It currently has ZERO test coverage. The tell is in
+  `9bb8d0a`'s own commit message: unit stayed at exactly 2028 and `test:db` at
+  exactly 36 across a change that added a database function and rewrote its only
+  caller. `deleteCollectionCore` is not exercised by any test at all. This is not
+  optional bookkeeping: `collections.ts` now hard-depends on that function
+  existing in the database (see the merge-ordering constraint below).
 
 ---
 
@@ -19,9 +133,22 @@ and is retracted. All six milestones of the approved design are now built on
 `feat/p5d-collections`: schema repair, many-to-many model, server behaviour,
 Hub block, native management, docs.
 
-Status: **built, awaiting Gate A re-review.** The gate is not self-approved.
-Nothing is pushed to master, migrations `0121`-`0123` are applied locally only,
-and `goods_collections` stays ungranted.
+Status: **built; Gate A APPROVED, Gate C clean.** The gate was not
+self-approved: it went to a database/RLS specialist, came back CHANGES
+REQUIRED twice, and only then passed. `goods_collections` stays ungranted.
+
+> **Correction, 2026-07-29 (second docs pass).** This paragraph read "built,
+> awaiting Gate A re-review. Nothing is pushed to master, migrations
+> `0121`-`0123` are applied locally only". Two of those three claims are now
+> false and are retracted here rather than silently overwritten:
+> - Gate A is **approved** (see "Gate A closing: named-list red run" below, and
+>   the appended verdict in `p5d-gate-a-specialist-review.md`).
+> - `0123` **is pushed and is in production** as `add324a`, which is the tip of
+>   `origin/master`. It was cherry-picked ahead of this branch by founder
+>   decision.
+>
+> Still true, and now the load-bearing part: `0121`, `0122` and `0124` are
+> branch-local only, and `goods_collections` is ungranted.
 
 ---
 
@@ -38,8 +165,16 @@ and `goods_collections` stays ungranted.
 | Audit fixes | `1f8b5e9` | Seven findings from the self-audit of the above |
 | P5c | `9ce0b21` | Scheduled drops, preorders, low-stock alerts (migration 0119) |
 | P5d | `d890a07` | ❌ **RETRACTED.** Shipped broken; see the defect record below |
+| `0123` hotfix | `add324a` | ✅ **IN PRODUCTION 2026-07-29.** `discount_codes` write policies. Cherry-picked ahead of `feat/p5d-collections` by founder decision; now the tip of `origin/master` |
 
-Migrations 0114-0120 are applied to production and verified there.
+Migrations 0114-0120 **and `0123`** are applied to production and verified
+there. `0123` was verified against the **catalog, not the migration ledger**
+(`pg_policies` returns SELECT + INSERT + UPDATE on `discount_codes`, no DELETE,
+which is by design), per the standing AGENTS.md rule that the ledger can lie.
+
+> **Correction, 2026-07-29 (second docs pass).** This line read "Migrations
+> 0114-0120 are applied to production and verified there", which stopped being
+> the whole truth the moment `add324a` was pushed. Retracted in place.
 
 **Live config change:** the Stripe LIVE webhook endpoint
 (`we_1TpPmyHkG0exykzFYTq26SyV`) now subscribes to
@@ -64,6 +199,16 @@ is a local ref change only, run on this machine (`git branch -f master
 origin/master`). Local `master` now points at `d890a07`, matching
 `origin/master` exactly.
 
+> **Superseded, 2026-07-29 (second docs pass), by a later event and not by an
+> error.** The last sentence is no longer true. `origin/master` advanced to
+> `add324a` when the `0123` hotfix was pushed; local `master` was not moved with
+> it and still sits at `d890a07`. Verified: `git rev-parse master` →
+> `d890a076c8590ab963f8f1eb97ec32d0b236a6f3`, `git rev-parse origin/master` →
+> `add324ab8b4bdd9824138fd5f610b934354ad8db`. The relationship is still SAFE,
+> which is the part that matters: `git merge-base --is-ancestor master origin/master`
+> exits 0, so local `master` is strictly BEHIND the remote, carrying nothing of
+> its own. Fast-forward it before doing anything with it.
+
 **Verification behind the decision, not just the tips:**
 - `feat/native-goods-parity`'s tip IS `0de2034` (the identical commit object,
   same tree hash `0875b2d3`), not a copy of it. Nothing is lost by moving
@@ -83,7 +228,22 @@ not from `d890a07` directly — `0de2034` is the base commit every one of the
 eight P5d-rebuild commits (`805358d` through `264ec6d`) sits on
 (`git log --oneline d890a07..feat/p5d-collections` lists `0de2034` as the
 oldest entry). **The `master`-ref reset does not, by itself, keep `0de2034`
-out of master.** The moment `feat/p5d-collections` is merged, `0de2034` merges
+out of master.**
+
+> **Count correction, 2026-07-29 (second docs pass).** "the eight P5d-rebuild
+> commits (`805358d` through `264ec6d`)" was accurate for that named RANGE and
+> stays accurate as history: those eight are `805358d`, `fca49c4`, `f090956`,
+> `8554e63`, `25dda4f`, `caa1be1`, `a261347`, `264ec6d`. It is no longer the
+> whole branch. `git rev-list --count origin/master..HEAD` returns **16** at
+> `32a15e8`, the tip at the time of writing. Do not treat any commit count in
+> this file as current: re-derive it. The base-commit claim is unaffected and
+> still holds; `0de2034` is still the oldest entry in
+> `git log --oneline origin/master..HEAD`.
+>
+> **Resolved by the founder, 2026-07-29: NO REBASE.** `0de2034` rides in with
+> the merge, and was brought into review scope instead. It was reviewed and came
+> back clean. Artifact: `docs/product/p5d-base-commit-review.md`. The
+> "still-open decision" language below is closed by that call. The moment `feat/p5d-collections` is merged, `0de2034` merges
 with it, unreviewed, regardless of what `master`'s local ref points at right
 now. If `0de2034` is meant to land only via its own review on
 `feat/native-goods-parity`, `feat/p5d-collections` itself would need to be
@@ -215,7 +375,12 @@ Branch `feat/p5d-collections`. No intermediate pushes to master. Migration
 Migration `0121`. 10 authenticated tests. Verified by DROPPING the policies and
 re-running: 9 of 10 fail; restored, 10 of 10 pass.
 
-### Milestone 2 (current): Gate B, the collection model
+### Milestone 2: Gate B, the collection model — DONE (`fca49c4`)
+
+> **Correction, 2026-07-29 (second docs pass).** This heading read "Milestone 2
+> (current)" while milestones 3, 4, 5 and 6 all carry "DONE" further down the
+> same file, and Gate C has since reviewed 3-6 as a set. The "(current)" marker
+> was left behind when the work moved on. Removed.
 
 Migration `0122`: `product_collection_items` (many-to-many, per-collection
 `position`, unique per collection+product, cascade FKs, ownership-safe RLS
@@ -240,7 +405,12 @@ because Postgres has no `create policy if not exists` and a bare create aborts
 a re-run. Both now drop-then-create and re-run cleanly under `ON_ERROR_STOP`.
 Neither is in production yet, so both could still be corrected.
 
-### Gate A review response — all findings resolved, awaiting re-review
+### Gate A review response — all findings resolved; re-review APPROVED
+
+> **Correction, 2026-07-29 (second docs pass).** Heading read "awaiting
+> re-review". The re-review happened, escalated to CHANGES REQUIRED on two new
+> HIGH findings (N1/N2, below), was fixed, and then **APPROVED**. Verdict
+> appended to `docs/product/p5d-gate-a-specialist-review.md`.
 
 The specialist returned **CHANGES REQUIRED** (`p5d-gate-a-specialist-review.md`).
 Every finding is resolved. The review was correct on all nine, and one of them
@@ -326,7 +496,28 @@ unrepresentable for **every** role. The backfill joins on matching ownership so
 a mismatched legacy pair is left for the verify step instead of aborting a
 deploy; production has zero such rows, and the join keeps that safe elsewhere.
 
-Local database reset from zero: all 124 migrations apply clean in order.
+Local database reset from zero: all migrations apply clean in order.
+
+> **Count correction, 2026-07-29 (second docs pass), applied to all three places
+> this file said "124 migrations" (here, and twice in the red-run section
+> below).** There have never been 124 migration files. The highest NUMBER is
+> `0124`; the file COUNT is different, because the numbering starts at `0000`
+> and because `0041` and `0042` do not exist. Verified:
+>
+> ```
+> $ ls -1 apps/web/supabase/migrations/*.sql | wc -l
+> 123
+> $ for i in $(seq -w 0 124); do ls 0$i*.sql >/dev/null 2>&1 || echo "MISSING 0$i"; done
+> MISSING 0041
+> MISSING 0042
+> ```
+>
+> 125 slots (`0000`-`0124`) minus 2 absent = **123 files**, all of them tracked
+> (`git ls-files apps/web/supabase/migrations/*.sql | wc -l` → 123). At the time
+> the "124" claim was written `0124` did not yet exist and the true figure was
+> 122. Both numbers were wrong in the same direction, by treating the highest
+> number as the count. `origin/master` carries 120 of them (it has `0120` and
+> `0123` but not `0121`, `0122` or `0124`).
 
 ### Red run: the 5 tests added since the 31-test count above, executed 2026-07-29
 
@@ -437,9 +628,10 @@ against a state that already satisfies the `if not exists` guards. The first
 reset attempt failed the container bootstrap outright (`error running
 container: exit 1`) and left the local database with **zero tables** — a
 real, if transient, incident on a stack other people on this team also use.
-Retried immediately; the second attempt applied all migrations `0001`-`0123`
-cleanly, including the composite FK block and the notice-skipped legacy
-objects, and finished. `pg_constraint` confirmed both FKs back, and:
+Retried immediately; the second attempt applied every migration then existing
+(`0000`-`0123`, minus the absent `0041`/`0042`; the file above says
+"`0001`-`0123`", which skips `0000`) cleanly, including the composite FK block
+and the notice-skipped legacy objects, and finished. `pg_constraint` confirmed both FKs back, and:
 
 ```
 $ pnpm test:db
@@ -449,8 +641,9 @@ $ pnpm test:db
 ```
 
 36/36. The full reset also re-proves A4 more thoroughly than a single-file
-replay would: all 124 migrations, not just `0121`-`0123`, applied clean from
-zero in one pass.
+replay would: EVERY migration, not just `0121`-`0123`, applied clean from
+zero in one pass. (The original text said "all 124 migrations"; see the count
+correction above. The claim's substance is unaffected, the number was wrong.)
 
 ### Correction set: N1/N2 test rigor, L1/L2/L6 (2026-07-29)
 
@@ -653,6 +846,10 @@ clean, unit 2028/2028, `test:db` 36/36.
 
 ### Milestone 3: server behaviour — DONE (`8554e63`)
 
+*(Written while Gate A was still outstanding; kept in the present tense of its
+own moment. Gate A has since been APPROVED, and milestones 3-6 were subsequently
+reviewed as a set by Gate C, which came back clean.)*
+
 Proceeding while Gate A re-review is outstanding is a deliberate call, not an
 assumption of approval: this is branch-only, activates nothing, and the
 capability stays ungranted. If the re-review changes the schema, the server
@@ -771,36 +968,203 @@ lints clean.
 |---|---|
 | Fee schedule v2 activation | Needs accountant approval of fee and tax treatment. No longer blocked by engineering: the goods fee base is correct now that discounts exist. |
 | `fee-refund-policy` v1 activation | Same accountant approval, plus Terms review. |
-| Bundles | Multi-product pricing with its own stock and refund semantics. Larger than the rest of P5 combined; deliberately after collections, which it would build on. |
+| Bundles | Multi-product pricing with its own stock and refund semantics. Larger than the rest of P5 combined; deliberately after collections, which it would build on. **This table listed Bundles TWICE (a second row read "Unchanged: still the largest unstarted P5 item, after P5d is genuinely complete"). The duplicate is folded in here and removed below, 2026-07-29; both rows said the same thing and neither contradicted the other.** |
 | Goods sales analytics | Belongs with the P6 analytics plane rather than duplicating a second reporting path. |
 | Shop customization beyond the appearance system | The shared appearance system already covers the visual layer; what remains is unspecified. |
 | Variants+ beyond today's basic set | No concrete requirement recorded beyond what exists. |
-| Fresh EAS build | The two native editors (`0de2034`) are on `feat/native-goods-parity`, not on master (local master was reset to `origin/master` 2026-07-29; see the topology correction above) and not on devices. Batch with the P5d native work rather than burning a build per slice. |
-| Bundles | Unchanged: still the largest unstarted P5 item, after P5d is genuinely complete. |
+| Fresh EAS build | **No longer merely batched: it is now a HARD PREREQUISITE before `goods_collections` is granted to anyone.** The two native editors (`0de2034`) are on `feat/native-goods-parity` and on this branch as its base commit, not on `origin/master`, and not on devices. On top of that, every installed build (latest is `da93749b`, built 2026-07-28 from `c00341a`) predates the `featured_collection` block type and would crash the Link Hub screen on it. See the wire hazard in `docs/web-native-parity.md`. |
 | Cover image Free-vs-Plus conflict | Founder decision, logged in `plus-commercial-packages.md` §7. |
+
+---
+
+## Gate C: milestones 3-6 (2026-07-29) — CLEAN
+
+Gate A and Gate B each covered one migration. Milestones 3, 4, 5 and 6 (server
+behaviour, the Hub block, native management, docs) had **never been reviewed at
+all** and were built while Gate A was outstanding. Gate C was opened to cover
+exactly that set, and came back clean.
+
+Artifact: `docs/product/p5d-gate-c-review.md`.
+
+## Gate base: `0de2034` (2026-07-29) — CLEAN
+
+`0de2034` (native discount + product-scheduling editors) is the BASE COMMIT of
+`feat/p5d-collections`, so it merges to master with this branch whether or not
+anyone intended it to. Founder decision 2026-07-29: **no rebase.** It was
+brought into review scope instead, and reviewed clean.
+
+Artifact: `docs/product/p5d-base-commit-review.md`.
+
+---
+
+## 🚨 Merge-ordering constraint. Read this before merging.
+
+**Merging IS deploying.** Production is git-tracked from `master` and `master`
+is unprotected, so a merge is a production deployment with no separate approval
+step in between.
+
+`publicCollectionsForArtist` (`apps/web/src/lib/server/collections.ts:433`) is
+called from `apps/web/src/app/[slug]/page.tsx:231` and from
+`apps/web/src/lib/server/hub-feature-data.ts:129`. `/[slug]` is the public
+artist page: **every anonymous visitor hits this**. It queries
+`product_collections.archived_at` and the `product_collection_items` table,
+**neither of which exists in production until `0122` is applied**. And
+`deleteCollectionCore` (`collections.ts:195`) now calls
+`supabase.rpc("delete_collection_if_eligible", ...)` at `collections.ts:212-213`
+— a function that **does not exist in production until `0124` is applied**. That
+one is not a soft degrade: a missing RPC is `PGRST202`, which the core maps to a
+failed delete for 100% of deletes.
+
+**The migration set to apply from the branch is `0121`, `0122` and `0124`.**
+Not "0121-0124".
+
+> **Correction, 2026-07-29 (second docs pass).** `docs/roadmap.md` said "apply
+> `0121`-`0124` from the branch". That range is wrong at both ends of its
+> middle. `0123` **is already in production** (`add324a`) and must NOT be
+> re-applied from the branch; and `0124` was UNTRACKED in git until `9bb8d0a`
+> committed it this session, so a merger reading the older instruction could not
+> have applied it even if they tried. Verified:
+> `git ls-tree -r --name-only origin/master apps/web/supabase/migrations/ | grep 012`
+> returns `0012`, `0120` and `0123` only.
+
+**Verify by catalog read, never by the migration ledger** (standing AGENTS.md
+rule, and the reason the `0001` RLS incident ran for three weeks):
+
+```sql
+-- 0122
+select conname from pg_constraint where conrelid = 'product_collection_items'::regclass;
+select column_name from information_schema.columns
+  where table_name = 'product_collections' and column_name = 'archived_at';
+-- 0121 / 0122 policies
+select tablename, policyname, cmd from pg_policies
+  where tablename in ('product_collections','product_collection_items');
+-- 0124
+select proname from pg_proc where proname = 'delete_collection_if_eligible';
+```
+
+**Do not "re-run the migration" to repair drift.** `0122` is now convergent
+(fixed in `201fbfc`, see task #14 above), but that is a property of the fixed
+file, not of migrations in general. Verify the specific object.
+
+### What "fails flat" does and does not cover (task #22, PARTIAL)
+
+The merge-before-migrate case survives on the public plane because
+`publicCollectionsForArtist` degrades to the flat shop. That degrade is now
+**deliberate** rather than accidental: `collections.ts:458`/`:465` and
+`:476`/`:485` capture `collectionsError` / `itemsError` explicitly and
+`return empty` on each. Before task
+#22, both discarded the error and relied on `rawCollections ?? []` turning a
+null-on-error into an empty array that happened to render identically. Same
+output, no guarantee.
+
+**Task #22 is applied to 2 of 7 reads in `collections.ts` and 0 of 3 in the
+sibling files. It is NOT closed.** The unconverted ones that matter:
+`listCollectionsForArtist` (`collections.ts:388`) discards the error on BOTH its
+reads (`:392`, `:400`). That is the artist-facing manager, and a discarded error
+there forces `productCount` to `0` for every collection, which **mis-enables the
+delete button on a populated collection** on web and native. That is the exact
+guarantee `canDeleteCollection` exists to provide, defeated by a swallowed
+error rather than by a race.
+
+### `0124` and the TOCTOU it does NOT close
+
+`0124_delete_collection_atomic.sql` creates `delete_collection_if_eligible`
+(SECURITY INVOKER, granted to `authenticated`, revoked from `public` and
+`anon`). Its **eligibility semantics are correct** and were verified
+sequentially: empty → `deleted`; populated + live → `not_eligible`; populated +
+archived → `deleted`; cross-artist, even with a spoofed `p_artist_id` → `gone`,
+with no bypass and no existence leak.
+
+**The TOCTOU is OPEN.** An earlier version of the migration header and of the
+caller's comment asserted "nothing can happen between eligible and gone". That
+claim was never executed, it is false, and it is retracted in place in
+`9bb8d0a` rather than deleted.
+
+Reproduced three times independently on 2026-07-29 by three agents with
+different fixtures. Representative run: the deleter called the RPC at
+`07:30:41.175`, a concurrent writer COMMITted a membership at `07:30:45.593`,
+and the RPC returned `deleted` at `07:30:45.594`, 1.1 ms later. Collection gone,
+membership gone, product orphaned.
+
+Mechanism: under READ COMMITTED a single statement evaluates its subqueries
+against ONE snapshot, taken when the statement begins. The concurrent insert
+takes `FOR KEY SHARE` on the parent row, so the DELETE **waits** on the lock,
+but waiting does not make it re-evaluate the `not exists`. When the writer
+commits, the DELETE proceeds on its stale snapshot and the composite FK's
+`on delete cascade` destroys the just-committed membership. The positive control
+(no concurrency) correctly returns `not_eligible`, which is why every sequential
+probe passed and the suite stayed green.
+
+The fix is to take a CONFLICTING lock on the parent first
+(`perform 1 from product_collections where id = ... and artist_id = ... for update;`)
+and re-check in a LATER statement, so the re-check gets a fresh snapshot. It
+must ship with the two-connection reproduction as a **pre-registered regression
+test, shown RED against the current version first.**
+
+Two environment gotchas found while proving this, recorded so they are not
+rediscovered:
+
+- `set role anon` **SEGFAULTS** this local Supabase Postgres image. Use
+  `has_function_privilege()` or a real anon-key client instead.
+- **A PostgREST UPDATE or DELETE denied by RLS returns `{data: [], error: null}`.
+  It fails SILENTLY.** `expect(error).toBeNull()` is a NO-OP for those two
+  verbs. Only INSERT fails loudly, with `42501`. Any test asserting an RLS
+  outcome on an UPDATE or DELETE must assert on the returned ROWS, not on
+  `error`.
 
 ---
 
 ## Next intended action
 
-**Gate A re-review by the specialist**, then a supervisor decision on merge.
-All nine findings are resolved with red/green evidence; the gate is not
-self-approved. Milestones 3-6 were built while it is outstanding, which was a
-deliberate call: the work is branch-only, activates nothing, and the capability
-stays ungranted. If re-review changes the schema, the server layer above it is
-what moves.
+**Finish P5d to a safe merge.** That is the session focus, per the founder,
+2026-07-29. Both gates that would have blocked it are closed (Gate A approved,
+Gate C clean, base commit `0de2034` reviewed clean).
 
-Two items for the SUPERVISOR rather than the specialist:
+> **Correction, 2026-07-29 (second docs pass).** This section read "Gate A
+> re-review by the specialist, then a supervisor decision on merge", and listed
+> `0123` as "currently queued behind the whole collections branch. Cherry-picking
+> it ahead as its own change is a sequencing call". Both are resolved. The
+> re-review happened and approved; the founder took the sequencing call and
+> `0123` **shipped**, as `add324a`. Retracted here rather than deleted.
 
-1. **`0123` repairs a production defect on the revenue path**, found inside a
-   P5d review but unrelated to P5d. Artists cannot save discount codes today.
-   It is currently queued behind the whole collections branch. Cherry-picking
-   it ahead as its own change is a sequencing call, not an engineering one.
-2. **A fresh EAS build is a prerequisite before `goods_collections` is granted
-   to anyone.** Installed builds predate the `featured_collection` block type
-   and would crash on the Link Hub screen if an artist featured a collection on
-   web. This cannot be fixed from the server; see the wire-hazard section in
-   `web-native-parity.md`.
+What actually remains before a merge is safe:
+
+1. **Apply `0121`, `0122` and `0124` to production and catalog-verify them
+   BEFORE the merge**, not after. See the ordering constraint above. This is
+   the only item on this list that can hurt a live visitor.
+2. ~~**Task #19, the `deleteCollectionCore` TOCTOU.**~~ **CLOSED** (`4d406f9`).
+   `0124` now locks the parent `for update` in its OWN earlier statement, so the
+   delete's re-check runs on a fresh snapshot. Regression test
+   `tests/db/collection-delete-race.test.ts`, shown RED against the
+   one-statement body and green after, shipping with a control that still
+   DELETES so it cannot pass by refusing everything.
+3. ~~**Task #15, the DB tests.**~~ **CLOSED** (`4d406f9`). Landed as coverage of
+   every `0124` RPC branch (`collection-delete-rpc.test.ts`), the concurrency
+   regression, and a mock-based server-core suite in the UNIT tree
+   (`src/lib/server/__tests__/collections.test.ts`), which is where test 1
+   always belonged. All ten cores had zero coverage before this.
+4. **Task #22, fail-flat.** PARTIALLY closed (`4d406f9`). The one with a
+   user-visible consequence is fixed: `listCollectionsForArtist` discarded both
+   read errors, which forced `productCount` to 0 and ENABLED THE DELETE BUTTON
+   on populated collections in both managers. It now throws, deliberately the
+   opposite choice from `publicCollectionsForArtist`, which must fail flat.
+   Still open: the remaining reads at `collections.ts:59`, `:239`, `:247`, the
+   mobile route GET, and `hub-feature-data.ts`. None of those arm a destructive
+   action; they are correctness-of-reporting, not data loss.
+
+Suite movement across this work, recorded because unchanged counts were the tell
+that hid the original defect: unit **2028 -> 2114**, DB **36 -> 51**.
+
+Deferred, with reasons recorded in the open task register at the top of this
+file: **#12** (`setDiscountActiveCore` ungated, non-blocker because
+`resolveDiscount` re-gates at apply time) and **#18** (the four Hub jobs swallow
+every error, pre-existing house pattern).
+
+**A fresh EAS build remains a hard prerequisite before `goods_collections` is
+granted to anyone.** Installed builds predate the `featured_collection` block
+type and would crash on the Link Hub screen if an artist featured a collection
+on web. This cannot be fixed from the server; see the wire hazard in
+`docs/web-native-parity.md`.
 
 Still open from earlier stages, unchanged: fee schedule v2 activation and
 refund policy v1 (both accountant), bundles, goods sales analytics.

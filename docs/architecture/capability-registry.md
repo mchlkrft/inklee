@@ -35,7 +35,30 @@ is an automatic rejection.
 
 Added with enforcement wired but **parked in `DISABLED_CAPABILITIES` in prod** so
 the slice ships inert; remove a name to turn that gate on. Owner: Founder (flip);
-Claude (wiring). Enforcement composition (one truth for web + mobile):
+Claude (wiring).
+
+> **Correction 2026-07-29: that blanket "parked" claim no longer describes
+> production.** Production `DISABLED_CAPABILITIES` now reads exactly
+> **`custom_templates,analytics,entitlement_caps`**. Only those three names are
+> parked. Every other capability in the table below has its kill switch OFF,
+> including `branding`, which the founder authorised un-parking on 2026-07-29.
+> **That is an authorised change, not an incident** (`DECISIONS.md`, 2026-07-29
+> amendment row; `docs/roadmap.md` §1).
+>
+> Two things not to over-read. **(1) Kill switch off ≠ entitlement granted.**
+> The composition is `!isCapabilityDisabled(x) && canAccess(overrides, x)` for a
+> GRANT, so removing a name from the env only hands the decision to the
+> per-artist grant. `goods_collections` is the clean example: off the list, and
+> deliberately ungranted. **(2)** The three that remain parked are all
+> restriction-shaped, so pausing them reverts to permissive and they stay free
+> for everyone. Of the four minimum-sellable-v1 marketed capabilities,
+> `branding` is therefore currently the only one that genuinely differentiates.
+>
+> The production env value is founder-reported and was not read from Vercel when
+> this correction was written; the code-side composition was verified in-repo at
+> `32a15e8`.
+
+Enforcement composition (one truth for web + mobile):
 `apps/web/src/lib/server/entitlement-gates.ts`. Server enforces on all clients;
 mobile 0.2.0+ additionally hides entry points.
 
@@ -51,7 +74,7 @@ mobile 0.2.0+ additionally hides entry points.
 | `large_projects` | Gate large-project mode to Plus (Plus build P4) | The public `/{slug}/project` intake **404s** (no half-working sub-path on an un-entitled artist's page) and no new project records are created. Existing projects stay fully READABLE and editable by their artist: a downgrade must never hide long-term records that have live bookings attached, the same principle that keeps email-template bodies sending after editing is gated | `largeProjectsAllowed`; the `[slug]/project` route + the intake submit core + the artist project actions |
 | `goods_discounts` | Gate discount codes to Plus (Plus build P5b) | Codes stop APPLYING at checkout and no new ones can be created, but existing rows are KEPT and are never deleted: a published code is a promise an artist made, and its redemption history is what a sales report is made of. The client is told the code is not valid for their order, in the same words used for every other rejection | `goodsDiscountsAllowed`; `resolveDiscount` on the checkout prepare path (checked on APPLY, not only on create) + `saveDiscountCore` |
 | `goods_scheduling` | Gate scheduled drops, preorders and low-stock alerts to Plus (Plus build P5c, spec §9) | No NEW drop time, preorder flag or stock threshold can be SET; the fields disappear from the product form and the save action strips them. An EXISTING drop date is still honoured, deliberately: the opposite direction would put a limited piece on sale before its announced time, which is the harm the feature exists to prevent. Note this is the mirror of `form_conditional`, where ignoring the rule shows MORE and is therefore the safe direction | `goodsSchedulingAllowed` via `applySchedulingEntitlement` on both product write paths. The READ rule (`productAvailability`) is ungated by design and enforced at all THREE public gates: the shop teaser, the checkout catalogue, and the line composer that re-checks before payment |
-| `goods_collections` | Gate shop collections to Plus (Plus build P5d, spec §9) | Collections cannot be created, edited, archived, reordered or have products assigned, and the public shop renders ONE ungrouped list, which is exactly how it looks today. Existing collections and their membership are KEPT, so re-entitling restores the arrangement rather than asking the artist to rebuild it | `goodsCollectionsAllowed` on EVERY core in `server/collections.ts` (save / delete / archive / reorder / add / remove / reorderProducts), and **on the public read** via `publicCollectionsForArtist`, which returns empty arrays that the pure grouping function renders as a flat shop. An earlier version of this row said the public grouping "needs no gate of its own" because it is pure. That was true of the function and wrong about the FEATURE: without a gate on the read, an artist who lapsed to Free kept a grouped public shop. The gate belongs with the read that feeds it |
+| `goods_collections` | Gate shop collections to Plus (Plus build P5d, spec §9) | Collections cannot be created, edited, archived, reordered or have products assigned, and the public shop renders ONE ungrouped list, which is exactly how it looks today. Existing collections and their membership are KEPT, so re-entitling restores the arrangement rather than asking the artist to rebuild it | `goodsCollectionsAllowed` on EVERY core in `server/collections.ts` — all **EIGHT** of them: `saveCollectionCore`, `reorderCollectionsCore`, `setCollectionArchivedCore`, `deleteCollectionCore`, `addProductToCollectionCore`, `removeProductFromCollectionCore`, `reorderCollectionProductsCore`, `setProductCollectionsCore` (`grep -n requireEntitlement apps/web/src/lib/server/collections.ts` → 8 call sites, at `:76`, `:133`, `:163`, `:200`, `:239`, `:291`, `:313`, `:345`) — and **on the public read** via `publicCollectionsForArtist`, which returns empty arrays that the pure grouping function renders as a flat shop. An earlier version of this row said the public grouping "needs no gate of its own" because it is pure. That was true of the function and wrong about the FEATURE: without a gate on the read, an artist who lapsed to Free kept a grouped public shop. The gate belongs with the read that feeds it. **Correction 2026-07-29:** this cell said "EVERY core" and then listed SEVEN, omitting `setProductCollectionsCore` — the one that writes a product's whole membership set at once, and therefore the last one you would want silently missing from a gate list. It IS gated (`collections.ts:345`); the LIST was incomplete, not the enforcement. Corrected above and expanded to name every core, so the next reader can check the claim by counting instead of trusting it. ⚠️ **Enforcement is branch-only** (`feat/p5d-collections`); `goods_collections` is deliberately UNGRANTED, and a fresh EAS build is a hard prerequisite before it is granted to anyone (see the wire hazard in `docs/web-native-parity.md`) |
 | `tattoo_map` | Kill switch for the NATIVE tattoo-map surface (2026-07-26). Default: ENABLED (not in `DISABLED_CAPABILITIES`); list it there to pause | Nav entry hidden + discover screen shows an unavailable message + its queries stop (client); every `/api/mobile/map/*` route refuses `capability_disabled` (server); the WEB map is separately gated by `NEXT_PUBLIC_TATTOO_MAP` (the platform launch gate, which the mobile routes also re-check) | `mapMobileGate` in `api/mobile/map/_lib.ts`; `useCapability("tattoo_map")` in `travel/index.tsx` + `travel/discover.tsx` |
 
 Removal condition: never while the tiers exist (permanent entitlement enforcement); re-verify wiring each review.
