@@ -74,17 +74,42 @@ create table if not exists product_collection_items (
   created_at    timestamptz not null default now(),
   -- A product appears at most once in a given collection. This also makes the
   -- backfill and the legacy-mirror trigger below idempotent for free.
-  constraint product_collection_items_unique unique (collection_id, product_id),
-
-  -- The cross-ownership guarantee. Each half carries artist_id, so both
-  -- parents must agree with each other AND with this row.
-  constraint product_collection_items_collection_fk
-    foreign key (collection_id, artist_id)
-    references product_collections(id, artist_id) on delete cascade,
-  constraint product_collection_items_product_fk
-    foreign key (product_id, artist_id)
-    references products(id, artist_id) on delete cascade
+  constraint product_collection_items_unique unique (collection_id, product_id)
 );
+
+-- The cross-ownership guarantee. Each half carries artist_id, so both parents
+-- must agree with each other AND with this row.
+--
+-- GUARDED, not inline in the `create table` above, and that is not cosmetic.
+-- `create table if not exists` checks the TABLE's existence; anything
+-- declared inline in its column/constraint list is skipped entirely once the
+-- table exists, so a constraint placed there can never be restored by
+-- re-running this file. Found empirically 2026-07-29: with the table already
+-- present and both FKs dropped by hand, re-running the inline version of this
+-- migration reported `relation "product_collection_items" already exists,
+-- skipping` and restored neither — exit 0, having repaired nothing. Guarded
+-- the same way as the two parent unique keys above, which already got this
+-- right, so a future drop-and-rerun actually converges instead of silently
+-- no-opping. See the AGENTS.md footgun entry for the general pattern.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'product_collection_items_collection_fk'
+  ) then
+    alter table product_collection_items
+      add constraint product_collection_items_collection_fk
+      foreign key (collection_id, artist_id)
+      references product_collections(id, artist_id) on delete cascade;
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'product_collection_items_product_fk'
+  ) then
+    alter table product_collection_items
+      add constraint product_collection_items_product_fk
+      foreign key (product_id, artist_id)
+      references products(id, artist_id) on delete cascade;
+  end if;
+end $$;
 
 -- Rendering a collection: its products in order.
 create index if not exists product_collection_items_collection_idx

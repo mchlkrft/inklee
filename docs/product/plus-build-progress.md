@@ -548,6 +548,44 @@ table if not exists` that no-ops once the table exists). Both are true at
 once and are not in tension: safe to re-run without erroring is not the same
 guarantee as re-run repairs drift.
 
+### Task #14: made `0122` converge (2026-07-29)
+
+The non-convergence above is now fixed forward, not just documented. Both
+composite FKs moved out of the inline `create table` into a guarded `do $$
+... if not exists ... then alter table ... add constraint ... end if; end
+$$;` block, matching the pattern the file already used for the two parent
+unique constraints (`product_collections_id_artist_key`,
+`products_id_artist_key`) — the file was inconsistent with itself, guarded in
+one place and inline three lines below it, which is the detail nobody read as
+a tell the first time.
+
+**Convergence proven, not just re-run.** On a fresh reset with the new
+`0122`: both FKs present. Dropped both by hand
+(`alter table ... drop constraint ...`), confirmed gone via `pg_constraint`,
+then re-ran `0122` (the guarded version) against the live, already-migrated
+table:
+
+```
+NOTICE:  relation "product_collection_items" already exists, skipping
+CREATE TABLE
+DO
+CREATE INDEX
+...
+```
+
+`pg_constraint` afterward: **both FKs back.** This is the same drop-then-rerun
+procedure that previously exited 0 having restored nothing; it now exits 0
+having actually restored the constraints, which is the difference between
+"idempotent" and "convergent" this task exists to close. `pnpm test:db`:
+36/36. Re-ran `0122` twice more under `-v ON_ERROR_STOP=1` for the same
+re-check L6 did on the old version: exit 0 both times, FKs still present.
+Full reset from zero afterward: all migrations apply clean, 36/36.
+
+Now documented as a general pattern in `AGENTS.md` ("Footgun: a migration
+that RE-RUNS without erroring has not necessarily CONVERGED"), so this class
+of finding has a home for the next migration that hits it, not just a record
+in this log.
+
 ### Gate A closing: named-list red run (2026-07-29)
 
 Hardened requirement: a NAMED per-test pass/fail list, not aggregate counts —
