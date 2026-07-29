@@ -18,6 +18,7 @@ import { MAX_INTEREST_QUANTITY } from "@/lib/booking-interests";
 import {
   groupProductsByCollection,
   type ProductCollection,
+  type CollectionMembership,
 } from "@inklee/shared/collections";
 import { useInterestSelections } from "./interest-selections-context";
 
@@ -386,12 +387,17 @@ function ProductCard({
 export default function ShopTeaser({
   products,
   collections = [],
+  memberships = [],
   itemBg = null,
   artistName,
 }: {
   products: PublicProduct[];
-  /** Visible collections in the artist's order (P5d). Empty = one flat list. */
+  /** Visible collections in the artist's order (P5d). Empty = one flat list,
+   *  which is also what an unentitled artist and a killed capability yield. */
   collections?: ProductCollection[];
+  /** Which products sit in which collection, and where. A product may appear
+   *  in several. Empty alongside `collections` for a flat shop. */
+  memberships?: CollectionMembership[];
   // Background for the overlay product cards — the artist's chosen header
   // color, or null to fall back to charcoal (used when there's a cover image).
   itemBg?: string | null;
@@ -457,7 +463,7 @@ export default function ShopTeaser({
 
   if (products.length === 0) return null;
 
-  const groups = groupProductsByCollection(products, collections);
+  const groups = groupProductsByCollection(products, collections, memberships);
 
   const totalSelectedQty = selections.reduce(
     (n, s) => n + (s.quantity > 0 ? s.quantity : 0),

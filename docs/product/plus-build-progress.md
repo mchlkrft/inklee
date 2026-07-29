@@ -191,11 +191,49 @@ deploy; production has zero such rows, and the join keeps that safe elsewhere.
 
 Local database reset from zero: all 124 migrations apply clean in order.
 
+### Milestone 3: server behaviour — DONE (`8b3e0a1`)
+
+Proceeding while Gate A re-review is outstanding is a deliberate call, not an
+assumption of approval: this is branch-only, activates nothing, and the
+capability stays ungranted. If the re-review changes the schema, the server
+layer above it is what moves.
+
+The shared model is now many-to-many. `groupProductsByCollection` takes
+`(products, collections, memberships)` and the product no longer carries its own
+`collectionId`. The old file argued in a comment that "which section is this in?"
+has one answer; it does not, and that comment is now replaced with the reason.
+
+- **Cap removed.** `MAX_COLLECTIONS = 20` is gone, per founder decision. It was
+  enforced on create, so an artist organising a large catalogue hit a wall
+  mid-task. `at_cap` is gone from the result type with it.
+- **Next position on create**, read from the artist's own top. Deliberately not
+  a unique constraint: concurrent creates tie, and a tie in a hand-sorted list
+  is cosmetic, where a rejected create is not.
+- **Sparse updates.** Only keys actually present are written. Before, every save
+  sent both name and visibility, so toggling visibility could reset the name and
+  a rename could republish a hidden section.
+- **Archive / restore / eligible delete.** Archive keeps membership and
+  per-collection ordering, so restore returns the section whole. Delete is
+  refused on a populated LIVE collection: that arranging work has no undo, so
+  archive is the reversible exit and delete becomes a deliberate second act.
+  Empty collections still delete freely.
+- **Entitlement and kill switch moved to the public read**, in
+  `publicCollectionsForArtist`, which returns empty arrays for an unentitled
+  artist, a killed capability, or a plan-read that throws. Empty arrays are
+  exactly the flat shop, so a downgrade to Free removes the grouping and never
+  the goods. Failing flat rather than failing closed is the point.
+
+Manager UI rebuilt for multi-membership (toggle chips per section), archive and
+restore, and the self-explaining delete refusal. 25 unit tests, 36 DB tests.
+
+**Found while testing:** the first cross-owner service-role test passed for the
+wrong reason. It reused a (collection, product) pair an earlier test had already
+inserted, so the unique constraint returned 23505 before the foreign key was
+consulted, and the assertion proved nothing about ownership. Fixed with a fresh
+product; it now returns 23503 from the FK, which is the thing being claimed.
+
 ### Milestones after Gate A
 
-3. Server behaviour: next-position on create, sparse updates, archive /
-   restore / eligible-delete lifecycle, cap removal, entitlement + kill-switch
-   at public reads, flat-shop fallback.
 4. Featured-collection Linkhub block, parser-enforced.
 5. Native collection management, full parity list.
 6. Docs, capability registry, parity register, full test suite.

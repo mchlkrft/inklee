@@ -340,3 +340,170 @@ describe("legacy column compatibility", () => {
     expect(rows ?? []).toHaveLength(0);
   });
 });
+
+describe("cross-ownership is unrepresentable, not merely denied", () => {
+  // These run as the SERVICE role, which bypasses RLS entirely. That is the
+  // point: policies constrain client roles only, and the service client is what
+  // runs webhooks, admin paths and backfills. If the guarantee lived only in
+  // the WITH CHECK, every one of those callers could still write a row pairing
+  // one artist's collection with another's product. The composite foreign keys
+  // added in 0122 are what make that state unstorable for EVERY role.
+  it("refuses a cross-owner membership even as the service role", async () => {
+    const { error } = await admin.from("product_collection_items").insert({
+      collection_id: owner.collectionId,
+      product_id: other.productId,
+      artist_id: owner.id,
+    });
+    expect(error, "the FK must reject this").not.toBeNull();
+    expect(error?.code, "expected a foreign-key violation").toBe("23503");
+  });
+
+  it("refuses a membership whose artist_id disagrees with its parents", async () => {
+    // A FRESH product, deliberately. Reusing owner.productId here returned
+    // 23505 instead: the (collection, product) pair already existed from an
+    // earlier test, so the unique constraint rejected the row before the
+    // foreign key was ever consulted, and the test proved nothing about
+    // ownership. The pair below is new, so only the FK can refuse it.
+    const { data: prod } = await admin
+      .from("products")
+      .insert({
+        artist_id: owner.id,
+        title: "Mismatched owner",
+        price_amount: 14,
+        currency: "eur",
+      })
+      .select("id")
+      .single();
+
+    const { error } = await admin.from("product_collection_items").insert({
+      collection_id: owner.collectionId,
+      product_id: prod!.id,
+      artist_id: other.id,
+    });
+    expect(error?.code, "expected a foreign-key violation").toBe("23503");
+  });
+
+  it("still accepts a correct row as the service role", async () => {
+    // Positive control: the rejections above are about ownership, not about
+    // the service role being unable to write this table at all.
+    const { data: prod } = await admin
+      .from("products")
+      .insert({
+        artist_id: owner.id,
+        title: "Service inserted",
+        price_amount: 11,
+        currency: "eur",
+      })
+      .select("id")
+      .single();
+    const { error } = await admin.from("product_collection_items").insert({
+      collection_id: owner.collectionId,
+      product_id: prod!.id,
+      artist_id: owner.id,
+    });
+    expect(error, error?.message).toBeNull();
+  });
+});
+
+describe("archive lifecycle", () => {
+  // Archiving is the reversible retirement, and that is only true if it keeps
+  // membership AND per-collection ordering. If a restore came back empty or
+  // reshuffled, archive would just be a slower delete.
+  it("keeps membership and order across an archive/restore round trip", async () => {
+    const { data: c } = await owner.client
+      .from("product_collections")
+      .insert({ artist_id: owner.id, name: "Seasonal" })
+      .select("id")
+      .single();
+
+    const ids: string[] = [];
+    for (const n of [0, 1, 2]) {
+      const { data: p } = await owner.client
+        .from("products")
+        .insert({
+          artist_id: owner.id,
+          title: `Arch ${n}`,
+          price_amount: 12,
+          currency: "eur",
+        })
+        .select("id")
+        .single();
+      ids.push(p!.id);
+      await owner.client.from("product_collection_items").insert({
+        collection_id: c!.id,
+        product_id: p!.id,
+        artist_id: owner.id,
+        position: 2 - n, // deliberately not insertion order
+      });
+    }
+
+    const before = await owner.client
+      .from("product_collection_items")
+      .select("product_id, position")
+      .eq("collection_id", c!.id)
+      .order("position", { ascending: true });
+
+    await owner.client
+      .from("product_collections")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", c!.id);
+
+    const { data: whileArchived } = await owner.client
+      .from("product_collection_items")
+      .select("id")
+      .eq("collection_id", c!.id);
+    expect(whileArchived, "archiving must not drop membership").toHaveLength(3);
+
+    const { error: restoreError } = await owner.client
+      .from("product_collections")
+      .update({ archived_at: null })
+      .eq("id", c!.id);
+    expect(restoreError, restoreError?.message).toBeNull();
+
+    const after = await owner.client
+      .from("product_collection_items")
+      .select("product_id, position")
+      .eq("collection_id", c!.id)
+      .order("position", { ascending: true });
+    expect(after.data).toEqual(before.data);
+  });
+
+  it("deleting a collection removes membership but never the products", async () => {
+    const { data: c } = await owner.client
+      .from("product_collections")
+      .insert({ artist_id: owner.id, name: "Doomed section" })
+      .select("id")
+      .single();
+    const { data: p } = await owner.client
+      .from("products")
+      .insert({
+        artist_id: owner.id,
+        title: "Survivor",
+        price_amount: 13,
+        currency: "eur",
+      })
+      .select("id")
+      .single();
+    await owner.client.from("product_collection_items").insert({
+      collection_id: c!.id,
+      product_id: p!.id,
+      artist_id: owner.id,
+    });
+
+    await owner.client.from("product_collections").delete().eq("id", c!.id);
+
+    const { data: items } = await owner.client
+      .from("product_collection_items")
+      .select("id")
+      .eq("collection_id", c!.id);
+    expect(items ?? []).toHaveLength(0);
+
+    const { data: stillThere } = await owner.client
+      .from("products")
+      .select("id")
+      .eq("id", p!.id);
+    expect(stillThere, "the product must survive its collection").toHaveLength(
+      1,
+    );
+  });
+});
