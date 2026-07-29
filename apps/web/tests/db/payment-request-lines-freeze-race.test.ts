@@ -26,22 +26,29 @@ import { PgSession } from "./helpers/pg-session";
  * evidence: a claim whose truth depends on a SEQUENCE cannot be checked by a
  * test that never produces one.
  *
- * TWO OBJECTS HOLD THIS, IN TWO DIFFERENT MIGRATIONS, and neither file's text
- * is evidence for the other (0124's header makes the same point about its own
- * inherited safety):
+ * ONE OBJECT HOLDS THIS, AND THAT IS A DELIBERATE REVERSAL. This header
+ * previously described TWO, and the second was removed on measurement:
  *
  *   WRITE SIDE, 0125: `enforce_payment_request_lines_frozen` takes FOR SHARE on
  *   the parent in its own statement, then re-reads `sent_at` in a LATER one.
- *   This is the only thing that covers a line INSERTED during a freeze, because
- *   a row that does not exist yet cannot be locked by the reader.
+ *   It covers all three verbs. It is the only thing that can cover a line
+ *   INSERTED during a freeze, because a row that does not exist yet cannot be
+ *   locked by a reader.
  *
- *   READ SIDE, 0126: `enforce_payment_request_immutability` sums the lines
- *   FOR UPDATE, so a concurrent UPDATE or DELETE of an EXISTING line serialises
- *   against the freeze.
+ *   READ SIDE, 0126: REMOVED. It summed the lines FOR UPDATE so an UPDATE or
+ *   DELETE of an existing line serialised against the freeze, which was real
+ *   defense in depth. It also produced a deterministic 40P01 (measured 3/3,
+ *   superuser and `authenticated`) whose victim was the ARTIST's ordinary line
+ *   edit, because a line write locks LINE then PARENT while the freeze can only
+ *   go PARENT then LINE. Removing it changed nothing measurable: 0/30 breaches
+ *   on all three variants with 0125's lock kept. See the reversal note in 0126.
  *
- * The two tests below are split along exactly that seam, so a red one names
- * which object went missing. `pins both lock objects by catalog read` is the
- * third sentinel: it fails on a body swap even when timing hides the rest.
+ * So the guarantee now rests on a SINGLE object in another file, which 0124's
+ * header warns about. That is answered here rather than by a second lock: the
+ * catalog sentinel below fails if 0125's FOR SHARE disappears, and also fails if
+ * 0126's FOR UPDATE comes BACK, so reintroducing the deadlock is a decision
+ * rather than an accident. A test catches the regression the second lock was
+ * meant to catch, without deadlocking anyone to do it.
  *
  * DETERMINISTIC, NOT TIMED. Every case here holds the freeze in an uncommitted
  * transaction on a dedicated connection and issues the competing write through
@@ -371,7 +378,7 @@ describe("a sent request's total always equals the sum of its lines", () => {
     ).toBeGreaterThanOrEqual(MARGIN_MS);
   });
 
-  it("READ SIDE (0126) + WRITE SIDE: a line DELETED while the freeze is uncommitted is refused", async () => {
+  it("WRITE SIDE (0125): a line DELETED while the freeze is uncommitted is refused", async () => {
     // THE CASE BOTH LOCKS COVER, stated as such rather than attributed to one.
     // 0126's FOR UPDATE holds the existing line row; 0125's FOR SHARE holds the
     // parent. Removing EITHER alone leaves this green, and that redundancy is
