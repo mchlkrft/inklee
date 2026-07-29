@@ -1,12 +1,16 @@
 -- Repair: discount_codes had no write policies (Plus build P5d, Gate A finding A2).
 --
--- The same defect as `product_collections` (see `0121`), found by a Gate A
--- review that checked a claim in 0121's own comment instead of taking it. The
--- table has RLS enabled with a SELECT policy only, while BOTH write callers
--- pass the USER-scoped client:
+-- The same defect as `product_collections` (see `0121`, on a branch not yet
+-- merged), found by a Gate A review that checked a claim in 0121's own
+-- comment instead of taking it. The table has RLS enabled with a SELECT
+-- policy only, while the write caller passes the USER-scoped client:
 --
---   (artist)/goods/discounts/actions.ts -> createClient()      -> saveDiscountCore
---   api/mobile/goods/discounts/route.ts -> requireMobileUser() -> saveDiscountCore
+--   (artist)/goods/discounts/actions.ts -> createClient() -> saveDiscountCore
+--
+-- A second write caller, the mobile route at api/mobile/goods/discounts,
+-- arrives later (P5 native parity) and is not part of the tree at this
+-- commit. It carries the same user-scoped defect and this repair covers it
+-- too, since the fix is on the table's policies, not the caller.
 --
 -- Verified in the database rather than inferred:
 --
