@@ -232,9 +232,39 @@ inserted, so the unique constraint returned 23505 before the foreign key was
 consulted, and the assertion proved nothing about ownership. Fixed with a fresh
 product; it now returns 23503 from the FK, which is the thing being claimed.
 
+### Milestone 4: featured-collection Hub block — DONE
+
+A THIRD block family. The existing two are content blocks (headline/text/link,
+which carry their own text) and feature blocks (content-free, capped at one
+each). `featured_collection` carries a REFERENCE, so it needed its own rules:
+
+- The parser drops a block naming nothing, exactly like an empty headline: a
+  block with no collection is not an empty section, it is a broken one.
+- It does NOT resolve the reference. The parser is pure and has no database, and
+  dropping on a failed lookup would let a transient read error silently delete
+  the artist's saved block. The renderer drops a dangling reference instead.
+- Deduped by `collectionId`, not capped at one. Several featured collections is
+  a reasonable thing to want; the same one twice never is.
+
+Rendering goes through `publicCollectionsForArtist`, so entitlement, the kill
+switch and the visible/archived filter are the same rules the shop uses, and
+only PURCHASABLE members count. An archived, hidden, emptied or deleted
+collection therefore renders no block rather than a heading over nothing.
+
+Web editor and native editor both ship, with a picker seeded from the artist's
+live collections. 7 parser tests; 2028 unit tests green.
+
+**Wire hazard found and recorded.** A new block TYPE is not additive the way a
+new field is. The native editor read `BIO_BLOCK_META[block.type].label`, and an
+installed build carries its own compiled copy of that map, so a type added later
+resolves to `undefined` and dereferencing it crashes the Link Hub screen. Fixed
+with a fallback for future types, and written into the parity register as a hard
+prerequisite: a fresh EAS build must ship before `goods_collections` is granted,
+because builds already installed cannot be fixed from the server. Nothing can
+hit it today, which is why it is written down rather than remembered.
+
 ### Milestones after Gate A
 
-4. Featured-collection Linkhub block, parser-enforced.
 5. Native collection management, full parity list.
 6. Docs, capability registry, parity register, full test suite.
 

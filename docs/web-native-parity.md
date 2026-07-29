@@ -108,7 +108,8 @@ top control row instead, which is also where the platform maps put theirs.
 | Custom confirmation page (P3d) | `bookings/booking-form` editor + gated render on `request/submitted` | `settings/booking-form/confirmation` screen + GET/POST `/api/mobile/booking-form/confirmation`, both through the SAME `saveConfirmationCore` (next build) | ✅ |
 | Custom URL slug (P3e) | `settings/profile` rename form with an explicit consequence confirmation | `settings/slug` screen + GET/POST `/api/mobile/settings/slug`, both through the SAME `renameSlugCore` (next build) | ✅ |
 | Scheduled books-open date (P3f) | `booking_opens_at` in all 3 web books forms; public page shows the date | native `settings/books` date field + `bookingOpensAt` on PUT `/settings/books` (next build); absent key means unchanged, so pre-P3f builds cannot clear it | ✅ |
-| Shop collections (P5d) | `/goods/collections` manager + grouped public shop | ⬜ no native collections editor yet (tracked in the P5 remainder). The public shop is a visitor surface and stays web | ⬜ |
+| Shop collections (P5d) | `/goods/collections` manager (many-to-many membership, per-collection order, archive/restore, eligible-delete) + grouped public shop | ⬜ no native collections MANAGER yet (tracked in the P5 remainder). The public shop is a visitor surface and stays web | ⬜ |
+| Featured-collection Hub block (P5d) | `featured_collection` block in the Link Hub editor + rendered on `/<slug>/hub` | ✅ picker on `settings/link-hub`, fed by the `collections` key added to GET `/api/mobile/settings/hub` (next build). Both surfaces seed from the same shared parser, which drops a block naming nothing and keeps one block per collection | ✅ |
 | Drops, preorders, low-stock alerts (P5c) | product form fields + all 3 public availability gates; alert via the notification plane | ✅ the three fields on `(tabs)/goods/[id]`, gated by a server-resolved `schedulingEntitled` and stripped server-side regardless (next build). ONE deliberate difference: web takes a date AND time, the app takes a DATE and means the start of it, because a native datetime picker is not worth the surface for a field most artists set to "that Friday". The ALERT already reached native via the existing `system_warning` type | ✅ |
 | Discount codes (P5b) | artist editor at `/goods/discounts`; client code field in the portal checkout | ✅ `(tabs)/goods/discounts` screen + GET/POST/PATCH `/api/mobile/goods/discounts`, all writes through the SAME `saveDiscountCore` / `setDiscountActiveCore` (next build). The client checkout stays web: it is a visitor surface | ✅ |
 | Platform fee engine + fee actuals (P5a) | `computeOrderFees` / `resolveOrderFee` on the checkout prepare paths; actuals written by the webhook | n/a: the app never prices a payment. It reads the artist's plan and the existing deposit surfaces, both unchanged | 🌐 |
@@ -126,6 +127,28 @@ templates/hub/calendar-export/reminders/payouts/dashboard), onboarding, account
 security: ✅ at parity via the 93-route /api/mobile surface. Web-only by
 design: admin, marketing pages, legal pages, public artist pages, client
 magic-link portal (D: app is artists-only).
+
+## Wire hazard: a new BLOCK TYPE is not additive the way a new field is
+
+Recorded 2026-07-29, from the `featured_collection` block (P5d).
+
+The additive-only rule protects installed builds because an unknown KEY is
+ignored. A new block TYPE is different: the Link Hub editor renders every block
+the server sends, and it looked its label up with `BIO_BLOCK_META[block.type].label`.
+An installed build carries its own compiled copy of that map, so a block type
+added afterwards resolves to `undefined` and reading `.label` takes the whole
+screen down. The value is not ignored, it is dereferenced.
+
+Two things follow, both done here:
+
+- The native editor now falls back (`?.label ?? "Block"`) instead of indexing
+  blind, so the NEXT block type cannot crash a build that predates it. This
+  protects builds from `da93749b` onward, not the ones already installed.
+- **A fresh EAS build is a prerequisite before `goods_collections` is granted
+  to anyone.** Builds that predate this change would crash on the Link Hub
+  screen if an artist featured a collection on web. Nothing can hit it today
+  (the capability is ungranted and the tier is dark), which is exactly why it
+  needs writing down rather than remembering.
 
 ## Update log
 

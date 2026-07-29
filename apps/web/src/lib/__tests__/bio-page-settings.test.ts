@@ -410,3 +410,74 @@ describe("feature blocks (Plus build P2b)", () => {
     ).toHaveLength(0);
   });
 });
+
+describe("featured_collection blocks (P5d)", () => {
+  const parse = (blocks: unknown[]) => parseBioPageSettings({ blocks }).blocks;
+
+  it("keeps a block that names a collection", () => {
+    const blocks = parse([{ type: "featured_collection", collectionId: "c1" }]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      type: "featured_collection",
+      collectionId: "c1",
+    });
+  });
+
+  // A block naming nothing is not an empty section, it is a broken one.
+  it("drops a block with no collection id", () => {
+    expect(parse([{ type: "featured_collection" }])).toHaveLength(0);
+    expect(
+      parse([{ type: "featured_collection", collectionId: "   " }]),
+    ).toHaveLength(0);
+    expect(
+      parse([{ type: "featured_collection", collectionId: 42 }]),
+    ).toHaveLength(0);
+  });
+
+  it("trims the id rather than storing whitespace", () => {
+    const blocks = parse([
+      { type: "featured_collection", collectionId: "  c1  " },
+    ]);
+    expect(blocks[0]).toMatchObject({ collectionId: "c1" });
+  });
+
+  // The type cap alone would allow ten blocks all pointing at the same
+  // collection, which renders that section ten times.
+  it("keeps only the FIRST block per collection", () => {
+    const blocks = parse([
+      { type: "featured_collection", collectionId: "c1" },
+      { type: "featured_collection", collectionId: "c2" },
+      { type: "featured_collection", collectionId: "c1" },
+    ]);
+    expect(
+      blocks.map((b) => (b as { collectionId: string }).collectionId),
+    ).toEqual(["c1", "c2"]);
+  });
+
+  it("allows several DIFFERENT collections, unlike the content-free blocks", () => {
+    const blocks = parse([
+      { type: "featured_collection", collectionId: "c1" },
+      { type: "featured_collection", collectionId: "c2" },
+      { type: "featured_collection", collectionId: "c3" },
+    ]);
+    expect(blocks).toHaveLength(3);
+  });
+
+  // A stale reference is NOT resolved away here: this parser is pure and has
+  // no database, and dropping on a failed lookup would let a transient read
+  // error delete the artist's saved block. The renderer drops it instead.
+  it("keeps a reference the parser cannot verify", () => {
+    const blocks = parse([
+      { type: "featured_collection", collectionId: "deleted-collection" },
+    ]);
+    expect(blocks).toHaveLength(1);
+  });
+
+  it("gives each block a unique id even when ids collide", () => {
+    const blocks = parse([
+      { id: "same", type: "featured_collection", collectionId: "c1" },
+      { id: "same", type: "featured_collection", collectionId: "c2" },
+    ]);
+    expect(blocks[0].id).not.toBe(blocks[1].id);
+  });
+});
