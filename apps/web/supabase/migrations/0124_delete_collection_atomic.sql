@@ -15,28 +15,30 @@
 -- so this wraps the eligibility check and the delete in one statement, one
 -- round trip, one transaction.
 --
--- ⚠️ THIS DOES NOT CLOSE THE RACE. An earlier version of this header claimed
--- "nothing can happen between eligible and gone". That was false, was never
--- executed, and is retracted here.
+-- WHY THIS IS TWO STATEMENTS AND NOT ONE. This is the whole point of the file;
+-- the one-statement version was written first, shipped as "atomic", and lost
+-- data.
 --
--- Under READ COMMITTED a single statement evaluates its subqueries against ONE
--- snapshot, taken when the statement begins. A concurrent insert into the child
--- takes FOR KEY SHARE on the parent row, so this DELETE *waits* on the lock,
--- but waiting does not make it re-evaluate the `not exists`. When the writer
--- commits, the DELETE proceeds on its stale snapshot and the composite FK's
--- `on delete cascade` destroys the just-committed membership.
+-- A single `delete ... where not exists (...)` is NOT safe here. Under READ
+-- COMMITTED a statement evaluates its subqueries against ONE snapshot, taken
+-- when the statement begins. A concurrent insert into the child takes FOR KEY
+-- SHARE on the parent row (the composite FK), so the DELETE *waits* on that
+-- lock, but waiting does not make it re-evaluate the `not exists`. When the
+-- writer commits, the DELETE proceeds on its stale snapshot and the FK's
+-- `on delete cascade` destroys the just-committed membership, while the caller
+-- is told 'deleted'.
 --
--- Reproduced three times independently on 2026-07-29. Representative run:
--- deleter called at 07:30:41.175, writer COMMITted at 07:30:45.593, RPC
--- returned 'deleted' at 07:30:45.594 (1.1ms later). Collection gone, membership
--- gone, product orphaned.
+-- Recorded because it was believed twice and disproved by execution both times
+-- (2026-07-29, retracted in place per house style). Representative run against
+-- the one-statement version: deleter called at 07:30:41.175, writer COMMITted
+-- at 07:30:45.593, RPC returned 'deleted' at 07:30:45.594, 1.1ms later.
+-- Collection gone, membership gone, product orphaned. Every SEQUENTIAL probe
+-- passed, which is exactly why it survived review: the defect only exists in
+-- the interleaving.
 --
--- The fix is to take a CONFLICTING lock on the parent first and re-check in a
--- LATER statement, so the re-check gets a fresh snapshot:
---   perform 1 from product_collections
---     where id = p_collection_id and artist_id = p_artist_id for update;
--- That must ship with the two-connection reproduction as a pre-registered
--- regression test, shown RED against this version first.
+-- The lock-then-recheck below is the fix. Regression test:
+-- apps/web/tests/db/collection-delete-race.test.ts, which must be shown RED
+-- against the one-statement body before it is trusted.
 --
 -- Mirrors `canDeleteCollection` exactly: memberCount === 0 || archivedAt,
 -- i.e. archived bypasses the population check, empty collections are always
@@ -59,6 +61,27 @@ as $$
 declare
   v_deleted_id uuid;
 begin
+  -- STEP 1, its own statement on purpose. Take a lock on the parent that
+  -- CONFLICTS with the FOR KEY SHARE a child insert acquires, so this blocks
+  -- until any in-flight membership write has committed or rolled back.
+  --
+  -- Being a separate statement is what makes it work: under READ COMMITTED
+  -- each statement takes a FRESH snapshot, so the delete below re-evaluates
+  -- `not exists` against a snapshot that INCLUDES whatever committed while we
+  -- were waiting here. The one-statement version waited on the very same lock
+  -- and still lost, because it resumed on its original snapshot.
+  --
+  -- No row matched (wrong id, another artist's row, already deleted) simply
+  -- locks nothing and falls through to the same 'gone' answer as before.
+  perform 1
+  from product_collections
+  where id = p_collection_id
+    and artist_id = p_artist_id
+  for update;
+
+  -- STEP 2. Fresh snapshot. The eligibility rule is unchanged and still
+  -- mirrors canDeleteCollection exactly: archived bypasses the population
+  -- check, otherwise the collection must be empty.
   delete from product_collections
   where id = p_collection_id
     and artist_id = p_artist_id

@@ -119,16 +119,34 @@ describe("product_collections RLS, authenticated client", () => {
   });
 
   it("lets an owner REORDER their own collections", async () => {
-    const { data: made } = await owner.client
+    const { data: made, error: madeErr } = await owner.client
       .from("product_collections")
       .insert({ artist_id: owner.id, name: "Ordered" })
       .select("id")
       .single();
-    const { error } = await owner.client
+    expect(madeErr, madeErr?.message).toBeNull();
+
+    // ASSERTS AFFECTED ROWS. Through PostgREST an RLS-denied UPDATE returns
+    // `{ data: [], error: null }`: it fails SILENTLY, so `expect(error)
+    // .toBeNull()` proves nothing for this verb. The sibling UPDATE tests in
+    // this block survive only because they chain `.select().single()`, which
+    // turns zero rows into PGRST116; this one had no `.select()` at all.
+    // Executed: with ONLY the UPDATE policy on this table dropped, three tests
+    // in this file went red and this one stayed green.
+    const { data: moved, error } = await owner.client
       .from("product_collections")
       .update({ position: 3 })
-      .eq("id", made!.id);
+      .eq("id", made!.id)
+      .select("id, position");
     expect(error, error?.message).toBeNull();
+    expect(moved, "the reorder must affect exactly one row").toHaveLength(1);
+
+    const { data: after } = await owner.client
+      .from("product_collections")
+      .select("position")
+      .eq("id", made!.id)
+      .single();
+    expect(after?.position, "the new position must be durable").toBe(3);
   });
 
   it("lets an owner toggle visibility, which is the archive/restore shape", async () => {
@@ -200,6 +218,16 @@ describe("product_collections cross-account isolation", () => {
       .eq("id", made!.id)
       .select("id");
     // RLS filters the row out rather than erroring: zero rows affected.
+    //
+    // WHAT THIS DOES NOT PROVE, established by execution: widening the UPDATE
+    // policy to `using (true) with check (true)` leaves this test GREEN, and
+    // the whole file green. The isolation actually being demonstrated here
+    // comes from the SELECT policy, which decides which existing rows an
+    // UPDATE's WHERE clause can even see. Widen SELECT and UPDATE together and
+    // this test does go red, so it is not vacuous, but it cannot tell a sound
+    // UPDATE policy from a wide-open one. That matters for THIS table: its
+    // SELECT policy is `TO public`, and a future public-shop read policy would
+    // silently remove the only protection this test is actually exercising.
     expect(data ?? []).toHaveLength(0);
 
     const { data: after } = await owner.client
@@ -218,13 +246,23 @@ describe("product_collections cross-account isolation", () => {
       .single();
     expect(madeErr, madeErr?.message).toBeNull();
 
-    // The owner may target the row, but WITH CHECK rejects the new shape.
     // Asserts the specific code rather than just non-null: found during an
     // independent audit that this test had the same under-specified shape as
     // the "refuses an INSERT" test above before A8's fix, just never named.
-    // Verified empirically rather than assumed: `artist_id = auth.uid()` in
-    // WITH CHECK is what fails here, so it is an RLS rejection, not a
-    // different kind of error that would also satisfy a bare not-null check.
+    //
+    // RETRACTION. This comment used to read "the owner may target the row, but
+    // WITH CHECK rejects the new shape", and claimed that was verified
+    // empirically. It was not. Executed 2026-07-29: widening ONLY this table's
+    // UPDATE policy to `with check (true)`, leaving SELECT alone, still yields
+    // 42501 and the re-assignment still does not land. So WITH CHECK is not
+    // what produces this error. Postgres also requires the POST-UPDATE row to
+    // satisfy the SELECT policy, and `artist_id = auth.uid()` fails there once
+    // artist_id has been handed away. Dropping the SELECT policy with UPDATE
+    // wide open turns this into `error: null` with the row simply invisible to
+    // the WHERE clause, which is the third distinct behaviour.
+    //
+    // The assertion is kept: 42501 is the right observable. Only the
+    // explanation of WHICH clause enforces it was wrong.
     const { error } = await owner.client
       .from("product_collections")
       .update({ artist_id: other.id })
@@ -241,6 +279,9 @@ describe("product_collections cross-account isolation", () => {
       .insert({ artist_id: owner.id, name: "Persistent" })
       .select("id")
       .single();
+    // Same caveat as the cross-account UPDATE above, and it was executed the
+    // same way: widening the DELETE policy to `using (true)` leaves this test
+    // green. It goes red only when the SELECT policy is widened alongside it.
     const { data } = await other.client
       .from("product_collections")
       .delete()

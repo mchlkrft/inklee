@@ -179,6 +179,13 @@ describe("discount_codes cross-account isolation", () => {
       .eq("id", made!.id)
       .select("id");
     // RLS filters the row out rather than erroring: zero rows affected.
+    //
+    // Executed 2026-07-29: widening this table's UPDATE policy to
+    // `using (true) with check (true)` leaves this test, and the whole file,
+    // green. What is doing the work is the SELECT policy, which gates the rows
+    // an UPDATE's WHERE clause can see. Not vacuous (widening SELECT too does
+    // turn it red) but it cannot distinguish a sound UPDATE policy from an
+    // absent one, and this table is on the revenue path.
     expect(data ?? []).toHaveLength(0);
 
     const { data: after } = await owner.client
@@ -195,7 +202,14 @@ describe("discount_codes cross-account isolation", () => {
       .insert(codeRow(owner.id, nextCode("OWNED")))
       .select("id")
       .single();
-    // USING lets the owner target the row; WITH CHECK rejects the new shape.
+    // RETRACTION, same as the matching test in collections-rls.test.ts. This
+    // used to read "USING lets the owner target the row; WITH CHECK rejects
+    // the new shape". Executed 2026-07-29: with this table's UPDATE policy
+    // widened to `with check (true)` and SELECT left alone, the handover STILL
+    // returns 42501 and still does not land, so WITH CHECK is not the clause
+    // enforcing it. The post-update row must also satisfy the SELECT policy,
+    // and `artist_id = auth.uid()` fails there once the code has been handed
+    // away. The assertion stands; the attribution did not.
     const { error } = await owner.client
       .from("discount_codes")
       .update({ artist_id: other.id })

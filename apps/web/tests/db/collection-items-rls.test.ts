@@ -145,12 +145,32 @@ describe("collection membership, owner", () => {
   });
 
   it("reorders within a collection", async () => {
-    const { error } = await owner.client
+    // ASSERTS AFFECTED ROWS, not the absence of an error, and that is the
+    // whole test. Through PostgREST an RLS-denied UPDATE returns
+    // `{ data: [], error: null }`: it fails SILENTLY, so `expect(error)
+    // .toBeNull()` is a no-op for this verb. Executed rather than reasoned:
+    // with ONLY the UPDATE policy on this table dropped (INSERT, SELECT and
+    // DELETE left in place, so the fixtures still build), the previous version
+    // of this test passed, and so did the other 17 in this file. Nothing here
+    // could detect that reordering had stopped working.
+    const { data: moved, error } = await owner.client
       .from("product_collection_items")
       .update({ position: 5 })
       .eq("collection_id", owner.collectionId)
-      .eq("product_id", owner.productId);
+      .eq("product_id", owner.productId)
+      .select("id, position");
     expect(error, error?.message).toBeNull();
+    expect(moved, "the reorder must affect exactly one row").toHaveLength(1);
+
+    // Read back in a separate statement: RETURNING shows what the UPDATE
+    // produced, which is a weaker claim than the row now holding that value.
+    const { data: after } = await owner.client
+      .from("product_collection_items")
+      .select("position")
+      .eq("collection_id", owner.collectionId)
+      .eq("product_id", owner.productId)
+      .single();
+    expect(after?.position, "the new position must be durable").toBe(5);
   });
 
   it("removes a product from a collection without touching the product", async () => {
@@ -175,18 +195,36 @@ describe("collection membership, owner", () => {
       });
     expect(insertErr, insertErr?.message).toBeNull();
 
-    const { error: deleteErr } = await owner.client
+    // Same silent-failure hazard as the reorder above, and the same fix.
+    // Executed: with ONLY the DELETE policy on this table dropped, the
+    // previous version of this test passed. `expect(deleteErr).toBeNull()`
+    // was satisfied by `{ data: [], error: null }`, and the surviving-product
+    // assertion is true whether or not the membership was ever removed, so
+    // the test's ONE claim went unchecked.
+    const { data: removed, error: deleteErr } = await owner.client
       .from("product_collection_items")
       .delete()
       .eq("collection_id", owner.collectionId)
-      .eq("product_id", extra!.id);
+      .eq("product_id", extra!.id)
+      .select("id");
     expect(deleteErr, deleteErr?.message).toBeNull();
+    expect(removed, "the removal must affect exactly one row").toHaveLength(1);
+
+    const { data: membership } = await owner.client
+      .from("product_collection_items")
+      .select("id")
+      .eq("collection_id", owner.collectionId)
+      .eq("product_id", extra!.id);
+    expect(membership ?? [], "the membership must be gone").toHaveLength(0);
 
     const { data: stillThere } = await owner.client
       .from("products")
       .select("id")
       .eq("id", extra!.id);
-    expect(stillThere).toHaveLength(1);
+    expect(
+      stillThere,
+      "the product must survive losing its membership",
+    ).toHaveLength(1);
   });
 });
 
@@ -310,6 +348,13 @@ describe("collection membership, cross-account", () => {
       "setup insert must succeed, or the read-hiding assertion below proves nothing",
     ).toBeNull();
 
+    // Executed 2026-07-29, both directions. Widening the SELECT policy to
+    // `using (true)` turns this red, so it is not vacuous. But DROPPING the
+    // SELECT policy outright also leaves it green, because "nobody can read
+    // anything" satisfies "the other artist's rows are hidden" just as well as
+    // the real property. Seven other tests in this file go red on that
+    // mutation, so the gate as a whole still catches it; this test on its own
+    // does not, for want of a positive control proving `owner` can read at all.
     const { data } = await owner.client
       .from("product_collection_items")
       .select("id")
@@ -389,7 +434,7 @@ describe("legacy column compatibility", () => {
   });
 
   it("is idempotent: re-writing the same legacy value adds nothing", async () => {
-    const { data: prod } = await owner.client
+    const { data: prod, error: prodErr } = await owner.client
       .from("products")
       .insert({
         artist_id: owner.id,
@@ -400,17 +445,43 @@ describe("legacy column compatibility", () => {
       })
       .select("id")
       .single();
+    expect(prodErr, prodErr?.message).toBeNull();
 
-    await owner.client
+    // Precondition: exactly one mirrored row exists BEFORE the re-write, or
+    // "exactly one afterwards" is satisfied by a re-write that never happened.
+    const { data: rowsBefore } = await owner.client
+      .from("product_collection_items")
+      .select("id")
+      .eq("product_id", prod!.id);
+    expect(
+      rowsBefore,
+      "the mirror must exist before it can be re-written",
+    ).toHaveLength(1);
+
+    // THE RE-WRITE MUST SUCCEED, and that is the assertion the original test
+    // was missing. Idempotence here means the trigger's `on conflict
+    // (collection_id, product_id) do nothing`. Remove that clause and the
+    // second fire raises 23505, which aborts the whole UPDATE and therefore
+    // leaves the row count at exactly 1 -- satisfying the old assertion
+    // perfectly. Executed: with the clause removed, this exact statement
+    // raises `duplicate key value violates unique constraint
+    // "product_collection_items_unique"`, and the old test was green anyway.
+    const { data: updated, error: updateErr } = await owner.client
       .from("products")
       .update({ collection_id: owner.collectionId, title: "Legacy repeated 2" })
-      .eq("id", prod!.id);
+      .eq("id", prod!.id)
+      .select("id, title");
+    expect(updateErr, updateErr?.message).toBeNull();
+    expect(updated, "the re-write must affect exactly one row").toHaveLength(1);
+    expect(updated![0].title, "the re-write must have landed").toBe(
+      "Legacy repeated 2",
+    );
 
     const { data: rows } = await owner.client
       .from("product_collection_items")
       .select("id")
       .eq("product_id", prod!.id);
-    expect(rows).toHaveLength(1);
+    expect(rows, "the re-write must not have added a row").toHaveLength(1);
   });
 
   it("cascades membership away when a product is hard-deleted", async () => {
@@ -518,15 +589,23 @@ describe("archive lifecycle", () => {
   // membership AND per-collection ordering. If a restore came back empty or
   // reshuffled, archive would just be a slower delete.
   it("keeps membership and order across an archive/restore round trip", async () => {
-    const { data: c } = await owner.client
+    // THE ARCHIVE TRANSITION IS ASSERTED, not merely issued. All three of the
+    // original assertions (membership stays 3, restore does not error, after
+    // equals before) are equally true of a collection that was NEVER ARCHIVED,
+    // so none of them tested the round trip. Executed rather than reasoned: a
+    // BEFORE UPDATE trigger pinning `archived_at` to its old value makes every
+    // archive write a silent no-op while still reporting `UPDATE 1`, and under
+    // it the old test passed. So did all 18 in this file.
+    const { data: c, error: cErr } = await owner.client
       .from("product_collections")
       .insert({ artist_id: owner.id, name: "Seasonal" })
       .select("id")
       .single();
+    expect(cErr, cErr?.message).toBeNull();
 
     const ids: string[] = [];
     for (const n of [0, 1, 2]) {
-      const { data: p } = await owner.client
+      const { data: p, error: pErr } = await owner.client
         .from("products")
         .insert({
           artist_id: owner.id,
@@ -536,25 +615,51 @@ describe("archive lifecycle", () => {
         })
         .select("id")
         .single();
+      expect(pErr, pErr?.message).toBeNull();
       ids.push(p!.id);
-      await owner.client.from("product_collection_items").insert({
-        collection_id: c!.id,
-        product_id: p!.id,
-        artist_id: owner.id,
-        position: 2 - n, // deliberately not insertion order
-      });
+      const { error: itemErr } = await owner.client
+        .from("product_collection_items")
+        .insert({
+          collection_id: c!.id,
+          product_id: p!.id,
+          artist_id: owner.id,
+          position: 2 - n, // deliberately not insertion order
+        });
+      expect(itemErr, itemErr?.message).toBeNull();
     }
 
-    const before = await owner.client
+    const { data: before, error: beforeErr } = await owner.client
       .from("product_collection_items")
       .select("product_id, position")
       .eq("collection_id", c!.id)
       .order("position", { ascending: true });
+    expect(beforeErr, beforeErr?.message).toBeNull();
+    // `before` has to be non-trivial and in the deliberately-shuffled order,
+    // or the final `after equals before` is satisfied by two empty arrays.
+    expect(before, "the fixture must exist before it can survive").toHaveLength(
+      3,
+    );
+    expect(before!.map((r) => r.position)).toEqual([0, 1, 2]);
+    expect(before!.map((r) => r.product_id)).toEqual([ids[2], ids[1], ids[0]]);
 
-    await owner.client
+    // ARCHIVE.
+    const archived = await owner.client
       .from("product_collections")
       .update({ archived_at: new Date().toISOString() })
-      .eq("id", c!.id);
+      .eq("id", c!.id)
+      .select("id");
+    expect(archived.error, archived.error?.message).toBeNull();
+    expect(archived.data, "the archive must affect one row").toHaveLength(1);
+
+    const { data: archivedRow } = await owner.client
+      .from("product_collections")
+      .select("archived_at")
+      .eq("id", c!.id)
+      .single();
+    expect(
+      archivedRow?.archived_at,
+      "the collection must actually BE archived, or nothing below is a round trip",
+    ).not.toBeNull();
 
     const { data: whileArchived } = await owner.client
       .from("product_collection_items")
@@ -562,18 +667,32 @@ describe("archive lifecycle", () => {
       .eq("collection_id", c!.id);
     expect(whileArchived, "archiving must not drop membership").toHaveLength(3);
 
-    const { error: restoreError } = await owner.client
+    // RESTORE.
+    const restored = await owner.client
       .from("product_collections")
       .update({ archived_at: null })
-      .eq("id", c!.id);
-    expect(restoreError, restoreError?.message).toBeNull();
+      .eq("id", c!.id)
+      .select("id");
+    expect(restored.error, restored.error?.message).toBeNull();
+    expect(restored.data, "the restore must affect one row").toHaveLength(1);
+
+    const { data: restoredRow } = await owner.client
+      .from("product_collections")
+      .select("archived_at")
+      .eq("id", c!.id)
+      .single();
+    expect(
+      restoredRow?.archived_at,
+      "the collection must actually be live again",
+    ).toBeNull();
 
     const after = await owner.client
       .from("product_collection_items")
       .select("product_id, position")
       .eq("collection_id", c!.id)
       .order("position", { ascending: true });
-    expect(after.data).toEqual(before.data);
+    expect(after.error, after.error?.message).toBeNull();
+    expect(after.data).toEqual(before);
   });
 
   it("deleting a collection removes membership but never the products", async () => {

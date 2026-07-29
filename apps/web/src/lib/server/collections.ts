@@ -205,10 +205,13 @@ export async function deleteCollectionCore(
   // membership inserted in that gap was destroyed by the cascade while the
   // not_eligible refusal never saw it (task #19).
   //
-  // ⚠️ TASK #19 IS STILL OPEN. This narrows the window but does NOT close it.
-  // An earlier version of this comment claimed it did; that claim was false and
-  // is retracted here. See the header of migration 0124 for the mechanism and
-  // the reproduction. Do not cite this path as race-free.
+  // The RPC does the checking, and it is NOT a single `delete ... where not
+  // exists`: that version was written, shipped as "atomic", and still lost the
+  // row. It locks the parent first and re-checks in a later statement. The
+  // mechanism and the reproduction are in the header of migration 0124, and
+  // the regression test is tests/db/collection-delete-race.test.ts. Read the
+  // migration before changing anything here; the reason it is two statements
+  // is not obvious and has been "simplified" back into a defect twice.
   const { data: result, error } = await supabase.rpc(
     "delete_collection_if_eligible",
     { p_collection_id: id, p_artist_id: artistId },
@@ -389,18 +392,42 @@ export async function listCollectionsForArtist(
   supabase: SupabaseClient,
   artistId: string,
 ): Promise<CollectionWithCount[]> {
-  const { data } = await supabase
+  // This read does NOT fail flat, and the difference from
+  // `publicCollectionsForArtist` is deliberate (task #22).
+  //
+  // There, degrading to an empty result renders every product ungrouped, which
+  // is a worse-looking but HARMLESS page. Here, an empty result is read by the
+  // caller as fact: a swallowed error means the artist is shown "no
+  // collections" and may rebuild collections that still exist.
+  const { data, error } = await supabase
     .from("product_collections")
     .select("id, name, position, is_public_visible, archived_at")
     .eq("artist_id", artistId)
     .order("position", { ascending: true });
+  if (error) {
+    throw new Error(`Could not load collections: ${error.message}`);
+  }
   const rows = data ?? [];
   if (rows.length === 0) return [];
 
-  const { data: items } = await supabase
+  // The count below is LOAD-BEARING for a destructive, undoable action:
+  // `canDeleteCollection(collection, productCount)` allows deletion when the
+  // count is 0, and both managers gate their delete control on it
+  // (collections-manager.tsx:149, mobile goods/collections.tsx:240).
+  //
+  // Discarding this error made every collection look EMPTY, which enabled the
+  // delete button on populated collections. Deleting one cascades its
+  // memberships away. A read failure must therefore stop the page, never
+  // silently report zero.
+  const { data: items, error: itemsError } = await supabase
     .from("product_collection_items")
     .select("collection_id")
     .eq("artist_id", artistId);
+  if (itemsError) {
+    throw new Error(
+      `Could not load collection contents: ${itemsError.message}`,
+    );
+  }
 
   const counts = new Map<string, number>();
   for (const it of items ?? []) {
