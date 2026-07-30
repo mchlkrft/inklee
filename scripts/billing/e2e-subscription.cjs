@@ -13,13 +13,11 @@
 //
 //   node scripts/billing/e2e-subscription.cjs
 const crypto = require("crypto");
-const fs = require("fs");
 const { makeClient } = require("./stripe-test-lib.cjs");
-const postgres = require("A:/WORK/inklee/node_modules/postgres/cjs/src/index.js");
+const { requireFromRepo, requireDatabaseUrl } = require("../lib/repo-root.cjs");
+const postgres = requireFromRepo("postgres");
 
-const DB = fs
-  .readFileSync("A:/WORK/inklee/apps/web/.env.local", "utf8")
-  .match(/^DATABASE_URL=\"?([^\"\r\n]+)/m)[1];
+const DB = requireDatabaseUrl();
 const sql = postgres(DB, { ssl: "require", max: 1, idle_timeout: 6 });
 const stripe = makeClient();
 const PRICE_LOOKUP = "inklee_plus_monthly_eur_test";

@@ -10,8 +10,8 @@
 // per-limit count that EXCEEDS the Free cap (grant_package). branding/analytics
 // are NOT grandfathered. Idempotent: skips accounts already tagged legacy_free_v1
 // and MERGES the grant under any existing (admin) overrides.
-const fs = require("fs");
-const postgres = require("A:/WORK/inklee/node_modules/postgres/cjs/src/index.js");
+const { requireFromRepo, requireDatabaseUrl } = require("../lib/repo-root.cjs");
+const postgres = requireFromRepo("postgres");
 
 const APPLY = process.argv.includes("--apply");
 const FREE = { custom_fields: 3, active_trips: 3, studio_library: 5 };
@@ -29,9 +29,7 @@ const adminKey = (email) => {
 };
 const ADMIN_KEYS = new Set(ADMIN_EMAILS.map(adminKey));
 
-const url = fs
-  .readFileSync("A:/WORK/inklee/apps/web/.env.local", "utf8")
-  .match(/^DATABASE_URL=\"?([^\"\r\n]+)/m)[1];
+const url = requireDatabaseUrl();
 const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
 
 function computeGrant(counts) {

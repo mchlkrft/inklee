@@ -5,17 +5,19 @@
 
 # Structural risk report
 
-**Ledger content hash:** `ecf9b4a6c4ee`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `471f172cf838`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-15 recorded finding(s), 2 structural pattern(s), across 34 mapped area(s).
-10 remain open by remediation status. 14 are reachable (directly or conditionally) rather than latent.
-10 have not passed independent verification.
-36 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+61 recorded finding(s), 3 structural pattern(s), across 62 mapped area(s).
+56 remain open by remediation status. 48 are reachable (directly or conditionally) rather than latent.
+56 have not passed independent verification.
+118 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -24,23 +26,24 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Severity | Count |
 | --- | --- |
 | critical | 1 |
-| high | 8 |
-| medium | 4 |
-| low | 2 |
+| high | 19 |
+| medium | 24 |
+| low | 13 |
+| informational | 4 |
 
 ## Findings by remediation status
 
 | Status | Count |
 | --- | --- |
-| fixed-unverified | 5 |
-| open | 5 |
+| fixed-unverified | 8 |
+| open | 48 |
 | verified | 5 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 10 |
+| not-started | 56 |
 | passed | 5 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -96,20 +99,59 @@ Every fix in the money path and the RLS repair that was subjected to a separate 
 - Fixes that were author-verified and never independently re-examined: the entire 0026-0031 RLS incident response, and effectively all pre-2026-07 history. Absence of later findings there is absence of looking, not absence of defects.
 - The ~20 unopened audit documents in docs/ would materially move this pattern's evidence base in either direction.
 
+### PAT-003 — A PostgREST error is discarded, so a transient failure is indistinguishable from a legitimate empty result
+
+**Assessment:** systemic · **Confidence:** high · **Status:** active · **Recurrences:** 5
+
+supabase-js returns errors in the result object rather than throwing. The idiom `const { data } = await supabase...` therefore turns a failed read into a falsy `data`, which the surrounding branch reads as the legitimate business answer "there is nothing here". On a money or deletion path the handler then reports success, and because the caller is often a webhook or a cron there is no human to notice. The same shape recurs in three unrelated subsystems written at different times.
+
+**Shared root-cause hypothesis (a hypothesis, not a conclusion):** HYPOTHESIS: the idiom is correct for reads where an empty result IS the answer, and is copied unchanged to reads where it is not. Nothing in review distinguishes the two cases, and no lint rule or type makes the omission visible. Not established: whether any instance has actually fired in production.
+
+**Findings:** PAY-DEP-001, WHK-ERR-001, CRON-CLN-001, CRON-PRG-001, CRON-CCH-001
+
+**Supporting evidence:**
+- WHK-ERR-001: 17 of 23 Supabase calls in the 915-line deposit webhook omit `error`; the goods order flip at route.ts:718 then skips inventory, the confirmation email and the discount redemption, and returns 200 so Stripe never redelivers.
+- PAY-DEP-001: the same class on the deposit path, found in production on 2026-07-21, and the reason AGENTS.md now carries the rule that a card deposit must never silently become manual.
+- CRON-CLN-001, CRON-PRG-001, CRON-CCH-001: three independent instances in the cron endpoints, including a 7-year financial-retention lookup.
+- The repo has already fixed instances twice with the reasoning written out: appointment-payment-intent.ts:439 "THE READ FAILED, SO WE DO NOT KNOW ANYTHING", and the P5d listCollectionsForArtist fix where a discarded error made productCount 0 and ENABLED a delete button on populated collections.
+
+**Evidence that limits this pattern:** Not universal. The newer P9 cores capture and act on the error (appointment-payment-intent.ts:406 claimError, :449 afterError), and stripe-connect.ts:670 captures its UPDATE error. So the codebase demonstrably knows the correct shape; the pattern is about inconsistent application, not ignorance.
+
+**Inspected, pattern NOT found:**
+- apps/web/src/lib/server/appointment-payment-intent.ts (captures both errors)
+- apps/web/src/lib/stripe-connect.ts:670-682 (captures the UPDATE error)
+
+**Comparable areas NOT yet inspected:**
+- apps/web/src/app/api/email/webhook/route.ts
+- apps/web/src/lib/order-fulfillment.ts
+- apps/web/src/lib/server/discounts.ts recordDiscountRedemption
+- every remaining /api/mobile/* route
+
+**Suggested auditor sampling:**
+- grep for `const { data }` with no `error` across apps/web/src and classify each by whether an empty result is a legitimate answer
+- every handler that returns 200 unconditionally
+
 
 ## Most affected domains
 
 | Domain | Findings |
 | --- | --- |
-| payment | 4 |
-| authorization | 2 |
-| migration | 2 |
-| billing | 1 |
-| ci-cd | 1 |
-| database | 1 |
+| jobs | 12 |
+| webhook | 11 |
+| database | 6 |
+| billing | 5 |
+| payment | 5 |
+| authorization | 3 |
+| migration | 3 |
+| ci-cd | 2 |
+| data-retention | 2 |
+| governance | 2 |
+| production-config | 2 |
+| secrets | 2 |
+| tooling | 2 |
 | entitlement | 1 |
+| logging | 1 |
 | testing | 1 |
-| tooling | 1 |
 | web | 1 |
 
 ## Findings with production reachability
@@ -119,17 +161,51 @@ Every fix in the money path and the RLS repair that was subjected to a separate 
 | PAY-DEP-001 | critical | directly-reachable | historically-impacting | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
 | AUTH-RLS-001 | high | directly-reachable | historically-impacting | product_collections shipped RLS-enabled with a SELECT-only policy while every write runs on the user-scoped client |
 | AUTH-RLS-002 | high | directly-reachable | historically-impacting | discount_codes had the identical SELECT-only RLS defect, live in production on the revenue path, from 0118 until 2026-07-29 |
+| BDEL-RET-001 | high | conditionally-reachable | latent | Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them |
+| BDEL-SUB-001 | high | conditionally-reachable | latent | Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records |
+| BDEL-TTS-001 | high | conditionally-reachable | latent | An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents |
 | BILL-ENT-002 | high | conditionally-reachable | latent | OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile |
+| CRON-CLN-001 | high | conditionally-reachable | latent | cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records |
+| CRON-RMD-001 | high | directly-reachable | actively-impacting | Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46 |
 | DATA-MIG-001 | high | directly-reachable | historically-impacting | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
 | DATA-RACE-001 | high | directly-reachable | reachable-no-known-impact | READ COMMITTED single-statement snapshots defeated two separate safety mechanisms, each shipped with a written claim of atomicity that had never been executed |
+| DRIFT-ENUM-001 | high | conditionally-reachable | latent | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
 | PAY-CONN-001 | high | directly-reachable | historically-impacting | Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault |
 | PAY-SPON-001 | high | directly-reachable | historically-impacting | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
 | TEST-VAC-001 | high | directly-reachable | historically-impacting | Tests incapable of failing, found in at least five independent rounds, including the suite written specifically to prove an RLS repair |
+| WHK-ERR-001 | high | directly-reachable | unknown | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
+| WHK-TOK-001 | high | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
+| BDEL-CON-001 | medium | directly-reachable | latent | Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but the scheduled account deletion at window-end was never built, and the pointer is purged at seven years |
 | BILL-ENT-001 | medium | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
+| CRON-CAP-001 | medium | conditionally-reachable | latent | The per-artist 10-email daily cap is consumed in branch order, and a capped appointment reminder is lost rather than deferred |
+| CRON-COV-001 | medium | conditionally-reachable | unknown | coverage-worker has no run-level mutual exclusion and its real cadence comes from a GitHub Actions schedule against production, making overlap plausible for the non-task work |
+| CRON-GRW-001 | medium | directly-reachable | historically-impacting | The daily growth snapshot has two permanent unrecoverable gaps and nothing detects or backfills a missed run |
+| CRON-IGX-001 | medium | directly-reachable | latent | instagram-refresh marks an account disconnected on ANY thrown error, including a transient Meta outage |
+| CRON-OBS-001 | medium | directly-reachable | actively-impacting | No cron endpoint reports to Sentry; a missed or failed run is invisible, and two misses already went unnoticed |
+| CRON-PRG-001 | medium | directly-reachable | unknown | The 30-day reference-image purge is non-paginated, non-recursive and error-discarding, and it is named as the safety net for a purge path that deliberately does not throw |
+| CRON-SEC-001 | medium | conditionally-reachable | latent | One CRON_SECRET authorises eleven endpoints including bulk deletion and customer email, and doubles as the Instagram OAuth state signing key |
+| CRON-TOK-001 | medium | conditionally-reachable | latent | Reconfirmation rotates the customer's magic-link token before sending the email, so a crash between the two permanently locks the customer out |
 | DATA-MIG-002 | medium | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
+| DATA-MIG-003 | medium | conditionally-reachable | latent | Two migrations state that Supabase default privileges grant service_role EXECUTE; measured, the privilege comes from PUBLIC, so `revoke ... from public` silently removes it in production |
+| DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
+| OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
+| SEED-GRT-001 | medium | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
+| WHK-DEA-001 | medium | conditionally-reachable | latent | The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id; ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment |
+| WHK-RFD-001 | medium | directly-reachable | latent | charge.refunded records at most one audit row per booking carrying the first cumulative amount, so a partial refund is indistinguishable from a full one and later partials are never recorded |
+| WHK-RTY-001 | medium | directly-reachable | unknown | The file identifies Stripe endpoint auto-disabling as a hazard in one branch and then returns 4xx from six other branches for permanently unsatisfiable conditions |
+| WHK-SPN-001 | medium | conditionally-reachable | latent | A failed sponsorship booked-stamp after a SUCCESSFUL increment leaves the cap permanently over-consumed, and the comment asserting otherwise only covers the other case |
+| BDEL-STE-001 | low | directly-reachable | reachable-no-known-impact | profiles already carries account_status, deleted_at, deleted_by, suspended_at and suspended_reason, but account_status enforces nothing outside admin surfaces |
 | COPY-UI-001 | low | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
+| CRON-AUT-001 | low | directly-reachable | theoretical | Seven of eight cron endpoints use a plain string comparison for the bearer secret while the repo's own timing-safe helper is used by exactly one |
+| CRON-CCH-001 | low | conditionally-reachable | latent | Module-scope artist caches are never invalidated and cache a swallowed profile-read failure for the whole run |
+| CRON-TZO-001 | low | conditionally-reachable | latent | Reminder candidate windows are computed in server-local time while the match is computed in artist time, so far-western artists silently never receive minimum-day reminders |
+| DRIFT-FN-001 | low | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
+| OPS-CFG-001 | low | directly-reachable | reachable-no-known-impact | The grandfathering backfill defaults ADMIN_EMAILS to a hardcoded personal address; the application's admin guard has no default at all |
+| OPS-CRD-001 | low | conditionally-reachable | latent | RISK INTRODUCED BY THIS REMEDIATION: an exported DATABASE_URL now outranks apps/web/.env.local in every governance recorder |
 | OPS-LINT-001 | low | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
+| WHK-CUR-001 | low | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
+| OPS-DOC-001 | informational | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
 ## Findings awaiting verification
 
@@ -138,17 +214,30 @@ Every fix in the money path and the RLS repair that was subjected to a separate 
 | PAY-DEP-001 | critical | fixed-unverified | not-started | 7e59c79 |
 | DATA-MIG-001 | high | fixed-unverified | not-started | 31f320c |
 | PAY-CONN-001 | high | fixed-unverified | not-started | 7e59c79 |
+| PAY-FEE-002 | high | fixed-unverified | not-started | - |
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
+| PAY-WHK-001 | high | fixed-unverified | not-started | - |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
+| OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
 
 ## Analogous areas flagged but NOT inspected
 
 These are the register's highest-value entries for an auditor: places a recorded weakness could plausibly also exist, where nobody has looked.
 
+- /api/admin/seed-coverage and /api/admin/seed-country reach the same pipeline behind the same secret.
 - /pricing's hardcoded yearly price (the other half of C2) was NOT read by me.
+- 0079_claim_flow.sql and 0125 are mirrored in seed.sql; whether the mirrors are FAITHFUL to the migrations (rather than merely present) was not verified line by line.
+- 0095, 0096 and 0098 are named by DATA-MIG-001 as also applied out of band and repaired into the ledger. They produced no unexplained deviation in this diff, but their bodies were only compared by whitespace-collapsed hash, which would not catch a difference the diff engine classified as branch-ahead or cascade.
 - 0115 (projects), 0116 (fee_actuals), 0117 (project_client_portal), 0119 (product_drops_preorders) were not policy-vs-client audited by me.
 - 0118's SELECT policies carry no `TO` clause so they bind PUBLIC including anon; whether anon holds a table-level GRANT was NOT checked against a live catalog.
+- AGENTS.md and DATA-MIG-001 note 0095-0098 were also applied out of band and then repaired into the ledger. 0097 is confirmed divergent (DATA-DRIFT-004). 0095, 0096 and 0098 were compared as part of the whole-catalog diff and produced no unexplained deviation, but their SQL text was not read line by line against production.
+- Any admin/reconciliation tooling that could repair fee_sponsored_used_cents
+- Any future `project_id`-subject P9 intent reaching this endpoint
+- Any other caller that rotates customer_token_hash was not enumerated.
 - Commit edb99fb (2026-07-21) records that 0095-0098 ALSO had to be repaired into the ledger because 'they had been applied by another session via direct SQL and were unrecorded' — a second, later ledger/reality divergence, in the safe direction. Whether other silent divergences exist was NOT checked against a live catalog.
+- Every other `revoke execute ... from public` in the migration set was NOT enumerated. Any function whose only caller is the service role and which revokes from PUBLIC without an explicit service_role grant has the live version of this defect.
+- Every other fixture divergence between the local stack and production: seed.sql also runs ALTER DEFAULT PRIVILEGES (lines 27-30), so future objects created locally differ too, and pg_default_acl was not diffed.
+- Every other object created by 0036 and 0037 was compared and matched; objects created by migrations applied out of band that this pass could not attribute were not separately enumerated.
 - Every other table created since 0035 with `enable row level security` — I did not enumerate policy-vs-writing-client across the full table set.
 - Fixes that were author-verified and never independently re-examined: the entire 0026-0031 RLS incident response, and effectively all pre-2026-07 history. Absence of later findings there is absence of looking, not absence of defects.
 - I did NOT sweep the codebase for em-dashes in user-visible strings; I verified only the two the plan named. A repo-wide sweep of JSX string literals and apps/web/content/legal was NOT done.
@@ -156,46 +245,130 @@ These are the register's highest-value entries for an auditor: places a recorded
 - I scanned only `create table if not exists` blocks. Sibling non-convergent shapes were NOT scanned: `create index if not exists` where the definition later changed, `create policy` without a preceding `drop policy if exists`, `create trigger` guarded by existence rather than dropped and recreated.
 - Migrations 0108, 0109 and 0110 add further billing objects; I confirmed only that they contain no `references profiles(id)` lines. Whether they create tables with other cascade paths to profiles was NOT checked.
 - My grep excluded *.md but covered the whole tree; only scripts/ matched, so apps/ appears clean, but I did not separately audit apps/mobile config files.
+- No check was made for mangling in object COMMENTS, ACL grantee names, or the auth/storage schemas.
+- No check was made of whether any existing test in apps/web/tests/db/ actually depends on the growth views' grants, so the concrete number of tests affected is unknown.
+- No other name-keyed object class was swept for near-miss names (constraints, triggers, indexes matched exactly, but a name that differs only in invisible characters WOULD have shown as a missing/extra pair, and only this one did).
+- No sweep was done for OTHER metadata keys that two features now share on one Stripe account. `artist_id` is on both the deposit intent and the P9 intent; `order_id` is on the combined deposit-plus-goods intent. Whether any consumer treats one of those as a discriminator was not checked.
+- Non-public schemas were not swept for orphans.
+- Orphan objects of other kinds in production were searched for only in the categories this diff covers (tables, views, sequences, functions, indexes, constraints, triggers, policies, enums, extensions, publications). Composite types, domains, operators, casts and collations were not enumerated.
 - Other Sentry-capture-then-continue sites across the money path were not enumerated by me. Commit 3fce7be (2026-07-30) shows the class was still being found nine days later: 'the lost-claim read-back discarded its error ... the code CANCELLED AN INTENT A TWIN WAS COLLECTING ON'.
+- Other bearer/secret comparisons outside the cron and admin-seed surface were not enumerated.
 - Other cached external-state denormalisations on profiles (Instagram token state from 0061/0062, subscription status from 0106) were NOT audited by me for the same 'cache asserts a capability the external system denies' shape.
 - Other constants duplicating a schedule/registry value and agreeing only under current configuration were NOT swept for. Candidates I did not check: cap values in packages/shared/src/entitlements.ts vs docs/product/pricing-model.md, and the capability-registry-vs-CAPABILITIES lockstep that docs/architecture/capability-registry.md:3-6 says is required.
+- Other module-scope caches in route handlers were not enumerated.
 - Other multi-statement read-then-write sequences in apps/web/src/lib/server/ were NOT enumerated by me. 'Read a count, then act on it in a separate round trip' is generic and I checked only collections and payment-requests.
+- Other one-source-of-truth pairs between scripts/ and apps/web that encode the same policy twice (the entitlement caps in legacy-free-recompute.cjs:32-37 are explicitly described as mirroring packages/shared/src/entitlements.ts; I read the comment but did not diff the two).
 - Other webhook handlers that mutate money-adjacent counters were not enumerated by me for the delta-vs-converge property. The AGENTS.md rule is general but I verified it only for the sponsorship release path.
+- Resend-side suppression/rate limiting was not inspected.
+- Statement-level or deferred constraint triggers were not enumerated (I filtered on row-level DELETE/UPDATE tgtype bits).
 - The 2374-test unit suite (count from 3fce7be) has NOT been mutation-tested as a whole. Only the 14 golden fee tests and a handful of db tests carry demonstrated kill evidence.
+- The Instagram sync/import paths in the shared sync module use the same token and were not inspected for the same catch-everything shape.
 - The Playwright e2e suite was not examined by me for the same class.
+- The Resend email webhook (apps/web/src/app/api/email/webhook/route.ts) was NOT inspected for the same shape: an event type it does not recognise returning a non-2xx.
+- The Stripe Customer is never deleted either; I did not check whether an orphaned Customer with a saved payment method can be charged by any other path.
 - The accepted residual — 'a refund that is itself later reversed does not re-debit, since the ledger only converges upward' (bcb45d5) — is recorded as known and handled by hand. No tooling for it was inspected.
+- The account-deletion path uses the same ORDER_MONEY_STATES carve-out (account-deletion-logic.ts:44) and was not re-checked for the same discarded-error shape in this pass.
+- The artist cancel path's forfeiture branch
+- The billing-webhook endpoint's subscription set
+- The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
+- The deposit endpoint's `account.updated` and `account.application.deauthorized` branches return 500 on a persistence error. Whether that can loop on a permanently failing account was not examined.
+- The lifecycle email engine (runLifecycleEngine, 431 lines) has its own repeat-suppression logic which I did not read.
+- The lifecycle engine's own send limits were not inspected and could interact with the same per-artist volume.
 - The mobile app's copy was NOT swept.
 - The mobile deposit route (apps/web/src/app/api/mobile/bookings/[id]/deposit/route.ts) was NOT inspected by me for the same degradation.
+- The mobile payouts onboarding route, if one exists
+- The order_items currency hard-coding at actions.ts:486/557/574/586 versus a non-EUR artist
+- The project portal token path, apps/web/src/app/project/[token]/page.tsx:89
+- The same collision shape could exist between any future append-only guard and any cascading FK. No lint or test exists to catch it.
+- The same question for SEQUENCES and for `revoke ... from public` on tables was not asked.
+- The same reasoning applies to REFERENCES and TRIGGER privileges, which are also in the blanket grant and also not gated by RLS; neither was assessed.
+- The studio-media and welcome-pack-files buckets (already flagged in the storage coverage row as having zero policies) have no equivalent scheduled purge that I found.
+- The subject-scoped balance ceiling in the same quote uses `balanceExtrasFromLines(lines)` over the WHOLE frozen basket and was deliberately left alone: it answers a different question (what the appointment still owes) rather than what this charge takes. That reasoning was not independently reviewed.
 - The two mobile Connect routes named above — NOT inspected.
 - The ~20 unopened audit documents in docs/ would materially move this pattern's evidence base in either direction.
 - The ~45 migrations whose headers make correctness claims I did not test (0067, 0070, 0075, 0080, 0082, 0088, 0106 carry particularly long explanatory headers).
 - Triggers elsewhere in the migration set that read a parent row without FOR UPDATE/FOR SHARE were NOT scanned.
+- Untracked local material (.scratch/**, .claude/**, .claude-audit-digest-round1.md, the .claude/worktrees checkout) contains many absolute paths; enumerated but out of scope because it is not in the repository.
+- Webhook handlers were reported in the register as having the same unproven-Sentry question; not re-checked here.
+- Whether `deposit_fee_sponsorship_booked_cents` is reset when a paid deposit is re-requested
+- Whether `payment_intent.payment_failed` is actually subscribed (handler exists at route.ts:357; two of the four repo lists include it, ot-12-rollout-runbook.md does not)
+- Whether an artist with a nonzero Connect balance at deletion time loses their payout route entirely was not traced; deletion removes the profile that the payout UI reads from.
 - Whether anon can SELECT discount_codes: 0118's policies omit `TO authenticated` so they bind PUBLIC. Table-level GRANTs for anon were NOT checked against any catalog.
 - Whether any OTHER Stripe-object-creating path lacks an entitlement gate (account-link creation, document upload from b5d33bf) — NOT inspected.
+- Whether any Supabase Edge Function or cron job runs as `authenticated` was not checked.
+- Whether any already-written migration in 0000-0128 attempts a `drop policy if exists` against a name that production spells differently was not checked.
+- Whether any invoice PDF or artifact lives in Supabase Storage under a prefix the purge would delete - artifacts.ts was not read.
 - Whether any of the other nine scripts is a required step in a runbook a second person would execute — I confirmed runbook status only for verify-legal-artifacts.cjs.
 - Whether any of the six tables retained rows written during the gap window was not checked.
+- Whether any other signing key in the codebase falls back to a bearer secret was not enumerated (WA_VISITOR_HASH_SECRET was not checked).
+- Whether db-backup.yml and coverage-worker.yml have equivalent silent-manual dependencies.
 - Whether packages/shared is covered by prettier — lint-staged also runs `prettier --write` on *.{ts,tsx} and prettier has no base-path restriction, so formatting may be covered where linting is not. NOT verified.
 - Whether the Terms actually promise retention of these specific records — I did NOT read apps/web/content/legal/terms.
+- Whether the audit register's own `pnpm audit:check` step, which IS in CI, would catch a stale generated report if findings.yaml were edited by a non-CI path.
+- Whether the endpoint has 'events on connected accounts' enabled, which the Connect events at :147 and :162 require
+- Whether the public artist page and the booking-request intake independently filter on anything equivalent was not traced.
 - Whether vitest coverage includes packages/shared — commit 805358d notes the unit run 'globs src/** only', which suggests it may not. NOT verified.
+- Which OTHER migrations were authored retroactively to describe already-applied production state is not established. Commit-message search for that pattern was not performed across all 127 migrations; only 0056 surfaced, and only because the diff pointed at it.
+- `resolveOrderFee` (apps/web/src/lib/server/order-fee-sync.ts) prices a re-prepared deposit-plus-goods intent from `depositMinor` and a caller-composed `goodsBaseMinor`. Whether those can diverge from the amount that intent will actually take was NOT examined in this pass.
+- apps/web/src/app/api/cron/* handlers
+- apps/web/src/app/api/email/webhook/route.ts
+- apps/web/src/app/api/email/webhook/route.ts (167 lines, register says untested)
+- apps/web/src/app/api/email/webhook/route.ts status codes
+- apps/web/src/app/api/stripe/billing-webhook/route.ts status codes
+- apps/web/src/app/api/stripe/billing-webhook/route.ts — same question about event.account and livemode
+- apps/web/src/app/api/stripe/billing-webhook/route.ts — whether subscription invoice PIs could ever carry booking_id
+- apps/web/src/app/request/[token]/actions.ts:119 — another `customer_token_hash` rotation, error handling not inspected
+- apps/web/src/lib/analytics-gates.ts and growth-queries.ts also branch on ADMIN_EMAILS and were not compared.
+- apps/web/src/lib/order-fulfillment.ts
+- apps/web/src/lib/order-fulfillment.ts decrementInventory internals
+- apps/web/src/lib/server/bookings.ts refundDepositCore and cancelBookingCore interaction with a partial refund
+- apps/web/src/lib/server/discounts.ts recordDiscountRedemption
 - apps/web/src/lib/server/storage-purge.ts was NOT inspected for the same retention conflict.
 - apps/web/tests/db/appointment-payments-rls.test.ts carries 68 assertions and was NOT inspected by me for the N1/N2 shapes (bare not.toBeNull, undestructured setup writes).
+- cleanup's overdueWindow (route.ts:92-94) also builds a date key from a UTC instant and compares it to a DATE column (deposit_due_at is DATE per 0006_deposit_fields.sql:3); I read it and found the comparison type-consistent but did not analyse its timezone edges.
 - docs/ contains roughly twenty one-off audit documents (security-audit-2026-06-10.md, payment-audit-2026-06-03.md and -06-05.md, mobile-audit-2026-06-08.md, mobile-audit-2-2026-06-08.md, launch-readiness-audit.md, web-functionality-audit-2026-06-11.md, analytics-audit-2026-05-14.md, flash-parity-audit-2026-07-04.md, mobile-web-audit-2026-06-18.md, admin-growth-cockpit-audit.md, me15-tablet-audit.md, branding-ui-audit.md, nav-auth-ui-audit-slice-61.md, seo-geo-audit-slice-1.md, phase-d-audit-2026-05-24.md, docs/ux-audit/) that I did NOT open. Each is a candidate carrier of the same defect: a verdict recorded without executed evidence, now cited as authority.
+- every remaining /api/mobile/* route
+- executeCoverageTask, handOffBatches, finalizeRun (all in seed-coverage.ts) - the 1847-line module was only read around the claim path.
+- gsc-sync's rolling 10-day window self-corrects late data and so is gap-tolerant by design; the coverage-worker's checkpointing was not evaluated for gap recovery.
+- idx_map_locations_name_trgm (the sibling index in 0097) matched exactly; no other 0097 object was individually read.
+- markConnectAccountUnreachable's interaction with this state
+- moderation_statements is deliberately excluded from the purge (:129-132) pending Phase 7; nothing enforces that its 5-year bound is eventually implemented.
+- order_fulfillment_status also declares a 'cancelled' label (0036:12-14) and COMPARED CLEAN, but no other enum in the repo was checked for semantically-equivalent silent-mismatch classes (e.g. trailing whitespace, case).
 - packages/shared/src/order-fees.ts and fee-schedule.ts were not read in full by me; my evidence for the engine's current shape is order-fee-sync.ts plus commit messages.
+- pg_default_acl differences between local and production were not diffed, so whether newly created production objects will keep inheriting this grant is assumed, not verified.
+- profiles.deleted_at / deleted_by have no writer that I found in the deletion path; who sets them, if anyone, is unknown.
+- scripts/billing/stripe-test-lib.cjs has the same env-first order for STRIPE_SECRET_KEY; it refuses a live key, but I did not audit that refusal.
+- scripts/country-geo-import.cjs, seed-country.cjs and seed-coverage.cjs read CRON_SECRET env-first and were not evaluated for the same retargeting shape.
+- storage-purge.ts still unread for the same retention conflict (carried over from BILL-ENT-002).
+- syncDate and the gsc_* upserts; the backfill cursor advance (sync.ts:276-313) writes cursor_date after a batch with no lock re-check.
+- withdrawal.ts was only grepped, so whether an in-flight withdrawal case interacts with deletion is unassessed.
 
 ## Recommended independent-auditor priorities
 
 1. **PAT-001** (systemic): A safety property is asserted in a comment or commit message before it has ever been executed, and the assertion then suppresses the next reader's inspection
 2. **PAT-002** (systemic): Independent adversarial verification is the only mechanism in this repo that has ever caught a defect in a fix, and on the money path it has caught one every ti
-3. **PAY-DEP-001** (critical, unverified): A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation
-4. **BILL-ENT-002** (high, unverified): OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile
-5. **DATA-MIG-001** (high, unverified): `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks
-6. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
-7. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
-8. **Uninspected**: Mobile client (Expo app) / mobile
-9. **Uninspected**: Background jobs and crons / jobs
-10. **Uninspected**: Storage access (Supabase buckets) / storage
-11. **Uninspected**: Dependency security / secops
-12. **Uninspected**: Production configuration / platform
+3. **PAT-003** (systemic): A PostgREST error is discarded, so a transient failure is indistinguishable from a legitimate empty result
+4. **PAY-DEP-001** (critical, unverified): A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation
+5. **BDEL-RET-001** (high, unverified): Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them
+6. **BDEL-SUB-001** (high, unverified): Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records
+7. **BDEL-TTS-001** (high, unverified): An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents
+8. **BILL-ENT-002** (high, unverified): OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile
+9. **CRON-CLN-001** (high, unverified): cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records
+10. **CRON-RMD-001** (high, unverified): Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46
+11. **DATA-MIG-001** (high, unverified): `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks
+12. **DRIFT-ENUM-001** (high, unverified): Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production
+13. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
+14. **PAY-FEE-002** (high, unverified): The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount
+15. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
+16. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
+17. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
+18. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
+19. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
+20. **Uninspected**: Mobile client (Expo app) / mobile
+21. **Uninspected**: Background jobs and crons / jobs
+22. **Uninspected**: Dependency security / secops
+23. **Uninspected**: Production configuration / platform
+24. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
 
 ## Limitations and confidence warnings
 

@@ -40,12 +40,10 @@ const KEYS = [
   },
 ];
 
-const fs = require("fs");
-const postgres = require("A:/WORK/inklee/node_modules/postgres/cjs/src/index.js");
+const { requireFromRepo, requireDatabaseUrl } = require("../lib/repo-root.cjs");
+const postgres = requireFromRepo("postgres");
 const APPLY = process.argv.includes("--apply");
-const url = fs
-  .readFileSync("A:/WORK/inklee/apps/web/.env.local", "utf8")
-  .match(/^DATABASE_URL=\"?([^\"\r\n]+)/m)[1];
+const url = requireDatabaseUrl();
 const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
 
 (async () => {

@@ -27,9 +27,15 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const {
+  repoPath,
+  requireFromRepo,
+  resolveEnvValue,
+  envFileLabel,
+  connectionTarget,
+} = require("../lib/repo-root.cjs");
 
-const ROOT = "A:/WORK/inklee";
-const LEGAL_DIR = path.join(ROOT, "apps/web/content/legal");
+const LEGAL_DIR = repoPath("apps", "web", "content", "legal");
 const DOC_IDS = [
   "imprint",
   "terms",
@@ -87,22 +93,21 @@ for (const id of DOC_IDS) {
 
 // ------------------------------------------------------------------ database
 (async () => {
-  const postgres = require(
-    path.join(ROOT, "node_modules/postgres/cjs/src/index.js"),
-  );
-  const envRaw = fs.readFileSync(
-    path.join(ROOT, "apps/web/.env.local"),
-    "utf8",
-  );
-  const m = envRaw.match(/^DATABASE_URL="?([^"\r\n]+)/m);
-  if (!m) {
-    console.log("\n[db] SKIPPED: no DATABASE_URL in apps/web/.env.local");
+  const postgres = requireFromRepo("postgres");
+  // Unchanged semantics: a MISSING credential file is an error (resolveEnvValue
+  // throws, the catch below exits 1), while a present file with no DATABASE_URL
+  // is the documented SKIP. Collapsing those two would let the database half
+  // silently opt out on a machine that never had the file.
+  const { value: dbUrl, source } = resolveEnvValue("DATABASE_URL");
+  if (!dbUrl) {
+    console.log(`\n[db] SKIPPED: no DATABASE_URL in the environment or ${envFileLabel()}`);
     console.log(
       "     The database half is REQUIRED before any launch-adjacent approval.",
     );
     process.exit(failures ? 1 : 0);
   }
-  const sql = postgres(m[1], { ssl: "require", max: 1, idle_timeout: 8 });
+  console.log(`\n[db] target ${connectionTarget(dbUrl)} (from ${source})`);
+  const sql = postgres(dbUrl, { ssl: "require", max: 1, idle_timeout: 8 });
 
   console.log("\n[db] recorded approvals vs current artifacts");
   try {

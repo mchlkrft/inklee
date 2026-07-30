@@ -1,0 +1,2359 @@
+{
+ "generated_at": "2026-07-30T14:17:05.393Z",
+ "expected_source": "local postgres://***@127.0.0.1:54322/postgres",
+ "observed_source": "production llmzzsmppaqwecbrowlp (Management API, read_only)",
+ "local_ledger_max": "0128",
+ "prod_ledger_max": "0124",
+ "normalization": "whitespace collapsed; leading `public.`/`extensions.` qualifiers stripped from every compared value (the two sides deparse with different search_path)",
+ "attribution_is_heuristic": true,
+ "probe_notes": {
+  "ledger": "Bookkeeping only. Present so ledger-vs-catalog disagreement is visible in one artifact; it is NOT evidence of state (DATA-MIG-001).",
+  "tables": "public base and partitioned tables, with RLS enablement.",
+  "columns": "Ordinal position is deliberately NOT compared: it differs legitimately when a column is added by a later migration on one side.",
+  "constraints": "Includes FK, unique, check, pkey, exclusion. This is the probe DATA-MIG-002 (inline constraints skipped by `create table if not exists`) needs.",
+  "indexes": "Constraint-backing indexes appear here too; a unique-constraint drift shows in both probes. `valid` matters because a failed CREATE INDEX CONCURRENTLY leaves an index that EXISTS, matches by name, and is silently never used. 0097 states its indexes were built CONCURRENTLY in production, so name-only comparison would not have been enough.",
+  "triggers": "public schema plus auth.users, which migrations attach to. Internal (constraint) triggers excluded.",
+  "functions": "Body compared by md5 of the WHITESPACE-COLLAPSED source, not the raw source. Raw md5 differed for 21 of 42 functions on the first run purely because this Windows checkout has core.autocrlf=true, so the local stack got CRLF bodies and production has LF. That is a checkout artifact, not drift, and comparing raw md5 would have reported 21 false positives every run. body_md5 is still emitted, uncompared, so a reader can see the raw hashes.",
+  "rpc_grants": "The RPC surface: which public function each PostgREST role may execute. Uses has_function_privilege, NOT `set role` (that segfaults the local Postgres image).",
+  "policies": "AUTH-RLS-001/002 live here: `cmd` and `with_check` are the columns that distinguish a SELECT-only policy from a working write path.",
+  "storage_buckets": "Bucket CONFIG only. No object rows, no owners: this is a public repository.",
+  "table_grants": "Uses has_table_privilege, NOT information_schema.role_table_grants. The latter only shows grants the CURRENT role participates in, so under the Management API's supabase_read_only_user it returns zero rows on production and a naive diff reads that as 'every grant is missing'. A grant is the layer UNDER RLS: correct policies plus a missing grant is still a broken feature.",
+  "sequences": "Existence only. Current values are data, not schema, and differ by design.",
+  "extensions": "Version is REPORTED but not compared: it is platform-managed and drifts by design between the local image and the hosted project.",
+  "publications": "Realtime membership. A table added to supabase_realtime from the dashboard shows up here as unexplained-extra.",
+  "cron_jobs": "Scheduled work is schema the migrations do not always own. Probe is optional: a missing cron schema is reported as UNINSPECTABLE on that side, never as 'no jobs'."
+ },
+ "summary": {
+  "ledger": {
+   "status": "compared",
+   "local": 127,
+   "prod": 123,
+   "deviations": 4
+  },
+  "tables": {
+   "status": "compared",
+   "local": 111,
+   "prod": 107,
+   "deviations": 4
+  },
+  "columns": {
+   "status": "compared",
+   "local": 1406,
+   "prod": 1344,
+   "deviations": 67
+  },
+  "constraints": {
+   "status": "compared",
+   "local": 500,
+   "prod": 438,
+   "deviations": 62
+  },
+  "indexes": {
+   "status": "compared",
+   "local": 318,
+   "prod": 291,
+   "deviations": 28
+  },
+  "triggers": {
+   "status": "compared",
+   "local": 9,
+   "prod": 5,
+   "deviations": 4
+  },
+  "functions": {
+   "status": "compared",
+   "local": 48,
+   "prod": 42,
+   "deviations": 7
+  },
+  "rpc_grants": {
+   "status": "compared",
+   "local": 144,
+   "prod": 126,
+   "deviations": 18
+  },
+  "policies": {
+   "status": "compared",
+   "local": 82,
+   "prod": 72,
+   "deviations": 12
+  },
+  "storage_policies": {
+   "status": "compared",
+   "local": 1,
+   "prod": 1,
+   "deviations": 0
+  },
+  "storage_buckets": {
+   "status": "compared",
+   "local": 4,
+   "prod": 4,
+   "deviations": 0
+  },
+  "table_grants": {
+   "status": "compared",
+   "local": 339,
+   "prod": 327,
+   "deviations": 16
+  },
+  "schema_grants": {
+   "status": "compared",
+   "local": 12,
+   "prod": 12,
+   "deviations": 0
+  },
+  "enums": {
+   "status": "compared",
+   "local": 17,
+   "prod": 17,
+   "deviations": 9
+  },
+  "views": {
+   "status": "compared",
+   "local": 2,
+   "prod": 2,
+   "deviations": 0
+  },
+  "sequences": {
+   "status": "compared",
+   "local": 1,
+   "prod": 1,
+   "deviations": 0
+  },
+  "extensions": {
+   "status": "compared",
+   "local": 10,
+   "prod": 8,
+   "deviations": 2
+  },
+  "publications": {
+   "status": "compared",
+   "local": 0,
+   "prod": 0,
+   "deviations": 0
+  },
+  "cron_jobs": {
+   "status": "uninspectable",
+   "local": "uninspectable",
+   "prod": "uninspectable",
+   "reason": "relation \"cron.job\" does not exist"
+  }
+ },
+ "counts": {
+  "expected-branch-ahead": 40,
+  "child-of-branch-ahead-table": 173,
+  "unexplained-mismatch": 12,
+  "unexplained-missing": 3,
+  "unexplained-extra": 5
+ },
+ "prod_rls_invariants": {
+  "rls_enabled_zero_policies": [
+   "account_billing_profiles",
+   "account_overrides",
+   "admin_action_log",
+   "analytics_events",
+   "artist_activity_days",
+   "billing_activation_approvals",
+   "billing_consent_records",
+   "billing_contract_confirmations",
+   "billing_legal_policies",
+   "billing_quotes",
+   "billing_risk_events",
+   "billing_subscriptions",
+   "deleted_account_records",
+   "email_events",
+   "email_jobs",
+   "email_lifecycle_markers",
+   "email_lifecycle_runs",
+   "email_sends",
+   "email_suppressions",
+   "email_unsubscribe_tokens",
+   "founder_offer_policy",
+   "founder_offer_redemptions",
+   "founding_artist_applications",
+   "growth_daily_snapshots",
+   "growth_settings",
+   "gsc_backfills",
+   "gsc_connections",
+   "gsc_daily_dimensions",
+   "gsc_daily_totals",
+   "gsc_properties",
+   "map_coverage_datasets",
+   "map_coverage_discoveries",
+   "map_coverage_runs",
+   "map_coverage_tasks",
+   "map_coverage_units",
+   "map_duplicate_suggestions",
+   "map_locations",
+   "map_reports",
+   "map_seed_areas",
+   "map_seed_candidates",
+   "map_seed_country_runs",
+   "map_seed_provider_usage",
+   "map_seed_runs",
+   "map_settings",
+   "mobile_waitlist",
+   "moderation_statements",
+   "pricing_plans",
+   "studio_signals",
+   "styles",
+   "tax_policies",
+   "tax_thresholds",
+   "transaction_tax_snapshots",
+   "vies_validation_attempts",
+   "wa_visit_rollup_days",
+   "wa_visits_daily",
+   "web_analytics_events",
+   "web_analytics_ingest_stats",
+   "withdrawal_cases"
+  ],
+  "rls_disabled_but_policies_exist": [],
+  "rls_disabled": [],
+  "invalid_indexes": [],
+  "disabled_triggers": [],
+  "not_valid_constraints": []
+ },
+ "uninspectable": {
+  "local": {
+   "cron_jobs": "relation \"cron.job\" does not exist"
+  },
+  "prod": {
+   "cron_jobs": "400 {\"message\":\"Failed to run sql query: ERROR:  42P01: relation \\\"cron.job\\\" does not exist\\nLINE 2:   from cron.job order by 1\\n               ^\\n\"}"
+  },
+  "structural": {
+   "auth service config": "GoTrue settings (providers, JWT expiry, MFA enforcement, email templates) live in the platform, not the catalog. Reachable via GET /v1/projects/{ref}/config/auth, which this script does not call.",
+   "postgrest config": "db-schemas, max-rows, pre-request hook. Platform config, not catalog. GET /v1/projects/{ref}/postgrest.",
+   "api / network config": "Network restrictions, SSL enforcement, custom domains, read replicas: platform, not catalog.",
+   "edge functions": "Deployed function bodies and their secrets are not in the catalog.",
+   "vault secrets": "vault.secrets is deliberately NOT probed. Reading it would put decrypted secrets in an artifact in a public repository.",
+   "row data": "No probe reads application rows. Drift in DATA (a missing backfill, an orphaned row) is invisible to this script by design.",
+   "grants to roles outside the PostgREST three": "Only anon, authenticated and service_role are compared. supabase_auth_admin, dashboard_user, authenticator and custom roles are not.",
+   "column-level grants": "information_schema.role_table_grants is aggregated per table. A column-level GRANT would not show.",
+   "default privileges": "pg_default_acl is not probed, so a future-object grant difference is invisible until an object is created.",
+   "event triggers / rules / FDWs / partitions": "Not probed. No migration currently creates one; that is an assumption, not a check.",
+   "auth and storage schema tables": "Only storage POLICIES and BUCKET config are compared. The platform-owned table definitions in auth/storage/realtime are excluded, because they drift by platform version rather than by our migrations.",
+   "whether a table_grants deviation is production drift": "Not decidable by this script alone. seed.sql re-grants everything locally after the migrations run, so a grant difference may originate on the local side. Re-run against a --no-seed build to separate them.",
+   "pg_cron locally": "pg_cron is not installed in the local image by default, so cron_jobs usually reports UNINSPECTABLE on the local side and cannot be diffed, only listed from prod."
+  }
+ },
+ "deviations": [
+  {
+   "probe": "ledger",
+   "kind": "missing",
+   "key": "0125",
+   "expected": {
+    "version": "0125"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "migration file 0125 exists and is newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "ledger",
+   "kind": "missing",
+   "key": "0126",
+   "expected": {
+    "version": "0126"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0126"
+   ],
+   "why": "migration file 0126 exists and is newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "ledger",
+   "kind": "missing",
+   "key": "0127",
+   "expected": {
+    "version": "0127"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0127"
+   ],
+   "why": "migration file 0127 exists and is newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "ledger",
+   "kind": "missing",
+   "key": "0128",
+   "expected": {
+    "version": "0128"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0128"
+   ],
+   "why": "migration file 0128 exists and is newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "tables",
+   "kind": "missing",
+   "key": "payment_allocations",
+   "expected": {
+    "name": "payment_allocations",
+    "kind": "table",
+    "rls_enabled": true,
+    "rls_forced": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0127",
+    "0128"
+   ],
+   "why": "only migration(s) 0125,0127,0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "tables",
+   "kind": "missing",
+   "key": "payment_collections",
+   "expected": {
+    "name": "payment_collections",
+    "kind": "table",
+    "rls_enabled": true,
+    "rls_forced": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0127",
+    "0128"
+   ],
+   "why": "only migration(s) 0125,0127,0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "tables",
+   "kind": "missing",
+   "key": "payment_request_lines",
+   "expected": {
+    "name": "payment_request_lines",
+    "kind": "table",
+    "rls_enabled": true,
+    "rls_forced": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126",
+    "0128"
+   ],
+   "why": "only migration(s) 0125,0126,0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "tables",
+   "kind": "missing",
+   "key": "payment_requests",
+   "expected": {
+    "name": "payment_requests",
+    "kind": "table",
+    "rls_enabled": true,
+    "rls_forced": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126",
+    "0127",
+    "0128"
+   ],
+   "why": "only migration(s) 0125,0126,0127,0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | amount_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | artist_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | booking_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | collected_total_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | component",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | created_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | currency",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | line_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | payment_intent_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | project_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | request_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | settled_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | status",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_allocations | updated_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | application_fee_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | appointment_base_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | artist_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | booking_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | created_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | currency",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | fee_schedule_version",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | goods_base_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | payment_intent_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | project_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | refund_event_created",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_collections | refunded_total_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | artist_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | classification",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | created_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | currency",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | description",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | line_total_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | name",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | position",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | product_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | quantity",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | refund_status",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | request_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | source",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | tax_treatment",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_request_lines | unit_amount_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | artist_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | booking_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | cancelled_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | collects",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | created_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | currency",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | expires_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | fee_schedule_version",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | payment_intent_amount_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | payment_intent_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | project_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | revision",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | sent_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | status",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | supersedes_id",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | total_minor",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | updated_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "missing",
+   "key": "payment_requests | viewed_at",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "columns",
+   "kind": "mismatch",
+   "key": "founding_artist_applications | artist_type",
+   "fields": [
+    "notnull"
+   ],
+   "expected": {
+    "notnull": true
+   },
+   "observed": {
+    "notnull": false
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0056"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing notnull"
+  },
+  {
+   "probe": "columns",
+   "kind": "mismatch",
+   "key": "founding_artist_applications | career_stage",
+   "fields": [
+    "notnull"
+   ],
+   "expected": {
+    "notnull": true
+   },
+   "observed": {
+    "notnull": false
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0056"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing notnull"
+  },
+  {
+   "probe": "columns",
+   "kind": "mismatch",
+   "key": "founding_artist_applications | city",
+   "fields": [
+    "notnull"
+   ],
+   "expected": {
+    "notnull": true
+   },
+   "observed": {
+    "notnull": false
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0056"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing notnull"
+  },
+  {
+   "probe": "columns",
+   "kind": "mismatch",
+   "key": "founding_artist_applications | country",
+   "fields": [
+    "notnull"
+   ],
+   "expected": {
+    "notnull": true
+   },
+   "observed": {
+    "notnull": false
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0056"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing notnull"
+  },
+  {
+   "probe": "columns",
+   "kind": "mismatch",
+   "key": "founding_artist_applications | tattoo_style",
+   "fields": [
+    "notnull"
+   ],
+   "expected": {
+    "notnull": true
+   },
+   "observed": {
+    "notnull": false
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0056"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing notnull"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "booking_requests | booking_requests_id_artist_key",
+   "expected": {
+    "tbl": "booking_requests",
+    "name": "booking_requests_id_artist_key",
+    "typ": "u",
+    "def": "UNIQUE (id, artist_id)"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_artist_id_fkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_booking_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_collected_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_collection_booking_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_collection_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_collection_project_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_currency_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_line_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_line_needs_request_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_project_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_request_booking_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_request_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_request_project_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_sign_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_subject_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_unique",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_artist_id_fkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_bases_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_booking_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_currency_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_fee_minor_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_intent_artist_currency_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_intent_booking_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_intent_project_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_project_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_refunded_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_subject_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_artist_id_fkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_id_request_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_product_class_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_product_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_quantity_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_refund_status_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_request_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_sign_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_source_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_tax_treatment_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_total_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_artist_id_fkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_booking_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_collects_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_collects_sent_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_currency_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_fee_version_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_id_artist_currency_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_id_booking_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_id_project_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_intent_amount_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_intent_pair_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_project_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_revision_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_sent_latch_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_subject_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_supersedes_fk",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_supersedes_self_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_total_check",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "constraints",
+   "kind": "missing",
+   "key": "projects | projects_id_artist_key",
+   "expected": {
+    "tbl": "projects",
+    "name": "projects_id_artist_key",
+    "typ": "u",
+    "def": "UNIQUE (id, artist_id)"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "booking_requests | booking_requests_id_artist_key",
+   "expected": {
+    "tbl": "booking_requests",
+    "name": "booking_requests_id_artist_key",
+    "def": "CREATE UNIQUE INDEX booking_requests_id_artist_key ON public.booking_requests USING btree (id, artist_id)",
+    "valid": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_artist_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_booking_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_project_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_request_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_allocations | payment_allocations_unique",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_artist_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_intent_artist_currency_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_intent_booking_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_intent_project_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_collections | payment_collections_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_id_request_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_product_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_request_lines | payment_request_lines_request_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_artist_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_booking_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_id_artist_currency_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_id_booking_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_id_project_key",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_intent_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_one_payable_per_booking_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_one_payable_per_project_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_pkey",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "payment_requests | payment_requests_project_idx",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "indexes",
+   "kind": "missing",
+   "key": "projects | projects_id_artist_key",
+   "expected": {
+    "tbl": "projects",
+    "name": "projects_id_artist_key",
+    "def": "CREATE UNIQUE INDEX projects_id_artist_key ON public.projects USING btree (id, artist_id)",
+    "valid": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "indexes",
+   "kind": "mismatch",
+   "key": "map_locations | idx_map_locations_city_trgm",
+   "fields": [
+    "def"
+   ],
+   "expected": {
+    "def": "CREATE INDEX idx_map_locations_city_trgm ON public.map_locations USING gin (immutable_unaccent(lower(COALESCE(city, ''::text))) gin_trgm_ops)"
+   },
+   "observed": {
+    "def": "CREATE INDEX idx_map_locations_city_trgm ON public.map_locations USING gin (immutable_unaccent(lower(COALESCE(city, ''''::text))) extensions.gin_trgm_ops)"
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0097"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing def"
+  },
+  {
+   "probe": "triggers",
+   "kind": "missing",
+   "key": "public.payment_allocations | payment_allocations_ensure_collection",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "triggers",
+   "kind": "missing",
+   "key": "public.payment_request_lines | payment_request_lines_frozen",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "triggers",
+   "kind": "missing",
+   "key": "public.payment_requests | payment_requests_delete_frozen",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "triggers",
+   "kind": "missing",
+   "key": "public.payment_requests | payment_requests_immutability",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "functions",
+   "kind": "missing",
+   "key": "converge_payment_refund | p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint",
+   "expected": {
+    "name": "converge_payment_refund",
+    "args": "p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint",
+    "result": "text",
+    "kind": "f",
+    "volatility": "v",
+    "security_definer": false,
+    "config": "search_path=public",
+    "body_md5": "6be80111d3a3a3f6e523efa63a771e54",
+    "body_squished_md5": "657ccfa9b91b101c72326e882a3ce9c4"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0128"
+   ],
+   "why": "only migration(s) 0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "functions",
+   "kind": "missing",
+   "key": "enforce_payment_request_delete_frozen | ",
+   "expected": {
+    "name": "enforce_payment_request_delete_frozen",
+    "args": "",
+    "result": "trigger",
+    "kind": "f",
+    "volatility": "v",
+    "security_definer": false,
+    "config": "search_path=public",
+    "body_md5": "84cde6cd806d06b8084b3830cbc642d8",
+    "body_squished_md5": "e45ddb3393f88f6d8b2dc87ef0f80b4d"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "functions",
+   "kind": "missing",
+   "key": "enforce_payment_request_immutability | ",
+   "expected": {
+    "name": "enforce_payment_request_immutability",
+    "args": "",
+    "result": "trigger",
+    "kind": "f",
+    "volatility": "v",
+    "security_definer": false,
+    "config": "search_path=public",
+    "body_md5": "cb588c2ebb3b57f9de8de1c92b6b74cb",
+    "body_squished_md5": "340992e1a67f126ec44890b9141b345d"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126",
+    "0127"
+   ],
+   "why": "only migration(s) 0125,0126,0127 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "functions",
+   "kind": "missing",
+   "key": "enforce_payment_request_lines_frozen | ",
+   "expected": {
+    "name": "enforce_payment_request_lines_frozen",
+    "args": "",
+    "result": "trigger",
+    "kind": "f",
+    "volatility": "v",
+    "security_definer": false,
+    "config": "search_path=public",
+    "body_md5": "ef1e5c880bebc17fff249cf928afc827",
+    "body_squished_md5": "f9095001d63538a315f60ac0d01d730b"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "functions",
+   "kind": "missing",
+   "key": "ensure_payment_collection | ",
+   "expected": {
+    "name": "ensure_payment_collection",
+    "args": "",
+    "result": "trigger",
+    "kind": "f",
+    "volatility": "v",
+    "security_definer": false,
+    "config": "search_path=public",
+    "body_md5": "dff096666470276265ec8c36b4c050ce",
+    "body_squished_md5": "38c2472077b2a1dd54903e909c71818c"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "functions",
+   "kind": "missing",
+   "key": "send_payment_request | p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text",
+   "expected": {
+    "name": "send_payment_request",
+    "args": "p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text",
+    "result": "text",
+    "kind": "f",
+    "volatility": "v",
+    "security_definer": false,
+    "config": "search_path=public",
+    "body_md5": "ccf1ba94aeb00939022189a6584d7ded",
+    "body_squished_md5": "b39c14b04c7276d633bd9bf7252d2c63"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "functions",
+   "kind": "mismatch",
+   "key": "map_search | p_q text, p_limit integer",
+   "fields": [
+    "body_squished_md5"
+   ],
+   "expected": {
+    "body_squished_md5": "8caf52ebf8618ab71b434f68de3571dd"
+   },
+   "observed": {
+    "body_squished_md5": "7466b337c681b47e19dc9d01b43b4d19"
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0097"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing body_squished_md5"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "converge_payment_refund | p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint | anon",
+   "expected": {
+    "name": "converge_payment_refund",
+    "args": "p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint",
+    "grantee": "anon",
+    "can_execute": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0128"
+   ],
+   "why": "only migration(s) 0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "converge_payment_refund | p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint | authenticated",
+   "expected": {
+    "name": "converge_payment_refund",
+    "args": "p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint",
+    "grantee": "authenticated",
+    "can_execute": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0128"
+   ],
+   "why": "only migration(s) 0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "converge_payment_refund | p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint | service_role",
+   "expected": {
+    "name": "converge_payment_refund",
+    "args": "p_payment_intent_id text, p_refunded_total_minor integer, p_event_created bigint",
+    "grantee": "service_role",
+    "can_execute": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0128"
+   ],
+   "why": "only migration(s) 0128 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_delete_frozen |  | anon",
+   "expected": {
+    "name": "enforce_payment_request_delete_frozen",
+    "args": "",
+    "grantee": "anon",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_delete_frozen |  | authenticated",
+   "expected": {
+    "name": "enforce_payment_request_delete_frozen",
+    "args": "",
+    "grantee": "authenticated",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_delete_frozen |  | service_role",
+   "expected": {
+    "name": "enforce_payment_request_delete_frozen",
+    "args": "",
+    "grantee": "service_role",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_immutability |  | anon",
+   "expected": {
+    "name": "enforce_payment_request_immutability",
+    "args": "",
+    "grantee": "anon",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126",
+    "0127"
+   ],
+   "why": "only migration(s) 0125,0126,0127 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_immutability |  | authenticated",
+   "expected": {
+    "name": "enforce_payment_request_immutability",
+    "args": "",
+    "grantee": "authenticated",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126",
+    "0127"
+   ],
+   "why": "only migration(s) 0125,0126,0127 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_immutability |  | service_role",
+   "expected": {
+    "name": "enforce_payment_request_immutability",
+    "args": "",
+    "grantee": "service_role",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126",
+    "0127"
+   ],
+   "why": "only migration(s) 0125,0126,0127 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_lines_frozen |  | anon",
+   "expected": {
+    "name": "enforce_payment_request_lines_frozen",
+    "args": "",
+    "grantee": "anon",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_lines_frozen |  | authenticated",
+   "expected": {
+    "name": "enforce_payment_request_lines_frozen",
+    "args": "",
+    "grantee": "authenticated",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "enforce_payment_request_lines_frozen |  | service_role",
+   "expected": {
+    "name": "enforce_payment_request_lines_frozen",
+    "args": "",
+    "grantee": "service_role",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "ensure_payment_collection |  | anon",
+   "expected": {
+    "name": "ensure_payment_collection",
+    "args": "",
+    "grantee": "anon",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "ensure_payment_collection |  | authenticated",
+   "expected": {
+    "name": "ensure_payment_collection",
+    "args": "",
+    "grantee": "authenticated",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "ensure_payment_collection |  | service_role",
+   "expected": {
+    "name": "ensure_payment_collection",
+    "args": "",
+    "grantee": "service_role",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "send_payment_request | p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text | anon",
+   "expected": {
+    "name": "send_payment_request",
+    "args": "p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text",
+    "grantee": "anon",
+    "can_execute": false
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "send_payment_request | p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text | authenticated",
+   "expected": {
+    "name": "send_payment_request",
+    "args": "p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text",
+    "grantee": "authenticated",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "rpc_grants",
+   "kind": "missing",
+   "key": "send_payment_request | p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text | service_role",
+   "expected": {
+    "name": "send_payment_request",
+    "args": "p_request_id uuid, p_artist_id uuid, p_expires_at timestamp with time zone, p_fee_schedule_version text",
+    "grantee": "service_role",
+    "can_execute": true
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "booking_interests | artist can read and update own booking interests",
+   "expected": {
+    "tbl": "booking_interests",
+    "name": "artist can read and update own booking interests",
+    "cmd": "ALL",
+    "permissive": "PERMISSIVE",
+    "roles": "public",
+    "qual": "(artist_id = auth.uid())",
+    "with_check": "(artist_id = auth.uid())"
+   },
+   "observed": null,
+   "classification": "unexplained-missing",
+   "attributed_migrations": [
+    "0037"
+   ],
+   "why": "migration(s) 0037 mention it and ARE recorded applied in production, yet the object is absent"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_allocations | artist reads own payment allocations",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_collections | artist reads own payment collections",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_request_lines | artist deletes own payment request lines",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_request_lines | artist inserts own payment request lines",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_request_lines | artist reads own payment request lines",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_request_lines | artist updates own payment request lines",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_requests | artist deletes own payment requests",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_requests | artist inserts own payment requests",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_requests | artist reads own payment requests",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "missing",
+   "key": "payment_requests | artist updates own payment requests",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "policies",
+   "kind": "extra",
+   "key": "booking_interests | artist can read and update own booking\r\n  interests",
+   "expected": null,
+   "observed": {
+    "tbl": "booking_interests",
+    "name": "artist can read and update own booking\r\n  interests",
+    "cmd": "ALL",
+    "permissive": "PERMISSIVE",
+    "roles": "public",
+    "qual": "(artist_id = auth.uid())",
+    "with_check": "(artist_id = auth.uid())"
+   },
+   "classification": "unexplained-extra",
+   "attributed_migrations": [],
+   "why": "no migration file mentions it: created out of band (SQL editor, dashboard, or platform)"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_allocations | anon",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_allocations | authenticated",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_allocations | service_role",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_collections | anon",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_collections | authenticated",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_collections | service_role",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_request_lines | anon",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_request_lines | authenticated",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_request_lines | service_role",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_requests | anon",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_requests | authenticated",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "missing",
+   "key": "payment_requests | service_role",
+   "classification": "child-of-branch-ahead-table"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "mismatch",
+   "key": "growth_activity_events | anon",
+   "fields": [
+    "privs"
+   ],
+   "expected": {
+    "privs": "SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER"
+   },
+   "observed": {
+    "privs": ""
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0067",
+    "0068",
+    "0069"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing privs"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "mismatch",
+   "key": "growth_activity_events | authenticated",
+   "fields": [
+    "privs"
+   ],
+   "expected": {
+    "privs": "SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER"
+   },
+   "observed": {
+    "privs": ""
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0067",
+    "0068",
+    "0069"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing privs"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "mismatch",
+   "key": "growth_artist_stats | anon",
+   "fields": [
+    "privs"
+   ],
+   "expected": {
+    "privs": "SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER"
+   },
+   "observed": {
+    "privs": ""
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0067",
+    "0069"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing privs"
+  },
+  {
+   "probe": "table_grants",
+   "kind": "mismatch",
+   "key": "growth_artist_stats | authenticated",
+   "fields": [
+    "privs"
+   ],
+   "expected": {
+    "privs": "SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER"
+   },
+   "observed": {
+    "privs": ""
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0067",
+    "0069"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing privs"
+  },
+  {
+   "probe": "enums",
+   "kind": "missing",
+   "key": "payment_allocation_component",
+   "expected": {
+    "name": "payment_allocation_component",
+    "labels": "deposit,tattoo_service_balance,full_price,additional_service,physical_goods,tip,tax,shipping,discount,refund_adjustment"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "enums",
+   "kind": "missing",
+   "key": "payment_collection_status",
+   "expected": {
+    "name": "payment_collection_status",
+    "labels": "processing,succeeded,failed,cancelled,disputed,dispute_won,dispute_lost"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "enums",
+   "kind": "missing",
+   "key": "payment_line_classification",
+   "expected": {
+    "name": "payment_line_classification",
+    "labels": "tattoo_service,additional_service,physical_goods,discount,tip,tax,shipping,manual_review"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125"
+   ],
+   "why": "only migration(s) 0125 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "enums",
+   "kind": "missing",
+   "key": "payment_request_status",
+   "expected": {
+    "name": "payment_request_status",
+    "labels": "draft,ready,sent,viewed,payment_processing,partially_paid,paid,expired,cancelled,partially_refunded,refunded,disputed,failed"
+   },
+   "observed": null,
+   "classification": "expected-branch-ahead",
+   "attributed_migrations": [
+    "0125",
+    "0126"
+   ],
+   "why": "only migration(s) 0125,0126 mention it, all newer than the prod ledger max 0124"
+  },
+  {
+   "probe": "enums",
+   "kind": "extra",
+   "key": "feedback_importance",
+   "expected": null,
+   "observed": {
+    "name": "feedback_importance",
+    "labels": "nice_to_have,important,blocking"
+   },
+   "classification": "unexplained-extra",
+   "attributed_migrations": [],
+   "why": "no migration file mentions it: created out of band (SQL editor, dashboard, or platform)"
+  },
+  {
+   "probe": "enums",
+   "kind": "extra",
+   "key": "feedback_status",
+   "expected": null,
+   "observed": {
+    "name": "feedback_status",
+    "labels": "new,reviewed,planned,rejected,duplicate,shipped,investigating,fixed,cannot_reproduce,wont_fix"
+   },
+   "classification": "unexplained-extra",
+   "attributed_migrations": [],
+   "why": "no migration file mentions it: created out of band (SQL editor, dashboard, or platform)"
+  },
+  {
+   "probe": "enums",
+   "kind": "extra",
+   "key": "feedback_type",
+   "expected": null,
+   "observed": {
+    "name": "feedback_type",
+    "labels": "feature_idea,workflow_problem,improvement,confusing,bug,other"
+   },
+   "classification": "unexplained-extra",
+   "attributed_migrations": [],
+   "why": "no migration file mentions it: created out of band (SQL editor, dashboard, or platform)"
+  },
+  {
+   "probe": "enums",
+   "kind": "extra",
+   "key": "roadmap_status",
+   "expected": null,
+   "observed": {
+    "name": "roadmap_status",
+    "labels": "now,next,exploring,shipped,archived"
+   },
+   "classification": "unexplained-extra",
+   "attributed_migrations": [],
+   "why": "no migration file mentions it: created out of band (SQL editor, dashboard, or platform)"
+  },
+  {
+   "probe": "enums",
+   "kind": "mismatch",
+   "key": "order_status",
+   "fields": [
+    "labels"
+   ],
+   "expected": {
+    "labels": "pending,paid,cancelled,refunded,partially_refunded"
+   },
+   "observed": {
+    "labels": "pending,paid,cancel\r\n  led,refunded,partially_refunded"
+   },
+   "classification": "unexplained-mismatch",
+   "attributed_migrations": [
+    "0036"
+   ],
+   "touched_by_unapplied": [],
+   "why": "same object, differing labels"
+  },
+  {
+   "probe": "extensions",
+   "kind": "missing",
+   "key": "pg_graphql",
+   "expected": {
+    "name": "pg_graphql",
+    "schema": "graphql",
+    "version": "1.5.11"
+   },
+   "observed": null,
+   "classification": "unexplained-missing",
+   "attributed_migrations": [],
+   "why": "no migration file mentions it; present locally, absent in production, unattributable"
+  },
+  {
+   "probe": "extensions",
+   "kind": "missing",
+   "key": "pg_net",
+   "expected": {
+    "name": "pg_net",
+    "schema": "extensions",
+    "version": "0.20.0"
+   },
+   "observed": null,
+   "classification": "unexplained-missing",
+   "attributed_migrations": [],
+   "why": "no migration file mentions it; present locally, absent in production, unattributable"
+  }
+ ]
+}

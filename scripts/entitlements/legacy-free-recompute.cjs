@@ -19,8 +19,8 @@
 // READ-ONLY by default. Never deletes over-cap data; a correction only ever
 // RAISES an artist's personal limit to their existing usage.
 
-const fs = require("fs");
-const postgres = require("A:/WORK/inklee/node_modules/postgres/cjs/src/index.js");
+const { requireFromRepo, requireDatabaseUrl } = require("../lib/repo-root.cjs");
+const postgres = requireFromRepo("postgres");
 
 const APPLY = process.argv.includes("--apply");
 const POLICY = "legacy_free_v1";
@@ -46,9 +46,7 @@ const ORIGINAL_FREE = {
   active_products: null,
 };
 
-const url = fs
-  .readFileSync("A:/WORK/inklee/apps/web/.env.local", "utf8")
-  .match(/^DATABASE_URL="?([^"\r\n]+)/m)[1];
+const url = requireDatabaseUrl();
 const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
 
 const pad = (s, n) => String(s).padEnd(n);

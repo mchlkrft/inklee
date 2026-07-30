@@ -15,10 +15,13 @@ const fs = require("fs");
 const path = require("path");
 const YAML = require("yaml");
 
-// Resolved from this file, never from cwd or an absolute machine path. An
-// existing script in this repo (scripts/legal/verify-legal-artifacts.cjs)
-// hard-codes `A:/WORK/inklee`, which is why it cannot run in CI; see finding
-// OPS-TOOL-001.
+// Resolved from this file, never from cwd or an absolute machine path. Ten
+// governance scripts under scripts/legal, scripts/billing and
+// scripts/entitlements used to hard-code an absolute developer path, which is
+// why they could not run in CI (finding OPS-TOOL-001). They now share
+// scripts/lib/repo-root.cjs, which is this same derivation plus verification of
+// the resolved root. This file keeps its own two-line version to stay
+// dependency-free at the point the audit register loads.
 const ROOT = path.resolve(__dirname, "..", "..");
 const AUDIT_DIR = path.join(ROOT, "docs", "audit");
 const LEDGER = path.join(AUDIT_DIR, "findings.yaml");
