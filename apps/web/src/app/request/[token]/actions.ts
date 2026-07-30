@@ -1,10 +1,7 @@
 "use server";
 
 import { serviceClient } from "@/lib/supabase/service";
-import {
-  resolveOrderFee,
-  type FeeSyncResult,
-} from "@/lib/server/order-fee-sync";
+import { resolveOrderFee, type FeeSyncOk } from "@/lib/server/order-fee-sync";
 import { resolveDiscount } from "@/lib/server/discounts";
 import { goodsBaseMinorFromLines } from "@inklee/shared/order-fees";
 import { bookingSchema } from "@/lib/booking-schema";
@@ -397,6 +394,14 @@ export async function prepareCheckoutAction(
         goodsBaseMinor: 0,
         intent,
       });
+      // A refusal is never written to the intent. `resolveOrderFee` refuses
+      // when the artist's plan cannot be read, and when the resolved tier has
+      // no rate for the appointment lane; taking a number from either would
+      // set a 0 application fee on a live deposit. Returning here leaves the
+      // intent exactly as the retrieve above found it, which is the state a
+      // failing retrieve already lands the caller in.
+      if (!fee.ok)
+        return { error: "Could not prepare the payment. Try again." };
       await stripe.paymentIntents.update(intentId, {
         amount: Math.round(depositAmount * 100),
         application_fee_amount: fee.applicationFeeMinor,
@@ -498,10 +503,16 @@ export async function prepareCheckoutAction(
   //
   // Under the ACTIVE schedule the goods rate is 0%, so this changes no live
   // number today; P7 flips the rates with accountant approval.
-  let fee: FeeSyncResult;
+  //
+  // A REFUSAL STOPS THE PREPARE. `resolveOrderFee` returns a discriminated
+  // result, so the fee cannot be read without answering whether there is one:
+  // it refuses when the artist's plan cannot be read, and when the resolved
+  // tier has no rate for the appointment lane at all. Both would otherwise
+  // land a 0 application fee on a live intent and record it on the order row.
+  let fee: FeeSyncOk;
   try {
     const intent = await stripe.paymentIntents.retrieve(intentId);
-    fee = await resolveOrderFee({
+    const resolved = await resolveOrderFee({
       artistId: booking.artist_id as string,
       depositMinor: Math.round(depositAmount * 100),
       // Today an order has no discounts, VAT or shipping, so the goods base is
@@ -519,6 +530,10 @@ export async function prepareCheckoutAction(
       ),
       intent,
     });
+    if (!resolved.ok) {
+      return { error: "Could not prepare the payment. Try again." };
+    }
+    fee = resolved;
   } catch {
     return { error: "Could not prepare the payment. Try again." };
   }

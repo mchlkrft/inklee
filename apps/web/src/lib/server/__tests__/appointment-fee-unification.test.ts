@@ -38,6 +38,61 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 //   2. rate identity       the hardcode and the v1 schedule rate are one number
 //   3. the real paths      resolveOrderFee agrees with platformFeeCents today
 //   4. v1 vs v2            parameterized; block 4b is a pre-registered tripwire
+//
+// ===========================================================================
+// A3 LANDED (2026-07-30). WHAT CHANGED IN THIS FILE, AND WHAT DID NOT.
+//
+// THE GOLDEN TABLE IS BYTE-FOR-BYTE UNTOUCHED. Not one expected literal moved,
+// which is the whole claim: the unification charges the same cent it charged
+// before, at every amount pinned here.
+//
+// Block 4b was the pre-registered falsification and it is DELETED, following
+// the three-line handover it carried. v2 is now asserted in 4a alongside v1, so
+// agreement is required under BOTH versions and the Stage 4 flip is guarded
+// rather than merely unblocked.
+//
+// ONE THING HAD TO CHANGE AND IT IS NOT A RE-BASELINE. `depositPathFee` was a
+// MODEL of the deposit path, written as `platformFeeCents(cents)` because that
+// is what bookings.ts:853 called. After A3 that call site is gone: the deposit
+// path computes its `application_fee_amount` through
+// `appointmentApplicationFee`, which takes a tier and a version. Leaving the
+// helper pointing at `platformFeeCents` would have left this file asserting
+// things about a function no charge flows through, which is a worse failure
+// than a moved literal because it looks green. It now calls the real production
+// function, and it takes the tier and version that function takes, which is
+// also what makes 4a expressible under v2 at all.
+//
+// WHAT THAT WOULD HAVE COST, AND HOW IT IS PAID BACK. `platformFeeCents` is
+// still live: it is the ARTIST-FACING display number on the deposit request
+// surfaces ("Processing fee (3%)", `artistNetEur`). Re-pointing the helper
+// would have dropped the golden table's pin on it, so the displayed deduction
+// could drift from the charged fee with nothing failing. Block 2 gains one test
+// that holds it to the same 21 literals. Nothing else about it changed: it
+// still takes one argument and still reads 300 bps.
+//
+// ===========================================================================
+// READ THIS BEFORE TRUSTING BLOCK 4a ON THE FREE TIER UNDER v2.
+//
+// 4a's `has no divergence on the free tier under fees-v2-plus-payments` PASSES
+// BY MUTUAL ZERO, not by rate agreement. `depositPathFee` reports a refusal as
+// 0 (see its docstring) and `schedulePathFee` returns `totalMinor`, which is
+// also 0 because `feeMinorUnits` computes 0 from a null rate. Both sides are 0
+// for different reasons and the divergence list is empty. Agreeing at zero is
+// not agreeing.
+//
+// That is deliberate, because it is the only footing on which the two sources
+// are comparable under v2 at all, but it means the free/v2 row of 4a carries
+// almost no information on its own. The load is carried by the refusal test at
+// the end of 4a, which asserts on the QUOTE OBJECT rather than the number, and
+// which now covers BOTH wrappers over the engine. `resolveOrderFee` was added
+// to it after it was caught returning `applicationFeeMinor: 0` with an ignored
+// `appointmentLaneAvailable: false` on exactly this case, while its sibling
+// refused: one engine, two wrappers, opposite answers, and the mutual-zero row
+// above green throughout.
+//
+// The golden literals are untouched by all of this. Block 3 gained `.ok &&`
+// narrowing on two assertions because `resolveOrderFee` now returns a
+// discriminated result; the expected values are the same objects they were.
 
 const getAccountOverrides = vi.fn();
 const effectivePlanTier = vi.fn();
@@ -50,7 +105,10 @@ vi.mock("@/lib/entitlements", () => ({
   effectivePlanTier: (...a: unknown[]) => effectivePlanTier(...a),
 }));
 
-import { resolveOrderFee } from "@/lib/server/order-fee-sync";
+import {
+  appointmentApplicationFee,
+  resolveOrderFee,
+} from "@/lib/server/order-fee-sync";
 import { computeOrderFees } from "@inklee/shared/order-fees";
 import {
   PLATFORM_FEE_BPS,
@@ -118,13 +176,47 @@ const GOLDEN: readonly {
 /**
  * What the deposit path sets as `application_fee_amount`.
  *
- * `platformFeeCents` is imported rather than reimplemented, so this is the live
- * function and not a copy that could drift from it. The only mirrored line is
- * the sponsorship branch (`bookings.ts:857-858`), which is
- * `feeSponsored ? 0 : standardFeeCents` and has nothing in it to get wrong.
+ * THE LIVE FUNCTION, imported rather than reimplemented, so this cannot drift
+ * from what bookings.ts charges. Before A3 that was `platformFeeCents(cents)`;
+ * it is now `appointmentApplicationFee`, which is the one implementation both
+ * the deposit path and the payment-request path call.
+ *
+ * A REFUSAL IS REPORTED AS 0 rather than thrown, because that is what the
+ * amount collected on that lane is: under v2 a Free artist has no appointment
+ * rate, the deposit path refuses the collection outright, and no
+ * `application_fee_amount` is set on anything. Reporting it as 0 is what lets
+ * 4a compare the two sources under v2 on the same footing, since the schedule
+ * reports the same absence the same way (`feeMinorUnits` returns 0 for a null
+ * rate). The DIFFERENCE between "no rate" and "a 0 rate" is asserted where it
+ * matters, on the quote object itself, in the refusal test at the end of 4a.
  */
-function depositPathFee(cents: number, sponsored = false): number {
-  return sponsored ? 0 : platformFeeCents(cents);
+function depositPathFee(
+  cents: number,
+  sponsored = false,
+  tier: "free" | "plus" = "plus",
+  version: string = FEE_SCHEDULE_V1.version,
+): number {
+  const quote = appointmentApplicationFee({
+    appointmentBaseMinor: cents,
+    goodsBaseMinor: 0,
+    tier,
+    sponsored,
+    version,
+  });
+  return quote.ok ? quote.applicationFeeMinor : 0;
+}
+
+/**
+ * What the ARTIST is shown before they request a deposit.
+ *
+ * Still `platformFeeCents`, which after A3 is a display helper and no longer
+ * the source of any charge. Pinned to the same golden literals as the charge,
+ * because the number quoted to the artist and the number deducted from them
+ * being the same is a promise, and the refactor that separated them is exactly
+ * the one that could break it without anything else noticing.
+ */
+function artistFacingFee(cents: number): number {
+  return platformFeeCents(cents);
 }
 
 /** What the schedule path computes for the same collection, no goods. */
@@ -160,9 +252,17 @@ describe("V1 INVARIANT: the deposit application_fee_amount, pinned to the cent",
     // invites the conclusion that it is an isolated edge case.
     const moved: string[] = [];
     for (const row of GOLDEN) {
-      const live = depositPathFee(row.cents);
-      if (live !== row.v1Fee) {
-        moved.push(`${row.cents} minor: pinned ${row.v1Fee}, now ${live}`);
+      // Both tiers, which the name always claimed and the pre-A3 helper could
+      // not express: `platformFeeCents(cents)` took no tier, so "for every
+      // tier" was true by the argument list rather than by assertion. The
+      // unified path takes one, so the claim is now checked.
+      for (const tier of ["free", "plus"] as const) {
+        const live = depositPathFee(row.cents, false, tier);
+        if (live !== row.v1Fee) {
+          moved.push(
+            `${row.cents} minor, ${tier}: pinned ${row.v1Fee}, now ${live}`,
+          );
+        }
       }
     }
     expect(moved).toEqual([]);
@@ -251,6 +351,27 @@ describe("V1 INVARIANT: the hardcode and the schedule are the same rate", () => 
     expect(disagreed.length).toBe(0);
   });
 
+  // ADDED WHEN A3 RE-POINTED `depositPathFee`. Before the unification the
+  // golden table pinned `platformFeeCents` directly, because that WAS the
+  // charge. It is now only the artist-facing display number, and the two
+  // drifting apart would show an artist a 3% deduction while charging them
+  // something else. Same 21 literals, so this costs nothing and keeps the pin.
+  it("the artist-facing display fee still matches the charged fee, to the cent", () => {
+    const drifted: string[] = [];
+    for (const row of GOLDEN) {
+      const shown = artistFacingFee(row.cents);
+      if (shown !== row.v1Fee) {
+        drifted.push(`${row.cents} minor: pinned ${row.v1Fee}, shown ${shown}`);
+      }
+      if (shown !== depositPathFee(row.cents)) {
+        drifted.push(
+          `${row.cents} minor: shown ${shown}, charged ${depositPathFee(row.cents)}`,
+        );
+      }
+    }
+    expect(drifted).toEqual([]);
+  });
+
   it("both refuse a non-positive or non-finite base rather than signing it", () => {
     for (const bad of [0, -1, -20000, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(depositPathFee(bad)).toBe(0);
@@ -275,9 +396,12 @@ describe("V1 INVARIANT: intent creation and basket re-prepare land on one number
           goodsBaseMinor: 0,
           intent: { metadata: {}, application_fee_amount: 0 } as never,
         });
-        if (resolved.applicationFeeMinor !== row.v1Fee) {
+        // `.ok &&` because the re-prepare returns a discriminated result; a
+        // refusal here would report as `false` and be listed, which is right:
+        // under the active schedule it must never refuse.
+        if ((resolved.ok && resolved.applicationFeeMinor) !== row.v1Fee) {
           disagreed.push(
-            `${row.cents} minor, ${tier}: deposit path ${row.v1Fee}, re-prepare ${resolved.applicationFeeMinor}`,
+            `${row.cents} minor, ${tier}: deposit path ${row.v1Fee}, re-prepare ${resolved.ok ? resolved.applicationFeeMinor : resolved.reason}`,
           );
         }
       }
@@ -299,7 +423,9 @@ describe("V1 INVARIANT: intent creation and basket re-prepare land on one number
           application_fee_amount: 0,
         } as never,
       });
-      expect(resolved.applicationFeeMinor).toBe(
+      // A waived fee is 0 with the lane still AVAILABLE, so `ok` stays true
+      // and this reads the number. A refusal would report as `false` here.
+      expect(resolved.ok && resolved.applicationFeeMinor).toBe(
         depositPathFee(row.cents, true),
       );
     }
@@ -307,14 +433,14 @@ describe("V1 INVARIANT: intent creation and basket re-prepare land on one number
 });
 
 // ---------------------------------------------------------------------------
-// 4. Parameterized over v1 AND v2. 4a holds now and must keep holding; 4b is
-//    the pre-registered falsification that A3 is expected to break.
+// 4. Parameterized over v1 AND v2. Block 4b, the pre-registered tripwire, was
+//    DELETED when A3 emptied it: see the header. Its handover is discharged here.
 
 /** Every golden amount where the two sources disagree under `version`. */
 function divergenceUnder(version: string, tier: "free" | "plus"): string[] {
   const out: string[] = [];
   for (const row of GOLDEN) {
-    const live = depositPathFee(row.cents);
+    const live = depositPathFee(row.cents, false, tier, version);
     const viaSchedule = schedulePathFee(row.cents, tier, version);
     if (live !== viaSchedule) {
       out.push(`${row.cents}: deposit ${live} vs schedule ${viaSchedule}`);
@@ -323,64 +449,160 @@ function divergenceUnder(version: string, tier: "free" | "plus"): string[] {
   return out;
 }
 
-describe("4a. the two sources agree under v1, which is why nothing is visibly broken", () => {
-  it("has no divergence on the free tier", () => {
-    expect(divergenceUnder(FEE_SCHEDULE_V1.version, "free")).toEqual([]);
-  });
-  it("has no divergence on the plus tier", () => {
-    expect(divergenceUnder(FEE_SCHEDULE_V1.version, "plus")).toEqual([]);
-  });
-});
+describe("4a. the two sources agree, under v1 AND under the approved v2", () => {
+  // v2 WAS ADDED HERE WHEN A3 LANDED, which is step 2 of the handover block 4b
+  // carried. Deleting 4b without this would have removed the only assertion
+  // that says anything about v2 and left the Stage 4 flip unguarded, which is
+  // the state this file exists to end. Parameterized rather than duplicated so
+  // a v3 is one entry.
+  const VERSIONS = [FEE_SCHEDULE_V1, FEE_SCHEDULE_V2] as const;
 
-describe("4b. PRE-REGISTERED TRIPWIRE: under v2 the two sources still disagree", () => {
-  // ====================================================================
-  // THIS BLOCK IS EXPECTED TO GO RED WHEN A3 LANDS. That is its job.
-  //
-  // It asserts that the divergence is STILL PRESENT, so it cannot pass by
-  // accident and cannot be satisfied by a partial unification: any amount that
-  // starts agreeing shrinks the list, and a full unification empties it.
-  //
-  // WHEN IT FAILS, the fix is three lines, not a re-baseline:
-  //   1. delete this describe block,
-  //   2. add v2 to 4a, so agreement is asserted under BOTH versions,
-  //   3. keep the golden table exactly as it is. It pins the live v1 numbers
-  //      and A3 must not move one of them.
-  //
-  // Deleting it WITHOUT doing 2 would leave the v2 flip (Stage 4) unguarded,
-  // which is the state this file exists to end.
-  // ====================================================================
+  for (const schedule of VERSIONS) {
+    for (const tier of ["free", "plus"] as const) {
+      it(`has no divergence on the ${tier} tier under ${schedule.version}`, () => {
+        expect(divergenceUnder(schedule.version, tier)).toEqual([]);
+      });
+    }
+  }
 
-  it("a Plus artist would be charged 6x the approved v2 rate by the deposit path", () => {
-    // 19 of the 21 golden amounts. The two that agree (1 and 16 minor) do so
-    // because both rates round them to a zero fee, which is not evidence of
-    // anything.
-    const diverged = divergenceUnder(FEE_SCHEDULE_V2.version, "plus");
-    expect(diverged.length).toBe(19);
-    expect(diverged).toContain("20000: deposit 600 vs schedule 100");
-    // The concrete unification target, written down now so the flip cannot
-    // quietly keep 300 bps: a 200.00 collection costs a Plus artist 1.00.
+  // The concrete unification target, kept verbatim from the tripwire that
+  // demanded it: a 200.00 collection costs a Plus artist 1.00 under v2, and now
+  // BOTH sources say so. Before A3 the deposit path said 600 here.
+  it("a 200.00 collection costs a Plus artist 1.00 under v2, on both paths", () => {
     expect(schedulePathFee(20000, "plus", FEE_SCHEDULE_V2.version)).toBe(100);
+    expect(depositPathFee(20000, false, "plus", FEE_SCHEDULE_V2.version)).toBe(
+      100,
+    );
   });
 
-  it("a Free artist would be charged a fee for a lane v2 says they cannot use", () => {
-    const diverged = divergenceUnder(FEE_SCHEDULE_V2.version, "free");
-    expect(diverged.length).toBe(19);
-    expect(diverged).toContain("20000: deposit 600 vs schedule 0");
-    // v2 says `appointmentPayment.free` is null, "cannot transact this lane",
-    // which the engine reports as 0. Spec section 1: there is no Free card
-    // rate, and any Free 3% found anywhere is stale rather than reconcilable.
+  /**
+   * `resolveOrderFee` with the ACTIVE schedule swapped for `version`.
+   *
+   * It takes no version argument and should not: it re-prepares a LIVE intent,
+   * so it prices at whatever is active. Making v2 active for one import is
+   * therefore the only way to execute what P7's flip will ask of it.
+   * `computeOrderFees` defaults `version` to the active schedule, so filling
+   * that default is precisely the edit P7 makes, seen from this call. The
+   * statically imported bindings the rest of this file uses are untouched.
+   */
+  async function resolveOrderFeeUnder(version: string, tier: "free" | "plus") {
+    vi.resetModules();
+    vi.doMock("@inklee/shared/order-fees", async () => {
+      const real = await vi.importActual<
+        typeof import("@inklee/shared/order-fees")
+      >("@inklee/shared/order-fees");
+      return {
+        ...real,
+        computeOrderFees: (i: Parameters<typeof real.computeOrderFees>[0]) =>
+          real.computeOrderFees({ ...i, version: i.version ?? version }),
+      };
+    });
+    try {
+      const mod = await import("@/lib/server/order-fee-sync");
+      effectivePlanTier.mockReturnValue(tier);
+      return await mod.resolveOrderFee({
+        artistId: "artist-1",
+        depositMinor: 20000,
+        goodsBaseMinor: 0,
+        intent: { metadata: {}, application_fee_amount: 600 } as never,
+      });
+    } finally {
+      vi.doUnmock("@inklee/shared/order-fees");
+      vi.resetModules();
+    }
+  }
+
+  // AGREEING AT 0 IS NOT THE SAME AS AGREEING ON A RATE, and this is the test
+  // that keeps the unification from having been satisfied the cheap way. Under
+  // v2 `appointmentPayment.free` is null, "cannot transact this lane", and both
+  // sources report the ARITHMETIC as 0. A unified path that read that 0 as a
+  // Free card rate would pass every assertion above while letting a Free artist
+  // collect a card payment at no take. So the refusal is asserted on the quote
+  // object rather than on the number.
+  //
+  // BOTH WRAPPERS, because holding one of them to this while the other returns
+  // a number is the same split A3 closed, one level up. `resolveOrderFee`
+  // failed this when it was added: it answered the identical case with
+  // `applicationFeeMinor: 0` and a flag no caller read.
+  it("v2 REFUSES the free tier rather than pricing it at zero", async () => {
     expect(FEE_SCHEDULE_V2.rates.appointmentPayment.free).toBeNull();
-    expect(schedulePathFee(20000, "free", FEE_SCHEDULE_V2.version)).toBe(0);
+
+    const refused = appointmentApplicationFee({
+      appointmentBaseMinor: 20000,
+      goodsBaseMinor: 0,
+      tier: "free",
+      version: FEE_SCHEDULE_V2.version,
+    });
+    expect(refused.ok).toBe(false);
+    expect(refused.ok === false && refused.reason).toBe(
+      "appointment_lane_unavailable",
+    );
+
+    // Same tier, same amount, the ACTIVE schedule: allowed, at the live 3%.
+    // Free is refused because v2 has no rate for it, not because it is Free.
+    const allowed = appointmentApplicationFee({
+      appointmentBaseMinor: 20000,
+      goodsBaseMinor: 0,
+      tier: "free",
+      version: FEE_SCHEDULE_V1.version,
+    });
+    expect(allowed.ok).toBe(true);
+    expect(allowed.ok && allowed.applicationFeeMinor).toBe(600);
+
+    // THE SECOND WRAPPER, held to the same standard. Same tier, same amount,
+    // same schedule, through the basket re-prepare instead of the deposit
+    // path.
+    const reprepare = await resolveOrderFeeUnder(
+      FEE_SCHEDULE_V2.version,
+      "free",
+    );
+    expect(reprepare.ok).toBe(false);
+    expect(reprepare.ok === false && reprepare.reason).toBe(
+      "appointment_lane_unavailable",
+    );
+
+    // The positive control, without which "refuses" could mean "refuses
+    // everything under v2": a Plus artist is priced, at the v2 rate, and 100
+    // is not what v1 would have said (600).
+    const priced = await resolveOrderFeeUnder(FEE_SCHEDULE_V2.version, "plus");
+    expect(priced.ok).toBe(true);
+    expect(priced.ok && priced.applicationFeeMinor).toBe(100);
   });
 
-  it("the deposit path takes no version and no tier, which is the whole defect", () => {
-    // Not a style complaint. `platformFeeCents(cents)` has one argument, so
-    // there is no call site anywhere that could pass v2 or a tier even if it
-    // wanted to. Flipping ACTIVE_FEE_SCHEDULE_VERSION would change the basket
-    // path and leave this one at 300 bps, on the same PaymentIntent.
-    expect(platformFeeCents.length).toBe(1);
+  // What 4b's third test asserted, inverted. It said "the deposit path takes no
+  // version and no tier, which is the whole defect": `platformFeeCents(cents)`
+  // has one argument, so no call site could have passed either. That is now
+  // false in the good direction, and it is checked BEHAVIOURALLY rather than by
+  // counting parameters, because an argument a function ignores is the same
+  // defect wearing a longer signature.
+  it("the unified path actually reads the tier and the version it is given", () => {
+    const plusV2 = depositPathFee(
+      20000,
+      false,
+      "plus",
+      FEE_SCHEDULE_V2.version,
+    );
+    const plusV1 = depositPathFee(
+      20000,
+      false,
+      "plus",
+      FEE_SCHEDULE_V1.version,
+    );
+    const freeV2 = depositPathFee(
+      20000,
+      false,
+      "free",
+      FEE_SCHEDULE_V2.version,
+    );
+    // The version moves the answer.
+    expect(plusV2).not.toBe(plusV1);
+    // The tier moves the answer.
+    expect(freeV2).not.toBe(plusV2);
+    // And the hardcode is still not the v2 rate, so nothing has quietly
+    // reconciled the two by moving PLATFORM_FEE_BPS.
     expect(PLATFORM_FEE_BPS).not.toBe(
       FEE_SCHEDULE_V2.rates.appointmentPayment.plus,
     );
+    expect(platformFeeCents.length).toBe(1);
   });
 });

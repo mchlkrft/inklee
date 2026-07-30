@@ -22,6 +22,7 @@
 
 import {
   ACTIVE_FEE_SCHEDULE_VERSION,
+  canTransactLane,
   feeMinorUnits,
   feeScheduleFor,
 } from "./fee-schedule";
@@ -62,6 +63,22 @@ export type OrderFeeBreakdown = {
   /** Stamped on the transaction. A rate change must never silently rewrite
    *  what an old order was charged. */
   scheduleVersion: string;
+  /**
+   * Whether this tier may transact the APPOINTMENT lane at all under this
+   * schedule. ADDED BY SLICE A3.
+   *
+   * `appointmentFeeMinor` is 0 both when the rate rounds a small amount to
+   * nothing and when the tier has no rate at all, so the fee alone cannot tell
+   * a caller which it is looking at. Under v2 the Free appointment rate is
+   * `null`, which spec section 1 means as "cannot collect card payments", and a
+   * caller that read the 0 as a rate would charge nothing and let the
+   * collection through. Reported alongside the arithmetic so the refusal is
+   * available without re-reading the schedule.
+   *
+   * The GOODS lane has no equivalent because no tier is excluded from it: both
+   * rates are numbers in both schedules.
+   */
+  appointmentLaneAvailable: boolean;
 };
 
 export function computeOrderFees(input: OrderFeeInput): OrderFeeBreakdown {
@@ -93,6 +110,11 @@ export function computeOrderFees(input: OrderFeeInput): OrderFeeBreakdown {
     goodsFeeMinor,
     appointmentFeeBeforeSponsorshipMinor,
     scheduleVersion,
+    appointmentLaneAvailable: canTransactLane(
+      "appointment_payment",
+      input.tier,
+      scheduleVersion,
+    ),
   };
 }
 

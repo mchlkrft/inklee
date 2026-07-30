@@ -29,9 +29,13 @@ import {
   markConnectAccountUnreachable,
 } from "@/lib/stripe-connect";
 import { artistDepositCurrency } from "@/lib/connect-countries";
-import { platformFeeCents } from "@/lib/platform-fee";
 import { checkDepositRequestRateLimit } from "@/lib/ratelimit";
-import { canAccess, canSponsorFeeCents } from "@/lib/entitlements";
+import {
+  canAccess,
+  canSponsorFeeCents,
+  effectivePlanTier,
+} from "@/lib/entitlements";
+import { appointmentApplicationFee } from "@/lib/server/order-fee-sync";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { isCapabilityDisabled } from "@/lib/server/app-config";
 import {
@@ -850,7 +854,64 @@ export async function requestDepositCore(
   const depositsEntitled =
     !isCapabilityDisabled("deposits") && canAccess(overrides, "deposits");
   const amountCents = Math.round(amount * 100);
-  const standardFeeCents = platformFeeCents(amountCents);
+
+  // SLICE A3, THE FEE UNIFICATION. This used to be `platformFeeCents(
+  // amountCents)`, a hardcoded 300 bps that took neither the artist's tier nor
+  // a schedule version, while the basket re-prepare path recomputed the SAME
+  // intent's fee from the schedule (order-fee-sync.ts). Two sources for one
+  // `application_fee_amount`. They agree on every live number under v1, which
+  // is exactly why the split survived, and they disagree at 19 of 21 pinned
+  // amounts under v2. One source now: `appointmentApplicationFee`, with the
+  // tier passed in and the goods lane at zero because this intent carries no
+  // goods (the basket path adds them later, through the same engine).
+  //
+  // NOT ONE CENT MOVES TODAY. v1 prices the appointment lane at 300 bps for
+  // both tiers, so this is `Math.round(amountCents * 300 / 10000)`, the same
+  // arithmetic `platformFeeCents` performs, with the same rounding mode.
+  // `__tests__/appointment-fee-unification.test.ts` pins it at 21 amounts and
+  // sweeps every minor unit from 1 to 3000 on both tiers.
+  const feeQuote = appointmentApplicationFee({
+    appointmentBaseMinor: amountCents,
+    goodsBaseMinor: 0,
+    tier: effectivePlanTier(overrides),
+  });
+
+  // A TIER WITH NO RATE MUST REFUSE, NOT CHARGE ZERO. Under v2 the Free
+  // appointment rate is null, meaning "cannot collect card payments", and
+  // reading that as a 0% rate would hand a Free artist a card deposit at no
+  // take. Unreachable under the active schedule; wired now so the P7 flip
+  // cannot open it silently.
+  //
+  // AN ERROR RATHER THAN A QUIET FALL TO THE MANUAL PATH, per the money-path
+  // rule. The manual path is only correct for an artist decided un-connected or
+  // un-entitled BEFORE Stripe is called, because the request UI has already
+  // told them which one they are getting. An artist holding the `deposits`
+  // entitlement has been told "card", so degrading them here would be the exact
+  // silent card-to-manual swap. An artist WITHOUT it was already going manual
+  // and is not disturbed.
+  if (depositsEntitled && !feeQuote.ok) {
+    Sentry.captureMessage("deposit fee lane unavailable for entitled artist", {
+      tags: { action: "deposit_fee_lane" },
+      extra: {
+        bookingId: id,
+        artistId: userId,
+        tier: feeQuote.tier,
+        scheduleVersion: feeQuote.scheduleVersion,
+      },
+    });
+    return {
+      error:
+        "Card deposits aren't available on your current plan, so nothing was sent. Upgrade to collect deposits by card, or mark this deposit as paid directly.",
+    };
+  }
+  // On the manual branch there is no charge and therefore no fee. Zero here is
+  // the absence of a fee, not a rate: nothing downstream of this point reads it
+  // unless a PaymentIntent is created, and one is only created when
+  // `depositsEntitled` is true, which the refusal above has already narrowed to
+  // the `ok` case.
+  const standardFeeCents = feeQuote.ok
+    ? feeQuote.appointmentFeeBeforeSponsorshipMinor
+    : 0;
   // Decide sponsorship against THIS deposit's actual fee, not merely "the
   // budget still has something left in it". A waiver is all-or-nothing once the
   // PaymentIntent exists, so a nearly-exhausted budget would otherwise fund a

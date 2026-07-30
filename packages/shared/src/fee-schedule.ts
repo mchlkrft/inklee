@@ -72,6 +72,44 @@ export function feeScheduleFor(version: string): FeeScheduleVersion {
 }
 
 /**
+ * The rate for one lane and tier, or `null` when the tier cannot transact it.
+ *
+ * ADDED BY SLICE A3, and the reason it exists is that `feeMinorUnits` erases
+ * exactly the distinction the unified fee path has to act on: it answers 0 both
+ * for "the rate is 0%" (v1 goods) and for "this tier cannot transact this lane
+ * at all" (v2 appointment payments on Free). Those are the same arithmetic and
+ * two different decisions. A caller that only has the number computes a 0 fee
+ * and lets the charge through, which is spec section 1's "there is no Free card
+ * rate" turned into an invented Free card rate of 0.
+ */
+export function laneRateBps(
+  lane: FeeLane,
+  tier: "free" | "plus",
+  version?: string,
+): number | null {
+  const schedule = feeScheduleFor(version ?? ACTIVE_FEE_SCHEDULE_VERSION);
+  return lane === "goods"
+    ? schedule.rates.goods[tier]
+    : schedule.rates.appointmentPayment[tier];
+}
+
+/**
+ * Whether this tier may transact this lane at all under `version`.
+ *
+ * PRESENCE, NOT MAGNITUDE. A 0 bps rate is a rate (v1 prices goods at 0% for
+ * both tiers and those sales are legitimate); `null` is an absence of one. So
+ * this is `!== null` rather than `> 0`, and reading it the other way would park
+ * every v1 goods sale as un-transactable.
+ */
+export function canTransactLane(
+  lane: FeeLane,
+  tier: "free" | "plus",
+  version?: string,
+): boolean {
+  return laneRateBps(lane, tier, version) !== null;
+}
+
+/**
  * The fee in integer minor units for one lane, tier and base amount.
  *
  * The BASE is the caller's responsibility and is deliberately not computed

@@ -1575,3 +1575,33 @@ test of the stub:
 Spec section 12 obligations reachable at A3 therefore remain unclaimed. The
 architecture doc's section 7 debt from A1 is closed in the same change as this
 note: `payment_collections` is now documented there.
+
+---
+
+## Carried to A8: a Free artist can still create a live Connect account (2026-07-30)
+
+Recorded here because A3's intent-core review asked for it by name and this file
+did not carry it. The plan file already does (`plus-remaining-work-plan.md`, row
+A8: "Never for a Free artist, who today can create a live Connect account they
+can never use"); this is the same item, restated with its call site.
+
+**Spec section 1 says never.** "The Stripe connected account is created or
+activated only inside the Plus payment-onboarding flow, so an artist who never
+upgrades never costs a Connect account."
+
+**What is true today.** `ensureConnectAccount`'s only caller is
+`apps/web/src/app/(artist)/settings/payouts/actions.ts:78`. That action gates on
+authentication and a rate limit and on NO entitlement, so a Free artist can
+complete Custom Connect onboarding for an account they can never collect
+through.
+
+**A3 neither widens nor narrows it.** `appointment-payment-intent.ts` calls
+`getConnectRoutingForArtist`, which only READS `profiles`, and does not import
+`ensureConnectAccount`. Held by
+`appointment-payment-collection.test.ts`, "reads Connect routing and never
+creates an account".
+
+**Why it is not fixed here.** An entitlement check bolted onto that action would
+lock out the artists who already have accounts and would still leave the Plus
+payment-onboarding flow unbuilt. Both halves belong to A8 and have to move
+together.

@@ -39,6 +39,13 @@ const migrationPath = (file: string) =>
 
 const MIGRATION = migrationPath("0125_appointment_payments.sql");
 const MIGRATION_A2 = migrationPath("0126_payment_request_send.sql");
+// A3 (0127) adds `payment_intent_id` / `payment_intent_amount_minor` to
+// `payment_requests`, with two guarded checks and a partial unique index. They
+// live on a table this file drops everything from, so the repair run has to
+// include the migration that owns them. Same reason 0126 is here: "re-run the
+// migration" means the migrations that own the objects, and leaving one out
+// measures a convergence gap that is really a missing file.
+const MIGRATION_A3 = migrationPath("0127_payment_request_intent.sql");
 
 /** The six that were inline. Named individually because "six came back" is a
  *  weaker claim than "these six came back": a run that restored six DIFFERENT
@@ -62,6 +69,7 @@ const TABLES = [
 let sql: PgSession;
 let migrationText: string;
 let migrationA2Text: string;
+let migrationA3Text: string;
 
 async function constraintNames(): Promise<string[]> {
   const rows = await sql.query<{ conname: string }>(
@@ -88,6 +96,7 @@ beforeAll(async () => {
   sql = PgSession.open("convergence");
   migrationText = readFileSync(MIGRATION, "utf8");
   migrationA2Text = readFileSync(MIGRATION_A2, "utf8");
+  migrationA3Text = readFileSync(MIGRATION_A3, "utf8");
   expect(
     Math.min(migrationText.length, migrationA2Text.length),
     "both migration files must be readable, or nothing below tests anything",
@@ -187,6 +196,7 @@ describe("0125 converges: a dropped constraint comes BACK on a re-run", () => {
 
       await sql.query(migrationText);
       await sql.query(migrationA2Text);
+      await sql.query(migrationA3Text);
 
       const after = await constraintNames();
       expect(after).toEqual(before);
@@ -195,7 +205,7 @@ describe("0125 converges: a dropped constraint comes BACK on a re-run", () => {
     }
   }, 120_000);
 
-  it("restores 0125's indexes too, which no constraint would bring back", async () => {
+  it("restores the indexes too, which no constraint would bring back", async () => {
     // The partial unique indexes are the arbiter of "one payable request per
     // subject" and they are NOT constraints, so nothing above covers them. Same
     // footgun class: `create index if not exists` is skipped when the index
@@ -224,6 +234,7 @@ describe("0125 converges: a dropped constraint comes BACK on a re-run", () => {
       expect(Number(gone[0].n), "the indexes must really be gone").toBe(0);
 
       await sql.query(migrationText);
+      await sql.query(migrationA3Text);
 
       const restored = await sql.query<{ n: string }>(
         `select count(*)::text as n from pg_indexes
