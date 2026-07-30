@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `471f172cf838`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `ca670208ee89`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 
@@ -50,8 +50,11 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | ID | Sev | Verification | Independent | Title |
 | --- | --- | --- | --- | --- |
 | PAY-DEP-001 | critical | not-started | false | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
+| ABUSE-PUB-001 | high | not-started | false | The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe |
 | AUTH-RLS-001 | high | passed | true | product_collections shipped RLS-enabled with a SELECT-only policy while every write runs on the user-scoped client |
 | AUTH-RLS-002 | high | passed | true | discount_codes had the identical SELECT-only RLS defect, live in production on the revenue path, from 0118 until 2026-07-29 |
+| AUTH-RLS-003 | high | not-started | false | product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible safety check, cascade-deleting populated collection items |
+| BDEL-PAY-001 | high | not-started | false | Account deletion does not archive or pseudonymize P9 appointment payment data before the cascade destroys it |
 | BDEL-RET-001 | high | not-started | false | Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them |
 | BDEL-SUB-001 | high | not-started | false | Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records |
 | BDEL-TTS-001 | high | not-started | false | An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents |
@@ -61,8 +64,12 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | DATA-MIG-001 | high | not-started | false | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
 | DATA-RACE-001 | high | passed | true | READ COMMITTED single-statement snapshots defeated two separate safety mechanisms, each shipped with a written claim of atomicity that had never been executed |
 | DRIFT-ENUM-001 | high | not-started | false | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
+| PAY-BAL-001 | high | not-started | false | deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production |
 | PAY-CONN-001 | high | not-started | false | Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault |
 | PAY-FEE-002 | high | not-started | false | The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount |
+| PAY-ORD-001 | high | not-started | false | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
+| PAY-ORD-002 | high | not-started | false | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |
+| PAY-RFD-001 | high | not-started | false | A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status |
 | PAY-SPON-001 | high | not-started | false | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
 | PAY-WHK-001 | high | not-started | false | A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on |
 | TEST-VAC-001 | high | passed | true | Tests incapable of failing, found in at least five independent rounds, including the suite written specifically to prove an RLS repair |

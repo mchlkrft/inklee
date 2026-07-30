@@ -943,6 +943,8 @@ findings:
           example of corrected practice."
         - "2035bf7's golden fee table is the strongest positive example in the repo (8 pre-named
           mutations, every test killed by at least one)."
+        - "apps/web/tests/db/appointment-payments-rls.test.ts: inspected 2026-07-29 for N1/N2 shapes
+          (bare not.toBeNull, undestructured setup writes) and found clean."
     assessment:
       interpretation: "The correct reading is not 'the tests were bad'. It is that a green suite in this
         repo has repeatedly been uninformative, so 'tests pass' has near-zero evidential weight for
@@ -966,8 +968,9 @@ findings:
         - "The 2374-test unit suite (count from 3fce7be) has NOT been mutation-tested as a whole.
           Only the 14 golden fee tests and a handful of db tests carry demonstrated kill evidence."
         - "The Playwright e2e suite was not examined by me for the same class."
-        - "apps/web/tests/db/appointment-payments-rls.test.ts carries 68 assertions and was NOT
-          inspected by me for the N1/N2 shapes (bare not.toBeNull, undestructured setup writes)."
+        - "apps/web/tests/db/appointment-payments-rls.test.ts: inspected 2026-07-29 for N1/N2 shapes
+          and found clean (no bare not.toBeNull, no undestructured setup writes). Moved to
+          inspected_comparables_without_issue."
       structural_patterns:
         - "PAT-001"
         - "PAT-002"
@@ -2205,10 +2208,15 @@ findings:
       reproduction: "In the local stack: `create function f() ...` via psql, read `proacl` (NULL) and
         `has_function_privilege('service_role', 'public.f()', 'EXECUTE')` (true). Then `revoke
         execute on function f() from public;` and read it again (false). No seed.sql in between."
-      contradictory_evidence: "The claim is not harmful in 0124 or 0126 TODAY, and that is genuine
-        counter-evidence to its severity: both functions are called by `authenticated`, which both
-        grant explicitly, so their service-role posture is decorative. The finding is about the
-        stated MECHANISM, which the next migration copies."
+      contradictory_evidence: "CONTRADICTED IN PRODUCTION, added by the supervisor 2026-07-30 by read-only
+        Management API query. The finding was established against the LOCAL stack, where
+        service_role only holds EXECUTE because seed.sql grants it. Production disagrees:
+        pg_proc.proacl for delete_collection_if_eligible (0124, live) is {postgres=X/postgres,
+        authenticated=X/postgres, service_role=X/postgres} and has_function_privilege(service_role)
+        is TRUE, despite 0124 granting only to authenticated. So the hosted project DOES carry a
+        default privilege naming service_role that the local stack does not reproduce. The finding
+        stands for LOCAL behaviour and for portability of the idiom; its stronger reading, that a
+        revoke leaves service_role unable to execute, is FALSE in production for this function."
       inspected_comparables_without_issue:
         - "0125's `revoke insert, update, delete, truncate on payment_allocations from anon,
           authenticated` is a TABLE grant and does not touch PUBLIC, so it is unaffected. Table
@@ -2223,7 +2231,7 @@ findings:
         local `db reset` and concluded the privilege was a Supabase default. It was seed.sql's. The
         two are indistinguishable from that single measurement, which is why the claim survived."
       reachability: "conditionally-reachable"
-      impact_status: "latent"
+      impact_status: "theoretical"
       production_exposure: "None from 0124 or 0126: their callers hold an explicit grant. Production was
         NOT inspected; the ACL evidence is from the local stack, and the production claim rests on
         seed.sql not being part of `supabase db push`, which is documented behaviour rather than
@@ -2231,7 +2239,10 @@ findings:
       remaining_uncertainty: "Whether Supabase's hosted projects install an ALTER DEFAULT PRIVILEGES rule
         for FUNCTIONS that the local image does not. The local image demonstrably has none;
         production was not read. If it did, 0128's explicit grant would be redundant rather than
-        load-bearing, which is a harmless outcome either way."
+        load-bearing, which is a harmless outcome either way. | Where production's service_role
+        grant originates was not established: ALTER DEFAULT PRIVILEGES on the hosted project is the
+        likely source but was not read. Whether that default applies to FUTURE functions, or only to
+        those created before some point, is unknown and matters for 0128."
     relationships:
       related_findings:
         - "DATA-MIG-001"
@@ -2262,6 +2273,11 @@ findings:
         actor: "P9 A4 build"
         action: "opened"
         note: "Found by executing an RPC that the copied comment said would work."
+      - date: "2026-07-30"
+        actor: "supervisor"
+        action: "evidence-added"
+        note: "Production catalog read contradicts the local-stack mechanism claim. Retained rather than
+          deleted; impact downgraded to theoretical."
   - id: "WHK-ERR-001"
     title: "17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then
       returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost"
@@ -6526,6 +6542,1732 @@ findings:
         action: "opened"
         note: "OPS-TOOL-001 remediation: remove hardcoded A:/WORK/inklee from all governance scripts
           (scripts/** only)"
+  - id: "PAY-RFD-001"
+    title: "A fully refunded appointment payment request still reads `paid`: the refund converges the
+      money and never moves the request's status"
+    summary: "P9 slice A4's `charge.refunded` handler converges the allocation and the collection row
+      correctly, then fails to move the payment request to `partially_refunded` or `refunded`. The
+      convergence RPC writes the `refund_adjustment` row with a NULL `request_id` (deliberately, and
+      documented as the contract A5 inherits), while `convergeRequestStatusAfterRefund` reads the
+      request's allocations with `.eq(\"request_id\", requestId)`. That read can never return the
+      row it is looking for, so the refunded total is computed as 0 on every call, an early return
+      fires, and the guarded UPDATE that would move the status is never reached. The core returns ok
+      with `statusMovedTo: null` and nothing is logged, so the caller reports success.
+      `partially_refunded` and `refunded` are unreachable through this path today."
+    classification:
+      domain: "payment"
+      category: "silent-failure"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "test-integrity engineer for P9 slice A4 (not the slice's author)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "9f55ab7"
+      environment: "local"
+      discovery_context: "Writing the first tests for A4's settlement path against a real local Postgres.
+        Six assertions about the request's status after a refund went red on the first run of the
+        new suite; the mechanism was then isolated."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts"
+        - "apps/web/supabase/migrations/0128_payment_settlement.sql"
+        - "apps/web/tests/db/appointment-payment-settlement.test.ts"
+      symbols:
+        - "convergeRequestStatusAfterRefund"
+        - "convergeAppointmentRefundCore"
+        - "converge_payment_refund"
+      database_objects:
+        - "payment_allocations"
+        - "payment_requests"
+    evidence:
+      observed_facts:
+        - "OBSERVED, first run of apps/web/tests/db/appointment-payment-settlement.test.ts against
+          the local stack: a request settled to `paid` for 9000, then a full `charge.refunded` for a
+          cumulative 9000 converged, and `statusOf(requestId)` returned `paid`. `AssertionError:
+          expected 'paid' to be 'refunded'`. Four more assertions failed the same way (partial
+          refund: `expected 'paid' to be 'partially_refunded'`), and the core's own return carried
+          `expected null to be 'partially_refunded'` for `statusMovedTo`."
+        - "MECHANISM, read from source: 0128 line 355 inserts the refund row as `values
+          (v_artist_id, v_booking_id, v_project_id, null, null, ...)`, whose fourth and fifth
+          positions are `request_id` and `line_id`. appointment-payment-settlement.ts
+          `convergeRequestStatusAfterRefund` reads
+          `.from(\"payment_allocations\").select(\"component, amount_minor,
+          status\").eq(\"request_id\", requestId)` and then `if (r.component ===
+          \"refund_adjustment\") refundedMinor += -amount;`, followed by `if (refundedMinor <= 0)
+          return { ok: true, requestId, statusMovedTo: null };`."
+        - "MECHANISM, executed rather than only read: the tripwire test asserts on the stored rows
+          that the `refund_adjustment` row has `request_id` null while the gross `full_price` row of
+          the same intent carries the request id. Both assertions pass."
+        - "THE MONEY HALF IS CORRECT and was measured separately: the refund row carries
+          `booking_id`, so A1's `outstandingBalance` keyed on the SUBJECT sees it. After a 5000
+          refund against a 10000 collection the balance reports `allocatedMinor 5000` and
+          `remainingMinor 5000`. The defect is confined to the request's own status column."
+        - "`paid -> partially_refunded` and `paid -> refunded` are both legal in
+          PAYMENT_REQUEST_TRANSITIONS (packages/shared/src/appointment-payments.ts, `paid:
+          [\"partially_refunded\", \"refunded\", \"disputed\"]`), so the guarded UPDATE's status
+          filter is NOT the thing refusing. The UPDATE is never issued."
+        - "THE CLAIM THAT MASKED IT. The A4 build's own handoff describes this path as working:
+          'Request status then converges to refunded / partially_refunded through a guarded UPDATE
+          whose from-set is derived from A1's transition table.' That is a description of the code
+          as written, not an observation; the build's recorded probe evidence covers the RPC's
+          tokens and the allocation amounts, and does not include a single request-status read after
+          a refund."
+      references:
+        - "docs/product/plus-payments-architecture.md section 9 (refunds)"
+        - "AGENTS.md, money path rule 4 (converge to a target)"
+      reproduction: "apps/web/tests/db/appointment-payment-settlement.test.ts, the `it.fails` tripwire
+        named 'TRIPWIRE (PAY-RFD-001): a converged refund does NOT move the request out of paid' in
+        block 3. It passes while the defect stands and goes red the moment it is fixed. Run: `pnpm
+        --filter inklee test:db` in apps/web against a local stack."
+      contradictory_evidence: "None found. The opposite behaviour was looked for in two ways and neither
+        produced it: the RPC returns `converged` (so the caller does reach the status step), and
+        `convergeAppointmentRefundCore` returns a non-null `requestId` (so the owner lookup that
+        precedes the failing read succeeds). The failure is specifically the second read."
+      inspected_comparables_without_issue:
+        - "`convergeRequestStatusAfterCollection` on the settlement path, which reads the same table
+          with the same `.eq(\"request_id\", ...)` filter and IS correct, because the rows it needs
+          (the gross allocations) do carry `request_id`. Proven by a mutation: changing that read to
+          filter by payment_intent_id turns the remainder-collection test red."
+    assessment:
+      interpretation: "The money record and the human-readable state of a payment request have diverged,
+        and only the second one is wrong. Anything that reads `payment_requests.status` (the
+        artist's list, A6's client page, any later report) will describe returned money as paid.
+        Anything that reads `payment_allocations` is correct."
+      root_cause_hypothesis: "Two halves of one feature were designed against different keys and nothing
+        executed the seam. 0128 chose a NULL `request_id` for the refund row on the grounds that
+        Stripe's event carries no line or request attribution, and the TypeScript caller was written
+        against the natural key for a per-request question. Each is defensible alone."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "NOT reachable in production today: A4 is uncommitted, the appointment webhook
+        endpoint does not exist in Stripe (founder configuration, per the A4 handoff), and nothing
+        calls A3's intent core because the client payment page is A6. Production was not read and no
+        production claim is made beyond that."
+      remaining_uncertainty: "Which of the two fixes is wanted is a contract decision, not a correctness
+        one, and it was deliberately NOT made here. Reading by `payment_intent_id` is one line and
+        changes nothing else, but it computes the gross across one intent rather than the request,
+        which differs for a request collected twice. Giving the refund row a `request_id` matches
+        the natural key but changes what 0128 documents as A5's inherited contract. Neither was
+        implemented. Also unknown: whether any OTHER consumer already assumes the refund row's
+        `request_id` is null."
+    relationships:
+      related_findings:
+        - "PAY-WHK-001"
+        - "PAY-FEE-002"
+        - "TEST-VAC-001"
+      structural_patterns:
+        - "PAT-002"
+      analogous_uninspected_areas:
+        - "The DEPOSIT webhook's charge.refunded branch, which performs the same
+          converge-to-a-target and then updates booking state. Whether its status write reaches the
+          row it means to was not checked in this pass and no test imports that route."
+        - "charge.dispute.* for appointment payments, which A4 deliberately defers to A5 and which
+          has to move BOTH the allocations' status and the request's. It will meet exactly this
+          seam."
+        - "Every other place a plpgsql RPC writes a row and a TypeScript caller then reads that row
+          back through PostgREST with a different filter: `delete_collection_atomic` (0124) and
+          `send_payment_request` (0126) were not inspected for this shape."
+    remediation:
+      status: "open"
+      proposed_action: "Decide the key, then make both halves use it. Either change
+        `convergeRequestStatusAfterRefund` to read by `payment_intent_id` (and state what that means
+        for a request collected against twice), or write `request_id` on the refund row in 0128 and
+        say so in the contract note A5 inherits. Deleting the tripwire is not a fix."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed. The tripwire keeps it visible and executable, and it fails loudly if
+        somebody fixes the defect without removing the tripwire."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file, symbol and migration line. No secrets, personal data or production rows."
+    history:
+      - date: "2026-07-30"
+        actor: "test-integrity engineer for P9 slice A4"
+        action: "opened"
+        note: "Found by the first test ever written against A4's settlement path. Recorded as an `it.fails`
+          tripwire rather than patched, because the two candidate fixes carry different downstream
+          contracts and choosing between them belongs to whoever owns A5."
+  - id: "PAY-ORD-001"
+    title: "The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale
+      `charge.refunded` created in the same second as the newest one is applied and walks the
+      recorded refund backwards"
+    summary: "`converge_payment_refund` (migration 0128) refuses an out-of-order refund event with `if
+      v_last_event is not null and p_event_created < v_last_event then return 'stale'`. Stripe's
+      `event.created` is a Unix timestamp in SECONDS, and `charge.refunded` fires once per refund,
+      so two distinct refunds on one charge issued within the same second carry the SAME `created`.
+      The strict `<` makes them indistinguishable from a redelivery of one event, so the older one
+      is applied. Because the handler correctly writes the CUMULATIVE total absolutely rather than
+      as a delta, applying the older event overwrites the newer total with a smaller one: the
+      `refund_adjustment` allocation row and `payment_collections.refunded_total_minor` both move
+      DOWN. The net of the intent's allocations then reports money as still collected that the
+      client has already been refunded, which is the outstanding balance A5 and A6 read."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "independent falsification pass on P9 slice A4, scope = convergence, idempotency and
+        ordering (read-only on repo files, own fixtures)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "9f55ab7"
+      environment: "local"
+      discovery_context: "Assigned to refute A4's ordering claim by finding the window in which its
+        monotonic guard does not apply. The guard's own documentation states that equal timestamps
+        are applied deliberately; the reason it gives is true only for a redelivery of one event and
+        was tested against that case only."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0128_payment_settlement.sql"
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts"
+      symbols:
+        - "converge_payment_refund"
+        - "convergeAppointmentRefundCore"
+      database_objects:
+        - "payment_collections.refund_event_created"
+        - "payment_allocations"
+    evidence:
+      observed_facts:
+        - "apps/web/supabase/migrations/0128_payment_settlement.sql:304 `if v_last_event is not null
+          and p_event_created < v_last_event then return 'stale';` — strict less-than."
+        - "apps/web/supabase/migrations/0128_payment_settlement.sql:139-142 states the design
+          intent: 'EQUAL TIMESTAMPS ARE APPLIED, not skipped: a plain redelivery of one event
+          carries the same `created` and the same cumulative amount, so re-applying it writes the
+          identical value and changes nothing.' Two DISTINCT refunds in one second also carry the
+          same `created` and do NOT carry the same cumulative amount."
+        - "EXECUTED, local stack, own fixture (10000 collected, one tattoo_service line): converge
+          to 5000 at created=T, then converge to 3000 at created=T. Probe output `P2
+          first(5000@T)=converged total=5000 | second(3000@T)=converged total=3000
+          refundRow=-3000`."
+        - "EXECUTED, the same window at full refund: converge to 10000 at created=T (net of the
+          intent's allocations = 0, correct), then a same-second 2500. Probe output `P11
+          netAfterFullRefund=0 netAfterStaleSameSecond=7500`. A fully refunded charge now reports
+          7500 as still collected."
+        - "CONTROL, same probe run: the ordinary out-of-order case IS refused. Sequence 3000@T,
+          5000@T+10, 3000@T, 5000@T+10, 5000@T+10 produced `converged, converged, stale, unchanged,
+          unchanged`, exactly one `refund_adjustment` row throughout, final -5000. The guard works
+          whenever the seconds differ."
+      references:
+        - "AGENTS.md money-path rule 4 (webhook money operations converge to a target)"
+        - "https://docs.stripe.com/api/events/object — `created` is a Unix timestamp in seconds"
+      reproduction: "Against the local stack: settle an intent for 10000, then call
+        `convergeAppointmentRefundCore` twice with `charge.amount_refunded` 5000 then 3000 and the
+        SAME `eventCreated`. Read `payment_collections.refunded_total_minor` and the
+        `refund_adjustment` allocation. Both end at 3000 / -3000. No test in
+        apps/web/tests/db/appointment-payment-settlement.test.ts uses two distinct events with an
+        equal `created`; block 2's stale case uses a strictly older one."
+      contradictory_evidence: "Two refunds on one charge inside a single second is not the common case,
+        and I did not establish a real Stripe trace of it. A5's refund product surface is unbuilt,
+        so nothing in the repository issues refunds today; every refund is currently issued by hand
+        in the Stripe dashboard, where two in one second is unlikely. The window is therefore latent
+        rather than actively impacting, and its likelihood rises specifically when A5 ships per-line
+        or batch refunds, which spec section 9 plans."
+      inspected_comparables_without_issue:
+        - "The lock itself is real and does its job. EXECUTED: an older event issued while a newer
+          one held the `payment_collections` row in an open transaction blocked (`pg_blocking_pids`
+          count 1, elapsed 1231ms) and answered `stale` after re-reading; the stored total stayed at
+          the newer 7000. The two-statement lock-then-re-read shape of 0124/0125 is correctly
+          implemented."
+        - "billing_subscriptions.last_event_created (migration 0107), the pattern 0128 says it
+          copies: worth the same question, but its events are subscription lifecycle transitions
+          rather than cumulative money totals, so an equal-second pair there overwrites like with
+          like."
+    assessment:
+      interpretation: "The guard is monotonic on the wrong resolution. It protects the case it was tested
+        against (a strictly older redelivery) and admits the case that shares a second. Because the
+        amount is written ABSOLUTELY, which is the correct convergent shape demanded by the
+        money-path rule, admitting a stale event is worse here than an additive handler would be:
+        the recorded refund does not merely fail to grow, it shrinks."
+      root_cause_hypothesis: "The equality case was reasoned about only in terms of one event being
+        redelivered. `p_event_created = v_last_event` conflates 'the same event again' with 'a
+        different event from the same second', and only the clock is available to tell them apart."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "None. The appointment payment endpoint does not exist in Stripe (no
+        `STRIPE_APPOINTMENT_WEBHOOK_SECRET` is configured), A4 is uncommitted, and 0128 has not been
+        applied to production. I read nothing from production and touched nothing in Stripe."
+      remaining_uncertainty: "I did not establish whether Stripe can emit two `charge.refunded` events
+        with an identical `created` for one charge in practice, only that the field's resolution
+        permits it and that the handler cannot distinguish them if it happens. I also did not check
+        whether a refund FAILING (which 0128:130-137 cites as the reason the guard is on the clock
+        rather than on the amount) is even deliverable here: `charge.refund.updated` is not in the
+        endpoint's subscription, so the downward correction the clock guard exists to permit may
+        never arrive."
+    relationships:
+      related_findings:
+        - "PAY-RFD-001"
+        - "PAY-WHK-001"
+      structural_patterns:
+        - "PAT-001"
+      analogous_uninspected_areas:
+        - "billing_subscriptions.last_event_created (0107) and its caller in
+          apps/web/src/app/api/stripe/billing-webhook/route.ts: the same guard shape, never probed
+          for the equal-timestamp case."
+        - "The deposit webhook's own charge.refunded branch in
+          apps/web/src/app/api/stripe/webhook/route.ts, which has no event-clock guard at all and is
+          imported by no test."
+        - "Any future charge.dispute.* handler (A5), which will meet the same seam with the same
+          clock."
+    remediation:
+      status: "open"
+      proposed_action: "Break the tie inside the second without giving up the clock. The minimal change is
+        to refuse when `p_event_created < v_last_event OR (p_event_created = v_last_event AND
+        p_refunded_total_minor < v_recorded)`, which restores upward-only ordering ONLY within one
+        second and leaves the clock in charge across seconds, so the failed-refund case 0128
+        documents still converges downward. Whichever fix is chosen, add a test that uses two
+        DISTINCT events with an equal `created` and asserts both the allocation row and
+        `payment_collections.refunded_total_minor`; the existing suite's stale case uses a strictly
+        older event and cannot see this."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified. Until it is, a refund total recorded by this handler can
+        be lower than the amount Stripe actually returned, and nothing reconciles it (A8 is
+        unbuilt)."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file, line and migration object. No secrets, no production rows, no
+        Stripe identifiers."
+    history:
+      - date: "2026-07-30"
+        actor: "independent falsification verifier for P9 slice A4"
+        action: "opened"
+        note: "Found by attacking the stated ordering guarantee rather than re-running the author's and the
+          tester's scenarios. Both of those cover strictly-older events; the equal-second case was
+          documented as safe and had never been executed."
+  - id: "PAY-ORD-002"
+    title: "A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded
+      after a payment_failed on the same intent leaves the request permanently `failed` with the
+      money already allocated, and says nothing"
+    summary: "`recordAppointmentPaymentFailureCore` moves a request to `failed`. `failed` is absent from
+      `STATUSES_SETTLING_TO_PAID` and `STATUSES_SETTLING_TO_PARTIALLY_PAID`, and `failed -> paid` /
+      `failed -> partially_paid` are absent from A1's `PAYMENT_REQUEST_TRANSITIONS` altogether, so
+      the settlement path can never recover it. A3 creates the PaymentIntent under an idempotency
+      key derived from the request revision and amount, and reuses the stored intent while
+      `payment_processing`, so a declined attempt and its retry are ONE intent id. Stripe's Payment
+      Element re-confirms that same intent after a decline, and Stripe guarantees no ordering
+      between `payment_intent.payment_failed` and `payment_intent.succeeded`, nor that a failed
+      delivery is not redelivered later. When the failure lands first, the succeeded that follows
+      writes the allocation rows, returns `ok: true, outcome: 'settled', statusMovedTo: null`,
+      answers HTTP 200, and flags nothing. The money record and the request status disagree
+      permanently and silently."
+    classification:
+      domain: "payment"
+      category: "silent-failure"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "independent falsification pass on P9 slice A4, scope = convergence, idempotency and
+        ordering (read-only on repo files, own fixtures)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "9f55ab7"
+      environment: "local"
+      discovery_context: "Constructing the 'an older event overwrites newer state' case across the two
+        payment_intent events rather than within charge.refunded, which is where both the author's
+        and the tester's ordering work is concentrated."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts"
+        - "packages/shared/src/appointment-payments.ts"
+        - "apps/web/src/lib/server/appointment-payment-intent.ts"
+      symbols:
+        - "STATUSES_SETTLING_TO_PAID"
+        - "convergeRequestStatusAfterCollection"
+        - "recordAppointmentPaymentFailureCore"
+        - "paymentIntentIdempotencyKey"
+    evidence:
+      observed_facts:
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts:137-149 derives the from-set as
+          `PAYABLE_PAYMENT_REQUEST_STATUSES.filter(canTransitionPaymentRequest(from, target).ok)`;
+          packages/shared/src/appointment-payments.ts:581-582 `PAYABLE_... = ['sent','viewed',
+          'payment_processing','partially_paid']`. `failed` is not in it."
+        - "packages/shared/src/appointment-payments.ts:500-507 `failed:
+          ['payment_processing','expired', 'cancelled','partially_refunded','refunded','disputed']`
+          — neither `paid` nor `partially_paid` is a legal target, so widening the intersection
+          would not fix it."
+        - "apps/web/src/lib/server/appointment-payment-intent.ts:330 creates the intent with
+          `idempotencyKey: paymentIntentIdempotencyKey(quote.fingerprintSource)`;
+          apps/web/src/lib/server/appointment-payment-quote.ts:571-579 the fingerprint is (request
+          id, revision, currency, amount, fee, allocated, schedule version). A declined attempt
+          changes none of them, so the retry resolves to the SAME PaymentIntent."
+        - "EXECUTED, local stack, own fixture (8000, one tattoo_service line, collects full_price):
+          `recordAppointmentPaymentFailureCore` then `settleAppointmentPaymentCore` on ONE intent
+          id. Probe output `P5 fail=failed statusAfterFail=failed settle=settled/null
+          statusAfterSettle=failed grossRows=1 sum=8000`. The 8000 is allocated; the request reads
+          `failed`."
+        - "The settle core returns `ok: true` on that path, so
+          apps/web/src/app/api/stripe/appointment-webhook/route.ts:180-182 answers 200 and nothing
+          is passed to `flagOrphaned`."
+      references:
+        - "docs/product/plus-payments-architecture.md section 8 (double-charge prevention)"
+      reproduction: "Against the local stack: build a sent+claimed request, call
+        `recordAppointmentPaymentFailureCore(admin, intent)` and then
+        `settleAppointmentPaymentCore(admin, intent)` with the SAME intent id, and read
+        `payment_requests.status` and the allocation sum. The existing suite's block 7 exercises the
+        failure move and its recourse, and block 1 exercises settlement from `payment_processing`;
+        no test composes the two in that order."
+      contradictory_evidence: "The comment at appointment-payment-settlement.ts:752-766 argues that
+        `failed` is the RIGHT resting state precisely because both parties can act from it, and that
+        is correct on its own terms: `failed -> payment_processing` is legal and is in A3's
+        `STATUSES_ENTERING_PROCESSING`, so a client who RELOADS the payment page re-claims the
+        request and the subsequent success settles normally. The defect only bites when the
+        successful confirm reaches Stripe without a fresh A3 claim in between, which is the in-place
+        Payment Element retry and the out-of-order or redelivered failure. A6 (the client page) is
+        unbuilt, so which of those the product will actually do is not yet decided."
+      inspected_comparables_without_issue:
+        - "The failure move is otherwise correctly scoped. It is pinned to `.eq('payment_intent_id',
+          intent.id)` as well as to the status set, so a stale failure for a SUPERSEDED intent
+          cannot fail a different attempt."
+        - "The settle path's guard against walking BACKWARDS is sound and I executed both halves:
+          with the request at `refunded` and at `partially_refunded`, a redelivered succeeded
+          returned `already_settled` with `statusMovedTo: null` and left the status untouched."
+    assessment:
+      interpretation: "`failed` is a one-way door on a money path. The status machine treats it as 'this
+        attempt is over' while Stripe treats the same PaymentIntent as still live, and the two
+        disagree. The dangerous part is not the wrong status, it is that the handler that DOES
+        record the money reports complete success while leaving it wrong, so there is no signal at
+        all: no Sentry event, no non-2xx, no reconciliation (A8 unbuilt)."
+      root_cause_hypothesis: "The from-sets are derived per target from the transition table, which makes
+        each move individually defensible, and no rule anywhere asserts the composite property 'if
+        allocations exist for this request, its status is not failed'. The invariant is not stated,
+        so nothing enforces it."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "None. A4 is uncommitted, the Stripe endpoint does not exist, and no
+        appointment payment can settle. I read nothing from production."
+      remaining_uncertainty: "Whether A6's client page will re-claim through A3 before every confirm,
+        which is what decides how often this fires. I did not measure how Stripe orders
+        `payment_intent.payment_failed` and `payment_intent.succeeded` for one intent in practice,
+        only that no ordering is guaranteed and that redelivery of the first is normal."
+    relationships:
+      related_findings:
+        - "PAY-RFD-001"
+        - "PAY-ORD-001"
+      structural_patterns:
+        - "PAT-003"
+      analogous_uninspected_areas:
+        - "The same composite invariant on the deposit path: a booking whose deposit PaymentIntent
+          succeeded after a payment_failed. apps/web/src/app/api/stripe/webhook/route.ts is imported
+          by no test."
+        - "`expired` and `cancelled`, which are also reachable while a claimed intent is still live
+          and are likewise absent from the settle from-set; I did not construct those."
+    remediation:
+      status: "open"
+      proposed_action: "State the invariant and make the settlement path responsible for it. Either add
+        `failed -> paid` / `failed -> partially_paid` to A1's table and to the settle from-set (a
+        deliberate widening, since a succeeded is later evidence than a failed on one intent), or,
+        if the state machine should stay as it is, have `convergeRequestStatusAfterCollection`
+        detect that it wrote allocations and moved nothing and call `flagOrphaned`, so the
+        divergence is at least loud. Silently returning `ok: true` is the part that must not survive
+        either way."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified. A request can hold a full collection and read `failed`
+        to both the artist and the client, with no alert."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file, line and symbol. No secrets, no production rows."
+    history:
+      - date: "2026-07-30"
+        actor: "independent falsification verifier for P9 slice A4"
+        action: "opened"
+        note: "Found by moving the ordering question off charge.refunded, where all prior work sits, and
+          onto the pair of payment_intent events that share one intent id."
+  - id: "PAY-FEE-003"
+    title: "The fee-actuals write is the only write on the settlement path with no ordering guard and no
+      derivation from stored state, so a later delivery overwrites it from whatever its payload
+      says"
+    summary: "`settleAppointmentPaymentCore` runs its `payment_collections` fee update on EVERY
+      delivery, including the `already_settled` branch, and computes the values from the event
+      payload rather than from the allocations already on disk. The allocations are immutable and
+      protected by `payment_allocations_unique`; the fee row is not protected by anything. A second
+      delivery for the same intent carrying different numbers replaces `application_fee_minor`,
+      `appointment_base_minor` and `goods_base_minor` while the money record stands, leaving the two
+      describing different collections. The same write also collapses `intent.application_fee_amount
+      ?? 0`, which erases the null-versus-zero distinction migration 0128 explicitly created those
+      columns nullable to preserve."
+    classification:
+      domain: "payment"
+      category: "broken-invariant"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "independent falsification pass on P9 slice A4, scope = convergence, idempotency and
+        ordering (read-only on repo files, own fixtures)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "9f55ab7"
+      environment: "local"
+      discovery_context: "Enumerating every write on the settlement path and asking of each one whether it
+        converges to a target derived from stored state or merely trusts the newest payload. Three
+        of the four converge; this one does not."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts"
+        - "apps/web/supabase/migrations/0128_payment_settlement.sql"
+      symbols:
+        - "settleAppointmentPaymentCore"
+      database_objects:
+        - "payment_collections.application_fee_minor"
+        - "payment_collections.appointment_base_minor"
+        - "payment_collections.goods_base_minor"
+    evidence:
+      observed_facts:
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts:583-599 sets `outcome =
+          'already_settled'` on 23505 and CONTINUES; :618-634 the fee update then runs
+          unconditionally, with values taken from `intent` and from the apportionment of THIS
+          payload."
+        - "apps/web/supabase/migrations/0128_payment_settlement.sql:99-103: 'All four are NULLABLE,
+          and that is not laziness ... a NOT NULL DEFAULT 0 would make \"no fee was recorded\"
+          indistinguishable from \"the fee was zero\", which is the same mistake as reading an
+          unavailable lane as a 0% rate.' The caller writes `intent.application_fee_amount ?? 0`."
+        - "EXECUTED, local stack, own fixture: settle intent X with amount_received 10000 and
+          application_fee_amount 300, then deliver the same intent id with amount_received 1 and fee
+          0. Probe output `P10 outcome=already_settled allocSum=10000
+          feeBefore={application_fee_minor:300, appointment_base_minor:10000}
+          feeAfter={application_fee_minor:0, appointment_base_minor:1}`. The allocations correctly
+          did not move."
+      references:
+        - "AGENTS.md money-path rule 4"
+      reproduction: "Call `settleAppointmentPaymentCore` twice for one intent id with different
+        `amount_received` / `application_fee_amount`, then read `payment_collections`. No test
+        asserts the fee row after a redelivery that disagrees with the first; the suite's redelivery
+        test replays an identical payload, and its died-halfway test nulls the columns and asserts
+        they are caught up, which is the case this write handles correctly."
+      contradictory_evidence: "I could not construct a Stripe-realistic trigger. For one PaymentIntent,
+        `amount_received` and `application_fee_amount` are fixed once it succeeds, so two
+        `payment_intent.succeeded` deliveries should carry identical values and this write is then
+        genuinely idempotent, which is what its comment claims. The unconditional write is also what
+        makes the die-halfway recovery work, so removing it would be wrong. On the null collapse, A3
+        sets `application_fee_amount` at creation, so a null on the event usually does mean zero."
+      inspected_comparables_without_issue:
+        - "The three other writes on this path do converge: the allocation insert is one statement
+          and 23505-tolerant, the refund is an absolute set inside a row lock, and the two status
+          moves put their test in their own UPDATE qual."
+    assessment:
+      interpretation: "Not a live money defect, and I am not claiming one. It is the single place on this
+        path where the invariant 'the derived rows describe the money rows' rests on Stripe sending
+        the same numbers twice rather than on anything in this system. That is the property the
+        money-path rule asks writes on this path to have, and it is worth knowing it is absent here
+        before A8 starts reconciling against these columns."
+      root_cause_hypothesis: "The fee actuals were treated as 'absolute values, so writing twice writes
+        the same numbers', which is true of the VALUES and not of their SOURCE: they are absolute
+        with respect to the payload, not with respect to the stored allocations."
+      reachability: "conditionally-reachable"
+      impact_status: "theoretical"
+      production_exposure: "None. A4 is uncommitted and 0128 is not applied to production."
+      remaining_uncertainty: "Whether Stripe can ever deliver two `payment_intent.succeeded` events for
+        one intent with differing `application_fee_amount`. I did not establish that it can, and if
+        it cannot this stays theoretical."
+    relationships:
+      related_findings:
+        - "PAY-FEE-002"
+        - "PAY-ORD-001"
+      structural_patterns:
+        - "PAT-001"
+      analogous_uninspected_areas:
+        - "The deposit path's `platform_fee_collected_cents` write, which 0128 cites as the
+          precedent for this shape and which I did not read."
+    remediation:
+      status: "open"
+      proposed_action: "Derive the fee bases from the allocations that are actually stored for the intent
+        rather than from the payload's apportionment, so the fee row cannot describe a different
+        collection from the money row. Separately, write `intent.application_fee_amount` through
+        unchanged, including null, so the column keeps the distinction 0128 created it to keep."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line. No secrets, no production rows."
+    history:
+      - date: "2026-07-30"
+        actor: "independent falsification verifier for P9 slice A4"
+        action: "opened"
+        note: "Opened at low severity with the contradictory evidence stated first: the trigger is
+          hypothetical, the structural property is not."
+  - id: "ABUSE-PUB-001"
+    title: "The public project intake server action has none of the five abuse controls its direct
+      sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no
+      image MIME allowlist and no dedupe"
+    summary: "submitProjectIntakeAction is unauthenticated, reachable by anyone who knows an entitled
+      artist's slug, accepts up to 12 files totalling 40 MB, decodes each through sharp, writes them
+      to private storage, inserts a project row, and sends two emails — one of them to an
+      ATTACKER-SUPPLIED address. The comparable public form in the same repository,
+      submitBookingAction, gates the identical shape of work behind a honeypot, an origin check, a
+      per-artist-per-IP rate limit, an image MIME allowlist and a fingerprint dedupe. The project
+      intake applies none of the five. This is the newer of the two (Plus build P4) and it is the
+      only public form in the codebase that imports neither @/lib/honeypot nor @/lib/ratelimit."
+    classification:
+      domain: "public-surface"
+      category: "availability"
+      severity: "high"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "owner-authorized targeted audit: mobile API routes and server actions
+        (authentication, ownership, validation, error handling, IDOR, revalidation)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "9f55ab7"
+      environment: "repository-only"
+      discovery_context: "Read-only inspection of 17 mobile API routes and 18 server-action files
+        commissioned because Opus 5 authorship was flagged as a quality risk. Reported to the
+        supervisor rather than self-filed as fixed."
+    location:
+      files:
+        - "apps/web/src/app/[slug]/project/actions.ts"
+        - "apps/web/src/lib/server/projects.ts"
+        - "apps/web/src/app/[slug]/actions.ts"
+        - "apps/web/src/app/[slug]/project/project-form.tsx"
+      symbols:
+        - "submitProjectIntakeAction"
+        - "submitProjectIntakeCore"
+    evidence:
+      observed_facts:
+        - "apps/web/src/app/[slug]/project/actions.ts:20-71 is the whole action. It reads a slug,
+          resolves the artist with the service client, collects files and calls the core. It
+          performs no honeypot check, no origin check and no rate-limit check."
+        - "grep for importers of @/lib/ratelimit across apps/web/src returns 22 files;
+          apps/web/src/app/[slug]/project/actions.ts is not among them. grep for importers of
+          @/lib/honeypot returns 8 files; it is not among them either. Every other public
+          (unauthenticated) submit path IS in both lists or in the honeypot list: [slug]/actions.ts,
+          [slug]/flash/[flashSlug]/actions.ts, legal/report/actions.ts, download/actions.ts."
+        - "apps/web/src/app/[slug]/actions.ts:56 (honeypot), :62-69 (isAllowedBookingOrigin), :89
+          (checkRateLimit per IP per artist), :242-247 (per-file size AND ALLOWED_IMAGE_TYPES MIME
+          check before processImage), :320-362 (60-second fingerprint dedupe) — the five controls
+          the sibling applies to the same class of work."
+        - "apps/web/src/lib/server/projects.ts:100-123 enforces PROJECT_MAX_IMAGES (12),
+          PROJECT_MAX_IMAGE_BYTES (10 MB) and PROJECT_MAX_TOTAL_BYTES (40 MB) — size only. There is
+          no file.type allowlist anywhere on this path, unlike the booking path which checks MIME
+          before handing bytes to sharp."
+        - "apps/web/src/lib/server/projects.ts:266-271 sends sendProjectReceivedClient to
+          data.customerEmail, which is attacker-supplied request input, and :275-286 sends a second
+          email to the artist. Both run once per accepted submission."
+        - "apps/web/src/app/[slug]/project/project-form.tsx contains two hidden inputs (a per-key
+          marker at :44 and the slug at :99) and no honeypot field, so the control is absent from
+          the client as well as the server, not merely unread."
+        - "apps/web/src/app/[slug]/project/page.tsx:36-51 gates RENDERING on account_status active
+          plus largeProjectsAllowed, and apps/web/src/lib/server/projects.ts:67-79 re-checks the
+          entitlement before any parse or image work — so a non-entitled artist's slug is a cheap
+          refusal. The exposed surface is the set of entitled artists, not every artist."
+      references:
+        - "apps/web/src/lib/ratelimit.ts:60-66 — the reportRl comment states the exact reasoning
+          this path is missing: 'Each accepted call sends two emails (operator + reporter ack) with
+          attacker-supplied text, so cap to prevent using it as a mail relay / inbox flood.'"
+      contradictory_evidence: "Two real mitigations exist and are recorded so this is not overstated.
+        (1) The entitlement gate runs FIRST in the core, before zod parsing and before any image
+        work, so the expensive path is only reachable through an entitled artist's slug. (2)
+        guardedSharp (apps/web/src/lib/image-guard.ts:19-26) caps decoded pixels at 50 MP on every
+        sharp pipeline including this one, so the classic decompression-bomb OOM is already blunted
+        even without a MIME allowlist."
+      inspected_comparables_without_issue:
+        - "apps/web/src/app/legal/report/actions.ts — the other unauthenticated email-sending action.
+          Honeypot at :60, rate limit at :67-74, length caps on every field, HTML-escapes every
+          interpolated value at :35-42. Inspected and sound."
+        - "apps/web/src/app/request/[token]/actions.ts — unauthenticated but token-gated. Rate limits
+          by token hash (:47, :173, :330), enforces a 30-day expiry, uses status-gated conditional
+          UPDATEs with rowcount checks, and allowlists add-on selections against
+          artist-confirmed booking_interests rows (:432-469). Inspected and sound."
+        - "apps/web/src/app/[slug]/actions.ts submitWaitlistAction — honeypot at :733, rate limit at
+          :771. Inspected and sound."
+    assessment:
+      interpretation: "OBSERVED: the five controls are absent, and present on the sibling. INTERPRETATION:
+        the reachable abuse is (a) using Inklee's sending domain to deliver Inklee-branded mail to
+        an arbitrary third-party address at whatever rate the attacker chooses, which is a sender-
+        reputation and inbox-flood problem before it is anything else, (b) unbounded writes to the
+        projects table and the private bookings bucket, which is storage cost with no cleanup path,
+        and (c) unbounded sharp invocations, bounded per-call by the 50 MP guard but not bounded in
+        rate. The artist's own inbox is also floodable. I did not attempt any of this."
+      root_cause_hypothesis: "The project intake was written as a new core (submitProjectIntakeCore) rather
+        than by extending the booking intake, and the abuse controls live in the booking ACTION
+        rather than in a shared submit helper. Nothing structural carries them across, so a second
+        public form starts with none of them and nothing fails when they are missing."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      production_exposure: "Reachable in production against any artist entitled to large projects. Whether
+        any such artist exists in production today was NOT checked; the entitlement is Plus-gated
+        and Plus consumer billing is launch-held, so the current population may be small or empty."
+      remaining_uncertainty: "I did not send a single request to this endpoint, in production or locally,
+        so every statement here is from reading. I did not check how many production artists hold
+        largeProjectsAllowed. I did not measure sharp's actual cost per 10 MB input. I did not check
+        whether Vercel's platform-level DDoS mitigation or any WAF rule already caps this route. I
+        did not verify whether the email provider applies its own per-recipient throttling that
+        would blunt the relay use."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "apps/web/src/app/[slug]/flash/[flashSlug]/actions.ts imports BOTH honeypot and ratelimit,
+          so it is presumed protected, but I read only the import list, not the call sites — it was
+          not in my assigned scope and is NOT inspected."
+        - "apps/web/src/app/download/actions.ts is in the ratelimit list but NOT in the honeypot
+          list. Whether that is deliberate (it is a plain waitlist signup) or the same omission was
+          not established."
+        - "Every /api/mobile/* route relies on requireMobileUser and none of the routes I read
+          carries a rate limit except events/route.ts and settings/connect-link/route.ts. The
+          authenticated-but-unthrottled write routes (goods, travel, booking-form fields) were not
+          assessed for abuse volume."
+        - "The project intake's uploaded storage objects have no orphan-cleanup job that I looked
+          for. Whether one exists was not checked."
+    remediation:
+      status: "open"
+      proposed_action: "Not actioned by this pass. The obvious shape is the sibling's: honeypot field +
+        isAllowedBookingOrigin + a new per-IP-per-artist limiter in lib/ratelimit.ts + a MIME
+        allowlist before processImage. Worth considering whether the five controls should move into
+        a shared public-submit helper so a third public form cannot start empty again."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified. The finding itself rests on reading, not on execution."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by control name, file and line. No request payloads, no runnable
+        steps, no secrets, no production data."
+    history:
+      - date: "2026-07-30"
+        actor: "owner-authorized targeted audit: mobile API routes and server actions"
+        action: "opened"
+        note: "Found by comparing each public entry point against its nearest sibling rather than
+          reading each in isolation."
+  - id: "DRIFT-ACT-001"
+    title: "Two independent implementations of saveBooksSettingsAction are both wired to live forms,
+      and they disagree about whether opening or closing the books is audited"
+    summary: "apps/web/src/app/(artist)/bookings/books/actions.ts and
+      apps/web/src/app/(artist)/settings/books/actions.ts each export a function named
+      saveBooksSettingsAction that writes the same profiles.settings.books_settings object. Both are
+      imported by a real form. They differ in three ways, and the load-bearing one is that only the
+      first writes the books_opened / books_closed audit entry. Closing the books from
+      /settings/books therefore leaves no audit trail, and leaves /bookings/books and
+      /bookings/settings rendering the previous state."
+    classification:
+      domain: "web"
+      category: "divergent-implementation"
+      severity: "medium"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "owner-authorized targeted audit: mobile API routes and server actions"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "9f55ab7"
+      environment: "repository-only"
+      discovery_context: "Read-only inspection. Found by reading both files in the same batch and
+        noticing the identical export name."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/bookings/books/actions.ts"
+        - "apps/web/src/app/(artist)/settings/books/actions.ts"
+        - "apps/web/src/app/(artist)/bookings/books/books-form.tsx"
+        - "apps/web/src/app/(artist)/settings/books/books-form.tsx"
+      symbols:
+        - "saveBooksSettingsAction"
+    evidence:
+      observed_facts:
+        - "Both files export `saveBooksSettingsAction`. bookings/books/actions.ts is 84 lines,
+          settings/books/actions.ts is 71 lines, and lines 19-66 of each are the same logic
+          (same books_open/booking_cap/window/opens_at/closed_message parse, same parseBooksSettings
+          merge, same profiles update)."
+        - "Both are wired: bookings/books/books-form.tsx:5 and settings/books/books-form.tsx:5 each
+          import it from their own ./actions."
+        - "DIVERGENCE 1 (audit): bookings/books/actions.ts:70-79 writes a books_opened / books_closed
+          audit entry, gated on a real transition (`booksOpen !== currentBooks.books_open`).
+          settings/books/actions.ts has no writeAudit import and writes nothing."
+        - "DIVERGENCE 2 (revalidation): bookings/books/actions.ts:81-82 revalidates /bookings/books
+          AND /bookings/settings. settings/books/actions.ts:69 revalidates only /settings/books."
+        - "DIVERGENCE 3 (copy): the 280-character refusal reads 'closed message must be 280
+          characters or fewer' in bookings/books/actions.ts:36 and 'Closed message must be 280
+          characters or fewer.' in settings/books/actions.ts:35 — the second follows the AGENTS.md
+          sentence-case and terminal-punctuation rule, the first does not."
+        - "A third and a fourth implementation of the same write exist and are NOT duplicates in the
+          same sense: apps/web/src/app/(artist)/bookings/settings/actions.ts:49-88
+          (toggleBooksOpenAction) audits correctly, and apps/web/src/app/api/mobile/settings/books
+          /route.ts:103 states it mirrors the web audit. So three of the four audit and one does
+          not."
+      references:
+        - "AGENTS.md — the one-source-of-truth founder rule, and the copy rules the third divergence
+          breaches."
+      contradictory_evidence: "None found. I did not find any comment or doc claiming the two are
+        deliberately separate."
+      inspected_comparables_without_issue:
+        - "apps/web/src/app/(artist)/goods/collections/actions.ts and
+          apps/web/src/app/api/mobile/goods/collections/route.ts — the same feature on two surfaces,
+          both delegating to the SAME cores in lib/server/collections.ts. This is the pattern the
+          books settings should follow, and it holds here."
+        - "Discounts, appearance, slug rename and the confirmation page all follow the shared-core
+          pattern correctly (lib/server/discount-write.ts, appearance-write.ts, slug-rename.ts,
+          confirmation-write.ts), each with exactly one write implementation behind both surfaces."
+    assessment:
+      interpretation: "OBSERVED: two implementations, both live, diverging on audit and revalidation.
+        INTERPRETATION: an artist who closes their books from /settings/books produces no
+        books_closed audit row, so the audit log is not a complete record of that state change; and
+        the two other pages that render books state keep showing the old value until their own cache
+        expires or something else revalidates them. Neither is a security boundary. The audit gap is
+        the one that matters, because an incomplete audit log is silently incomplete."
+      root_cause_hypothesis: "One was almost certainly copied from the other during the nav
+        reorganisation that gave books settings a second home, and the audit call was added to only
+        one of them afterwards. Not traced through git history; inferred from shape."
+      reachability: "directly-reachable"
+      impact_status: "actively-impacting"
+      production_exposure: "Both routes exist in production. Any artist using /settings/books rather than
+        /bookings/books is producing the gap now."
+      remaining_uncertainty: "I did not check which of the two pages artists actually reach, or whether
+        one is orphaned in the nav. I did not run either form. I did not check git history to
+        confirm the copy direction. I did not check whether anything downstream CONSUMES the
+        books_opened / books_closed audit rows — if nothing reads them, the impact is lower than
+        stated."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "Whether any other action name is exported from two different route directories was NOT
+          swept for. I found this one by reading both files; I did not run a duplicate-export scan
+          across the app directory."
+        - "apps/web/src/app/(artist)/bookings/settings/actions.ts contains saveAvailabilityAction,
+          which writes the SAME books_settings keys minus books_open. Whether it should also audit
+          was not assessed."
+    remediation:
+      status: "open"
+      proposed_action: "Not actioned. The house pattern is already established elsewhere in this same
+        feature area: extract one saveBooksSettingsCore into lib/server/, have both actions and the
+        mobile route call it, and delete the duplicate."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "owner-authorized targeted audit: mobile API routes and server actions"
+        action: "opened"
+  - id: "BILL-UI-001"
+    title: "A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps
+      rendering the artist as an active Plus subscriber after their contract has ended and their
+      refund has been issued"
+    summary: "withdrawFromSubscriptionAction ends the subscription and issues a proportional refund, then
+      returns a message string. It calls no revalidatePath, and its only caller, withdraw-button.tsx,
+      calls no router.refresh — it just renders the message. The server-rendered plan page therefore
+      continues to show the pre-withdrawal state until something else invalidates it. Every other
+      mutating action in the audited set revalidates; this one, on the Art. 11a withdrawal path, does
+      not."
+    classification:
+      domain: "billing"
+      category: "silent-failure"
+      severity: "medium"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "owner-authorized targeted audit: mobile API routes and server actions"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "9f55ab7"
+      environment: "repository-only"
+      discovery_context: "Read-only inspection, from the revalidation limb of the audit scope."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/settings/plan/actions.ts"
+        - "apps/web/src/app/(artist)/settings/plan/withdraw-button.tsx"
+      symbols:
+        - "withdrawFromSubscriptionAction"
+    evidence:
+      observed_facts:
+        - "apps/web/src/app/(artist)/settings/plan/actions.ts:280-321 is the whole action. It
+          imports no revalidatePath (the file has no next/cache import at all) and calls none."
+        - "apps/web/src/app/(artist)/settings/plan/withdraw-button.tsx:66-70 is the only call site:
+          it awaits the action and does `setDone(r.message)`. Nothing else."
+        - "grep for router.refresh and useRouter across
+          apps/web/src/app/(artist)/settings/plan/ returns zero hits, so no client-side refresh
+          compensates."
+        - "The action DOES mutate: withdrawSubscriptionCore ends the subscription and, per the
+          returned result shape, can issue a refund whose amount is read back into the message."
+        - "Contrast within the same file: openBillingPortalAction (:241-274) also does not
+          revalidate, but it returns a Stripe-hosted URL for a redirect, so there is nothing to
+          revalidate. The two are not comparable."
+      references:
+        - "docs/product/plus-product-spec.md — the withdrawal-vs-cancellation split this path
+          implements."
+      contradictory_evidence: "The refund and the subscription end are real regardless of what the page
+        renders, so no money outcome is wrong. Whether the plan page reads its entitlement through a
+        cached server render or through a fresh per-request read was NOT established — if it is
+        uncached, the staleness may not be observable at all. That check is the first thing to do
+        before treating this as confirmed-impactful rather than confirmed-absent."
+      inspected_comparables_without_issue:
+        - "Every other mutating server action in the audited set revalidates: goods (7 call sites),
+          collections (revalidateShop on all 8 actions), discounts, appearance, slug rename (layout-
+          wide), books, booking settings, projects, studio (all 18 actions), map. The hub mobile
+          route even revalidates the public /<slug>/hub. This is the only mutation found without
+          one."
+    assessment:
+      interpretation: "OBSERVED: no revalidation on either side of the boundary. INTERPRETATION: after a
+        successful withdrawal the artist is likely to still see Plus, its capabilities and possibly
+        a 'manage subscription' control until they hard-reload. On a consumer statutory withdrawal
+        that is a poor place for the UI to disagree with the contract state, independently of
+        whether any capability is actually still granted."
+      root_cause_hypothesis: "The action returns a message rather than a State union, so it does not look
+        like the other form actions in the codebase and the revalidate step that is reflexive
+        elsewhere was not carried over."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      production_exposure: "The consumer launch is founder-held, so the number of artists who can reach
+        this today may be zero. Not verified."
+      remaining_uncertainty: "I did not load /settings/plan, before or after a withdrawal, so I have not
+        OBSERVED stale rendering — only the absence of the mechanism that would prevent it. I did
+        not read the plan page to determine whether its entitlement read is cached. I did not check
+        whether the Stripe webhook that later reconciles the subscription performs a revalidation of
+        its own, which would close the window asynchronously."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "startPlusConsumerCheckoutAction and confirmBusinessCheckoutAction also do not revalidate,
+          but both hand back a Stripe URL and the return trip lands on /settings/plan?checkout=
+          success, so their staleness question is different and was not assessed."
+        - "The mobile twins of the audited mutations (/api/mobile/*) legitimately do not revalidate,
+          since the app holds no Next.js cache. Whether the app refetches after each write was not
+          inspected."
+    remediation:
+      status: "open"
+      proposed_action: "Not actioned. Establish first whether the plan page is cached; if it is, a
+        revalidatePath('/settings/plan') in the action (or a router.refresh in the button) closes
+        it."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified, and the impact half is unproven."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "owner-authorized targeted audit: mobile API routes and server actions"
+        action: "opened"
+  - id: "OPS-ERR-001"
+    title: "Raw Postgres error messages are returned to clients from 91 call sites — 60 in the mobile
+      JSON API and 31 in web server actions"
+    summary: "The dominant failure idiom on both surfaces is `return mobileError(500, error.message)` and
+      `return { error: error.message }`, handing the client whatever PostgREST produced. Those
+      strings routinely name tables, columns, constraints and policies. The codebase already
+      demonstrates the correct alternative: every shared core in lib/server/ maps failures to a
+      fixed sentence and keeps the real message server-side."
+    classification:
+      domain: "api"
+      category: "disclosure"
+      severity: "low"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "owner-authorized targeted audit: mobile API routes and server actions"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "9f55ab7"
+      environment: "repository-only"
+      discovery_context: "Read-only inspection; counted by grep after the pattern was noticed in the
+        first three routes read."
+    location:
+      files:
+        - "apps/web/src/app/api/mobile/goods/[id]/route.ts"
+        - "apps/web/src/app/api/mobile/booking-form/fields/[id]/route.ts"
+        - "apps/web/src/app/api/mobile/travel/trips/route.ts"
+        - "apps/web/src/app/(artist)/goods/actions.ts"
+        - "apps/web/src/app/(artist)/bookings/form/actions.ts"
+        - "apps/web/src/app/(artist)/bookings/settings/actions.ts"
+    evidence:
+      observed_facts:
+        - "60 sites under apps/web/src/app/api/mobile/ match `mobileError(<status>, <err>.message)`,
+          spread across booking-form (8), goods (10), projects (1), settings (24) and travel (10),
+          plus the remainder in routes outside the audited subset."
+        - "31 sites under the audited (artist) action directories match `return { error:
+          error.message }` or a named-variable equivalent — including goods/actions.ts:453, 584,
+          633, 654, 830 and bookings/form/actions.ts:136, 243, 263, 296, 329, 337."
+        - "The alternative is already the house style in the shared cores and is applied
+          consistently there: lib/server/collections.ts returns \"Couldn't save.\" / \"Couldn't
+          delete.\" / \"Couldn't reorder.\"; lib/server/discount-write.ts returns \"Couldn't save.
+          Try again.\"; lib/server/projects.ts returns \"Couldn't save. Try again.\". None of them
+          forwards error.message."
+        - "The two idioms meet inside single files. apps/web/src/app/api/mobile/goods/collections
+          /route.ts forwards nothing (every failure comes back through the cores' fixed strings),
+          while its sibling apps/web/src/app/api/mobile/goods/route.ts:32 and :103 forward
+          error.message directly."
+      contradictory_evidence: "This is only reachable by an AUTHENTICATED artist acting on their own
+        rows, so it is not an anonymous disclosure, and the schema of an open-source repository is
+        not itself a secret — apps/web/supabase/ is public. What leaks is therefore runtime detail
+        (which constraint fired, which policy refused) rather than the schema, and the practical
+        value to an attacker is reconnaissance convenience, not access. That is why this is low and
+        not medium."
+      inspected_comparables_without_issue:
+        - "Every lib/server/ core in the audited set maps failures to fixed copy:
+          collections.ts, discount-write.ts, projects.ts, confirmation-write.ts, appearance-write.ts,
+          slug-rename.ts. Inspected and sound."
+        - "apps/web/src/app/[slug]/actions.ts and request/[token]/actions.ts — the two public
+          surfaces — return only fixed sentences and route the real error to Sentry. Inspected and
+          sound."
+    assessment:
+      interpretation: "OBSERVED: 91 sites forward the raw message. INTERPRETATION: an authenticated
+        artist can enumerate table names, column names, constraint names and RLS policy names by
+        provoking failures. It also means user-facing copy is whatever PostgREST wrote, which
+        breaches the AGENTS.md copy rules by construction (not sentence case, no terminal
+        punctuation, and it can contain characters the copy rules forbid). The copy consequence is
+        arguably the more certain of the two."
+      root_cause_hypothesis: "`if (error) return ...error.message` is the fastest thing to write and
+        nothing fails when it is written. The cores were built later, with the discipline; the
+        routes and actions predate or bypass them."
+      reachability: "directly-reachable"
+      impact_status: "actively-impacting"
+      production_exposure: "Present in production on both surfaces for any authenticated artist."
+      remaining_uncertainty: "I did not provoke a single one of these errors, so I have not OBSERVED what
+        a real message contains on this schema — the claim that they name tables and constraints is
+        from knowledge of PostgREST's format, not from captured output. I did not check whether
+        Sentry captures the same errors server-side, so I cannot say the information is preserved
+        for operators if these are changed to fixed copy. I counted by grep; near-miss idioms
+        (template literals embedding error.message) were not counted and the real number may be
+        higher."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "The mobile routes OUTSIDE my assigned subset (bookings/*, flash/*, instagram/*, map/*,
+          notifications/*, onboarding/*, account, analytics, billing/*, clients/*, calendar/*,
+          devices, events, home, me, support, slots, waitlist) were included in the grep count but
+          not read, so I know they carry the idiom and not whether they carry anything worse."
+        - "The (artist) action directories outside the audited subset — payouts, reminders, emails,
+          deposits, dashboard, clients — appear in the count and were not read."
+        - "Whether any of these messages reaches an END CUSTOMER (rather than an artist) was not
+          traced. The public and portal surfaces I did read do not, but I did not check the flash
+          booking path."
+    remediation:
+      status: "open"
+      proposed_action: "Not actioned; too broad for an audit pass to fix safely in one go. The mechanical
+        change is a helper that logs the real error and returns fixed copy, applied per file. A lint
+        rule forbidding error.message in a return value would prevent regrowth, which matters more
+        than the one-time sweep."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "No real error text is reproduced. Counts and line references only."
+    history:
+      - date: "2026-07-30"
+        actor: "owner-authorized targeted audit: mobile API routes and server actions"
+        action: "opened"
+  - id: "DATA-ORPH-001"
+    title: "createProductAction inserts the product row before processing images and returns the image
+      error without deleting it, so every failed image upload leaves an untitled-to-the-artist
+      orphan product that still consumes the plan's active-product cap"
+    summary: "The insert happens at goods/actions.ts:431, images are processed at :458, and a failure at
+      :465 returns the error with the row still committed. The artist sees 'Could not process that
+      image' and retries, creating a second product. The comparable core one directory away,
+      submitProjectIntakeCore, rolls back exactly this sequence, and the update path in the same
+      file cleans up its uploads on both failure branches. Only the create path does not."
+    classification:
+      domain: "web"
+      category: "broken-invariant"
+      severity: "low"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "owner-authorized targeted audit: mobile API routes and server actions"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "9f55ab7"
+      environment: "repository-only"
+      discovery_context: "Read-only inspection. Noticed because the project intake core, read minutes
+        earlier, documents the rollback discipline this path omits."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/goods/actions.ts"
+      symbols:
+        - "createProductAction"
+    evidence:
+      observed_facts:
+        - "apps/web/src/app/(artist)/goods/actions.ts:431-455 inserts the product and captures
+          productId. :458-464 calls processProductImages. :465 is `if (\"error\" in imagesResult)
+          return imagesResult;` with no delete of the row and no removal of any partial upload
+          beyond what processProductImages already rolled back internally."
+        - "processProductImages CAN fail after the insert: uploadProductImage rejects a wrong MIME
+          type (:234), a file over 5 MB (:237), a buffer sharp cannot decode (:249) and a storage
+          upload error (:260); processProductImages itself rejects an unparseable keep-list (:318)
+          and an over-max image count (:332)."
+        - "The UPDATE path in the same file handles this correctly on both branches: :582-585 and
+          :586-590 each call removeOwnedGoodsObjects(uploaded, ...) before returning."
+        - "apps/web/src/lib/server/projects.ts:169-212 is the same insert-then-upload sequence with
+          an explicit rollback closure that removes the uploaded objects AND deletes the project
+          row, and its comment states the reasoning: 'A half-uploaded set with no rows pointing at
+          it is invisible storage cost forever.'"
+        - "The orphan is not inert: apps/web/src/lib/server/goods-guard.ts checkProductCap is called
+          at :422 before the insert and counts non-archived products, so each orphan permanently
+          consumes one of the Free tier's 3 or Plus's 25 slots."
+      contradictory_evidence: "The orphan is a fully valid product row the artist can see and delete from
+        /goods — it is not hidden state, and the cap consumption is recoverable by hand. That is why
+        this is low. It is also only reachable when an image step fails, which the client-side
+        compression makes uncommon."
+      inspected_comparables_without_issue:
+        - "updateProductAction in the same file — rolls back uploads on both the error branch and
+          the lost-compare-and-set branch. Inspected and sound."
+        - "apps/web/src/lib/server/projects.ts submitProjectIntakeCore — full rollback of both
+          storage and row. Inspected and sound."
+        - "apps/web/src/app/[slug]/actions.ts submitBookingAction — rollbackSlotAndImages covers
+          every failure path between the slot lock and the booking insert, and the comment explains
+          why. Inspected and sound."
+        - "POST /api/mobile/goods does not have this defect because it writes no images; the mobile
+          image upload is a separate route."
+    assessment:
+      interpretation: "OBSERVED: no rollback on the create path. INTERPRETATION: a failed create leaves a
+        product the artist did not intend, occupying a paid cap slot, with a title and price but no
+        image. Repeated retries multiply it. The likely first symptom is a support message about
+        being unable to add products while under the visible limit."
+      root_cause_hypothesis: "The image write needs the product id, so the insert has to come first; the
+        rollback that this forces was added to the update path (where FU-18 made the ordering
+        explicit) and never retrofitted to create."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "Present in production. Whether any orphan rows exist was NOT checked; that
+        would need a production read of products with an empty image_urls and a null image_url."
+      remaining_uncertainty: "I did not force an image failure and observe the row surviving — this is
+        read from control flow. I did not check whether the /goods grid renders an imageless product
+        in a way that makes the orphan obvious to the artist, which would change the impact
+        materially. I did not query production for existing orphans."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "PUT /api/mobile/goods/:id/variants and POST /api/mobile/goods/:id/image were not read;
+          whether either can strand a partial write was not assessed."
+        - "reconcileVariants (lib/server/goods-variants.ts) performs N unbatched writes with no
+          transaction and no rollback, so a mid-loop failure leaves a partially reconciled variant
+          set. I read the function but did not assess that property; it is recorded here as
+          uninspected rather than as a finding."
+        - "reorderCollectionsCore and reorderCollectionProductsCore in lib/server/collections.ts
+          have the same unbatched-loop shape and return on first error, leaving a partial ordering.
+          The file's own comment accepts position ties as cosmetic, but the partial-reorder case is
+          not discussed and was not assessed."
+    remediation:
+      status: "open"
+      proposed_action: "Not actioned. The update path's own rollback is the model; the create path
+        additionally needs to delete the row it inserted, as submitProjectIntakeCore does."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "owner-authorized targeted audit: mobile API routes and server actions"
+        action: "opened"
+  - id: "AUTH-RLS-003"
+    title: "product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible
+      safety check, cascade-deleting populated collection items"
+    summary: "0121 creates an RLS DELETE policy on product_collections ('artist deletes own collections',
+      for delete to authenticated using artist_id = auth.uid()). 0124 creates delete_collection_if_eligible
+      as SECURITY INVOKER, which enforces an eligibility check (collection must be empty or archived)
+      before deletion. Because the function is SECURITY INVOKER, it requires the DELETE policy to work.
+      But the same policy also allows an artist to call PostgREST DELETE directly, bypassing the function's
+      eligibility check entirely. The composite FK on product_collection_items uses ON DELETE CASCADE, so
+      a direct delete of a populated collection destroys all membership rows — the exact data loss the
+      function exists to prevent."
+    classification:
+      domain: "authorization"
+      category: "missing-authorization"
+      severity: "high"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "Opus 5 code quality audit: RLS and authorization lens"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "fde77f0"
+      environment: "repository-only"
+      discovery_context: "Found during a four-agent code quality audit of all Opus 5 commits
+        (2026-07-27 to 2026-07-30). The RLS agent identified the tension between SECURITY INVOKER
+        needing the DELETE policy and the policy opening a bypass around the function's safety logic."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0121_product_collections_write_policies.sql:53-56"
+        - "apps/web/supabase/migrations/0124_delete_collection_atomic.sql:97-160"
+        - "apps/web/supabase/migrations/0122_collection_items.sql:102"
+    evidence:
+      observed_facts:
+        - "0121:53-56 creates 'artist deletes own collections' on product_collections for delete to
+          authenticated using (artist_id = auth.uid()). No WITH CHECK, no additional conditions."
+        - "0124:97-103 declares delete_collection_if_eligible as SECURITY INVOKER, meaning it runs
+          under the calling user's privileges and relies on the DELETE policy to perform the delete."
+        - "0122:102 declares the composite FK with ON DELETE CASCADE, so deleting a parent row
+          cascade-deletes all child product_collection_items rows."
+        - "0124:88 documents the eligibility rule: memberCount === 0 || archivedAt. This check exists
+          only inside the function, not in the RLS policy."
+        - "PostgREST exposes DELETE on any table with an RLS DELETE policy, so an authenticated
+          artist can call supabase.from('product_collections').delete().eq('id', x) directly."
+        - "Grepped all of apps/web/src for product_collections combined with .delete(: zero application
+          call sites. collections.ts calls only the RPC (delete_collection_if_eligible at line 216).
+          Reachability is therefore via direct PostgREST REST call, not through the application."
+        - "collection-delete-rpc.test.ts:21 states the RPC 'is the only path that deletes a
+          collection.' This is false: the RLS DELETE policy is a second path. The only raw
+          .from('product_collections').delete() calls in tests/db/ are service-role teardown helpers
+          (collections-rls.test.ts:62, collection-items-rls.test.ts:80, helpers/actor.ts:75)."
+        - "Dropping the 0121 DELETE policy does NOT fix the gap: 0124:49-55 documents that without
+          the UPDATE policy, select ... for update matches ZERO rows and returns NO ERROR, so the
+          locking read silently fails. The same applies to DELETE: the RPC's own delete from
+          product_collections runs AS the calling artist and needs a permissive DELETE policy."
+        - "Pushing the eligibility check into the RLS USING clause reintroduces the identical TOCTOU
+          race 0124 was built to close: RLS's USING clause evaluates once against the snapshot at
+          statement start, exactly like the one-statement version 0124 already proved unsafe."
+      references:
+        - "apps/web/supabase/migrations/0121_product_collections_write_policies.sql"
+        - "apps/web/supabase/migrations/0124_delete_collection_atomic.sql"
+        - "apps/web/supabase/migrations/0122_collection_items.sql"
+        - "apps/web/tests/db/collection-delete-rpc.test.ts:21"
+      contradictory_evidence: "The bypass requires the artist to circumvent their own UI, which always
+        calls deleteCollectionCore (the function path). A direct PostgREST call deletes the artist's
+        own data, not another user's. The severity is therefore about data integrity (accidental or
+        programmatic self-harm) rather than cross-user authorization."
+      inspected_comparables_without_issue:
+        - "product_collection_items has no independent DELETE policy — it can only be deleted through
+          the cascade or by the function, which is correct."
+    assessment:
+      interpretation: "The function's safety check is not enforceable at the database level because
+        SECURITY INVOKER requires the same DELETE privilege that also enables the bypass. The
+        structurally sound fix is converting to SECURITY DEFINER (so the internal DML no longer
+        depends on the authenticated DELETE policy) and dropping the 0121 DELETE policy, making the
+        RPC the only object capable of deleting a product_collections row. Both obvious alternatives
+        were checked and fail: dropping the policy breaks the RPC, and inlining the check into the
+        USING clause reintroduces the TOCTOU."
+      root_cause_hypothesis: "SECURITY INVOKER was chosen deliberately (0124:93-96 explains why) to
+        keep the function inside the artist's RLS boundary. The trade-off is that the eligibility
+        check is advisory rather than enforced."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      production_exposure: "No production incident. The goods_collections capability is not yet granted
+        to any artist, so the tables are empty. The bypass becomes reachable the moment the capability
+        is granted and collections are populated."
+      remaining_uncertainty: "Whether the UI's exclusive use of the function is sufficient mitigation,
+        or whether the direct PostgREST path must be closed."
+    relationships:
+      related_findings:
+        - "AUTH-RLS-001"
+        - "AUTH-RLS-002"
+        - "DATA-RACE-001"
+      analogous_uninspected_areas:
+        - "Other tables where a function enforces business logic but RLS permits direct bypass: flash
+          items, discount codes, any table with both a restrictive function and a permissive DELETE
+          policy."
+    remediation:
+      status: "open"
+      proposed_action: "Either make delete_collection_if_eligible SECURITY DEFINER and drop the RLS
+        DELETE policy, or add a BEFORE DELETE trigger on product_collections that enforces the
+        eligibility check at the database level."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by path and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "Opus 5 code quality audit: RLS and authorization lens"
+        action: "opened"
+  - id: "PAY-CHK-001"
+    title: "prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state"
+    summary: "apps/web/src/app/request/[token]/actions.ts:593 and :606 delete the just-created order
+      if order_items insertion or Stripe paymentIntents.update fails. Between order creation and the
+      compensating delete, a concurrent read (webhook, admin panel, polling) could observe and
+      reference the order. The delete is not guarded by a status check, so a race between a successful
+      checkout flow and a failed retry of the same form could delete an order that has already
+      progressed."
+    classification:
+      domain: "payment"
+      category: "concurrency"
+      severity: "medium"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "Opus 5 code quality audit: money paths lens"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "fde77f0"
+      environment: "repository-only"
+      discovery_context: "Found during a four-agent code quality audit of all Opus 5 commits."
+    location:
+      files:
+        - "apps/web/src/app/request/[token]/actions.ts:593"
+        - "apps/web/src/app/request/[token]/actions.ts:606"
+    evidence:
+      observed_facts:
+        - "actions.ts:593 deletes the order if order_items insert fails: await serviceClient
+          .from('orders').delete().eq('id', orderId)."
+        - "actions.ts:606 deletes the order if Stripe paymentIntents.update fails, same pattern."
+        - "The order is created earlier in the function with a serviceClient insert. Between insert
+          and delete, the order is visible to any service-role query."
+        - "No status guard (e.g. .eq('status', 'draft')) on the delete, so it would delete an order
+          in any state."
+      references:
+        - "apps/web/src/app/request/[token]/actions.ts"
+      contradictory_evidence: "The order is created and potentially deleted within a single server
+        action invocation. The window is small (two sequential async calls). The action is triggered
+        by a form submission, and concurrent submissions for the same booking are unlikely in
+        practice."
+      inspected_comparables_without_issue:
+        - "The existing deposit flow in bookings.ts uses a different pattern (update status rather
+          than delete) which does not have this issue."
+    assessment:
+      interpretation: "A race between two form submissions could create two orders, then one deletes
+        the other's order. Low probability in practice due to the short window and the booking token
+        being single-use per customer action."
+      root_cause_hypothesis: "The cleanup pattern was written for the single-user, single-tab case.
+        The order has no status guard because it was assumed to always be in 'draft' state."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "The goods checkout flow exists in production. No incident reported. The
+        race requires two near-simultaneous form submissions for the same booking token."
+      remaining_uncertainty: "Whether the booking token's rate limit (checkPortalRateLimit) prevents
+        concurrent submissions entirely."
+    relationships:
+      related_findings:
+        - "PAY-ORD-001"
+        - "PAY-ORD-002"
+      analogous_uninspected_areas:
+        - "Other server actions that create-then-delete on failure: project intake, flash intake."
+    remediation:
+      status: "open"
+      proposed_action: "Add a status guard (.eq('status', 'draft')) to the compensating delete, so
+        only draft orders are cleaned up. Consider using a database transaction instead."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "Opus 5 code quality audit: money paths lens"
+        action: "opened"
+  - id: "PAY-BAL-001"
+    title: "deposit and balance payment requests have no subject-scoped ceiling because the stored final
+      service price is null in production"
+    summary: "appointment-payment-quote.ts:634-642 documents that deposit and balance payment request
+      types get no subject-scoped ceiling (resolveFinalServicePrice returns null for any collects
+      value other than 'full_price'). The stored final price field (STORED_FINAL_SERVICE_PRICE_MINOR)
+      is null in production because A6 (the feature that sets it) is not yet built. Until it exists,
+      the only ceiling is request-scoped, and an artist could issue multiple deposit requests that
+      in aggregate exceed the service price."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "high"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "Opus 5 code quality audit: money paths lens"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "fde77f0"
+      environment: "repository-only"
+      discovery_context: "Found during a four-agent code quality audit of all Opus 5 commits."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-quote.ts:634-642"
+        - "apps/web/src/lib/server/appointment-payment-quote.ts:63-80"
+        - "apps/web/src/lib/server/appointment-payment-quote.ts:644-656"
+    evidence:
+      observed_facts:
+        - "appointment-payment-quote.ts:634-637 documents the gap: 'deposit and balance get nothing.
+          A deposit precedes the final price by definition, and a balance's tattoo-service line is
+          the REMAINDER, so treating it as the total would under-state the debt.'"
+        - "appointment-payment-quote.ts:649-650: resolveFinalServicePrice returns stored if it is a
+          number, returns null if collects !== 'full_price'. For deposit/balance, null is returned."
+        - "appointment-payment-quote.ts:640: STORED_FINAL_SERVICE_PRICE_MINOR is described as 'null'
+          — the production value, since A6 is not yet built."
+        - "appointment-payment-quote.ts:63-66: 'The subject ceiling only exists when the artist has
+          confirmed a final price.' Without it, there is no guard against over-collection."
+      references:
+        - "apps/web/src/lib/server/appointment-payment-quote.ts"
+      contradictory_evidence: "The code explicitly documents this as a known design limitation, not an
+        oversight. The request-scoped ceiling still exists and prevents over-collection on any single
+        request. The gap is only in aggregate across multiple requests for the same subject."
+      inspected_comparables_without_issue:
+        - "full_price payment requests DO get a subject-scoped ceiling, correctly."
+    assessment:
+      interpretation: "This is a documented, accepted gap in the P9 appointment payments system. The
+        subject-scoped ceiling is deferred to A6 (stored final price). The risk is that an artist
+        could issue multiple deposit requests for the same booking that in aggregate exceed the
+        tattoo's price."
+      root_cause_hypothesis: "The P9 system was designed with the ceiling gap documented rather than
+        enforced, because A6 (the stored price feature) is the correct place to close it."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "The appointment payments system is dark (not yet activated). No artist
+        has access to the payment request flow. The gap becomes reachable when the system goes live
+        and an artist issues multiple deposit requests for the same subject."
+      remaining_uncertainty: "Whether the request-scoped ceiling alone provides sufficient practical
+        protection, since each individual request is bounded. The aggregate over-collection requires
+        the artist to actively issue multiple requests."
+    relationships:
+      related_findings:
+        - "PAY-RFD-001"
+        - "PAY-ORD-001"
+      analogous_uninspected_areas:
+        - "The existing deposit flow in booking_requests also has no aggregate ceiling across bookings
+          for the same client — the same pattern at a different layer."
+    remediation:
+      status: "deferred"
+      proposed_action: "Close when A6 (stored final service price) is built. The ceiling then applies
+        automatically via resolveFinalServicePrice returning a real value."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified. Accepted as a documented gap until A6."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "Opus 5 code quality audit: money paths lens"
+        action: "opened"
+        note: "Documented gap, deferred to A6"
+  - id: "BDEL-PAY-001"
+    title: "Account deletion does not archive or pseudonymize P9 appointment payment data before the
+      cascade destroys it"
+    summary: "account-deletion.ts archives deposit booking data (booking_requests with payment intents)
+      and order data before the profile cascade, per counsel requirements. But the P9 tables
+      (payment_requests, payment_request_lines, payment_allocations, payment_collections) all have
+      ON DELETE CASCADE from profiles(id) and are not mentioned in the deletion flow. When an artist
+      with appointment payment history deletes their account, the cascade destroys payment request
+      records, line items, allocation history, and collection records without pseudonymization or
+      archival."
+    classification:
+      domain: "billing"
+      category: "broken-invariant"
+      severity: "high"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "Opus 5 code quality audit: money paths lens"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "fde77f0"
+      environment: "repository-only"
+      discovery_context: "Found during a four-agent code quality audit of all Opus 5 commits."
+    location:
+      files:
+        - "apps/web/src/lib/server/account-deletion.ts"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql:344"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql:712"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql:988"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql:1151"
+    evidence:
+      observed_facts:
+        - "account-deletion.ts does not reference any P9 table: no grep match for appointment_payment,
+          payment_request, payment_collection, or payment_allocation."
+        - "0125:344 payment_requests references profiles(id) on delete cascade."
+        - "0125:712 payment_request_lines references profiles(id) on delete cascade (through request)."
+        - "0125:988 payment_allocations references profiles(id) on delete cascade."
+        - "0125:1151 payment_collections references profiles(id) on delete cascade."
+        - "account-deletion.ts:89-96 explicitly queries booking_requests for deposit data and
+          archives it at :175-198. account-deletion.ts:176-183 queries orders and pseudonymizes them.
+          Neither path covers P9 tables."
+        - "Counsel requirement (account-deletion.ts:24-29): paid deposit's pseudonymised record is
+          retained to preserve the client's refund route. P9 payment requests serve the same function
+          for appointment payments."
+      references:
+        - "apps/web/src/lib/server/account-deletion.ts"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql"
+      contradictory_evidence: "The P9 system is dark — no artist has used appointment payments yet.
+        The CASCADE is the correct FK behavior (an artist's data should be deleted with their profile).
+        The gap is specifically about the archival step that must precede the cascade for financial
+        records with legal retention requirements."
+      inspected_comparables_without_issue:
+        - "Deposit booking archival in account-deletion.ts:89-198 correctly captures paid deposits
+          before the cascade."
+        - "Order pseudonymization at :176-183 correctly captures order data."
+    assessment:
+      interpretation: "When an artist with appointment payment history deletes their account, the
+        counsel-mandated 7-year financial record (account-deletion.ts:29) is destroyed by the cascade
+        for any P9 payment data. The client's refund route through payment_requests is also lost."
+      root_cause_hypothesis: "The P9 tables were created after account-deletion.ts was written. The
+        deletion flow was not updated to account for the new tables."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      production_exposure: "None. The P9 system is dark, so no appointment payment data exists in
+        production. The gap becomes impactful the moment the system goes live and an artist with
+        payment history deletes their account."
+      remaining_uncertainty: "The exact archival format needed for P9 data — whether the existing
+        buildFinancialSnapshot can be extended or a new archival path is needed."
+    relationships:
+      related_findings:
+        - "PAY-RFD-001"
+        - "PAY-ORD-001"
+      analogous_uninspected_areas:
+        - "Any other table added after account-deletion.ts that has ON DELETE CASCADE from profiles
+          and contains financial or legally-retainable data."
+    remediation:
+      status: "open"
+      proposed_action: "Extend deleteOwnAccountCore to query and archive P9 payment data (payment
+        requests with allocations and collections) into deleted_account_records before the profile
+        cascade. Must be done before the appointment payments system goes live."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "Opus 5 code quality audit: money paths lens"
+        action: "opened"
+  - id: "SEED-GRT-002"
+    title: "seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE,
+      leaving local stack with authenticated TRUNCATE on a service-role-only table"
+    summary: "0125 declares two table-level REVOKEs: payment_collections (line 1068) and
+      payment_allocations (line 1400). seed.sql mirrors only the second (lines 69-70). After
+      supabase db reset, the blanket GRANT ALL ON ALL TABLES (seed.sql:16-17) re-grants INSERT,
+      UPDATE, DELETE and TRUNCATE on payment_collections to anon and authenticated. RLS with no
+      permissive write policy blocks I/U/D, but TRUNCATE ignores RLS entirely, so authenticated
+      can empty the table on the local stack."
+    classification:
+      domain: "production-config"
+      category: "config-drift"
+      severity: "medium"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "Opus 5 code quality audit: migration quality lens"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "fde77f0"
+      environment: "repository-only"
+      discovery_context: "Found during a four-agent code quality audit of all Opus 5 commits."
+    location:
+      files:
+        - "apps/web/supabase/seed.sql:16-17"
+        - "apps/web/supabase/seed.sql:69-70"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql:1068"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql:1400"
+    evidence:
+      observed_facts:
+        - "0125:1062-1068 documents payment_collections as service-role-only and revokes insert,
+          update, delete, truncate from anon, authenticated."
+        - "0125:1396-1400 does the same for payment_allocations."
+        - "seed.sql:69-70 mirrors the payment_allocations revoke: REVOKE INSERT, UPDATE, DELETE,
+          TRUNCATE ON public.payment_allocations FROM anon, authenticated."
+        - "seed.sql has NO corresponding revoke for payment_collections."
+        - "seed.sql:16-17 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated clobbers
+          the migration's revoke for payment_collections on the local stack."
+        - "seed.sql:32-38 warns: 'Re-apply deliberate column-privilege hardenings that the blanket
+          GRANT ALL above just clobbered.'"
+      references:
+        - "apps/web/supabase/seed.sql"
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql"
+      contradictory_evidence: "This only affects the local development stack. Production runs
+        migrations without seed.sql, so the revoke is correctly applied."
+      inspected_comparables_without_issue:
+        - "The payment_allocations revoke IS correctly mirrored, showing the pattern is understood."
+    assessment:
+      interpretation: "Same class as SEED-GRT-001: seed.sql's hand-maintained mirror list goes stale.
+        On the local stack, any test asserting that payment_collections is inaccessible to
+        authenticated would pass incorrectly, and TRUNCATE would succeed when it should not."
+      root_cause_hypothesis: "0125 added both revokes but only one was carried to seed.sql. The file's
+        own warning (lines 32-38) anticipates this failure mode."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      production_exposure: "None. Production is correctly locked. The exposure is that local
+        verification of the payment_collections grant surface diverges from production."
+      remaining_uncertainty: "Whether any existing or future test depends on the payment_collections
+        grant being restricted."
+    relationships:
+      related_findings:
+        - "SEED-GRT-001"
+        - "AUTH-RLS-001"
+      analogous_uninspected_areas:
+        - "0125 may have other grant/revoke pairs that are not mirrored. A systematic diff of all
+          0125 privilege statements against seed.sql was not performed."
+    remediation:
+      status: "open"
+      proposed_action: "Add REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_collections
+        FROM anon, authenticated to seed.sql, next to the payment_allocations mirror."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed and not verified."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by path and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "Opus 5 code quality audit: migration quality lens"
+        action: "opened"
+  - id: "DATA-RACE-002"
+    title: "0124's self-documented residual risks (timeout and deadlock) not recorded in the audit
+      evidence register"
+    summary: "0124_delete_collection_atomic.sql documents two residual risks at lines 71-85: (1) a
+      populated+live collection with a concurrent membership write blocks until the writer finishes,
+      and if it exceeds authenticated's 8s statement_timeout the caller gets 57014 with a wrong
+      error message; (2) a deadlock (40P01) is newly possible because the function holds an
+      exclusive row lock even on collections it refuses. Both are described as 'KNOWN, ACCEPTED,
+      UNTESTED' in the migration itself but were not recorded in findings.yaml, meaning the accepted
+      risk has no register entry and cannot be tracked or re-evaluated."
+    classification:
+      domain: "database"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-30"
+      detected_by: "Opus 5 code quality audit: migration quality lens"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "fde77f0"
+      environment: "repository-only"
+      discovery_context: "Found during a four-agent code quality audit of all Opus 5 commits."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0124_delete_collection_atomic.sql:71-85"
+    evidence:
+      observed_facts:
+        - "0124:71-78 describes the timeout risk: 'KNOWN, ACCEPTED, UNTESTED: the lock is taken
+          BEFORE eligibility is known, so a refusal now waits too. A populated+live collection with
+          a concurrent membership write in flight blocks until that writer finishes; if it exceeds
+          authenticated's 8s statement_timeout the caller gets 57014, which collections.ts maps to
+          the generic Couldn't delete rather than the correct archive it first.'"
+        - "0124:80-85 describes the deadlock risk: 'A deadlock (40P01) is also newly POSSIBLE where
+          the one-statement version had none, because this body holds an exclusive row lock even on
+          collections it refuses. It needs two locking statements in ONE transaction to trigger, and
+          deleteCollectionCore issues one RPC per PostgREST request, i.e. one transaction and one
+          lock, so it is currently UNREACHABLE from the app.'"
+        - "Neither risk has a corresponding entry in findings.yaml."
+        - "0124:76-77 documents the timeout as 'Data-safe (verified: collection and membership both
+          survive), but the wrong message.'"
+        - "0124:85 documents the deadlock as unreachable: 'It becomes reachable the moment anything
+          wraps this RPC in a larger transaction.'"
+      references:
+        - "apps/web/supabase/migrations/0124_delete_collection_atomic.sql"
+      contradictory_evidence: "Both risks are explicitly documented in the migration file itself,
+        which is a form of record. The register entry is specifically about making them trackable
+        and re-evaluatable in the structured ledger."
+      inspected_comparables_without_issue:
+        - "DATA-RACE-001 (the TOCTOU defect that 0124 fixes) IS recorded in findings.yaml."
+    assessment:
+      interpretation: "The migration's self-documentation is thorough but lives in a file that is
+        read during migration review, not during risk re-evaluation. The register is the structured
+        record that surfaces for re-inspection."
+      root_cause_hypothesis: "The risks were identified and documented during the same session that
+        wrote the fix, and the register entry was deferred to a supervisor pass."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "The goods_collections capability is not yet granted, so the tables are
+        empty and the collection delete path is unreachable. Both risks become live when collections
+        are populated."
+      remaining_uncertainty: "The deadlock risk is documented as currently unreachable. Whether any
+        future code path wraps the RPC in a larger transaction is unknown."
+    relationships:
+      related_findings:
+        - "DATA-RACE-001"
+      analogous_uninspected_areas:
+        - "Other migrations that self-document residual risks in comments but have no register entry."
+    remediation:
+      status: "accepted"
+      proposed_action: "Both risks are accepted per the migration's own documentation. The timeout
+        produces a wrong error message but is data-safe. The deadlock is currently unreachable. This
+        register entry makes them trackable."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Accepted risks. Timeout: wrong error message on 57014, data-safe. Deadlock:
+        unreachable from current app code, becomes reachable if the RPC is wrapped in a transaction."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-30"
+        actor: "Opus 5 code quality audit: migration quality lens"
+        action: "opened"
+        note: "Recording self-documented residual risks from 0124 for structured tracking"
+  - id: "WIRE-ENUM-001"
+    title: "P9 appointment payment enums are future wire hazards if the mobile app switches on them"
+    summary: "0125 introduces four new Postgres enums (payment_request_status, payment_line_classification,
+      payment_allocation_component, payment_collection_status). No mobile code references them today,
+      but when the app does, adding a new enum value becomes a breaking wire change: an installed build
+      that switches on or indexes by the enum will crash or silently drop the unknown value, exactly as
+      the featured_collection block type crashed the Link Hub screen."
+    classification:
+      domain: "database"
+      category: "portability"
+      severity: "low"
+      confidence: "hypothesis"
+    discovery:
+      detected_at: "2026-07-29"
+      detected_by: "Opus 5 code quality audit: RLS and authorization lens"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "fde77f0"
+      environment: "repository-only"
+      discovery_context: "Found during migration review of 0125_appointment_payments.sql."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql:122-195"
+    evidence:
+      observed_facts:
+        - "0125:122-136 creates payment_request_status with 13 values. 0125:143-152 creates
+          payment_line_classification with 8 values. 0125:161-172 creates
+          payment_allocation_component with 10 values. 0125:186-194 creates
+          payment_collection_status with 7 values."
+        - "grep for all four type names across apps/mobile returns zero matches: no mobile code
+          references any P9 enum today."
+        - "The precedent is documented: adding featured_collection to the bio-page block type union
+          crashed the Link Hub screen on installed builds that switched on the type, requiring a fresh
+          EAS build before goods_collections could be granted."
+      references:
+        - "apps/web/supabase/migrations/0125_appointment_payments.sql"
+      contradictory_evidence: "The mobile app does not yet have any appointment payment UI, so the
+        hazard is entirely prospective. No code path is broken today."
+      inspected_comparables_without_issue:
+        - "The existing booking_status and booking_mode enums are consumed by the mobile app without
+          issue because they have been stable since the app shipped."
+    assessment:
+      interpretation: "This is an advisory for the future P9 mobile build: when the app consumes these
+        enums, adding a new value to any of them requires a fresh EAS build before the server returns
+        the new value. The pattern is identical to the featured_collection incident."
+      root_cause_hypothesis: "Postgres enums are server-authoritative; native apps are
+        client-authoritative on their type unions. The mismatch is inherent and needs a process gate,
+        not a code fix."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      production_exposure: "None today. The mobile app has no P9 surface."
+      remaining_uncertainty: "When the mobile P9 UI ships, whether it will use exhaustive switches or
+        a fallback-tolerant pattern."
+    relationships:
+      analogous_uninspected_areas:
+        - "All other enums consumed by the mobile app (booking_status, booking_mode, etc.) have not
+          been audited for the same wire-change risk."
+    remediation:
+      status: "accepted"
+      proposed_action: "When the mobile P9 UI is built, use a fallback-tolerant pattern for all four
+        enums (e.g. a default case that renders a generic state) rather than exhaustive switches. Gate
+        new enum values behind an EAS build if exhaustive switching is unavoidable."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Advisory only. No code to verify today."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by file and line only."
+    history:
+      - date: "2026-07-29"
+        actor: "Opus 5 code quality audit: RLS and authorization lens"
+        action: "opened"
+        note: "Advisory finding recorded for future P9 mobile build planning."
+
 patterns:
   - id: "PAT-001"
     title: "A safety property is asserted in a comment or commit message before it has ever been
@@ -6722,6 +8464,80 @@ patterns:
       - "Consider a lint rule or a typed wrapper that makes an unhandled PostgREST error a
         compile-time or CI error rather than a reviewer responsibility."
 coverage:
+  - area: "Appointment payment settlement: the webhook endpoint, the three cores, and the refund
+      convergence RPC (P9 slice A4)"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-07-30"
+    commit_inspected: "9f55ab7"
+    reviewer: "test-integrity engineer for slice A4, who is NOT the slice's author"
+    evidence: "A4 shipped with no test of any kind; its own behavioural evidence came from throwaway
+      probes that were deleted. This pass turned that into a gate:
+      apps/web/tests/db/appointment-payment-settlement.test.ts, 26 tests (25 passing plus one
+      documented `it.fails` tripwire), which took the db suite from 191 to 217. WHAT IS REAL IN IT:
+      the local Postgres with its constraints, triggers, grants and RLS; the
+      `converge_payment_refund` RPC from 0128; the RLS-bypassing service client the cores are handed
+      in production; the artist's own anon-key client holding a real JWT; the three settlement
+      cores; and the webhook route driven end to end through Stripe's REAL HMAC verification
+      (`webhooks.generateTestHeaderString`), so the HTTP status codes asserted are the ones a Stripe
+      delivery would receive. WHAT IS NOT REAL: the Stripe API (no key is reachable; event payloads
+      are hand-built to the documented shape). OBLIGATIONS DISCHARGED, one block each: redelivery is
+      a no-op (one allocation set, one state move, the SAME row ids, and the fee actuals caught up
+      after a delivery that died between the two writes); an older event never overwrites newer
+      state (both for the request status and for a superseded intent); refund convergence (3000 then
+      5000 is 5000 in ONE row, a late older 3000 answers `stale` and does not reduce it, a plain
+      redelivery answers `unchanged`, an over-refund clamps at the collected total and the net never
+      goes negative); partial payment (proportional shares summing to exactly what Stripe moved,
+      line-attributed rows, and A1's `outstandingBalance` recomputed FROM DISK at 4000/6000 then
+      10000/0); mixed service and goods (bases 9000 and 4500 disjoint, tip, tax and shipping in
+      neither, and on a half collection the bases are 4500 and 2250 rather than the frozen basket's
+      13500); an unknown intent (real 200 with nothing written, a real 500 while the settlement may
+      still arrive, and a real 200 once the retry window has passed, which is the BILL-ENT-002
+      bound); a failed payment (the artist's OWN client is silently refused from
+      `payment_processing`, 0 rows and no error, and succeeds from `failed`, which is the recourse
+      property exercised rather than asserted from a constant); forgery (allocation INSERT 42501 by
+      privilege, the converge RPC 42501 by grant with a service-role positive control, and the fee
+      actuals unchanged); and concurrency (two backends, `pg_blocking_pids` proving contention, the
+      older event losing to the newer under the row lock, and a control that still converges
+      afterwards). MUTATION CAMPAIGN, 26 mutations, one per test, each stated before it was run,
+      applied, run BY NAME with --reporter=verbose, restored, and re-run green. 25 killed their
+      test; the reds are logged verbatim in the file header. ONE CAME BACK GREEN AND IS RECORDED AS
+      SUCH: the refund-delta mutation does not kill the identical-deliveries race, because the loser
+      short-circuits on `v_target = v_recorded` before the arithmetic runs. Two EXISTING tests were
+      also checked for vacuity: A4's addition to appointment-payments-convergence.test.ts is NOT
+      vacuous (removing 0128 from its repair run goes red naming `payment_collections_bases_check`
+      and `payment_collections_fee_minor_check`), and the A3 tripwire A4 converted from `it.fails`
+      to `it` still discriminates (reverting the quote to the frozen basket turns it red at 600 <=
+      100). FULL GATE after the change: typecheck clean, lint 0 errors and the same 16 pre-existing
+      warnings, unit 2375 unchanged, db 216 passed plus 1 expected fail."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "PAY-RFD-001"
+    known_exclusions: "NOT covered, and none of it is implied by the above. No e2e and no browser path.
+      No real signed Stripe delivery has ever reached the endpoint, which does not exist in Stripe
+      yet; the signature tests use a local test secret, so they prove the route verifies, never that
+      Stripe's live payloads match the hand-built shapes. Production was not read.
+      `charge.dispute.*` is unhandled by design (A5) and is untested here. The goods side of a
+      `physical_goods` line is untested because it is unbuilt: A4 writes a correct allocation row
+      and creates no order, decrements no inventory and records no fulfilment, so a settled goods
+      line is money with no fulfilment and nothing here would notice. Artist notification and the
+      client receipt on a settled request are untested because nothing sends them. The per-lane
+      split of the fee actually taken is not stored and not tested. The DEPOSIT webhook's guard
+      added by A4 (PAY-WHK-001) is still asserted by NO test: no test imports that route at all, and
+      this pass did not add one. 0128's grants and columns are not covered by the migration
+      convergence suite (only its three checks are), so a dropped grant would be caught by this
+      suite's behavioural tests but not by the convergence one. Every test here drives the cores
+      directly or through the route; none exercises the Next.js request pipeline, middleware or the
+      real deployment."
+    recommended_next_inspection: "Close PAY-RFD-001 first: it is the only known defect and its tripwire
+      is the thing that will go red. Then the deposit webhook, which is the largest untested money
+      surface in the repository and now carries an untested guard: drive its two payment_intent
+      branches with metadata carrying `payment_request_id` plus a mismatching `booking_id` and
+      assert 200 with no booking read and no audit row. Then extend the migration convergence suite
+      to 0128's SIX columns and its EXECUTE grants, so the near-miss recorded in DATA-MIG-003 has a
+      gate. Then the goods deferral: prove a `physical_goods` line cannot reach a sent request
+      before A6, or wire the order path."
   - area: "Authentication (web sessions, MFA/AAL2, proxy gate)"
     subsystem: "auth"
     coverage: "partial"
@@ -6907,16 +8723,22 @@ coverage:
       apps/web/src/lib/server/billing/reconcile.ts were read for their ordering guard
       (last_event_created, migration 0107) and that shape was reused on payment_collections. The NEW
       endpoint (apps/web/src/app/api/stripe/appointment-webhook/route.ts) and its cores were built
-      this pass and are therefore author-inspected only."
+      this pass and are therefore author-inspected only. CORRECTED 2026-07-30 (later, by the A4
+      test-integrity pass, which is a different reviewer): the last sentence is no longer true. That
+      endpoint now has a gate, apps/web/tests/db/appointment-payment-settlement.test.ts, driven
+      through Stripe's real HMAC verification against a real database, and it produced PAY-RFD-001.
+      See the dedicated coverage row 'Appointment payment settlement'. The DEPOSIT webhook is
+      unchanged: still no test imports it."
     changed_since_inspection: "yes"
     findings_produced:
       - "PAY-WHK-001"
+      - "PAY-RFD-001"
     known_exclusions: "Signature verification, replay/redelivery idempotency and the charge.refunded
-      cumulative-convergence rule are still asserted by NO test on the DEPOSIT webhook. The new
-      appointment endpoint has no test either: its convergence RPC and its allocation writes were
-      exercised by a throwaway local probe (executed, then deleted), which is evidence but not a
-      gate. The Resend email webhook was NOT inspected at all in this pass. Nothing here was checked
-      against production Stripe or a real signed delivery."
+      cumulative-convergence rule are still asserted by NO test on the DEPOSIT webhook, and the
+      guard A4 added to it (PAY-WHK-001) is itself untested. The Resend email webhook was NOT
+      inspected at all in this pass. Nothing here was checked against production Stripe or a real
+      signed delivery. SUPERSEDED 2026-07-30 (later): 'the new appointment endpoint has no test
+      either' was true when written and is not now."
     recommended_next_inspection: "Direct-import tests of BOTH Stripe endpoints covering signature
       rejection, duplicate delivery and cumulative amount_refunded convergence; specifically for
       PAY-WHK-001, drive the deposit webhook's two payment_intent branches with metadata carrying
@@ -6947,28 +8769,44 @@ coverage:
       Allocation redelivery answers a whole-set 23505 with the row count unchanged at 4.
       `apportionCollection` was swept over 276,536 cases across five baskets with zero sum, sign or
       identity failures, WITH a negative control (independent per-line rounding fails the sum
-      property 14,856 times on the same inputs)."
+      property 14,856 times on the same inputs). CORRECTION AND ADDITION, 2026-07-30 (later, by the
+      A4 test-integrity pass, a different reviewer). ONE CLAIM ABOVE WAS WRONG AND IS LEFT IN PLACE
+      RATHER THAN EDITED, because a corrected record is more useful than a clean one. The A4 build
+      also recorded that 'request status then converges to refunded / partially_refunded through a
+      guarded UPDATE whose from-set is derived from A1's transition table'. It does not: the first
+      test ever run against that path found a fully refunded request still reading `paid`, and the
+      guarded UPDATE is never reached at all. That is PAY-RFD-001. The claim described the code as
+      written; the build's own probe evidence covered the RPC tokens and the allocation amounts and
+      never once read the request's status after a refund, which is exactly the gap the AGENTS.md
+      rule about unexecuted claims exists for. THE REST OF THE A4 EVIDENCE WAS NOT RE-VERIFIED item
+      by item, but the parts this pass re-derived independently agree: the converge-to-a-target
+      arithmetic, the `stale` and `unchanged` tokens, the clamp, the whole-set 23505 on redelivery,
+      and 0128's presence in the migration convergence run (re-proved by removing it and watching
+      that suite go red). A4's settlement path now has a real gate: see the coverage row
+      'Appointment payment settlement'."
     changed_since_inspection: "yes"
     findings_produced:
       - "PAY-FEE-002"
       - "PAY-WHK-001"
       - "DATA-MIG-003"
-    known_exclusions: "NO independent or adversarial review of any P9 slice, and none of A4. NO e2e and
-      NO test of any kind on the settlement cores or the new webhook route: the behavioural evidence
-      above comes from throwaway probes that were deleted, so nothing re-runs in CI. NO real Stripe
-      delivery has ever reached either endpoint, and the appointment endpoint does not exist in
-      Stripe yet (founder configuration). DEFERRED IN A4 AND NOT COVERED ANYWHERE: goods orders and
-      inventory for a physical_goods line on a payment request (no orders row, no
+      - "PAY-RFD-001"
+    known_exclusions: "NO independent or adversarial review of any P9 slice OTHER than A4's settlement
+      path, which was tested (never reviewed) by a different instance on 2026-07-30. NO e2e. NO real
+      Stripe delivery has ever reached either endpoint, and the appointment endpoint does not exist
+      in Stripe yet (founder configuration). DEFERRED IN A4 AND NOT COVERED ANYWHERE: goods orders
+      and inventory for a physical_goods line on a payment request (no orders row, no
       decrementInventory, no low-stock alert, no fulfilment); charge.dispute.* for appointment
       payments; artist notifications and the client receipt for a settled payment request. The A1-A3
       exclusions still stand, including that 3fce7be also edited apps/web/src/lib/server/bookings.ts
       and packages/shared/order-fees.ts, which ARE live paths."
-    recommended_next_inspection: "A P5d-style specialist gate review before merge, and it should start
-      at A4 rather than at the schema: the settlement cores are the newest code, the least tested,
-      and the only P9 code that writes money records. Specifically: verify PAY-WHK-001's guard by
-      driving the deposit webhook, verify PAY-FEE-002's proportional rule is the intended commercial
-      one, and check the goods deferral does not let a physical_goods line reach a sent request
-      before A6 flips anything on."
+    recommended_next_inspection: "A P5d-style specialist gate review before merge. It should still start
+      at A4, but the reason has changed: A4 now has tests, so what is missing is a REVIEW, and the
+      first pass at testing it found a defect in it (PAY-RFD-001), which is evidence that the slice
+      has not had adversarial eyes rather than that it is now safe. Specifically: close PAY-RFD-001
+      and remove its tripwire; verify PAY-WHK-001's guard by driving the deposit webhook, which is
+      still untested; verify PAY-FEE-002's proportional rule is the intended COMMERCIAL rule and not
+      merely the neutral one, which is a founder question nobody has been asked; and check the goods
+      deferral does not let a physical_goods line reach a sent request before A6 flips anything on."
   - area: "Shop collections (Plus P5d)"
     subsystem: "goods"
     coverage: "substantial"
@@ -7954,6 +9792,51 @@ coverage:
       unbounded handler (cleanup, reminders, instagram-refresh, retention-purge) against it. Verify
       whether a failed cron produces any notification at all - CRON-OBS-001 shows two
       growth-snapshot misses that nobody caught."
+  - area: "Migrations 0113-0126: RLS, authorization and write-policy review"
+    subsystem: "database"
+    coverage: "partial"
+    review_type: "mixed"
+    last_inspected: "2026-07-29"
+    commit_inspected: "fde77f0"
+    reviewer: "Opus 5 code quality audit: RLS and authorization lens"
+    evidence: "Read 0113 (discount_codes), 0115 (discount_items_policies), 0116-0119
+      (discount_active/update/grant/rls_drop_recreate), 0121-0126 (product_collections write
+      policies, collection_items, collection_reconcile, delete_collection_atomic,
+      appointment_payments, appointment_payment_rpc). Produced AUTH-RLS-003 (0121 DELETE policy
+      bypass), DATA-MIG-003 (0124/0126 missing service_role EXECUTE grants), WIRE-ENUM-001 (0125
+      enum wire hazard). 0113/0115-0119/0122-0123/0125 found clean for RLS and authorization."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "AUTH-RLS-003"
+      - "WIRE-ENUM-001"
+    known_exclusions: "0114, 0120, 0127, 0128 not read by this pass. Schema convergence and
+      idempotency were not tested. Function bodies were read for authorization but not for
+      correctness of business logic."
+    recommended_next_inspection: "AUTH-RLS-003 remediation (SECURITY DEFINER conversion for
+      delete_collection_if_eligible). 0127-0128 RLS review when they stabilize."
+  - area: "Migrations: function EXECUTE grant/revoke consistency (0058-0128, full history)"
+    subsystem: "database"
+    coverage: "partial"
+    review_type: "mixed"
+    last_inspected: "2026-07-29"
+    commit_inspected: "fde77f0"
+    reviewer: "Opus 5 code quality audit: RLS and authorization lens"
+    evidence: "Read every function-EXECUTE revoke/grant pair across all migrations. Confirmed safe:
+      0067-0073 growth_*/wa_* (16 functions, re-locked at every replace), 0099-0100
+      release_fee_sponsored_used (both revoke+grant). Named carve-outs inspected and confirmed
+      correct: is_studio_owner(uuid) (0078:77-78, RLS helper, authenticated-only by design),
+      studio_detach_on_owner_loss() (0078:184, trigger function, no EXECUTE needed),
+      send_payment_request (0126:667-670, same shape as DATA-MIG-003 but safe per 0126's own
+      documented reasoning). Historical gap found: 0058/0059 originally granted EXECUTE to
+      service_role without revoking from PUBLIC, leaving book_flash_item and
+      increment_fee_sponsored_used callable by anon; fixed by 0060 in the same migration batch."
+    changed_since_inspection: "no"
+    known_exclusions: "Sequence-level grants, storage/bucket policies, and table-level grant/revoke
+      beyond what AUTH-RLS-003 and SEED-GRT-002 cover were not checked. Nothing was checked against
+      a live database; pure static source read."
+    recommended_next_inspection: "Determine whether 0058/0059 were ever live without 0060 (git log
+      dates would resolve the exposure window). Check ALTER DEFAULT PRIVILEGES on the hosted project
+      to close DATA-MIG-003's remaining_uncertainty."
   - area: "billing"
     subsystem: "account deletion orchestration (deleteOwnAccountCore and its three callers)"
     coverage: "comprehensive"
@@ -8205,3 +10088,175 @@ coverage:
     recommended_next_inspection: "Capture stdout of each script at the parent commit and at the fixed
       commit and diff them mechanically, ignoring the new 'db target:' line. Separately, exercise
       one recorder's --apply path against a local database to confirm the write is unchanged."
+  - area: "Appointment payment settlement (P9 slice A4): convergence, idempotency and event ordering"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-07-30"
+    commit_inspected: "9f55ab73ae1de1366a4660dd5614e030daec0bdf"
+    reviewer: "independent falsification verifier, not the author of A4 and not the author of A4's test pass"
+    evidence: "A third pass over the same code, deliberately not re-running the author's or the tester's
+      scenarios. Read in full: 0128_payment_settlement.sql, appointment-payment-settlement.ts,
+      api/stripe/appointment-webhook/route.ts, the transition table, PAYABLE set,
+      apportionCollection and checkAllocation in packages/shared, and the constraint and trigger
+      sections of 0125 and 0127. Then twelve probes with MY OWN fixtures, driven against the local
+      stack through the real service client, the real RPC and (for the HTTP question) the real route
+      with real HMAC verification. Both probe files were deleted after the run; nothing was left in
+      the repository. WHAT HELD UP, each executed. (1) NOTHING ADDS A DELTA. Every write to
+      payment_allocations was enumerated by grep: exactly two, the settle path's fresh one-statement
+      insert and 0128's `on conflict on constraint payment_allocations_unique do update set
+      amount_minor = excluded.amount_minor`. The sequence 3000, 5000, 3000-out-of-order, 5000, 5000
+      produced converged/converged/stale/unchanged/unchanged with exactly ONE refund_adjustment row
+      throughout and a final -5000. (2) REDELIVERY CANNOT DOUBLE-ALLOCATE. The same succeeded event
+      five times (three sequential, then two concurrent from two backends) left 2 rows with the SAME
+      row ids as the first delivery and a sum of 10000; a pair of concurrent FIRST deliveries
+      produced settled + already_settled and 1 row, with neither call failing. (3) THE CONVERGE IS
+      GENUINELY UNDER A ROW LOCK. With a newer event holding the payment_collections row in an open
+      transaction, the older call BLOCKED (pg_blocking_pids count 1, 1231ms) and answered `stale`
+      after re-reading; the stored total stayed at the newer 7000. The lock-first /
+      re-check-in-a-later-statement shape of 0124 and 0125 is correctly implemented here. (4) THE
+      UNKNOWN-INTENT PATH DOES NOT 500. Over real HTTP: a charge.refunded for an intent no payment
+      request has ever claimed answered 200 `not_ours`; a claimed-but-unsettled intent answered 500
+      while the event was young and 200 once it aged past the one-hour bound. That is the correct
+      shape for BILL-ENT-002. (5) ALLOCATION INTEGRITY HOLDS. A partial 3333 of a 11000 basket
+      containing a discount line allocated to full_price=3030, discount=-454, physical_goods=757,
+      summing exactly to 3333, with checkAllocation running BEFORE the insert; a second collection
+      on the same request moved partially_paid then paid correctly. Reasoned, not just executed: a
+      component cannot silently go missing, because one row is emitted per frozen line and
+      checkAllocation refuses the set unless the gross components sum to what Stripe collected. (6)
+      THE BACKWARD-WALK GUARD ON THE SETTLE PATH HOLDS. With the request at `refunded` and at
+      `partially_refunded`, a redelivered succeeded returned already_settled / statusMovedTo null
+      and changed nothing."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "PAY-ORD-001"
+      - "PAY-ORD-002"
+      - "PAY-FEE-003"
+    known_exclusions: "I did not re-derive PAY-RFD-001; my probe reproduced it (a full refund left the
+      request reading `paid` with the intent netting to 0) and it is already recorded, so it is
+      confirmed here rather than re-filed. I did not inspect the deposit webhook, `charge.dispute.*`
+      (unhandled by design), the goods and fulfilment side of a physical_goods line (unbuilt), fee
+      CORRECTNESS as opposed to fee write ordering (that is PAY-FEE-002's), RLS or grants (the
+      tester covered those), or anything in Stripe: no live key was used, no Stripe object was
+      created or read, and no real signed delivery has ever reached this endpoint. Everything below
+      the convergence, idempotency and ordering question was out of my scope by assignment."
+    recommended_next_inspection: "Close PAY-ORD-002 first: it is the only one of the three that loses a
+      settled collection's status silently, and it needs a product decision about whether `failed`
+      may be recovered. Then PAY-ORD-001, with a test that uses two DISTINCT refund events sharing
+      one `created` second, since the existing stale test cannot see that case. Separately,
+      establish whether `charge.refund.updated` needs to be in the endpoint's subscription: 0128
+      justifies putting the ordering guard on the clock rather than on the amount by citing a refund
+      that FAILS and lowers amount_refunded, and the event that would carry that correction is not
+      subscribed, so the justification and the subscription currently disagree."
+  - area: "Mobile JSON API routes and web server actions: authentication, ownership scoping, input
+      validation, error handling, IDOR and cache revalidation"
+    subsystem: "authz"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-07-30"
+    commit_inspected: "9f55ab7"
+    reviewer: "owner-authorized targeted audit, an instance that authored none of the code under review"
+    evidence: "SCOPE AS ASSIGNED, all read in full: 17 mobile route files (booking-form + fields +
+      fields/[id] + confirmation, goods + [id] + [id]/status + collections + discounts, projects +
+      [id], settings/appearance + email-templates + hub + slug, travel/studios + travel/trips) and
+      18 server-action files ((artist) bookings/booking-form, bookings/form, bookings/books,
+      bookings/projects, bookings/settings, goods, goods/collections, goods/discounts,
+      settings/appearance, settings/books, settings/plan, settings/profile/slug-actions, studio;
+      plus [slug], [slug]/project, request/[token], legal/report, (map)/map). Because most actions
+      are thin wrappers, the shared cores they delegate to were read too and are the substantive
+      part of the coverage: lib/server/mobile-auth.ts, collections.ts, discount-write.ts,
+      projects.ts, goods-variants.ts, slug-rename.ts, appearance-write.ts, confirmation-write.ts,
+      map-watch.ts, plus lib/ratelimit.ts, lib/image-guard.ts, lib/image-processing.ts and
+      lib/mobile-goods.ts.
+
+      LIMB 1, AUTHENTICATION — CLEAN, no exceptions. All 17 mobile routes begin with
+      `requireMobileUser(req)` and return before touching data on failure. All 18 action files
+      resolve the user through the cookie client and refuse when absent. requireMobileUser itself
+      (mobile-auth.ts:28-75) validates the bearer token via supabase.auth.getUser, builds an
+      RLS-SCOPED anon-key client rather than a service client, and adds a suspension gate that
+      deliberately fails OPEN on a missing profile with the reasoning stated in the file. The one
+      unauthenticated action in scope, submitProjectIntakeAction, is unauthenticated by design (it
+      is a public intake) and is covered by ABUSE-PUB-001 for what it lacks INSTEAD of auth, not for
+      lacking auth.
+
+      LIMB 2, OWNERSHIP AND IDOR — CLEAN. I looked specifically for an id taken from the URL or body
+      and used without an owner predicate, and did not find one in the assigned scope. Every write
+      carries `.eq(\"artist_id\", userId)` (or `.eq(\"id\", userId)` on profiles) in the same
+      statement, not in a preceding read. The service-role uses are the interesting cases and each
+      one was traced: projects.ts runs service-role because RLS 0115 gives the artist SELECT only,
+      and every one of loadProject / setProjectStatusCore / saveProjectNoteCore /
+      linkBookingToProjectCore carries `.eq(\"artist_id\", artistId)` with a rowcount check;
+      booking-form/fields/[id] DELETE uses the service client solely to COUNT booking_requests, and
+      scopes that count to the artist; goods-variants.ts reconcileVariants runs service-role but
+      scopes every update and delete to `.eq(\"product_id\", productId)` after the caller has
+      ownership-checked the product with an RLS read. Three positive defences worth recording
+      because they are easy to get wrong and are right here: goods/actions.ts:326-327 refuses a
+      keep-list image URL that is not already on the product, which blocks a cross-artist graft or
+      delete; travel/studios POST deliberately does not accept the Google Places columns from the
+      body so a crafted request cannot inject a google_maps_url onto a public block; and
+      request/[token] prepareCheckoutAction allowlists every add-on against the artist-confirmed
+      booking_interests rows and caps quantity at what the artist vouched for.
+
+      LIMB 3, INPUT VALIDATION — sound, with the shape stated. No route uses `await request.json()`
+      output directly in a query. Bodies go through a named validator (normalizeProductInput,
+      normalizeStudioInput, normalizeTripInput, normalizeFieldInput + the shared zod
+      fieldConfigSchema, parseBioPageSettings, parseAppearance, parseConfirmationPage) or through a
+      core that validates. Where coercion is lenient it is deliberate and commented (unrecognised
+      category/status/currency fall back to a safe default, matching the web action). Two
+      fail-closed choices were checked and hold: mobile-goods.ts:103 publishes only on an explicit
+      boolean true, and settings/hub POST refuses a non-object body rather than letting the parser
+      treat it as DEFAULT_BIO_PAGE and wipe the config. UUID_RE guards the path parameter on
+      projects/[id] and booking-form/fields/[id].
+
+      LIMB 4, ERROR HANDLING — one finding, OPS-ERR-001. Every route wraps req.json() in try/catch
+      and returns a fixed 400.
+
+      LIMB 5, ERROR-HANDLING CONSISTENCY — the sibling comparison found real but minor divergence,
+      recorded here rather than as a finding because nothing is unsafe: goods/[id] PUT and
+      goods/[id]/status PATCH both do an explicit existence read and return a structured 404, while
+      booking-form/fields/[id] PATCH does not, so a PATCH naming a non-existent or foreign field id
+      matches zero rows, produces no error and returns 200 {ok:true}. The DELETE verb in that same
+      file DOES return 404. Similarly, mobile goods/discounts PATCH maps every setDiscountActiveCore
+      failure to 500, including the \"That code no longer exists.\" case which is a 404. Neither
+      leaks data or permits a write.
+
+      LIMB 6, REVALIDATION — one finding, BILL-UI-001, and it is the only mutation in the audited
+      set without one. Counted the other way: 8 collections actions, 2 discounts, 7 goods, 18
+      studio, 5 bookings/settings, books, appearance, slug (layout-wide), projects, map, and the
+      mobile hub route (which revalidates the PUBLIC /<slug>/hub) all revalidate."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "ABUSE-PUB-001"
+      - "DRIFT-ACT-001"
+      - "BILL-UI-001"
+      - "OPS-ERR-001"
+      - "DATA-ORPH-001"
+    known_exclusions: "NOT covered, and none of it is implied by the above. THE BIGGEST ONE: this pass
+      established that every write carries an owner predicate in its WHERE clause; it did NOT verify
+      that the RLS policies behind those tables exist and are correct. Several reads in the cores
+      rely on RLS alone with no artist predicate — collections.ts:245-259
+      (addProductToCollectionCore's duplicate check and its max-position read, both scoped only by
+      collection_id and product_id) and projects/[id] GET's project_media and booking_requests reads
+      (scoped only by project_id, after loadProject has established ownership). Those are safe only
+      if the SELECT policies are artist-scoped. That question belongs to the RLS audit and to
+      AUTH-RLS-001/002; I did not read a single migration or policy. NOT EXECUTED: no test was run,
+      no request was sent, no route was exercised, nothing was reproduced. Every statement in this
+      row is from reading source at 9f55ab7. NOT READ: the ~60 mobile routes outside the assigned 17
+      (bookings/*, flash/*, instagram/*, map/*, notifications/*, onboarding/*, account, analytics,
+      billing/*, calendar/*, clients/*, config, devices, events, home, me, min-version, slots,
+      support, waitlist) and the (artist) action directories outside the assigned 18 (payouts,
+      reminders, emails, deposits, dashboard, clients, growth-track-actions). The money-path
+      internals of request/[token] prepareCheckoutAction (fee resolution, order/order_items writes,
+      PaymentIntent sync) were read for authorization only and deliberately left to the money-path
+      audit. Concurrency was not assessed anywhere: the unbatched non-transactional write loops in
+      reconcileVariants, reorderCollectionsCore and reorderCollectionProductsCore were read but
+      their partial-failure behaviour was not analysed. Copy rules were checked only where a
+      divergence surfaced incidentally."
+    recommended_next_inspection: "ABUSE-PUB-001 first: it is the only reachable-today item and it needs a
+      decision about whether the five controls become a shared public-submit helper or are pasted a
+      third time. Then pair this pass with the RLS audit on the specific reads named above, because
+      the defence-in-depth claim here is only half of the pair and the other half was not checked by
+      me. Then sweep for duplicate action exports across the app directory, since DRIFT-ACT-001 was
+      found by accident rather than by search and the same accident cannot be relied on twice. Then
+      read the ~60 unread mobile routes for the same six limbs; the 17 read here were consistent
+      enough that a systematic idiom is likely, which means a systematic gap is equally likely."
