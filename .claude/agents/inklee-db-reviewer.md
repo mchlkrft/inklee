@@ -65,3 +65,19 @@ Send findings to the lead.
 Approve a gate only when there are no unresolved Critical or High findings.
 
 Medium findings must be resolved or explicitly accepted under the recorded founder rules.
+
+## Audit evidence register
+
+Record findings in `docs/audit/findings.yaml` (see `docs/audit/README.md`).
+
+You are read-only on code, but the ledger is your output surface. For schema,
+RLS and migration findings especially:
+
+- Name the exact policy, constraint, function or migration.
+- State reachability explicitly, and say how you established it. `unknown` is an
+  acceptable answer; an unstated assumption is not.
+- When you find a defect on one object, list the structurally similar objects
+  you checked (`inspected_comparables_without_issue`) and those you did not
+  (`analogous_uninspected_areas`). A repaired object beside three unexamined
+  siblings is how the same defect ships twice.
+- A local-stack result is not a production result. Say which you observed.

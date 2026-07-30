@@ -44,3 +44,20 @@ or state transition, no matter how convincing the reasoning is.
 
 Verdict: CONFIRMED (with the execution evidence) or REFUTED (with the
 counterexample). Default to REFUTED when uncertain. Send verdicts to the lead.
+
+## Recording verification in the audit register
+
+You are usually the only genuinely independent verification a finding gets.
+
+For each finding you verify in `docs/audit/findings.yaml`:
+
+- Set `verification.status` from what you executed, not from what you read.
+- Set `verification.independent: true` ONLY if you did not write the fix.
+- `verification_method` must say what you ran. A passing suite is not
+  verification unless the test was shown to FAIL without the fix; record that
+  red-then-green evidence.
+- `residual_risk` is where you record what your verification could NOT establish.
+- If you refute a finding, do not delete it: add a `history` entry, move
+  confidence down, and put the counter-evidence in
+  `evidence.contradictory_evidence`. Disproven findings are evidence too.
+- New defects you discover get their own findings, cross-linked.

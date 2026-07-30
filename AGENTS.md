@@ -141,3 +141,52 @@ These apply to every string the artist or a public visitor can read: page copy, 
 - **Brand vocabulary** lives in `src/lib/status-labels.ts` (`humanStatusLabel`) and the post-Slice-60b nav labels (`nav-config.ts` + `bookings-nav.tsx`). Use them rather than re-inventing copy.
 
 Quick check before shipping a new user-visible string: search the diff for `—`. If found, replace.
+
+## Audit evidence register: record findings as you find them
+
+`docs/audit/findings.yaml` is the permanent evidence ledger. Read
+`docs/audit/README.md` before your first entry. Validate with
+`pnpm audit:validate`, regenerate reports with `pnpm audit:generate`. CI runs
+`pnpm audit:check` and fails on an invalid ledger or a stale generated report.
+
+It exists because evidence kept dying with the session that found it, and
+because the same class of defect was found independently several times before
+anyone named it as recurrence.
+
+**Workers, when you find something meaningful:**
+
+- Record it. A finding needs a citation (file:line, migration, policy, command
+  output), not a feeling that something looks fragile.
+- Do NOT record speculation as confirmed. `confidence: confirmed` requires
+  observed facts AND a reproduction; use `hypothesis` and say what you did not
+  check. The validator enforces this.
+- If it looks like something already recorded, link it rather than opening a
+  twin: `related_findings`, or `possible_duplicates` if you are unsure.
+- Record comparable places you INSPECTED and found sound
+  (`inspected_comparables_without_issue`), and comparable places you did NOT
+  inspect (`analogous_uninspected_areas`). The second is the most useful field
+  in the register and the easiest to skip.
+- When you commit a fix, set `remediation.status: fixed-unverified` and the
+  `fix_commit`. **Leave verification pending.** You do not verify your own fix.
+- Never delete a finding because you fixed it. Add a `history` entry.
+
+**Supervisors:**
+
+- Review new findings for evidence quality before they harden into fact.
+  Downgrade confidence that rests on reading alone.
+- Identify duplicates; connect recurrence into a `PAT-NNN` structural pattern.
+  A pattern needs repeated evidence or a real architectural relationship, never
+  a shared category label.
+- When recurrence suggests something systemic, WIDEN SCOPE: sample the sibling
+  objects nobody has looked at, and record them either as inspected-and-sound or
+  as still uninspected.
+- Do not let a worker close a finding it fixed itself. Route verification to a
+  different instance or process, and where that is impossible record
+  `verification.independent: false` with the limitation in `residual_risk`.
+- Preserve unresolved uncertainty. Contradictory evidence stays in the record.
+- Keep `coverage` honest. "No findings recorded" is not "reviewed and sound",
+  and the scope map exists to keep those apart.
+
+**The repository is PUBLIC.** No secrets, no personal data, no production rows,
+no runnable exploit recipes. If a finding needs restricted evidence, set
+`disclosure.public_repo_safe: false` and say where the full evidence lives.

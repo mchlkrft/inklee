@@ -11,10 +11,14 @@
     "test": "pnpm --filter inklee test",
     "test:e2e": "pnpm --filter inklee test:e2e",
     "test:launch": "pnpm --filter inklee test:launch",
-    "test:db": "pnpm --filter inklee test:db"
+    "test:db": "pnpm --filter inklee test:db",
+    "audit:validate": "node scripts/audit/validate.cjs",
+    "audit:generate": "node scripts/audit/generate.cjs",
+    "audit:check": "node scripts/audit/generate.cjs --check"
   },
   "devDependencies": {
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "yaml": "2.8.3"
   },
   "pnpm": {
     "overrides": {

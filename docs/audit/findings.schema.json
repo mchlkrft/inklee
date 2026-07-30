@@ -1,0 +1,262 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/mchlkrft/inklee/docs/audit/findings.schema.json",
+  "title": "Inklee Continuous Audit Evidence and Structural Risk Register",
+  "description": "Source-of-truth contract for docs/audit/findings.yaml. The validator (scripts/audit/validate.cjs) reads its controlled vocabularies FROM this file, so the enums here are the single definition and cannot drift from the checker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["register_version", "findings", "patterns", "coverage"],
+  "properties": {
+    "register_version": { "type": "integer", "minimum": 1 },
+    "notes": { "type": "string" },
+    "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "patterns": { "type": "array", "items": { "$ref": "#/definitions/pattern" } },
+    "coverage": { "type": "array", "items": { "$ref": "#/definitions/coverageArea" } }
+  },
+
+  "definitions": {
+    "isoDate": {
+      "type": "string",
+      "description": "YYYY-MM-DD, or 'approximate:YYYY-MM', or 'unknown'. Approximation must be explicit rather than guessed precisely.",
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2}|approximate:[0-9]{4}-[0-9]{2}|unknown)$"
+    },
+
+    "commitRef": {
+      "type": "string",
+      "description": "Short or full git SHA, or 'unknown', or 'not-applicable'. 'unknown' is honest; omitting the field is not.",
+      "pattern": "^([0-9a-f]{7,40}|unknown|not-applicable)$"
+    },
+
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "summary", "classification", "discovery", "location", "evidence", "assessment", "relationships", "remediation", "verification", "history"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable, unique, never reused, retained after closure. DOMAIN-SUBDOMAIN-NNN.",
+          "pattern": "^[A-Z]{2,6}-[A-Z]{2,6}-[0-9]{3}$"
+        },
+        "title": { "type": "string", "minLength": 8 },
+        "summary": { "type": "string", "minLength": 20 },
+
+        "classification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["domain", "category", "severity", "confidence"],
+          "properties": {
+            "domain": {
+              "type": "string",
+              "enum": ["auth", "authorization", "database", "migration", "billing", "entitlement", "payment", "web", "mobile", "admin", "jobs", "webhook", "storage", "public-surface", "api", "email", "analytics", "data-retention", "secrets", "logging", "dependencies", "ci-cd", "production-config", "recovery", "tooling", "governance", "testing"]
+            },
+            "category": {
+              "type": "string",
+              "enum": ["missing-authorization", "broken-invariant", "concurrency", "data-loss", "silent-failure", "divergent-implementation", "untestable-or-vacuous-test", "schema-drift", "config-drift", "incorrect-documentation", "money-correctness", "disclosure", "availability", "portability", "process-gap"]
+            },
+            "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "informational"] },
+            "confidence": {
+              "type": "string",
+              "description": "'confirmed' REQUIRES at least one entry in evidence.observed_facts AND a reproduction or executed-evidence reference. Enforced by the validator.",
+              "enum": ["confirmed", "high", "medium", "low", "hypothesis"]
+            }
+          }
+        },
+
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["detected_at", "detected_by", "repository", "commit", "environment", "discovery_context"],
+          "properties": {
+            "detected_at": { "$ref": "#/definitions/isoDate" },
+            "detected_by": { "type": "string", "description": "Role or process, not a person's identity. e.g. 'independent-verifier-agent', 'gate-review', 'production-incident'." },
+            "repository": { "type": "string" },
+            "branch": { "type": "string" },
+            "commit": { "$ref": "#/definitions/commitRef" },
+            "environment": { "type": "string", "enum": ["local", "ci", "preview", "production", "repository-only", "unknown"] },
+            "discovery_context": { "type": "string", "minLength": 10 }
+          }
+        },
+
+        "location": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "files": { "type": "array", "items": { "type": "string" } },
+            "symbols": { "type": "array", "items": { "type": "string" } },
+            "database_objects": { "type": "array", "items": { "type": "string" } },
+            "routes": { "type": "array", "items": { "type": "string" } },
+            "clients": { "type": "array", "items": { "type": "string", "enum": ["web", "mobile", "admin", "worker", "api", "public", "none"] } },
+            "services": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["observed_facts"],
+          "properties": {
+            "observed_facts": {
+              "type": "array",
+              "description": "OBSERVED FACT ONLY. Each entry must be independently checkable: file:line, migration name, command output, catalog read. No interpretation here.",
+              "items": { "type": "string", "minLength": 10 }
+            },
+            "references": { "type": "array", "items": { "type": "string" } },
+            "reproduction": { "type": "string", "description": "How to reproduce. Reference a test or command. Do NOT write a production exploit recipe; this repository is public." },
+            "contradictory_evidence": { "type": "string", "description": "Evidence AGAINST the finding. Retained deliberately, never deleted." },
+            "inspected_comparables_without_issue": {
+              "type": "array",
+              "description": "Comparable objects ACTUALLY INSPECTED and found sound. Only list what was really looked at.",
+              "items": { "type": "string" }
+            },
+            "evidence_location": { "type": "string", "description": "Where fuller evidence lives if it cannot be committed to a PUBLIC repo." }
+          }
+        },
+
+        "assessment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reachability", "impact_status", "remaining_uncertainty"],
+          "properties": {
+            "interpretation": { "type": "string", "description": "What the facts are taken to MEAN. Explicitly not a fact." },
+            "root_cause_hypothesis": { "type": "string", "description": "A HYPOTHESIS. May be wrong. An auditor must not treat it as settled." },
+            "reachability": { "type": "string", "enum": ["directly-reachable", "conditionally-reachable", "currently-unreachable", "unknown"] },
+            "impact_status": { "type": "string", "enum": ["actively-impacting", "historically-impacting", "reachable-no-known-impact", "latent", "theoretical", "unknown"] },
+            "affected_users_or_systems": { "type": "string" },
+            "production_exposure": { "type": "string", "description": "Explicit statement of production reachability and how it was established." },
+            "exploit_preconditions": { "type": "string", "description": "Conditions required. Kept abstract in this public repository." },
+            "remaining_uncertainty": { "type": "string", "minLength": 5, "description": "What is still not known. Required: a finding with no stated uncertainty is usually under-examined." }
+          }
+        },
+
+        "relationships": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "related_findings": { "type": "array", "items": { "type": "string" } },
+            "possible_duplicates": { "type": "array", "items": { "type": "string" } },
+            "structural_patterns": { "type": "array", "items": { "type": "string" } },
+            "analogous_uninspected_areas": {
+              "type": "array",
+              "description": "Comparable areas that MIGHT share this weakness and have NOT been inspected. This is the register's highest-value field for a later auditor.",
+              "items": { "type": "string" }
+            }
+          }
+        },
+
+        "remediation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["open", "accepted", "in-progress", "fixed-unverified", "verified", "mitigated", "deferred", "risk-accepted", "not-applicable"] },
+            "proposed_action": { "type": "string" },
+            "owner": { "type": "string" },
+            "fix_commit": { "$ref": "#/definitions/commitRef" },
+            "fixed_at": { "$ref": "#/definitions/isoDate" }
+          }
+        },
+
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "independent"],
+          "properties": {
+            "status": { "type": "string", "enum": ["not-started", "pending", "passed", "failed", "partially-verified", "cannot-verify"] },
+            "independent": {
+              "type": "boolean",
+              "description": "TRUE only when verification was performed by a different instance, reviewer or process than the one that implemented the fix. Self-verification is false."
+            },
+            "verified_by": { "type": "string" },
+            "verified_at": { "$ref": "#/definitions/isoDate" },
+            "verification_commit": { "$ref": "#/definitions/commitRef" },
+            "verification_method": { "type": "string", "description": "How. A passing suite is not verification unless the test was shown to fail without the fix." },
+            "residual_risk": { "type": "string" }
+          }
+        },
+
+        "disclosure": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "This repository is PUBLIC. Findings needing restricted evidence must say so.",
+          "properties": {
+            "public_repo_safe": { "type": "boolean" },
+            "redactions_applied": { "type": "string" },
+            "restricted_evidence_location": { "type": "string" }
+          }
+        },
+
+        "history": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["date", "actor", "action"],
+            "properties": {
+              "date": { "$ref": "#/definitions/isoDate" },
+              "actor": { "type": "string" },
+              "action": { "type": "string", "enum": ["opened", "evidence-added", "reclassified", "linked", "fix-committed", "verification-attempted", "verified", "reopened", "deferred", "risk-accepted", "closed", "superseded", "backfilled"] },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "related_findings", "affected_domains", "shared_root_cause_hypothesis", "supporting_evidence", "systemic_assessment", "confidence", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^PAT-[0-9]{3}$" },
+        "title": { "type": "string", "minLength": 8 },
+        "description": { "type": "string", "minLength": 20 },
+        "related_findings": {
+          "type": "array",
+          "minItems": 2,
+          "description": "At least two. A pattern is recurrence or a strong architectural relationship, never a shared category label.",
+          "items": { "type": "string" }
+        },
+        "affected_domains": { "type": "array", "items": { "type": "string" } },
+        "first_observed": { "$ref": "#/definitions/isoDate" },
+        "last_observed": { "$ref": "#/definitions/isoDate" },
+        "recurrence_count": { "type": "integer", "minimum": 2 },
+        "common_characteristics": { "type": "array", "items": { "type": "string" } },
+        "shared_root_cause_hypothesis": { "type": "string", "minLength": 20 },
+        "supporting_evidence": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "contradicting_evidence": { "type": "string", "description": "Evidence that limits or contradicts the pattern. Retained." },
+        "inspected_without_pattern": { "type": "array", "items": { "type": "string" }, "description": "Comparable areas inspected where the pattern was NOT found." },
+        "uninspected_comparables": { "type": "array", "items": { "type": "string" } },
+        "systemic_assessment": { "type": "string", "enum": ["systemic", "likely-systemic", "cluster", "isolated", "undetermined"] },
+        "confidence": { "type": "string", "enum": ["confirmed", "high", "medium", "low", "hypothesis"] },
+        "auditor_sampling_targets": { "type": "array", "items": { "type": "string" } },
+        "engineering_followup": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["active", "monitoring", "addressed", "retired", "disproven"] }
+      }
+    },
+
+    "coverageArea": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["area", "subsystem", "coverage", "review_type", "last_inspected", "evidence", "recommended_next_inspection"],
+      "properties": {
+        "area": { "type": "string" },
+        "subsystem": { "type": "string" },
+        "coverage": {
+          "type": "string",
+          "description": "'none' means NOT INSPECTED. It does NOT mean safe. Nothing in this register may imply otherwise.",
+          "enum": ["none", "initial", "partial", "substantial", "comprehensive"]
+        },
+        "review_type": { "type": "string", "enum": ["none", "narrative-audit-doc", "gate-review", "adversarial-verification", "automated-tests", "production-catalog-read", "mixed"] },
+        "last_inspected": { "$ref": "#/definitions/isoDate" },
+        "commit_inspected": { "$ref": "#/definitions/commitRef" },
+        "reviewer": { "type": "string" },
+        "evidence": { "type": "string", "minLength": 5, "description": "What justifies the coverage level. Required, so a level can never be asserted bare." },
+        "changed_since_inspection": { "type": "string" },
+        "findings_produced": { "type": "array", "items": { "type": "string" } },
+        "known_exclusions": { "type": "string" },
+        "recommended_next_inspection": { "type": "string", "minLength": 5 }
+      }
+    }
+  }
+}

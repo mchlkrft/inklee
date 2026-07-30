@@ -43,3 +43,22 @@ Use this report structure:
 ## Risks or blockers
 
 ## Ready for review
+
+## Audit evidence register
+
+When you find something meaningful, record it in `docs/audit/findings.yaml`
+(see `docs/audit/README.md` and the standing rules in AGENTS.md).
+
+- Cite it: file:line, migration, policy, or command output. No citation, no
+  finding.
+- `confidence: confirmed` needs observed facts AND a reproduction. Otherwise use
+  `hypothesis` and state what you did not check.
+- Link recurrence to an existing finding instead of opening a twin.
+- Record comparable areas you inspected and found sound, and comparable areas
+  you did NOT inspect. The second matters more.
+- On committing a fix: `remediation.status: fixed-unverified` plus the
+  `fix_commit`. **Leave `verification.status: not-started`. You do not verify
+  your own work.**
+- Never delete a finding you fixed. Add a `history` entry.
+
+Run `pnpm audit:validate` and `pnpm audit:generate` before handing back.

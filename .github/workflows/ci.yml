@@ -47,6 +47,14 @@ jobs:
       - name: Lint (mobile)
         run: pnpm --filter @inklee/mobile lint
 
+      # Audit evidence register (docs/audit/). Validates the ledger against its
+      # schema and the governance rules, then fails if any generated report no
+      # longer matches the ledger. Stale generated reports are the specific
+      # failure mode that turns an evidence system into a misleading one, so
+      # this is a hard gate rather than a warning.
+      - name: Audit register (validate + report freshness)
+        run: pnpm audit:check
+
   # End-to-end tests run against a LOCAL Supabase (never production). The suite
   # hard-refuses the production project ref / hosts (tests/e2e/helpers/env.ts),
   # and no live Stripe or Resend keys are provided, so nothing external is
