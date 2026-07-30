@@ -106,7 +106,7 @@ export default async function ProjectIntakePage({
       </header>
 
       <main
-        data-appearance={appearance.theme}
+        data-appearance="light"
         style={appearance.cssVars as React.CSSProperties}
         className={tpl.panel}
       >

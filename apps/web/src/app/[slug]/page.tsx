@@ -646,11 +646,13 @@ export default async function ArtistPublicPage({
         </header>
 
         <main
-          // Shared appearance system (P1b). This was hardcoded "light", which
-          // is why books_settings.form_appearance was written for months and
-          // never read. The resolver defaults to light, so an artist who never
-          // set a theme renders exactly as before.
-          data-appearance={appearance.theme}
+          // The panel background is ALWAYS bone (--color-workspace-bg), so the
+          // text variables must come from [data-appearance="light"]. A "dark"
+          // form_appearance has no matching CSS block yet (globals.css only
+          // defines [data-appearance="light"] and "auto" light-only), so reading
+          // it produced bone text on bone background — invisible. Clamp to
+          // "light" until a dark panel design + CSS block exist.
+          data-appearance="light"
           style={appearance.cssVars as React.CSSProperties}
           className={tpl.panel}
         >
