@@ -79,6 +79,12 @@ Every collected amount is explicitly allocated across components: deposit, tatto
 
 The allocation is what makes accurate refunds, per-lane fee calculation, tax reporting, goods fulfilment, artist analytics, client receipts, reconciliation and dispute evidence possible. Storing a single number forecloses all of them, and no later migration recovers the breakdown.
 
+**`payment_collections` is the group.** The rows of `payment_allocations` sharing one `payment_intent_id` are one collection, and their gross components sum to what Stripe collected. That sentence was a convention with nothing enforcing it: executed against the pre-fix schema on 2026-07-29, two allocations sharing one intent id, one for artist A's appointment and one for artist B's, both inserted successfully. `payment_allocations_unique` is `(payment_intent_id, component, line_id)` and carries no owner column, so it had nothing to say about it.
+
+`payment_collections` (migration `0125`) is a parent row keyed on the PaymentIntent carrying the four facts that must be constant across the group: `artist_id`, the subject (exactly one of `booking_id` or `project_id`), and `currency`. `payment_allocations` binds back to it with composite foreign keys, so the second row of an intent cannot disagree with the first about any of them. A foreign key against a unique key is arbitrated by the index rather than by a check that can go stale under READ COMMITTED, and it binds the service role, which is the only role that writes here at all. The parent is created by a trigger from the first allocation of each intent, so a settlement writer needs no extra statement and no new ordering.
+
+This matters beyond tidiness because every downstream read of a collection is `where payment_intent_id = ...`: the converge-to-a-target refund rule is a per-intent sum, reconciliation compares a per-intent sum against what Stripe reported, and `collected_total_minor` describes one PaymentIntent. A group that can span two artists makes every one of those a cross-artist figure, and the fee, refund and payout lanes are all downstream of it. Written by the service role at settlement; artists hold a select policy only, and `insert, update, delete, truncate` are revoked from `anon` and `authenticated`.
+
 ## 8. Double-charge prevention
 
 Layered, because no single mechanism covers all of it:

@@ -1443,3 +1443,135 @@ SENDERS instead is chain-shaped and answers the question that was being asked.
 6. **Both migrations are unapplied to production**, in order, catalog-verified,
    per the P5d lesson. `0125` takes ACCESS EXCLUSIVE on `booking_requests` and
    `projects` while its composite unique keys build.
+
+---
+
+## P9 slice A3 (quote + intent): NOT BUILT. The fee gate that precedes it IS (2026-07-30)
+
+**Status, stated plainly so nothing downstream reads this as progress on A3.**
+A3 does not exist. `master` is at `7d6773b`, the working tree was clean when
+this pass started, there is no quote module, no PaymentIntent path for a payment
+request, no idempotency key, and nothing calls `outstandingBalance` or
+`checkCollectable` from a server core. The A2 handoff's finding 5 ("nothing
+checks a request total against the outstanding balance") is unchanged and still
+open.
+
+What this pass produced is the ONE piece of A3's test obligation that had to be
+written BEFORE the code, and that becomes worthless the moment it is written
+after: the characterization of the live fee numbers.
+
+### Why it had to come first
+
+A3's headline risk is not a new feature, it is a refactor of a live money path.
+Two sources compute the appointment fee for the same PaymentIntent:
+
+| path | source | rate |
+| --- | --- | --- |
+| intent creation | `bookings.ts:853`, `platformFeeCents` | hardcoded 300 bps, no tier, no version |
+| basket re-prepare | `request/[token]/actions.ts:394,504`, `resolveOrderFee` to `computeOrderFees` | the schedule's appointment rate for the artist's tier |
+
+Under v1 the schedule also says 300 bps for both tiers, so the two agree on
+every live number and the divergence is invisible. Under v2 the schedule says 50
+bps for Plus and null ("cannot transact this lane") for Free while the hardcode
+still says 300, which is the 600 vs 100 vs 0 that
+`plus-remaining-work-plan.md` Stage 4 refuses to flip into.
+
+A test written after the unification pins whatever the unification produced,
+decided by the same person who wrote it. These literals were taken from the code
+charging real artists today, so a unified path is measured against something it
+cannot edit into agreeing with itself.
+
+### What is on disk
+
+`apps/web/src/lib/server/__tests__/appointment-fee-unification.test.ts`, 14
+tests, no production code changed.
+
+- **The golden table.** 21 amounts, expected `application_fee_amount` as
+  LITERALS, never re-derived from the formula under test. Chosen for where
+  rounding bites, not for round numbers: 1 and 16 minor units where the fee
+  rounds down to zero, 17 where it first rounds up, 50 / 150 / 250 which are
+  exact `.5` ties (`Math.round` goes half away from zero, so 2 / 5 / 8, and a
+  refactor reaching for `Math.floor` or `toFixed` moves all three), 5017, and
+  10000000 which is `MAX_DEPOSIT_AMOUNT`.
+- **A contiguous sweep, 1 to 3000 minor units, both tiers.** At 3% every
+  hundredth amount is a tie, so a sampled table can miss all of them.
+- **The rate identity.** `PLATFORM_FEE_BPS` equals `FEE_SCHEDULE_V1`'s
+  appointment rate for free and for plus. One number in two files, asserted,
+  rather than two that happen to agree.
+- **The real entry points, not only the primitives.** `resolveOrderFee` is
+  driven with the same mock shape as `order-fee-sync.test.ts` and must land on
+  the deposit path's number at every golden amount and on both tiers.
+- **Sponsorship on both paths.** Zero on the intent, and
+  `appointmentFeeBeforeSponsorshipMinor` still equal to the full fee, because a
+  unified path that waived by lowering the RATE would produce the same 0 on the
+  intent and a wrong number in the field the waiver is reported from.
+- **Block 4, parameterized over v1 AND v2.** 4a asserts agreement under v1. 4b
+  asserts the divergence is STILL PRESENT under v2, at 19 of the 21 amounts (the
+  two that agree do so because both rates round them to zero).
+
+### 4b is a pre-registered falsification and is EXPECTED to go red
+
+That is its job. It cannot pass by accident and cannot be satisfied by a partial
+unification: any amount that starts agreeing shrinks the list. When A3 lands the
+fix is three lines, written into the test file itself: delete the 4b block, add
+v2 to 4a so agreement is asserted under BOTH versions, and leave the golden
+table exactly as it is. Deleting 4b without adding v2 to 4a leaves the Stage 4
+flip unguarded, which is the state this file exists to end.
+
+### Method: every test was killed before it was believed
+
+Eight single-change mutations, each with its target named in advance, applied one
+at a time, run with `--reporter=verbose` and read as named per-test output rather
+than as an aggregate, then restored from git and re-verified.
+
+| mutation | predicted casualties | observed |
+| --- | --- | --- |
+| M1 `PLATFORM_FEE_BPS` 300 to 299 | golden, rate identity, sweep, 4a x2, 4b x2 | 7 red, as predicted |
+| M2 `platformFeeCents` round to floor | golden, sweep, 4a x2, 4b x2 | 6 red |
+| M3 v1 `appointmentPayment.plus` 300 to 250 | schedule-side golden, rate identity, sweep, sponsorship, `resolveOrderFee`, 4a plus | 6 red |
+| M4 v2 `appointmentPayment.plus` 50 to 300 | 4b plus, "no version and no tier" | 2 red |
+| M5 `computeOrderFees` ignores sponsorship | sponsored-on-both-paths, re-prepare waiver | 2 red |
+| M6 v2 `appointmentPayment.free` null to 300 | 4b free | 1 red |
+| M7 `ACTIVE_FEE_SCHEDULE_VERSION` v1 to v2 | active-version pin, `resolveOrderFee` | 2 red |
+| M8 `platformFeeCents` loses its non-positive guard | non-positive refusal | 1 red |
+
+**Every one of the 14 tests was killed by at least one mutation.** That is the
+measurement that matters, and it is the one the RLS pass of 2026-07-29 found
+missing when 8 tests in a suite turned out to be incapable of failing.
+
+### Counts, measured before and after
+
+| Suite | Before | After |
+| --- | --- | --- |
+| unit (`pnpm test`) | 2303 in 130 files | 2317 in 131 files |
+| db (`pnpm test:db`) | 183 | NOT re-measured |
+
+The db figure is deliberately not carried forward as a result. This pass changed
+no SQL, no seed and no file under `tests/db/`, so there was nothing for it to
+measure; writing 183 in the "after" column would be a number nobody ran.
+
+No production file was modified by this pass; `git status` after the mutation
+run listed only the new untracked test file.
+
+### What A3 still owes, none of it started
+
+Six of the eight obligations this pass was scoped to cover need code that does
+not exist and could not be tested against a stub without the test becoming a
+test of the stub:
+
+1. Over-collection refused at the new server entry point. `checkCollectable` is
+   proven pure; nothing calls it.
+2. The displayed amount and the charged amount from ONE quote. There is no
+   quote object to share.
+3. Idempotency of a logical collection, and a legitimate second collection not
+   being blocked. No Stripe call exists to key.
+4. Illegal lifecycle transitions refused now that the table is wired. The table
+   is pinned at model level; the wiring is A3's.
+5. A Free artist refused at every NEW entry point, called directly rather than
+   through the UI. The A2 cores are covered; A3 adds entry points.
+6. Payment against an obsolete revision, and concurrent attempts, at the intent
+   layer. `payment-request-concurrent-send.test.ts` covers the send layer only.
+
+Spec section 12 obligations reachable at A3 therefore remain unclaimed. The
+architecture doc's section 7 debt from A1 is closed in the same change as this
+note: `payment_collections` is now documented there.
