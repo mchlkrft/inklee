@@ -7,6 +7,7 @@ import { writeAudit } from "@/lib/audit";
 import { normalizeProfileFields } from "@inklee/shared/profile-validation";
 import { sanitizeCoverColor } from "@inklee/shared/cover-colors";
 import { isBookingMode } from "@inklee/shared/booking-domain";
+import { revalidatePath } from "next/cache";
 
 type State = { error: string } | { success: true } | null;
 
@@ -179,6 +180,8 @@ export async function updateProfileAction(
     .eq("id", user.id);
 
   if (error) return { error: error.message.toLowerCase() };
+
+  revalidatePath("/settings/profile");
 
   if (bookingMode) {
     void writeAudit({
