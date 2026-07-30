@@ -379,13 +379,15 @@ describe("a sent request's total always equals the sum of its lines", () => {
   });
 
   it("WRITE SIDE (0125): a line DELETED while the freeze is uncommitted is refused", async () => {
-    // THE CASE BOTH LOCKS COVER, stated as such rather than attributed to one.
-    // 0126's FOR UPDATE holds the existing line row; 0125's FOR SHARE holds the
-    // parent. Removing EITHER alone leaves this green, and that redundancy is
-    // the point of pinning it: it is the only case where the read side does any
-    // work today. Executed, both directions: with only 0125's lock the delete
-    // blocks on the parent, with only 0126's it blocks on the line, and with
-    // NEITHER it commits and leaves `status=sent total=10000 sum(lines)=0`.
+    // THIS COMMENT USED TO SAY "the case BOTH locks cover", which stopped being
+    // true when 0126's read side was removed. Kept as a correction rather than
+    // rewritten away, because the measurement behind it is still useful: with
+    // only 0125's lock the delete blocks on the PARENT, with only 0126's it
+    // blocked on the LINE, and with NEITHER it commits and leaves
+    // `status=sent total=10000 sum(lines)=0`.
+    //
+    // Today 0125 carries it alone. That is the whole reason the catalog sentinel
+    // below pins 0125's FOR SHARE: this case has no second lock behind it.
     const { requestId, lineId } = await draftWithLine(10_000);
     const freezerPid = await freezer.backendPid();
 
@@ -430,6 +432,62 @@ describe("a sent request's total always equals the sum of its lines", () => {
     // refusal is LOUD (the trigger's re-read raises) rather than a silent
     // policy filter. If this flips to `undefined`, the refusal moved.
     expect(delError?.code).toBe("23514");
+  });
+
+  it("WRITE SIDE (0125): a line AMOUNT CHANGED while the freeze is uncommitted is refused", async () => {
+    // THE VARIANT NOTHING COVERED. The suite pinned INSERT and DELETE and left
+    // UPDATE to a scratchpad probe, which protects nothing once the session
+    // ends. It matters more than the other two now that 0126's read side is
+    // gone: an UPDATE of an EXISTING line was the case that lock was added for,
+    // so this is precisely the case that lost its second object.
+    //
+    // It is also the most plausible real sequence: an artist correcting a price
+    // in one tab while the send lands in another. The freeze reads the lines to
+    // check total = sum(lines), and an edit admitted after that read leaves a
+    // client-facing commitment whose visible lines no longer add up to it.
+    const { requestId, lineId } = await draftWithLine(10_000);
+    const freezerPid = await freezer.backendPid();
+
+    let updRows = -1;
+    let updError: { code?: string; message?: string } | null = null;
+    let blocked = -1;
+    try {
+      await holdFreeze(requestId);
+
+      // Halving the line, so a breach is unmistakable in the assertion below
+      // rather than an off-by-a-rounding-step.
+      const pending = owner.client
+        .from("payment_request_lines")
+        .update({ unit_amount_minor: 5_000, line_total_minor: 5_000 })
+        .eq("id", lineId)
+        .select("id")
+        .then((r) => r);
+
+      const contended = await observeBlockedBy(freezerPid, 15_000);
+      await sleep(MARGIN_MS);
+      blocked = contended ? await observer.countBlockedBy(freezerPid) : 0;
+
+      await freezer.commit();
+      const res = await pending;
+      updRows = (res.data ?? []).length;
+      updError = res.error;
+    } finally {
+      await freezer.rollbackIfOpen();
+    }
+
+    // The invariant first, so a red names the damage and not the harness.
+    const after = await stateOf(requestId);
+    expect(after.status).toBe("sent");
+    expectConsistentIfSent(after, "update-during-freeze");
+    expect(after.lineSum, "the line amount must be unchanged").toBe(10_000);
+
+    // Asserted whatever the error is: an RLS-filtered UPDATE returns
+    // `{ data: [], error: null }`, so "no error" is not success here either.
+    expect(updRows, "the update must affect zero rows").toBe(0);
+    expect(blocked, "the update must have WAITED on the freezer's lock").toBe(
+      1,
+    );
+    expect(updError?.code).toBe("23514");
   });
 
   it("pins both lock objects by catalog read, because a body swap beats timing", async () => {
