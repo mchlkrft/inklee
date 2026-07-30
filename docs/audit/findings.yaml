@@ -8268,6 +8268,117 @@ findings:
         action: "opened"
         note: "Advisory finding recorded for future P9 mobile build planning."
 
+  - id: "AUTH-RPC-001"
+    title: "book_flash_item and increment_fee_sponsored_used were callable by anon via PostgREST
+      until 0060 revoked the grants"
+    summary: "0058/0059 created two SECURITY DEFINER RPCs and granted EXECUTE to service_role, but
+      revoked only from PUBLIC, not from anon/authenticated. Supabase's ALTER DEFAULT PRIVILEGES
+      grants EXECUTE on new functions to anon and authenticated, so both RPCs remained callable with
+      the public anon key through PostgREST. book_flash_item inserts into booking_requests bypassing
+      RLS, allowing forged bookings under any artist_id. increment_fee_sponsored_used allowed
+      arbitrary mutation of any artist's sponsored-fee counter. Fixed by 0060 in the same commit day."
+    classification:
+      domain: "authorization"
+      category: "missing-authorization"
+      severity: "critical"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-04"
+      detected_by: "developer (same day as the vulnerable migrations)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "da982ac"
+      environment: "repository-only"
+      discovery_context: "Found during authoring of 0058/0059 and fixed in 0060 on the same day
+        (da982ac at 08:34, 364a10f at 09:44, both 2026-07-04). Recorded in the audit register on
+        2026-07-31 after the EXECUTE grant/revoke consistency sweep found it had no ledger entry."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0060_lock_rpc_grants.sql"
+      database_objects:
+        - "function book_flash_item"
+        - "function increment_fee_sponsored_used"
+    evidence:
+      observed_facts:
+        - "0060:1-20 documents the vulnerability in full: '0058/0059 did REVOKE ALL ... FROM PUBLIC
+          then GRANT EXECUTE ... TO service_role. That is NOT enough on a Supabase database: the
+          project has ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon,
+          authenticated, so every newly-created function ALSO gets an explicit anon + authenticated
+          EXECUTE grant that a REVOKE-from-PUBLIC does not touch.'"
+        - "0060:12-16 documents the book_flash_item impact: 'book_flash_item is SECURITY DEFINER and
+          INSERTs into booking_requests bypassing RLS. With anon EXECUTE, anyone with the (public)
+          anon key could POST /rest/v1/rpc/book_flash_item to forge bookings under ANY artist_id
+          with arbitrary form_data, skipping the public form's honeypot / origin / rate-limit /
+          validation.'"
+        - "0060:17-18 documents the increment_fee_sponsored_used impact: 'let anyone mutate any
+          artist's sponsored-fee running total.'"
+        - "0060:22-33 revokes EXECUTE from PUBLIC, anon, authenticated on both functions, then
+          re-asserts the service_role grant."
+        - "da982ac (0058/0059) committed 2026-07-04 08:34. 364a10f (0060 fix) committed 2026-07-04
+          09:44. Both on the same day, ~70 minutes apart."
+      references:
+        - "apps/web/supabase/migrations/0060_lock_rpc_grants.sql"
+        - "apps/web/supabase/migrations/0058_increment_fee_sponsored_used.sql"
+        - "apps/web/supabase/migrations/0059_book_flash_item.sql"
+      contradictory_evidence: "The fix landed ~70 minutes after the vulnerable migrations, on the same
+        day. Whether 0058/0059 were ever applied to production without 0060 is unknown from git
+        alone (migrations are applied via supabase db push, not automatically on deploy). The
+        exposure window may be zero if all three were pushed together."
+      inspected_comparables_without_issue:
+        - "0067-0073 growth_*/wa_* functions: all 16 correctly revoke from anon/authenticated and
+          grant to service_role at every CREATE OR REPLACE."
+        - "0099-0100 release_fee_sponsored_used: both revoke and grant correctly."
+    assessment:
+      interpretation: "A critical authorization bypass that was caught and fixed on the same day it
+        was introduced. The root cause is the Supabase-specific ALTER DEFAULT PRIVILEGES behavior,
+        which is non-obvious: REVOKE ALL FROM PUBLIC does not touch the per-role grants that
+        DEFAULT PRIVILEGES created. The fix (0060) is the canonical pattern for all subsequent RPCs."
+      root_cause_hypothesis: "The 0058/0059 author used the standard PostgreSQL pattern (REVOKE FROM
+        PUBLIC) without accounting for Supabase's default privilege grants to anon/authenticated."
+      reachability: "currently-unreachable"
+      impact_status: "historically-impacting"
+      production_exposure: "Unknown. The ~70 minute gap between commits means the window is at most
+        70 minutes if migrations were pushed sequentially, or zero if pushed as a batch. No evidence
+        of exploitation exists in the repository."
+      remaining_uncertainty: "Whether 0058/0059 were ever live in production without 0060. Only
+        Supabase migration history timestamps would resolve this."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "Whether any other Supabase-hosted function created before the 0060 pattern was
+          established has the same gap. The EXECUTE grant sweep inspected all revoke/grant pairs
+          and found none, but did not independently enumerate all function ACLs from production."
+      structural_patterns:
+        - "PAT-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "364a10f"
+      proposed_action: "Fixed by 0060_lock_rpc_grants.sql. No further action needed."
+      fixed_at: "2026-07-04"
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Fix is in production. The exposure window is unresolved. The production ACLs
+        for these two functions have not been independently verified against the migration's intent."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "The vulnerability is already fully documented in the public migration file
+        0060_lock_rpc_grants.sql."
+    history:
+      - date: "2026-07-04"
+        actor: "developer"
+        action: "opened"
+        note: "Discovered and fixed same day. Documented in 0060's header comment."
+      - date: "2026-07-04"
+        actor: "developer"
+        action: "fix-committed"
+        note: "0060_lock_rpc_grants.sql applied."
+      - date: "2026-07-31"
+        actor: "Opus 5 code quality audit: RLS and authorization lens"
+        action: "backfilled"
+        note: "Found during full-history EXECUTE grant/revoke consistency sweep. No prior ledger
+          entry existed despite the vulnerability being fully documented in its own migration."
+
 patterns:
   - id: "PAT-001"
     title: "A safety property is asserted in a comment or commit message before it has ever been
