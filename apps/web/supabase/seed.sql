@@ -69,6 +69,11 @@ GRANT SELECT (
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_allocations
   FROM anon, authenticated;
 
+-- Mirror of 0125:1062-1068 (payment_collections is service-role-only at
+-- settlement, same rationale as payment_allocations above).
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_collections
+  FROM anon, authenticated;
+
 -- Mirror of 0074_profiles_column_privileges.sql + the 0076 + 0084 + 0102 grant
 -- extensions:
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;
