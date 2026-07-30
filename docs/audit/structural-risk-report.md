@@ -5,9 +5,7 @@
 
 # Structural risk report
 
-**Source commit:** `uncommitted` · **Ledger last changed:** uncommitted
-
-> The ledger is not yet committed, so this report has no source commit.
+**Ledger content hash:** `ecf9b4a6c4ee`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**

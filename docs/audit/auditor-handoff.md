@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Source commit:** `uncommitted` · **Ledger last changed:** uncommitted
+**Ledger content hash:** `ecf9b4a6c4ee`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 

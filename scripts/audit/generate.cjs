@@ -4,13 +4,15 @@
 //   node scripts/audit/generate.cjs --check  (pnpm audit:check, CI: fails if stale)
 //
 // DETERMINISM. Output must be byte-identical for the same ledger, or the
-// staleness check becomes a daily false alarm and gets ignored, which is how a
-// gate dies. So: everything is sorted explicitly, and the "as of" stamp is the
-// git commit date of findings.yaml rather than the wall clock. Regenerating on
-// a different day with unchanged data produces the same bytes.
+// staleness check becomes a false alarm and gets ignored, which is how a gate
+// dies. So: everything is sorted explicitly, and the provenance stamp is a
+// CONTENT HASH of findings.yaml. Not the wall clock (stale every morning) and
+// not the ledger's git commit (circular: committing the ledger changes it).
+// See provenance() for the measurement behind that choice.
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 const { ROOT, AUDIT_DIR, LEDGER, validate } = require("./lib.cjs");
 
@@ -29,16 +31,35 @@ function git(args, fallback) {
   }
 }
 
-/** Deterministic provenance: the commit that last touched the LEDGER, not HEAD
- *  and not the clock. If the ledger is uncommitted, say so plainly rather than
- *  stamping a hash that does not contain this data. */
+/** Provenance is a CONTENT HASH of the ledger, not a git commit and not a clock.
+ *
+ *  Both obvious alternatives are broken, and the first one shipped before this
+ *  comment did:
+ *
+ *  A WALL-CLOCK DATE makes every report stale the next morning, so the freshness
+ *  check cries wolf daily and gets ignored, which is how a gate dies.
+ *
+ *  THE LEDGER'S GIT COMMIT is circular. The ledger and its reports are committed
+ *  together, so at generation time the ledger is either uncommitted or sitting
+ *  at its PREVIOUS commit; committing then changes the answer and the reports
+ *  are instantly stale. Measured, not theorised: commit 78a11cc shipped reports
+ *  stamped "uncommitted", and `pnpm audit:check` failed against a clean checkout
+ *  of that very commit. CI would have been red on the commit that added the
+ *  gate.
+ *
+ *  A content hash has no such loop: it changes when, and only when, the data
+ *  changes. It is also the more useful claim, because it says exactly which
+ *  ledger content produced these bytes, which is what reproducing them needs. */
 function provenance() {
-  const commit = git(["log", "-1", "--format=%h", "--", LEDGER], "");
-  const date = git(["log", "-1", "--format=%cs", "--", LEDGER], "");
+  const raw = fs.readFileSync(LEDGER, "utf8").replace(/\r\n/g, "\n");
+  const hash = crypto.createHash("sha256").update(raw).digest("hex").slice(0, 12);
   const dirty = git(["status", "--porcelain", "--", LEDGER], "");
-  if (!commit) return { commit: "uncommitted", date: "uncommitted", note: "The ledger is not yet committed, so this report has no source commit." };
-  if (dirty) return { commit: `${commit}+uncommitted-changes`, date, note: "The ledger has uncommitted changes, so this report may describe data not yet in git." };
-  return { commit, date, note: "" };
+  return {
+    hash,
+    note: dirty
+      ? "The ledger has uncommitted changes, so this report may describe data not yet in git."
+      : "",
+  };
 }
 
 const DISCLAIMER =
@@ -82,7 +103,7 @@ function structuralRiskReport(d, prov) {
   const domainCounts = countBy(findings, (f) => f.classification.domain);
 
   let s = `${DO_NOT_EDIT}\n# Structural risk report\n\n`;
-  s += `**Source commit:** \`${prov.commit}\` · **Ledger last changed:** ${prov.date}\n\n`;
+  s += `**Ledger content hash:** \`${prov.hash}\`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)\n\n`;
   if (prov.note) s += `> ${prov.note}\n\n`;
   s += `${DISCLAIMER}\n`;
 
@@ -159,7 +180,7 @@ function structuralRiskReport(d, prov) {
 function scopeMap(d, prov) {
   const rows = [...d.coverage].sort((a, b) => a.area.localeCompare(b.area) || a.subsystem.localeCompare(b.subsystem));
   let s = `${DO_NOT_EDIT}\n# Audit scope map\n\n`;
-  s += `**Source commit:** \`${prov.commit}\` · **Ledger last changed:** ${prov.date}\n\n`;
+  s += `**Ledger content hash:** \`${prov.hash}\`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)\n\n`;
   s += `> **Coverage \`none\` means the area has NOT been inspected. It does not mean the area is safe.**\n`;
   s += `> "No findings recorded" and "reviewed and found sound" are different statements, and this map exists to keep them apart.\n\n`;
   s += `**Scale:** none (not inspected) · initial (surface pass) · partial (some paths) · substantial (most paths, gaps named) · comprehensive (systematic, exclusions named)\n\n`;
@@ -194,7 +215,7 @@ function unresolved(d, prov) {
     return out + "\n";
   };
   let s = `${DO_NOT_EDIT}\n# Unresolved findings\n\n`;
-  s += `**Source commit:** \`${prov.commit}\` · **Ledger last changed:** ${prov.date}\n\n`;
+  s += `**Ledger content hash:** \`${prov.hash}\`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)\n\n`;
   s += `Operational view. Generated from the ledger; do not edit.\n\n`;
   s += sec("Open", f.filter((x) => x.remediation.status === "open"));
   s += sec("In progress", f.filter((x) => x.remediation.status === "in-progress"));
@@ -216,7 +237,7 @@ function auditorHandoff(d, prov) {
   const none = d.coverage.filter((c) => c.coverage === "none").sort((a, b) => a.area.localeCompare(b.area));
   const hi = [...d.findings].filter((f) => ["critical", "high"].includes(f.classification.severity)).sort(bySeverity);
   let s = `${DO_NOT_EDIT}\n# Independent auditor handoff\n\n`;
-  s += `**Source commit:** \`${prov.commit}\` · **Ledger last changed:** ${prov.date}\n\n`;
+  s += `**Ledger content hash:** \`${prov.hash}\`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)\n\n`;
 
   s += `## What this system is\n\n`;
   s += `Inklee is a booking, payments and commerce platform for tattoo artists (Next.js + Supabase/Postgres, a React Native client, and Stripe including Connect).\n`;
