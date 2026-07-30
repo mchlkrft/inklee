@@ -38,10 +38,39 @@ means nobody inspected the area, not that the area is fine.
 | `evidence/` | Yes | Supporting artifacts, redacted for a public repo |
 
 ```bash
-pnpm audit:validate    # schema + governance rules
-pnpm audit:generate    # rewrite the four generated reports
-pnpm audit:check       # validate + fail if any report is stale (runs in CI)
+pnpm audit:new AUTH-RLS   # scaffold a finding with the next free ID
+pnpm audit:new --coverage # scaffold a coverage row (needed even when clean)
+pnpm audit:new --pattern  # scaffold a structural pattern
+pnpm audit:validate       # schema + governance rules
+pnpm audit:generate       # rewrite the four generated reports
+pnpm audit:check          # validate + fail if any report is stale (runs in CI)
 ```
+
+## Using this register is MANDATORY
+
+Founder rule, 2026-07-30, recorded in `AGENTS.md`.
+
+**Every audit, review, verification pass or security sweep must update this
+register before reporting done.** A gate review, an adversarial verification, a
+parity sweep, a one-off investigation: if the output is an opinion about whether
+something is correct, it lands here.
+
+**An audit that records nothing did not happen.**
+
+The half that gets skipped is the second one: **an audit that finds nothing
+still writes a `coverage` row.** Without it, "inspected and found sound" is
+indistinguishable from "nobody looked", and separating those is the entire
+reason the scope map exists. Record what you inspected, at which commit, and
+what you deliberately left out.
+
+A narrative review document in `docs/` is no longer a sufficient deliverable on
+its own. Write one if it helps a human. The register entry is what survives and
+what a later auditor actually reads.
+
+CI cannot tell that an audit was skipped. It can tell that the ledger is invalid
+or a report is stale, and it fails on both. The rest is supervision: a review
+handed back with no register delta gets returned, the same way a fix with no
+test does.
 
 `pnpm audit:check` runs in CI (`.github/workflows/ci.yml`). A stale generated
 report fails the build, because a report that silently drifts from its source is

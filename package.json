@@ -14,7 +14,8 @@
     "test:db": "pnpm --filter inklee test:db",
     "audit:validate": "node scripts/audit/validate.cjs",
     "audit:generate": "node scripts/audit/generate.cjs",
-    "audit:check": "node scripts/audit/generate.cjs --check"
+    "audit:check": "node scripts/audit/generate.cjs --check",
+    "audit:new": "node scripts/audit/new.cjs"
   },
   "devDependencies": {
     "husky": "^9.1.7",

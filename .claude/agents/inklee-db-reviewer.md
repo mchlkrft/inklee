@@ -81,3 +81,16 @@ RLS and migration findings especially:
   (`analogous_uninspected_areas`). A repaired object beside three unexamined
   siblings is how the same defect ships twice.
 - A local-stack result is not a production result. Say which you observed.
+
+### MANDATORY (founder rule, 2026-07-30)
+
+Updating `docs/audit/findings.yaml` is **part of the definition of done** for any
+review, audit or verification you perform. Not optional, not "if time".
+
+**An audit that records nothing did not happen.** If you inspected an area and
+found nothing wrong, you still write a `coverage` row saying what you inspected,
+at which commit, and what you did not cover. Otherwise "clean" and "unexamined"
+look identical to whoever reads this next.
+
+Scaffold with `pnpm audit:new`, then `pnpm audit:validate` and
+`pnpm audit:generate` before you hand back.

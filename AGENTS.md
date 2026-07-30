@@ -142,16 +142,56 @@ These apply to every string the artist or a public visitor can read: page copy, 
 
 Quick check before shipping a new user-visible string: search the diff for `—`. If found, replace.
 
-## Audit evidence register: record findings as you find them
+## Audit evidence register: MANDATORY for every audit, review and verification
+
+**Founder rule, 2026-07-30. This is not optional and it is not "when you have
+time".**
 
 `docs/audit/findings.yaml` is the permanent evidence ledger. Read
 `docs/audit/README.md` before your first entry. Validate with
-`pnpm audit:validate`, regenerate reports with `pnpm audit:generate`. CI runs
-`pnpm audit:check` and fails on an invalid ledger or a stale generated report.
+`pnpm audit:validate`, regenerate with `pnpm audit:generate`, scaffold a new
+entry with `pnpm audit:new`. CI runs `pnpm audit:check` and fails on an invalid
+ledger or a stale generated report.
 
 It exists because evidence kept dying with the session that found it, and
 because the same class of defect was found independently several times before
 anyone named it as recurrence.
+
+### The rule
+
+**Every audit, review, verification pass or security sweep MUST update the
+register before it reports done.** That applies to a gate review, an adversarial
+verification, a specialist review, a parity sweep, a one-off investigation, and
+any task whose output is an opinion about whether something is correct.
+
+**An audit that records nothing did not happen.**
+
+Concretely, before you report:
+
+1. **Every finding goes in**, with a citation. No citation, no finding.
+2. **An audit that finds NOTHING still writes a `coverage` row.** This is the
+   half everyone skips and it is the more important half: without it, "inspected
+   and found sound" is indistinguishable from "nobody looked", and the whole
+   point of the scope map is keeping those apart. Record what you inspected, at
+   which commit, and what you deliberately did NOT cover
+   (`known_exclusions`).
+3. **Name the comparable areas you did not inspect**
+   (`analogous_uninspected_areas`). A repaired object beside three unexamined
+   siblings is how the same defect ships twice, which is documented here twice
+   already.
+4. **Do not upgrade your own confidence.** If it rests on reading, it is not
+   `confirmed`.
+
+A narrative review document in `docs/` is no longer a sufficient deliverable on
+its own. Write one if it helps a human, but the register entry is what survives,
+and it is what a later auditor reads. If your review produced a doc and no
+register entry, you have produced something that will be forgotten.
+
+### Why it is enforced this way
+
+CI cannot detect that you skipped an audit. It CAN detect an invalid ledger and
+a stale report, and it does. The rest is on the supervisor: a review handed back
+with no register delta gets sent back, the same way a fix with no test does.
 
 **Workers, when you find something meaningful:**
 

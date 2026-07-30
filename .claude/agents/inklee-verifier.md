@@ -61,3 +61,16 @@ For each finding you verify in `docs/audit/findings.yaml`:
   confidence down, and put the counter-evidence in
   `evidence.contradictory_evidence`. Disproven findings are evidence too.
 - New defects you discover get their own findings, cross-linked.
+
+### MANDATORY (founder rule, 2026-07-30)
+
+Updating `docs/audit/findings.yaml` is **part of the definition of done** for any
+review, audit or verification you perform. Not optional, not "if time".
+
+**An audit that records nothing did not happen.** If you inspected an area and
+found nothing wrong, you still write a `coverage` row saying what you inspected,
+at which commit, and what you did not cover. Otherwise "clean" and "unexamined"
+look identical to whoever reads this next.
+
+Scaffold with `pnpm audit:new`, then `pnpm audit:validate` and
+`pnpm audit:generate` before you hand back.
