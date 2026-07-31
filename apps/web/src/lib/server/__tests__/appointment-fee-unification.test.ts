@@ -96,6 +96,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getAccountOverrides = vi.fn();
 const effectivePlanTier = vi.fn();
+const canAccess = vi.fn();
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/entitlements-server", () => ({
@@ -103,6 +104,10 @@ vi.mock("@/lib/entitlements-server", () => ({
 }));
 vi.mock("@/lib/entitlements", () => ({
   effectivePlanTier: (...a: unknown[]) => effectivePlanTier(...a),
+  // Grandfather signal for the legacy appointment tier (appointmentFeeTier).
+  // Default false: resolveOrderFee's Free tier stays `free`, so block 3's v1
+  // literals are unchanged.
+  canAccess: (...a: unknown[]) => canAccess(...a),
 }));
 
 import {
@@ -239,6 +244,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getAccountOverrides.mockResolvedValue({});
   effectivePlanTier.mockReturnValue("plus");
+  canAccess.mockReturnValue(false);
 });
 
 // ---------------------------------------------------------------------------

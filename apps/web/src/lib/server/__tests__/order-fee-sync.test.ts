@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getAccountOverrides = vi.fn();
 const effectivePlanTier = vi.fn();
+const canAccess = vi.fn();
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/entitlements-server", () => ({
@@ -20,6 +21,9 @@ vi.mock("@/lib/entitlements-server", () => ({
 }));
 vi.mock("@/lib/entitlements", () => ({
   effectivePlanTier: (...a: unknown[]) => effectivePlanTier(...a),
+  // The grandfather signal for the legacy appointment tier. Default false, so a
+  // plain Free artist stays `free`; a test sets it true to exercise legacy_free_v1.
+  canAccess: (...a: unknown[]) => canAccess(...a),
 }));
 
 import { resolveOrderFee } from "@/lib/server/order-fee-sync";
@@ -32,6 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getAccountOverrides.mockResolvedValue({});
   effectivePlanTier.mockReturnValue("plus");
+  canAccess.mockReturnValue(false);
 });
 
 describe("resolveOrderFee", () => {
@@ -197,6 +202,25 @@ describe("resolveOrderFee under the approved v2 schedule", () => {
     expect(r.ok && r.appointmentFeeMinor).toBe(100);
     expect(r.ok && r.goodsFeeMinor).toBe(100);
     expect(r.ok && r.applicationFeeMinor).toBe(200);
+    expect(r.ok && r.scheduleVersion).toBe(FEE_SCHEDULE_V2.version);
+  });
+
+  // THE LEGACY COHORT. A grandfathered Free artist (legacy_free_v1) holds
+  // card_deposit_collection, so appointmentFeeTier resolves them to `legacy`,
+  // NOT `free`. Under v2 that is the historical 3% rather than the refusal a
+  // plain Free artist gets: the founder ruling that v2 must have no undefined
+  // cell. Same amount as the refusal test above, opposite outcome.
+  it("prices a grandfathered Free artist at the legacy 3% under v2, not a refusal", async () => {
+    effectivePlanTier.mockReturnValue("free");
+    canAccess.mockReturnValue(true); // holds card_deposit_collection
+    const r = await resolveUnder(FEE_SCHEDULE_V2.version, {
+      artistId: "a1",
+      depositMinor: 20000,
+      goodsBaseMinor: 0,
+      intent: intent(),
+    });
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.appointmentFeeMinor).toBe(600); // legacy 300 bps of 200.00
     expect(r.ok && r.scheduleVersion).toBe(FEE_SCHEDULE_V2.version);
   });
 

@@ -1,7 +1,15 @@
 import "server-only";
 import type Stripe from "stripe";
 import { computeOrderFees } from "@inklee/shared/order-fees";
-import { effectivePlanTier } from "@/lib/entitlements";
+import {
+  resolveAppointmentTier,
+  type PaymentTier,
+} from "@inklee/shared/fee-schedule";
+import {
+  canAccess,
+  effectivePlanTier,
+  type AccountOverrides,
+} from "@/lib/entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 
 // Keeping a PaymentIntent's `application_fee_amount` correct when goods are
@@ -50,6 +58,30 @@ import { getAccountOverrides } from "@/lib/entitlements-server";
 // (3%)", `artistNetEur`) on the surfaces that quote the deduction before a
 // deposit is requested. It is no longer the source of any charge.
 
+/**
+ * THE ONE PLACE that turns an artist's overrides into the appointment-lane fee
+ * tier. Every appointment `application_fee_amount` uses this so the grandfather
+ * rule is one decision, not three.
+ *
+ * Plus is `plus`. A Free artist who holds `card_deposit_collection` is the
+ * grandfathered `legacy_free_v1` cohort: they kept card collection when it
+ * became Plus-only, so they resolve to `legacy` (the historical 3% on the
+ * appointment lane under v2, rather than being refused for having no Free rate).
+ * A Free artist without that entitlement is `free`, which under v2 cannot
+ * transact the lane at all, which is correct: they were never sold card
+ * collection. Invisible under the active schedule (v1 prices every tier at
+ * 300 bps); it only changes an answer once v2 is active.
+ */
+export function appointmentFeeTier(overrides: AccountOverrides): PaymentTier {
+  return resolveAppointmentTier({
+    planTier: effectivePlanTier(overrides),
+    grandfatheredAppointmentAccess: canAccess(
+      overrides,
+      "card_deposit_collection",
+    ),
+  });
+}
+
 /** A re-prepare that produced a fee. The only shape carrying a number. */
 export type FeeSyncOk = {
   ok: true;
@@ -84,7 +116,7 @@ export type FeeSyncResult =
        *  may not collect on that lane at all. Same meaning, and the same
        *  string, as `AppointmentFeeQuote`'s refusal. */
       reason: "appointment_lane_unavailable";
-      tier: "free" | "plus";
+      tier: PaymentTier;
       scheduleVersion: string;
     }
   | {
@@ -101,7 +133,8 @@ export type AppointmentFeeInput = {
   /** Goods value in minor units, already net of discounts and already
    *  excluding VAT and shipping. Zero on a pure appointment collection. */
   goodsBaseMinor?: number;
-  tier: "free" | "plus";
+  /** Resolve with `appointmentFeeTier`. `legacy` is the grandfathered cohort. */
+  tier: PaymentTier;
   /** Inklee is waiving the APPOINTMENT lane fee for this transaction. */
   sponsored?: boolean;
   /** Defaults to the active schedule. Pass a stored version to recompute an old
@@ -136,7 +169,7 @@ export type AppointmentFeeQuote =
        *  it may not collect on it at all. Spec section 1: there is no Free card
        *  rate, and "not applicable" is not "0%". */
       reason: "appointment_lane_unavailable";
-      tier: "free" | "plus";
+      tier: PaymentTier;
       scheduleVersion: string;
     };
 
@@ -219,9 +252,15 @@ export async function resolveOrderFee(args: {
   //
   // `bookings.ts` already refuses on this same read for the same reason (a
   // failed read must not read as "free plan"), so this follows that shape.
-  let tier: "free" | "plus";
+  //
+  // Resolved through `appointmentFeeTier`, so a grandfathered Free artist
+  // (legacy_free_v1, holding card_deposit_collection) re-prepares at the legacy
+  // 3% rather than being refused under v2 the way a genuinely downgraded Free
+  // artist is. Under the active schedule this changes nothing: every tier is
+  // 300 bps.
+  let tier: PaymentTier;
   try {
-    tier = effectivePlanTier(await getAccountOverrides(args.artistId));
+    tier = appointmentFeeTier(await getAccountOverrides(args.artistId));
   } catch {
     return { ok: false, reason: "plan_read_failed" };
   }

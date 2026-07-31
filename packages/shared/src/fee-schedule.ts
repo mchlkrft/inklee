@@ -17,12 +17,25 @@
 
 export type FeeLane = "appointment_payment" | "goods";
 
+/**
+ * The fee tier for a transaction.
+ *
+ * `legacy` is the grandfathered `legacy_free_v1` cohort: a Free artist who held
+ * card-payment collection access before it became Plus-only and keeps it. On the
+ * APPOINTMENT lane they pay the historical flat rate rather than being blocked
+ * (the v2 Free rate is `null` = cannot transact) or being handed the Plus rate
+ * they never paid for. On the GOODS lane there is nothing to grandfather, so
+ * `legacy` resolves to the Free goods rate (see `laneRateBps`). Resolve it with
+ * `resolveAppointmentTier`, never by hand.
+ */
+export type PaymentTier = "free" | "plus" | "legacy";
+
 export type FeeScheduleVersion = {
   version: string;
   effectiveFrom: string;
   /** Basis points (100 bps = 1%). `null` = the tier cannot transact this lane. */
   rates: {
-    appointmentPayment: { free: number | null; plus: number };
+    appointmentPayment: { free: number | null; plus: number; legacy: number };
     goods: { free: number; plus: number };
   };
   notes: string;
@@ -33,8 +46,9 @@ export const FEE_SCHEDULE_V1: FeeScheduleVersion = {
   version: "fees-v1-2026-07-04",
   effectiveFrom: "2026-07-04",
   rates: {
-    // The historical flat 3% on card deposits, all tiers.
-    appointmentPayment: { free: 300, plus: 300 },
+    // The historical flat 3% on card deposits, all tiers. `legacy` matches
+    // `free`/`plus` here: v1 never distinguished the grandfathered cohort.
+    appointmentPayment: { free: 300, plus: 300, legacy: 300 },
     // Goods checkout is parked and was coded at 0% take.
     goods: { free: 0, plus: 0 },
   },
@@ -48,11 +62,15 @@ export const FEE_SCHEDULE_V2: FeeScheduleVersion = {
   effectiveFrom: "", // set when P7 activates it
   rates: {
     // Free cannot collect card payments at all, so there is no Free rate.
-    appointmentPayment: { free: null, plus: 50 },
+    // `legacy` = the grandfathered `legacy_free_v1` cohort keeps the historical
+    // flat 3% (founder ruling 2026-07-31), rather than being blocked (free=null)
+    // or handed the Plus 0.5% they never paid for. Encoded now so v2 has NO
+    // undefined cell when it activates; zero accounts hold this today.
+    appointmentPayment: { free: null, plus: 50, legacy: 300 },
     goods: { free: 500, plus: 100 },
   },
   notes:
-    "Plus appointment payments 0.5% on eligible tattoo-service value; goods 5% free / 1% Plus on subtotal after discounts ex VAT and shipping. Requires accountant approval of fee and tax treatment before activation.",
+    "Plus appointment payments 0.5% on eligible tattoo-service value; grandfathered legacy_free_v1 appointment access stays at 3%; goods 5% free / 1% Plus on subtotal after discounts ex VAT and shipping. Requires accountant approval of fee and tax treatment before activation.",
 };
 
 export const FEE_SCHEDULES: Record<string, FeeScheduleVersion> = {
@@ -84,13 +102,37 @@ export function feeScheduleFor(version: string): FeeScheduleVersion {
  */
 export function laneRateBps(
   lane: FeeLane,
-  tier: "free" | "plus",
+  tier: PaymentTier,
   version?: string,
 ): number | null {
   const schedule = feeScheduleFor(version ?? ACTIVE_FEE_SCHEDULE_VERSION);
-  return lane === "goods"
-    ? schedule.rates.goods[tier]
-    : schedule.rates.appointmentPayment[tier];
+  if (lane === "goods") {
+    // Nothing to grandfather on goods: legacy pays the Free goods rate. This is
+    // the one place that mapping lives, so a caller can pass a single resolved
+    // tier for both lanes (appointment=legacy, goods=free) without splitting it.
+    const goodsTier = tier === "legacy" ? "free" : tier;
+    return schedule.rates.goods[goodsTier];
+  }
+  return schedule.rates.appointmentPayment[tier];
+}
+
+/**
+ * Resolve the fee tier for the APPOINTMENT lane from the artist's plan and
+ * grandfathering state.
+ *
+ * Plus is always `plus`. A Free artist is `legacy` when they were grandfathered
+ * card-payment access (the `legacy_free_v1` cohort holds `card_deposit_collection`
+ * as an override), otherwise `free` (which is `null` = cannot transact under v2).
+ * This is the ONLY sanctioned way to decide `legacy`; do not infer it at a call
+ * site. The same resolved tier is safe to pass to the goods lane, which maps it
+ * back to `free`.
+ */
+export function resolveAppointmentTier(input: {
+  planTier: "free" | "plus";
+  grandfatheredAppointmentAccess: boolean;
+}): PaymentTier {
+  if (input.planTier === "plus") return "plus";
+  return input.grandfatheredAppointmentAccess ? "legacy" : "free";
 }
 
 /**
@@ -103,7 +145,7 @@ export function laneRateBps(
  */
 export function canTransactLane(
   lane: FeeLane,
-  tier: "free" | "plus",
+  tier: PaymentTier,
   version?: string,
 ): boolean {
   return laneRateBps(lane, tier, version) !== null;
@@ -127,17 +169,12 @@ export function canTransactLane(
 export function feeMinorUnits(input: {
   baseMinor: number;
   lane: FeeLane;
-  tier: "free" | "plus";
+  tier: PaymentTier;
   version?: string;
 }): number {
   if (!Number.isFinite(input.baseMinor) || input.baseMinor <= 0) return 0;
-  const schedule = feeScheduleFor(
-    input.version ?? ACTIVE_FEE_SCHEDULE_VERSION,
-  );
-  const bps =
-    input.lane === "goods"
-      ? schedule.rates.goods[input.tier]
-      : schedule.rates.appointmentPayment[input.tier];
+  // Via laneRateBps so the goods legacy->free mapping is not duplicated here.
+  const bps = laneRateBps(input.lane, input.tier, input.version);
   if (bps === null || bps <= 0) return 0;
   return Math.round((input.baseMinor * bps) / 10000);
 }

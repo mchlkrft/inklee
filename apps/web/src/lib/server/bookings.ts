@@ -30,12 +30,11 @@ import {
 } from "@/lib/stripe-connect";
 import { artistDepositCurrency } from "@/lib/connect-countries";
 import { checkDepositRequestRateLimit } from "@/lib/ratelimit";
+import { canAccess, canSponsorFeeCents } from "@/lib/entitlements";
 import {
-  canAccess,
-  canSponsorFeeCents,
-  effectivePlanTier,
-} from "@/lib/entitlements";
-import { appointmentApplicationFee } from "@/lib/server/order-fee-sync";
+  appointmentApplicationFee,
+  appointmentFeeTier,
+} from "@/lib/server/order-fee-sync";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { isCapabilityDisabled } from "@/lib/server/app-config";
 import {
@@ -874,7 +873,10 @@ export async function requestDepositCore(
   const feeQuote = appointmentApplicationFee({
     appointmentBaseMinor: amountCents,
     goodsBaseMinor: 0,
-    tier: effectivePlanTier(overrides),
+    // Grandfather-aware: a legacy_free_v1 artist (Free + card_deposit_collection)
+    // prices at the legacy 3% under v2 rather than being refused. No live number
+    // moves under v1, where every tier is 300 bps.
+    tier: appointmentFeeTier(overrides),
   });
 
   // A TIER WITH NO RATE MUST REFUSE, NOT CHARGE ZERO. Under v2 the Free

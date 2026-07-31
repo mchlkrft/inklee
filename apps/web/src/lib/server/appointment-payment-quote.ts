@@ -12,11 +12,14 @@ import {
   type PaymentRequestStatus,
   type PaymentSubject,
 } from "@inklee/shared/appointment-payments";
-import { effectivePlanTier, type AccountOverrides } from "@/lib/entitlements";
+import { type AccountOverrides } from "@/lib/entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { missingPaymentEntitlement } from "./appointment-payments";
 import { isCapabilityDisabled } from "./app-config";
-import { appointmentApplicationFee } from "./order-fee-sync";
+import {
+  appointmentApplicationFee,
+  appointmentFeeTier,
+} from "./order-fee-sync";
 
 // THE SERVER-AUTHORITATIVE QUOTE (Plus build P9, slice A3).
 //
@@ -474,7 +477,8 @@ export async function buildPaymentQuote(
   const fee = appointmentApplicationFee({
     appointmentBaseMinor: bases.appointmentBaseMinor,
     goodsBaseMinor: bases.goodsBaseMinor,
-    tier: effectivePlanTier(overrides),
+    // Grandfather-aware (legacy_free_v1 -> legacy 3% under v2); v1-invisible.
+    tier: appointmentFeeTier(overrides),
     // Fee sponsorship is a DEPOSIT-path onboarding subsidy on
     // `booking_requests`, and no payment request carries one. Passed explicitly
     // as false rather than omitted, so a future sponsorship on this lane is a

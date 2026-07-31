@@ -408,9 +408,9 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     productArea: "fees",
     freeBehavior: "3% of deposits collected through Inklee",
     plusBehavior: "0.5%",
-    legacyBehavior: "UNDEFINED for legacy_free_v1 (flagged: which rate?)",
+    legacyBehavior: "3% (grandfathered flat rate under v2; encoded via the `legacy` appointment tier + resolveAppointmentTier, F14 decided 2026-07-31)",
     scope: "transaction",
-    serverEnforcement: "partial", // A3 unified the two legacy fee sources (bookings.ts hardcode + request/actions.ts schedule read) into computeOrderFees; ACTIVE_FEE_SCHEDULE_VERSION still v1 (flat 3%)
+    serverEnforcement: "partial", // A3 unified the two legacy fee sources into computeOrderFees; legacy tier wired via appointmentFeeTier at all 3 sites; ACTIVE_FEE_SCHEDULE_VERSION still v1 (flat 3%)
     databaseEnforcement: "partial", // fee_schedule_version column stamped on payment_requests (0125) and orders; v2 defined in fee-schedule.ts but ACTIVE still v1
     frontendBehavior: "partial", // fee shown flat; payment page displays the quoted fee
     mobileSupport: "partial",
@@ -432,7 +432,7 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     productArea: "fees",
     freeBehavior: "5% of subtotal after discounts, ex VAT and shipping",
     plusBehavior: "1%",
-    legacyBehavior: "UNDEFINED (flagged)",
+    legacyBehavior: "5% (the Free goods rate; nothing to grandfather on goods, legacy maps to free in laneRateBps, F14 decided 2026-07-31)",
     scope: "transaction",
     serverEnforcement: "absent", // coded at 0%: application_fee never raised on the add-on path
     databaseEnforcement: "absent", // fee base fields (discount/VAT/shipping decomposition) absent; subtotal ambiguous

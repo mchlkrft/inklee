@@ -25,6 +25,7 @@ import {
   canTransactLane,
   feeMinorUnits,
   feeScheduleFor,
+  type PaymentTier,
 } from "./fee-schedule";
 
 export type OrderFeeInput = {
@@ -38,7 +39,10 @@ export type OrderFeeInput = {
    * charged on VAT.
    */
   goodsBaseMinor: number;
-  tier: "free" | "plus";
+  /** Resolve with `resolveAppointmentTier`. `legacy` (grandfathered
+   *  legacy_free_v1) pays the historical 3% on the appointment lane and the
+   *  Free rate on goods; the same value is safe for both lanes. */
+  tier: PaymentTier;
   /**
    * True when Inklee is waiving the fee on the APPOINTMENT lane for this
    * transaction (the fee-sponsorship programme). It never waives the goods
