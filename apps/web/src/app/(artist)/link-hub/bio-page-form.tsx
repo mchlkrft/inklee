@@ -465,113 +465,150 @@ export default function BioPageForm({
                 </>
               )}
 
-              {block.type === "image_gallery" && (
-                <>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>Layout</span>
-                    <select
-                      value={block.layout}
-                      aria-label="Gallery layout"
-                      onChange={(e) =>
-                        patchBlock(block.id, {
-                          layout:
-                            e.target.value === "carousel" ? "carousel" : "grid",
-                        })
-                      }
-                      className={`${INPUT} max-w-[10rem]`}
-                    >
-                      <option value="grid">Grid</option>
-                      <option value="carousel">Carousel</option>
-                    </select>
-                  </div>
-                  {galleryImages(block).length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      No images yet. Add an image URL to show it here. An empty
-                      gallery is not saved.
-                    </p>
-                  )}
-                  {galleryImages(block).map((img, imgIndex) => {
-                    const imgs = galleryImages(block);
-                    return (
-                      <div
-                        key={imgIndex}
-                        className="flex flex-wrap items-start gap-2 rounded-md border border-border/60 px-2 py-2"
+              {block.type === "image_gallery" &&
+                (richBlocksAllowed ? (
+                  <>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Layout</span>
+                      <select
+                        value={block.layout}
+                        aria-label="Gallery layout"
+                        onChange={(e) =>
+                          patchBlock(block.id, {
+                            layout:
+                              e.target.value === "carousel"
+                                ? "carousel"
+                                : "grid",
+                          })
+                        }
+                        className={`${INPUT} max-w-[10rem]`}
                       >
-                        <div className="flex-1 space-y-2">
-                          <input
-                            value={img.url}
-                            onChange={(e) =>
-                              patchImage(block.id, imgs, imgIndex, {
-                                url: e.target.value,
-                              })
-                            }
-                            placeholder="https://… image URL"
-                            inputMode="url"
-                            className={INPUT}
-                          />
-                          <input
-                            value={img.caption ?? ""}
-                            onChange={(e) =>
-                              patchImage(block.id, imgs, imgIndex, {
-                                caption: e.target.value.slice(
-                                  0,
-                                  MAX_GALLERY_CAPTION,
-                                ),
-                              })
-                            }
-                            placeholder="Caption (optional, also used as the image description)"
-                            className={INPUT}
-                          />
+                        <option value="grid">Grid</option>
+                        <option value="carousel">Carousel</option>
+                      </select>
+                    </div>
+                    {galleryImages(block).length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        No images yet. Add an image URL to show it here. An
+                        empty gallery is not saved.
+                      </p>
+                    )}
+                    {galleryImages(block).map((img, imgIndex) => {
+                      const imgs = galleryImages(block);
+                      return (
+                        <div
+                          key={imgIndex}
+                          className="flex flex-wrap items-start gap-2 rounded-md border border-border/60 px-2 py-2"
+                        >
+                          <div className="flex-1 space-y-2">
+                            <input
+                              value={img.url}
+                              onChange={(e) =>
+                                patchImage(block.id, imgs, imgIndex, {
+                                  url: e.target.value,
+                                })
+                              }
+                              placeholder="https://… image URL"
+                              inputMode="url"
+                              className={INPUT}
+                            />
+                            <input
+                              value={img.caption ?? ""}
+                              onChange={(e) =>
+                                patchImage(block.id, imgs, imgIndex, {
+                                  caption: e.target.value.slice(
+                                    0,
+                                    MAX_GALLERY_CAPTION,
+                                  ),
+                                })
+                              }
+                              placeholder="Caption (optional, also used as the image description)"
+                              className={INPUT}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                moveImage(block.id, imgs, imgIndex, -1)
+                              }
+                              disabled={imgIndex === 0}
+                              aria-label="Move image up"
+                              className={ICON_BTN}
+                            >
+                              <ArrowUp className="h-4 w-4" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                moveImage(block.id, imgs, imgIndex, 1)
+                              }
+                              disabled={imgIndex === imgs.length - 1}
+                              aria-label="Move image down"
+                              className={ICON_BTN}
+                            >
+                              <ArrowDown className="h-4 w-4" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeImage(block.id, imgs, imgIndex)
+                              }
+                              aria-label="Remove image"
+                              className={ICON_BTN}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              moveImage(block.id, imgs, imgIndex, -1)
-                            }
-                            disabled={imgIndex === 0}
-                            aria-label="Move image up"
-                            className={ICON_BTN}
+                      );
+                    })}
+                    {galleryImages(block).length < MAX_GALLERY_IMAGES && (
+                      <button
+                        type="button"
+                        onClick={() => addImage(block.id, galleryImages(block))}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden />
+                        Add image
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  // Downgraded to Free: an existing gallery shows READ-ONLY
+                  // (locked), not editable. It stays in the saved data (kept by
+                  // the save-path gate), renders publicly only while on Plus, and
+                  // is in the data export. The block can still be removed above.
+                  <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 px-3 py-3">
+                    <p className="flex items-center gap-2 text-xs font-medium text-foreground">
+                      Image gallery
+                      <span className="rounded-full bg-brand-mustard/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-mustard">
+                        Plus
+                      </span>
+                      <span className="text-muted-foreground">(locked)</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {galleryImages(block).length} image
+                      {galleryImages(block).length === 1 ? "" : "s"} saved.
+                      Editing image galleries is a Plus feature. Your images are
+                      kept and show on your page while you are on Plus. You can
+                      still remove this block, and everything is in your data
+                      export.
+                    </p>
+                    {galleryImages(block).length > 0 && (
+                      <ul className="space-y-1">
+                        {galleryImages(block).map((img, imgIndex) => (
+                          <li
+                            key={imgIndex}
+                            className="truncate text-xs text-muted-foreground"
                           >
-                            <ArrowUp className="h-4 w-4" aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              moveImage(block.id, imgs, imgIndex, 1)
-                            }
-                            disabled={imgIndex === imgs.length - 1}
-                            aria-label="Move image down"
-                            className={ICON_BTN}
-                          >
-                            <ArrowDown className="h-4 w-4" aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeImage(block.id, imgs, imgIndex)
-                            }
-                            aria-label="Remove image"
-                            className={ICON_BTN}
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {galleryImages(block).length < MAX_GALLERY_IMAGES && (
-                    <button
-                      type="button"
-                      onClick={() => addImage(block.id, galleryImages(block))}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden />
-                      Add image
-                    </button>
-                  )}
-                </>
-              )}
+                            {img.caption?.trim() ? img.caption : img.url}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
             </div>
           ))}
         </div>
