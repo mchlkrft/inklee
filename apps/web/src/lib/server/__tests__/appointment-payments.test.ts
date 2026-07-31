@@ -1231,10 +1231,18 @@ describe("sendPaymentRequestCore", () => {
     queueSendable();
     rpcReplies = [{ data: "sent" }];
     const r = await sendPaymentRequestCore(supabase, ARTIST, "pr1");
-    expect(r).toEqual({ ok: true, id: "pr1", status: "sent" });
+    expect(r).toMatchObject({ ok: true, id: "pr1", status: "sent" });
+    expect(r.ok && r.customerToken).toBeTruthy();
     expect(rpcCalls).toHaveLength(1);
     expect(rpcCalls[0].fn).toBe("send_payment_request");
-    expect(writes(), "the freeze may not be written from here").toEqual([]);
+    const postSendWrites = writes();
+    expect(
+      postSendWrites.length,
+      "only the token-hash credential update, never the freeze",
+    ).toBe(1);
+    expect(postSendWrites[0].table).toBe("payment_requests");
+    expect(postSendWrites[0].verb).toBe("update");
+    expect(postSendWrites[0].payload).toHaveProperty("customer_token_hash");
   });
 
   it("passes the artist, the request and the ACTIVE fee schedule version", async () => {
@@ -1573,7 +1581,7 @@ describe("the send verdicts stay in lockstep with migration 0126", () => {
       rpcReplies = [{ data: token }];
       const r = await sendPaymentRequestCore(supabase, ARTIST, "pr1");
       if (token === "sent") {
-        expect(r).toEqual({ ok: true, id: "pr1", status: "sent" });
+        expect(r).toMatchObject({ ok: true, id: "pr1", status: "sent" });
       } else {
         expect(
           r,

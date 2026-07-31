@@ -1,4 +1,5 @@
 import "server-only";
+import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES,
@@ -181,7 +182,12 @@ export type PaymentRequestWriteCode =
   | "failed";
 
 export type PaymentRequestWriteResult =
-  | { ok: true; id: string; status: PaymentRequestStatus }
+  | {
+      ok: true;
+      id: string;
+      status: PaymentRequestStatus;
+      customerToken?: string;
+    }
   | { ok: false; code: PaymentRequestWriteCode; error: string };
 
 export type PaymentRequestExpiryResult =
@@ -1117,18 +1123,37 @@ export async function sendPaymentRequestCore(
   }
 
   const verdict = String(data ?? "");
-  if (verdict === "sent") return { ok: true, id: requestId, status: "sent" };
+  if (verdict !== "sent") {
+    const refusal = SEND_REFUSALS[verdict];
+    if (refusal) return { ok: false, ...refusal };
+    return {
+      ok: false,
+      code: "failed",
+      error: "Couldn't send that payment request. Please try again.",
+    };
+  }
 
-  const refusal = SEND_REFUSALS[verdict];
-  if (refusal) return { ok: false, ...refusal };
-  // An unknown token means the function and this map disagree. Reported as a
-  // failure rather than assumed benign: silently treating it as success would
-  // tell an artist their client can pay when nothing was frozen.
-  return {
-    ok: false,
-    code: "failed",
-    error: "Couldn't send that payment request. Please try again.",
-  };
+  // The client-facing payment link token. Generated at SEND time so drafts
+  // have no URL, and stored as a SHA-256 hash so the database never holds
+  // the credential a client uses. Same pattern as booking_requests and
+  // projects: the raw token goes in the URL, only the hash is stored.
+  const customerToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto
+    .createHash("sha256")
+    .update(customerToken)
+    .digest("hex");
+
+  // Best effort: if the hash fails to store, the request is already sent and
+  // the artist can resend (which generates a fresh token). The alternative
+  // is rolling back a successfully frozen request because a credential
+  // column failed, which would destroy a committed state transition.
+  await supabase
+    .from("payment_requests")
+    .update({ customer_token_hash: tokenHash })
+    .eq("id", requestId)
+    .eq("artist_id", artistId);
+
+  return { ok: true, id: requestId, status: "sent", customerToken };
 }
 
 function resolveExpiry(
