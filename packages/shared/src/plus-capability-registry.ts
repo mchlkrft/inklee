@@ -397,8 +397,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     pricingPageClaim: "none yet",
     termsClaim: "none",
     operationalState:
-      "THREE of nine tools BUILT: discount codes (P5, migration 0118, gate goods_discounts), scheduling gates (goods_scheduling), collections (P5d, migrations 0120-0124, gate goods_collections + featured_collection hub block). None parked: with zero Plus artists, entitlement gates refuse all requests. REMAINING greenfield: preorders, drops, bundles, shop customization, sales analytics",
-    testCoverage: "partial", // discounts: RLS + gate tests. collections: 51 db tests, TOCTOU-proven delete, convergent migrations. scheduling: gate tests. preorders/bundles: absent
+      "FOUR of nine tools BUILT: discount codes (P5, migration 0118, gate goods_discounts), scheduling gates (goods_scheduling), collections (P5d, migrations 0120-0124, gate goods_collections + featured_collection hub block), sales analytics (2026-07-31, computeSalesAnalytics with Plus-gated trends on /goods/sales + mobile route). None parked: with zero Plus artists, entitlement gates refuse all requests. REMAINING greenfield: preorders, drops, bundles, shop customization",
+    testCoverage: "partial", // discounts: RLS + gate tests. collections: 51 db tests, TOCTOU-proven delete, convergent migrations. scheduling: gate tests. sales analytics: 13 pure tests. preorders/bundles: absent
     launchReadiness: "build",
   },
   // ------------------------------------------------------------------- fees
@@ -473,26 +473,32 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
   },
   {
     name: "Fee-savings dashboard",
-    entitlementKey: "savings_dashboard (proposed)",
+    entitlementKey: "analytics (shared with Linkhub analytics: delivered as the Savings tab)",
     productArea: "insights",
     freeBehavior: "Savings prompts only in billing/revenue surfaces, no popups",
     plusBehavior:
-      "Fees paid, saved vs Free, subscription cost, net benefit, break-even, comparison period",
+      "Fees paid, saved vs Free, subscription cost, net benefit, comparison period",
     legacyBehavior: "none",
     scope: "artist",
-    serverEnforcement: "absent",
-    databaseEnforcement: "absent", // fee actuals never persisted (audit_log JSON only; unrecoverable history)
-    frontendBehavior: "absent",
-    mobileSupport: "absent",
+    serverEnforcement:
+      "exists: getArtistFeeSavings gated by canSeeAdvancedAnalytics (fee-savings-query.ts)",
+    databaseEnforcement:
+      "exists: fee actuals from booking_requests.platform_fee_collected_cents + orders.platform_fee_amount (migration 0116)",
+    frontendBehavior:
+      "exists: Savings tab on /analytics (deposit fees + goods fees, hypothetical comparison under the other tier, subscription cost, net benefit). Under V1 both tiers pay 3%/0% so savings = 0 with an explanatory note",
+    mobileSupport:
+      "exists: /api/mobile/analytics returns feeSavings (null for Free)",
     downgradeBehavior: "Dashboard hidden; data retained",
     feeImpact:
       "consumes persisted fee actuals; claims only from actual eligible transactions",
     analyticsEvents: "n/a (it IS an analytics surface)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
-    operationalState: "blocked on fee persistence (D21 columns)",
-    testCoverage: "absent",
-    launchReadiness: "build",
+    operationalState:
+      "BUILT 2026-07-31. Under V1 (active schedule) savings are zero because both tiers pay identical rates; real differentiation appears when V2 activates (Stage 4). Gated by analytics capability (paused = everyone sees everything)",
+    testCoverage:
+      "exists: 3 pure-function tests (fee-savings.test.ts); savings query server-tested via shared types",
+    launchReadiness: "ready",
   },
   // --------------------------------------------------------------- platform
   {

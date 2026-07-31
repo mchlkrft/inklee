@@ -38,6 +38,9 @@ jobs:
       - name: Lint (web)
         run: pnpm --filter inklee lint
 
+      - name: Lint (shared)
+        run: pnpm --filter @inklee/shared lint
+
       - name: Unit tests (web)
         run: pnpm --filter inklee test
 

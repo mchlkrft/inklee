@@ -8,6 +8,9 @@
     ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
+  "scripts": {
+    "lint": "eslint"
+  },
   "dependencies": {
     "zod": "^4.3.6"
   }

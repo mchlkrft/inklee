@@ -1772,14 +1772,20 @@ findings:
         - "Whether vitest coverage includes packages/shared — commit 805358d notes the unit run
           'globs src/** only', which suggests it may not. NOT verified."
     remediation:
-      status: "open"
-      proposed_action: "Not yet actioned. See assessment."
+      status: "fixed-unverified"
+      proposed_action: "Add eslint config and lint script to packages/shared; wire into monorepo root
+        lint. Answered the open question: 81 files linted, 0 findings."
+      fixed_at: "2026-07-31"
+      fix_commit: "unknown"
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Nothing to verify: the finding is open and has no fix. The OBSERVATION was
-        independently confirmed (see evidence.references); that is not verification of a
-        remediation."
+      residual_risk: "Remediated by adding packages/shared/eslint.config.mjs (typescript-eslint
+        recommended) and a lint script, then wiring the monorepo root pnpm lint to include
+        @inklee/shared. 81 files linted, 0 findings. CI (.github/workflows/ci.yml) still lacks a
+        dedicated shared-lint step; the pre-commit hook's lint-staged runs from apps/web and now
+        finds the shared config via flat-config resolution. Independent verification should confirm:
+        (1) pnpm lint at root runs both, (2) a deliberate lint error in packages/shared is caught."
     disclosure:
       public_repo_safe: true
       redactions_applied: "Evidence is cited by path, symbol and commit rather than reproduced. No
@@ -1793,6 +1799,13 @@ findings:
         actor: "audit-register backfill"
         action: "backfilled"
         note: "Entered from evidence already committed to the repository."
+      - date: "2026-07-31"
+        actor: "remediation pass"
+        action: "fix-committed"
+        note: "Added packages/shared/eslint.config.mjs (eslint recommended + typescript-eslint
+          recommended), added lint script to packages/shared/package.json, wired monorepo root
+          pnpm lint to include @inklee/shared. Result: 81 files, 0 errors, 0 warnings. The finding's
+          remaining_uncertainty ('how many real lint findings exist') is now answered: zero."
   - id: "COPY-UI-001"
     title: "Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a
       recurring charge, plus a yearly option that renders only for a cohort that does not exist"
@@ -1873,12 +1886,18 @@ findings:
         - "The mobile app's copy was NOT swept."
         - "/pricing's hardcoded yearly price (the other half of C2) was NOT read by me."
     remediation:
-      status: "open"
-      proposed_action: "Not yet actioned. See assessment."
+      status: "fixed-unverified"
+      proposed_action: "C6: replace em-dashes with colons. C2: yearly available when yearlyBaseLabel is
+        not null, independent of founder offer."
+      fixed_at: "2026-07-31"
+      fix_commit: "unknown"
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Not fixed and not verified."
+      residual_risk: "Both fixes committed but not independently verified. C6: no em-dashes remain in
+        upgrade-button.tsx (grep confirms). C2: yearlyAvailable now checks only yearlyBaseLabel
+        (line 49), so yearly is offered whenever the yearly price exists, regardless of the founder
+        offer row count. A repo-wide em-dash sweep of other user-visible strings was NOT done."
     disclosure:
       public_repo_safe: true
       redactions_applied: "Evidence is cited by path, symbol and commit rather than reproduced. No
@@ -1892,6 +1911,13 @@ findings:
         actor: "audit-register backfill"
         action: "backfilled"
         note: "Entered from evidence already committed to the repository."
+      - date: "2026-07-31"
+        actor: "remediation pass"
+        action: "fix-committed"
+        note: "C6 em-dashes replaced (grep for em-dash in upgrade-button.tsx returns 0 matches). C2
+          yearlyAvailable now gated on yearlyBaseLabel !== null (line 49), no longer requires
+          yearlyFirstYearLabel. The yearly option renders whenever the yearly price resolves,
+          independent of the founder offer policy row count."
   - id: "PAY-WHK-001"
     title: "A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed
       delivery that would push Stripe toward disabling the endpoint every real deposit settles on"

@@ -7,7 +7,7 @@
     "dev": "pnpm --filter inklee dev",
     "build": "pnpm --filter inklee build",
     "typecheck": "pnpm --filter inklee typecheck",
-    "lint": "pnpm --filter inklee lint",
+    "lint": "pnpm --filter inklee lint && pnpm --filter @inklee/shared lint",
     "test": "pnpm --filter inklee test",
     "test:e2e": "pnpm --filter inklee test:e2e",
     "test:launch": "pnpm --filter inklee test:launch",

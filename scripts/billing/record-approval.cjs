@@ -37,11 +37,44 @@ const VERSION_BOUND = new Set([
   "consumer_withdrawal_copy_approved",
 ]);
 
-const { requireFromRepo, requireDatabaseUrl } = require("../lib/repo-root.cjs");
+const { requireFromRepo, requireDatabaseUrl, resolveEnvValue } = require("../lib/repo-root.cjs");
 const postgres = requireFromRepo("postgres");
 const APPLY = process.argv.includes("--apply");
 const url = requireDatabaseUrl();
 const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
+
+// Launch keys must not be recorded while marketed capabilities are still parked.
+// Selling three benefits that do not enforce is the exact defect this check exists
+// to prevent (see plus-remaining-work-plan.md Stage 5: "Make unparking a hard
+// precondition on recording the launch key").
+const LAUNCH_KEYS = new Set([
+  "consumer_sales_launch_approved",
+  "business_sales_launch_approved",
+]);
+const MARKETED_CAPS = ["branding", "custom_templates", "entitlement_caps", "analytics"];
+
+function checkUnparking() {
+  if (!LAUNCH_KEYS.has(CONFIG.approval_key)) return;
+  let raw;
+  try {
+    const resolved = resolveEnvValue("DISABLED_CAPABILITIES");
+    raw = resolved.value || "";
+  } catch {
+    console.log("WARNING: DISABLED_CAPABILITIES not readable; skipping unpark check.");
+    return;
+  }
+  const parked = new Set(raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const stillParked = MARKETED_CAPS.filter((k) => parked.has(k));
+  if (stillParked.length > 0) {
+    console.error(
+      `\nREFUSING: ${CONFIG.approval_key} requires all marketed capabilities to be unparked.` +
+      `\n  Still parked: ${stillParked.join(", ")}` +
+      `\n  Unpark them in DISABLED_CAPABILITIES before recording the launch key.`
+    );
+    process.exit(3);
+  }
+  console.log("  unpark check: all marketed capabilities unparked");
+}
 
 (async () => {
   const now = new Date().toISOString();
@@ -58,6 +91,7 @@ const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
   }
 
   if (!APPLY) {
+    checkUnparking();
     console.log("\nDRY RUN. Fill CONFIG (APPROVED=true + approved_by + evidence_ref [+ bound_artifact]) then --apply.");
     await sql.end();
     return;
@@ -71,6 +105,7 @@ const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
     console.error("\nREFUSING: APPROVED must be true and approved_by + evidence_ref non-empty and a valid group.");
     process.exit(2);
   }
+  checkUnparking();
 
   await sql`
     insert into billing_activation_approvals

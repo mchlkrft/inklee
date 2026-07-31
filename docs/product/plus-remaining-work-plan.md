@@ -164,9 +164,11 @@ Order matters here and is easy to get wrong:
 7. G-5: complete Connect onboarding in LIVE mode and run one real card deposit.
 8. Fresh iOS build (still `0.3.0(4)` from 2026-07-17, predating everything).
 
-**Make unparking a hard precondition on recording the launch key.** Nothing
-mechanically enforces that today, and it is the difference between selling three
-benefits that exist and three that do not.
+**Make unparking a hard precondition on recording the launch key.** ~~Nothing
+mechanically enforces that today~~ ENFORCED 2026-07-31: `record-approval.cjs`
+reads `DISABLED_CAPABILITIES` and refuses to record either launch key while any
+marketed capability (`branding`, `custom_templates`, `entitlement_caps`,
+`analytics`) is still parked. Exits 3 with the specific list.
 
 ---
 
