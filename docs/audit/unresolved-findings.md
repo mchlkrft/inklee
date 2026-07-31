@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `69511b8efe51`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `1de000e8ae42`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (59)
+## Open (58)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -46,7 +46,6 @@ Operational view. Generated from the ledger; do not edit.
 | DRIFT-POL-001 | medium | database | currently-unreachable | latent | Production's booking_interests RLS policy name contains an embedded CRLF, so the house `drop policy if exists` repair pattern silently cannot address it |
 | OPS-CIX-001 | medium | ci-cd | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | PAY-CHK-001 | medium | payment | conditionally-reachable | latent | prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state |
-| PAY-FEE-004 | medium | payment | currently-unreachable | latent | Fee schedule v2 has no defined rate for a legacy_free_v1 artist who carries the deposits override |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | production-config | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
 | WHK-DEA-001 | medium | webhook | conditionally-reachable | latent | The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id; ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment |

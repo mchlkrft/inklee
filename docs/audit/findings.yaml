@@ -8915,14 +8915,22 @@ findings:
         - "Whether any other grandfather grant (beyond the deposits override) crosses a v2 rate cell
           in a way the tier-only schedule does not capture."
     remediation:
-      status: "open"
-      proposed_action: "Founder picks the legacy_free_v1 rate for card collection and goods under v2;
-        encode it in fee-schedule.ts (or resolve legacy explicitly) so no cell is undefined before
-        ACTIVE_FEE_SCHEDULE_VERSION flips."
+      status: "accepted"
+      proposed_action: "Rate DECIDED (provisional, F14 in docs/product/plus-build-time-decisions.md):
+        a legacy_free_v1 artist who collects card payments pays their grandfathered v1 flat
+        appointment rate (3%) under v2 (not 0% = leakage, not the Plus 0.5% = an unearned Plus
+        benefit) and the standard Free goods rate (5%). ENCODING is deferred to the fee-v2 activation
+        work (Stage 4): it is a money-path schema change (the schedule is tier-only today) for ZERO
+        current accounts while v2 is dormant, so it lands with the v2 flip alongside the A3
+        conditions rather than now. The 'undecided cell' is thus closed as a DECISION; the code guard
+        against a legacy artist resolving to 0% appointment must be in place before ACTIVE flips."
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Open pending a founder decision; not a live issue while v2 is inactive."
+      residual_risk: "The rate is decided provisionally, not yet encoded; the code still resolves a
+        legacy card-collecting artist to the free-tier rate under v2. Not a live issue (v2 dormant,
+        zero affected accounts), but the encoding is a hard precondition on the v2 flip and must not
+        be forgotten there. Founder confirmation of the 3% choice is pending (provisional)."
     disclosure:
       public_repo_safe: true
     history:
@@ -8931,6 +8939,13 @@ findings:
         action: "opened"
         note: "Located the two UNDEFINED registry cells and the fee-schedule code path that would
           silently apply the free-tier rate to a card-collecting grandfathered artist under v2."
+      - date: "2026-07-31"
+        actor: "founder-delegated decision (build-first-decide-and-log directive)"
+        action: "risk-accepted"
+        note: "Rate decided provisionally (F14): legacy_free_v1 continues the grandfathered 3% flat
+          appointment rate + standard 5% Free goods rate under v2; reasoning + alternatives logged in
+          plus-build-time-decisions.md. Encoding deferred to the fee-v2 flip (zero affected accounts,
+          v2 dormant). Founder confirmation pending."
 
 patterns:
   - id: "PAT-001"

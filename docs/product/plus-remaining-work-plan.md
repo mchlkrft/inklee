@@ -117,9 +117,26 @@ Unparking `analytics` remains a P7 action.
 
 ## Stage 3: goods and page remainder (~3-5 weeks, parallelisable)
 
-~~Bundles~~; the `shop` and `guestSpots` appearance surfaces that exist in the
-vocabulary with no renderer; ~~detailed sales analytics~~. Page:
-~~`image_gallery` block type~~, section layouts, custom SEO fields.
+~~Bundles~~; ~~the `shop` and `guestSpots` appearance surfaces~~ (see S1 below);
+~~detailed sales analytics~~. Page: ~~`image_gallery` block type~~,
+~~section layouts~~, custom SEO fields (blocked on X1, indexation).
+
+**Stage 3 decision-free greenfield is now EXHAUSTED.** What remains in this
+stage is either deliberately deferred or gated:
+
+- **`shop`/`guestSpots` appearance surfaces (S1, deferred).** The "no renderer"
+  framing was overstated: the shop overlay + guest-spots card already render
+  inside the booking page's appearance wrapper (`[slug]/page.tsx` sets
+  `style={appearance.cssVars}`; the shop takes the resolved accent as `itemBg`),
+  so they inherit the artist's resolved appearance. The only unbuilt part is
+  DISTINCT per-surface theming, which needs a per-surface editor that does not
+  exist and has no articulated demand. Deferred as a design-led feature
+  (`plus-build-time-decisions.md` S1).
+- **custom SEO fields:** blocked on X1 (the indexation decision, ChatGPT-owned).
+
+Everything else in the launch program is decision-gated (the handoff critical
+chain, F5 analytics gating, the fee-v2 flip) or P7-deferred (bundle checkout
+wiring, capability unparks). See `plus-open-decisions-handoff.md`.
 
 **Bundles DONE 2026-07-31** (management complete, gated OFF + dark): backend
 (migration 0132: `product_bundles` + `product_bundle_items`, per-command RLS +

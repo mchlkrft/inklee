@@ -187,3 +187,59 @@ decomposition, not the dark checkout-UI wiring.**
   "buy this bundle" wiring lands with the goods-commerce un-park reusing the
   tested decomposition.
 - Reversible? N/A (additive); the wiring is a later, mechanical step.
+
+### 2026-07-31 — Stage 3 remainder + one gated decision
+
+**S1 [FOUNDER-scope] — DISTINCT per-surface appearance for `shop` / `guestSpots`
+is deferred; they already inherit the artist's appearance.**
+- Finding: the appearance system reserves five surfaces
+  (`hub, bookingForm, largeProject, shop, guestSpots`) but applies
+  `surfaceAppearance` on only the first three. The work-plan item read "shop and
+  guestSpots surfaces with no renderer". On inspection this is overstated: the
+  shop overlay (ShopTeaser) and the guest-spots card render INSIDE the booking
+  page's appearance wrapper (`[slug]/page.tsx` sets `style={appearance.cssVars}`
+  on the outer div, and passes the resolved accent as the shop's `itemBg`), so
+  both already render with the artist's resolved (bookingForm-surface)
+  appearance via the CSS-variable cascade. What is genuinely unbuilt is a
+  DISTINCT per-surface override (theming the shop differently from the booking
+  page), which ALSO needs a per-surface editor that does not exist (the
+  appearance editor edits the global only).
+- Decision: defer distinct per-surface theming for `shop`/`guestSpots`. Keep the
+  surfaces reserved in the vocabulary; do not build a per-surface override
+  editor + scoped renderers now.
+- Why: no articulated product demand for a shop themed separately from the
+  booking page; it is design-led and low launch-value (not marketed, not
+  launch-blocking); and the sensible default (inherit the artist's appearance)
+  already holds. Speculatively building a per-surface system would be effort on
+  an unspecified feature.
+- Alternatives: build the per-surface editor + shop/guestSpots scoped renderers
+  now (rejected: unspecified, low value); or add a scoped wrapper that re-applies
+  the GLOBAL appearance to the shop (rejected: it already inherits it, so this is
+  a no-op dressed as work).
+- Confirm: founder confirms distinct shop/guest-spots theming is not wanted for
+  launch. If it is, it is a scoped, design-led feature (editor + renderers).
+- Reversible? N/A (no code change).
+
+**F14 [FOUNDER] — legacy_free_v1 fee rate under v2: continue the grandfathered
+flat rate on card collection; standard free goods rate (PROVISIONAL).**
+- Context: finding `PAY-FEE-004`. Under fee schedule v2 the Free appointment
+  rate is `null` (Free cannot collect card payments), but a `legacy_free_v1`
+  artist who carries the grandfathered deposits/Connect override CAN collect, so
+  the schedule has an undefined cell for them; `feeMinorUnits` would resolve them
+  to the free rate (0% appointment via null->0, 5% goods) which is leakage on the
+  appointment lane. Zero such accounts exist today (dry run).
+- Decision (provisional): a `legacy_free_v1` artist who collects card payments
+  pays their GRANDFATHERED v1 flat appointment rate (3%) under v2 (not 0% =
+  leakage, not the Plus 0.5% = an unearned Plus benefit), and the standard Free
+  goods rate (5%) since goods fees are new and were never grandfathered.
+- Why: 3% is exactly what these artists pay today under v1, so continuing it is
+  the least-surprising honouring of the grandfather; 0% hands out free card
+  collection the tier never promised; 0.5% hands out a Plus rate to a Free-tier
+  grandfather.
+- Encoding: DEFERRED to the fee-v2 activation work (Stage 4), because it is a
+  money-path schema change (the schedule is tier-only today) for ZERO current
+  accounts and v2 is dormant. This entry REMOVES the "undecided" status of the
+  cell; the code change lands with the v2 flip alongside the A3 conditions.
+- Confirm: founder confirms 3% (grandfathered continuation) is the intended
+  legacy rate, vs 0.5% (treat legacy as Plus) or 0% (full grandfather benefit).
+- Reversible? Cheap while unencoded; the encoding is part of the gated v2 flip.

@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `69511b8efe51`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `1de000e8ae42`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -35,11 +35,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Status | Count |
 | --- | --- |
-| accepted | 2 |
+| accepted | 3 |
 | deferred | 2 |
 | fixed-unverified | 14 |
 | mitigated | 1 |
-| open | 59 |
+| open | 58 |
 | verified | 5 |
 
 ## Findings by verification status
