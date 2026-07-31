@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `89b12977ffcc`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `b10f5677455a`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-78 recorded finding(s), 3 structural pattern(s), across 67 mapped area(s).
-73 remain open by remediation status. 63 are reachable (directly or conditionally) rather than latent.
-73 have not passed independent verification.
-149 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+83 recorded finding(s), 3 structural pattern(s), across 68 mapped area(s).
+78 remain open by remediation status. 66 are reachable (directly or conditionally) rather than latent.
+76 have not passed independent verification.
+152 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -26,9 +26,9 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Severity | Count |
 | --- | --- |
 | critical | 2 |
-| high | 26 |
-| medium | 28 |
-| low | 18 |
+| high | 27 |
+| medium | 30 |
+| low | 20 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -36,17 +36,18 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Status | Count |
 | --- | --- |
 | accepted | 2 |
-| deferred | 1 |
-| fixed-unverified | 12 |
-| open | 58 |
+| deferred | 2 |
+| fixed-unverified | 13 |
+| mitigated | 1 |
+| open | 60 |
 | verified | 5 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 73 |
-| passed | 5 |
+| not-started | 76 |
+| passed | 7 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
 
@@ -138,11 +139,11 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
+| payment | 13 |
 | jobs | 12 |
-| payment | 11 |
 | webhook | 11 |
+| billing | 10 |
 | database | 8 |
-| billing | 7 |
 | authorization | 5 |
 | migration | 3 |
 | production-config | 3 |
@@ -189,6 +190,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BDEL-CON-001 | medium | directly-reachable | latent | Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but the scheduled account deletion at window-end was never built, and the pointer is purged at seven years |
 | BILL-ENT-001 | medium | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
 | BILL-UI-001 | medium | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
+| BILL-UI-002 | medium | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
 | CRON-CAP-001 | medium | conditionally-reachable | latent | The per-artist 10-email daily cap is consumed in branch order, and a capped appointment reminder is lost rather than deferred |
 | CRON-COV-001 | medium | conditionally-reachable | unknown | coverage-worker has no run-level mutual exclusion and its real cadence comes from a GitHub Actions schedule against production, making overlap plausible for the non-task work |
 | CRON-GRW-001 | medium | directly-reachable | historically-impacting | The daily growth snapshot has two permanent unrecoverable gaps and nothing detects or backfills a missed run |
@@ -211,6 +213,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | WHK-RTY-001 | medium | directly-reachable | unknown | The file identifies Stripe endpoint auto-disabling as a hazard in one branch and then returns 4xx from six other branches for permanently unsatisfiable conditions |
 | WHK-SPN-001 | medium | conditionally-reachable | latent | A failed sponsorship booked-stamp after a SUCCESSFUL increment leaves the cap permanently over-consumed, and the comment asserting otherwise only covers the other case |
 | BDEL-STE-001 | low | directly-reachable | reachable-no-known-impact | profiles already carries account_status, deleted_at, deleted_by, suspended_at and suspended_reason, but account_status enforces nothing outside admin surfaces |
+| BILL-CONF-001 | low | conditionally-reachable | latent | Durable purchase confirmation could silently ship without the inline Terms text on a fail-soft path |
+| BILL-UI-003 | low | conditionally-reachable | latent | Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the order screen |
 | COPY-UI-001 | low | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
 | CRON-AUT-001 | low | directly-reachable | theoretical | Seven of eight cron endpoints use a plain string comparison for the bearer secret while the repo's own timing-safe helper is used by exactly one |
 | CRON-CCH-001 | low | conditionally-reachable | latent | Module-scope artist caches are never invalidated and cache a swallowed profile-read failure for the whole run |
@@ -238,6 +242,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
 | BILL-UI-001 | medium | fixed-unverified | not-started | unknown |
+| BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
@@ -260,6 +265,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Any future `project_id`-subject P9 intent reaching this endpoint
 - Any future charge.dispute.* handler (A5), which will meet the same seam with the same clock.
 - Any other caller that rotates customer_token_hash was not enumerated.
+- Any other durable-medium artifact composed with a fail-soft read (none found in the withdrawal/cancellation branches, but not swept repo-wide).
 - Any other table added after account-deletion.ts that has ON DELETE CASCADE from profiles and contains financial or legally-retainable data.
 - Commit edb99fb (2026-07-21) records that 0095-0098 ALSO had to be repaired into the ledger because 'they had been applied by another session via direct SQL and were unrecorded' — a second, later ledger/reality divergence, in the safe direction. Whether other silent divergences exist was NOT checked against a live catalog.
 - Every /api/mobile/* route relies on requireMobileUser and none of the routes I read carries a rate limit except events/route.ts and settings/connect-link/route.ts. The authenticated-but-unthrottled write routes (goods, travel, booking-form fields) were not assessed for abuse volume.
@@ -308,6 +314,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
 - The deposit endpoint's `account.updated` and `account.application.deauthorized` branches return 500 on a persistence error. Whether that can loop on a permanently failing account was not examined.
 - The deposit path's `platform_fee_collected_cents` write, which 0128 cites as the precedent for this shape and which I did not read.
+- The deposit refund path (refundDepositCore) hardcodes refund_application_fee: true and is not wired into fee-refund-policy at all; whether artist-cancellation deposit refunds should retain a non-recoverable cost under v1 was not decided.
 - The deposit webhook's own charge.refunded branch in apps/web/src/app/api/stripe/webhook/route.ts, which has no event-clock guard at all and is imported by no test.
 - The existing deposit flow in booking_requests also has no aggregate ceiling across bookings for the same client — the same pattern at a different layer.
 - The lifecycle email engine (runLifecycleEngine, 431 lines) has its own repeat-suppression logic which I did not read.
@@ -345,6 +352,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Whether any of these messages reaches an END CUSTOMER (rather than an artist) was not traced. The public and portal surfaces I did read do not, but I did not check the flash booking path.
 - Whether any other Supabase-hosted function created before the 0060 pattern was established has the same gap. The EXECUTE grant sweep inspected all revoke/grant pairs and found none, but did not independently enumerate all function ACLs from production.
 - Whether any other action name is exported from two different route directories was NOT swept for. I found this one by reading both files; I did not run a duplicate-export scan across the app directory.
+- Whether any other grandfather grant (beyond the deposits override) crosses a v2 rate cell in a way the tier-only schedule does not capture.
 - Whether any other signing key in the codebase falls back to a bearer secret was not enumerated (WA_VISITOR_HASH_SECRET was not checked).
 - Whether db-backup.yml and coverage-worker.yml have equivalent silent-manual dependencies.
 - Whether packages/shared is covered by prettier — lint-staged also runs `prettier --write` on *.{ts,tsx} and prettier has no base-path restriction, so formatting may be covered where linting is not. NOT verified.
@@ -421,16 +429,17 @@ These are the register's highest-value entries for an auditor: places a recorded
 20. **PAY-ORD-001** (high, unverified): The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards
 21. **PAY-ORD-002** (high, unverified): A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing
 22. **PAY-RFD-001** (high, unverified): A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status
-23. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
-24. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
-25. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
-26. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
-27. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
-28. **Uninspected**: Mobile client (Expo app) / mobile
-29. **Uninspected**: Background jobs and crons / jobs
-30. **Uninspected**: Dependency security / secops
-31. **Uninspected**: Production configuration / platform
-32. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
+23. **PAY-RFD-002** (high, unverified): Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost
+24. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
+25. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
+26. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
+27. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
+28. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
+29. **Uninspected**: Mobile client (Expo app) / mobile
+30. **Uninspected**: Background jobs and crons / jobs
+31. **Uninspected**: Dependency security / secops
+32. **Uninspected**: Production configuration / platform
+33. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
 
 ## Limitations and confidence warnings
 

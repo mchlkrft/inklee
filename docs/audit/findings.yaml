@@ -8414,6 +8414,461 @@ findings:
         note: "Found during full-history EXECUTE grant/revoke consistency sweep. No prior ledger
           entry existed despite the vulnerability being fully documented in its own migration."
 
+  - id: "PAY-RFD-002"
+    title: "Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the
+      actual Stripe cost"
+    summary: "Counsel approved v1's artist-cancellation 'retain non-recoverable' rule on the condition
+      that the retained amount equal the actual auditable per-transaction Stripe cost (cost, not
+      margin). In v1 that treatment resolves to returnMinor: null ('not computable'), and the only
+      money-moving consumer maps it to refund_application_fee: false, which retains the whole
+      application fee (cost + margin). No per-transaction non-recoverable-cost computation exists.
+      v1 is NOT the active policy version (v0 is), so there is no live violation today; this is a
+      blocker on the v1 activation counsel conditioned."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "counsel/accountant answer processing: fee-refund-policy verification (subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "56980a8"
+      environment: "local"
+      discovery_context: "Verifying the three F2 conditions counsel attached to approving fee refund
+        policy v1 (Terms first; cost-not-margin; client unaffected)."
+    location:
+      files:
+        - "packages/shared/src/fee-refund-policy.ts"
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+      symbols:
+        - "feeRefundOutcome"
+        - "FEE_REFUND_POLICY_V1"
+    evidence:
+      observed_facts:
+        - "fee-refund-policy.ts: FEE_REFUND_POLICY_V1 maps artist_cancellation to treatment
+          'retain_non_recoverable'."
+        - "fee-refund-policy.ts (~150-152): the retain_non_recoverable branch returns
+          { returnMinor: null } with the comment 'Not computable: needs the legal and contractual
+          position'."
+        - "fee-refund-policy.ts: ACTIVE_FEE_REFUND_POLICY_VERSION = FEE_REFUND_POLICY_V0.version
+          (v0 artist_cancellation = return_full), so v1 is not active."
+        - "appointment-payment-refund.ts (~180-193): shouldRefundFee is true only for
+          return_full/return_proportional; for retain_non_recoverable it calls Stripe with
+          refund_application_fee: false, retaining the entire application fee, and stamps
+          fee_return_minor String(feeOutcome.returnMinor ?? 0) = '0'."
+        - "No per-transaction non-recoverable Stripe-cost computation exists (grep for
+          balance_transaction / non-recoverable / processing fee across platform-fee.ts and
+          appointment-payment-settlement.ts returned no matches)."
+      references:
+        - "packages/shared/src/fee-refund-policy.ts"
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+        - "docs/legal/plus-launch-handoff.md (F2 answer)"
+      contradictory_evidence: "None for condition (2). Condition (3) client-unaffected DOES hold in
+        code (the client refund is computed independently of the fee treatment; the deposit path
+        makes the client whole on artist cancellation), so this finding is scoped to condition (2)."
+      inspected_comparables_without_issue:
+        - "bookings.ts refundDepositCore: on artist cancellation the client's deposit is fully
+          refunded (reverse_transfer + refund_application_fee true); retention operates strictly
+          Inklee<->artist, so F2 condition (3) is satisfied."
+    assessment:
+      interpretation: "The v1 policy counsel approved is not implemented to the cost-only condition:
+        it retains the whole fee, which is exactly the 'margin' outcome counsel said would drift
+        toward an unenforceable penalty."
+      root_cause_hypothesis: "v1 was defined as data/mapping (retain_non_recoverable) but the engine
+        and the refund consumer were never extended to compute the actual Stripe cost; the treatment
+        was left as a deferred manual decision (returnMinor null)."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      production_exposure: "None today: ACTIVE_FEE_REFUND_POLICY_VERSION is v0. Becomes reachable the
+        moment v1 is activated."
+      remaining_uncertainty: "Not runtime-reproduced, because v1 is inactive and cannot be exercised
+        without activating it. The finding rests on reading the mapping and the single money-moving
+        consumer, not on an observed refund."
+    relationships:
+      related_findings:
+        - "PAY-FEE-004"
+      analogous_uninspected_areas:
+        - "The deposit refund path (refundDepositCore) hardcodes refund_application_fee: true and is
+          not wired into fee-refund-policy at all; whether artist-cancellation deposit refunds should
+          retain a non-recoverable cost under v1 was not decided."
+    remediation:
+      status: "open"
+      proposed_action: "Before flipping ACTIVE_FEE_REFUND_POLICY_VERSION to v1: compute the actual
+        auditable per-transaction non-recoverable Stripe cost (charge balance-transaction fee minus
+        any processing fee returned on the refund), return it from feeRefundOutcome for
+        retain_non_recoverable, and change appointment-payment-refund.ts to retain only that cost
+        (refund_application_fee_amount / explicit reversal amount). Terms disclosure (F2 condition 1)
+        is a separate Terms edit."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Open and unfixed; not a live violation only because v1 is inactive. If v1 is
+        activated before this is closed, every artist-cancellation refund retains the full fee."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "counsel-answer processing (verification subagent)"
+        action: "opened"
+        note: "Found while verifying counsel's F2 cost-only condition against the v1 implementation."
+
+  - id: "BILL-CONF-001"
+    title: "Durable purchase confirmation could silently ship without the inline Terms text on a
+      fail-soft path"
+    summary: "The Art. 8(7) purchase confirmation composes the accepted Terms text inline from the
+      on-disk version snapshot. If the snapshot read throws or the terms_acceptance consent row is
+      missing at send time, termsSection becomes '' and the email ships without the Terms text while
+      still stamping terms_version and marking delivery 'sent' — a durable-medium gap with no
+      signal. A real purchase cannot reach this (checkout fails closed on the Terms read), so it is
+      an edge, but it was silent. Mitigated by a Sentry warning on that branch."
+    classification:
+      domain: "billing"
+      category: "silent-failure"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "counsel/accountant answer processing: E2 durable-medium verification (subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "56980a8"
+      environment: "local"
+      discovery_context: "Verifying counsel's E2 escape hatch (the billing_contract_confirmations
+        flow carries the Art. 8(7) set), which it does; this is the residual on the fail-soft path."
+    location:
+      files:
+        - "apps/web/src/lib/server/billing/withdrawal.ts"
+      symbols:
+        - "recordDurableConfirmation"
+        - "readTermsSnapshot"
+    evidence:
+      observed_facts:
+        - "withdrawal.ts readTermsSnapshot: catch returns null on any read failure."
+        - "withdrawal.ts purchase branch: termsSection = termsText ? <terms> : '' — an empty section
+          when termsText is null, with no alert prior to the 2026-07-31 change."
+        - "The confirmation row is still inserted with terms_version stamped and later marked 'sent',
+          so a terms-less send left no trace."
+        - "The happy path composes all three Art. 8(7) items inline (Terms version + text, withdrawal
+          instructions, price + renewal); price/renewal has its own non-empty fallback string."
+      references:
+        - "apps/web/src/lib/server/billing/withdrawal.ts"
+        - "docs/legal/plus-launch-handoff.md (E2 answer)"
+      contradictory_evidence: "In practice unreachable on a real purchase: checkout fails closed on
+        the Terms read (actions.ts getLegalDoc catch), so a live buyer always has a resolvable
+        version whose snapshot ships with the deployment."
+      inspected_comparables_without_issue:
+        - "The withdrawal and cancellation branches do not carry a Terms section, so the fail-soft is
+          specific to the purchase branch."
+    assessment:
+      interpretation: "A silent degradation of a legal artifact (the durable-medium confirmation) is
+        the class of defect the money/legal rules treat as unacceptable even on rare paths; making
+        it observable is the minimum, without blocking the statutory confirmation."
+      root_cause_hypothesis: "termsSection was made fail-soft to keep the statutory confirmation
+        unblocked, and the observability of the degraded path was overlooked."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "No evidence any confirmation shipped terms-less; there was no signal, so
+        absence of evidence is not evidence of absence. The snapshot is committed and deploys with
+        the app, making the read failure unlikely."
+      remaining_uncertainty: "Whether any historical purchase confirmation shipped without the Terms
+        text is unknowable retroactively (no prior signal). Going forward the Sentry warning covers
+        it."
+    relationships:
+      analogous_uninspected_areas:
+        - "Any other durable-medium artifact composed with a fail-soft read (none found in the
+          withdrawal/cancellation branches, but not swept repo-wide)."
+    remediation:
+      status: "mitigated"
+      fix_commit: "8e75dcc"
+      proposed_action: "Observability added (Sentry warning) so the fail-soft is no longer silent. A
+        stronger fix would refuse or retry rather than send a terms-less confirmation, but it must
+        not block the statutory confirmation; deferred as a judgement call."
+      fixed_at: "2026-07-31"
+    verification:
+      status: "passed"
+      independent: true
+      verified_by: "inklee-verifier (separate instance, read-only) for the code change"
+      verified_at: "2026-07-31"
+      verification_commit: "8e75dcc"
+      verification_method: "inklee-verifier confirmed the captureMessage fires ONLY on the fail-soft
+        branch, alters no control flow, blocks no send, and logs no PII (UUID artistId + version
+        string + enum reason); the three Art. 8(7) items remain composed inline on the happy path.
+        It also flagged that the @sentry/nextjs test mock lacked captureMessage, so a future fail-soft
+        test would throw undefined and mark delivery failed. That mock was hardened and two red-green
+        tests added (withdrawal.test.ts): both assert captureMessage fires (reason snapshot_unreadable
+        / no_terms_version) AND the email still sends; both go red when the if(!termsText) block is
+        removed (mutation confirmed)."
+      residual_risk: "The email still sends without the Terms text on the degraded path; only the
+        silence is fixed. The added tests were authored by the same instance that added the
+        observability, so the tests themselves are not independently reviewed."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "counsel-answer processing (verification subagent)"
+        action: "opened"
+        note: "Residual flagged while confirming E2 carries the Art. 8(7) set."
+      - date: "2026-07-31"
+        actor: "engineering (answer processing)"
+        action: "fix-committed"
+        note: "Sentry warning added on the terms-less purchase-confirmation branch (8e75dcc)."
+      - date: "2026-07-31"
+        actor: "inklee-verifier (independent)"
+        action: "verified"
+        note: "Production path VERIFIED; flagged the test-mock gap, which was then closed with two
+          red-green fail-soft tests."
+
+  - id: "BILL-UI-002"
+    title: "Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button;
+      main service characteristics sat above the panel"
+    summary: "The consumer upgrade panel rendered total price, billing interval and auto-renewal
+      directly above the 'Order with obligation to pay' button, but the fourth Art. 8(2) element,
+      the main characteristics of the service, was only the benefit list on the card ABOVE the
+      panel, separated from the button by several controls. Adjacent to the button the service was
+      merely named. Fixed by rendering a 'What you get' summary (from PLUS_BENEFITS) inside the
+      panel, directly above the Total line."
+    classification:
+      domain: "billing"
+      category: "disclosure"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "counsel/accountant answer processing: C2 adjacency verification (subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "56980a8"
+      environment: "local"
+      discovery_context: "Verifying counsel condition 3 (price + key terms directly above the pay
+        button) actually shipped, since the approval postdated the promise."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/settings/plan/upgrade-button.tsx"
+        - "apps/web/src/app/(artist)/settings/plan/page.tsx"
+    evidence:
+      observed_facts:
+        - "upgrade-button.tsx: total price + interval + auto-renewal render on the 'Total: ...,
+          final price. Renews monthly until cancelled.' line directly above the order button."
+        - "page.tsx: the benefit list (upgradeBenefits.map) rendered above the UpgradeButton panel,
+          not inside it; adjacent to the button the service was only named ('Inklee Plus is a
+          monthly subscription for <price>')."
+        - "Only one consumer checkout entry point exists; /pricing 'Get Plus' links to /signup, not
+          checkout."
+      references:
+        - "docs/product/plus-open-decisions-handoff.md (C2 answer)"
+      contradictory_evidence: "Three of the four elements were already adjacent, and the benefit list
+        was on the SAME screen (server component; opening the panel only toggles internal state), so
+        this was an adjacency gap, not a missing-disclosure or different-step gap."
+      inspected_comparables_without_issue:
+        - "The business (B2B) checkout path is deferred behind PLUS_BUSINESS_TIER_ENABLED and is not
+          consumer-facing; not in scope for the consumer Art. 8(2) condition."
+    assessment:
+      interpretation: "Art. 8(2) reads most safely as requiring the service's main characteristics
+        adjacent to the order button, not only on the same screen; the fix removes the interpretation
+        risk rather than relying on it."
+      root_cause_hypothesis: "The price/interval/renewal wiring was added to the panel for counsel
+        condition 3, but the benefit list was left on the outer card and never mirrored inside."
+      reachability: "directly-reachable"
+      impact_status: "reachable-no-known-impact"
+      production_exposure: "Consumer checkout is not launched (PLUS_CONSUMER_LAUNCH_ENABLED / launch
+        key), so no consumer has seen the panel in a live purchase."
+      remaining_uncertainty: "Whether counsel reads Art. 8(2) as strict adjacency or same-screen; the
+        fix satisfies the strict reading either way."
+    relationships:
+      related_findings:
+        - "BILL-UI-003"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "8e75dcc"
+      proposed_action: "Render the main-characteristics summary inside the panel adjacent to the
+        button (done); include a screenshot of the final panel in the C1 sign-off package."
+      fixed_at: "2026-07-31"
+    verification:
+      status: "passed"
+      independent: true
+      verified_by: "inklee-verifier (separate instance, read-only)"
+      verified_at: "2026-07-31"
+      verification_commit: "8e75dcc"
+      verification_method: "inklee-verifier confirmed by code read + working-tree diff: the benefits
+        prop is wired from page.tsx (upgradeBenefits, grandfathered email-templates filter intact),
+        the 'What you get' block renders ABOVE the Total and the order button on the same screen, all
+        four Art. 8(2) elements sit inside the panel, benefits=[] renders nothing (length guard), and
+        the restatement does not contradict the outer card (same source array). vitest 107/107 and
+        tsc clean. No component render test exists, so the adjacency rests on the code read (a linear
+        render, settled by reading per the repo rule)."
+      residual_risk: "No automated component-render test; the visual confirmation counsel wants for
+        the C1 package is a screenshot, which code review does not produce. The priceLabel-null
+        fail-safe path is tracked separately as BILL-UI-003."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "counsel-answer processing (verification subagent)"
+        action: "opened"
+        note: "C2 verification found the fourth Art. 8(2) element not adjacent to the button."
+      - date: "2026-07-31"
+        actor: "engineering (answer processing)"
+        action: "fix-committed"
+        note: "Added 'What you get' summary above the Total line, sourced from PLUS_BENEFITS (8e75dcc)."
+      - date: "2026-07-31"
+        actor: "inklee-verifier (independent)"
+        action: "verified"
+        note: "Adjacency VERIFIED by code read + diff; vitest 107/107, tsc clean."
+
+  - id: "BILL-UI-003"
+    title: "Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the
+      order screen"
+    summary: "When Stripe price resolution fails (priceLabel null), the consumer upgrade panel renders
+      no total line and the disclosure says 'the price is shown on the next step before you pay', so
+      the 'Order with obligation to pay' button appears without the total price adjacent (Art. 8(2)).
+      There is no silent charge (Stripe Checkout shows the price before payment), so this is a
+      pre-contractual-disclosure formality on a degraded path. Left for counsel to rule on."
+    classification:
+      domain: "billing"
+      category: "disclosure"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "counsel/accountant answer processing: C2 adjacency verification (subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "56980a8"
+      environment: "local"
+      discovery_context: "Same C2 verification that produced BILL-UI-002."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/settings/plan/upgrade-button.tsx"
+    evidence:
+      observed_facts:
+        - "upgrade-button.tsx (~97): priceLabel-null fallback text 'The price is shown on the next
+          step before you pay.'"
+        - "upgrade-button.tsx (~184-190): the Total line renders only when priceLabel (or the yearly
+          label) resolved; on the null branch no total renders but the order button still shows."
+        - "page.tsx: priceLabel is null when getPlusPriceDisplay() returns null (no Price / Stripe
+          error)."
+      references:
+        - "docs/product/plus-open-decisions-handoff.md (C2 answer)"
+      contradictory_evidence: "Stripe Checkout shows the price before payment, so the consumer is not
+        charged without seeing the price; the buyer protection against a surprise charge holds."
+    assessment:
+      interpretation: "Presenting an obligation-to-pay button with the total not on-screen is the
+        exact shape Art. 8(2) addresses, but the fail-safe only triggers under Stripe unavailability
+        and the price is shown at the next step, so the residual is a formality, not a surprise
+        charge."
+      root_cause_hypothesis: "The fallback was designed to keep purchase available under a Stripe
+        price-fetch failure, trading strict Art. 8(2) adjacency for availability."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "Consumer checkout not launched; and the path only triggers on a Stripe
+        price-resolution failure."
+      remaining_uncertainty: "Whether counsel accepts the 'price shown on the next step' mitigation
+        or requires the button be blocked when the total cannot be shown on-screen."
+    relationships:
+      related_findings:
+        - "BILL-UI-002"
+    remediation:
+      status: "deferred"
+      proposed_action: "Counsel to rule: accept the Stripe-Checkout-shows-price mitigation, or make
+        the total unconditional / block the order button when no price is resolvable on-screen."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Unresolved pending a counsel ruling; behaviour unchanged."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "counsel-answer processing (verification subagent)"
+        action: "opened"
+        note: "Recorded alongside BILL-UI-002; deferred to counsel rather than changing money-path
+          availability unilaterally."
+
+  - id: "PAY-FEE-004"
+    title: "Fee schedule v2 has no defined rate for a legacy_free_v1 artist who carries the deposits
+      override"
+    summary: "fee-schedule.ts keys rates on tier free|plus, and legacy_free_v1 resolves to 'free' via
+      effectivePlanTier. Under v2, appointmentPayment.free is null and goods.free is 500 bps. A
+      grandfathered artist who carries the deposits/Connect override CAN collect card payments, so
+      under v2 they would be charged the free appointment rate (null -> feeMinorUnits returns 0 =
+      0% fee) and the free goods rate (5%). Nobody has decided whether that is the intended
+      grandfather benefit or leakage. The capability registry flags both cells UNDEFINED. Zero
+      affected accounts today; the schedule must not activate with an undefined cell."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "counsel/accountant answer processing: F14 lookup (main instance, after the
+        subagent errored)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "56980a8"
+      environment: "local"
+      discovery_context: "A3 condition: v2 cannot activate with an UNDEFINED cell; locating it."
+    location:
+      files:
+        - "packages/shared/src/fee-schedule.ts"
+        - "packages/shared/src/plus-capability-registry.ts"
+      symbols:
+        - "feeMinorUnits"
+        - "FEE_SCHEDULE_V2"
+    evidence:
+      observed_facts:
+        - "fee-schedule.ts FEE_SCHEDULE_V2: appointmentPayment { free: null, plus: 50 }, goods
+          { free: 500, plus: 100 }."
+        - "fee-schedule.ts feeMinorUnits: returns 0 when bps is null or <= 0, so a 'free' tier
+          appointment fee under v2 is 0, indistinguishable from 'no fee'."
+        - "plus-capability-registry.ts:411 legacyBehavior 'UNDEFINED for legacy_free_v1 (flagged:
+          which rate?)' (deposit fee), and :435 'UNDEFINED (flagged)' (goods fee)."
+        - "plus-capability-registry.ts:309: the legacy_free_v1 cohort carries the deposits override,
+          so such an artist CAN transact card payments despite being tier 'free'."
+      references:
+        - "packages/shared/src/fee-schedule.ts"
+        - "packages/shared/src/plus-capability-registry.ts"
+        - "docs/product/plus-open-decisions-handoff.md (A3 answer / F14)"
+      contradictory_evidence: "The dry run found zero legacy_free_v1 accounts with a Connect override,
+        so no artist is affected today; this is a latent policy gap, not a live mischarge."
+    assessment:
+      interpretation: "This is a policy-undefined cell, not a code crash: the code resolves a defined
+        number (0% appointment, 5% goods for a 'free' artist), but nobody decided that is the intended
+        treatment for a grandfathered artist who can collect card payments."
+      root_cause_hypothesis: "The schedule was modelled on tier (free|plus) only; the legacy cohort's
+        card-collection override was not reflected as a distinct fee case."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      production_exposure: "None: v2 inactive and zero affected accounts. Becomes reachable if v2
+        activates while such an account exists."
+      remaining_uncertainty: "The intended rate is a founder commercial decision (Plus 0.5% / old 3%
+        / 0% grandfather); not chosen yet."
+    relationships:
+      related_findings:
+        - "PAY-RFD-002"
+      analogous_uninspected_areas:
+        - "Whether any other grandfather grant (beyond the deposits override) crosses a v2 rate cell
+          in a way the tier-only schedule does not capture."
+    remediation:
+      status: "open"
+      proposed_action: "Founder picks the legacy_free_v1 rate for card collection and goods under v2;
+        encode it in fee-schedule.ts (or resolve legacy explicitly) so no cell is undefined before
+        ACTIVE_FEE_SCHEDULE_VERSION flips."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Open pending a founder decision; not a live issue while v2 is inactive."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "counsel-answer processing (main instance)"
+        action: "opened"
+        note: "Located the two UNDEFINED registry cells and the fee-schedule code path that would
+          silently apply the free-tier rate to a card-collecting grandfathered artist under v2."
+
 patterns:
   - id: "PAT-001"
     title: "A safety property is asserted in a comment or commit message before it has ever been
@@ -8610,6 +9065,49 @@ patterns:
       - "Consider a lint rule or a typed wrapper that makes an unhandled PostgREST error a
         compile-time or CI error rather than a reviewer responsibility."
 coverage:
+  - area: "Plus launch: the six engineering/doc preconditions attached to the 2026-07-31 counsel +
+      accountant answers (E2 durable medium, C2 Art. 8(2) adjacency, F2 fee-refund v1, F14 fee
+      schedule v2, recorded-risk homes, ledger attribution)"
+    subsystem: "billing"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-07-31"
+    commit_inspected: "56980a8"
+    reviewer: "answer-processing pass: 5 read-only discovery subagents + main instance; the two code
+      changes independently re-verified by inklee-verifier (separate instance)"
+    evidence: "Six targeted verifications, each returning file:line evidence. E2 (V1): CONFIRMED the
+      purchase confirmation carries the full Art. 8(7) set inline via recordDurableConfirmation
+      (withdrawal.ts); residual fail-soft terms drop -> BILL-CONF-001 (mitigated + red-green tests).
+      C2 (V2): 3 of 4 Art. 8(2) elements were adjacent to the order button; the fourth (main
+      characteristics) sat above the panel -> BILL-UI-002 (fixed, verified) + the priceLabel-null
+      fail-safe -> BILL-UI-003 (deferred to counsel). F2 (V3): fee-refund v1 client-unaffected holds
+      but cost-not-margin does not -> PAY-RFD-002 (v1 inactive, activation blocker). F14 (V4): the
+      legacy_free_v1 card-collection cell resolves to the free-tier rate under v2 (0% appointment /
+      5% goods) with nobody deciding it -> PAY-FEE-004. Docs: ledger attribution reconciled
+      (plus-launch-handoff.md), and the A1 VAT-absorption caution, E4 pre-login fast-follow, and C4
+      LO-10 directions written into their durable homes. Static gate on the two code changes:
+      vitest 107/107 (billing + plan) plus withdrawal.test.ts 14/14, tsc clean, eslint clean, full
+      next build green in the pre-commit hook."
+    changed_since_inspection: "yes"
+    findings_produced:
+      - "PAY-RFD-002"
+      - "BILL-CONF-001"
+      - "BILL-UI-002"
+      - "BILL-UI-003"
+      - "PAY-FEE-004"
+    known_exclusions: "This pass verified the SPECIFIC conditions the answers named, not the whole
+      billing surface. NOT covered: no component-render test for the upgrade panel (adjacency rests
+      on a code read); the fee-refund v1 gap was not runtime-reproduced (v1 inactive); F14's correct
+      rate is a founder decision, not verified here; the mobile plan screen's disclosure surface was
+      confirmed to be management-only (no purchase, decision D17) but not otherwise audited; the C1
+      goods-marketplace wording counsel flagged as never-reviewed was NOT inspected; no production
+      state was read."
+    recommended_next_inspection: "Before v2 / v1-refund activation: close PAY-RFD-002 (per-transaction
+      Stripe-cost computation) and PAY-FEE-004 (founder rate for legacy_free_v1). Get a counsel
+      ruling on BILL-UI-003. Inspect the goods-marketplace consumer-law wording (artist-as-seller,
+      goods 14-day return vs services withdrawal, Art. 16(c) custom-item exemption) that C1 flags as
+      the only never-reviewed component. Add a component-render assertion for the upgrade panel if a
+      harness is introduced."
   - area: "Appointment payment settlement: the webhook endpoint, the three cores, and the refund
       convergence RPC (P9 slice A4)"
     subsystem: "money"

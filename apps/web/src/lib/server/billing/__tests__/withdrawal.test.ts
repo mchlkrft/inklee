@@ -25,6 +25,7 @@ const h = vi.hoisted(() => {
   const getUserById = vi.fn();
   const sendEmail = vi.fn();
   const reconcile = vi.fn();
+  const captureMessage = vi.fn();
   let idc = 0;
   const nextId = () => `id_${++idc}`;
 
@@ -135,6 +136,7 @@ const h = vi.hoisted(() => {
     getUserById,
     sendEmail,
     reconcile,
+    captureMessage,
     serviceClient: {
       from: (t: string) => qb(t),
       auth: { admin: { getUserById: (id: string) => getUserById(id) } },
@@ -158,7 +160,14 @@ vi.mock("@/lib/email/booking-templates", () => ({
 vi.mock("@/lib/server/billing/reconcile", () => ({
   reconcileFromStripeSubscription: h.reconcile,
 }));
-vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
+// Mirror the real @sentry/nextjs surface the code uses: recordDurableConfirmation
+// calls captureMessage on the terms-less fail-soft branch. A mock missing it would
+// throw undefined-is-not-a-function on that path, get swallowed by the outer catch,
+// and mark the confirmation "failed" — a test-only artefact, not prod behaviour.
+vi.mock("@sentry/nextjs", () => ({
+  captureException: vi.fn(),
+  captureMessage: (...a: unknown[]) => h.captureMessage(...a),
+}));
 
 import {
   recordDurableConfirmation,
@@ -236,6 +245,7 @@ beforeEach(() => {
   });
   h.sendEmail.mockReset().mockResolvedValue(undefined);
   h.reconcile.mockReset().mockResolvedValue({});
+  h.captureMessage.mockReset();
 });
 
 describe("withdrawSubscriptionCore", () => {
@@ -498,5 +508,69 @@ describe("recordDurableConfirmation stamps the contract evidence (P0 2026-07-28)
     expect(row.terms_version ?? null).toBeNull();
     expect(row.delivery_status).toBe("sent");
     expect(String(row.payload_hash)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  // A purchase confirmation must carry the Terms text inline (Art. 8(7)). The
+  // read is fail-soft so it never blocks the statutory confirmation, but a
+  // terms-less send must not be silent (BILL-CONF-001). These two tests fix the
+  // reason on each fail-soft branch and prove the email still ships.
+  // Mutation check: deleting the `if (!termsText)` captureMessage block in
+  // withdrawal.ts makes both `toHaveBeenCalled` assertions go red.
+  it("alerts (snapshot_unreadable) but still sends when the accepted version has no snapshot on disk", async () => {
+    h.store.billing_consent_records.push({
+      id: "c-9",
+      artist_id: "artist-1",
+      consent_type: "terms_acceptance",
+      // A version whose _versions/<v>/terms.md does not exist -> readTermsSnapshot
+      // returns null -> the purchase branch composes no Terms section.
+      consent_version: "2999-01-01",
+      consented_at: "2026-07-28T10:00:00.000Z",
+    });
+
+    await recordDurableConfirmation({
+      artistId: "artist-1",
+      billingSubscriptionId: "sub-row-1",
+      kind: "purchase",
+      stripeInvoiceId: "in_9",
+      invoiceAmountMinor: 300,
+    });
+
+    expect(h.captureMessage).toHaveBeenCalledTimes(1);
+    const [msg, opts] = h.captureMessage.mock.calls[0] as [
+      string,
+      { level: string; extra: { reason: string; termsVersion: string } },
+    ];
+    expect(msg).toBe(
+      "Plus purchase confirmation sent without inline Terms text",
+    );
+    expect(opts.level).toBe("warning");
+    expect(opts.extra.reason).toBe("snapshot_unreadable");
+    expect(opts.extra.termsVersion).toBe("2999-01-01");
+    // The statutory confirmation is never blocked: the email still ships.
+    expect(h.sendEmail).toHaveBeenCalledTimes(1);
+    expect(h.store.billing_contract_confirmations[0].delivery_status).toBe(
+      "sent",
+    );
+  });
+
+  it("alerts (no_terms_version) but still sends when there is no acceptance row on a purchase", async () => {
+    await recordDurableConfirmation({
+      artistId: "artist-1",
+      billingSubscriptionId: "sub-row-1",
+      kind: "purchase",
+      stripeInvoiceId: "in_10",
+      invoiceAmountMinor: 300,
+    });
+
+    expect(h.captureMessage).toHaveBeenCalledTimes(1);
+    const [, opts] = h.captureMessage.mock.calls[0] as [
+      string,
+      { extra: { reason: string } },
+    ];
+    expect(opts.extra.reason).toBe("no_terms_version");
+    expect(h.sendEmail).toHaveBeenCalledTimes(1);
+    expect(h.store.billing_contract_confirmations[0].delivery_status).toBe(
+      "sent",
+    );
   });
 });
