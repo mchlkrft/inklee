@@ -7,6 +7,8 @@ import {
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
 import { listCollectionsForArtist } from "@/lib/server/collections";
 import { liveCollections } from "@inklee/shared/collections";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
 
 export const runtime = "nodejs";
 
@@ -38,9 +40,18 @@ export async function GET(req: Request) {
     await listCollectionsForArtist(supabase, userId),
   ).map((c) => ({ id: c.id, name: c.name }));
 
+  // ADDITIVE (Stage 3): the rich blocks (image gallery) are Plus, gated on the
+  // appearance-custom entitlement, so the native editor only offers them to an
+  // entitled artist. An older build ignores the extra key. The server still
+  // enforces the boundary at render + does not require it at save.
+  const richBlocksAllowed = appearanceCustomAllowed(
+    await getAccountOverrides(userId),
+  );
+
   return mobileOk({
     ...parseBioPageSettings(settings.bio_page),
     collections,
+    richBlocksAllowed,
   });
 }
 

@@ -38,7 +38,8 @@ export type BioBlockType =
   | "guest_spots"
   | "flash"
   | "books_status"
-  | "featured_collection";
+  | "featured_collection"
+  | "image_gallery";
 
 /** Blocks that render the artist's existing data and hold no content. */
 export const BIO_FEATURE_BLOCK_TYPES = [
@@ -68,12 +69,23 @@ export function isReferenceBlockType(v: unknown): v is "featured_collection" {
   return v === "featured_collection";
 }
 
+// A FOURTH family: MEDIA blocks carry their own uploaded content (images), like
+// the content blocks but richer, and unlike feature/reference blocks they hold
+// no external reference. `image_gallery` is the first (Plus build, Stage 3). It
+// is a Plus RICH BLOCK: the hub stays free, but the rich blocks are gated by the
+// `appearance_custom` entitlement (features.ts, founder reconciliation
+// 2026-07-28), enforced at render + the editor, not in this pure parser.
+export function isMediaBlockType(v: unknown): v is "image_gallery" {
+  return v === "image_gallery";
+}
+
 export const BIO_BLOCK_TYPES: readonly BioBlockType[] = [
   "headline",
   "text",
   "link",
   ...BIO_FEATURE_BLOCK_TYPES,
   "featured_collection",
+  "image_gallery",
 ];
 
 /** Editor labels for each block type (shared by the web + app editors). */
@@ -93,6 +105,7 @@ export const BIO_BLOCK_META: Record<
     label: "Featured collection",
     addLabel: "Add featured collection",
   },
+  image_gallery: { label: "Image gallery", addLabel: "Add image gallery" },
 };
 
 export type BioHeadlineBlock = { id: string; type: "headline"; text: string };
@@ -118,12 +131,33 @@ export type BioFeaturedCollectionBlock = {
   collectionId: string;
 };
 
+/** One image in a gallery block. `url` is an absolute http(s) image URL (the
+ *  artist's uploaded media); `caption` and `alt` are optional short strings. */
+export type BioGalleryImage = {
+  url: string;
+  caption?: string;
+  alt?: string;
+};
+
+/** A media block carrying the artist's own uploaded images. A Plus rich block
+ *  (gated by `appearance_custom` at render + editor); the pure parser keeps it
+ *  regardless of entitlement, exactly like `featured_collection`. */
+export type BioImageGalleryBlock = {
+  id: string;
+  type: "image_gallery";
+  images: BioGalleryImage[];
+  /** How the gallery lays out. `grid` is the default; `carousel` is a single
+   *  swimlane. Unknown values normalise to `grid`. */
+  layout: "grid" | "carousel";
+};
+
 export type BioBlock =
   | BioHeadlineBlock
   | BioTextBlock
   | BioLinkBlock
   | BioFeatureBlock
-  | BioFeaturedCollectionBlock;
+  | BioFeaturedCollectionBlock
+  | BioImageGalleryBlock;
 
 /** Narrow a block to the feature family. Takes the BLOCK (not its type) so
  *  callers keep discriminated-union narrowing on the else branch. */
@@ -268,6 +302,10 @@ export const MAX_BOOKING_POLICY = 1000;
 export const MAX_LINK_LABEL = 60;
 /** Up to 10 of each block type (headlines / texts / links). */
 export const MAX_BLOCKS_PER_TYPE = 10;
+/** Image gallery block limits. Images past the cap are dropped, order kept. */
+export const MAX_GALLERY_IMAGES = 12;
+export const MAX_GALLERY_CAPTION = 120;
+export const MAX_GALLERY_ALT = 120;
 export const MAX_SOCIALS = BIO_SOCIAL_PLATFORMS.length;
 
 const MODULE_KEYS = new Set<BioModuleKey>(BIO_MODULE_ORDER);
@@ -327,6 +365,24 @@ export function sanitizeBioLinkUrl(raw: unknown): string | null {
   return parsed.toString();
 }
 
+/** Allow only absolute http(s) image URLs. Unlike sanitizeBioLinkUrl this
+ *  rejects mailto: and never prepends a scheme: an image src must be a real
+ *  absolute URL, and a bare/relative value is dropped rather than guessed. This
+ *  is what keeps a gallery's <img src> safe on a public page. */
+export function sanitizeImageUrl(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim();
+  if (!v) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(v);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  return parsed.toString();
+}
+
 function blockId(raw: Record<string, unknown>, fallback: string): string {
   return typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallback;
 }
@@ -359,6 +415,41 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
       id: blockId(o, `${o.type}-${index}`),
       type: "featured_collection",
       collectionId,
+    };
+  }
+
+  // An image gallery carries the artist's own images. Each image is kept only
+  // if its url is a safe absolute http(s) URL; captions/alt are trimmed and
+  // capped. Images past the cap are dropped, order preserved. A gallery with no
+  // valid image is a broken section, so it is dropped exactly like an empty
+  // headline. Entitlement is NOT checked here (pure parser, no database): the
+  // renderer + editor gate it on `appearance_custom`, and stripping it here on
+  // a downgrade would silently delete the artist's saved work.
+  if (isMediaBlockType(o.type)) {
+    const rawImages = Array.isArray(o.images) ? o.images : [];
+    const images: BioGalleryImage[] = [];
+    for (const item of rawImages) {
+      if (images.length >= MAX_GALLERY_IMAGES) break;
+      if (!item || typeof item !== "object") continue;
+      const io = item as Record<string, unknown>;
+      const url = sanitizeImageUrl(io.url);
+      if (!url) continue;
+      const image: BioGalleryImage = { url };
+      if (typeof io.caption === "string" && io.caption.trim()) {
+        image.caption = io.caption.trim().slice(0, MAX_GALLERY_CAPTION);
+      }
+      if (typeof io.alt === "string" && io.alt.trim()) {
+        image.alt = io.alt.trim().slice(0, MAX_GALLERY_ALT);
+      }
+      images.push(image);
+    }
+    if (images.length === 0) return null;
+    const layout = o.layout === "carousel" ? "carousel" : "grid";
+    return {
+      id: blockId(o, `${o.type}-${index}`),
+      type: "image_gallery",
+      images,
+      layout,
     };
   }
 

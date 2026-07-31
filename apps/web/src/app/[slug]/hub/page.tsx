@@ -10,7 +10,13 @@ import { accentHex } from "@inklee/shared/appearance";
 import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { templateStyles } from "@inklee/shared/page-template-styles";
 import { loadHubFeatureData } from "@/lib/server/hub-feature-data";
-import { HubFeatureBlock, HubFeaturedCollectionBlock } from "./feature-blocks";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
+import {
+  HubFeatureBlock,
+  HubFeaturedCollectionBlock,
+  HubImageGalleryBlock,
+} from "./feature-blocks";
 import {
   parseBioPageSettings,
   BIO_SOCIAL_META,
@@ -112,6 +118,21 @@ export default async function ArtistHubPage({
     blocks,
     bookingUrl,
   });
+
+  // Rich blocks (image_gallery, Stage 3) are Plus, gated on the SAME
+  // `appearance_custom` entitlement as the custom appearance layer
+  // (features.ts). Preserved in settings but hidden here on downgrade, mirroring
+  // featured_collection. getAccountOverrides is request-cached (surfaceAppearance
+  // already read it), so this adds no query. Fail-safe to false: a plan-read
+  // blip hides a Plus block rather than 500ing a public page.
+  let richBlocksAllowed = false;
+  try {
+    richBlocksAllowed = appearanceCustomAllowed(
+      await getAccountOverrides(profile.id as string),
+    );
+  } catch {
+    richBlocksAllowed = false;
+  }
 
   const pageStyle: React.CSSProperties = {
     ...(coverImage
@@ -254,6 +275,19 @@ export default async function ArtistHubPage({
                   key={block.id}
                   type={block.type}
                   data={featureData}
+                  tpl={tpl}
+                />
+              );
+            }
+            // A Plus rich block: rendered only for an entitled artist. Hidden
+            // (not deleted) on downgrade, same as featured_collection.
+            if (block.type === "image_gallery") {
+              if (!richBlocksAllowed) return null;
+              return (
+                <HubImageGalleryBlock
+                  key={block.id}
+                  images={block.images}
+                  layout={block.layout}
                   tpl={tpl}
                 />
               );

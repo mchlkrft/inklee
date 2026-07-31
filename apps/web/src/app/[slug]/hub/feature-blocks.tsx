@@ -1,6 +1,9 @@
 import Image from "next/image";
 import { CalendarCheck, Plane, Sparkles, ShoppingBag } from "lucide-react";
-import type { BioFeatureBlockType } from "@/lib/bio-page-settings";
+import type {
+  BioFeatureBlockType,
+  BioGalleryImage,
+} from "@/lib/bio-page-settings";
 import type { TemplateStyles } from "@inklee/shared/page-template-styles";
 
 // Hub feature blocks (Plus build P2b). Each renders data the artist already
@@ -91,6 +94,63 @@ export function HubFeaturedCollectionBlock({
           : `${collection.productCount} items`}
       </span>
     </a>
+  );
+}
+
+/** A Plus rich block: the artist's own images (Stage 3). Self-contained (the
+ *  images live on the block, unlike the reference/feature blocks), so it takes
+ *  no HubFeatureData. The caller renders it only for an entitled artist. Images
+ *  are artist-provided absolute URLs on arbitrary domains, so they use
+ *  `unoptimized` (the Next image optimizer's domain allowlist does not apply). */
+export function HubImageGalleryBlock({
+  images,
+  layout,
+  tpl,
+}: {
+  images: BioGalleryImage[];
+  layout: "grid" | "carousel";
+  tpl: TemplateStyles;
+}) {
+  // Defensive: the parser drops an empty gallery, so this is belt-and-braces.
+  if (images.length === 0) return null;
+
+  const figure = (img: BioGalleryImage, key: string, extra: string) => (
+    <figure key={key} className={extra}>
+      <span className="relative block aspect-square overflow-hidden rounded-lg bg-brand-bone/10">
+        <Image
+          src={img.url}
+          alt={img.alt ?? img.caption ?? ""}
+          fill
+          unoptimized
+          sizes="(max-width: 640px) 33vw, 200px"
+          className="object-cover"
+        />
+      </span>
+      {img.caption && (
+        <figcaption className="mt-1 truncate text-xs text-brand-bone/60">
+          {img.caption}
+        </figcaption>
+      )}
+    </figure>
+  );
+
+  if (layout === "carousel") {
+    return (
+      <section
+        aria-label="Image gallery"
+        className={`flex snap-x gap-2 overflow-x-auto pb-1 ${tpl.socials ?? ""}`}
+      >
+        {images.map((img, i) =>
+          figure(img, `${img.url}-${i}`, "w-36 shrink-0 snap-start"),
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="Image gallery" className="grid grid-cols-3 gap-2">
+      {images.map((img, i) => figure(img, `${img.url}-${i}`, ""))}
+    </section>
   );
 }
 

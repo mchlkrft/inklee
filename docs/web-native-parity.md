@@ -182,6 +182,28 @@ Two things follow, both done here:
 
 ## Update log
 
+- **2026-07-31 — `image_gallery` Link Hub block (Stage 3, branch-only).** A new
+  block TYPE (a Plus rich block: the artist's own images), so the wire-hazard
+  above applies again. It is additive and the native lookups are already guarded
+  (`?.label ?? "Block"`, `?.addLabel ?? type`), so a build carrying this change
+  will not crash on it; older builds show the block as a "Block" card with no
+  body (graceful) rather than crashing, and the public hub renders web-only.
+  PARITY of editing is DELIBERATELY web-only for v1 (D4 in
+  `plus-build-time-decisions.md`): the native editor shows an image_gallery block
+  as a read-only "N images · edit on the web" summary and does not add native
+  image upload; it PRESERVES the block untouched on save (state holds the full
+  `BioBlock`, sent back verbatim), so a web-made gallery survives native edits.
+  Gating: a Plus rich block on the `appearance_custom` entitlement (web render +
+  web editor + the mobile `/settings/hub` route all gate it; the pure parser
+  keeps it, hidden-on-downgrade like `featured_collection`). **A fresh EAS build
+  is a prerequisite before the rich blocks are granted to anyone** (same gate as
+  `goods_collections`): the guard prevents a crash, but the native summary +
+  gated add button only exist from the next build onward. Files: shared
+  `bio-page.ts` (union + parser + `sanitizeImageUrl`), web `hub/page.tsx` +
+  `feature-blocks.tsx` (render), `link-hub/*` (editor), mobile
+  `settings/hub/route.ts` (`richBlocksAllowed`) + `app/settings/link-hub.tsx`
+  (summary + gated add). On `feat/p5d-collections`, NOT on master.
+
 - **2026-07-31 — P9 A7 appointment payment mobile routes (branch-only).**
   Five `/api/mobile/payments/requests` routes: create (POST), send (POST
   `[id]/send`), cancel (POST `[id]/cancel`), revise (POST `[id]/revise`),

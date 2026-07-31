@@ -15,6 +15,9 @@ import {
   MAX_HEADLINE,
   MAX_TEXT,
   MAX_BLOCKS_PER_TYPE,
+  sanitizeImageUrl,
+  MAX_GALLERY_IMAGES,
+  MAX_GALLERY_CAPTION,
 } from "../bio-page-settings";
 
 describe("sanitizeBioLinkUrl", () => {
@@ -479,5 +482,143 @@ describe("featured_collection blocks (P5d)", () => {
       { id: "same", type: "featured_collection", collectionId: "c2" },
     ]);
     expect(blocks[0].id).not.toBe(blocks[1].id);
+  });
+});
+
+describe("sanitizeImageUrl", () => {
+  it("accepts absolute http(s) URLs", () => {
+    expect(sanitizeImageUrl("https://cdn.inklee/x.jpg")).toBe(
+      "https://cdn.inklee/x.jpg",
+    );
+    expect(sanitizeImageUrl("http://cdn.inklee/x.png")).toBe(
+      "http://cdn.inklee/x.png",
+    );
+  });
+
+  it("rejects bare/relative, mailto, data and javascript URLs (never guesses a scheme)", () => {
+    for (const bad of [
+      "cdn.inklee/x.jpg", // bare -> NOT prepended (unlike link urls)
+      "/uploads/x.jpg",
+      "mailto:hi@artist.com",
+      "data:image/png;base64,AAAA",
+      "javascript:alert(1)",
+      "",
+      "   ",
+    ]) {
+      expect(sanitizeImageUrl(bad), bad).toBeNull();
+    }
+  });
+});
+
+// image_gallery (Plus build, Stage 3). Parser keeps the block regardless of
+// entitlement (that is enforced at render + editor on `appearance_custom`);
+// here we prove the content sanitization, the caps, and the drop rules.
+describe("parseBioPageSettings — image_gallery block", () => {
+  function gallery(over: Record<string, unknown> = {}) {
+    return {
+      blocks: [
+        {
+          type: "image_gallery",
+          images: [{ url: "https://cdn.inklee/a.jpg" }],
+          ...over,
+        },
+      ],
+    };
+  }
+
+  it("keeps a gallery with at least one safe image and defaults the layout to grid", () => {
+    const { blocks } = parseBioPageSettings(gallery());
+    expect(blocks).toHaveLength(1);
+    const b = blocks[0];
+    expect(b.type).toBe("image_gallery");
+    if (b.type === "image_gallery") {
+      expect(b.images).toEqual([{ url: "https://cdn.inklee/a.jpg" }]);
+      expect(b.layout).toBe("grid");
+    }
+  });
+
+  it("keeps a valid carousel layout and normalises an unknown layout to grid", () => {
+    expect(
+      (
+        parseBioPageSettings(gallery({ layout: "carousel" })).blocks[0] as never
+      )["layout"],
+    ).toBe("carousel");
+    expect(
+      (parseBioPageSettings(gallery({ layout: "spiral" })).blocks[0] as never)[
+        "layout"
+      ],
+    ).toBe("grid");
+  });
+
+  it("drops images with an unsafe/relative url and the whole block when none survive", () => {
+    const kept = parseBioPageSettings(
+      gallery({
+        images: [
+          { url: "javascript:alert(1)" },
+          { url: "/relative.jpg" },
+          { url: "https://cdn.inklee/ok.jpg" },
+        ],
+      }),
+    ).blocks[0];
+    expect((kept as { images: unknown[] }).images).toEqual([
+      { url: "https://cdn.inklee/ok.jpg" },
+    ]);
+
+    const dropped = parseBioPageSettings(
+      gallery({ images: [{ url: "data:x" }, { url: "nope" }] }),
+    ).blocks;
+    expect(dropped).toHaveLength(0);
+
+    expect(parseBioPageSettings(gallery({ images: [] })).blocks).toHaveLength(
+      0,
+    );
+  });
+
+  it("caps images at MAX_GALLERY_IMAGES, order preserved", () => {
+    const many = Array.from({ length: MAX_GALLERY_IMAGES + 5 }, (_, i) => ({
+      url: `https://cdn.inklee/${i}.jpg`,
+    }));
+    const b = parseBioPageSettings(gallery({ images: many })).blocks[0] as {
+      images: { url: string }[];
+    };
+    expect(b.images).toHaveLength(MAX_GALLERY_IMAGES);
+    expect(b.images[0].url).toBe("https://cdn.inklee/0.jpg");
+    expect(b.images.at(-1)!.url).toBe(
+      `https://cdn.inklee/${MAX_GALLERY_IMAGES - 1}.jpg`,
+    );
+  });
+
+  it("trims caption + alt and drops empty ones", () => {
+    const b = parseBioPageSettings(
+      gallery({
+        images: [
+          {
+            url: "https://cdn.inklee/a.jpg",
+            caption: "  hello  ",
+            alt: "   ",
+          },
+        ],
+      }),
+    ).blocks[0] as { images: { caption?: string; alt?: string }[] };
+    expect(b.images[0].caption).toBe("hello");
+    expect(b.images[0].alt).toBeUndefined();
+  });
+
+  it("caps a long caption at MAX_GALLERY_CAPTION", () => {
+    const b = parseBioPageSettings(
+      gallery({
+        images: [{ url: "https://cdn.inklee/a.jpg", caption: "x".repeat(500) }],
+      }),
+    ).blocks[0] as { images: { caption?: string }[] };
+    expect(b.images[0].caption).toHaveLength(MAX_GALLERY_CAPTION);
+  });
+
+  it("caps gallery blocks at the standard per-type block cap", () => {
+    const blocks = Array.from({ length: MAX_BLOCKS_PER_TYPE + 3 }, () => ({
+      type: "image_gallery",
+      images: [{ url: "https://cdn.inklee/a.jpg" }],
+    }));
+    const parsed = parseBioPageSettings({ blocks }).blocks;
+    expect(parsed).toHaveLength(MAX_BLOCKS_PER_TYPE);
   });
 });

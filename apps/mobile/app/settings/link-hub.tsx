@@ -96,6 +96,10 @@ function SocialGlyph({
  *  so the type stays honest about older responses. */
 type HubResponse = BioPageSettings & {
   collections?: { id: string; name: string }[];
+  /** Plus `appearance_custom` entitlement, from the route. Gates the rich
+   *  blocks (image gallery) in the add palette. Optional so an older response
+   *  (no key) reads as false. */
+  richBlocksAllowed?: boolean;
 };
 
 type BlockPatch = Partial<{
@@ -190,6 +194,7 @@ function HubForm({
 
   const [blocks, setBlocks] = useState<BioBlock[]>(initial.blocks);
   const collections = initial.collections ?? [];
+  const richBlocksAllowed = initial.richBlocksAllowed ?? false;
   const [socials, setSocials] = useState<BioSocial[]>(initial.socials);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -548,6 +553,18 @@ function HubForm({
                     </View>
                   </>
                 ) : null}
+
+                {/* Image gallery is edited on the web for now (adding images
+                    needs the web uploader). The app keeps the block intact on
+                    save, so a gallery made on the web survives edits here. */}
+                {block.type === "image_gallery" ? (
+                  <Text className="text-xs text-shell-dim">
+                    {block.images.length === 1
+                      ? "1 image"
+                      : `${block.images.length} images`}
+                    {" · Edit this gallery on the web."}
+                  </Text>
+                ) : null}
               </View>
             ))}
           </View>
@@ -563,7 +580,8 @@ function HubForm({
                 disabled={
                   !canAddBlock(blocks, type) ||
                   (type === "featured_collection" &&
-                    !nextFreeCollectionId(blocks))
+                    !nextFreeCollectionId(blocks)) ||
+                  (type === "image_gallery" && !richBlocksAllowed)
                 }
                 onPress={() => addBlock(type)}
               />

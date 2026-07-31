@@ -119,7 +119,21 @@ Unparking `analytics` remains a P7 action.
 
 Bundles; the `shop` and `guestSpots` appearance surfaces that exist in the
 vocabulary with no renderer; ~~detailed sales analytics~~. Page:
-`image_gallery` block type, section layouts, custom SEO fields.
+~~`image_gallery` block type~~, section layouts, custom SEO fields.
+
+**`image_gallery` block DONE 2026-07-31**: a Plus rich block (the artist's own
+images) added across the shared model (`bio-page.ts`: union, guards,
+`sanitizeImageUrl`, parser, caps), the web public render (`hub/page.tsx` +
+`feature-blocks.tsx`), the web editor (`link-hub/*`: add/reorder images,
+captions, grid/carousel), the mobile route + native editor (read-only "edit on
+web" summary, gated add). Gated on the `appearance_custom` entitlement (rich
+blocks per `features.ts`): the hub stays free, the block is Plus, preserved in
+settings but hidden on downgrade like `featured_collection`. 13 new parser
+tests. Native editing is web-only for v1 and rollout is gated behind a fresh EAS
+build (breaking wire change), both recorded in `plus-build-time-decisions.md`
+(D1-D5) and `web-native-parity.md`. **Remaining page work: section layouts**
+(a different subsystem: the `appearance_custom` layout layer, not the block
+system) and custom SEO fields (blocked on X1, the indexation decision).
 
 **Sales analytics DONE 2026-07-31**: `/goods/sales` gains Plus-gated trends
 section above the existing raw ledger: this-month vs last-month stat cards with

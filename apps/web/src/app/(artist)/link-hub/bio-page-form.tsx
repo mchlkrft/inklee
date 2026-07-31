@@ -8,6 +8,8 @@ import {
   MAX_TEXT,
   MAX_LINK_LABEL,
   MAX_SOCIALS,
+  MAX_GALLERY_IMAGES,
+  MAX_GALLERY_CAPTION,
   BIO_SOCIAL_PLATFORMS,
   BIO_SOCIAL_META,
   BIO_BLOCK_TYPES,
@@ -16,6 +18,7 @@ import {
   isFeatureBlockType,
   type BioBlock,
   type BioBlockType,
+  type BioGalleryImage,
   type BioSocial,
   type BioSocialPlatform,
   type BioPageSettings,
@@ -34,6 +37,8 @@ type BlockPatch = Partial<{
   label: string;
   url: string;
   isActive: boolean;
+  images: BioGalleryImage[];
+  layout: "grid" | "carousel";
 }>;
 
 const INPUT =
@@ -76,6 +81,8 @@ function makeBlock(type: BioBlockType, firstCollectionId?: string): BioBlock {
       collectionId: firstCollectionId ?? "",
     };
   }
+  if (type === "image_gallery")
+    return { id, type: "image_gallery", images: [], layout: "grid" };
   if (type === "link")
     return { id, type: "link", label: "", url: "", isActive: true };
   if (type === "headline") return { id, type: "headline", text: "" };
@@ -90,10 +97,15 @@ function makeBlock(type: BioBlockType, firstCollectionId?: string): BioBlock {
 export default function BioPageForm({
   bioPage,
   collections = [],
+  richBlocksAllowed = false,
 }: {
   bioPage: BioPageSettings;
   /** The artist's LIVE collections, for the featured-collection picker. */
   collections?: { id: string; name: string }[];
+  /** Plus `appearance_custom` entitlement: gates the rich blocks (image
+   *  gallery) in the palette. The server (render + save) is the real gate; this
+   *  only keeps a Free artist from adding a block that would not render. */
+  richBlocksAllowed?: boolean;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     saveBioPageAction,
@@ -146,6 +158,44 @@ export default function BioPageForm({
         ? [...prev, makeBlock(type, nextFreeCollectionId(prev))]
         : prev,
     );
+
+  // Image-gallery helpers. Each edits the images array of one gallery block by
+  // id, so reordering the outer block list never touches them.
+  const galleryImages = (block: BioBlock): BioGalleryImage[] =>
+    block.type === "image_gallery" ? block.images : [];
+  const setGalleryImages = (id: string, images: BioGalleryImage[]) =>
+    patchBlock(id, { images });
+  const addImage = (id: string, current: BioGalleryImage[]) => {
+    if (current.length >= MAX_GALLERY_IMAGES) return;
+    setGalleryImages(id, [...current, { url: "" }]);
+  };
+  const patchImage = (
+    id: string,
+    current: BioGalleryImage[],
+    index: number,
+    patch: Partial<BioGalleryImage>,
+  ) =>
+    setGalleryImages(
+      id,
+      current.map((img, i) => (i === index ? { ...img, ...patch } : img)),
+    );
+  const removeImage = (id: string, current: BioGalleryImage[], index: number) =>
+    setGalleryImages(
+      id,
+      current.filter((_, i) => i !== index),
+    );
+  const moveImage = (
+    id: string,
+    current: BioGalleryImage[],
+    index: number,
+    dir: -1 | 1,
+  ) => {
+    const target = index + dir;
+    if (target < 0 || target >= current.length) return;
+    const next = [...current];
+    [next[index], next[target]] = [next[target], next[index]];
+    setGalleryImages(id, next);
+  };
 
   const updateSocial = (index: number, patch: Partial<BioSocial>) =>
     setSocials((prev) =>
@@ -414,6 +464,114 @@ export default function BioPageForm({
                   </label>
                 </>
               )}
+
+              {block.type === "image_gallery" && (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Layout</span>
+                    <select
+                      value={block.layout}
+                      aria-label="Gallery layout"
+                      onChange={(e) =>
+                        patchBlock(block.id, {
+                          layout:
+                            e.target.value === "carousel" ? "carousel" : "grid",
+                        })
+                      }
+                      className={`${INPUT} max-w-[10rem]`}
+                    >
+                      <option value="grid">Grid</option>
+                      <option value="carousel">Carousel</option>
+                    </select>
+                  </div>
+                  {galleryImages(block).length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No images yet. Add an image URL to show it here. An empty
+                      gallery is not saved.
+                    </p>
+                  )}
+                  {galleryImages(block).map((img, imgIndex) => {
+                    const imgs = galleryImages(block);
+                    return (
+                      <div
+                        key={imgIndex}
+                        className="flex flex-wrap items-start gap-2 rounded-md border border-border/60 px-2 py-2"
+                      >
+                        <div className="flex-1 space-y-2">
+                          <input
+                            value={img.url}
+                            onChange={(e) =>
+                              patchImage(block.id, imgs, imgIndex, {
+                                url: e.target.value,
+                              })
+                            }
+                            placeholder="https://… image URL"
+                            inputMode="url"
+                            className={INPUT}
+                          />
+                          <input
+                            value={img.caption ?? ""}
+                            onChange={(e) =>
+                              patchImage(block.id, imgs, imgIndex, {
+                                caption: e.target.value.slice(
+                                  0,
+                                  MAX_GALLERY_CAPTION,
+                                ),
+                              })
+                            }
+                            placeholder="Caption (optional, also used as the image description)"
+                            className={INPUT}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              moveImage(block.id, imgs, imgIndex, -1)
+                            }
+                            disabled={imgIndex === 0}
+                            aria-label="Move image up"
+                            className={ICON_BTN}
+                          >
+                            <ArrowUp className="h-4 w-4" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              moveImage(block.id, imgs, imgIndex, 1)
+                            }
+                            disabled={imgIndex === imgs.length - 1}
+                            aria-label="Move image down"
+                            className={ICON_BTN}
+                          >
+                            <ArrowDown className="h-4 w-4" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeImage(block.id, imgs, imgIndex)
+                            }
+                            aria-label="Remove image"
+                            className={ICON_BTN}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {galleryImages(block).length < MAX_GALLERY_IMAGES && (
+                    <button
+                      type="button"
+                      onClick={() => addImage(block.id, galleryImages(block))}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden />
+                      Add image
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -426,16 +584,29 @@ export default function BioPageForm({
               onClick={() => addBlock(type)}
               // Featuring needs something to feature, and something NOT ALREADY
               // featured: seeding a duplicate would produce a block the parser
-              // drops on save.
+              // drops on save. The image gallery is a Plus rich block, so it is
+              // gated on the appearance-custom entitlement (the server enforces
+              // it at render + save; this only stops adding one that won't show).
               disabled={
                 !canAddBlock(blocks, type) ||
                 (type === "featured_collection" &&
-                  !nextFreeCollectionId(blocks))
+                  !nextFreeCollectionId(blocks)) ||
+                (type === "image_gallery" && !richBlocksAllowed)
+              }
+              title={
+                type === "image_gallery" && !richBlocksAllowed
+                  ? "Image gallery is a Plus feature."
+                  : undefined
               }
               className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted/30 disabled:opacity-40"
             >
               <Plus className="h-4 w-4" aria-hidden />
               {BIO_BLOCK_META[type].addLabel}
+              {type === "image_gallery" && !richBlocksAllowed && (
+                <span className="ml-1 rounded-full bg-brand-mustard/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-mustard">
+                  Plus
+                </span>
+              )}
             </button>
           ))}
         </div>
