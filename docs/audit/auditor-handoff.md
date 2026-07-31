@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `ec29888f7517`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `69511b8efe51`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 
@@ -71,7 +71,7 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | PAY-ORD-001 | high | not-started | false | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
 | PAY-ORD-002 | high | not-started | false | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |
 | PAY-RFD-001 | high | not-started | false | A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status |
-| PAY-RFD-002 | high | not-started | false | Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost |
+| PAY-RFD-002 | high | pending | false | Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost |
 | PAY-SPON-001 | high | not-started | false | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
 | PAY-WHK-001 | high | not-started | false | A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on |
 | TEST-VAC-001 | high | passed | true | Tests incapable of failing, found in at least five independent rounds, including the suite written specifically to prove an RLS repair |

@@ -8515,18 +8515,45 @@ findings:
           not wired into fee-refund-policy at all; whether artist-cancellation deposit refunds should
           retain a non-recoverable cost under v1 was not decided."
     remediation:
-      status: "open"
-      proposed_action: "Before flipping ACTIVE_FEE_REFUND_POLICY_VERSION to v1: compute the actual
-        auditable per-transaction non-recoverable Stripe cost (charge balance-transaction fee minus
-        any processing fee returned on the refund), return it from feeRefundOutcome for
-        retain_non_recoverable, and change appointment-payment-refund.ts to retain only that cost
-        (refund_application_fee_amount / explicit reversal amount). Terms disclosure (F2 condition 1)
-        is a separate Terms edit."
+      status: "fixed-unverified"
+      fix_commit: "bdfc132"
+      fixed_at: "2026-07-31"
+      proposed_action: "Implemented in bdfc132. Engine (fee-refund-policy.ts): feeRefundOutcome takes
+        the actual nonRecoverableCostMinor + alreadyRetainedMinor and returns a retainMinor/returnMinor
+        split; retain_non_recoverable retains min(cost, fee) proportional to the refund, capped by the
+        remaining retainable and the fee touched, and returns null (fail-safe) when the cost is
+        absent. Core (appointment-payment-refund.ts): resolves the policy version from the persisted
+        collection stamp (never client input), reads the proven cost from payment_collections, returns
+        the margin via a partial application-fee refund, records retained cost to prevent
+        double-retention, and returns the FULL fee (retains nothing) when the cost is unavailable.
+        Settlement (appointment-payment-settlement.ts): captures the actual cost from the charge's
+        balance_transaction and stamps the policy version + app fee. Migration 0131 persists cost +
+        source + status + stamp + retained on payment_collections. Activation stays gated: ACTIVE is
+        v0 and settlement stamps v1 only when FEE_REFUND_V1_ACTIVATION_ENABLED. STILL OPEN before
+        activation: F2 condition (1) Terms disclosure; run 0131 to prod; real reconciliation of the
+        cost; the fee-refund approval key current against this implementation."
     verification:
-      status: "not-started"
+      status: "pending"
       independent: false
-      residual_risk: "Open and unfixed; not a live violation only because v1 is inactive. If v1 is
-        activated before this is closed, every artist-cancellation refund retains the full fee."
+      verification_method: "Red-green through the REAL refund core. 8 v1 end-to-end tests
+        (appointment-payment-refund.test.ts): retain only the proven cost / return the margin; zero
+        cost retains zero; cost >= fee caps at the fee; partial refund allocates proportionally;
+        repeated refunds do not double-retain; missing cost FAILS SAFE by returning the full fee (not
+        retaining it); voluntary (client-cancellation) unchanged; version resolves from the persisted
+        stamp. Plus 8 engine unit tests. Two mutations confirmed the tests discriminate: flipping the
+        fail-safe branch to refund_application_fee:false (the original PAY-RFD-002 defect) reddened the
+        fail-safe test, and setting partialFeeRefundMinor=0 (whole-fee retention) reddened the
+        retention test; both restored. Full web suite 2525 pass + 1 expected fail; typecheck + lint
+        clean."
+      residual_risk: "NOT independently verified: the founder instruction for this finding was
+        explicitly not to commission another verifier, so the fix is author-tested (red-green,
+        mutation-proven) but not confirmed by a separate instance. The v1 path is proven through the
+        real core with a MOCKED Stripe and an in-memory service client; it has never run against real
+        Stripe or real Postgres, so the exact application-fee-refund semantics and the 0131 migration
+        convergence are unproven until activation (G-5). v1 remains inactive (ACTIVE=v0;
+        FEE_REFUND_V1_ACTIVATION off), so there is no live exposure. The processor_cost_retained_minor
+        increment is add-a-delta at refund initiation (single-shot per artist action, not a
+        redelivered webhook); reconciliation should true it up if an increment write is lost."
     disclosure:
       public_repo_safe: true
     history:
@@ -8542,6 +8569,13 @@ findings:
           Adversarial refutation failed on every angle. confidence stays 'confirmed', now backed by a
           reproduction, not reading alone. remediation stays open (no fix); verification.status stays
           not-started because there is no fix to verify, only a confirmed defect."
+      - date: "2026-07-31"
+        actor: "engineering (remediation)"
+        action: "fix-committed"
+        note: "Cost-only retention implemented in bdfc132 (engine split + persisted processor cost +
+          fail-safe + activation gate + migration 0131). Author-tested red-green through the real core
+          with two mutations; independent verification of the FIX deferred per the founder instruction
+          not to commission another verifier for this finding. v1 stays inactive."
 
   - id: "BILL-CONF-001"
     title: "Durable purchase confirmation could silently ship without the inline Terms text on a

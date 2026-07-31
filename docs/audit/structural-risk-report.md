@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `ec29888f7517`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `69511b8efe51`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -37,17 +37,18 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 2 |
-| fixed-unverified | 13 |
+| fixed-unverified | 14 |
 | mitigated | 1 |
-| open | 60 |
+| open | 59 |
 | verified | 5 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 76 |
+| not-started | 75 |
 | passed | 7 |
+| pending | 1 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
 
@@ -239,6 +240,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-MIG-001 | high | fixed-unverified | not-started | 31f320c |
 | PAY-CONN-001 | high | fixed-unverified | not-started | 7e59c79 |
 | PAY-FEE-002 | high | fixed-unverified | not-started | - |
+| PAY-RFD-002 | high | fixed-unverified | pending | bdfc132 |
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
 | BILL-UI-001 | medium | fixed-unverified | not-started | unknown |
