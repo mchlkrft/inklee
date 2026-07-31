@@ -91,3 +91,20 @@ type-keyed lookups are already guarded (`?.` + `?? "Block"`), so current builds
 will not crash, but the rollout still needs a fresh EAS build shipped before
 artists can create the block. Tracked with the existing EAS-build gate that also
 holds `goods_collections`.
+
+**D6 [FOUNDER-scope] — "section layouts" is already built; not rebuilt.**
+- Decision: the "section layouts" item in the Stage 3 page list is treated as
+  already delivered by the existing page-template system (P2), not built anew.
+- Why: the layout templates (clean / portfolio / bold / editorial), the picker
+  in the appearance editor, the write path, the public render, and the Plus
+  entitlement gating all already exist and work end to end. Rebuilding them would
+  duplicate a working system and risk regressions; the image_gallery block also
+  added a per-section grid/carousel layout. The work-plan line was stale.
+- Alternatives: (a) build a NEW multi-column per-section arrangement system,
+  rejected as speculative (no clear product definition, larger effort) and not
+  what the founder queued next; (b) rebuild the templates, rejected as pure
+  duplication.
+- Confirm: founder confirms "section layouts" meant the page-template layer
+  (done), not a distinct multi-column section system. If the latter is wanted, it
+  is a separate, scoped feature.
+- Reversible? N/A (no code change); a future multi-column system would be additive.

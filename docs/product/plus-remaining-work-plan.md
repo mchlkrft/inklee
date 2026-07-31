@@ -131,9 +131,18 @@ blocks per `features.ts`): the hub stays free, the block is Plus, preserved in
 settings but hidden on downgrade like `featured_collection`. 13 new parser
 tests. Native editing is web-only for v1 and rollout is gated behind a fresh EAS
 build (breaking wire change), both recorded in `plus-build-time-decisions.md`
-(D1-D5) and `web-native-parity.md`. **Remaining page work: section layouts**
-(a different subsystem: the `appearance_custom` layout layer, not the block
-system) and custom SEO fields (blocked on X1, the indexation decision).
+(D1-D5) and `web-native-parity.md`.
+
+**Section layouts: already built (P2), the work-plan line was stale.** The
+page-level layout system exists end to end: four templates (clean / portfolio /
+bold / editorial) in `page-template-styles.ts`, the picker in the appearance
+editor (`settings/appearance/appearance-form.tsx`, the "Layout" fieldset), the
+write path (`appearance-write.ts` persists `template`), the render
+(`hub/page.tsx` + booking page apply `templateStyles(appearance.resolved.template)`),
+and the entitlement boundary (`surfaceAppearance` -> `freeTierView` resets Free
+to `clean`). The image_gallery block additionally added a per-section layout
+(grid / carousel). See `plus-build-time-decisions.md` D6. **Remaining page work:
+custom SEO fields only** (blocked on X1, the indexation decision).
 
 **Sales analytics DONE 2026-07-31**: `/goods/sales` gains Plus-gated trends
 section above the existing raw ledger: this-month vs last-month stat cards with
