@@ -117,9 +117,20 @@ Unparking `analytics` remains a P7 action.
 
 ## Stage 3: goods and page remainder (~3-5 weeks, parallelisable)
 
-Bundles; the `shop` and `guestSpots` appearance surfaces that exist in the
+~~Bundles~~; the `shop` and `guestSpots` appearance surfaces that exist in the
 vocabulary with no renderer; ~~detailed sales analytics~~. Page:
 ~~`image_gallery` block type~~, section layouts, custom SEO fields.
+
+**Bundles DONE 2026-07-31** (management complete, gated OFF + dark): backend
+(migration 0132: `product_bundles` + `product_bundle_items`, per-command RLS +
+composite FKs, convergent; shared model + savings; `goods_bundles` entitlement +
+gate; server CRUD with archive-first delete and item cap; 40 tests) `5e094d0`;
+web editor + public shop display + nav `cb01199`; native route + screen `df9e85a`;
+payable-checkout DECOMPOSITION proven `bundleGoodsLine` -> goods-fee base on the
+BUNDLE price under v1 (0%) and v2 (5%/1%), 8 tests. Only the live checkout WIRING
+remains, deferred to the goods-commerce un-park (P7) per decision B5; it reuses
+`bundleGoodsLine`. DB RLS tests (`bundles-rls`, `bundle-items-rls`) need
+`pnpm test:db` / CI to run. Decisions B1-B5 in `plus-build-time-decisions.md`.
 
 **`image_gallery` block DONE 2026-07-31**: a Plus rich block (the artist's own
 images) added across the shared model (`bio-page.ts`: union, guards,

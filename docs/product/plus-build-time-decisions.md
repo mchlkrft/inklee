@@ -165,3 +165,25 @@ so the TOCTOU delete race is designed out (no RPC needed).**
 - Cost: a mis-created empty bundle must be archived before it can be deleted, a
   minor extra step, and consistent with "delete is a deliberate second act".
 - Reversible? Cheap (could add the RPC + empty-delete later if wanted).
+
+**B5 [ENG-scope] — the payable-checkout follow-on ships as the PURE, TESTED
+decomposition, not the dark checkout-UI wiring.**
+- Decision: implement + test the bundle -> goods-fee-base arithmetic (a bundle
+  contributes ONE `product` line at the bundle price, so the goods fee is on the
+  bundle price, never the sum of the components' list prices), proven against
+  BOTH v1 (0%) and v2 (5%/1%) rates using the real `computeOrderFees` /
+  `goodsBaseMinorFromLines`. Do NOT wire bundles into the customer-portal add-on
+  catalogue / order insertion yet.
+- Why: the discovery flagged bundle-price -> order-line -> goods-fee-base as the
+  single biggest risk (a fee-base bug ships green and stays invisible until P7
+  flips real rates). That risk lives entirely in the arithmetic, which is a pure
+  function provable now. The checkout is fully DARK (`GOODS_COMMERCE_ENABLED`
+  off, nothing purchasable until P7), so wiring the UI adds integration surface
+  for zero live payoff; when goods-commerce approaches un-park, the wiring reuses
+  this proven `bundleGoodsLine` decomposition.
+- Alternatives: wire the full dark checkout now (rejected: integration risk, no
+  live payoff, and the money risk is the arithmetic, which this pins regardless).
+- Confirm: founder ok that a v1 bundle is manageable + displayed now, and
+  "buy this bundle" wiring lands with the goods-commerce un-park reusing the
+  tested decomposition.
+- Reversible? N/A (additive); the wiring is a later, mechanical step.

@@ -124,6 +124,40 @@ export type BundleSavings = {
  * stock / hidden) is simply omitted by the caller, which understates the saving
  * rather than overstating it, the safe direction for a public claim.
  */
+/** Major-units price -> integer minor units, matching the checkout's own
+ *  `Math.round(x * 100)` conversion so a bundle and a product never round
+ *  differently. */
+export function bundlePriceMinor(priceAmount: number): number {
+  return Math.max(
+    0,
+    Math.round((Number.isFinite(priceAmount) ? priceAmount : 0) * 100),
+  );
+}
+
+/**
+ * The single payable goods line a bundle contributes at checkout (decision B2).
+ *
+ * A bundle becomes ONE `product` line at the BUNDLE price, so the goods-fee base
+ * is unambiguously the bundle price and NEVER the sum of the components' list
+ * prices. The component products are recorded separately (product_bundle_items)
+ * for fulfilment; they are not each priced into the fee base. The shape matches
+ * what `goodsBaseMinorFromLines` / `computeOrderFees` (order-fees.ts) consume, so
+ * a bundle drops into the existing appointment-plus-goods fee composition when
+ * the payable checkout is wired.
+ */
+export function bundleGoodsLine(bundle: {
+  id: string;
+  name: string;
+  priceAmount: number;
+}): { type: "product"; name: string; bundleId: string; totalMinor: number } {
+  return {
+    type: "product",
+    name: bundle.name,
+    bundleId: bundle.id,
+    totalMinor: bundlePriceMinor(bundle.priceAmount),
+  };
+}
+
 export function bundleSavings(
   bundlePriceAmount: number,
   components: { priceAmount: number; quantity: number }[],
