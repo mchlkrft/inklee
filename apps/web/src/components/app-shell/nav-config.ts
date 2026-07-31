@@ -80,6 +80,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
           { label: "Products", href: "/goods" },
           { label: "Sales", href: "/goods/sales" },
           { label: "Collections", href: "/goods/collections" },
+          { label: "Bundles", href: "/goods/bundles" },
           { label: "Discounts", href: "/goods/discounts" },
         ],
       },

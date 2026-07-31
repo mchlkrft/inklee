@@ -26,6 +26,8 @@ import type {
   CollectionMembership,
 } from "@inklee/shared/collections";
 import { publicCollectionsForArtist } from "@/lib/server/collections";
+import { publicBundlesForArtist } from "@/lib/server/bundles";
+import type { PublicBundle } from "./shop-teaser";
 import {
   dateKeyInTimeZone,
   formatDateKey,
@@ -176,6 +178,7 @@ export default async function ArtistPublicPage({
   let shopProducts: PublicProduct[] = [];
   let shopCollections: ProductCollection[] = [];
   let shopMemberships: CollectionMembership[] = [];
+  let shopBundles: PublicBundle[] = [];
   if (isModuleVisible(bioPage, "shop") && canUseGoods(profileSettings)) {
     const { data: rawProducts } = await serviceClient
       .from("products")
@@ -234,6 +237,11 @@ export default async function ArtistPublicPage({
     );
     shopCollections = grouping.collections;
     shopMemberships = grouping.memberships;
+
+    // Bundles (Stage 3). Same fail-flat, entitlement-aware read as collections:
+    // an unentitled artist or a read blip yields no bundle offers, never a
+    // broken shop. Display-only until the payable checkout un-parks.
+    shopBundles = await publicBundlesForArtist(serviceClient, profile.id);
 
     const resolveAvailability = shopAvailabilityResolver();
     shopProducts = rows.map((p) => {
@@ -604,6 +612,7 @@ export default async function ArtistPublicPage({
                     products={shopProducts}
                     collections={shopCollections}
                     memberships={shopMemberships}
+                    bundles={shopBundles}
                     itemBg={goodsItemBg}
                     artistName={profile.display_name}
                   />

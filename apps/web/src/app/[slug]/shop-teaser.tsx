@@ -20,7 +20,17 @@ import {
   type ProductCollection,
   type CollectionMembership,
 } from "@inklee/shared/collections";
+import {
+  bundleSavings,
+  type Bundle,
+  type BundleItem,
+} from "@inklee/shared/bundles";
 import { useInterestSelections } from "./interest-selections-context";
+
+/** Client-safe public bundle shape (server-only BundleWithItems is not
+ *  importable here). Display-only in v1: bundles show as offers; the payable
+ *  bundle checkout lands with the goods-commerce un-park. */
+export type PublicBundle = Bundle & { items: BundleItem[] };
 
 function unitPriceFor(
   product: PublicProduct,
@@ -388,6 +398,7 @@ export default function ShopTeaser({
   products,
   collections = [],
   memberships = [],
+  bundles = [],
   itemBg = null,
   artistName,
 }: {
@@ -398,6 +409,9 @@ export default function ShopTeaser({
   /** Which products sit in which collection, and where. A product may appear
    *  in several. Empty alongside `collections` for a flat shop. */
   memberships?: CollectionMembership[];
+  /** Public bundle offers (Stage 3). Empty when the artist has none or is not
+   *  entitled. Display-only until the payable checkout un-parks. */
+  bundles?: PublicBundle[];
   // Background for the overlay product cards — the artist's chosen header
   // color, or null to fall back to charcoal (used when there's a cover image).
   itemBg?: string | null;
@@ -464,6 +478,32 @@ export default function ShopTeaser({
   if (products.length === 0) return null;
 
   const groups = groupProductsByCollection(products, collections, memberships);
+
+  // Public bundle offers (Stage 3), display-only. Each is priced against the
+  // list prices of the products it contains, so the shop can show the saving.
+  // A bundle whose products are all missing (sold out / hidden) is dropped
+  // rather than shown as a hollow offer.
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const bundleCards = bundles
+    .map((b) => {
+      const items = b.items
+        .map((it) => {
+          const p = productById.get(it.productId);
+          return p ? { product: p, quantity: it.quantity } : null;
+        })
+        .filter(
+          (x): x is { product: PublicProduct; quantity: number } => x !== null,
+        );
+      const savings = bundleSavings(
+        b.priceAmount,
+        items.map((x) => ({
+          priceAmount: x.product.price,
+          quantity: x.quantity,
+        })),
+      );
+      return { bundle: b, items, savings };
+    })
+    .filter((b) => b.items.length > 0);
 
   const totalSelectedQty = selections.reduce(
     (n, s) => n + (s.quantity > 0 ? s.quantity : 0),
@@ -614,6 +654,60 @@ export default function ShopTeaser({
                 >
                   Done, back to booking
                 </button>
+              </div>
+            )}
+
+            {/* Bundles (Stage 3), shown above the product grid. Display-only:
+                the offer + its saving are shown; the payable bundle checkout
+                lands with the goods-commerce un-park. Absent for everyone with
+                no bundles or without the entitlement. */}
+            {bundleCards.length > 0 && (
+              <div className="mx-auto mt-8 w-full max-w-7xl lg:mt-12">
+                <h3 className="text-sm font-medium uppercase tracking-[0.14em] text-brand-bone/60">
+                  Bundles
+                </h3>
+                <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+                  {bundleCards.map(({ bundle, items, savings }) => (
+                    <li
+                      key={bundle.id}
+                      className="rounded-2xl border border-brand-bone/20 p-4"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-sm font-semibold text-brand-bone">
+                          {bundle.name}
+                        </span>
+                        <span className="text-sm text-brand-bone">
+                          {formatPrice(bundle.priceAmount, bundle.currency)}
+                        </span>
+                      </div>
+                      {savings.isSaving && (
+                        <p className="mt-1 text-xs text-brand-bone/70">
+                          <span className="line-through">
+                            {formatPrice(
+                              savings.componentTotal,
+                              bundle.currency,
+                            )}
+                          </span>{" "}
+                          <span className="text-brand-mustard">
+                            save{" "}
+                            {formatPrice(
+                              savings.savingsAmount,
+                              bundle.currency,
+                            )}
+                          </span>
+                        </p>
+                      )}
+                      <ul className="mt-3 space-y-1 text-xs text-brand-bone/70">
+                        {items.map(({ product, quantity }) => (
+                          <li key={product.id}>
+                            {quantity > 1 ? `${quantity}x ` : ""}
+                            {product.title}
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

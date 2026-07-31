@@ -182,6 +182,20 @@ Two things follow, both done here:
 
 ## Update log
 
+- **2026-07-31 — Product bundles, web editor + public render (Stage 3,
+  branch-only).** Bundles slice 2 on top of the backend slice (`5e094d0`):
+  the artist editor at `/goods/bundles` (create/edit name + price + visibility,
+  pick products with quantities, archive/restore, archive-first delete, live
+  savings display), a nav entry under Goods, and the public shop bundles section
+  in `[slug]/shop-teaser.tsx` (display-only offers with the saving vs the parts;
+  fail-flat + entitlement-aware via `publicBundlesForArtist`). WEB-ONLY so far:
+  the public shop renders web-only anyway, and the NATIVE goods editor has
+  `collections`/`discounts` screens but NOT yet bundles — that is slice 3
+  (`/api/mobile/goods/bundles` route + `apps/mobile/app/(tabs)/goods/bundles.tsx`
+  + a `_layout` row), and it carries the usual fresh-EAS-build prerequisite
+  before `goods_bundles` is granted. The payable bundle checkout is a further
+  follow-on (dark). On `feat/p5d-collections`, NOT on master.
+
 - **2026-07-31 — `image_gallery` Link Hub block (Stage 3, branch-only).** A new
   block TYPE (a Plus rich block: the artist's own images), so the wire-hazard
   above applies again. It is additive and the native lookups are already guarded
