@@ -3,6 +3,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
 import { ORDER_MONEY_STATES } from "@/lib/server/account-deletion-logic";
 import { runStayLifecycleSweep } from "@/lib/server/guest-spots";
+import { reconcileStalePaymentRequests } from "@/lib/server/appointment-payment-reconciliation";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,10 @@ export async function GET(request: Request) {
   // Date-driven, idempotent: confirmed stays activate on their start date,
   // active stays complete after their end date, requests follow.
   const stayLifecycle = await runStayLifecycleSweep();
+
+  // ── A8 payment-request reconciliation backstop ────────────────────────────
+  // Catches requests stuck in payment_processing when the webhook was lost.
+  const paymentReconciliation = await reconcileStalePaymentRequests();
 
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -36,6 +41,7 @@ export async function GET(request: Request) {
       stays_activated: stayLifecycle.activated,
       stays_completed: stayLifecycle.completed,
       stay_requests_completed: stayLifecycle.requestsCompleted,
+      payment_reconciliation: paymentReconciliation,
     });
   }
 
@@ -133,5 +139,6 @@ export async function GET(request: Request) {
     stays_activated: stayLifecycle.activated,
     stays_completed: stayLifecycle.completed,
     stay_requests_completed: stayLifecycle.requestsCompleted,
+    payment_reconciliation: paymentReconciliation,
   });
 }

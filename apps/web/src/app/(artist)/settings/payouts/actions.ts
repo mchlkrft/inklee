@@ -21,6 +21,8 @@ import {
 import { getClientIp } from "@/lib/get-client-ip";
 import { publicArtistUrl } from "@/lib/public-url";
 import { checkConnectKycRateLimit } from "@/lib/ratelimit";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { canAccess } from "@/lib/entitlements";
 
 type KycState =
   | { ok: true; status: ConnectStatus; requirementsDue: string[] }
@@ -65,6 +67,25 @@ export async function submitConnectKycAction(
     .select("stripe_account_id, stripe_account_country, slug")
     .eq("id", user.id)
     .single();
+
+  // A8: gate Connect account CREATION behind Plus. Artists who already have
+  // an account are let through (don't lock them out on a downgrade — they may
+  // need to update KYC or clear requirements). The check is on
+  // card_deposit_collection, the base card-payment capability that Free does
+  // not hold, so per-account overrides are respected.
+  if (!profile?.stripe_account_id) {
+    try {
+      const overrides = await getAccountOverrides(user.id);
+      if (!canAccess(overrides, "card_deposit_collection")) {
+        return {
+          error:
+            "Payout setup is available on the Plus plan. Upgrade to start accepting card payments.",
+        };
+      }
+    } catch {
+      return { error: "Couldn't verify your plan. Please try again." };
+    }
+  }
 
   // Country is fixed at account creation, so prefer a just-submitted choice,
   // then a country already on the profile (re-submit), then the default market.
