@@ -110,3 +110,54 @@ export async function decrementInventory(
   }
   return lowStock;
 }
+
+/**
+ * RESTOCK on a goods refund: the inverse of `decrementInventory`. Adds the
+ * refunded quantities back to per-variant stock (or product-level quantity), and
+ * CLEARS `low_stock_alerted_at` on any product-level item it restocks so a later
+ * run-down alerts again (the contract stated at the top of this file: "cleared on
+ * restock"). Null stock = unlimited, skipped, same as decrement.
+ *
+ * NOT internally idempotent, exactly like `decrementInventory`: the caller MUST
+ * invoke it once per refund, gated on the order actually transitioning to a
+ * refunded state (the same `.eq("status", ...).select()` pattern the paid-flip
+ * uses), so a redelivered `charge.refunded` webhook cannot restock twice.
+ * `partial` restocks (a by-line or partial-amount refund) pass only the items
+ * being returned; a full refund passes all product lines.
+ */
+export async function restockInventory(items: PaidOrderItem[]): Promise<void> {
+  for (const item of items) {
+    const qty = Number(item.quantity) || 0;
+    if (qty <= 0) continue;
+
+    if (item.variant_id) {
+      const { data: v } = await serviceClient
+        .from("product_variants")
+        .select("stock_quantity")
+        .eq("id", item.variant_id)
+        .single();
+      if (v && v.stock_quantity !== null && v.stock_quantity !== undefined) {
+        await serviceClient
+          .from("product_variants")
+          .update({ stock_quantity: Number(v.stock_quantity) + qty })
+          .eq("id", item.variant_id);
+      }
+    } else if (item.product_id) {
+      const { data: p } = await serviceClient
+        .from("products")
+        .select("quantity")
+        .eq("id", item.product_id)
+        .single();
+      if (p && p.quantity !== null && p.quantity !== undefined) {
+        await serviceClient
+          .from("products")
+          .update({
+            quantity: Number(p.quantity) + qty,
+            // Cleared so a later run-down re-alerts (decrement's contract).
+            low_stock_alerted_at: null,
+          })
+          .eq("id", item.product_id);
+      }
+    }
+  }
+}
