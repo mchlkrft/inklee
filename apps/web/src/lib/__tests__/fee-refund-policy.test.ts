@@ -6,6 +6,7 @@ import {
   ACTIVE_FEE_REFUND_POLICY_VERSION,
   feeRefundPolicyFor,
   feeRefundOutcome,
+  resolveActiveFeeRefundPolicyVersion,
 } from "@inklee/shared/fee-refund-policy";
 
 describe("fee refund policy versions", () => {
@@ -131,5 +132,110 @@ describe("feeRefundOutcome", () => {
       refundedMinor: 20000,
     });
     expect(r.returnMinor).toBe(0);
+  });
+
+  it("partitions the fee: retainMinor + returnMinor equals the fee touched", () => {
+    // Invariant for every computable treatment.
+    const full = feeRefundOutcome({
+      case: "voluntary_full",
+      feeChargedMinor: 450,
+      paymentMinor: 20000,
+      refundedMinor: 20000,
+    });
+    expect((full.retainMinor ?? 0) + (full.returnMinor ?? 0)).toBe(450);
+  });
+});
+
+// PAY-RFD-002 remediation: the v1 retain_non_recoverable math. The retained
+// amount must be the ACTUAL processor cost supplied, never the whole fee and
+// never a percentage. All exercised on the approved (v1) policy.
+describe("feeRefundOutcome retain_non_recoverable (v1)", () => {
+  const V1 = FEE_REFUND_POLICY_V1.version;
+  const base = {
+    case: "artist_cancellation" as const,
+    feeChargedMinor: 450,
+    paymentMinor: 20000,
+    version: V1,
+  };
+
+  it("retains ONLY the actual non-recoverable cost and returns the margin", () => {
+    const r = feeRefundOutcome({
+      ...base,
+      refundedMinor: 20000,
+      nonRecoverableCostMinor: 200,
+    });
+    expect(r.treatment).toBe("retain_non_recoverable");
+    expect(r.retainMinor).toBe(200); // the real Stripe cost, not 450
+    expect(r.returnMinor).toBe(250); // the margin is returned, not retained
+  });
+
+  it("retains zero when the processor cost is zero", () => {
+    const r = feeRefundOutcome({
+      ...base,
+      refundedMinor: 20000,
+      nonRecoverableCostMinor: 0,
+    });
+    expect(r.retainMinor).toBe(0);
+    expect(r.returnMinor).toBe(450);
+  });
+
+  it("never retains more than the application fee when cost exceeds it", () => {
+    const r = feeRefundOutcome({
+      ...base,
+      refundedMinor: 20000,
+      nonRecoverableCostMinor: 900, // exceeds the 450 fee
+    });
+    expect(r.retainMinor).toBe(450); // capped at the fee, never above
+    expect(r.returnMinor).toBe(0);
+  });
+
+  it("allocates retained cost proportionally on a partial refund", () => {
+    const r = feeRefundOutcome({
+      ...base,
+      refundedMinor: 10000, // half the 20000 payment
+      nonRecoverableCostMinor: 200,
+    });
+    // feeShare = 225; costShare = 100; retain 100, return 125.
+    expect(r.retainMinor).toBe(100);
+    expect(r.returnMinor).toBe(125);
+  });
+
+  it("does not retain the same cost twice across repeated refunds", () => {
+    const second = feeRefundOutcome({
+      ...base,
+      refundedMinor: 10000, // the second half
+      nonRecoverableCostMinor: 200,
+      alreadyRetainedMinor: 100, // the first half already retained
+    });
+    expect(second.retainMinor).toBe(100); // brings cumulative to 200 = cost
+    const third = feeRefundOutcome({
+      ...base,
+      refundedMinor: 10000,
+      nonRecoverableCostMinor: 200,
+      alreadyRetainedMinor: 200, // the whole cost is already retained
+    });
+    expect(third.retainMinor).toBe(0); // nothing left to retain
+    expect(third.returnMinor).toBe(225); // the whole fee share is returned
+  });
+
+  it("is NOT computable (both null) when the processor cost is unavailable", () => {
+    const r = feeRefundOutcome({
+      ...base,
+      refundedMinor: 20000,
+      // nonRecoverableCostMinor omitted -> cannot prove the cost
+    });
+    expect(r.returnMinor).toBeNull();
+    expect(r.retainMinor).toBeNull();
+  });
+});
+
+describe("resolveActiveFeeRefundPolicyVersion", () => {
+  it("stays on v0 unless activation is explicitly enabled", () => {
+    expect(resolveActiveFeeRefundPolicyVersion(false)).toBe(
+      FEE_REFUND_POLICY_V0.version,
+    );
+    expect(resolveActiveFeeRefundPolicyVersion(true)).toBe(
+      FEE_REFUND_POLICY_V1.version,
+    );
   });
 });

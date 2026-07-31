@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type Stripe from "stripe";
 
 const { mockServiceClient, mockWriteAudit, mockStripe } = vi.hoisted(() => ({
   mockServiceClient: { from: vi.fn() },
@@ -7,6 +6,7 @@ const { mockServiceClient, mockWriteAudit, mockStripe } = vi.hoisted(() => ({
   mockStripe: {
     paymentIntents: { retrieve: vi.fn() },
     refunds: { create: vi.fn() },
+    applicationFees: { createRefund: vi.fn() },
   },
 }));
 
@@ -26,6 +26,10 @@ vi.mock("@/lib/stripe", () => ({
 }));
 
 import { refundPaymentRequestCore } from "@/lib/server/appointment-payment-refund";
+import {
+  FEE_REFUND_POLICY_V1,
+  FEE_REFUND_POLICY_V0,
+} from "@inklee/shared/fee-refund-policy";
 
 type Reply = { data?: unknown; error?: unknown };
 type QueuedReplies = Record<string, Reply[]>;
@@ -87,18 +91,65 @@ beforeEach(() => {
       ops.push(op);
       return makeChain(op);
     },
+    update: (payload: unknown) => {
+      const op: RecordedOp = {
+        table,
+        verb: "update",
+        payload,
+        filters: {},
+      };
+      ops.push(op);
+      return makeChain(op);
+    },
   }));
   mockStripe.paymentIntents.retrieve.mockResolvedValue({
     id: "pi_test",
     amount: 15000,
     metadata: { application_fee_minor: "450" },
+    // Expanded latest_charge so the core can resolve the application-fee id it
+    // needs to issue a PARTIAL fee refund (return the margin, retain the cost).
+    latest_charge: { id: "ch_test", application_fee: "fee_test" },
   });
   mockStripe.refunds.create.mockResolvedValue({
     id: "re_test_123",
     amount: 15000,
     status: "succeeded",
   });
+  mockStripe.applicationFees.createRefund.mockResolvedValue({
+    id: "fr_test_1",
+    amount: 0,
+  });
 });
+
+// A stamped v1 collection with a PROVEN processor cost. The core reads the
+// policy version from this stored stamp (never from client input), so these
+// tests exercise the v1 path through the REAL core without touching the active
+// version.
+function queueCollection(over: Record<string, unknown> = {}) {
+  queue("payment_collections:select", {
+    data: {
+      processor_cost_minor: 200,
+      processor_cost_status: "captured",
+      fee_refund_policy_version: FEE_REFUND_POLICY_V1.version,
+      processor_cost_retained_minor: 0,
+      application_fee_minor: 450,
+      ...over,
+    },
+  });
+}
+
+function lastRefundCall() {
+  return mockStripe.refunds.create.mock.calls.at(-1)?.[0] as Record<
+    string,
+    unknown
+  >;
+}
+
+function collectionUpdate() {
+  return ops.find(
+    (o) => o.table === "payment_collections" && o.verb === "update",
+  );
+}
 
 const REQUEST_ROW = {
   id: "req_1",
@@ -346,5 +397,198 @@ describe("refundPaymentRequestCore", () => {
     });
 
     expect(result.status).toBe("error");
+  });
+});
+
+// PAY-RFD-002 remediation, exercised through the REAL refund core. The policy
+// version is read from the stored collection stamp (never from input), so these
+// prove the v1 path end to end without touching ACTIVE_FEE_REFUND_POLICY_VERSION.
+// The invariant every test defends: Inklee never retains the whole application
+// fee as a stand-in for a processor cost it cannot prove.
+describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
+  it("v1 artist_cancellation retains ONLY the proven Stripe cost and returns the margin", async () => {
+    setupStandardRefund();
+    queueCollection(); // v1, cost 200, fee 450, retained 0
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    expect(result.status).toBe("ok");
+    const call = lastRefundCall();
+    // NOT the whole-fee auto-return: the margin is returned via a partial
+    // application-fee refund, and only the 200 cost is kept.
+    expect(call.refund_application_fee).toBe(false);
+    expect(call.reverse_transfer).toBe(true);
+    expect(mockStripe.applicationFees.createRefund).toHaveBeenCalledWith(
+      "fee_test",
+      { amount: 250 }, // fee 450 - cost 200 = margin returned
+      expect.any(Object),
+    );
+    // The retained cost is recorded so a later refund cannot keep it again.
+    expect(collectionUpdate()?.payload).toEqual({
+      processor_cost_retained_minor: 200,
+    });
+  });
+
+  it("v1 retains nothing when the proven cost is zero", async () => {
+    setupStandardRefund();
+    queueCollection({ processor_cost_minor: 0 });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(lastRefundCall().refund_application_fee).toBe(true); // full fee back
+    expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+    expect(collectionUpdate()).toBeUndefined();
+  });
+
+  it("v1 caps retention at the fee when the cost meets or exceeds it", async () => {
+    setupStandardRefund();
+    queueCollection({ processor_cost_minor: 900 }); // exceeds the 450 fee
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    expect(result.status).toBe("ok");
+    // Whole fee retained, but ONLY because the real cost justifies it, and never
+    // more than the fee (retained 450, not 900).
+    expect(lastRefundCall().refund_application_fee).toBe(false);
+    expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+    expect(collectionUpdate()?.payload).toEqual({
+      processor_cost_retained_minor: 450,
+    });
+  });
+
+  it("v1 allocates retained cost proportionally on a partial refund", async () => {
+    setupStandardRefund();
+    queueCollection(); // cost 200, fee 450
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "partial",
+      amountMinor: 7500, // half of the 15000 payment
+      case: "artist_cancellation",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(lastRefundCall().amount).toBe(7500);
+    expect(lastRefundCall().refund_application_fee).toBe(false);
+    // feeShare 225; cost share 100; return 125, retain 100.
+    expect(mockStripe.applicationFees.createRefund).toHaveBeenCalledWith(
+      "fee_test",
+      { amount: 125 },
+      expect.any(Object),
+    );
+    expect(collectionUpdate()?.payload).toEqual({
+      processor_cost_retained_minor: 100,
+    });
+  });
+
+  it("v1 does not retain the same cost twice across repeated refunds", async () => {
+    setupStandardRefund();
+    queueCollection({ processor_cost_retained_minor: 200 }); // cost already retained
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    expect(result.status).toBe("ok");
+    // Nothing left to retain -> the whole fee is returned, not kept again.
+    expect(lastRefundCall().refund_application_fee).toBe(true);
+    expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+    expect(collectionUpdate()).toBeUndefined();
+  });
+
+  it("v1 FAILS SAFE when the processor cost is unavailable: returns the full fee, never retains it", async () => {
+    setupStandardRefund();
+    queue("payment_collections:select", {
+      data: {
+        processor_cost_minor: null,
+        processor_cost_status: "pending", // not captured -> cost unproven
+        fee_refund_policy_version: FEE_REFUND_POLICY_V1.version,
+        processor_cost_retained_minor: 0,
+        application_fee_minor: 450,
+      },
+    });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    expect(result.status).toBe("ok");
+    // The old defect was retaining the whole fee here. The fix returns it.
+    expect(lastRefundCall().refund_application_fee).toBe(true);
+    expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+    expect(collectionUpdate()).toBeUndefined();
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          retention_note: "processor_cost_unavailable",
+        }),
+      }),
+    );
+  });
+
+  it("v1 leaves a voluntary (client-cancellation) refund returning the full fee, unchanged", async () => {
+    setupStandardRefund();
+    queueCollection(); // v1 stamp + a cost present
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(lastRefundCall().refund_application_fee).toBe(true);
+    expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+  });
+
+  it("resolves the policy version from the stored stamp: a null stamp falls back to v0, unchanged even with a cost present", async () => {
+    setupStandardRefund();
+    queue("payment_collections:select", {
+      data: {
+        processor_cost_minor: 200,
+        processor_cost_status: "captured",
+        fee_refund_policy_version: null, // no stamp -> active (v0)
+        processor_cost_retained_minor: 0,
+        application_fee_minor: 450,
+      },
+    });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    expect(result.status).toBe("ok");
+    // v0 artist_cancellation = return_full: the fee is returned even though a
+    // cost is on record, because the collection was not settled under v1.
+    expect(FEE_REFUND_POLICY_V0.cases.artist_cancellation).toBe("return_full");
+    expect(lastRefundCall().refund_application_fee).toBe(true);
+    expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
   });
 });

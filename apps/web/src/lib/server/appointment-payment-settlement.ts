@@ -1,7 +1,10 @@
 import Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
+import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
+import { resolveActiveFeeRefundPolicyVersion } from "@inklee/shared/fee-refund-policy";
+import { FEE_REFUND_V1_ACTIVATION_ENABLED } from "@/lib/plus-launch-config";
 import type {
   PaymentLineClassification,
   PaymentRequestCollects,
@@ -116,6 +119,69 @@ export async function settlePaymentRequestSuccess(
     if (allocErr) {
       Sentry.captureException(allocErr, {
         tags: { action: "appointment_payment_settle_allocations" },
+        extra: { requestId, intentId: intent.id },
+      });
+    }
+
+    // Stamp the collection with the fee facts a refund will need (PAY-RFD-002).
+    // The allocation upsert above created the parent `payment_collections` row
+    // via the ensure_payment_collection trigger, so it exists to update here.
+    //
+    //   - application_fee_minor + fee_refund_policy_version: so a refund reads
+    //     the fee it took and the policy in force AT SETTLEMENT from stored
+    //     state, not from whatever is globally active when the refund happens.
+    //   - processor_cost_minor: the ACTUAL Stripe processing cost from the
+    //     charge's balance transaction, never derived from the fee percentage.
+    //     Captured best-effort: if the balance transaction is not yet available
+    //     (Stripe settles it asynchronously) the cost stays null and the status
+    //     is 'unavailable', and a refund against it FAILS SAFE (returns the full
+    //     fee) rather than retaining an unproven amount; reconciliation can
+    //     backfill later. Cost capture must never block the settlement itself.
+    const policyVersion = resolveActiveFeeRefundPolicyVersion(
+      FEE_REFUND_V1_ACTIVATION_ENABLED,
+    );
+    const chargeId =
+      typeof intent.latest_charge === "string"
+        ? intent.latest_charge
+        : (intent.latest_charge?.id ?? null);
+
+    let processorCostMinor: number | null = null;
+    let costSource: "balance_transaction" | "unavailable" = "unavailable";
+    let costStatus: "captured" | "unavailable" = "unavailable";
+    if (chargeId && stripe) {
+      try {
+        const charge = await stripe.charges.retrieve(chargeId, {
+          expand: ["balance_transaction"],
+        });
+        const bt = charge.balance_transaction;
+        const feeMinor = bt && typeof bt !== "string" ? bt.fee : null;
+        if (typeof feeMinor === "number") {
+          processorCostMinor = feeMinor;
+          costSource = "balance_transaction";
+          costStatus = "captured";
+        }
+      } catch (costErr) {
+        Sentry.captureException(costErr, {
+          tags: { action: "appointment_payment_capture_processor_cost" },
+          extra: { requestId, intentId: intent.id, chargeId },
+        });
+      }
+    }
+
+    const { error: stampErr } = await serviceClient
+      .from("payment_collections")
+      .update({
+        application_fee_minor: applicationFeeMinor,
+        fee_refund_policy_version: policyVersion,
+        processor_cost_minor: processorCostMinor,
+        processor_cost_source: costSource,
+        processor_cost_status: costStatus,
+      })
+      .eq("payment_intent_id", intent.id);
+
+    if (stampErr) {
+      Sentry.captureException(stampErr, {
+        tags: { action: "appointment_payment_stamp_collection" },
         extra: { requestId, intentId: intent.id },
       });
     }

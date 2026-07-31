@@ -160,21 +160,43 @@ accountant re-confirmation against v2 specifically. Under v1 both paths compute
    encoded before the flip. Zero affected accounts today, but the schedule cannot
    ship an ambiguous cell.
 
-### Fee refund policy v1 (separate flip, F2)
+### Fee refund policy v1 (separate flip, F2) — cost-only REMEDIATED 2026-07-31
 
 `ACTIVE_FEE_REFUND_POLICY_VERSION` is still v0. Counsel approved v1's "retain
 non-recoverable" on three conditions (`plus-launch-handoff.md` F2). Condition (3)
-client-unaffected already holds in code. **Condition (2) cost-not-margin does NOT
-hold yet and is a code blocker:** `fee-refund-policy.ts` maps `artist_cancellation`
-to `retain_non_recoverable`, whose engine branch returns `returnMinor: null`
-("not computable"), and the only money-moving consumer
-(`appointment-payment-refund.ts`) maps that to `refund_application_fee: false`,
-retaining the **whole** fee (cost + margin), not the actual Stripe cost. No
-per-transaction non-recoverable-cost computation exists anywhere. Before v1
-activates: compute the actual auditable per-transaction Stripe cost, return it
-from `feeRefundOutcome` for `retain_non_recoverable`, and change the refund
-consumer to retain only that cost. Recorded in `docs/audit/findings.yaml`. Not a
-live violation today (v1 inactive).
+client-unaffected already held. **Condition (2) cost-not-margin (finding
+`PAY-RFD-002`) is now implemented:**
+
+- **Engine** (`fee-refund-policy.ts`): `feeRefundOutcome` takes the actual
+  `nonRecoverableCostMinor` + `alreadyRetainedMinor` and returns a `retainMinor`
+  / `returnMinor` split. `retain_non_recoverable` retains `min(cost, fee)`
+  proportional to the refund, capped so cumulative retention never exceeds the
+  real cost or the fee, and returns the margin. With no cost it returns null
+  (fail-safe), never the whole fee.
+- **Core** (`appointment-payment-refund.ts`): resolves the policy version from
+  the persisted collection stamp (never client input), reads the actual cost
+  from `payment_collections`, returns the margin via a partial application-fee
+  refund, records retained cost to prevent double-retention, and **returns the
+  full fee (retains nothing) when the cost is unavailable** rather than retaining
+  an unproven amount.
+- **Settlement** (`appointment-payment-settlement.ts`): captures the actual
+  Stripe cost from the charge's `balance_transaction` and stamps the policy
+  version + application fee on the collection.
+- **Migration 0131**: persists cost, source, status, policy stamp, app fee and
+  retained-so-far on `payment_collections` (service-role only).
+- Proven by 8 engine unit tests + 8 real-core end-to-end tests (two mutations
+  confirmed they discriminate). Recorded in `docs/audit/findings.yaml`
+  (`PAY-RFD-002`, remediation fixed-unverified).
+
+**Activation gate (still CLOSED).** `ACTIVE_FEE_REFUND_POLICY_VERSION` stays v0
+and settlement stamps v1 only when `FEE_REFUND_V1_ACTIVATION_ENABLED` (env
+`FEE_REFUND_V1_ACTIVATION`) is on. Before flipping it on: (a) run 0131 against
+prod; (b) confirm settlement is capturing the per-transaction cost; (c) real
+reconciliation of the cost; (d) the fee-refund approval key current against this
+implementation; (e) F2 condition (1) Terms disclosure of the retained-cost rule.
+The v1-specific path has not run against real Stripe or real Postgres yet (tests
+mock both), so the exact application-fee-refund semantics are validated at
+activation (G-5), not now.
 
 ---
 

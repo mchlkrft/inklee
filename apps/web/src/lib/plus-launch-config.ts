@@ -19,3 +19,14 @@ export const PLUS_CONSUMER_LAUNCH_ENABLED = false;
 // Tracked follow-up, due BEFORE the first yearly renewals (mid-2027): the
 // renewal-reminder email for the FR/AT/RO/SE annual tacit-renewal rules.
 export const PLUS_YEARLY_ENABLED = true;
+
+// Fee-refund policy v1 activation (PAY-RFD-002). v1's `retain_non_recoverable`
+// artist-cancellation case retains only the actual non-recoverable Stripe cost.
+// The settlement path stamps a collection with v1 ONLY when this is enabled, so
+// v1 never enters live behaviour by accident. It is a HARD activation gate, not
+// a UI flag: keep it off until the migration (0131) is deployed, settlement is
+// capturing the per-transaction processor cost, the real-core v1 tests pass, and
+// the fee-refund approval key is current against the final implementation. Env
+// driven so activation is a deliberate deploy-time change, not a code edit.
+export const FEE_REFUND_V1_ACTIVATION_ENABLED =
+  process.env.FEE_REFUND_V1_ACTIVATION === "true";

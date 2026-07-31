@@ -6,6 +6,7 @@ import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
 import {
   feeRefundOutcome,
+  ACTIVE_FEE_REFUND_POLICY_VERSION,
   type FeeRefundCase,
 } from "@inklee/shared/fee-refund-policy";
 
@@ -155,32 +156,127 @@ export async function refundPaymentRequestCore(input: {
     return { status: "error", message: "Nothing to refund." };
   }
 
-  // 4. Fee refund: read the recorded application fee from the PI metadata.
+  // 4. Fee refund inputs. All fee facts are read from STORED transaction state,
+  //    never from client input and never inferred from the fee percentage.
+  //
+  //    - The collection (payment_collections, written by the service role at
+  //      settlement) is the authoritative source of the actual processor cost,
+  //      the policy version this collection was settled under, and how much
+  //      cost prior refunds already retained.
+  //    - The policy version is resolved from the collection's stamp, falling
+  //      back to the active version for collections settled before it was
+  //      stamped. `input.case` chooses the CASE; the server chooses the VERSION.
   const intent = await stripe.paymentIntents.retrieve(
     request.payment_intent_id,
+    { expand: ["latest_charge"] },
   );
-  const feeChargedMinor = parseInt(
-    intent.metadata?.application_fee_minor ?? "0",
-    10,
-  );
+  const latestCharge =
+    intent.latest_charge && typeof intent.latest_charge !== "string"
+      ? intent.latest_charge
+      : null;
+  const applicationFeeId =
+    latestCharge && latestCharge.application_fee
+      ? typeof latestCharge.application_fee === "string"
+        ? latestCharge.application_fee
+        : latestCharge.application_fee.id
+      : null;
+
+  const { data: collection } = await serviceClient
+    .from("payment_collections")
+    .select(
+      "processor_cost_minor, processor_cost_status, fee_refund_policy_version, processor_cost_retained_minor, application_fee_minor",
+    )
+    .eq("payment_intent_id", request.payment_intent_id)
+    .maybeSingle();
+
+  const feeChargedMinor =
+    collection?.application_fee_minor ??
+    parseInt(intent.metadata?.application_fee_minor ?? "0", 10);
   const collectedMinor =
     allocations[0]?.collected_total_minor ?? intent.amount ?? 0;
+
+  // The processor cost is only usable when it is PROVEN captured. A pending or
+  // unavailable status resolves to null, which makes the outcome not computable
+  // and forces the fail-safe below.
+  const costCaptured =
+    collection?.processor_cost_status === "captured" &&
+    collection?.processor_cost_minor != null;
+  const nonRecoverableCostMinor = costCaptured
+    ? (collection!.processor_cost_minor as number)
+    : null;
+  const alreadyRetainedMinor = collection?.processor_cost_retained_minor ?? 0;
+  const policyVersion =
+    collection?.fee_refund_policy_version ?? ACTIVE_FEE_REFUND_POLICY_VERSION;
 
   const feeOutcome = feeRefundOutcome({
     case: input.case,
     feeChargedMinor,
     paymentMinor: collectedMinor,
     refundedMinor: refundMinor,
+    version: policyVersion,
+    nonRecoverableCostMinor,
+    alreadyRetainedMinor,
   });
 
-  // 5. Create the Stripe refund.
-  // `reverse_transfer: true` pulls money back from the artist's connected
-  // account. `refund_application_fee` is set only when the fee-refund policy
-  // says to return the fee (return_full or return_proportional).
-  const shouldRefundFee =
-    feeOutcome.treatment === "return_full" ||
-    feeOutcome.treatment === "return_proportional";
+  // 5. Decide the fee mechanics from the outcome.
+  //
+  //   refundApplicationFee=true  -> Stripe returns the WHOLE application fee.
+  //   refundApplicationFee=false -> Inklee retains the whole application fee.
+  //   partialFeeRefundMinor > 0  -> return only that part of the fee (via a
+  //                                 separate application-fee refund), retaining
+  //                                 the rest as the non-recoverable cost.
+  //
+  // The invariant this must never break (PAY-RFD-002): Inklee never retains the
+  // whole application fee merely because some processor cost is non-recoverable.
+  // Whole-fee retention only happens for retain_where_permitted (dispute/fraud),
+  // or when the proven cost genuinely meets or exceeds the fee.
+  let refundApplicationFee: boolean;
+  let partialFeeRefundMinor = 0;
+  let retainedAppliedMinor = 0;
+  let retentionNote: string | null = null;
 
+  const treatment = feeOutcome.treatment;
+  if (treatment === "return_full" || treatment === "return_proportional") {
+    // Unchanged behaviour: the fee is returned. (A partial refund's whole-fee
+    // return under return_proportional predates this change and is out of scope
+    // for PAY-RFD-002.)
+    refundApplicationFee = true;
+  } else if (treatment === "retain_non_recoverable") {
+    if (feeOutcome.returnMinor == null || feeOutcome.retainMinor == null) {
+      // FAIL SAFE: the processor cost is not proven. Never retain an unproven
+      // amount and never fall back to retaining the whole fee. Return it in
+      // full and flag for reconciliation.
+      refundApplicationFee = true;
+      retentionNote = "processor_cost_unavailable";
+    } else if (feeOutcome.retainMinor === 0) {
+      // Nothing to retain (zero cost, or the cost is already fully retained).
+      refundApplicationFee = true;
+    } else if (feeOutcome.returnMinor === 0) {
+      // The proven cost meets or exceeds the fee touched by this refund: retain
+      // it all. This is the ONLY whole-fee retention the non-recoverable case
+      // permits, and only because the real cost justifies it.
+      refundApplicationFee = false;
+      retainedAppliedMinor = feeOutcome.retainMinor;
+    } else if (applicationFeeId) {
+      // Partial: retain the cost, return the margin via an application-fee
+      // refund of exactly the computed return amount.
+      refundApplicationFee = false;
+      partialFeeRefundMinor = feeOutcome.returnMinor;
+      retainedAppliedMinor = feeOutcome.retainMinor;
+    } else {
+      // A partial fee return is owed but the application-fee id is not
+      // resolvable, so a partial return cannot be issued. Fail safe by
+      // returning the whole fee rather than retaining more than the cost.
+      refundApplicationFee = true;
+      retentionNote = "application_fee_id_unresolved";
+    }
+  } else {
+    // retain_where_permitted (dispute/fraud): keep the fee, return nothing.
+    refundApplicationFee = false;
+  }
+
+  // 6. Create the Stripe refund. `reverse_transfer: true` pulls money back from
+  //    the artist's connected account.
   const idempotencyKey = `refund-apt-${input.requestId}-${refundMinor}-${Date.now()}`;
 
   let refund: Stripe.Refund;
@@ -190,12 +286,13 @@ export async function refundPaymentRequestCore(input: {
         payment_intent: request.payment_intent_id,
         amount: refundMinor,
         reverse_transfer: true,
-        refund_application_fee: shouldRefundFee,
+        refund_application_fee: refundApplicationFee,
         metadata: {
           request_id: input.requestId,
           refund_case: input.case,
           fee_refund_policy: feeOutcome.policyVersion,
           fee_return_minor: String(feeOutcome.returnMinor ?? 0),
+          fee_retain_minor: String(feeOutcome.retainMinor ?? 0),
         },
       },
       { idempotencyKey },
@@ -212,6 +309,50 @@ export async function refundPaymentRequestCore(input: {
     return { status: "error", message: "Refund could not be processed." };
   }
 
+  // 6a. Partial fee return: refund only the margin of the application fee,
+  //     leaving the non-recoverable cost with Inklee. The customer refund above
+  //     has already succeeded, so a failure here is a reconciliation matter (the
+  //     margin was not returned), not a reason to fail the whole refund.
+  if (partialFeeRefundMinor > 0 && applicationFeeId) {
+    try {
+      await stripe.applicationFees.createRefund(
+        applicationFeeId,
+        { amount: partialFeeRefundMinor },
+        { idempotencyKey: `refund-apt-fee-${input.requestId}-${refundMinor}` },
+      );
+    } catch (feeErr) {
+      Sentry.captureException(feeErr, {
+        tags: { action: "appointment_payment_fee_refund" },
+        extra: {
+          requestId: input.requestId,
+          applicationFeeId,
+          partialFeeRefundMinor,
+        },
+      });
+      retentionNote = "partial_fee_refund_failed";
+    }
+  }
+
+  // 6b. Record the non-recoverable cost retained by THIS refund so a later
+  //     partial or repeated refund on the same collection cannot retain it
+  //     again. Best-effort: a failure here is trued up by reconciliation, and
+  //     the money has already moved correctly.
+  if (retainedAppliedMinor > 0 && collection) {
+    const { error: retErr } = await serviceClient
+      .from("payment_collections")
+      .update({
+        processor_cost_retained_minor:
+          alreadyRetainedMinor + retainedAppliedMinor,
+      })
+      .eq("payment_intent_id", request.payment_intent_id);
+    if (retErr) {
+      Sentry.captureException(retErr, {
+        tags: { action: "appointment_payment_record_retained_cost" },
+        extra: { requestId: input.requestId, retainedAppliedMinor },
+      });
+    }
+  }
+
   void writeAudit({
     action: "appointment_payment_refund_initiated",
     actor: input.artistId,
@@ -225,7 +366,11 @@ export async function refundPaymentRequestCore(input: {
       amount_minor: refundMinor,
       fee_treatment: feeOutcome.treatment,
       fee_return_minor: feeOutcome.returnMinor,
+      fee_retain_minor: feeOutcome.retainMinor,
+      fee_retained_applied_minor: retainedAppliedMinor,
       fee_policy_version: feeOutcome.policyVersion,
+      processor_cost_minor: nonRecoverableCostMinor,
+      retention_note: retentionNote,
       currency: allocations[0]?.currency ?? "eur",
     },
   });
