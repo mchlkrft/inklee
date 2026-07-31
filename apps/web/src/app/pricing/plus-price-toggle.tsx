@@ -3,10 +3,11 @@
 import { useState } from "react";
 
 // The in-card monthly/yearly price display for the featured Plus card. Display
-// numbers follow docs/product/pricing-model.md row 3 (yearly: 24 EUR first
-// year via the auto-applied first-year coupon, then 30 EUR per year; counsel
-// approved 2026-07-25); the charged price always resolves from the Stripe
-// lookup keys in lib/server/billing/subscription.ts, never from these strings.
+// numbers follow docs/product/pricing-model.md row 3 (yearly: 30 EUR per year;
+// counsel approved 2026-07-25); the charged price always resolves from the
+// Stripe lookup keys in lib/server/billing/subscription.ts, never from these
+// strings. The first-year discount (24 EUR) is a conditional founder offer
+// shown only to eligible viewers in the upgrade flow, not on the public page.
 
 type PlusBillingInterval = "monthly" | "yearly";
 
@@ -41,11 +42,9 @@ export default function PlusPriceToggle() {
         {billing === "yearly" ? (
           <p className="flex items-baseline gap-1.5">
             <span className="text-5xl font-black tracking-tight text-brand-mustard">
-              &euro;24
+              &euro;30
             </span>
-            <span className="text-sm font-bold text-shell-fg-dim">
-              /first year
-            </span>
+            <span className="text-sm font-bold text-shell-fg-dim">/year</span>
           </p>
         ) : (
           <p className="flex items-baseline gap-1.5">
@@ -62,7 +61,7 @@ export default function PlusPriceToggle() {
       </div>
       {billing === "yearly" ? (
         <p className="text-xs leading-relaxed text-shell-fg-dim">
-          24.00 EUR first year, then 30.00 EUR per year. No VAT added.
+          30.00 EUR per year. No VAT added.
         </p>
       ) : (
         <p className="text-xs leading-relaxed text-shell-fg-dim">

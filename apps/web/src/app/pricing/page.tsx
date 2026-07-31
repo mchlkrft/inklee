@@ -25,8 +25,10 @@ import PlusPriceToggle from "./plus-price-toggle";
 // display decision "3.00 EUR per month, final price" (2026-07-25). Card copy
 // revised by the founder in review (2026-07-25): the Plus explainer is now
 // "3.00 EUR per month. No VAT added.", the card carries a monthly/yearly
-// toggle beside the price (yearly per docs/product/pricing-model.md row 3,
-// counsel approved 2026-07-25), and the feature lists are single-line USPs.
+// toggle beside the price (yearly = 30 EUR/year per docs/product/pricing-model.md
+// row 3, counsel approved 2026-07-25; first-year discount is a conditional
+// founder offer, not shown on the public page), and the feature lists are
+// single-line USPs.
 
 const PAGE_PATH = "/pricing";
 const PAGE_TITLE = "Pricing · Inklee";
@@ -63,7 +65,7 @@ const PRICING_FAQ: Faq[] = [
   {
     question: "What does Inklee Plus cost?",
     answer:
-      "3.00 EUR per month, or yearly at 24.00 EUR first year, then 30.00 EUR per year. Inklee is not VAT registered, so no VAT is added: the price you see is the price you pay. The subscription renews until you cancel.",
+      "3.00 EUR per month, or 30.00 EUR per year. Inklee is not VAT registered, so no VAT is added: the price you see is the price you pay. The subscription renews until you cancel.",
   },
   {
     question: "Can I cancel any time?",

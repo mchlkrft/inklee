@@ -21,10 +21,11 @@ import { PLUS_BUSINESS_TIER_ENABLED } from "@/lib/plus-launch-config";
 // checkout charges), the total price renders on this screen directly above the
 // pay button (counsel condition, Art. 8(2)); without it the panel falls back to
 // the price-on-next-step sentence and Stripe Checkout still shows the price.
-// Yearly (counsel approved 2026-07-25) is offered only when BOTH yearly labels
-// resolved server-side; the disclosure and the total line follow the chosen
-// interval so the Art. 8(2) wording always states the actual renewal cadence
-// and the actual first charge.
+// Yearly (counsel approved 2026-07-25) is offered when the yearly base price
+// resolved server-side. The first-year label is optional (founder offer); when
+// absent the yearly option still shows at the list price. The disclosure and
+// total line follow the chosen interval so the Art. 8(2) wording always states
+// the actual renewal cadence and the actual first charge.
 export default function UpgradeButton({
   label,
   priceLabel = null,
@@ -43,9 +44,9 @@ export default function UpgradeButton({
   const [yearly, setYearly] = useState(false);
   const [pending, startTransitionFn] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  // Yearly is offered only on the consumer path and only fully price-labelled.
-  const yearlyAvailable =
-    !businessTier && yearlyBaseLabel !== null && yearlyFirstYearLabel !== null;
+  // Yearly is offered on the consumer path when the yearly price resolved.
+  // The first-year discount is an optional founder offer, not a prerequisite.
+  const yearlyAvailable = !businessTier && yearlyBaseLabel !== null;
   const yearlyChosen = yearlyAvailable && yearly;
 
   if (!open) {
@@ -88,7 +89,9 @@ export default function UpgradeButton({
         <p className="font-medium text-foreground">Before you order</p>
         <p className="text-muted-foreground">
           {yearlyChosen
-            ? `Inklee Plus is a yearly subscription: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
+            ? yearlyFirstYearLabel
+              ? `Inklee Plus is a yearly subscription: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
+              : `Inklee Plus is a yearly subscription for ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
             : priceLabel
               ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your account settings.`
               : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your account settings. The price is shown on the next step before you pay."}
@@ -120,7 +123,9 @@ export default function UpgradeButton({
               className="mt-0.5 h-4 w-4 accent-brand-mustard"
             />
             <span>
-              Yearly: {yearlyFirstYearLabel} first year, then {yearlyBaseLabel}
+              {yearlyFirstYearLabel
+                ? `Yearly: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}`
+                : `Yearly (${yearlyBaseLabel})`}
             </span>
           </label>
         </fieldset>
@@ -172,8 +177,9 @@ export default function UpgradeButton({
           (Art. 8(2); counsel launch-blocking condition 3). */}
       {yearlyChosen ? (
         <p className="text-sm font-semibold text-foreground">
-          Total today: {yearlyFirstYearLabel} first year, final price. Renews
-          yearly at {yearlyBaseLabel} until cancelled.
+          {yearlyFirstYearLabel
+            ? `Total today: ${yearlyFirstYearLabel} first year, final price. Renews yearly at ${yearlyBaseLabel} until cancelled.`
+            : `Total: ${yearlyBaseLabel}, final price. Renews yearly until cancelled.`}
         </p>
       ) : (
         priceLabel && (
