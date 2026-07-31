@@ -88,10 +88,10 @@ export default function UpgradeButton({
         <p className="font-medium text-foreground">Before you order</p>
         <p className="text-muted-foreground">
           {yearlyChosen
-            ? `Inklee Plus is a yearly subscription: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your plan settings.`
+            ? `Inklee Plus is a yearly subscription: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
             : priceLabel
-              ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your plan settings.`
-              : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your plan settings. The price is shown on the next step before you pay."}
+              ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your account settings.`
+              : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your account settings. The price is shown on the next step before you pay."}
         </p>
       </div>
 
@@ -109,7 +109,7 @@ export default function UpgradeButton({
               onChange={() => setYearly(false)}
               className="mt-0.5 h-4 w-4 accent-brand-mustard"
             />
-            <span>Monthly{priceLabel ? ` — ${priceLabel}` : ""}</span>
+            <span>Monthly{priceLabel ? ` (${priceLabel})` : ""}</span>
           </label>
           <label className="flex items-start gap-2">
             <input
@@ -120,7 +120,7 @@ export default function UpgradeButton({
               className="mt-0.5 h-4 w-4 accent-brand-mustard"
             />
             <span>
-              Yearly — {yearlyFirstYearLabel} first year, then {yearlyBaseLabel}
+              Yearly: {yearlyFirstYearLabel} first year, then {yearlyBaseLabel}
             </span>
           </label>
         </fieldset>

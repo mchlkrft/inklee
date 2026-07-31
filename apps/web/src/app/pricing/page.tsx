@@ -68,7 +68,7 @@ const PRICING_FAQ: Faq[] = [
   {
     question: "Can I cancel any time?",
     answer:
-      "Yes. You cancel in the app from your plan settings, as easily as you subscribed. You keep Plus until the end of the paid period, and your account and all of your data are kept.",
+      "Yes. You cancel in the app from your account settings, as easily as you subscribed. You keep Plus until the end of the paid period, and your account and all of your data are kept.",
   },
   {
     question: "Can I change my mind after buying?",

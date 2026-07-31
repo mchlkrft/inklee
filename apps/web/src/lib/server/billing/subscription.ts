@@ -260,7 +260,7 @@ export async function createSubscriptionCheckout(input: {
     // dependency, so this is safe in test mode.
     custom_text: {
       submit: {
-        message: `By subscribing you place an order with an obligation to pay. Inklee Plus renews automatically each ${renewalCadence} at the price shown above until you cancel, which you can do at any time from your plan settings.`,
+        message: `By subscribing you place an order with an obligation to pay. Inklee Plus renews automatically each ${renewalCadence} at the price shown above until you cancel, which you can do at any time from your account settings.`,
       },
     },
     success_url: input.successUrl,

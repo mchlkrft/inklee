@@ -353,7 +353,7 @@ export async function recordDurableConfirmation(input: {
           immediateLine,
           priceLine,
           withdrawalInfo,
-          "You can manage or cancel it any time from your plan settings.",
+          "You can manage or cancel it any time from your account settings.",
           "This message is your confirmation on a durable medium.",
         ]
           .filter(Boolean)
