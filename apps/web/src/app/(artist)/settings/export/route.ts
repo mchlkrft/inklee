@@ -21,8 +21,12 @@ export async function GET() {
   ] = await Promise.all([
     supabase
       .from("profiles")
+      // `settings` carries the artist's Link Hub (bio_page: blocks incl. image
+      // galleries + socials), appearance, and booking-page settings. Included so
+      // the data export is complete — image galleries and other Plus content are
+      // portable and survive a downgrade (ruling 17: allow export).
       .select(
-        "slug, display_name, bio, location, instagram_handle, timezone, booking_mode, created_at",
+        "slug, display_name, bio, location, instagram_handle, timezone, booking_mode, created_at, settings",
       )
       .eq("id", user.id)
       .single(),
@@ -55,9 +59,19 @@ export async function GET() {
           .limit(500)
       : { data: [] };
 
+  // Split the settings blob out of the identity fields so the Link Hub / gallery
+  // / appearance data has a clear, discoverable home in the export.
+  const { settings: inkleePage, ...profileFields } = (profile ?? {}) as Record<
+    string,
+    unknown
+  >;
+
   const payload = {
     exported_at: new Date().toISOString(),
-    artist: { id: user.id, email: user.email, ...profile },
+    artist: { id: user.id, email: user.email, ...profileFields },
+    // bio_page (blocks incl. image galleries + socials), appearance, and
+    // booking-page settings — the artist's full Inklee page configuration.
+    inklee_page: inkleePage ?? {},
     bookings: bookings ?? [],
     client_notes: clientNotes ?? [],
     custom_fields: customFields ?? [],
