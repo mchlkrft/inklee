@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   // group compliance gate, both asserted BEFORE the consent write.
   assertLaunch: vi.fn(),
   assertGroupGate: vi.fn(),
+  revalidate: vi.fn(),
   // Mutable launch flags so tests can exercise both sides of the yearly gate.
   flags: { yearly: false },
 }));
@@ -53,6 +54,9 @@ vi.mock("@/lib/server/billing/withdrawal", () => ({
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "user-agent": "test-agent" }),
 }));
+vi.mock("next/cache", () => ({
+  revalidatePath: (...a: unknown[]) => h.revalidate(...a),
+}));
 vi.mock("@/lib/get-client-ip", () => ({
   getClientIp: () => "127.0.0.1",
 }));
@@ -79,6 +83,7 @@ beforeEach(() => {
   h.withdrawCore.mockReset();
   h.assertLaunch.mockReset().mockResolvedValue(undefined);
   h.assertGroupGate.mockReset().mockResolvedValue(undefined);
+  h.revalidate.mockReset();
   h.flags.yearly = false;
 });
 
@@ -332,7 +337,7 @@ describe("withdrawFromSubscriptionAction", () => {
     expect(h.withdrawCore).not.toHaveBeenCalled();
   });
 
-  it("confirms with the refund amount on a completed withdrawal", async () => {
+  it("confirms with the refund amount on a completed withdrawal and revalidates the plan page", async () => {
     h.withdrawCore.mockResolvedValue({
       status: "completed",
       refundMinor: 250,
@@ -342,12 +347,14 @@ describe("withdrawFromSubscriptionAction", () => {
     const r = await withdrawFromSubscriptionAction({ confirmed: true });
     expect(r.message).toContain("Your withdrawal is confirmed");
     expect(r.message).toContain("2.50 EUR");
+    expect(h.revalidate).toHaveBeenCalledWith("/settings/plan");
   });
 
-  it("reports when there is no active subscription", async () => {
+  it("reports when there is no active subscription and does not revalidate", async () => {
     h.withdrawCore.mockResolvedValue({ status: "no_subscription" });
     const r = await withdrawFromSubscriptionAction({ confirmed: true });
     expect(r.message).toContain("no active paid subscription");
+    expect(h.revalidate).not.toHaveBeenCalled();
   });
 
   it("passes through the not-available reason (offers cancellation)", async () => {

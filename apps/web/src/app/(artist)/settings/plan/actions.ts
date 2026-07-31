@@ -17,6 +17,7 @@ import {
 } from "@/lib/server/billing/activation";
 import { getLegalDoc } from "@/lib/legal/documents";
 import { BillingActivationError } from "@/lib/billing";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getClientIp } from "@/lib/get-client-ip";
 import {
@@ -327,6 +328,7 @@ export async function withdrawFromSubscriptionAction(input: {
       result.refundMinor > 0
         ? ` A refund of ${(result.refundMinor / 100).toFixed(2)} ${result.currency.toUpperCase()} is on its way to your original payment method.`
         : "";
+    revalidatePath("/settings/plan");
     return {
       message: `Your withdrawal is confirmed. Your subscription has ended and your account and data are kept.${refundLine}`,
     };

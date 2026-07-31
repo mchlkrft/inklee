@@ -534,8 +534,10 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
       "First 100 subscribers, 24 EUR first year, yearly-only, 6-month window",
     legacyBehavior: "n/a",
     scope: "artist",
-    serverEnforcement: "partial", // yearly plan selectable for all (C2 fix); founder-offer eligibility decided server-side (founder-offer.ts); the FIRST-100 mechanic absent
-    databaseEnforcement: "absent", // no promo mirror table; founder_offer_policy has 0 rows so the offer is closed by default
+    serverEnforcement:
+      "exists: founder-offer.ts resolveFounderOffer + recordFounderOfferRedemption; eligibility decided server-side against a policy row; cohort-position unique constraint holds the cap under concurrency",
+    databaseEnforcement:
+      "exists: founder_offer_policy (0 rows = offer closed by default), founder_offer_redemptions (unique on artist_id + cohort_position)",
     frontendBehavior: "exists", // C2: yearly option renders for everyone (no longer gated on founder-offer eligibility)
     mobileSupport: "exists", // no IAP by design; nothing to do
     downgradeBehavior: "per the decided offer terms (founder-only)",
@@ -545,7 +547,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     termsClaim: "none",
     operationalState:
       "CORRECTED 2026-07-28: the universal yearly coupon is REMOVED. Eligibility is decided server-side (founder-offer.ts) against a policy row that must exist for the offer to be open, so the default state is closed. The cap holds under concurrency via a unique cohort position; one per account, non-transferable, and cancelling never frees a slot.",
-    testCoverage: "absent",
+    testCoverage:
+      "exists: 12 pure-function tests (eligibility: position 1/100/101, window open/closed/not-started, monthly refusal, already-redeemed, no-policy fail-closed, lookup-error fail-closed; recording: success, concurrent race, duplicate artist)",
     launchReadiness: "build",
   },
 ];

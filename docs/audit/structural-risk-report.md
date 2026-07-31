@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `959547fdd211`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `89b12977ffcc`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -37,8 +37,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 9 |
-| open | 61 |
+| fixed-unverified | 12 |
+| open | 58 |
 | verified | 5 |
 
 ## Findings by verification status
@@ -237,8 +237,11 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-FEE-002 | high | fixed-unverified | not-started | - |
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
+| BILL-UI-001 | medium | fixed-unverified | not-started | unknown |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
+| COPY-UI-001 | low | fixed-unverified | not-started | unknown |
+| OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 
 ## Analogous areas flagged but NOT inspected
 

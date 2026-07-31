@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   customersCreate: vi.fn(),
   maybeSingle: vi.fn(),
   upsert: vi.fn(),
+  assertLaunch: vi.fn(),
   assertGate: vi.fn(),
   resolveOffer: vi.fn(),
   recordOffer: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("@/lib/server/billing/client", () => ({
   }),
 }));
 vi.mock("@/lib/server/billing/activation", () => ({
+  assertSalesLaunchApproved: (t: unknown) => h.assertLaunch(t),
   assertLiveBillingAllowedFor: (g: unknown) => h.assertGate(g),
 }));
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
@@ -47,6 +49,7 @@ import {
   PLUS_YEARLY_PRICE_LOOKUP,
   PLUS_YEARLY_FIRST_YEAR_COUPON,
 } from "../subscription";
+import { BillingActivationError } from "@/lib/billing";
 
 beforeEach(() => {
   h.sessionsCreate
@@ -58,6 +61,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ data: { stripe_customer_id: "cus_1" } });
   h.upsert.mockReset().mockResolvedValue({ error: null });
+  h.assertLaunch.mockReset().mockResolvedValue(undefined);
   h.assertGate.mockReset().mockResolvedValue(undefined);
   // Default: NOT founder-eligible. The offer is capped and windowed, so the
   // ordinary yearly checkout carries no discount.
@@ -158,12 +162,38 @@ describe("createSubscriptionCheckout intervals", () => {
     expect(h.recordOffer).not.toHaveBeenCalled();
   });
 
-  it("the gate is asserted before any Stripe object is created", async () => {
+  it("the compliance gate is asserted before any Stripe object is created", async () => {
     h.assertGate.mockRejectedValue(new Error("gate closed"));
     await expect(
       createSubscriptionCheckout({ ...baseInput, billingInterval: "yearly" }),
     ).rejects.toThrow("gate closed");
     expect(h.sessionsCreate).not.toHaveBeenCalled();
     expect(h.customersCreate).not.toHaveBeenCalled();
+  });
+
+  it("the launch-key gate rejects before compliance and before any Stripe object", async () => {
+    h.assertLaunch.mockRejectedValue(
+      new BillingActivationError(
+        "b2c",
+        ["consumer_sales_launch_approved"],
+        "not launched",
+      ),
+    );
+    await expect(createSubscriptionCheckout(baseInput)).rejects.toBeInstanceOf(
+      BillingActivationError,
+    );
+    expect(h.assertLaunch).toHaveBeenCalledWith("consumer");
+    expect(h.assertGate).not.toHaveBeenCalled();
+    expect(h.sessionsCreate).not.toHaveBeenCalled();
+    expect(h.customersCreate).not.toHaveBeenCalled();
+  });
+
+  it("maps business contractCustomerType to the business launch key", async () => {
+    await createSubscriptionCheckout({
+      ...baseInput,
+      contractCustomerType: "business",
+    });
+    expect(h.assertLaunch).toHaveBeenCalledWith("business");
+    expect(h.assertGate).toHaveBeenCalledWith("b2b");
   });
 });

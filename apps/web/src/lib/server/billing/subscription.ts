@@ -2,7 +2,10 @@ import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import type { ContractCustomerType } from "@/lib/billing";
 import { requireStripe } from "./client";
-import { assertLiveBillingAllowedFor } from "./activation";
+import {
+  assertLiveBillingAllowedFor,
+  assertSalesLaunchApproved,
+} from "./activation";
 import {
   resolveFounderOffer,
   recordFounderOfferRedemption,
@@ -180,7 +183,10 @@ export async function createSubscriptionCheckout(input: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<{ id: string; url: string | null }> {
-  const group = input.contractCustomerType === "consumer" ? "b2c" : "b2b";
+  const salesType =
+    input.contractCustomerType === "consumer" ? "consumer" : "business";
+  const group = salesType === "consumer" ? "b2c" : "b2b";
+  await assertSalesLaunchApproved(salesType);
   await assertLiveBillingAllowedFor(group);
 
   const stripe = requireStripe();

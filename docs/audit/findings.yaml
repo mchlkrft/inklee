@@ -7461,14 +7461,18 @@ findings:
           since the app holds no Next.js cache. Whether the app refetches after each write was not
           inspected."
     remediation:
-      status: "open"
-      proposed_action: "Not actioned. Establish first whether the plan page is cached; if it is, a
-        revalidatePath('/settings/plan') in the action (or a router.refresh in the button) closes
-        it."
+      status: "fixed-unverified"
+      fix_commit: "unknown"
+      proposed_action: "Added revalidatePath('/settings/plan') after a successful withdrawal in
+        withdrawFromSubscriptionAction. Only the completed path revalidates; no_subscription and
+        not_available do not (nothing changed). Test updated to assert revalidation on success
+        and its absence on non-mutation paths."
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Not fixed and not verified, and the impact half is unproven."
+      residual_risk: "The fix adds revalidation but the impact half (whether the plan page was
+        actually stale in practice) was never observed. The analogous mobile path is unaffected
+        (no Next.js cache)."
     disclosure:
       public_repo_safe: true
       redactions_applied: "Cited by file and line only."
@@ -7476,6 +7480,11 @@ findings:
       - date: "2026-07-30"
         actor: "owner-authorized targeted audit: mobile API routes and server actions"
         action: "opened"
+      - date: "2026-07-31"
+        actor: "claude-code"
+        action: "fix-committed"
+        note: "Added revalidatePath('/settings/plan') after successful withdrawal; test asserts
+          revalidation on completed withdrawal and its absence on no-op paths."
   - id: "OPS-ERR-001"
     title: "Raw Postgres error messages are returned to clients from 91 call sites — 60 in the mobile
       JSON API and 31 in web server actions"
