@@ -1148,3 +1148,22 @@ export type MobileCollectionList = {
    *  in several, which is the whole point of the join table. */
   memberships: { collectionId: string; productId: string; position: number }[];
 };
+
+/** GET /api/mobile/goods/bundles (Stage 3). Mirrors the web manager: every
+ *  bundle (live AND archived) with its items, plus the products (with list
+ *  price, so the app can show the saving) for the picker. `entitled` is
+ *  server-resolved so the app never re-derives a plan rule. */
+export type MobileBundleList = {
+  entitled: boolean;
+  bundles: {
+    id: string;
+    name: string;
+    priceAmount: number;
+    currency: string;
+    position: number;
+    isPublicVisible: boolean;
+    archivedAt: string | null;
+    items: { productId: string; quantity: number; position: number }[];
+  }[];
+  products: { id: string; title: string; priceAmount: number }[];
+};

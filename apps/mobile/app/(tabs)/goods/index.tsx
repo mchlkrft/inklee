@@ -97,6 +97,11 @@ export default function GoodsList() {
             onPress={() => router.push("/goods/collections")}
           />
           <Button
+            label="Bundles"
+            variant="secondary"
+            onPress={() => router.push("/goods/bundles")}
+          />
+          <Button
             label="Discount codes"
             variant="secondary"
             onPress={() => router.push("/goods/discounts")}

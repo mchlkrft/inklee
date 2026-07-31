@@ -182,6 +182,22 @@ Two things follow, both done here:
 
 ## Update log
 
+- **2026-07-31 — Product bundles, native route + screen (Stage 3, slice 3,
+  branch-only).** Closes the bundles native gap opened by slice 2:
+  `GET/POST/PATCH/DELETE /api/mobile/goods/bundles` (the native twin of the web
+  actions, every write through the SAME cores, `writeResponse` maps
+  not_entitled->403 / not_eligible->409 / failed->500 / else 400, PATCH ops
+  archive|reorder|setItems), the `MobileBundleList` wire type, and the native
+  editor `apps/mobile/app/(tabs)/goods/bundles.tsx` (create/edit name+price,
+  Hide/Show, Archive, archive-first Delete, a product picker with quantity
+  steppers + savings line), wired from the goods index and `_layout`. Bundles
+  are now at web<->native parity for management. STILL: the public shop renders
+  web-only (native has no public shop), and the payable bundle checkout is a
+  further follow-on (dark). ⚠️ New mobile route + screen => a fresh EAS build is
+  a prerequisite before `goods_bundles` is granted, alongside `goods_collections`
+  and the `featured_collection`/`image_gallery` block-type changes. On
+  `feat/p5d-collections`, NOT on master.
+
 - **2026-07-31 — Product bundles, web editor + public render (Stage 3,
   branch-only).** Bundles slice 2 on top of the backend slice (`5e094d0`):
   the artist editor at `/goods/bundles` (create/edit name + price + visibility,
