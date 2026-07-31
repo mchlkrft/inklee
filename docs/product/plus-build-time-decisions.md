@@ -108,3 +108,60 @@ holds `goods_collections`.
   (done), not a distinct multi-column section system. If the latter is wanted, it
   is a separate, scoped feature.
 - Reversible? N/A (no code change); a future multi-column system would be additive.
+
+### 2026-07-31 — Goods bundles (Stage 3)
+
+**B1 [FOUNDER-scope] — v1 = the bundle ENTITY (CRUD + display + management),
+NOT the payable-checkout decomposition.**
+- Decision: ship bundles as a manageable, displayable goods entity now (parent +
+  items, RLS, public shop display, editor, mobile), exactly the shape collections
+  shipped in. Expanding a bundle into `order_items` at checkout is a SEPARATE
+  follow-on slice.
+- Why: the payable goods checkout is DARK (`GOODS_COMMERCE_ENABLED` off, goods
+  fee 0% under v1), and the map flags bundle pricing -> order-line/fee
+  decomposition as the single biggest risk (a fee-base bug ships green and stays
+  invisible until P7 flips real rates). Isolating that money surface into its own
+  slice with dedicated tests against v2 rates is safer than folding it into the
+  entity build. Collections shipped display-only for the same reason.
+- Alternatives: build the checkout decomposition now, rejected as the highest-risk
+  path with no live payoff (checkout dark) and no independent test coverage yet.
+- Confirm: founder ok that a v1 bundle is visible/manageable but the "buy this
+  bundle" flow lands with the goods-commerce un-park (P7).
+- Reversible? Cheap (the follow-on is additive).
+
+**B2 [FOUNDER-product] — a bundle carries its own price; savings shown vs the
+component list-price sum.** The bundle has `price_amount` (the offer price); the
+shared model computes and displays the saving vs the sum of its products' list
+prices. Provisional checkout rule for the follow-on slice: a bundle becomes ONE
+`order_items` line of `type: "product"` at the bundle price, so the goods fee
+base is unambiguously the bundle price; the component items are recorded via
+`product_bundle_items` for fulfilment/inventory. Confirm at the checkout slice.
+
+**B3 [ENG] — entitlement key `goods_bundles`, GRANT-shaped gate
+`goodsBundlesAllowed`** (mirrors `goodsCollectionsAllowed`: `!disabled &&
+canAccess`; paused reverts to today, i.e. no bundles). Added to
+`ENTITLEMENT_FEATURES` + `CAPABILITIES` + a gate helper. RLS: user-scoped writes
+-> per-command `to authenticated ... with check (artist_id = auth.uid())` on both
+tables from day one (never SELECT-only), composite FKs `(id, artist_id)`, guarded
+convergent migration. This is the 0120/0123 lesson applied up front.
+
+**B4 [ENG] — bundle delete requires ARCHIVE first; no empty-delete fast path,
+so the TOCTOU delete race is designed out (no RPC needed).**
+- Decision: a bundle is deletable only once archived. The server delete is
+  gated on the stable `archived_at` column (`delete where id + artist_id and
+  archived_at is not null`); a live bundle returns not_eligible ("archive it
+  first"). `canDeleteBundle` = archived-only.
+- Why: collections allow deleting an EMPTY live collection, which is a
+  `delete ... where not exists(items)` and is NOT atomic under READ COMMITTED
+  (finding #19, [[read-committed-recheck-rule]]) — it needed a lock-then-recheck
+  RPC (migration 0124) to stop a concurrently-added item being cascaded away
+  while the delete reported success. Gating bundle delete on `archived_at`
+  removes the emptiness subquery entirely, so that race class cannot exist here,
+  with no RPC to write, review, and get subtly wrong.
+- Alternatives: replicate the 0124 atomic-delete RPC for bundles (rejected: more
+  money-adjacent SQL surface to carry for a race we can design out); allow
+  empty-delete without the RPC (rejected: that is exactly the shipped-and-lost
+  #19 defect).
+- Cost: a mis-created empty bundle must be archived before it can be deleted, a
+  minor extra step, and consistent with "delete is a deliberate second act".
+- Reversible? Cheap (could add the RPC + empty-delete later if wanted).

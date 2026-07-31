@@ -47,6 +47,7 @@ const FEATURE_LABELS: Record<EntitlementFeature, string> = {
   goods_discounts: "Discount codes",
   goods_scheduling: "Drops, preorders and stock alerts",
   goods_collections: "Shop collections",
+  goods_bundles: "Product bundles",
 };
 
 // Mirrors the artist-facing labels on /settings/payouts so admin and artist

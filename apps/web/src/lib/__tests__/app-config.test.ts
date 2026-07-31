@@ -133,6 +133,7 @@ describe("capability registry", () => {
       "goods_discounts",
       "goods_scheduling",
       "goods_collections",
+      "goods_bundles",
       // P9 A2. Unlike the BM-2.0 names above, this one is NOT parked in
       // DISABLED_CAPABILITIES: `isCapabilityDisabled` is fail-open, so an
       // unlisted name disables nothing. What keeps P9 dark is that no action,

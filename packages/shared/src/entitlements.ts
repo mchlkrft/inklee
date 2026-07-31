@@ -93,6 +93,10 @@ export const ENTITLEMENT_FEATURES = [
   "goods_scheduling",
   // Shop organization: product collections (spec section 9, "collections").
   "goods_collections",
+  // Product bundles (spec section 9, "bundles"): a named group of products sold
+  // together at one set price. The entity ships now; the payable checkout
+  // decomposition is a follow-on (docs/product/plus-build-time-decisions.md B1).
+  "goods_bundles",
 ] as const;
 export type EntitlementFeature = (typeof ENTITLEMENT_FEATURES)[number];
 

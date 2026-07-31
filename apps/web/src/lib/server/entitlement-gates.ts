@@ -119,6 +119,19 @@ export function goodsCollectionsAllowed(overrides: AccountOverrides): boolean {
   );
 }
 
+/** GRANT: true => the artist may create and manage product bundles (a named
+ *  group of products sold at one set price). Paused => no bundle edits and the
+ *  public shop shows no bundle offers; existing bundle rows and their items are
+ *  kept, so re-entitling restores the offer rather than asking the artist to
+ *  rebuild it (same posture as collections). The PAYABLE checkout for a bundle
+ *  is a separate slice; this gates the entity + display. */
+export function goodsBundlesAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("goods_bundles") &&
+    canAccess(overrides, "goods_bundles")
+  );
+}
+
 /** RESTRICTION: true => the artist may EDIT custom email-template bodies.
  *  Paused => true for everyone. Existing bodies always keep SENDING regardless;
  *  only editing is gated. */
