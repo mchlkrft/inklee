@@ -1,5 +1,7 @@
 import type Stripe from "stripe";
 import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import {
@@ -134,6 +136,24 @@ function formatAmount(minor: number, currency: string): string {
   return `${(minor / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
+function readTermsSnapshot(version: string): string | null {
+  try {
+    const snapshotPath = path.join(
+      process.cwd(),
+      "content",
+      "legal",
+      "_versions",
+      version,
+      "terms.md",
+    );
+    const raw = fs.readFileSync(snapshotPath, "utf8");
+    const bodyStart = raw.indexOf("---", raw.indexOf("---") + 3);
+    return bodyStart >= 0 ? raw.slice(bodyStart + 3).trim() : raw;
+  } catch {
+    return null;
+  }
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
@@ -185,6 +205,9 @@ export async function recordDurableConfirmation(input: {
   retainedMinor?: number;
   /** True when the whole period was refunded (no proportionate deduction). */
   fullRefund?: boolean;
+  /** Invoice amount in minor units, carried from the billing webhook for the
+   *  Art. 8(7) purchase-confirmation information set (price + renewal terms). */
+  invoiceAmountMinor?: number;
 }): Promise<void> {
   const now = new Date().toISOString();
 
@@ -301,21 +324,40 @@ export async function recordDurableConfirmation(input: {
         .filter(Boolean)
         .join("\n\n");
     } else {
-      // Purchase (contract) confirmation. Where the buyer opted into immediate
-      // performance, restate that consent on this durable medium so a later
-      // proportionate charge on withdrawal is enforceable (Art. 8(7)/14(4)(a)).
+      // Purchase (contract) confirmation (Art. 8(7) CRD). The durable-medium
+      // confirmation must carry the full Art. 6(1) information set: (a) the
+      // consent restatement for immediate performance, (b) price and renewal
+      // terms, (c) withdrawal instructions, and (d) the accepted Terms version.
+      // A link to a mutable web page does not satisfy this; inline text does.
+      const currency = input.currency ?? "eur";
       const immediateLine =
         input.immediatePerformanceRequested === true
           ? "You asked us to start your subscription immediately, before the end of the 14-day withdrawal period. If you withdraw during that period, you pay a proportionate amount for the time already provided."
           : "";
-      body = [
-        "Your Inklee Plus subscription is confirmed.",
-        immediateLine,
-        "You can manage or cancel it any time from your plan settings.",
-        "This message is your confirmation on a durable medium.",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
+      const priceLine =
+        input.invoiceAmountMinor != null
+          ? `Price: ${formatAmount(input.invoiceAmountMinor, currency)} per month, renewing automatically until you cancel.`
+          : "Your subscription renews automatically each month at the price shown at checkout, until you cancel.";
+      const withdrawalInfo = [
+        "Withdrawal right: you have a 14-day right of withdrawal from the date of purchase.",
+        "To withdraw, tell us clearly that you are withdrawing (for example, by email to support@inklee.app or through the withdrawal function in your account settings).",
+        "If you withdraw and we started providing the service at your request, you pay a proportionate amount for the time already provided. Otherwise, we refund the full amount.",
+      ].join(" ");
+      const termsText = termsVersion ? readTermsSnapshot(termsVersion) : null;
+      const termsSection = termsText
+        ? `\n\n---\n\nTerms of Service (version ${termsVersion}):\n\n${termsText}`
+        : "";
+      body =
+        [
+          "Your Inklee Plus subscription is confirmed.",
+          immediateLine,
+          priceLine,
+          withdrawalInfo,
+          "You can manage or cancel it any time from your plan settings.",
+          "This message is your confirmation on a durable medium.",
+        ]
+          .filter(Boolean)
+          .join("\n\n") + termsSection;
     }
     const subject =
       input.kind === "withdrawal"

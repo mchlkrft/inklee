@@ -23,6 +23,11 @@ import {
   clearConnectAccountByExternalId,
   persistConnectAccountFromEvent,
 } from "@/lib/stripe-connect";
+import {
+  settlePaymentRequestSuccess,
+  settlePaymentRequestRefund,
+  settlePaymentRequestDispute,
+} from "@/lib/server/appointment-payment-settlement";
 
 export const runtime = "nodejs";
 
@@ -185,6 +190,18 @@ export async function POST(request: Request) {
         : (charge.payment_intent?.id ?? null);
     if (!intentId) return NextResponse.json({ received: true });
 
+    // Appointment payment refund (P5b A4). Check whether this PI belongs to
+    // an appointment payment by looking for allocations. If found, settle the
+    // refund there; if not, fall through to the deposit refund path.
+    const { count: allocCount } = await serviceClient
+      .from("payment_allocations")
+      .select("id", { count: "exact", head: true })
+      .eq("payment_intent_id", intentId);
+    if ((allocCount ?? 0) > 0) {
+      const settled = await settlePaymentRequestRefund(charge);
+      return NextResponse.json({ received: true, settled });
+    }
+
     const { data: booking } = await serviceClient
       .from("booking_requests")
       .select("id, artist_id, deposit_fee_sponsorship_booked_cents")
@@ -267,6 +284,16 @@ export async function POST(request: Request) {
         ? dispute.payment_intent
         : (dispute.payment_intent?.id ?? null);
     if (!intentId) return NextResponse.json({ received: true });
+
+    // Appointment payment dispute (P5b A4). Settle allocation statuses if
+    // this PI belongs to an appointment payment.
+    const disputeStatus =
+      dispute.status === "won"
+        ? "won"
+        : dispute.status === "lost"
+          ? "lost"
+          : dispute.status;
+    await settlePaymentRequestDispute(dispute, intentId, disputeStatus);
 
     const { data: booking } = await serviceClient
       .from("booking_requests")
@@ -373,18 +400,18 @@ export async function POST(request: Request) {
 
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object as Stripe.PaymentIntent;
+
+    // Appointment payment settlement (P5b A4). Dispatched BEFORE the deposit
+    // path because appointment PIs also carry booking_id in metadata, and
+    // payment_request_id is the unambiguous discriminator.
+    if (intent.metadata?.payment_request_id) {
+      const settled = await settlePaymentRequestSuccess(intent);
+      return NextResponse.json({ received: true, settled });
+    }
+
     const bookingId = intent.metadata?.booking_id;
 
     if (!bookingId) {
-      // A platform-level payment_intent.succeeded with no booking_id is not a
-      // deposit. The isolated Plus billing flow fires this same account-level
-      // event for every subscription invoice payment (invoice PaymentIntents
-      // never carry booking_id), and Stripe delivers all events of a subscribed
-      // type here with no metadata filter. Acknowledge and skip so a foreign PI
-      // is never counted as a failed delivery that could push Stripe toward
-      // auto-disabling this endpoint (which would strand real deposits). Matches
-      // the payment_failed / charge.refunded branches, which already 200 on no
-      // match.
       return NextResponse.json({ received: true, skipped: "no booking_id" });
     }
 

@@ -69,11 +69,21 @@ launch) requires:
 **Action needed:** If the launch text differs from `2026-07-24`, counsel
 re-confirms the new version. If unchanged, no action.
 
-### C3. Dispute/chargeback handling (non-blocking, future)
+### C3. Dispute/chargeback handling (non-blocking)
 
-No `charge.dispute.*` webhook handling exists. Disputes reach no Inklee code
-path today. When dispute volume warrants it, the policy and code path need
-counsel input. Not blocking launch.
+Appointment-payment disputes are handled by `settlePaymentRequestDispute` in the
+webhook (A4, 2026-07-31): allocation statuses flip to disputed/dispute_won/
+dispute_lost, and the payment request transitions accordingly. Subscription
+disputes are unhandled (no subscription-specific code path).
+
+**Internal runbook (counsel C3 condition):** On any dispute notification, before
+responding to Stripe: (1) check whether the customer exercised their withdrawal
+right on the same subscription period — a chargeback plus a withdrawal is a
+double refund; (2) check the refund ledger for the PI — partial refunds already
+issued reduce the disputed amount; (3) for appointment-payment disputes, the
+webhook has already transitioned the allocation and request statuses. Only
+subscription disputes need manual status reconciliation until that code path is
+built.
 
 ---
 
@@ -161,13 +171,143 @@ These are recorded for completeness. Do not re-review unless something changed.
 | Consumer digital-service classification | Counsel | 2026-07-24 | `consumer_classification_approved` |
 | Terms version `2026-07-24` | Counsel | 2026-07-24 | `terms_approved` |
 | Tax posture (per-customer-class) | Accountant | 2026-07-25 | `tax_policy_approved` |
-| Business declaration | Accountant | 2026-07-25 | `business_declaration_approved` |
+| Business declaration mechanism (C3) | Counsel | Deferred (D1) | `business_declaration_approved` (b2b, not recorded) |
 | Invoice config path (Levels 1-3) | Both | 2026-07-25 | `invoice_config_approved` |
 | Pricing display (price adjacent to button) | Both | 2026-07-25 | `pricing_display_approved` |
 | Stripe production verification | Eng | 2026-07-25 | `stripe_prod_verified` |
 | Record retention 7 years | Counsel | 2026-07-24 | n/a |
 | Corrected Terms approach (non-VAT small business) | Counsel | 2026-07-24 | n/a |
 | Fee schedule v2 rates | Founder | 2026-07-28 | n/a (activation gated) |
+
+---
+
+## Answers (counsel review, 2026-07-31)
+
+### C1 — E1–E5: four confirmed, one edit, one recorded risk
+
+**E1 (withdrawal acknowledgement email): CONFIRMED.** The effective date is
+stated, the Art. 14(3) proportionate-charge restatement appears exactly and only
+in the immediate-start case, and the durable-medium acknowledgement is present.
+The earlier conditions on string C are satisfied.
+
+**E2 (purchase confirmation email): EDIT REQUIRED before recording.** The
+immediate-start consent restatement is correct and discharges the Art. 14(4)(a)
+enforceability condition. However, Article 8(7) CRD requires the durable-medium
+confirmation to include the **full Article 6(1) information set** unless already
+provided on a durable medium. E2 as drafted carries only the consent restatement
+and a settings pointer. Required: the email must **carry or attach** the accepted
+Terms version, the withdrawal instructions / model withdrawal information, and
+the price and renewal terms (an attached PDF or included text satisfies this; a
+link to a mutable web page does not). If the `billing_contract_confirmations`
+flow already appends these to the same email, E2 is confirmed as the cover text —
+verify and record which it is.
+
+**E3 (cancellation confirmation email): CONFIRMED.** Receipt date and time plus
+the effective end date is exactly what § 312k(3) BGB requires.
+
+**E4 (cancellation button): wording CONFIRMED; placement stands as a recorded
+risk.** The two-step flow and copy are acceptable, and an "equally unambiguous
+formulation" is the correct approach for an English-only build. The behind-login
+placement deviates from German case law reading § 312k's "directly and easily
+accessible" as reachable **without** login (a customer who has lost credentials
+must still be able to cancel). Accepted for launch as a recorded founder decision
+given low initial German exposure, on two conditions: (1) a **pre-login
+cancellation route** (public page → emailed magic link → confirm) goes on the
+fast-follow list; (2) the placement is revisited before any German-locale build
+or Germany-targeted marketing. This note must not quietly become permanent.
+
+**E5 (withdrawal deadline display): CONFIRMED.** A concrete date computed from
+the same subscription start the refund logic enforces is the right construction.
+
+**Pre-recording verification:** the 2026-07-25 note deferred condition 3 (total
+price and key terms directly above the pay button) until pricing-display
+approval, which landed the same day. **Verify the wiring shipped** before
+recording `consumer_withdrawal_copy_approved` — the approval postdates the note
+that promised the wiring.
+
+### C2 — Confirmed as designed
+
+The hash-bound auto-close makes this self-enforcing. No action unless the launch
+text differs from version `2026-07-24`.
+
+### C3 — Non-blocking agreed, with a runbook note
+
+Acceptable at launch volume. One caveat: a chargeback on a subscription whose
+customer also holds a live withdrawal right can produce a double refund if
+handled manually without checking state. Add a one-paragraph internal runbook —
+"on dispute: check withdrawal/refund state before responding" — before first
+live charge. Not a gate.
+
+### F1 — Fee schedule v2: the embedded legal question, answered
+
+On "are platform fees a service subject to reverse charge for B2B EU
+customers": **while Inklee is VAT-unregistered (decision D2), no reverse-charge
+assertion may appear on fee invoices either** — fee lines carry the same
+non-registered small-undertaking wording as subscription invoices. The question
+becomes live only at VAT registration (the F4 trigger), at which point platform
+fees to EU business artists become reverse-charged supplies.
+
+**Condition on v2 activation (counsel):** v2 introduces a 5% goods fee for Free
+users where the current rate is 0%. Introducing a fee for existing users is a
+unilateral change requiring (1) Terms coverage of the fee and the change
+mechanism, and (2) reasonable advance notice to affected users, before
+`ACTIVE_FEE_SCHEDULE_VERSION` flips. It also re-opens the still-unclosed
+payment-flow §10 fee-disclosure items — close them together.
+
+### F2 — Fee refund policy v1: "retain non-recoverable" APPROVED, on three conditions
+
+The retention applies to the **artist's** platform-fee refund on artist
+cancellation. Artists transact with Inklee in a trade capacity, so the consumer
+unfair-terms regime is not the binding constraint; Estonian Law of Obligations
+general fairness and the Terms are. Defensible provided:
+
+1. **Terms first.** The artist Terms disclose the retained-cost rule before v1
+   activates; the edit re-rolls the Terms hash and re-closes `terms_approved`
+   (C2 path), with reasonable advance notice to existing subscribers. Activation
+   before Terms coverage would be unenforceable against existing artists.
+2. **Cost, not margin.** "Non-recoverable" means the actual third-party cost
+   (Stripe's unreturned processing fee), calculated auditably per transaction.
+   Anything above cost drifts toward an unenforceable penalty.
+3. **Client unaffected.** On artist cancellation the client's deposit refund
+   stays whole; the retention operates strictly in the Inklee↔artist relation.
+   State this expressly in the policy text.
+
+Accountant items in F2 (credit-note format, revenue recognition of retained
+fees) remain the accountant's to confirm.
+
+### F3–F5 — Accountant determinations, no counsel addition
+
+F4 noted as correctly designed: the threshold-crossing auto-re-close of
+`tax_policy_approved` is the right mechanism; the open item is only **who**
+monitors, which is an ownership decision, not a legal one.
+
+### Ledger flag — "Business declaration, approved by Accountant"
+
+The Already-approved table records the business declaration as approved by the
+**accountant** on 2026-07-25. Two inconsistencies: (1) decision D1
+(`plus-launch-strategy-decisions.md`) deferred the declaration out of v1
+entirely; (2) if it returned for the business lane, the declaration mechanism
+was a **counsel** item (counsel-decision-pack C3), not an accountant one.
+Correct the ledger row — either re-attribute to the recorded counsel approval of
+C3, or mark the key as deferred per D1. A misattributed approval in the ledger
+defeats the purpose of the version-bound design.
+
+### Summary
+
+| Item | Outcome |
+|---|---|
+| E1, E3, E5 | Confirmed |
+| E2 | Edit: carry/attach the Art. 8(7) information set, then confirmed |
+| E4 | Wording confirmed; placement = recorded risk + pre-login fast-follow |
+| C2 | Confirmed, self-enforcing |
+| C3 | Non-blocking; add dispute runbook paragraph |
+| F1 | No reverse charge while unregistered; v2 activation conditioned on Terms + notice for the new Free goods fee |
+| F2 | Approved on three conditions (Terms first, cost-only, client unaffected) |
+| Ledger | Correct the business-declaration attribution |
+
+Recording `consumer_withdrawal_copy_approved` is appropriate once the E2 edit
+and the price-adjacent-to-button verification are done; nothing else in this
+review blocks the launch sequence.
 
 ---
 

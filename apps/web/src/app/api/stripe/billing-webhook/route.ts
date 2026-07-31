@@ -116,6 +116,8 @@ export async function POST(request: Request) {
                   stripeInvoiceId: invoice.id ?? undefined,
                   immediatePerformanceRequested:
                     (subMeta?.immediate_performance ?? "") === "true",
+                  invoiceAmountMinor: invoice.amount_paid ?? undefined,
+                  currency: invoice.currency ?? undefined,
                 });
               }
             } catch (confErr) {
