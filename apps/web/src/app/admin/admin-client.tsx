@@ -482,9 +482,9 @@ function statusBadge(status: string) {
 }
 
 // Plan state at a glance. An expired comp still has plan_tier "plus" in the
-// database (nothing sweeps plan_expires_at), so effectivePlanTier decides what
-// is actually in force and the roster reports it the same way the account page
-// does. Comps expiring within a fortnight are tinted so they get renewed
+// database (the sweep notifies but does not write), so effectivePlanTier
+// decides what is actually in force and the roster reports it the same way
+// the account page does. Comps expiring within a fortnight are tinted so they
 // before the artist's card deposits stop.
 function planBadge(a: {
   planTier: string;

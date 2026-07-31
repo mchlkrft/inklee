@@ -5,6 +5,7 @@ import { ORDER_MONEY_STATES } from "@/lib/server/account-deletion-logic";
 import { runStayLifecycleSweep } from "@/lib/server/guest-spots";
 import { reconcileStalePaymentRequests } from "@/lib/server/appointment-payment-reconciliation";
 import { reconcileStaleSubscriptions } from "@/lib/server/billing/subscription-reconciliation";
+import { runCompExpirySweep } from "@/lib/server/billing/comp-expiry-sweep";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,11 @@ export async function GET(request: Request) {
   // (customer exists in account_overrides but no subscription row).
   const billingReconciliation = await reconcileStaleSubscriptions();
 
+  // ── OQ-8 comp-expiry sweep ───────────────────────────────────────────────
+  // Warns artists whose comp expires within 14 days, and notifies those
+  // whose comp has lapsed. Idempotent via notification metadata keys.
+  const compExpiry = await runCompExpirySweep();
+
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: stale, error: fetchError } = await serviceClient
@@ -50,6 +56,7 @@ export async function GET(request: Request) {
       stay_requests_completed: stayLifecycle.requestsCompleted,
       payment_reconciliation: paymentReconciliation,
       billing_reconciliation: billingReconciliation,
+      comp_expiry: compExpiry,
     });
   }
 
@@ -149,5 +156,6 @@ export async function GET(request: Request) {
     stay_requests_completed: stayLifecycle.requestsCompleted,
     payment_reconciliation: paymentReconciliation,
     billing_reconciliation: billingReconciliation,
+    comp_expiry: compExpiry,
   });
 }

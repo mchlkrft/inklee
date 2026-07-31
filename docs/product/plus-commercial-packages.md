@@ -248,7 +248,7 @@ was directed. Facts that bind the open items:
 | Rejection-path tests (template save, mobile 403s, cap blocks) | Eng | Open |
 | Mobile `not_entitled` / `cap_reached` handling (upsell affordance) | Eng | Open |
 | Durable confirmation: stamp `terms_version` + `payload_hash` | Eng | DONE; `terms_version` from consent row + `confirmationPayloadHash` SHA-256 in withdrawal.ts |
-| Parity-register rows for branding/templates/analytics gates | Eng | Open (founder rule: absent rows are bugs) |
+| Parity-register rows for branding/templates/analytics gates | Eng | DONE; all 4 rows present in web-native-parity.md (branding L108, templates L109, caps L110, analytics L112) |
 | `commercial-readiness.cjs` script | Eng | DONE 2026-07-31; `scripts/billing/commercial-readiness.cjs` |
-| Comp-expiry sweep (OQ-8) | Eng | Open, launch-adjacent |
+| Comp-expiry sweep (OQ-8) | Eng | DONE 2026-07-31; daily sweep in cleanup cron, 14-day warning + expiry notification + email |
 | Capability-registry drift (`capability-registry.md:46`) | Eng | DONE 2026-07-31; registry refreshed (5 rows updated, 2 added) |

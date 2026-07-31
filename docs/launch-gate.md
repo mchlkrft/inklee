@@ -44,8 +44,9 @@ capability kill switch set.
 entitlement but does **not** make an artist able to take card deposits — they
 also need a charge-ready live Connect account. The admin account page now shows
 payout status beside the entitlement and warns when the two disagree, and the
-admin roster has a Plan column showing comps and their expiry. Nothing sweeps
-`plan_expires_at`, so a comp that lapses silently stops card deposits.
+admin roster has a Plan column showing comps and their expiry. The daily cleanup
+cron sweeps `plan_expires_at` (comp-expiry-sweep.ts, OQ-8) with a 14-day
+warning notification + email, and an expiry notice when the comp lapses.
 
 ---
 

@@ -136,8 +136,8 @@ export default function AccountEntitlements({
   const effective = effectivePlanTier(overrides);
   const remaining = sponsorshipRemainingCents(overrides);
   const overspent = sponsorshipOverspentCents(overrides);
-  // Nothing sweeps plan_expires_at, so a lapsed plan just silently stops
-  // granting features. Say so on the screen where it was granted.
+  // The daily cleanup cron sweeps plan_expires_at (comp-expiry-sweep.ts)
+  // and warns/notifies the artist, but the admin page shows the state too.
   const expiryDays = daysUntilPlanExpiry(overrides);
   // An expiry lapses a paid plan just as much as a comp, so name it correctly
   // rather than calling a paying subscriber's plan a freebie.

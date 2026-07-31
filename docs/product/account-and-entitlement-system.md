@@ -108,7 +108,7 @@ Types and resolution:
 - `PlanTier = 'free' | 'plus'`. No `studio` value.
 - `ENTITLEMENT_FEATURES = [deposits, branding, custom_templates, extra_fields, extra_trips, analytics]`.
 - `PLAN_FEATURES`: `free` grants none, `plus` grants all six.
-- `canAccess(o, feature)`: an explicit per-feature override in `entitlementOverrides` wins in both directions; otherwise the effective plan baseline. `effectivePlanTier` lapses an expired comp to free lazily at read time (nothing sweeps `plan_expires_at`).
+- `canAccess(o, feature)`: an explicit per-feature override in `entitlementOverrides` wins in both directions; otherwise the effective plan baseline. `effectivePlanTier` lapses an expired comp to free lazily at read time; the daily cleanup cron (`comp-expiry-sweep.ts`) warns 14 days before and notifies at expiry.
 
 **Only `deposits` is enforced.** A repo-wide grep confirms the other five feature literals appear only in the definition and the admin panel labels; nothing passes them to `canAccess`. The single authoritative gate is in `requestDepositCore` (`apps/web/src/lib/server/bookings.ts:850-851`):
 

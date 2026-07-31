@@ -432,9 +432,9 @@ export async function getArtistRoster() {
     .from("booking_requests")
     .select("artist_id, status, created_at");
 
-  // Plan state for the roster. Nothing sweeps plan_expires_at, so without a
-  // column here a founder cannot see who is comped or whose comp is about to
-  // lapse without opening every account page in turn. Scoped to the profiles
+  // Plan state for the roster. The daily cleanup cron sweeps plan_expires_at
+  // (comp-expiry-sweep.ts), but this column lets the founder see comp state
+  // at a glance without opening every account page. Scoped to the profiles
   // actually being rendered: an unfiltered select would hit PostgREST's 1000
   // row ceiling once enough override rows exist and silently render comped
   // artists as Free.

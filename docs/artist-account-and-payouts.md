@@ -66,20 +66,22 @@ no caching layer in front of it.
 grant is real but the artist still cannot take card deposits, and the panel says
 so explicitly.
 
-### Expiry is visible, not automatic
+### Expiry sweep and visibility
 
-Nothing sweeps `plan_expires_at`. There is no cron and no notification, by
-deliberate choice: the deployment is on a plan whose schedules are daily-only,
-and a silent background job is exactly the kind of moving part that fails
-quietly. Instead the state is made visible in two places that share one rule
-(`daysUntilPlanExpiry`):
+The daily cleanup cron (`comp-expiry-sweep.ts`, OQ-8) sweeps `plan_expires_at`:
+
+- **14 days before expiry**: in-app notification + email warning the artist that
+  their comp is ending, with a CTA to subscribe.
+- **At expiry**: in-app notification + email confirming the comp has ended.
+  The entitlements engine lazily downgrades (`effectivePlanTier` returns "free"
+  when expired), so card deposits stop and Plus features are paused.
+- Idempotent via notification metadata keys (safe to re-run daily).
+
+The state is also visible in the admin UI (`daysUntilPlanExpiry`):
 
 - the **admin roster** has a Plan column showing days remaining, tinted inside a
   fortnight and marked expired once it lapses;
 - the **account panel** states it in words.
-
-When a comp lapses the artist's card deposits stop and neither party is told.
-That is a known gap; the visibility above is what makes it manageable.
 
 ---
 
