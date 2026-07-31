@@ -134,6 +134,7 @@ export default async function PlanPage({
             {PLUS_CONSUMER_LAUNCH_ENABLED ? (
               <UpgradeButton
                 label="Upgrade to Plus"
+                benefits={upgradeBenefits}
                 priceLabel={plusPrice?.label ?? null}
                 yearlyBaseLabel={plusYearlyPrice?.label ?? null}
                 yearlyFirstYearLabel={plusYearlyPrice?.firstYearLabel ?? null}

@@ -224,3 +224,31 @@ accurately. That specific detail is what we are bringing to the final round.
 - Inklee's own documentation has been corrected to match the code
   (`payment-flow-for-counsel.md` §4, §5, §6, §9, and a new
   `artist-account-and-payouts.md` describing the account model end to end).
+
+---
+
+## 7. Preliminary directions for the LO-10 round (counsel + accountant, 2026-07-31)
+
+Recorded so the round starts from positions rather than blank questions. Source:
+the C4 answer in `docs/product/plus-open-decisions-handoff.md`. These bundle into
+this LO-10 round with the Custom Connect question above.
+
+- **Client-cancel deposit forfeiture.** A blanket "non-refundable when the client
+  cancels" is the highest-risk term in the deposit system. The enforceable shape
+  under EU consumer law: pre-payment disclosure of the forfeiture rule in clear
+  terms; forfeiture **proportionate to the artist's actual loss** (a full forfeit
+  long before the appointment drifts into unfair-penalty territory under UCTD
+  Art. 3 / Annex); and mandatory-refund cases where the **artist** cancels or
+  materially reschedules. Expect counsel to require a **time-graduated or capped**
+  forfeiture rather than a flat rule. (Connects to §3 Q9.)
+- **Fee VAT / disclosure.** While unregistered (D2) the platform fee carries no
+  VAT and no reverse-charge assertion. The open question for the round is the
+  **classification of fee revenue** (B2B service to the artist-as-merchant vs.
+  part of a consumer-facing supply), which decides which registration threshold
+  fee revenue counts toward. This feeds accountant item A2. (Connects to §4 Q5.)
+- **Custom Connect loss backstop (`losses.payments: application`).** The six
+  LO-10 asks above stand; the central one is whether absorbing losses moves Inklee
+  from platform toward payment-intermediary posture under PSD2's commercial-agent
+  exemption. **Not a blocker for a founder-run test deposit (F8/G-5), but close it
+  before beta artists take real client money** — that boundary is treated as
+  binding.

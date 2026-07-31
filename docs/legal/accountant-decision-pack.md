@@ -92,6 +92,28 @@ Also confirm:
   - Total Union turnover vs the cross-border **SME scheme** threshold.
   - Any **country-specific** SME threshold you rely on.
 
+**A1/A2 answer recorded 2026-07-31 (accountant + counsel review).** The triggers
+are confirmed as proposed, with early-warning margins: alert at **35,000 EUR**
+Estonian taxable turnover (87.5% of the 40,000 limit) and **8,000 EUR**
+cross-border EU B2C digital (80% of the 10,000 OSS threshold), plus an annual
+review. **Ownership: the accountant monitors quarterly** (calendar-quarter check
+against both counters); the **founder/board owns the re-approval decision** when
+an alert fires. The automatic re-close of `tax_policy_approved` on a threshold
+crossing is the enforcement backstop, not the monitor. The monitoring query must
+count **both subscription revenue AND platform-fee revenue**, classified per the
+C4 fee-revenue-classification answer (fee revenue counted against the wrong
+threshold is the likeliest silent error).
+
+**VAT-absorption caution (from the A1 price-display co-sign).** The live price is
+"3.00 EUR per month, final price" with Stripe `tax_behavior = inclusive`, which
+is correct while unregistered (no VAT line exists, so the displayed price is the
+final price). Record for the trigger: **at future VAT registration, a 3.00 EUR
+inclusive price means Inklee absorbs the VAT out of the 3.00 unless the price is
+re-set.** The replaceable-Price design (`pricing_plans`) makes this a decision,
+not a lock-in: registration creates a new Price with its own tax behaviour and
+archives this one, disturbing no existing subscriber. Surface this as a decision
+at the registration trigger, not a surprise.
+
 This intersects the legal obligation to register, which counsel co-owns
 (see counsel pack C7).
 

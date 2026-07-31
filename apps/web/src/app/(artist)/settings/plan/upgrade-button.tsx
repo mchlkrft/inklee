@@ -21,6 +21,9 @@ import { PLUS_BUSINESS_TIER_ENABLED } from "@/lib/plus-launch-config";
 // checkout charges), the total price renders on this screen directly above the
 // pay button (counsel condition, Art. 8(2)); without it the panel falls back to
 // the price-on-next-step sentence and Stripe Checkout still shows the price.
+// The four Art. 8(2) elements all sit inside this panel, adjacent to the order
+// button: the service's main characteristics (the `benefits` summary), the total
+// price, the billing interval, and the auto-renewal notice.
 // Yearly (counsel approved 2026-07-25) is offered when the yearly base price
 // resolved server-side. The first-year label is optional (founder offer); when
 // absent the yearly option still shows at the list price. The disclosure and
@@ -28,11 +31,13 @@ import { PLUS_BUSINESS_TIER_ENABLED } from "@/lib/plus-launch-config";
 // the actual renewal cadence and the actual first charge.
 export default function UpgradeButton({
   label,
+  benefits = [],
   priceLabel = null,
   yearlyBaseLabel = null,
   yearlyFirstYearLabel = null,
 }: {
   label: string;
+  benefits?: readonly string[];
   priceLabel?: string | null;
   yearlyBaseLabel?: string | null;
   yearlyFirstYearLabel?: string | null;
@@ -172,6 +177,21 @@ export default function UpgradeButton({
         </a>
         , which include your 14-day right to withdraw.
       </p>
+
+      {/* Main characteristics of the service, restated directly above the pay
+          button so all four Art. 8(2) elements (characteristics, price,
+          interval, auto-renewal) are adjacent to the order, not only on the card
+          above the panel. Single-sourced from PLUS_BENEFITS via page.tsx. */}
+      {benefits.length > 0 && (
+        <div className="text-sm text-foreground">
+          <p className="font-medium">What you get</p>
+          <ul className="mt-1 space-y-1 text-muted-foreground">
+            {benefits.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* The total price sits directly above the pay button on the same screen
           (Art. 8(2); counsel launch-blocking condition 3). */}

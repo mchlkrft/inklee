@@ -139,6 +139,43 @@ tests). Free tier keeps the raw ledger + totals unchanged. Mobile route
 accountant re-confirmation against v2 specifically. Under v1 both paths compute
 600 so the divergence is invisible; under v2 they would set 600 vs 100 or 0.
 
+**Hard preconditions before the flip (recorded 2026-07-31 from the answers):**
+
+1. **A3 conditions (accountant + counsel).** The new **Free goods fee (5%, where
+   the current rate is 0%)** is a unilateral fee introduction for existing users,
+   so before the flip: (a) Terms coverage of the fee and the change mechanism,
+   and (b) reasonable advance notice to affected users. This also re-opens the
+   still-unclosed payment-flow §10 fee-disclosure items; close them together.
+   While unregistered, all v2 fee lines carry the non-registered small-undertaking
+   wording (no VAT, no reverse charge).
+2. **F14: no UNDEFINED cell (founder).** The schedule must not activate with an
+   undefined cell. `fee-schedule.ts` keys on tier `free | plus`, and
+   `legacy_free_v1` resolves to `free` via `effectivePlanTier`. So under v2 a
+   grandfathered artist who carries the deposits override would be charged the
+   **free appointment rate (`null` -> `feeMinorUnits` returns 0 = 0% fee)** and
+   the **free goods rate (5%)**. Nobody has decided whether that is the intended
+   grandfather benefit or leakage. Flagged UNDEFINED at
+   `plus-capability-registry.ts:411` (deposit) and `:435` (goods). Founder must
+   pick the legacy rate (Plus 0.5% / old 3% / 0% grandfather) and it must be
+   encoded before the flip. Zero affected accounts today, but the schedule cannot
+   ship an ambiguous cell.
+
+### Fee refund policy v1 (separate flip, F2)
+
+`ACTIVE_FEE_REFUND_POLICY_VERSION` is still v0. Counsel approved v1's "retain
+non-recoverable" on three conditions (`plus-launch-handoff.md` F2). Condition (3)
+client-unaffected already holds in code. **Condition (2) cost-not-margin does NOT
+hold yet and is a code blocker:** `fee-refund-policy.ts` maps `artist_cancellation`
+to `retain_non_recoverable`, whose engine branch returns `returnMinor: null`
+("not computable"), and the only money-moving consumer
+(`appointment-payment-refund.ts`) maps that to `refund_application_fee: false`,
+retaining the **whole** fee (cost + margin), not the actual Stripe cost. No
+per-transaction non-recoverable-cost computation exists anywhere. Before v1
+activates: compute the actual auditable per-transaction Stripe cost, return it
+from `feeRefundOutcome` for `retain_non_recoverable`, and change the refund
+consumer to retain only that cost. Recorded in `docs/audit/findings.yaml`. Not a
+live violation today (v1 inactive).
+
 ---
 
 ## Stage 5: P7 commercial closure (~1 week)

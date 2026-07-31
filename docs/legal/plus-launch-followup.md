@@ -92,6 +92,21 @@ create a live Stripe Price as part of this pass.
 
 ---
 
+## Post-launch fast-follows (build soon after launch, not launch-blocking)
+
+- [ ] **Pre-login cancellation route (E4).** Counsel confirmed the E4
+  cancellation-button wording, but flagged that its behind-login placement
+  deviates from German case law reading § 312k's "directly and easily
+  accessible" as reachable **without** login (a customer who has lost
+  credentials must still be able to cancel). Accepted for launch as a **recorded
+  founder risk** given low initial German exposure, on two conditions: (1) build
+  a pre-login cancellation route (public page -> emailed magic link -> confirm);
+  (2) revisit the placement **before any German-locale build or Germany-targeted
+  marketing**. This note must not quietly become permanent. Source: counsel
+  review 2026-07-31 (`plus-launch-handoff.md`, E4 answer).
+
+---
+
 ## Deferred (not part of v1 — do not build now)
 
 - Business-use declaration + conflicting-signal/manual-review routing (returns

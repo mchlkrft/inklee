@@ -344,6 +344,27 @@ export async function recordDurableConfirmation(input: {
         "If you withdraw and we started providing the service at your request, you pay a proportionate amount for the time already provided. Otherwise, we refund the full amount.",
       ].join(" ");
       const termsText = termsVersion ? readTermsSnapshot(termsVersion) : null;
+      // The Art. 8(7) purchase confirmation must carry the accepted Terms text
+      // inline (a link to a mutable page does not satisfy the durable medium).
+      // termsText is fail-soft to keep the statutory confirmation unblocked, but
+      // a purchase confirmation shipping WITHOUT the Terms text is a durable-
+      // medium gap we must never learn about silently: alert so it can be
+      // remediated. A real purchase cannot reach this (checkout fails closed on
+      // the Terms read), so any hit is an operational anomaly worth a signal.
+      if (!termsText) {
+        Sentry.captureMessage(
+          "Plus purchase confirmation sent without inline Terms text",
+          {
+            level: "warning",
+            tags: { action: "billing_durable_confirmation" },
+            extra: {
+              artistId: input.artistId,
+              termsVersion,
+              reason: termsVersion ? "snapshot_unreadable" : "no_terms_version",
+            },
+          },
+        );
+      }
       const termsSection = termsText
         ? `\n\n---\n\nTerms of Service (version ${termsVersion}):\n\n${termsText}`
         : "";

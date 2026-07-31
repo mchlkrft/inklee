@@ -171,7 +171,7 @@ These are recorded for completeness. Do not re-review unless something changed.
 | Consumer digital-service classification | Counsel | 2026-07-24 | `consumer_classification_approved` |
 | Terms version `2026-07-24` | Counsel | 2026-07-24 | `terms_approved` |
 | Tax posture (per-customer-class) | Accountant | 2026-07-25 | `tax_policy_approved` |
-| Business declaration mechanism (C3) | Counsel | Deferred (D1) | `business_declaration_approved` (b2b, not recorded) |
+| Business declaration mechanism (C3) | Counsel | 2026-07-23 (confirmed; deferred out of v1 per D1, 2026-07-24) | `business_declaration_approved` (b2b, not recorded) |
 | Invoice config path (Levels 1-3) | Both | 2026-07-25 | `invoice_config_approved` |
 | Pricing display (price adjacent to button) | Both | 2026-07-25 | `pricing_display_approved` |
 | Stripe production verification | Eng | 2026-07-25 | `stripe_prod_verified` |
@@ -291,6 +291,15 @@ was a **counsel** item (counsel-decision-pack C3), not an accountant one.
 Correct the ledger row — either re-attribute to the recorded counsel approval of
 C3, or mark the key as deferred per D1. A misattributed approval in the ledger
 defeats the purpose of the version-bound design.
+
+**Resolved 2026-07-31.** The row is corrected to attribute C3 to counsel
+(confirmed 2026-07-23, version `c3-business-declaration-2026-07-23`) and marked
+deferred out of v1 per D1 (2026-07-24), with the b2b key not recorded. Both
+edits were applied together because neither attribution alone is right: "counsel,
+no date" implies an approved v1 item, and "deferred only" drops the real counsel
+confirmation. This flag is kept verbatim as the record of why. (The accountant
+never owned the declaration: the accountant pack is A1-A6 and contains no
+declaration item.)
 
 ### Summary
 
