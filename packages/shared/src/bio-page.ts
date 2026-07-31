@@ -165,6 +165,45 @@ export function isFeatureBlock(block: BioBlock): block is BioFeatureBlock {
   return isFeatureBlockType(block.type);
 }
 
+/**
+ * SAVE-PATH entitlement gate for the media rich blocks (image_gallery),
+ * mirroring the RENDER gate (hub/page.tsx `richBlocksAllowed =
+ * appearanceCustomAllowed`). The pure parser keeps gallery blocks regardless of
+ * entitlement (so a downgrade never loses stored data); this is where a write is
+ * refused for an unentitled artist.
+ *
+ * For an UNENTITLED artist a NEW or CHANGED gallery block is dropped, but one
+ * that already exists UNCHANGED is preserved verbatim. That is decision D2: a
+ * downgrade HIDES Plus content rather than deleting it, and an unrelated edit
+ * (reordering links, editing a headline) must not strip a saved gallery.
+ * "Unchanged" = same stable `id` and deep-equal; both arguments are parser
+ * outputs, so key order is stable and JSON.stringify comparison is reliable.
+ * Non-media blocks are always kept. Identity function when `entitled`.
+ *
+ * Shared so the web action and the mobile route enforce identically (one source
+ * of truth); each caller phrases its own "N skipped" note from `droppedMedia`.
+ */
+export function gateMediaBlocksForSave(
+  proposed: BioBlock[],
+  current: BioBlock[],
+  entitled: boolean,
+): { blocks: BioBlock[]; droppedMedia: number } {
+  if (entitled) return { blocks: proposed, droppedMedia: 0 };
+  const unchangedById = new Map(
+    current
+      .filter((b) => isMediaBlockType(b.type))
+      .map((b) => [b.id, JSON.stringify(b)] as const),
+  );
+  let droppedMedia = 0;
+  const blocks = proposed.filter((b) => {
+    if (!isMediaBlockType(b.type)) return true;
+    if (unchangedById.get(b.id) === JSON.stringify(b)) return true;
+    droppedMedia++;
+    return false;
+  });
+  return { blocks, droppedMedia };
+}
+
 /** Social platforms shown as the Hub's icon row. Each key maps to a single
  *  brand glyph path in bio-social-icons.ts, rendered identically on web + app;
  *  "website" / "email" are the catch-alls (generic glyph, not a brand mark). */

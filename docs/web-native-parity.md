@@ -223,9 +223,15 @@ Two things follow, both done here:
   as a read-only "N images · edit on the web" summary and does not add native
   image upload; it PRESERVES the block untouched on save (state holds the full
   `BioBlock`, sent back verbatim), so a web-made gallery survives native edits.
-  Gating: a Plus rich block on the `appearance_custom` entitlement (web render +
-  web editor + the mobile `/settings/hub` route all gate it; the pure parser
-  keeps it, hidden-on-downgrade like `featured_collection`). **A fresh EAS build
+  Gating: a Plus rich block on the `appearance_custom` entitlement. Enforced at
+  RENDER (web hub) AND at SAVE on BOTH write paths — `saveBioPageAction` (web) and
+  `POST /api/mobile/settings/hub` (native) both call the shared
+  `gateMediaBlocksForSave`, which refuses a NEW or CHANGED gallery for an
+  unentitled artist and keeps an existing unchanged one (D2: hide-on-downgrade,
+  never delete). (Corrected 2026-07-31: the save paths previously did NOT enforce
+  this despite comments claiming they did; finding recorded and fixed.) The pure
+  parser still keeps the block regardless of plan, so a downgrade hides rather
+  than loses it. **A fresh EAS build
   is a prerequisite before the rich blocks are granted to anyone** (same gate as
   `goods_collections`): the guard prevents a crash, but the native summary +
   gated add button only exist from the next build onward. Files: shared

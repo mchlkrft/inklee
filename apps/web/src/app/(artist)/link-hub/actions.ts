@@ -6,6 +6,9 @@ import {
   parseBioPageSettings,
   type BioPageSettings,
 } from "@/lib/bio-page-settings";
+import { gateMediaBlocksForSave } from "@inklee/shared/bio-page";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
 
 type State =
   | { error: string }
@@ -57,13 +60,33 @@ export async function saveBioPageAction(
   // first so bookingPolicy + module visibility (`hidden`) — edited on
   // /bookings/settings — are preserved untouched. Round-trip through the shared
   // parser so every field is validated + sanitized in one place.
-  const settings: BioPageSettings = parseBioPageSettings({
+  const parsed: BioPageSettings = parseBioPageSettings({
     ...currentBio,
     blocks: blocksInput.value,
     socials: socialsInput.value,
   });
 
-  const droppedBlocks = inputBlockCount - settings.blocks.length;
+  // SAVE-PATH ENTITLEMENT GATE (image_gallery is a Plus rich block). The parser
+  // keeps gallery blocks regardless of plan; the write is refused here for an
+  // artist without appearance_custom, so a Free artist cannot persist a NEW or
+  // CHANGED gallery. An existing unchanged one is kept (decision D2: downgrade
+  // hides, never deletes). Mirrors the render gate (hub/page.tsx richBlocksAllowed).
+  // Fail-safe to unentitled on a plan-read blip: refuse new Plus content rather
+  // than over-grant.
+  let entitled = false;
+  try {
+    entitled = appearanceCustomAllowed(await getAccountOverrides(user.id));
+  } catch {
+    entitled = false;
+  }
+  const gated = gateMediaBlocksForSave(
+    parsed.blocks,
+    currentBio.blocks,
+    entitled,
+  );
+  const settings: BioPageSettings = { ...parsed, blocks: gated.blocks };
+
+  const droppedBlocks = inputBlockCount - parsed.blocks.length;
   const droppedSocials = inputSocialCount - settings.socials.length;
 
   const { error } = await supabase
@@ -88,12 +111,13 @@ export async function saveBioPageAction(
   if (droppedSocials > 0) {
     parts.push(`${droppedSocials} social${droppedSocials === 1 ? "" : "s"}`);
   }
+  let note: string | undefined;
   if (parts.length > 0) {
-    return {
-      success: true,
-      settings,
-      note: `Saved. ${parts.join(" and ")} skipped (empty, invalid, or past the limit of 10).`,
-    };
+    note = `Saved. ${parts.join(" and ")} skipped (empty, invalid, or past the limit of 10).`;
   }
-  return { success: true, settings };
+  if (gated.droppedMedia > 0) {
+    const g = `${gated.droppedMedia} gallery block${gated.droppedMedia === 1 ? "" : "s"} skipped: image galleries are a Plus feature.`;
+    note = note ? `${note} ${g}` : `Saved. ${g}`;
+  }
+  return note ? { success: true, settings, note } : { success: true, settings };
 }

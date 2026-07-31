@@ -5,6 +5,7 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
+import { gateMediaBlocksForSave } from "@inklee/shared/bio-page";
 import { listCollectionsForArtist } from "@/lib/server/collections";
 import { liveCollections } from "@inklee/shared/collections";
 import { getAccountOverrides } from "@/lib/entitlements-server";
@@ -42,8 +43,8 @@ export async function GET(req: Request) {
 
   // ADDITIVE (Stage 3): the rich blocks (image gallery) are Plus, gated on the
   // appearance-custom entitlement, so the native editor only offers them to an
-  // entitled artist. An older build ignores the extra key. The server still
-  // enforces the boundary at render + does not require it at save.
+  // entitled artist. An older build ignores the extra key. The server enforces
+  // the boundary at render AND at save (POST below, via gateMediaBlocksForSave).
   const richBlocksAllowed = appearanceCustomAllowed(
     await getAccountOverrides(userId),
   );
@@ -96,11 +97,28 @@ export async function POST(req: Request) {
   // client (old or new) can clobber booking-page state through the hub endpoint.
   // One shared parser validates everything (including the per-type block caps).
   const body = raw as Record<string, unknown>;
-  const settings = parseBioPageSettings({
+  const parsed = parseBioPageSettings({
     ...currentBio,
     blocks: body.blocks,
     socials: body.socials,
   });
+
+  // SAVE-PATH ENTITLEMENT GATE, identical to the web action: a NEW or CHANGED
+  // image_gallery block is refused for an artist without appearance_custom, an
+  // unchanged one is kept (decision D2). Fail-safe to unentitled on a plan-read
+  // blip so a Free client cannot persist a gallery.
+  let entitled = false;
+  try {
+    entitled = appearanceCustomAllowed(await getAccountOverrides(userId));
+  } catch {
+    entitled = false;
+  }
+  const { blocks: gatedBlocks } = gateMediaBlocksForSave(
+    parsed.blocks,
+    currentBio.blocks,
+    entitled,
+  );
+  const settings = { ...parsed, blocks: gatedBlocks };
 
   const { error } = await supabase
     .from("profiles")
