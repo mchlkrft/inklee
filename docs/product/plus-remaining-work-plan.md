@@ -52,20 +52,21 @@ problem rather than an incident.
 
 ---
 
-## Stage 0: correctness fixes (parallel to everything, ~1-1.5 weeks)
+## Stage 0: correctness fixes — DONE
 
-None of these depend on P5b, and none should wait for it. Ordered by what a
-paying customer would hit first.
+All seven items are resolved. One residual text edit in the Terms (C3,
+line 76: "plan settings" → "account settings") is deferred to Stage 6 because
+it must go through the versioned Terms workflow.
 
-| id | item | why now | size |
-|---|---|---|---|
-| C1 | **Account deletion never cancels the subscription**, and all eight billing/tax tables are `ON DELETE CASCADE` on `profiles`, so the records Terms promises to retain are destroyed. Downstream, later `invoice.paid` events carry a deleted `artist_id`, reconcile hits 23503, the handler 500s, and Stripe eventually disables the endpoint for everyone. | Charging someone after they delete their account is a consumer-law and chargeback problem, not a bug. Latent only because zero subscriptions exist. | M+L |
-| C2 | **Yearly Plus is advertised and unselectable.** `upgrade-button.tsx:47-48` renders the yearly option only when `yearlyFirstYearLabel !== null`, which resolves only for a founder-offer-eligible viewer. `founder_offer_policy` has 0 rows, so it never renders, while `/pricing` hardcodes the yearly price unconditionally. | At the flip every visitor is quoted a yearly price they cannot select. | S |
-| C3 | **Cancellation copy points at the wrong page.** Five customer-facing strings (Terms line 76, pricing FAQ, Stripe checkout `custom_text`, confirmation email) say cancel from plan settings; the control lives on `/settings/account`. | The `withdrawal_policy` record asserts `as_easy_as_signup`. | S |
-| C4 | **A permanently lost webhook has no recovery path.** Reconcile has three callers, none a cron, admin action or checkout-return handler. Orphan path returns 200 and drops the event. | Card charged, account stays Free, no tooling to fix it. | M |
-| C5 | **Consent evidence cannot be tied to a contract.** No contract reference on `billing_consent_records`; `ip`/`user_agent` declared and never written; `IMMEDIATE_PERFORMANCE_TEXT` has no hash or snapshot, so it can be edited without a version bump while CI stays green. | This is the text that makes a proportionate withdrawal deduction enforceable. Counsel will ask at final sign-off. | M |
-| C6 | **Two em-dashes** in `upgrade-button.tsx:112` and `:123`. | Founder copy rule, on the one screen where a consumer commits to a recurring charge. | S |
-| C7 | **`close-sales.cjs`**: a ~20-line script plus three runbook lines to revoke the launch keys. | There is a documented way to open sales and no rehearsed way to close them. | S |
+| id | item | status |
+|---|---|---|
+| C1 | Account deletion cancels subscription | DONE: step 2b in account-deletion.ts:166-218 |
+| C2 | Yearly Plus unselectable | DONE: yearly option renders for everyone (no longer gated on founder-offer eligibility) |
+| C3 | Cancellation copy points at wrong page | DONE (code strings): Stripe custom_text, upgrade-button, withdrawal copy all say "account settings". DEFERRED (Terms line 76): must go through Stage 6 versioned workflow |
+| C4 | Lost webhook has no recovery path | DONE: reconcile has 3 callers (webhook, cron backstop, checkout-return) |
+| C5 | Consent evidence cannot be tied to contract | DONE: consent_hash + ip + user_agent written on all consent records; IMMEDIATE_PERFORMANCE_TEXT hash enforced by billing-consent-copy.test.ts |
+| C6 | Em-dashes in upgrade-button | DONE: `23f3ec6` |
+| C7 | close-sales.cjs | DONE: script + runbook |
 
 ---
 
