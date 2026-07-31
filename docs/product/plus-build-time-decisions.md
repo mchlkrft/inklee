@@ -236,10 +236,37 @@ flat rate on card collection; standard free goods rate (PROVISIONAL).**
   the least-surprising honouring of the grandfather; 0% hands out free card
   collection the tier never promised; 0.5% hands out a Plus rate to a Free-tier
   grandfather.
-- Encoding: DEFERRED to the fee-v2 activation work (Stage 4), because it is a
-  money-path schema change (the schedule is tier-only today) for ZERO current
-  accounts and v2 is dormant. This entry REMOVES the "undecided" status of the
-  cell; the code change lands with the v2 flip alongside the A3 conditions.
-- Confirm: founder confirms 3% (grandfathered continuation) is the intended
-  legacy rate, vs 0.5% (treat legacy as Plus) or 0% (full grandfather benefit).
-- Reversible? Cheap while unencoded; the encoding is part of the gated v2 flip.
+- Encoding: **DONE `e698be7` (2026-07-31).** Founder ruling 6+14 (encode v2 fully
+  now, no undefined cell) superseded the deferral. Added a `legacy` appointment
+  rate (v1 300 / v2 300; goods maps legacy->free) + `resolveAppointmentTier` +
+  `appointmentFeeTier` wired at all 3 tier-resolution sites. `ACTIVE_FEE_SCHEDULE_VERSION`
+  stays v1, so no live number moves; the branch activates with the gated v2 flip.
+- Confirm: **CONFIRMED by founder ruling 14 (2026-07-31): grandfathered
+  appointment access = 3%, Free goods = 5%.** (No longer provisional.)
+- Reversible? The encoding is v1-invisible; the activation is the gated v2 flip.
+
+**GC1 [FOUNDER] — goods/bundle checkout is a STANDALONE shop, not booking-coupled
+(FOUNDER-CONFIRMED 2026-07-31).**
+- Context: today `orders.booking_id` is `NOT NULL` (0036), so an order cannot
+  exist without a booking; goods/bundles can only ride a booking's deposit
+  PaymentIntent (an appointment add-on). There is no cart and no standalone
+  purchase. Building a real shop (buy goods/flash/bundles with no appointment) is
+  a ~5x build and a new monetization surface, so it was surfaced to the founder
+  rather than defaulted (per the interruption policy: monetization / one-way door).
+- Decision (founder, via AskUserQuestion): **STANDALONE shop.** Customers can buy
+  goods/bundles without an appointment. Supersedes provisional B1 ("bundles v1 =
+  entity+display, payable checkout deferred to P7") and B5 ("payable checkout is a
+  later follow-on"): payable bundles + standalone goods are IN scope now.
+- Why: matches the full-package spec (drops as the headline Plus goods tool implies
+  buying without booking); "build the complete product" leaves no room for a
+  goods module that only works alongside an appointment.
+- Build shape: new PaymentIntent path (not the deposit PI), guest-buyer identity,
+  cart, and orders without a booking (`orders.booking_id` nullable, or a distinct
+  standalone-order path). All behind the existing dark `GOODS_COMMERCE_ENABLED`
+  gate; nothing activated. Architecture-INDEPENDENT work is done first regardless
+  (goods refund hole: order status writes + restock + discount reversal +
+  order-aware refundDepositCore; bundle composition-snapshot table for historical
+  integrity), then the standalone infra.
+- Reversible? The infra is additive behind the dark gate; the schema change
+  (nullable booking_id / standalone order path) is a forward migration, not a
+  live-data rewrite. Not activated until the goods-commerce gate is flipped.
