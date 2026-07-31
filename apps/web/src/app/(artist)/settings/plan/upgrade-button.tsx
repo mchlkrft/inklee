@@ -11,6 +11,7 @@ import {
   IMMEDIATE_PERFORMANCE_TEXT,
 } from "@/lib/billing-consent-copy";
 import { PLUS_BUSINESS_TIER_ENABLED } from "@/lib/plus-launch-config";
+import { isPlusPriceUnavailable } from "./price-availability";
 
 // Two-step Plus upgrade. Clicking the primary button opens a pre-checkout
 // confirmation with the pre-contract disclosure and an obligation-to-pay order
@@ -54,6 +55,18 @@ export default function UpgradeButton({
   const yearlyAvailable = !businessTier && yearlyBaseLabel !== null;
   const yearlyChosen = yearlyAvailable && yearly;
 
+  // BILL-UI-003 (founder ruling 16): a displayed authoritative price is a
+  // PRECONDITION of the order, not decoration. When the price for the chosen
+  // interval could not be resolved server-side, block the obligation-to-pay
+  // button and show a retryable error that confirms nothing was charged, rather
+  // than deferring the total to a later Stripe page. Decision in ./price-availability.
+  const priceUnavailable = isPlusPriceUnavailable({
+    businessTier,
+    yearlyChosen,
+    priceLabel,
+    yearlyBaseLabel,
+  });
+
   if (!open) {
     return (
       <button
@@ -69,7 +82,7 @@ export default function UpgradeButton({
     );
   }
 
-  const canOrder = businessTier ? declared : true;
+  const canOrder = businessTier ? declared : !priceUnavailable;
 
   const placeOrder = () => {
     setMessage(null);
@@ -92,15 +105,22 @@ export default function UpgradeButton({
     <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
       <div className="space-y-1 text-sm">
         <p className="font-medium text-foreground">Before you order</p>
-        <p className="text-muted-foreground">
-          {yearlyChosen
-            ? yearlyFirstYearLabel
-              ? `Inklee Plus is a yearly subscription: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
-              : `Inklee Plus is a yearly subscription for ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
-            : priceLabel
-              ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your account settings.`
-              : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your account settings. The price is shown on the next step before you pay."}
-        </p>
+        {priceUnavailable ? (
+          <p className="text-muted-foreground">
+            We couldn&apos;t load the price just now, so we can&apos;t take your
+            order. Nothing has been charged. Please try again in a moment.
+          </p>
+        ) : (
+          <p className="text-muted-foreground">
+            {yearlyChosen
+              ? yearlyFirstYearLabel
+                ? `Inklee Plus is a yearly subscription: ${yearlyFirstYearLabel} first year, then ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
+                : `Inklee Plus is a yearly subscription for ${yearlyBaseLabel}, final price. It renews automatically each year until you cancel, and you can cancel any time from your account settings.`
+              : priceLabel
+                ? `Inklee Plus is a monthly subscription for ${priceLabel}, final price. It renews automatically each month at that price until you cancel, and you can cancel any time from your account settings.`
+                : "Inklee Plus is a monthly subscription. It renews automatically each month until you cancel, and you can cancel any time from your account settings."}
+          </p>
+        )}
       </div>
 
       {/* Billing-interval choice (consumer path; yearly counsel-approved
@@ -210,14 +230,26 @@ export default function UpgradeButton({
       )}
 
       <div className="flex flex-wrap items-center gap-4">
-        <button
-          type="button"
-          disabled={!canOrder || pending}
-          onClick={placeOrder}
-          className="inline-flex items-center justify-center rounded-lg bg-brand-mustard px-5 py-2.5 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
-          {pending ? "Starting checkout..." : "Order with obligation to pay"}
-        </button>
+        {priceUnavailable ? (
+          // No obligation-to-pay button without a price on screen (ruling 16):
+          // offer a retry that re-runs the server-side price resolution instead.
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center justify-center rounded-lg bg-brand-mustard px-5 py-2.5 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90"
+          >
+            Try again
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!canOrder || pending}
+            onClick={placeOrder}
+            className="inline-flex items-center justify-center rounded-lg bg-brand-mustard px-5 py-2.5 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {pending ? "Starting checkout..." : "Order with obligation to pay"}
+          </button>
+        )}
         <button
           type="button"
           disabled={pending}
