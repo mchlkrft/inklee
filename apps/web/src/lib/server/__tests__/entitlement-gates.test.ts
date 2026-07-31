@@ -9,6 +9,13 @@ vi.mock("@/lib/server/app-config", () => ({
 
 import {
   brandingRemoved,
+  appearanceCustomAllowed,
+  conditionalQuestionsAllowed,
+  formCustomAllowed,
+  largeProjectsAllowed,
+  goodsDiscountsAllowed,
+  goodsSchedulingAllowed,
+  goodsCollectionsAllowed,
   canEditTemplates,
   canSeeAdvancedAnalytics,
   capState,
@@ -19,22 +26,80 @@ const withFeatures = (feats: Record<string, boolean>): AccountOverrides => ({
   entitlementOverrides: feats,
 });
 
+const plusArtist = (): AccountOverrides => ({
+  ...DEFAULT_OVERRIDES,
+  planTier: "plus",
+});
+
+const freeArtist = (): AccountOverrides => DEFAULT_OVERRIDES;
+
 beforeEach(() => {
   disabled.mockReset();
   disabled.mockReturnValue(false); // default: nothing paused => enforced
 });
 
-describe("brandingRemoved (grant shape)", () => {
-  it("enforced + entitled => footer removed", () => {
-    expect(brandingRemoved(withFeatures({ branding: true }))).toBe(true);
-  });
-  it("enforced + not entitled => footer stays", () => {
-    expect(brandingRemoved(withFeatures({ branding: false }))).toBe(false);
-  });
-  it("paused => footer stays even for an entitled account (inert)", () => {
-    disabled.mockReturnValue(true);
-    expect(brandingRemoved(withFeatures({ branding: true }))).toBe(false);
-  });
+describe("GRANT gates (Free denied, Plus allowed, paused = inert)", () => {
+  const grants = [
+    { name: "brandingRemoved", fn: brandingRemoved, cap: "branding" },
+    {
+      name: "appearanceCustomAllowed",
+      fn: appearanceCustomAllowed,
+      cap: "appearance_custom",
+    },
+    {
+      name: "conditionalQuestionsAllowed",
+      fn: conditionalQuestionsAllowed,
+      cap: "form_conditional",
+    },
+    { name: "formCustomAllowed", fn: formCustomAllowed, cap: "form_custom" },
+    {
+      name: "largeProjectsAllowed",
+      fn: largeProjectsAllowed,
+      cap: "large_projects",
+    },
+    {
+      name: "goodsDiscountsAllowed",
+      fn: goodsDiscountsAllowed,
+      cap: "goods_discounts",
+    },
+    {
+      name: "goodsSchedulingAllowed",
+      fn: goodsSchedulingAllowed,
+      cap: "goods_scheduling",
+    },
+    {
+      name: "goodsCollectionsAllowed",
+      fn: goodsCollectionsAllowed,
+      cap: "goods_collections",
+    },
+  ] as const;
+
+  for (const { name, fn, cap } of grants) {
+    describe(name, () => {
+      it("rejects a Free artist (plan baseline)", () => {
+        expect(fn(freeArtist())).toBe(false);
+      });
+
+      it("allows a Plus artist (plan baseline)", () => {
+        expect(fn(plusArtist())).toBe(true);
+      });
+
+      it("paused => false even for Plus (inert)", () => {
+        disabled.mockImplementation((c) => c === cap);
+        expect(fn(plusArtist())).toBe(false);
+      });
+
+      it("explicit override grants access to Free", () => {
+        expect(fn(withFeatures({ [cap]: true }))).toBe(true);
+      });
+
+      it("explicit override denies access to Plus", () => {
+        expect(
+          fn({ ...plusArtist(), entitlementOverrides: { [cap]: false } }),
+        ).toBe(false);
+      });
+    });
+  }
 });
 
 describe("canEditTemplates / canSeeAdvancedAnalytics (restriction shape)", () => {
@@ -54,14 +119,18 @@ describe("canEditTemplates / canSeeAdvancedAnalytics (restriction shape)", () =>
       true,
     );
   });
+  it("Free artist is blocked by plan baseline", () => {
+    expect(canEditTemplates(freeArtist())).toBe(false);
+    expect(canSeeAdvancedAnalytics(freeArtist())).toBe(false);
+  });
+  it("Plus artist is allowed by plan baseline", () => {
+    expect(canEditTemplates(plusArtist())).toBe(true);
+    expect(canSeeAdvancedAnalytics(plusArtist())).toBe(true);
+  });
   it("paused => allowed for everyone (inert)", () => {
     disabled.mockReturnValue(true);
-    expect(canEditTemplates(withFeatures({ custom_templates: false }))).toBe(
-      true,
-    );
-    expect(canSeeAdvancedAnalytics(withFeatures({ analytics: false }))).toBe(
-      true,
-    );
+    expect(canEditTemplates(freeArtist())).toBe(true);
+    expect(canSeeAdvancedAnalytics(freeArtist())).toBe(true);
   });
 });
 
@@ -73,6 +142,14 @@ describe("capState (numeric cap, block-new)", () => {
   });
   it("enforced + under the cap => not blocked", () => {
     expect(capState(DEFAULT_OVERRIDES, "custom_fields", 2).blocked).toBe(false);
+  });
+  it("Plus artist has a higher cap and is not blocked at the Free cap", () => {
+    expect(capState(plusArtist(), "custom_fields", 3).blocked).toBe(false);
+  });
+  it("Plus artist is blocked at the Plus cap", () => {
+    const s = capState(plusArtist(), "custom_fields", 30);
+    expect(s.blocked).toBe(true);
+    expect(s.cap).toBe(30);
   });
   it("paused => never blocked, even over the cap (inert)", () => {
     disabled.mockReturnValue(true);
@@ -87,5 +164,14 @@ describe("capState (numeric cap, block-new)", () => {
     };
     expect(capState(unlimited, "custom_fields", 999).blocked).toBe(false);
     expect(capState(unlimited, "custom_fields", 999).cap).toBeNull();
+  });
+  it("a per-account numeric override raises the cap", () => {
+    const raised: AccountOverrides = {
+      ...DEFAULT_OVERRIDES,
+      limitOverrides: { custom_fields: 50 },
+    };
+    expect(capState(raised, "custom_fields", 49).blocked).toBe(false);
+    expect(capState(raised, "custom_fields", 50).blocked).toBe(true);
+    expect(capState(raised, "custom_fields", 50).cap).toBe(50);
   });
 });

@@ -245,8 +245,8 @@ was directed. Facts that bind the open items:
 | "Full appointment payments" + "fully customisable template" claims | **Founder** | Open; confirm intent or soften copy |
 | Branding end-to-end verification pass | Eng | Stale; branding un-parked 2026-07-29 by founder confirmation |
 | Dry-run report review | **Founder** | Delivered above; review closes it |
-| Rejection-path tests (template save, mobile 403s, cap blocks) | Eng | Open |
-| Mobile `not_entitled` / `cap_reached` handling (upsell affordance) | Eng | Open |
+| Rejection-path tests (template save, mobile 403s, cap blocks) | Eng | DONE 2026-07-31; entitlement-gates.test.ts extended to 52 tests (all 10 gates x Free/Plus/paused/override) |
+| Mobile `not_entitled` / `cap_reached` handling (upsell affordance) | Eng | DONE; `planBoundaryMessage` in 10 screens strips purchase steering per D17 (no in-app purchase direction) |
 | Durable confirmation: stamp `terms_version` + `payload_hash` | Eng | DONE; `terms_version` from consent row + `confirmationPayloadHash` SHA-256 in withdrawal.ts |
 | Parity-register rows for branding/templates/analytics gates | Eng | DONE; all 4 rows present in web-native-parity.md (branding L108, templates L109, caps L110, analytics L112) |
 | `commercial-readiness.cjs` script | Eng | DONE 2026-07-31; `scripts/billing/commercial-readiness.cjs` |
