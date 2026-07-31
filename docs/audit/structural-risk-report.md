@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `cc21e4373f5f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `a073d616fdd1`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-86 recorded finding(s), 3 structural pattern(s), across 69 mapped area(s).
-81 remain open by remediation status. 68 are reachable (directly or conditionally) rather than latent.
-79 have not passed independent verification.
-156 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+87 recorded finding(s), 3 structural pattern(s), across 69 mapped area(s).
+82 remain open by remediation status. 69 are reachable (directly or conditionally) rather than latent.
+80 have not passed independent verification.
+157 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -27,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 28 |
-| medium | 32 |
+| medium | 33 |
 | low | 20 |
 | informational | 4 |
 
@@ -36,8 +36,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Status | Count |
 | --- | --- |
 | accepted | 2 |
-| deferred | 2 |
-| fixed-unverified | 18 |
+| deferred | 1 |
+| fixed-unverified | 20 |
 | mitigated | 1 |
 | open | 58 |
 | verified | 5 |
@@ -46,7 +46,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 78 |
+| not-started | 79 |
 | passed | 7 |
 | pending | 1 |
 
@@ -142,8 +142,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | --- | --- |
 | payment | 16 |
 | jobs | 12 |
+| billing | 11 |
 | webhook | 11 |
-| billing | 10 |
 | database | 8 |
 | authorization | 5 |
 | migration | 3 |
@@ -204,6 +204,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-MIG-003 | medium | conditionally-reachable | theoretical | Two migrations state that Supabase default privileges grant service_role EXECUTE; measured, the privilege comes from PUBLIC, so `revoke ... from public` silently removes it in production |
 | DRIFT-ACT-001 | medium | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
+| HUB-GAL-001 | medium | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
 | PAY-CHK-001 | medium | conditionally-reachable | latent | prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state |
@@ -249,10 +250,12 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BILL-UI-001 | medium | fixed-unverified | not-started | unknown |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
+| HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
 | PAY-RFD-003 | medium | fixed-unverified | not-started | 6fb2eb1 |
 | PAY-RFD-004 | medium | fixed-unverified | not-started | 6fb2eb1 |
+| BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 
@@ -336,6 +339,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The mobile routes OUTSIDE my assigned subset (bookings/*, flash/*, instagram/*, map/*, notifications/*, onboarding/*, account, analytics, billing/*, clients/*, calendar/*, devices, events, home, me, support, slots, waitlist) were included in the grep count but not read, so I know they carry the idiom and not whether they carry anything worse.
 - The mobile twins of the audited mutations (/api/mobile/*) legitimately do not revalidate, since the app holds no Next.js cache. Whether the app refetches after each write was not inspected.
 - The order_items currency hard-coding at actions.ts:486/557/574/586 versus a non-EUR artist
+- The other Plus block families (feature blocks, featured_collection) at save: featured_collection is render-gated via the collection read; the six feature blocks are not appearance_custom-gated at render either, so their save-path status was not changed here and should be confirmed when those blocks are entitlement-gated.
 - The project intake's uploaded storage objects have no orphan-cleanup job that I looked for. Whether one exists was not checked.
 - The project portal token path, apps/web/src/app/project/[token]/page.tsx:89
 - The same collision shape could exist between any future append-only guard and any cascading FK. No lint or test exists to catch it.

@@ -8833,13 +8833,21 @@ findings:
       related_findings:
         - "BILL-UI-002"
     remediation:
-      status: "deferred"
-      proposed_action: "Counsel to rule: accept the Stripe-Checkout-shows-price mitigation, or make
-        the total unconditional / block the order button when no price is resolvable on-screen."
+      status: "fixed-unverified"
+      fix_commit: "eb91f1c"
+      proposed_action: "Founder ruling 16 (2026-07-31) resolved the counsel deferral: no displayed
+        authoritative price -> BLOCK the order (retryable error confirming no charge), never defer the
+        total to a later Stripe page. Implemented in upgrade-button.tsx: the decision is extracted to
+        isPlusPriceUnavailable() and folded into canOrder, so the obligation-to-pay button is not
+        rendered without a price; a 'Try again' control re-runs the server-side resolution and the
+        copy states nothing was charged. The price-on-next-step deferral copy was removed."
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Unresolved pending a counsel ruling; behaviour unchanged."
+      residual_risk: "isPlusPriceUnavailable is unit-tested (5 cases) but the JSX wiring rests on a code
+        read (no component-render harness exists in this app). The server action startCheckout already
+        blocked server-side, so there was never a silent charge; this closes the client-side
+        obligation-to-pay-without-price gap."
     disclosure:
       public_repo_safe: true
     history:
@@ -8848,6 +8856,11 @@ findings:
         action: "opened"
         note: "Recorded alongside BILL-UI-002; deferred to counsel rather than changing money-path
           availability unilaterally."
+      - date: "2026-07-31"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Founder ruling 16 chose block-checkout over the counsel deferral. Implemented + unit
+          tested (price-availability.test.ts, 5 cases). Verification pending (no render harness)."
 
   - id: "PAY-FEE-004"
     title: "Fee schedule v2 has no defined rate for a legacy_free_v1 artist who carries the deposits
@@ -9191,6 +9204,96 @@ findings:
         actor: "no-deferral build directive (main instance)"
         action: "fix-committed"
         note: "Deterministic key from the refund's logical identity; +2 tests. Verification pending."
+
+  - id: "HUB-GAL-001"
+    title: "image_gallery entitlement enforced only at render, not at save, so a Free artist could
+      persist Plus gallery blocks"
+    summary: "The public hub hid image_gallery for an artist without appearance_custom, but neither
+      write path enforced it: saveBioPageAction (web) and POST /api/mobile/settings/hub (native) ran
+      the input through parseBioPageSettings (which keeps gallery blocks regardless of plan) and saved
+      them with no entitlement check. A Free artist could POST gallery blocks and they persisted. Two
+      records claimed save-path enforcement that did not exist (the editor comment and the parity
+      register)."
+    classification:
+      domain: "billing"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "feature-path recon (recon-features, read-only subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "2eff8f1"
+      environment: "local"
+      discovery_context: "Read-only gallery entitlement review; the mobile route's own comment admitted
+        the save path did not enforce the boundary."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/link-hub/actions.ts"
+        - "apps/web/src/app/api/mobile/settings/hub/route.ts"
+        - "packages/shared/src/bio-page.ts"
+      symbols:
+        - "saveBioPageAction"
+        - "gateMediaBlocksForSave"
+    evidence:
+      observed_facts:
+        - "saveBioPageAction (pre-fix) imported no entitlement gate; it parsed + saved blocks directly."
+        - "POST /api/mobile/settings/hub (pre-fix) comment: 'The server still enforces the boundary at
+          render + does not require it at save.'"
+        - "bio-page.ts image_gallery type comment: 'the pure parser keeps it regardless of entitlement',
+          so parseBioPageSettings does not drop it."
+        - "hub/page.tsx:128 gates render on appearanceCustomAllowed (richBlocksAllowed), fail-safe false."
+      references:
+        - "apps/web/src/app/(artist)/link-hub/actions.ts"
+        - "apps/web/src/app/api/mobile/settings/hub/route.ts"
+        - "packages/shared/src/bio-page.ts"
+      contradictory_evidence: "The render fail-safe hides an unentitled gallery, so a persisted block
+        would not have shown publicly; the defect is a persistence + false-record issue, not a live
+        public exposure. Consumer billing is not launched and appearance_custom is parked."
+    assessment:
+      interpretation: "A capability enforced at read but not at write, plus comments asserting the
+        write enforcement existed - the exact 'safety property asserted before it exists' shape."
+      root_cause_hypothesis: "The gallery block was added as a render-gated Plus block; the save paths
+        reused the existing ungated saveBioPageAction/route without adding the check."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "None: branch-only, appearance_custom parked, render hides it. Would let a
+        Free artist accumulate Plus content and mis-show it if entitlement state ever flipped."
+      remaining_uncertainty: "None on the gap; the fix mirrors the render gate."
+    relationships:
+      related_findings:
+        - "PAY-FEE-004"
+      analogous_uninspected_areas:
+        - "The other Plus block families (feature blocks, featured_collection) at save: featured_collection
+          is render-gated via the collection read; the six feature blocks are not appearance_custom-gated
+          at render either, so their save-path status was not changed here and should be confirmed when
+          those blocks are entitlement-gated."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "cb8ec83"
+      proposed_action: "Shared gateMediaBlocksForSave (bio-page.ts) called by both write paths: refuses
+        a NEW or CHANGED gallery for an unentitled artist, keeps an existing unchanged one (D2), matched
+        by stable id + deep-equality; fail-safe to unentitled on a plan-read blip. The two false records
+        corrected."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "gateMediaBlocksForSave is unit-tested (6 cases) but the two call-site wirings rest
+        on a code read; no integration test drives saveBioPageAction / the mobile route end-to-end with
+        an unentitled account."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "feature-path recon (recon-features)"
+        action: "opened"
+        note: "Flagged the ungated save paths and the two false 'enforced at save' records."
+      - date: "2026-07-31"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Added the shared save-path gate + wired both call sites + corrected the records; +6 tests,
+          full web suite 2610 green. Verification pending (no integration test)."
 
 patterns:
   - id: "PAT-001"
