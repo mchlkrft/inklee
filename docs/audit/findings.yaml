@@ -8962,6 +8962,236 @@ findings:
           fee-schedule-legacy.test.ts + a legacy case in order-fee-sync.test.ts; full web suite 2593
           green, tsc clean. ACTIVE still v1 (v1-invisible). Verification pending (not self-verified)."
 
+  - id: "PAY-RLS-005"
+    title: "0128 anon SELECT policies expose every sent payment request via the anon key"
+    summary: "Migration 0128 added `for select to anon` policies on payment_requests and
+      payment_request_lines whose USING clause is `customer_token_hash is not null` - i.e. any row that
+      has ever been sent, with no match against the caller's token. With the anon key any caller could
+      read EVERY sent payment request and its line items through PostgREST. These were the only two
+      anon SELECT policies in the whole migration set, and nothing needs them: the client pay page
+      reads exclusively through the service client (which bypasses RLS), so the token gate lives in
+      application code. Branch-only (0125-0128 unpushed, not in production), so caught before ship."
+    classification:
+      domain: "payment"
+      category: "missing-authorization"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "money-path recon (recon-money, read-only subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "e698be7"
+      environment: "local"
+      discovery_context: "Read-only appointment-payments RLS review; read the 0128 policy SQL directly."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0128_payment_request_client_token.sql"
+      symbols:
+        - "anon_read_payment_request_by_token"
+        - "anon_read_payment_request_lines"
+    evidence:
+      observed_facts:
+        - "0128:16-19 policy USING clause is `customer_token_hash is not null`, never a token match."
+        - "0128:24-32 the lines policy only checks the parent request's `customer_token_hash is not null`."
+        - "pay/[token]/page.tsx:3,36 reads via serviceClient (RLS-bypassing), so no anon policy is needed."
+        - "These are the only two `for select to anon` policies in apps/web/supabase/migrations."
+      references:
+        - "apps/web/supabase/migrations/0128_payment_request_client_token.sql"
+        - "apps/web/supabase/migrations/0133_drop_payment_request_anon_select.sql"
+        - "apps/web/src/app/pay/[token]/page.tsx"
+      contradictory_evidence: "Not in production: 0125-0128 live only on the unpushed feat/p5d-collections
+        branch, so no data was ever exposed in prod. Latent, not a live breach."
+    assessment:
+      interpretation: "A naive anon RLS predicate that reads as a token gate but is not one; it grants
+        blanket read of a sensitive table to the anon role."
+      root_cause_hypothesis: "The policy was modelled on a claimed 'booking_requests pattern' but the
+        token-hash equality check was never written; the header comment asserts a parity that is false."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      production_exposure: "None (branch-only). Would be a live PII/financial-data exposure on ship."
+      remaining_uncertainty: "None on the policy behaviour; the fix removes anon access entirely."
+    relationships:
+      analogous_uninspected_areas:
+        - "The RLS-write-policy-gap class (0120/0123, memory rls-write-policy-gap): same table-family,
+          opposite direction (too little access vs too much) - not a ledger finding, noted for context."
+        - "Any other token-gated public read (booking_requests, waitlist, pay tokens) should be
+          re-checked for a real hash-equality predicate vs a not-null predicate."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "6fb2eb1"
+      proposed_action: "Migration 0133 drops both anon SELECT policies (forward-only; 0128 not edited,
+        never applied to prod). payment_requests / payment_request_lines now have no anon access, which
+        is correct since every consumer uses the service client."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not independently verified. The DB-test gate (apps/web/tests/db) that would
+        assert anon cannot read these tables was not run locally (Docker unavailable this environment);
+        it must run in CI. A dedicated regression test asserting the anon key returns zero rows is
+        recommended before merge."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "money-path recon (recon-money)"
+        action: "opened"
+        note: "Flagged the two anon SELECT policies as blanket read, with the pay page using the
+          service client so the policies serve nothing."
+      - date: "2026-07-31"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Migration 0133 drops both policies. Confirmed no anon-key consumer exists (all reads
+          via serviceClient). Not in prod; fixed before ship. Verification (CI db-test) pending."
+
+  - id: "PAY-RFD-003"
+    title: "Artist refund route lets the artist choose the fee-refund case, controlling Inklee's fee"
+    summary: "The mobile artist refund route cast body.case straight to FeeRefundCase and passed it to
+      refundPaymentRequestCore with no restriction. The case decides what happens to Inklee's platform
+      fee, so an artist could assert `inklee_error` (returns the whole fee at Inklee's expense) or
+      `dispute`/`fraud` (Stripe-determined classifications) to manipulate the fee treatment. Fixed by
+      restricting the route to the artist-legitimate subset."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "money-path recon (recon-money, read-only subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "e698be7"
+      environment: "local"
+      discovery_context: "Read of the artist refund route input handling."
+    location:
+      files:
+        - "apps/web/src/app/api/mobile/payments/requests/[id]/refund/route.ts"
+      symbols:
+        - "isArtistInitiatedFeeRefundCase"
+    evidence:
+      observed_facts:
+        - "route.ts previously: `case: feeCase as FeeRefundCase` with only a non-empty-string check."
+        - "fee-refund-policy.ts: inklee_error -> return_full (whole fee returned at Inklee's expense);
+          dispute/fraud -> retain_where_permitted; both are not artist determinations."
+      references:
+        - "apps/web/src/app/api/mobile/payments/requests/[id]/refund/route.ts"
+        - "packages/shared/src/fee-refund-policy.ts"
+      contradictory_evidence: "Low exploitability today: no artist web UI, the feature is dark, and the
+        fees are small; but it is a real money-classification hole on a reachable mobile route."
+    assessment:
+      interpretation: "Client input selected a money-treatment classification; the party with an
+        incentive chose the case."
+      root_cause_hypothesis: "The shared core takes a general FeeRefundCase (correct for a future
+        dispute handler); the artist-facing route did not narrow it to the artist-legitimate subset."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "None in prod (branch-only); reachable on the mobile route once shipped."
+      remaining_uncertainty: "Whether an artist should further distinguish voluntary vs
+        artist_cancellation is a product choice; both are permitted and neither lets the artist keep
+        Inklee's fee improperly."
+    relationships:
+      related_findings:
+        - "PAY-RFD-002"
+      analogous_uninspected_areas:
+        - "The goods refund path and refundDepositCore: confirm no other route accepts a client-chosen
+          fee/refund classification."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "6fb2eb1"
+      proposed_action: "Added ARTIST_INITIATED_FEE_REFUND_CASES + isArtistInitiatedFeeRefundCase; the
+        route now accepts only voluntary_full / voluntary_partial / artist_cancellation and rejects the
+        rest with a 400. Core left general (a future dispute handler sets dispute/fraud server-side)."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Pure allowlist unit-tested (accept/reject/garbage); the route wiring itself is not
+        covered by an integration test."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "money-path recon (recon-money)"
+        action: "opened"
+        note: "Flagged the caller-controlled fee case (M5)."
+      - date: "2026-07-31"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Route restricted to the artist-legitimate case subset; allowlist + guard added and
+          unit-tested. Verification pending."
+
+  - id: "PAY-RFD-004"
+    title: "Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund"
+    summary: "refundPaymentRequestCore built its Stripe idempotency key as
+      `refund-apt-<request>-<amount>-<Date.now()>`. The timestamp makes every call unique, so a retry
+      of the same logical refund produced a fresh key and Stripe created a second refund - a double
+      refund on retry. Fixed by deriving the key from the refund's logical identity."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "money-path recon (recon-money, read-only subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "e698be7"
+      environment: "local"
+      discovery_context: "Read of the refund core idempotency-key construction."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+      symbols:
+        - "refundPaymentRequestCore"
+    evidence:
+      observed_facts:
+        - "appointment-payment-refund.ts:280 (pre-fix): key ended in `-${Date.now()}`."
+        - "The application-fee refund key at :321 was deterministic but collided across distinct
+          same-amount refunds; now carries the same already-refunded discriminator."
+      references:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+      contradictory_evidence: "Feature dark (no artist web UI); the double-refund is only reachable via
+        the mobile route on a retry, but that is a normal client behaviour."
+    assessment:
+      interpretation: "Idempotency defeated by a per-call timestamp, contradicting the money-path
+        converge-to-target rule."
+      root_cause_hypothesis: "Date.now() was likely added to force uniqueness during development and
+        never removed."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "None in prod (branch-only); a real double-refund risk on retry once shipped."
+      remaining_uncertainty: "The already-refunded discriminator can dedupe two intentional identical
+        partial refunds issued within the webhook-settlement window; that is the safe direction and an
+        accepted edge."
+    relationships:
+      analogous_uninspected_areas:
+        - "refundDepositCore and the goods refund path: confirm their idempotency keys are deterministic
+          (goods refund path does not yet exist)."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "6fb2eb1"
+      proposed_action: "Key derived from request + amount + cumulative already-refunded (stable across a
+        retry, distinct once a prior refund settles). Both the refund and application-fee-refund keys
+        use the same discriminator. Unit tests assert the key is reused across a retry and advances
+        after settlement."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Unit-tested via the mocked Stripe client; not verified against real Stripe
+        idempotency behaviour."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-07-31"
+        actor: "money-path recon (recon-money)"
+        action: "opened"
+        note: "Flagged Date.now() in the refund idempotency key (M11)."
+      - date: "2026-07-31"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Deterministic key from the refund's logical identity; +2 tests. Verification pending."
+
 patterns:
   - id: "PAT-001"
     title: "A safety property is asserted in a comment or commit message before it has ever been
@@ -10997,3 +11227,51 @@ coverage:
       found by accident rather than by search and the same accident cannot be relied on twice. Then
       read the ~60 unread mobile routes for the same six limbs; the 17 read here were consistent
       enough that a systematic idiom is likely, which means a systematic gap is equally likely."
+
+  - area: "Plus money-path + feature-path reconnaissance: appointment payments, goods checkout +
+      payable bundles, fee schedule v2/F14, BILL-UI-003, galleries, shop/guest-spot surfaces,
+      analytics differentiation, cover image, marketing copy, caps"
+    subsystem: "billing"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-07-31"
+    commit_inspected: "e698be7"
+    reviewer: "two read-only subagents (recon-money, recon-features) that authored none of the code
+      under review; findings triaged and acted on by the main instance"
+    evidence: "Read-only sweep to reconcile the remaining Plus work against code (the status docs were
+      badly stale). recon-money traced the appointment-payment lifecycle (0125-0128, six cores,
+      settlement, refund, pay page, 5 mobile routes, reconciliation), the goods add-on checkout chain,
+      the bundle model (0132), fee-schedule.ts at e698be7, and the BILL-UI-003 price-resolution paths.
+      recon-features traced the image_gallery block + save paths, the appearance surface model, the
+      analytics gate + call sites, cover-image gating, and cap/grandfathering docs. Both produced
+      EXISTS/MISSING/gated maps with file:line citations. Three defects were confirmed and fixed this
+      pass (PAY-RLS-005 anon SELECT exposure, PAY-RFD-003 caller-controlled fee case, PAY-RFD-004
+      Date.now idempotency); PAY-FEE-004 was independently confirmed as remediated by e698be7;
+      BILL-UI-003's exact current behaviour was pinned (order button enabled with no price on the
+      consumer path)."
+    known_exclusions: "Findings surfaced/confirmed this pass: PAY-RLS-005, PAY-RFD-003, PAY-RFD-004
+      (all fixed 6fb2eb1), PAY-FEE-004 (confirmed remediated by e698be7), BILL-UI-003 (behaviour
+      pinned). No tests were run by the recon agents and no production state was read; the
+      native app was not read in depth. Correctness of the LARGE missing pieces was mapped but NOT
+      built or verified this pass: appointment payments have NO artist web UI, no read/list query, no
+      payment-link delivery, and no client receipt/durable confirmation (recon M1-M4); the webhook
+      lacks payment_failed (appointment branch) and canceled handling (M7/M8); expiry cores have no
+      callers (M9); send is not Connect-gated (M10); the pay page handles 6 of 13 states (M12).
+      Goods: refundDepositCore over-refunds because it never reads orders and passes no amount; the
+      goods order status is never written to refunded/partially_refunded and charge.refunded never
+      touches orders, with no restock or discount-redemption reversal; payable bundles have no
+      charging path, no order representation (order_item_type lacks 'bundle'), and no historical
+      composition snapshot (product_bundle_items cascades on product delete). Fees: the artist-facing
+      DISPLAY path (platform-fee.ts PLATFORM_FEE_BPS=300) is tier-blind and diverges from the charged
+      rate under v2 (G1); settlement stamps the schedule VERSION but not the resolved TIER, so under
+      v2 (version, base) cannot reproduce the charged fee (G2). None of these were changed this pass."
+    recommended_next_inspection: "Before shipping appointment payments: build the artist web UI + read
+      layer + link delivery + client receipt (M1-M4), Connect-gate send (M10), wire the expiry sweeper
+      (M9), and complete the webhook + pay-page state coverage (M7/M8/M12). Before flipping fee v2:
+      close G1 (route the four display call sites through the tiered rate) and G2 (stamp the resolved
+      tier at settlement). Before un-parking goods commerce: close the goods refund hole (order status
+      writes, restock, discount reversal, order-aware refundDepositCore) and build the payable-bundle
+      order representation + composition snapshot. Get independent verification (different instance or
+      CI) for the three defects fixed this pass, especially the PAY-RLS-005 anon-read regression test
+      which could not run locally."
+    changed_since_inspection: "yes"
