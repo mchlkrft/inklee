@@ -83,13 +83,22 @@ export function pseudonymizeOrder(
  * Each deposit carries a `resolved` flag so an unresolved one's record preserves
  * the client's refund route. Orders are passed already pseudonymised.
  */
+export type BillingSnapshot = {
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  status: string | null;
+  contractCustomerType: string | null;
+  canceledForDeletion: boolean;
+};
+
 export function buildFinancialSnapshot(
   paidDeposits: DepositBookingRow[],
   resolvedBookingIds: Set<string>,
   pseudonymizedOrders: Record<string, unknown>[],
+  billing?: BillingSnapshot | null,
 ) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     deposits: paidDeposits.map((d) => {
       const amount = d.deposit_amount != null ? Number(d.deposit_amount) : null;
       return {
@@ -107,5 +116,6 @@ export function buildFinancialSnapshot(
       };
     }),
     orders: pseudonymizedOrders,
+    billing: billing ?? null,
   };
 }

@@ -7,6 +7,7 @@ import {
   buildFinancialSnapshot,
   categorizeDepositBookings,
   pseudonymizeOrder,
+  type BillingSnapshot,
   type DepositBookingRow,
 } from "./account-deletion-logic";
 
@@ -162,6 +163,73 @@ export async function deleteOwnAccountCore(
     }
   }
 
+  // 2b. Cancel the billing subscription immediately so Stripe stops charging
+  //     a deleted account. Unlike the in-app cancel_at_period_end flow
+  //     (cancellation.ts), account deletion needs an immediate cancel: there
+  //     will be no account to receive Plus features. Without this, later
+  //     invoice.paid events carry a deleted artist_id, reconcile hits 23503,
+  //     and Stripe eventually disables the endpoint for everyone.
+  const { data: billingSubRow } = await serviceClient
+    .from("billing_subscriptions")
+    .select(
+      "stripe_subscription_id, stripe_customer_id, status, contract_customer_type",
+    )
+    .eq("artist_id", userId)
+    .order("last_reconciled_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const ACTIVE_BILLING = new Set(["active", "trialing", "past_due"]);
+  let billingCanceled = false;
+  if (
+    billingSubRow?.stripe_subscription_id &&
+    ACTIVE_BILLING.has(billingSubRow.status as string)
+  ) {
+    const subId = billingSubRow.stripe_subscription_id as string;
+    if (!stripe) {
+      return {
+        ok: false,
+        code: "ERROR",
+        message:
+          "Account deletion is temporarily unavailable. Please try again in a moment.",
+      };
+    }
+    try {
+      await stripe.subscriptions.cancel(subId);
+      billingCanceled = true;
+    } catch {
+      let canceled = false;
+      try {
+        const sub = await stripe.subscriptions.retrieve(subId);
+        canceled = sub.status === "canceled";
+      } catch {
+        // Stripe unreachable
+      }
+      if (!canceled) {
+        return {
+          ok: false,
+          code: "ERROR",
+          message:
+            "Couldn't cancel your subscription. Please try again in a moment.",
+        };
+      }
+      billingCanceled = true;
+    }
+  }
+
+  const billingSnapshot: BillingSnapshot | null = billingSubRow
+    ? {
+        stripeCustomerId:
+          (billingSubRow.stripe_customer_id as string | null) ?? null,
+        stripeSubscriptionId:
+          (billingSubRow.stripe_subscription_id as string | null) ?? null,
+        status: (billingSubRow.status as string | null) ?? null,
+        contractCustomerType:
+          (billingSubRow.contract_customer_type as string | null) ?? null,
+        canceledForDeletion: billingCanceled,
+      }
+    : null;
+
   // 3. Retain the PSEUDONYMISED financial record BEFORE the cascade deletes it.
   //    Includes EVERY paid deposit (resolved + unresolved) — an unresolved one's
   //    record (intent id + amount + resolved:false) preserves the client's refund
@@ -182,7 +250,7 @@ export async function deleteOwnAccountCore(
     const pseudonymizedOrders = (orders ?? []).map((o) =>
       pseudonymizeOrder(o as Record<string, unknown>),
     );
-    if (paid.length > 0 || pseudonymizedOrders.length > 0) {
+    if (paid.length > 0 || pseudonymizedOrders.length > 0 || billingSnapshot) {
       const { error: archiveError } = await serviceClient
         .from("deleted_account_records")
         .insert({
@@ -192,6 +260,7 @@ export async function deleteOwnAccountCore(
             paid,
             resolvedIds,
             pseudonymizedOrders,
+            billingSnapshot,
           ),
         });
       if (archiveError) throw archiveError;

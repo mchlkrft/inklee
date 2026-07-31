@@ -3,6 +3,7 @@ import {
   buildFinancialSnapshot,
   categorizeDepositBookings,
   pseudonymizeOrder,
+  type BillingSnapshot,
   type DepositBookingRow,
 } from "@/lib/server/account-deletion-logic";
 
@@ -149,7 +150,25 @@ describe("buildFinancialSnapshot", () => {
     ];
     const snap = buildFinancialSnapshot([], new Set(), orders);
     expect(snap.orders).toEqual(orders);
-    expect(snap.schemaVersion).toBe(1);
+    expect(snap.schemaVersion).toBe(2);
+  });
+
+  it("includes billing snapshot when provided", () => {
+    const billing: BillingSnapshot = {
+      stripeCustomerId: "cus_123",
+      stripeSubscriptionId: "sub_456",
+      status: "active",
+      contractCustomerType: "consumer",
+      canceledForDeletion: true,
+    };
+    const snap = buildFinancialSnapshot([], new Set(), [], billing);
+    expect(snap.billing).toEqual(billing);
+    expect(snap.schemaVersion).toBe(2);
+  });
+
+  it("sets billing to null when no subscription exists", () => {
+    const snap = buildFinancialSnapshot([], new Set(), []);
+    expect(snap.billing).toBeNull();
   });
 });
 
