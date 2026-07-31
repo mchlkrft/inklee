@@ -29,6 +29,33 @@ export const FEE_REFUND_CASES = [
 export type FeeRefundCase = (typeof FEE_REFUND_CASES)[number];
 
 /**
+ * The cases an ARTIST may legitimately assert on an artist-initiated refund.
+ *
+ * The case is a CLASSIFICATION of why money is going back, and it decides what
+ * happens to Inklee's fee, so the party with an incentive must not choose it
+ * freely (money-path rule; founder default "client input never selects fee or
+ * refund-policy versions"). `dispute` and `fraud` are determined by Stripe /
+ * chargeback events, and `inklee_error` is an Inklee-side determination that
+ * returns the whole fee at Inklee's expense; an artist asserting any of the
+ * three would manipulate Inklee's fee. An artist-facing refund is voluntary or
+ * an artist cancellation, and nothing else. Validate route input against this.
+ */
+export const ARTIST_INITIATED_FEE_REFUND_CASES = [
+  "voluntary_full",
+  "voluntary_partial",
+  "artist_cancellation",
+] as const satisfies readonly FeeRefundCase[];
+
+export function isArtistInitiatedFeeRefundCase(
+  value: unknown,
+): value is (typeof ARTIST_INITIATED_FEE_REFUND_CASES)[number] {
+  return (
+    typeof value === "string" &&
+    (ARTIST_INITIATED_FEE_REFUND_CASES as readonly string[]).includes(value)
+  );
+}
+
+/**
  * What happens to the platform fee.
  *
  * `proportional` and `full` are computable. `retain_where_permitted` and

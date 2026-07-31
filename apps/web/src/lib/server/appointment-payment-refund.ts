@@ -277,7 +277,17 @@ export async function refundPaymentRequestCore(input: {
 
   // 6. Create the Stripe refund. `reverse_transfer: true` pulls money back from
   //    the artist's connected account.
-  const idempotencyKey = `refund-apt-${input.requestId}-${refundMinor}-${Date.now()}`;
+  //
+  // IDEMPOTENCY, DETERMINISTIC. Was `...-${Date.now()}`, which gave every retry
+  // a fresh key so Stripe created a second refund on a retried request. The key
+  // is now derived from the refund's logical identity: request + amount + the
+  // cumulative already-refunded amount BEFORE this refund. A retry of a failed
+  // attempt keeps `alreadyRefunded` (the refund_adjustment is written by the
+  // webhook only on success), so it reuses the key and Stripe dedupes it; a
+  // genuinely separate later refund runs after that adjustment lands, so
+  // `alreadyRefunded` has advanced and the key differs. Same shape for the
+  // application-fee refund below.
+  const idempotencyKey = `refund-apt-${input.requestId}-${refundMinor}-${alreadyRefunded}`;
 
   let refund: Stripe.Refund;
   try {
@@ -318,7 +328,9 @@ export async function refundPaymentRequestCore(input: {
       await stripe.applicationFees.createRefund(
         applicationFeeId,
         { amount: partialFeeRefundMinor },
-        { idempotencyKey: `refund-apt-fee-${input.requestId}-${refundMinor}` },
+        {
+          idempotencyKey: `refund-apt-fee-${input.requestId}-${refundMinor}-${alreadyRefunded}`,
+        },
       );
     } catch (feeErr) {
       Sentry.captureException(feeErr, {

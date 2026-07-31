@@ -4,10 +4,45 @@ import {
   FEE_REFUND_POLICY_V0,
   FEE_REFUND_POLICY_V1,
   ACTIVE_FEE_REFUND_POLICY_VERSION,
+  ARTIST_INITIATED_FEE_REFUND_CASES,
   feeRefundPolicyFor,
   feeRefundOutcome,
+  isArtistInitiatedFeeRefundCase,
   resolveActiveFeeRefundPolicyVersion,
 } from "@inklee/shared/fee-refund-policy";
+
+// The fee-refund case decides Inklee's fee treatment, so an artist-initiated
+// refund route must only accept the artist-legitimate subset. dispute / fraud
+// are Stripe-determined; inklee_error returns the whole fee at Inklee's expense.
+// An artist asserting any of those manipulates Inklee's fee (money defect M5).
+describe("artist-initiated fee-refund case allowlist", () => {
+  it("accepts exactly voluntary_full, voluntary_partial, artist_cancellation", () => {
+    expect([...ARTIST_INITIATED_FEE_REFUND_CASES].sort()).toEqual(
+      ["artist_cancellation", "voluntary_full", "voluntary_partial"].sort(),
+    );
+    for (const c of ARTIST_INITIATED_FEE_REFUND_CASES) {
+      expect(isArtistInitiatedFeeRefundCase(c)).toBe(true);
+    }
+  });
+
+  it("rejects the system-determined cases an artist must not assert", () => {
+    for (const c of ["dispute", "fraud", "inklee_error"]) {
+      expect(isArtistInitiatedFeeRefundCase(c)).toBe(false);
+    }
+  });
+
+  it("rejects non-strings and garbage", () => {
+    for (const bad of [null, undefined, 0, "", "VOLUNTARY_FULL", {}, []]) {
+      expect(isArtistInitiatedFeeRefundCase(bad)).toBe(false);
+    }
+  });
+
+  it("every allowed case is a real FeeRefundCase", () => {
+    for (const c of ARTIST_INITIATED_FEE_REFUND_CASES) {
+      expect(FEE_REFUND_CASES).toContain(c);
+    }
+  });
+});
 
 describe("fee refund policy versions", () => {
   it("covers every confirmed case in both versions", () => {

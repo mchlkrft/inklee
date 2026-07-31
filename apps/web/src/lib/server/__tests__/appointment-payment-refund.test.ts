@@ -591,4 +591,63 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     expect(lastRefundCall().refund_application_fee).toBe(true);
     expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
   });
+
+  // M11: the idempotency key was `...-${Date.now()}`, so every retry got a
+  // fresh key and Stripe created a SECOND refund on a retried request. It is now
+  // derived from the refund's logical identity (request + amount + cumulative
+  // already-refunded), which is stable across a retry and distinct across a
+  // genuinely separate later refund.
+  function lastIdempotencyKey(): string | undefined {
+    return mockStripe.refunds.create.mock.calls.at(-1)?.[1]?.idempotencyKey as
+      | string
+      | undefined;
+  }
+
+  it("uses a deterministic idempotency key that a retry reuses (M11)", async () => {
+    setupStandardRefund();
+    await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+    const firstKey = lastIdempotencyKey();
+
+    // A retry: identical state, no refund_adjustment written yet (the webhook
+    // writes it, only on success), so already-refunded is still 0.
+    setupStandardRefund();
+    await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+    const retryKey = lastIdempotencyKey();
+
+    expect(firstKey).toBe(retryKey);
+    // request + amount (15000 = the full 10000+3000+2000) + already-refunded (0).
+    expect(firstKey).toBe("refund-apt-req_1-15000-0");
+    // No timestamp component: the whole defect was a fresh number per call.
+    expect(firstKey).not.toMatch(/\d{13}/);
+  });
+
+  it("advances the idempotency key once a prior refund has settled (M11)", async () => {
+    // 5000 already refunded (a refund_adjustment allocation the webhook wrote),
+    // so a further partial refund gets a DIFFERENT key and is not deduped.
+    queue("payment_requests:select", {
+      data: { ...REQUEST_ROW, status: "partially_refunded" },
+    });
+    queue("payment_allocations:select", { data: ALLOCATIONS });
+    queue("payment_allocations:select", { data: [{ amount_minor: -5000 }] });
+
+    await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "partial",
+      amountMinor: 2000,
+      case: "voluntary_partial",
+    });
+
+    expect(lastIdempotencyKey()).toBe("refund-apt-req_1-2000-5000");
+  });
 });

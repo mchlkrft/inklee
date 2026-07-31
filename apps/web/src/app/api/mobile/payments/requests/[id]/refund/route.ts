@@ -4,7 +4,7 @@ import {
   mobileOk,
 } from "@/lib/server/mobile-auth";
 import { refundPaymentRequestCore } from "@/lib/server/appointment-payment-refund";
-import type { FeeRefundCase } from "@inklee/shared/fee-refund-policy";
+import { isArtistInitiatedFeeRefundCase } from "@inklee/shared/fee-refund-policy";
 
 export const runtime = "nodejs";
 
@@ -42,9 +42,16 @@ export async function POST(
     return mobileError(400, "refundType must be full, partial or by_line.");
   }
 
+  // The fee-refund case decides Inklee's fee treatment, so an artist may only
+  // assert the artist-initiated subset. dispute / fraud (Stripe-determined) and
+  // inklee_error (returns the whole fee at Inklee's expense) are rejected here:
+  // accepting them from the artist is the money defect this closes.
   const feeCase = body.case;
-  if (typeof feeCase !== "string" || feeCase === "") {
-    return mobileError(400, "case is required.");
+  if (!isArtistInitiatedFeeRefundCase(feeCase)) {
+    return mobileError(
+      400,
+      "case must be voluntary_full, voluntary_partial or artist_cancellation.",
+    );
   }
 
   const result = await refundPaymentRequestCore({
@@ -54,7 +61,7 @@ export async function POST(
     amountMinor:
       typeof body.amountMinor === "number" ? body.amountMinor : undefined,
     lineIds: Array.isArray(body.lineIds) ? body.lineIds : undefined,
-    case: feeCase as FeeRefundCase,
+    case: feeCase,
   });
 
   if (result.status === "error") {
