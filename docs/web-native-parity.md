@@ -240,6 +240,16 @@ Two things follow, both done here:
   `settings/hub/route.ts` (`richBlocksAllowed`) + `app/settings/link-hub.tsx`
   (summary + gated add). On `feat/p5d-collections`, NOT on master.
 
+- **2026-08-01 — P9 artist payment-requests WEB UI, slice 2a (branch-only).**
+  First web surface for appointment payments: `(artist)/bookings/payments`
+  (read-only list via the shared read layer) + `actions.ts` (send / cancel
+  server actions wrapping the same cores the mobile routes use). NOT yet in the
+  nav (the feature is dark / entitlement-gated; the item appears at
+  launch-readiness, like `/pricing`), reachable by URL. NATIVE EQUIVALENT is a
+  follow-on: the app already has the write + read `/api/mobile/payments/requests`
+  routes but no management SCREEN yet. Create / revise / refund web forms +
+  link delivery + client receipt are later slices. On `feat/p5d-collections`.
+
 - **2026-07-31 — P9 A7 appointment payment mobile routes (branch-only).**
   Five `/api/mobile/payments/requests` routes: create (POST), send (POST
   `[id]/send`), cancel (POST `[id]/cancel`), revise (POST `[id]/revise`),
