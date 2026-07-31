@@ -1,11 +1,18 @@
 # Plus launch: open decisions handoff
 
-**Written 2026-07-31.** Code is done through Stage 2. Stage 0 correctness
-fixes are complete. Everything below is what blocks Stages 3-6 and the launch
-itself. Each item names the person who must act and what is waiting on them.
+**Written 2026-07-31. Updated 2026-07-31 after the build session** (the status
+snapshot below marks what moved). Each item names the person who must act and
+what is waiting on them.
+
+The original 24 items (F1-F14, A1-A5, C1-C4, X1-X4) are kept verbatim below as
+the record, followed by the counsel/accountant answers and the engineering
+processing outcome. The **status snapshot** immediately below marks the result
+of each and lists the NEW decisions that surfaced while building — so this one
+doc is the whole open-decision picture.
 
 Sequencing SoT: `plus-remaining-work-plan.md`. Content SoT for each item is
-cited inline.
+cited inline. Build-session decisions (with full reasoning + alternatives):
+`plus-build-time-decisions.md`.
 
 ---
 
@@ -19,14 +26,82 @@ F8 (G-5 live test) -> pricing model validation (zero live transactions exist)
 
 ---
 
-## Summary
+## Status snapshot — updated 2026-07-31 (after the build session)
 
-| Owner      | Count | Blocking launch? |
-|------------|------:|------------------|
-| Founder    |    14 | 10 yes, 4 soft   |
-| Accountant |     5 | 4 yes, 1 shared  |
-| Counsel    |     4 | 3 yes, 1 soft    |
-| Cross      |     4 | 3 yes, 1 no      |
+Legend: ✅ resolved · 🟢 answered + engineering done, pending record · 🟡
+answered / decided, pending owner action · 🔴 still open · ⏸ deferred by decision.
+
+**Headline: the launch is decision-blocked, not code-blocked.** Every buildable
+item is built; what remains is human decisions and irreversible activations. The
+whole Plus/billing/bundles build sits UNPUSHED on `feat/p5d-collections` (master
+has only P5d collections). Nothing is live.
+
+### Founder (F1-F14)
+
+| # | Decision | Status | Result / what's needed |
+|---|---|---|---|
+| F1 | Cover image Free or Plus | 🔴 open | Built grandfathered; needs your ruling. Unchanged. |
+| F2 | Marketing claims match delivery | 🔴 open | Pricing-page copy still unreviewed vs what P9 shipped. |
+| F3 | Ratify caps table | 🔴 open (soft) | One-line confirm; code already enforces the ratified numbers. |
+| F4 | Ack grandfathering dry-run | 🔴 open | Re-run + acknowledge before cap enforcement. |
+| F5 | Analytics: gate or soften claim | 🔴 open | **Key.** Marketed as Plus but free for all; conflicts with X3. Your call unblocks a build. |
+| F6 | Fee schedule v2 activation | 🔴 gated | = A3. F14 now decided (below); still needs accountant sign-off + Terms/notice + the flip. |
+| F7 | Insert founder_offer_policy row | 🔴 open | Production insert; offer stays closed until then. |
+| F8 | G-5 live money test | 🔴 open | **Biggest gap:** no real charge ever observed end-to-end. |
+| F9 | Fresh EAS build | 🔴 open (now larger) | Latest build `da93749b` (2026-07-28) predates image-gallery + bundles + featured_collection; a fresh build gates granting those capabilities. |
+| F10 | Re-record eng approval keys | 🔴 open | 4 keys certify code that has since changed. |
+| F11 | Subscribe dispute webhook | 🔴 open | Stripe dashboard change; handler built + tested. |
+| F12 | Record consumer_sales_launch_approved | 🔴 open | The final gate, by design. |
+| F13 | Merge P5d collections | ✅ resolved | Merged + deployed 2026-07-29 (master `99e39e1`); migrations 0120-0124 incl. the atomic-delete RPC on master; TOCTOU #19 closed. |
+| F14 | legacy_free_v1 fee rate under v2 | 🟡 decided (provisional) | This session: continue the grandfathered **3%** appointment rate + standard **5%** Free goods rate; encode at the v2 flip. Confirm the 3% choice. |
+
+### Accountant (A1-A5)
+
+| # | Decision | Status | Result / what's needed |
+|---|---|---|---|
+| A1 | Price-display co-sign (irreversible) | 🟡 answered | Co-sign recommended (3.00 EUR inclusive) + record the VAT-absorption caution. Head of the launch chain. |
+| A2 | VAT triggers + who monitors | 🟡 answered | Confirm 35k/8k + quarterly (accountant monitors, founder owns re-approval); count fee revenue too. |
+| A3 | Fee v2 fee + tax treatment | 🟡 answered | Approve on 2 conditions: Terms + advance notice for the new 5% Free goods fee; F14 decided (done). |
+| A4 | Invoice / credit-note format | ✅ answered | Format confirmed; closes the document half of counsel condition 1. |
+| A5 | Refund tax on part-month withdrawal | ✅ answered | No tax adjustment while unregistered; plain proration. |
+
+### Counsel (C1-C4)
+
+| # | Decision | Status | Result / what's needed |
+|---|---|---|---|
+| C1 | Final implementation sign-off | 🟡 open (checklist ready) | Sequence-last; 6-point package listed below. **Goods-marketplace wording is the one component never reviewed.** |
+| C2 | Price adjacent to pay button | 🟢 answered + built | All four Art. 8(2) elements now render adjacent to the order button (`BILL-UI-002` fixed). Needs A1 price + a screenshot in the C1 package. |
+| C3 | Withdrawal copy E1-E5 | 🟢 answered + verified | E1/E3/E5 confirmed; E4 wording ok (+ pre-login fast-follow logged); **E2 verified as already carrying the Art. 8(7) set inline** (+ hardened). Record `consumer_withdrawal_copy_approved` once the C2 screenshot is captured. |
+| C4 | Deposit-fee LO-10 round | 🟡 answered | Preliminary directions given + written to the LO-10 brief; schedule the round before real client money. |
+
+### Cross-cutting (X1-X4)
+
+| # | Decision | Status | Result / what's needed |
+|---|---|---|---|
+| X1 | Custom SEO fields | 🔴 blocked | On the indexation decision (ChatGPT-owned). Not on the critical path. |
+| X2 | Terms line 76 wording | 🔴 open | Bundle into the Stage 6 versioned Terms edit. |
+| X3 | Unpark 3 capabilities | 🔴 open | custom_templates / analytics / entitlement_caps still parked; blocks F12. Analytics conflicts with F5. |
+| X4 | Deposits key prod migration | 🔴 open | Run `migrate-deposits-key.cjs` against prod. |
+
+### New decisions from the 2026-07-31 build session
+
+Full reasoning + alternatives in `docs/product/plus-build-time-decisions.md`;
+findings in `docs/audit/findings.yaml`.
+
+| Item | Owner | Status | What's needed |
+|---|---|---|---|
+| **PAY-RFD-002** fee-refund cost-only | founder + counsel + accountant | 🟢 fixed + verified | The v1 artist-cancellation refund now retains only the real Stripe cost, not the whole fee (was a dormant defect). Before the v1 refund-policy flip: Terms coverage of the retained-cost rule + accountant confirm of the fee treatment. Dormant today (v1 inactive). |
+| **BILL-UI-003** null-price checkout fallback | counsel | 🔴 open | When Stripe price resolution fails, the panel defers the total to "the next step". Rule whether that copy is acceptable under Art. 8(2), or require blocking the order when no price is on-screen. No silent charge (Stripe Checkout shows price before pay). |
+| **F14** legacy fee rate | founder | 🟡 provisional | (see F14 above) — confirm 3% vs 0.5% (Plus) vs 0% (full grandfather). |
+| **D1-D6** image-gallery scope | founder + eng | 🟡 provisional | Rich blocks gated via `appearance_custom`; hidden-on-downgrade; native editing web-only for v1; EAS-gated rollout. Confirm. |
+| **B1-B5** bundles scope | founder + eng | 🟡 provisional | Entity + display shipped now; payable checkout deferred to P7; archive-first delete; `goods_bundles` gate; fee on the bundle price. Confirm. |
+| **S1** shop / guest-spots per-surface theming | founder | ⏸ deferred | Deferred as low-value / design-led; the surfaces already inherit the artist's appearance. Confirm it is not wanted for launch. |
+
+### The critical chain, restated with current status
+
+`A1 (🟡 co-sign) → C2 (🟢 built) → C3 (🟢 verified) → C1 (🟡 checklist) → F12 (🔴 final key)`.
+Most of the engineering along this chain is now done; it advances on the human
+sign-offs, in order.
 
 ---
 
@@ -153,23 +228,32 @@ capability is still parked before allowing this. Without this key,
 
 - **Blocks:** everything. This is the last gate, by design.
 
-### F13: merge P5d collections branch
+### F13: merge P5d collections branch — ✅ RESOLVED 2026-07-29
 
-P5d passed Gate A re-review, Gate C, and base commit review. Approved but not
-merged. Merging IS deploying (migrations 0121/0122/0124). Migration 0123 is
-already in production.
+P5d passed Gate A re-review, Gate C, and base commit review.
 
-- **Blocks:** `goods_collections` capability.
-- **Current state:** known residuals: TOCTOU in deleteCollectionCore, incomplete
-  fail-flat, missing DB tests for 0124 RPC.
+- **✅ RESOLVED:** merged + deployed 2026-07-29 (master `99e39e1`). Verified
+  2026-07-31: origin/master (`c69c95a`) carries migrations 0120-0124 including
+  the atomic-delete RPC (0124); the TOCTOU (#19) is closed. The residuals listed
+  when this item was written (TOCTOU, missing 0124 DB tests) are resolved on
+  master. `goods_collections` capability is unblocked at the code level (still
+  ungranted + EAS-gated per F9).
 
-### F14: legacy free v1 fee rates: undefined
+### F14: legacy free v1 fee rates: undefined — 🟡 DECIDED PROVISIONALLY 2026-07-31
 
 What rate does a grandfathered artist with an existing Connect override pay
-under V2? Currently flagged as UNDEFINED in the capability registry. The dry
-run found zero such accounts, but the edge case needs a decision before V2.
+under V2? Was flagged UNDEFINED (finding `PAY-FEE-004`); the dry run found zero
+such accounts.
 
-- **Blocks:** fee schedule V2 edge case.
+- **🟡 DECIDED (provisional, this session):** continue the grandfathered v1 flat
+  **3%** appointment rate on card collection under v2 (not 0% = leakage, not the
+  Plus 0.5% = an unearned Plus benefit), plus the standard **5%** Free goods
+  rate. Reasoning + alternatives: `plus-build-time-decisions.md` (F14). Encoding
+  is deferred to the fee-v2 flip (money-path schema change for zero current
+  accounts while v2 is dormant); `PAY-FEE-004` moved open → accepted with
+  encode-at-flip recorded as a hard precondition.
+- **Needs:** founder confirmation of the 3% choice; encoding lands with the v2
+  flip (A3).
 
 ---
 
