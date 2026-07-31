@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     keepsTemplates:
       isGrandfathered(overrides) &&
       overrides.grantPackage?.features?.custom_templates === true,
-    canCollectDeposits: canAccess(overrides, "deposits"),
+    canCollectDeposits: canAccess(overrides, "card_deposit_collection"),
   };
   return mobileOk(body);
 }

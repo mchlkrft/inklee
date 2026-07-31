@@ -27,7 +27,8 @@ export type DepositCollection = {
 /**
  * Resolve whether a card deposit will route for `artistId`, in the SAME order
  * `requestDepositCore` enforces: a platform-wide `deposits` pause beats
- * everything, then the `deposits` entitlement, then Connect card routing.
+ * everything, then the `card_deposit_collection` entitlement, then Connect
+ * card routing.
  *
  * Pass `opts.routing` when the caller already has the artist's Connect routing
  * (e.g. the mobile payouts route derived it from the profile row it just read)
@@ -47,7 +48,7 @@ export async function getDepositCollection(
     return { canCollectByCard: false, reason: "capability_paused" };
   }
   const overrides = await getAccountOverrides(artistId);
-  if (!canAccess(overrides, "deposits")) {
+  if (!canAccess(overrides, "card_deposit_collection")) {
     return { canCollectByCard: false, reason: "not_entitled" };
   }
   const routing = opts?.routing ?? (await getConnectRoutingForArtist(artistId));

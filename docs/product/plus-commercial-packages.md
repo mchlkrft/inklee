@@ -243,12 +243,12 @@ was directed. Facts that bind the open items:
 | **Cover image is listed Plus-only but has been a live Free feature for months** | **Founder** | Open; found building P3c 2026-07-28. Spec §6 says cover image Free=no / Plus=yes, but `settings.cover_image_url` ships free today and 3 of 19 production artists use one. Enforcing the spec strips a working feature from real artists, which the grandfathering rule forbids; leaving it free means the §6 row is wrong. Built as grandfathered (Free keeps it via `freeTierView`), pending the founder's call: either amend §6 to "cover image: yes / yes, per-surface override Plus" or grandfather the existing three explicitly and gate new ones |
 | Analytics Free/Plus boundary + WIRING the defined gate | Founder (boundary) + eng (wiring) | Open; blocks the analytics claim |
 | "Full appointment payments" + "fully customisable template" claims | **Founder** | Open; confirm intent or soften copy |
-| Branding end-to-end verification pass | Eng | Open; the only blocker to un-parking `branding` |
+| Branding end-to-end verification pass | Eng | Stale; branding un-parked 2026-07-29 by founder confirmation |
 | Dry-run report review | **Founder** | Delivered above; review closes it |
 | Rejection-path tests (template save, mobile 403s, cap blocks) | Eng | Open |
 | Mobile `not_entitled` / `cap_reached` handling (upsell affordance) | Eng | Open |
-| Durable confirmation: stamp `terms_version` + `payload_hash` | Eng | Open; before first purchase |
+| Durable confirmation: stamp `terms_version` + `payload_hash` | Eng | DONE; `terms_version` from consent row + `confirmationPayloadHash` SHA-256 in withdrawal.ts |
 | Parity-register rows for branding/templates/analytics gates | Eng | Open (founder rule: absent rows are bugs) |
-| `commercial-readiness.cjs` script | Eng | Open; §4 is the spec |
+| `commercial-readiness.cjs` script | Eng | DONE 2026-07-31; `scripts/billing/commercial-readiness.cjs` |
 | Comp-expiry sweep (OQ-8) | Eng | Open, launch-adjacent |
-| Capability-registry drift (`capability-registry.md:46`) | Eng | Open |
+| Capability-registry drift (`capability-registry.md:46`) | Eng | DONE 2026-07-31; registry refreshed (5 rows updated, 2 added) |

@@ -139,17 +139,21 @@ accountant re-confirmation against v2 specifically. Under v1 both paths compute
 
 Order matters here and is easy to get wrong:
 
-1. **Refresh `plus-capability-registry.ts` first.** It has zero consumers and is
-   materially stale (no row for appointment payments, goods tools still marked
-   greenfield, shipped keys still labelled proposed).
-2. Then write `commercial-readiness.cjs` **against the refreshed registry**, or
-   the script inherits the drift. It must read LIVE production
-   `DISABLED_CAPABILITIES`, not a doc string. Expected first run: FAIL.
-3. Migrate the legacy `deposits` call sites onto the seven payment keys.
+1. ~~**Refresh `plus-capability-registry.ts` first.**~~ DONE 2026-07-31: added
+   card deposit collection + appointment payments rows, updated goods tools
+   (P5d collections + discounts + scheduling), templates page gate, fee
+   unification, featured_collection block, founder offer C2 fix.
+2. ~~**Write `commercial-readiness.cjs`**~~ DONE 2026-07-31: reads
+   DISABLED_CAPABILITIES + database launch keys + founder offer + fee schedule.
+3. ~~**Migrate the legacy `deposits` call sites onto the fine payment keys.**~~
+   DONE 2026-07-31: deposit-collection.ts, bookings.ts, mobile/me/route.ts,
+   admin entitlements all check `card_deposit_collection`. Kill switch stays
+   `deposits`. Migration script: `scripts/entitlements/migrate-deposits-key.cjs`
+   (run against prod before launch).
 4. Re-run `legacy-free-recompute.cjs`, then **unpark `entitlement_caps`**.
-5. **Unpark `custom_templates`.** Enforcement is already built and tested on
-   both save paths; also gate `settings/emails/page.tsx`, which currently opens
-   the editor for a Free artist and only fails at save.
+5. ~~**Unpark `custom_templates`.**~~ Page gate DONE 2026-07-29 (1c914ca):
+   settings/emails/page.tsx shows banner + disables buttons when !entitled.
+   The actual unpark (removing from DISABLED_CAPABILITIES) is an env change.
 6. Insert the `founder_offer_policy` row (0 rows today, so the offer is closed
    by default and never opens on its own).
 7. G-5: complete Connect onboarding in LIVE mode and run one real card deposit.

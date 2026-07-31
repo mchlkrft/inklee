@@ -7,9 +7,10 @@
 // human view lives in docs/product/plus-product-spec.md.
 //
 // State fields describe CURRENT implementation truth (audited 2026-07-28,
-// 12-agent adversarial pass), not aspiration. Update rows in the SAME change
-// that alters a capability's state; a stale row here is a bug exactly like a
-// stale parity-register row.
+// 12-agent adversarial pass; refreshed 2026-07-31 for P9 appointment payments,
+// P5d collections, C1-C7 correctness fixes, and custom_templates page gate),
+// not aspiration. Update rows in the SAME change that alters a capability's
+// state; a stale row here is a bug exactly like a stale parity-register row.
 
 export type ImplState = "exists" | "partial" | "absent";
 export type LaunchReadiness = "ready" | "build" | "blocked-decision";
@@ -145,27 +146,27 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     launchReadiness: "blocked-decision",
   },
   {
-    name: "Plus Linkhub blocks (booking form, goods, guest spots, flash, books-open, gallery)",
+    name: "Plus Linkhub blocks (booking form, goods, guest spots, flash, books-open, gallery, featured collection)",
     entitlementKey: "page_blocks (proposed)",
     productArea: "inklee-page",
     freeBehavior:
       "Standard links + custom text sections (text sections shipped free, stays free)",
-    plusBehavior: "Six rich blocks",
+    plusBehavior: "Seven rich blocks (six feature blocks + featured_collection reference block)",
     legacyBehavior: "none",
     scope: "artist",
-    serverEnforcement: "absent", // block-kind plumbing absent; underlying components exist on the booking page
-    databaseEnforcement: "absent",
-    frontendBehavior: "partial", // ShopTeaser/TravelCard/deriveBooksOpen/flash exist as booking-page components
-    mobileSupport: "partial", // hub editor native twin exists; new kinds need both editors
+    serverEnforcement: "partial", // featured_collection: server-rendered from collection data (P5d). The other six: block-kind plumbing absent; underlying components exist on the booking page
+    databaseEnforcement: "partial", // featured_collection stored in bio_page JSONB; parser dedupes on collectionId. The others: absent
+    frontendBehavior: "partial", // featured_collection: hub renders the collection teaser (P5d). ShopTeaser/TravelCard/deriveBooksOpen/flash exist as booking-page components
+    mobileSupport: "partial", // hub editor native twin exists; featured_collection type added (P5d, breaking wire change gated by EAS build)
     downgradeBehavior: "Blocks hidden, configuration retained",
     feeImpact: "none",
     analyticsEvents: "block_added, block_clicked (required)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
     operationalState:
-      "unbuilt; NOTE hub is PERMANENTLY FREE by founder decision (features.ts) - gating needs that revisited",
-    testCoverage: "absent",
-    launchReadiness: "build", // hub-free reconciliation closed 2026-07-28 (features.ts)
+      "PARTIALLY BUILT: featured_collection shipped (P5d) as a reference block that surfaces a shop collection on the Hub. The other six feature blocks are unbuilt (the underlying components exist on the booking page but the Hub block-kind plumbing is absent). NOTE hub is PERMANENTLY FREE by founder decision (features.ts), so a page_blocks entitlement gate would need that revisited",
+    testCoverage: "partial", // featured_collection: bio-page parser tests including dedupe. The others: absent
+    launchReadiness: "build",
   },
   {
     name: "Linkhub analytics",
@@ -262,7 +263,7 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     pricingPageClaim: "Custom booking email templates",
     termsClaim: "Terms section 11 names custom templates",
     operationalState:
-      "PARKED (moot: zero templates exist in prod); subjects force-reset by design",
+      "PARKED (moot: zero templates exist in prod); subjects force-reset by design. PAGE GATE added 2026-07-29: settings/emails/page.tsx shows banner + disables template buttons when !entitled, so a Free artist discovers the restriction at navigation rather than at save",
     testCoverage: "exists", // P0 2026-07-28: rejection paths pinned on BOTH surfaces (web pre-upsert refusal, mobile 403 not_entitled, fail-open blip)
     launchReadiness: "build",
   },
@@ -289,6 +290,62 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     operationalState:
       "BUILT 2026-07-28 (migration 0115). Live, not parked: with zero Plus artists the intake 404s for everyone, so it is inert today. DEFERRED by design: the client portal view of a project, and project-specific lifecycle emails (v1 sends none, so the intake ends on the shared confirmation page)",
     testCoverage: "exists", // 23 shared-model tests + 16 server-core tests incl. fail-closed intake and transition refusal
+    launchReadiness: "ready",
+  },
+  // ---------------------------------------------------------------- payments
+  {
+    name: "Card deposit collection",
+    entitlementKey: "deposits (live gate) + card_deposit_collection (fine key)",
+    productArea: "booking-form",
+    freeBehavior:
+      "Manual deposit tracking only (offline / bank transfer); Free artists can request deposits but clients cannot pay by card through Inklee",
+    plusBehavior:
+      "Card deposit collection through Stripe Connect; the client pays on the booking page with no redirect",
+    legacyBehavior:
+      "GRANTED where an existing Connect account was already onboarded; the legacy_free_v1 cohort carries the deposits override",
+    scope: "artist",
+    serverEnforcement: "exists", // getDepositCollection three-factor gate (pause, entitlement, Connect routing) + requestDepositCore re-derives at charge time
+    databaseEnforcement: "exists", // account_overrides grant; Connect routing via stripe_account_id + stripe_charges_enabled
+    frontendBehavior: "exists", // booking detail page + mobile deposit form both consume getDepositCollection
+    mobileSupport: "exists", // shared deposit-collection module; mobile deposit form reads the same gate
+    downgradeBehavior:
+      "Card collection stops; manual deposit tracking continues; existing paid deposits and their refund routes are unaffected",
+    feeImpact:
+      "3% platform fee on the deposit basis (v1 flat rate); sponsored artists pay 0% until the budget is exhausted",
+    analyticsEvents: "deposit_requested, deposit_paid (exist in audit_log)",
+    pricingPageClaim: "Accept card deposits",
+    termsClaim: "Terms section 11 names card deposits",
+    operationalState:
+      "LIVE and enforced since launch. Call sites MIGRATED (2026-07-31) from the broad `deposits` key to the fine `card_deposit_collection` key. The kill switch still uses `deposits` (platform-wide pause). Run scripts/entitlements/migrate-deposits-key.cjs against production to add card_deposit_collection to any admin-granted deposits overrides",
+    testCoverage: "exists", // deposit-collection gate tests, booking core refusal tests, e2e
+    launchReadiness: "ready",
+  },
+  {
+    name: "Appointment payment requests (create, send, pay, settle, refund)",
+    entitlementKey:
+      "appointment_balance_collection, full_appointment_payment_collection, appointment_payment_line_items, appointment_payment_refunds, appointment_payment_insights",
+    productArea: "booking-form",
+    freeBehavior:
+      "Manual deposit tracking only; no structured payment requests, no itemized billing, no card collection beyond the initial deposit",
+    plusBehavior:
+      "Structured payment requests with immutable revisions, itemized line items (services, products, deposits), server-authoritative quoting, card collection, automated settlement and allocation, classification-aware refunds",
+    legacyBehavior: "none",
+    scope: "artist",
+    serverEnforcement: "exists", // A1-A8: create/revise/send/cancel/expire cores, quote, intent, settlement, refund; all gate on the fine payment keys
+    databaseEnforcement: "exists", // migrations 0125-0128: payment_requests (immutable revisions, 13-state lifecycle), payment_request_lines (classified), payment_allocations; RLS + composite FKs
+    frontendBehavior: "exists", // A6: client payment page at /pay/[token] with itemized breakdown
+    mobileSupport: "exists", // A7: mobile API routes for payment request CRUD
+    downgradeBehavior:
+      "Existing payment requests stay readable and their settlement/refund routes continue working; new requests cannot be created",
+    feeImpact:
+      "Fee computed per line classification through computeOrderFees (A3 unified the two legacy fee sources); fee schedule version stamped on every transaction",
+    analyticsEvents:
+      "payment_request_sent, payment_settled, payment_refunded (exist in audit_log)",
+    pricingPageClaim: "none yet (appointment payments not yet marketed)",
+    termsClaim: "none",
+    operationalState:
+      "BUILT (A1-A8, migrations 0125-0128). Live code, not parked: with zero Plus artists, the entitlement gates refuse all requests, so the system is inert today. Connect onboarding gate (A8) prevents Free artists from creating a Connect account they cannot use",
+    testCoverage: "exists", // 27 spec test obligations claimed and delivered: pure-model tests, core tests, settlement tests, refund tests, fee unification tests, collection tests
     launchReadiness: "ready",
   },
   // ------------------------------------------------------------------ goods
@@ -318,25 +375,26 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
   },
   {
     name: "Plus goods tools (variants+, inventory, preorders, drops, discounts, bundles, collections, shop customization, sales analytics)",
-    entitlementKey: "goods_tools (proposed)",
+    entitlementKey:
+      "goods_discounts, goods_scheduling, goods_collections (live keys); goods_tools (proposed, for preorders/bundles/shop-custom/analytics)",
     productArea: "goods",
     freeBehavior: "Basic listing, flat variants, basic stock",
     plusBehavior: "Full toolset; scheduled drops are the headline",
     legacyBehavior: "none",
     scope: "artist",
-    serverEnforcement: "partial", // variants + stock decrement exist; the rest greenfield
-    databaseEnforcement: "partial",
-    frontendBehavior: "partial",
-    mobileSupport: "partial",
+    serverEnforcement: "partial", // discounts: create/apply gated (0118, P5). scheduling: write gated. collections: full CRUD gated (P5d, 0120-0124). preorders/bundles: absent
+    databaseEnforcement: "partial", // discount_codes (0118 + 0123 write RLS), product_collections + collection_items (0120-0122, composite FKs, convergent), scheduling columns exist. bundles/preorders: absent
+    frontendBehavior: "partial", // discounts + collections: web editor + public shop surface. scheduling: write gate. preorders/bundles/shop-custom: absent
+    mobileSupport: "partial", // discounts + collections: mobile API routes. scheduling: mobile gate. preorders/bundles: absent
     downgradeBehavior:
-      "Tool access ends; product data + orders retained untouched",
+      "Tool access ends; product data + orders + collection assignments + discount definitions retained untouched",
     feeImpact: "discounts feed the fee base (subtotal after discounts)",
     analyticsEvents: "drop_scheduled, discount_redeemed (required)",
     pricingPageClaim: "none yet",
     termsClaim: "none",
     operationalState:
-      "preorders/drops/discounts/bundles/collections all greenfield",
-    testCoverage: "absent",
+      "THREE of nine tools BUILT: discount codes (P5, migration 0118, gate goods_discounts), scheduling gates (goods_scheduling), collections (P5d, migrations 0120-0124, gate goods_collections + featured_collection hub block). None parked: with zero Plus artists, entitlement gates refuse all requests. REMAINING greenfield: preorders, drops, bundles, shop customization, sales analytics",
+    testCoverage: "partial", // discounts: RLS + gate tests. collections: 51 db tests, TOCTOU-proven delete, convergent migrations. scheduling: gate tests. preorders/bundles: absent
     launchReadiness: "build",
   },
   // ------------------------------------------------------------------- fees
@@ -348,9 +406,9 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     plusBehavior: "0.5%",
     legacyBehavior: "UNDEFINED for legacy_free_v1 (flagged: which rate?)",
     scope: "transaction",
-    serverEnforcement: "partial", // single-source flat 3% exists; tier parameter absent
-    databaseEnforcement: "absent", // no fee schedule version column
-    frontendBehavior: "partial", // fee shown flat
+    serverEnforcement: "partial", // A3 unified the two legacy fee sources (bookings.ts hardcode + request/actions.ts schedule read) into computeOrderFees; ACTIVE_FEE_SCHEDULE_VERSION still v1 (flat 3%)
+    databaseEnforcement: "partial", // fee_schedule_version column stamped on payment_requests (0125) and orders; v2 defined in fee-schedule.ts but ACTIVE still v1
+    frontendBehavior: "partial", // fee shown flat; payment page displays the quoted fee
     mobileSupport: "partial",
     downgradeBehavior:
       "Next transaction prices at the Free rate; past fees untouched",
@@ -360,8 +418,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     pricingPageClaim: "3% all-in today (needs update)",
     termsClaim: "deposit fee named in money copy (needs update)",
     operationalState:
-      "RESOLVED 2026-07-28: card collection is PLUS-ONLY, so there is no Free rate (n/a, not 3%). Approved rates live in fee-schedule.ts as v2, DEFINED but NOT ACTIVE until P7 plus accountant sign-off.",
-    testCoverage: "partial",
+      "RESOLVED 2026-07-28: card collection is PLUS-ONLY, so there is no Free rate (n/a, not 3%). A3 (2026-07-29) UNIFIED the two divergent fee sources into computeOrderFees so v2 cannot produce different numbers on different code paths. Approved rates live in fee-schedule.ts as v2, DEFINED but NOT ACTIVE until Stage 4 (flip ACTIVE_FEE_SCHEDULE_VERSION) plus accountant sign-off",
+    testCoverage: "partial", // fee unification characterization tests (appointment-fee-unification.test.ts); order-fees tests pin v1 as active
     launchReadiness: "build",
   },
   {
@@ -466,9 +524,9 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
       "First 100 subscribers, 24 EUR first year, yearly-only, 6-month window",
     legacyBehavior: "n/a",
     scope: "artist",
-    serverEnforcement: "partial", // yearly plan + auto coupon wired; the FIRST-100 mechanic absent
-    databaseEnforcement: "absent", // no promo mirror table
-    frontendBehavior: "partial",
+    serverEnforcement: "partial", // yearly plan selectable for all (C2 fix); founder-offer eligibility decided server-side (founder-offer.ts); the FIRST-100 mechanic absent
+    databaseEnforcement: "absent", // no promo mirror table; founder_offer_policy has 0 rows so the offer is closed by default
+    frontendBehavior: "exists", // C2: yearly option renders for everyone (no longer gated on founder-offer eligibility)
     mobileSupport: "exists", // no IAP by design; nothing to do
     downgradeBehavior: "per the decided offer terms (founder-only)",
     feeImpact: "none",

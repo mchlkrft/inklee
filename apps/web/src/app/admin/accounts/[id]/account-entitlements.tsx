@@ -145,7 +145,7 @@ export default function AccountEntitlements({
   // An explicit per-feature grant outlives the plan, so do not claim deposits
   // stopped when the override keeps them on.
   const depositsSurviveExpiry =
-    overrides.entitlementOverrides.deposits === true;
+    overrides.entitlementOverrides.card_deposit_collection === true;
 
   return (
     <section className="rounded-md border border-border p-5 space-y-5">
@@ -202,13 +202,14 @@ export default function AccountEntitlements({
             {CONNECT_STATUS_LABELS[connect.status] ?? connect.status}
           </span>
         </p>
-        {canAccess(overrides, "deposits") && !connect.routeCharges && (
-          <p className="text-[11px] leading-snug text-brand-mustard">
-            Card deposits are granted, but this artist cannot collect by card
-            yet. Their deposit requests go out as manual deposits until payout
-            setup is active.
-          </p>
-        )}
+        {canAccess(overrides, "card_deposit_collection") &&
+          !connect.routeCharges && (
+            <p className="text-[11px] leading-snug text-brand-mustard">
+              Card deposits are granted, but this artist cannot collect by card
+              yet. Their deposit requests go out as manual deposits until payout
+              setup is active.
+            </p>
+          )}
       </div>
 
       {/* Plan */}

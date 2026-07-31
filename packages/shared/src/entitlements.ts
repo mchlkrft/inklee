@@ -48,12 +48,13 @@ export const PERSONAL_SCOPE: EntitlementScope = { kind: "personal" };
 // Plus feature set that lands with the paid billing slice (placeholders so the
 // override UI + canAccess() are ready for them).
 export const ENTITLEMENT_FEATURES = [
-  // The ORIGINAL broad payment key. Kept as the live gate for card deposit
-  // collection so nothing changes under existing accounts; the finer keys
-  // below are the vocabulary the payment package is built against (founder
-  // direction 2026-07-28: one broad `deposits` key must not stand for all
-  // payment behaviour). They resolve together commercially as one Plus payment
-  // package while staying conceptually distinct in the system.
+  // The ORIGINAL broad payment key. Retained for backward compatibility with
+  // existing admin overrides; the kill switch (`isCapabilityDisabled("deposits")`)
+  // still uses it to pause ALL deposit functionality platform-wide. Call sites
+  // now check the fine `card_deposit_collection` key for entitlement. The finer
+  // keys below are the vocabulary the payment package is built against (founder
+  // direction 2026-07-28). They resolve together commercially as one Plus
+  // payment package while staying conceptually distinct in the system.
   "deposits",
   // Payment capability vocabulary (Plus payment scope, 2026-07-28).
   // Free keeps manual/offline tracking; every CARD collection path is Plus.

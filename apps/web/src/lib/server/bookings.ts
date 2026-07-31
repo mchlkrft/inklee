@@ -852,7 +852,8 @@ export async function requestDepositCore(
   // already take, so a paused fleet (old installed builds included) stays
   // coherent without touching Stripe keys or account rows.
   const depositsEntitled =
-    !isCapabilityDisabled("deposits") && canAccess(overrides, "deposits");
+    !isCapabilityDisabled("deposits") &&
+    canAccess(overrides, "card_deposit_collection");
   const amountCents = Math.round(amount * 100);
 
   // SLICE A3, THE FEE UNIFICATION. This used to be `platformFeeCents(
