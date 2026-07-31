@@ -103,6 +103,38 @@ findings in `docs/audit/findings.yaml`.
 Most of the engineering along this chain is now done; it advances on the human
 sign-offs, in order.
 
+### Founder rulings applied 2026-07-31 (operating model: NO DEFERRAL)
+
+The founder issued a full build-everything directive and 20 rulings the same day.
+What each ruling closes or changes, mapped onto the items above. These are
+DECIDED (not provisional); implementation continues, activation stays gated.
+
+| Ruling | Item(s) | Effect |
+|---|---|---|
+| 1. Cover images Free for all | F1 | RESOLVED. Cover image becomes a Free feature (remove the Plus/grandfather gate). Build change. |
+| 2. Accurate customization copy | F2 | RESOLVED direction. Replace "fully customisable" with accurate wording; drop no-code-path claims. |
+| 3. Ratify published caps | F3 | RESOLVED. 3/30, 3/100, 5/50, 3/25 are authoritative; doc says "proposed" → ratified. |
+| 4. Accept grandfathering | F4 | RESOLVED. Accepted; re-run the recompute immediately before enforcement. |
+| 5. Basic analytics Free, advanced Plus | F5, X3 | RESOLVED. Analytics differentiates: basic Free, advanced Plus. Wire/verify the gate; reconcile the parked `analytics` capability. |
+| 6 + 14. Fee v2 fully encoded now (gated); legacy 3% | F6, F14, A3 | Encode v2 completely NOW incl. legacy appointment 3% / Free goods 5% / Plus 0.5% / Plus goods 1% — NO undefined cell. `ACTIVE_FEE_SCHEDULE_VERSION` stays v1 until accountant + Terms. |
+| 7. Founder offer activates at release | F7 | Confirmed as a release-time production insert. |
+| 8. Live-money test before external use | F8 | Confirmed; founder-run verification, prerequisite before any external payment. |
+| 9. Fresh builds after implementation | F9 | Confirmed; build once implementation is complete. |
+| 10. Re-record tech keys against final RC only | F10 | Confirmed; defer to the release candidate. |
+| 11. Verify Stripe dispute events | F11 | Confirmed pre-launch. |
+| 12. `consumer_sales_launch_approved` = final gate | F12 | Unchanged; the last gate by design. |
+| 13. Collections completed + published | F13 | Merged; ships with the full product (EAS-gated). |
+| 15. PAY-RFD-002 remediated; v1 gated | PAY-RFD-002 | Confirmed: code fix done, v1 activation stays gated on final Terms + accountant. |
+| 16. BILL-UI-003 = blocked checkout | BILL-UI-003 | RESOLVED. No displayed authoritative price → block checkout with a retryable error, confirm no charge; never defer the total to a later Stripe page. Build change. |
+| 17. Galleries completed | D1-D6 | In scope; complete downgrade preservation, locked preview, export, native rendering, entitlement. |
+| 18. Payable bundles completed | B1-B5, #32 | In scope NOW (supersedes the "display-only, checkout deferred to P7" provisional): checkout, confirmation, refund, partial refund, historical integrity after archive, mobile, e2e. |
+| 19. Shop + guest-spot surfaces | S1 | In scope (supersedes the deferral): inherited theming PLUS surface-specific content controls. |
+| 20. No deferral to shrink launch | all | Standing rule for the rest of the build. |
+
+Still true activation blockers (build around, leave the final step undone): A1
+irreversible Price + co-sign, F6/A3 fee-schedule flip, PAY-RFD-002 v1 refund-policy
+flip, C1 final Terms + sign-off, F12 launch key, F8 live-money test.
+
 ---
 
 ## Founder decisions (14)

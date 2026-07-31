@@ -10,6 +10,21 @@ Last updated: 2026-07-29 (second docs pass). All six P5d milestones BUILT on
 decision, now the tip of `origin/master`). `0121`, `0122` and `0124` are still
 branch-local; `goods_collections` stays ungranted; nothing else is activated.
 
+> **🔁 RECONCILED AGAINST GIT 2026-07-31. Most of this file is now history, not
+> current state.** P5d IS merged to master (`99e39e1`); the collections work
+> above shipped. Since then the branch `feat/p5d-collections` has advanced to
+> **35 commits ahead of `origin/master` (`c69c95a`), tree clean**, migrations to
+> **0132**, carrying the rest of the Plus build: appointment payments full
+> lifecycle (0125-0128), P6 analytics + savings (0130), C1-C7 billing fixes,
+> Stage-5 commercial closure, image_gallery, bundles + payable decomposition
+> (0132), PAY-RFD-002 fix (0131), billing retention (0129). Anything below that
+> says "P5b not started", "bundles unstarted", or "analytics unwired" is STALE.
+> Re-derive from git (`git log --oneline origin/master..HEAD`), not from this
+> log. Current decision + status SoT: `docs/product/plus-open-decisions-handoff.md`
+> (status snapshot) and `docs/product/plus-build-time-decisions.md` (reasoning).
+> **Operating model as of 2026-07-31: NO DEFERRAL — build the complete product
+> now behind gates, one consolidated review at the end.**
+
 > **Correction, this pass.** The line above previously read "Gate A findings
 > resolved; **awaiting specialist re-review**. Nothing pushed to master."
 > Both halves were false by the time they were read. Recorded rather than
