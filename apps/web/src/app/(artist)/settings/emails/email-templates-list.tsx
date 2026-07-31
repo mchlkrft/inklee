@@ -22,9 +22,11 @@ export type TemplateData = {
 export default function EmailTemplatesList({
   templates,
   allowedVars,
+  entitled = true,
 }: {
   templates: TemplateData[];
   allowedVars: string[];
+  entitled?: boolean;
 }) {
   const [openType, setOpenType] = useState<EmailType | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -66,8 +68,9 @@ export default function EmailTemplatesList({
               <button
                 key={type}
                 type="button"
-                onClick={() => open(type)}
-                className="w-full flex items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/20"
+                onClick={() => entitled && open(type)}
+                disabled={!entitled}
+                className={`w-full flex items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors ${entitled ? "hover:bg-muted/20" : "opacity-60 cursor-not-allowed"}`}
               >
                 <div className="min-w-0 space-y-0.5">
                   <div className="flex items-center gap-2">

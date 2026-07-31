@@ -6,6 +6,8 @@ import {
 } from "@/lib/email/booking-templates";
 import { EMAIL_TEMPLATE_TYPES } from "@inklee/shared/email-templates";
 import { parseReminderSettings } from "@/lib/reminder-settings";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { canEditTemplates } from "@/lib/server/entitlement-gates";
 import RemindersForm from "../reminders/reminders-form";
 import EmailTemplatesList from "./email-templates-list";
 import type { TemplateData } from "./email-templates-list";
@@ -27,6 +29,13 @@ export default async function EmailsPage() {
       .eq("artist_id", user!.id),
     supabase.from("profiles").select("settings").eq("id", user!.id).single(),
   ]);
+
+  let entitled = false;
+  try {
+    entitled = canEditTemplates(await getAccountOverrides(user!.id));
+  } catch {
+    entitled = false;
+  }
 
   const savedMap = Object.fromEntries(
     (saved ?? []).map((t) => [t.type, t.body]),
@@ -60,6 +69,15 @@ export default async function EmailsPage() {
         </p>
       </div>
 
+      {!entitled && (
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-sm text-foreground">
+            Custom email templates are part of Plus. Your current templates stay
+            exactly as they are.
+          </p>
+        </div>
+      )}
+
       <section className="space-y-4">
         <div className="border-b border-border pb-3">
           <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -72,6 +90,7 @@ export default async function EmailsPage() {
         <EmailTemplatesList
           templates={templates}
           allowedVars={[...ALLOWED_VARS]}
+          entitled={entitled}
         />
       </section>
 
