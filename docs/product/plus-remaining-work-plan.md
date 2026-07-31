@@ -117,8 +117,17 @@ Unparking `analytics` remains a P7 action.
 ## Stage 3: goods and page remainder (~3-5 weeks, parallelisable)
 
 Bundles; the `shop` and `guestSpots` appearance surfaces that exist in the
-vocabulary with no renderer; detailed sales analytics (currently a raw order
-ledger). Page: `image_gallery` block type, section layouts, custom SEO fields.
+vocabulary with no renderer; ~~detailed sales analytics~~. Page:
+`image_gallery` block type, section layouts, custom SEO fields.
+
+**Sales analytics DONE 2026-07-31**: `/goods/sales` gains Plus-gated trends
+section above the existing raw ledger: this-month vs last-month stat cards with
+percentage change, top products ranked by revenue (capped at 8), monthly
+revenue/orders/items summary (last 6 months). Computed from existing order data
+via `computeSalesAnalytics` (extracted to `goods-sales-analytics.ts`, 13 pure
+tests). Free tier keeps the raw ledger + totals unchanged. Mobile route
+`GET /api/mobile/goods/sales` serves the same data. Gated by
+`canSeeAdvancedAnalytics` (same boundary as hub analytics and fee savings).
 
 ---
 

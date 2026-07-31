@@ -1,14 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatPrice, toPriceNumber } from "@/lib/goods";
-
-// Sales ledger — every goods line item a client has paid for, newest first.
-// A lightweight bookkeeping record (not an order-management system). Deposits
-// are excluded (this is a goods view); only paid/refunded orders appear.
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { canSeeAdvancedAnalytics } from "@/lib/server/entitlement-gates";
+import {
+  computeSalesAnalytics,
+  type SalesRow,
+} from "@/lib/goods-sales-analytics";
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
     new Date(iso),
   );
+}
+
+function fmtMonth(key: string) {
+  const [y, m] = key.split("-");
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(Number(y), Number(m) - 1));
 }
 
 type RawOrderItem = {
@@ -28,11 +38,62 @@ type RawOrder = {
   order_items: RawOrderItem[] | null;
 };
 
+type Row = {
+  key: string;
+  date: string;
+  client: string;
+  bookingId: string;
+  item: string;
+  qty: number;
+  amount: number;
+  fulfillment: string;
+  refunded: boolean;
+};
+
+function buildRows(
+  orders: RawOrder[],
+  clientByBooking: Map<string, string>,
+): Row[] {
+  const rows: Row[] = [];
+  for (const o of orders) {
+    const client = clientByBooking.get(o.booking_id) ?? "—";
+    const items = (o.order_items ?? []).filter((i) => i.type === "product");
+    items.forEach((i, idx) => {
+      rows.push({
+        key: `${o.id}-${idx}`,
+        date: o.created_at,
+        client,
+        bookingId: o.booking_id,
+        item: `${i.title_snapshot}${i.variant_snapshot ? ` · ${i.variant_snapshot}` : ""}`,
+        qty: Number(i.quantity),
+        amount: toPriceNumber(i.total_amount),
+        fulfillment: o.fulfillment_status,
+        refunded: o.status !== "paid",
+      });
+    });
+  }
+  return rows;
+}
+
+function toSalesRows(rows: Row[]): SalesRow[] {
+  return rows.map((r) => ({
+    date: r.date,
+    item: r.item,
+    qty: r.qty,
+    amount: r.amount,
+    refunded: r.refunded,
+    orderId: r.key.split("-")[0],
+  }));
+}
+
 export default async function GoodsSalesPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const overrides = await getAccountOverrides(user!.id);
+  const showAdvanced = canSeeAdvancedAnalytics(overrides);
 
   const { data: orderData } = await supabase
     .from("orders")
@@ -45,7 +106,6 @@ export default async function GoodsSalesPage() {
 
   const orders = (orderData ?? []) as unknown as RawOrder[];
 
-  // Resolve client names in one extra query (avoids a PostgREST parent embed).
   const bookingIds = [
     ...new Set(orders.map((o) => o.booking_id).filter(Boolean)),
   ];
@@ -67,41 +127,18 @@ export default async function GoodsSalesPage() {
     }
   }
 
-  type Row = {
-    key: string;
-    date: string;
-    client: string;
-    bookingId: string;
-    item: string;
-    qty: number;
-    amount: number;
-    fulfillment: string;
-    refunded: boolean;
-  };
-  const rows: Row[] = [];
-  for (const o of orders) {
-    const client = clientByBooking.get(o.booking_id) ?? "—";
-    const items = (o.order_items ?? []).filter((i) => i.type === "product");
-    items.forEach((i, idx) => {
-      rows.push({
-        key: `${o.id}-${idx}`,
-        date: o.created_at,
-        client,
-        bookingId: o.booking_id,
-        item: `${i.title_snapshot}${i.variant_snapshot ? ` · ${i.variant_snapshot}` : ""}`,
-        qty: Number(i.quantity),
-        amount: toPriceNumber(i.total_amount),
-        fulfillment: o.fulfillment_status,
-        refunded: o.status !== "paid",
-      });
-    });
-  }
+  const rows = buildRows(orders, clientByBooking);
 
   const totalRevenue = rows.reduce(
     (s, r) => s + (r.refunded ? 0 : r.amount),
     0,
   );
   const totalItems = rows.reduce((s, r) => s + (r.refunded ? 0 : r.qty), 0);
+
+  const analytics =
+    showAdvanced && rows.length > 0
+      ? computeSalesAnalytics(toSalesRows(rows))
+      : null;
 
   return (
     <div className="space-y-6">
@@ -142,6 +179,107 @@ export default async function GoodsSalesPage() {
               </p>
             </div>
           </div>
+
+          {analytics && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-foreground">Trends</h2>
+
+              <div className="flex flex-wrap gap-4">
+                <StatCard
+                  label="Revenue this month"
+                  value={formatPrice(analytics.thisMonth.revenue)}
+                  change={analytics.revenueChange}
+                />
+                <StatCard
+                  label="Orders this month"
+                  value={String(analytics.thisMonth.orders)}
+                  change={analytics.ordersChange}
+                />
+              </div>
+
+              {analytics.topProducts.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                    Top products
+                  </h3>
+                  <div className="overflow-x-auto rounded-[16px] border border-border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                          <th className="px-4 py-2.5 font-medium">Product</th>
+                          <th className="px-4 py-2.5 text-center font-medium">
+                            Sold
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium">
+                            Revenue
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {analytics.topProducts.map((p) => (
+                          <tr key={p.name}>
+                            <td className="px-4 py-2.5 text-foreground">
+                              {p.name}
+                            </td>
+                            <td className="px-4 py-2.5 text-center tabular-nums text-foreground">
+                              {p.qty}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-foreground">
+                              {formatPrice(p.revenue)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {analytics.months.length > 1 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                    Monthly summary
+                  </h3>
+                  <div className="overflow-x-auto rounded-[16px] border border-border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                          <th className="px-4 py-2.5 font-medium">Month</th>
+                          <th className="px-4 py-2.5 text-center font-medium">
+                            Orders
+                          </th>
+                          <th className="px-4 py-2.5 text-center font-medium">
+                            Items
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium">
+                            Revenue
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {analytics.months.map((m) => (
+                          <tr key={m.key}>
+                            <td className="whitespace-nowrap px-4 py-2.5 text-foreground">
+                              {fmtMonth(m.key)}
+                            </td>
+                            <td className="px-4 py-2.5 text-center tabular-nums text-foreground">
+                              {m.orders}
+                            </td>
+                            <td className="px-4 py-2.5 text-center tabular-nums text-foreground">
+                              {m.items}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-foreground">
+                              {formatPrice(m.revenue)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="overflow-x-auto rounded-[16px] border border-border">
             <table className="w-full text-sm">
@@ -184,6 +322,35 @@ export default async function GoodsSalesPage() {
             </table>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  change,
+}: {
+  label: string;
+  value: string;
+  change: string | null;
+}) {
+  const isPositive = change?.startsWith("+");
+  return (
+    <div className="min-w-[160px] rounded-[16px] border border-border px-5 py-4">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+        {value}
+      </p>
+      {change && (
+        <p
+          className={`mt-0.5 text-xs font-medium ${isPositive ? "text-green-600" : "text-red-500"}`}
+        >
+          {change} vs last month
+        </p>
       )}
     </div>
   );
