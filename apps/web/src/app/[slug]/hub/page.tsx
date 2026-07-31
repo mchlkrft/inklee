@@ -19,6 +19,7 @@ import {
 import { apexHref, publicArtistUrl, publicHubUrl } from "@/lib/public-url";
 import { clampDescription } from "@/lib/seo";
 import { SocialIcon } from "./social-icon";
+import { HubAnalytics } from "./hub-analytics";
 
 // The Inklee Hub (a.k.a. "Linklee"): an OPTIONAL, standalone link-in-bio page
 // for an artist, at /<slug>/hub (pretty URL l.inkl.ee/<slug> is a rewrite, added
@@ -182,6 +183,8 @@ export default async function ArtistHubPage({
                 rel="noopener noreferrer nofollow"
                 aria-label={BIO_SOCIAL_META[s.platform].label}
                 className="text-brand-bone/80 transition-colors hover:text-brand-bone"
+                data-track="link"
+                data-track-key={s.platform}
               >
                 <SocialIcon platform={s.platform} className="h-6 w-6" />
               </a>
@@ -204,6 +207,8 @@ export default async function ArtistHubPage({
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 rounded-2xl bg-brand-mustard px-5 py-4 text-sm font-semibold text-brand-charcoal shadow-sm transition-transform hover:-translate-y-0.5"
+              data-track="block"
+              data-track-key="booking_cta"
             >
               <CalendarCheck className="h-4 w-4" aria-hidden />
               Book a tattoo
@@ -261,6 +266,8 @@ export default async function ArtistHubPage({
                 target="_blank"
                 rel="noopener noreferrer nofollow"
                 className={`flex items-center justify-between gap-3 shadow-sm transition-transform hover:-translate-y-0.5 ${tpl.link}`}
+                data-track="link"
+                data-track-key={block.label}
               >
                 <span className="truncate">{block.label}</span>
                 <ExternalLink
@@ -272,6 +279,8 @@ export default async function ArtistHubPage({
           })}
         </div>
       </main>
+
+      <HubAnalytics slug={slug} />
 
       <footer className="relative z-10 flex flex-wrap justify-center gap-x-4 gap-y-2 px-6 py-6 text-xs text-brand-bone/45">
         <Link

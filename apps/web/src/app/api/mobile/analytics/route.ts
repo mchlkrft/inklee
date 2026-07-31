@@ -9,10 +9,12 @@ import {
   computeAnalytics,
   type AnalyticsRow,
 } from "@inklee/shared/analytics";
+import { getArtistHubAnalytics } from "@/lib/server/artist-analytics-query";
+import type { HubAnalyticsRange } from "@inklee/shared/artist-analytics";
 
 export const runtime = "nodejs";
 
-// GET /api/mobile/analytics?range=30|90|all — headline booking metrics.
+// GET /api/mobile/analytics?range=30|90|all — headline booking metrics + hub.
 // Mirrors the web analytics computation; kept mobile-readable (no day grid).
 export async function GET(req: Request) {
   const auth = await requireMobileUser(req);
@@ -31,9 +33,14 @@ export async function GET(req: Request) {
   if (error) return mobileError(500, error.message);
   const rows = (data ?? []) as AnalyticsRow[];
 
+  const hubRange: HubAnalyticsRange =
+    range === "30" ? "30" : range === "90" ? "90" : "all";
+  const hubAnalytics = await getArtistHubAnalytics(userId, hubRange);
+
   const responseBody: MobileAnalytics = {
     range,
     ...computeAnalytics(rows),
+    hubAnalytics: hubAnalytics ?? undefined,
   };
   return mobileOk(responseBody);
 }

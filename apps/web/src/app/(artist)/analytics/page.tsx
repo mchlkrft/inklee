@@ -4,14 +4,15 @@ import {
   computeAnalytics,
   type AnalyticsRow,
 } from "@inklee/shared/analytics";
+import { getArtistHubAnalytics } from "@/lib/server/artist-analytics-query";
 import AnalyticsClient from "./analytics-client";
 
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; tab?: string }>;
 }) {
-  const { range = "90" } = await searchParams;
+  const { range = "90", tab } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -69,9 +70,17 @@ export default async function AnalyticsPage({
     maxDay: Math.max(...calendarCells.map((c) => c.count), 1),
   };
 
+  // --- P6 Linkhub analytics (Plus only, null for Free) ---
+  const hubRange = range === "30" ? "30" : range === "90" ? "90" : "all";
+  const hubAnalytics = await getArtistHubAnalytics(
+    user!.id,
+    hubRange as "30" | "90" | "all",
+  );
+
   return (
     <AnalyticsClient
       range={range}
+      activeTab={tab ?? "bookings"}
       metrics={{
         total: m.total,
         conversionRate: m.conversionRate,
@@ -81,6 +90,7 @@ export default async function AnalyticsPage({
       }}
       months={months}
       calendar={calendar}
+      hubAnalytics={hubAnalytics}
     />
   );
 }

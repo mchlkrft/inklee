@@ -418,7 +418,10 @@ export type MobileWaitlistResponse = {
 /** GET /api/mobile/analytics?range=30|90|all — headline booking metrics. The
  *  metric shape is the shared AnalyticsMetrics (one source with the web page +
  *  the computeAnalytics core); the route adds the echoed `range`. */
-export type MobileAnalytics = AnalyticsMetrics & { range: string };
+export type MobileAnalytics = AnalyticsMetrics & {
+  range: string;
+  hubAnalytics?: import("./artist-analytics").ArtistAnalyticsResult;
+};
 
 /** GET /api/mobile/notifications — the feed (newest first) + unread count. */
 export type MobileNotificationsResponse = {

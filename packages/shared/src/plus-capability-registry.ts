@@ -178,20 +178,24 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     legacyBehavior:
       "none (analytics deliberately excluded from legacy_free_v1)",
     scope: "artist",
-    serverEnforcement: "absent", // canSeeAdvancedAnalytics has ZERO call sites
-    databaseEnforcement: "absent", // no artist-keyed events, no click tables
-    frontendBehavior: "absent",
-    mobileSupport: "absent",
+    serverEnforcement:
+      "exists: canSeeAdvancedAnalytics gates getArtistHubAnalytics (web + mobile route)",
+    databaseEnforcement:
+      "exists: artist_page_events + artist_page_rollups (migration 0130), RLS per-artist SELECT",
+    frontendBehavior:
+      "exists: /analytics Hub tab shown only when hubAnalytics is non-null (Plus gate)",
+    mobileSupport:
+      "exists: /api/mobile/analytics returns hubAnalytics (null for Free); needs a build",
     downgradeBehavior: "Access ends; aggregates retained per retention policy",
     feeImpact: "none",
     analyticsEvents:
-      "page_view (hostname substrate exists), link_click (ABSENT, needs beacon + table)",
+      "page_view (wa teed via rollup), link_click + block_click (artist-events beacon), booking_submitted + goods_order_completed (rollup from existing tables)",
     pricingPageClaim: "Advanced booking analytics (overclaims today)",
     termsClaim: "Terms section 11 names deeper analytics",
     operationalState:
-      "capability paused AND unwired; near-parallel data plane required",
-    testCoverage: "absent",
-    launchReadiness: "build",
+      "capability paused, now WIRED; unparking activates the Free/Plus split",
+    testCoverage: "gate tested (entitlement-gates.test.ts); collection + rollup need tests",
+    launchReadiness: "ready",
   },
   // ------------------------------------------------------------ booking form
   {

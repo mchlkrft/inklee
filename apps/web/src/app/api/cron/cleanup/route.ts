@@ -6,6 +6,7 @@ import { runStayLifecycleSweep } from "@/lib/server/guest-spots";
 import { reconcileStalePaymentRequests } from "@/lib/server/appointment-payment-reconciliation";
 import { reconcileStaleSubscriptions } from "@/lib/server/billing/subscription-reconciliation";
 import { runCompExpirySweep } from "@/lib/server/billing/comp-expiry-sweep";
+import { runArtistAnalyticsRollup } from "@/lib/server/artist-analytics-rollup";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,12 @@ export async function GET(request: Request) {
   // whose comp has lapsed. Idempotent via notification metadata keys.
   const compExpiry = await runCompExpirySweep();
 
+  // ── P6 artist analytics daily rollup ────────────────────────────────────
+  // Aggregates yesterday's pageviews (from wa events) and click events
+  // (from artist_page_events) into artist_page_rollups. Also purges raw
+  // click events older than 13 months.
+  const analyticsRollup = await runArtistAnalyticsRollup();
+
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: stale, error: fetchError } = await serviceClient
@@ -57,6 +64,7 @@ export async function GET(request: Request) {
       payment_reconciliation: paymentReconciliation,
       billing_reconciliation: billingReconciliation,
       comp_expiry: compExpiry,
+      analytics_rollup: analyticsRollup,
     });
   }
 
@@ -157,5 +165,6 @@ export async function GET(request: Request) {
     payment_reconciliation: paymentReconciliation,
     billing_reconciliation: billingReconciliation,
     comp_expiry: compExpiry,
+    analytics_rollup: analyticsRollup,
   });
 }

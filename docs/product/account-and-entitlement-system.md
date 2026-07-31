@@ -106,32 +106,31 @@ Three cleanly separated layers:
 Types and resolution:
 
 - `PlanTier = 'free' | 'plus'`. No `studio` value.
-- `ENTITLEMENT_FEATURES = [deposits, branding, custom_templates, extra_fields, extra_trips, analytics]`.
-- `PLAN_FEATURES`: `free` grants none, `plus` grants all six.
+- `ENTITLEMENT_FEATURES`: 19 feature keys (see `entitlements.ts`). `free` grants
+  only `manual_deposit_tracking`; `plus` grants all 19.
 - `canAccess(o, feature)`: an explicit per-feature override in `entitlementOverrides` wins in both directions; otherwise the effective plan baseline. `effectivePlanTier` lapses an expired comp to free lazily at read time; the daily cleanup cron (`comp-expiry-sweep.ts`) warns 14 days before and notifies at expiry.
 
-**Only `deposits` is enforced.** A repo-wide grep confirms the other five feature literals appear only in the definition and the admin panel labels; nothing passes them to `canAccess`. The single authoritative gate is in `requestDepositCore` (`apps/web/src/lib/server/bookings.ts:850-851`):
+**Enforced gates** (as of 2026-07-31, `entitlement-gates.ts`):
 
-```
-depositsEntitled = !isCapabilityDisabled("deposits") && canAccess(overrides, "deposits")
-```
+| Shape | Gate | Capability key | Paused = |
+|---|---|---|---|
+| GRANT | `brandingRemoved` | `branding` | footer shown (today's default) |
+| GRANT | `appearanceCustomAllowed` | `appearance_custom` | Free appearance |
+| GRANT | `conditionalQuestionsAllowed` | `form_conditional` | conditions ignored |
+| GRANT | `formCustomAllowed` | `form_custom` | default confirmation page |
+| GRANT | `largeProjectsAllowed` | `large_projects` | /{slug}/project 404s |
+| GRANT | `goodsDiscountsAllowed` | `goods_discounts` | codes stop applying |
+| GRANT | `goodsSchedulingAllowed` | `goods_scheduling` | drop times kept, write blocked |
+| GRANT | `goodsCollectionsAllowed` | `goods_collections` | collections kept, write blocked |
+| RESTRICTION | `canEditTemplates` | `custom_templates` | everyone edits (today) |
+| RESTRICTION | `canSeeAdvancedAnalytics` | `analytics` | everyone sees (today) |
+| CAP | `capState` | `entitlement_caps` | never blocked (today) |
 
-An un-entitled artist falls through to a manual deposit. The card path additionally requires Connect routing (`routeCharges`). All other call sites (`/api/mobile/me`, the request detail page, the admin panel) are display-only mirrors.
+Card deposit collection uses `card_deposit_collection` (fine key) for entitlement
+and `deposits` (broad key) for the platform kill switch. The deposit gate is in
+`deposit-collection.ts` and enforced in `requestDepositCore` (`bookings.ts`).
 
-```mermaid
-flowchart LR
-  Req[requestDepositCore] --> GO[getAccountOverrides<br/>service-role, throws on error]
-  GO --> CA{canAccess<br/>overrides, deposits}
-  CA -->|override present| OV[use override boolean]
-  CA -->|else| EP[effectivePlanTier]
-  EP -->|plus and not expired| PL[plus grants deposits]
-  EP -->|else| FR[free grants nothing]
-  OV --> AND{entitled AND<br/>not capability-disabled<br/>AND routeCharges}
-  PL --> AND
-  FR --> AND
-  AND -->|yes| CARD[card deposit: PaymentIntent]
-  AND -->|no| MAN[manual deposit: no PaymentIntent]
-```
+All 10 gates are tested (52 tests in `entitlement-gates.test.ts`).
 
 ### 2.6 Feature-flag model
 
