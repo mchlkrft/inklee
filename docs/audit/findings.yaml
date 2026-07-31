@@ -8465,9 +8465,27 @@ findings:
         - "packages/shared/src/fee-refund-policy.ts"
         - "apps/web/src/lib/server/appointment-payment-refund.ts"
         - "docs/legal/plus-launch-handoff.md (F2 answer)"
+      reproduction: "Independently reproduced by a separate inklee-verifier instance (2026-07-31,
+        branch feat/p5d-collections); all three sub-claims confirmed, adversarial refutation failed.
+        ENGINE (executed): npx vitest run src/lib/__tests__/fee-refund-policy.test.ts -> 13/13;
+        fee-refund-policy.test.ts:94-103 asserts v1 artist_cancellation -> treatment
+        retain_non_recoverable and returnMinor null. CONSUMER MECHANISM (executed): the identical
+        shouldRefundFee false-branch runs through the real refund core in
+        appointment-payment-refund.test.ts:303-320 (dispute case, v0 retain_where_permitted ->
+        refund_application_fee:false), and appointment-payment-refund.test.ts:283-301 proves the v0
+        artist_cancellation path returns refund_application_fee:true. application_fee_amount is the
+        full 3% platform fee (platform-fee.ts:8), so refund_application_fee:false retains cost+margin.
+        The v1-specific literal cannot flow through the real core (the core is hardwired to ACTIVE
+        and its input type has no version field), which is itself the latency property, so the v1 tie
+        is by code read of the shared boolean plus the engine-level version-override test.
+        Adversarial: no second consumer, no balance_transaction cost computation anywhere, no
+        refund_application_fee_amount partial path, no version-override caller route."
       contradictory_evidence: "None for condition (2). Condition (3) client-unaffected DOES hold in
         code (the client refund is computed independently of the fee treatment; the deposit path
-        makes the client whole on artist cancellation), so this finding is scoped to condition (2)."
+        makes the client whole on artist cancellation), so this finding is scoped to condition (2).
+        The independent pass also positively re-confirmed condition (3): refund amount is computed
+        from allocations independently of feeOutcome, so refund_application_fee only splits the
+        Inklee<->artist share."
       inspected_comparables_without_issue:
         - "bookings.ts refundDepositCore: on artist cancellation the client's deposit is fully
           refunded (reverse_transfer + refund_application_fee true); retention operates strictly
@@ -8483,9 +8501,12 @@ findings:
       impact_status: "latent"
       production_exposure: "None today: ACTIVE_FEE_REFUND_POLICY_VERSION is v0. Becomes reachable the
         moment v1 is activated."
-      remaining_uncertainty: "Not runtime-reproduced, because v1 is inactive and cannot be exercised
-        without activating it. The finding rests on reading the mapping and the single money-moving
-        consumer, not on an observed refund."
+      remaining_uncertainty: "The engine outcome (v1 -> retain_non_recoverable/null) and the
+        consumer's shouldRefundFee false-branch are both execution-verified, and the reachability
+        (ACTIVE=v0, no version override) is execution-verified. The ONLY part not run end-to-end is
+        the v1 literal flowing through the real refund core, and it cannot be, by construction: the
+        core is hardwired to ACTIVE with no version parameter. That impossibility IS the latency
+        property, not a gap in the evidence."
     relationships:
       related_findings:
         - "PAY-FEE-004"
@@ -8513,6 +8534,14 @@ findings:
         actor: "counsel-answer processing (verification subagent)"
         action: "opened"
         note: "Found while verifying counsel's F2 cost-only condition against the v1 implementation."
+      - date: "2026-07-31"
+        actor: "inklee-verifier (independent instance)"
+        action: "evidence-added"
+        note: "Independently CONFIRMED all three sub-claims by execution (engine test 13/13; consumer
+          false-branch executed via the dispute case; reachability proven ACTIVE=v0 with no override).
+          Adversarial refutation failed on every angle. confidence stays 'confirmed', now backed by a
+          reproduction, not reading alone. remediation stays open (no fix); verification.status stays
+          not-started because there is no fix to verify, only a confirmed defect."
 
   - id: "BILL-CONF-001"
     title: "Durable purchase confirmation could silently ship without the inline Terms text on a

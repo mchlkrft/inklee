@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `b10f5677455a`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `ec29888f7517`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
