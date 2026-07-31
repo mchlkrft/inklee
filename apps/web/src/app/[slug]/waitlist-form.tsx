@@ -15,7 +15,7 @@ export default function WaitlistForm({ artistSlug }: { artistSlug: string }) {
   if (state && "ok" in state) {
     return (
       <p className="text-sm text-muted-foreground">
-        Got it — we&apos;ll email you when there&apos;s an opening.
+        Got it! We&apos;ll email you when there&apos;s an opening.
       </p>
     );
   }

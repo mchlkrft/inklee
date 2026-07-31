@@ -80,7 +80,7 @@ export default function DeleteAccountSection({
   return (
     <div className="space-y-3 rounded-md border border-destructive/40 p-4">
       <p className="text-sm text-muted-foreground">
-        This permanently deletes your Inklee account — your booking history,
+        This permanently deletes your Inklee account: your booking history,
         client data, uploaded photos, and your public page. This cannot be
         undone.
       </p>

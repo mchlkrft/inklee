@@ -49,7 +49,7 @@ export default function MfaPage() {
         code: code.replace(/\s/g, ""),
       });
       if (vErr) {
-        setError("Invalid code — try again.");
+        setError("Invalid code. Try again.");
       } else {
         router.replace("/dashboard");
       }
