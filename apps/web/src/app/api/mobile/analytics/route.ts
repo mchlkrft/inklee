@@ -10,6 +10,7 @@ import {
   type AnalyticsRow,
 } from "@inklee/shared/analytics";
 import { getArtistHubAnalytics } from "@/lib/server/artist-analytics-query";
+import { getArtistFeeSavings } from "@/lib/server/fee-savings-query";
 import type { HubAnalyticsRange } from "@inklee/shared/artist-analytics";
 
 export const runtime = "nodejs";
@@ -37,10 +38,14 @@ export async function GET(req: Request) {
     range === "30" ? "30" : range === "90" ? "90" : "all";
   const hubAnalytics = await getArtistHubAnalytics(userId, hubRange);
 
+  const savingsRange = range === "30" ? 30 : range === "90" ? 90 : null;
+  const feeSavings = await getArtistFeeSavings(userId, savingsRange);
+
   const responseBody: MobileAnalytics = {
     range,
     ...computeAnalytics(rows),
     hubAnalytics: hubAnalytics ?? undefined,
+    feeSavings: feeSavings ?? undefined,
   };
   return mobileOk(responseBody);
 }

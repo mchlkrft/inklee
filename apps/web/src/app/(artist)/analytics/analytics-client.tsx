@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ArtistAnalyticsResult } from "@inklee/shared/artist-analytics";
+import type { FeeSavingsResult } from "@inklee/shared/fee-savings";
+import { formatCentsEur } from "@inklee/shared/fee-savings";
 
 type Metrics = {
   total: number;
@@ -43,6 +45,7 @@ export default function AnalyticsClient({
   months,
   calendar,
   hubAnalytics,
+  feeSavings,
 }: {
   range: string;
   activeTab: string;
@@ -50,6 +53,7 @@ export default function AnalyticsClient({
   months: MonthBar[];
   calendar: Calendar;
   hubAnalytics: ArtistAnalyticsResult | null;
+  feeSavings: FeeSavingsResult | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,6 +73,7 @@ export default function AnalyticsClient({
   const tabs = [
     { key: "bookings", label: "Bookings" },
     ...(hubAnalytics ? [{ key: "hub", label: "Hub" }] : []),
+    ...(feeSavings ? [{ key: "savings", label: "Savings" }] : []),
   ];
 
   return (
@@ -115,6 +120,10 @@ export default function AnalyticsClient({
       )}
 
       {activeTab === "hub" && hubAnalytics && <HubTab data={hubAnalytics} />}
+
+      {activeTab === "savings" && feeSavings && (
+        <SavingsTab data={feeSavings} />
+      )}
     </div>
   );
 }
@@ -353,6 +362,77 @@ function HubTab({ data }: { data: ArtistAnalyticsResult }) {
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function SavingsTab({ data }: { data: FeeSavingsResult }) {
+  const hasTransactions = data.transactionCount > 0;
+
+  if (!hasTransactions) {
+    return (
+      <div className="rounded-md border border-border px-6 py-16 text-center">
+        <p className="text-sm text-muted-foreground">
+          No fee data yet. Fee tracking starts when your first card payment
+          settles.
+        </p>
+        {data.dataAvailableSince && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Data available since {data.dataAvailableSince}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <MetricCard
+          label="Deposit fees"
+          rawLabel={formatCentsEur(data.depositFeesPaidCents)}
+          hint={`${data.period.from} to ${data.period.to}`}
+        />
+        <MetricCard
+          label="Goods fees"
+          rawLabel={formatCentsEur(data.goodsFeesPaidCents)}
+        />
+        <MetricCard
+          label="Total fees"
+          rawLabel={formatCentsEur(data.totalFeesPaidCents)}
+          hint={`${data.transactionCount} transaction${data.transactionCount !== 1 ? "s" : ""}`}
+        />
+      </div>
+
+      {data.feeSavedCents > 0 && (
+        <div className="rounded-md border border-brand-mustard/40 bg-brand-mustard/5 p-4 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            Fees saved with Plus: {formatCentsEur(data.feeSavedCents)}
+          </p>
+          {data.subscriptionCostCents > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Subscription cost: {formatCentsEur(data.subscriptionCostCents)}.
+              Net benefit: {formatCentsEur(data.netBenefitCents)}.
+            </p>
+          )}
+        </div>
+      )}
+
+      {data.feeSavedCents === 0 && (
+        <div className="rounded-md border border-border p-4">
+          <p className="text-xs text-muted-foreground">
+            Fee rates are currently the same across tiers. When differentiated
+            rates take effect, your savings will appear here.
+          </p>
+        </div>
+      )}
+
+      {data.dataAvailableSince && (
+        <p className="text-xs text-muted-foreground">
+          Fee data available since {data.dataAvailableSince}. Earlier
+          transactions were not recorded.
+        </p>
       )}
     </div>
   );

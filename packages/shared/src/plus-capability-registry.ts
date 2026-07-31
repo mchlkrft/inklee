@@ -179,13 +179,13 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
       "none (analytics deliberately excluded from legacy_free_v1)",
     scope: "artist",
     serverEnforcement:
-      "exists: canSeeAdvancedAnalytics gates getArtistHubAnalytics (web + mobile route)",
+      "exists: canSeeAdvancedAnalytics gates getArtistHubAnalytics + getArtistFeeSavings (web + mobile route)",
     databaseEnforcement:
-      "exists: artist_page_events + artist_page_rollups (migration 0130), RLS per-artist SELECT",
+      "exists: artist_page_events + artist_page_rollups (migration 0130), RLS per-artist SELECT; fee actuals from booking_requests.platform_fee_collected_cents + orders.platform_fee_amount (migration 0116)",
     frontendBehavior:
-      "exists: /analytics Hub tab shown only when hubAnalytics is non-null (Plus gate)",
+      "exists: /analytics has three tabs: Bookings (all tiers), Hub (Plus: page metrics), Savings (Plus: deposit/goods fees, hypothetical comparison, subscription cost, net benefit)",
     mobileSupport:
-      "exists: /api/mobile/analytics returns hubAnalytics (null for Free); needs a build",
+      "exists: /api/mobile/analytics returns hubAnalytics + feeSavings (both null for Free); needs a build",
     downgradeBehavior: "Access ends; aggregates retained per retention policy",
     feeImpact: "none",
     analyticsEvents:
@@ -194,7 +194,7 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     termsClaim: "Terms section 11 names deeper analytics",
     operationalState:
       "capability paused, now WIRED; unparking activates the Free/Plus split",
-    testCoverage: "gate tested (entitlement-gates.test.ts); collection + rollup need tests",
+    testCoverage: "gate tested (entitlement-gates.test.ts); 24 pure-function tests; savings query server-tested via shared types",
     launchReadiness: "ready",
   },
   // ------------------------------------------------------------ booking form

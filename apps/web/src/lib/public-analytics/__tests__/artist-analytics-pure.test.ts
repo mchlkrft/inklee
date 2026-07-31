@@ -7,6 +7,7 @@ import {
   hubAnalyticsCutoffIso,
   type ArtistPageRollup,
 } from "@inklee/shared/artist-analytics";
+import { formatCentsEur } from "@inklee/shared/fee-savings";
 
 function rollup(overrides: Partial<ArtistPageRollup> = {}): ArtistPageRollup {
   return {
@@ -282,5 +283,21 @@ describe("hubAnalyticsCutoffIso", () => {
 
   it("returns null for 'all'", () => {
     expect(hubAnalyticsCutoffIso("all", fixedNow)).toBeNull();
+  });
+});
+
+describe("formatCentsEur", () => {
+  it("formats positive cents", () => {
+    expect(formatCentsEur(1500)).toBe("€15.00");
+    expect(formatCentsEur(99)).toBe("€0.99");
+    expect(formatCentsEur(300)).toBe("€3.00");
+  });
+
+  it("formats zero", () => {
+    expect(formatCentsEur(0)).toBe("€0.00");
+  });
+
+  it("formats negative cents with a minus sign", () => {
+    expect(formatCentsEur(-500)).toBe("-€5.00");
   });
 });

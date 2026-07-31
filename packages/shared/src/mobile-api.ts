@@ -421,6 +421,7 @@ export type MobileWaitlistResponse = {
 export type MobileAnalytics = AnalyticsMetrics & {
   range: string;
   hubAnalytics?: import("./artist-analytics").ArtistAnalyticsResult;
+  feeSavings?: import("./fee-savings").FeeSavingsResult;
 };
 
 /** GET /api/mobile/notifications — the feed (newest first) + unread count. */

@@ -5,6 +5,7 @@ import {
   type AnalyticsRow,
 } from "@inklee/shared/analytics";
 import { getArtistHubAnalytics } from "@/lib/server/artist-analytics-query";
+import { getArtistFeeSavings } from "@/lib/server/fee-savings-query";
 import AnalyticsClient from "./analytics-client";
 
 export default async function AnalyticsPage({
@@ -77,6 +78,10 @@ export default async function AnalyticsPage({
     hubRange as "30" | "90" | "all",
   );
 
+  // --- P6 Fee savings dashboard (Plus only, null for Free) ---
+  const savingsRange = range === "30" ? 30 : range === "90" ? 90 : null;
+  const feeSavings = await getArtistFeeSavings(user!.id, savingsRange);
+
   return (
     <AnalyticsClient
       range={range}
@@ -91,6 +96,7 @@ export default async function AnalyticsPage({
       months={months}
       calendar={calendar}
       hubAnalytics={hubAnalytics}
+      feeSavings={feeSavings}
     />
   );
 }

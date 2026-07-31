@@ -69,40 +69,15 @@ paying customer would hit first.
 
 ---
 
-## Stage 1: P5b appointment payments (~3-5 weeks) ← CURRENT MILESTONE
+## Stage 1: P9 appointment payments — DONE
 
-Spec: `plus-payments-architecture.md`. Every line falls under the AGENTS.md
-money-path rules, which correctly slow this work down.
-
-**First, a naming fix.** `plus-build-plan.md` uses **P5b twice**: line 69 is
-shipped goods discounts, line 73 is this. A reader resolving "P5b" to the DONE
-row concludes the long pole is finished. The appointment stage is renamed **P9
-appointment payments** here and in the build plan; the goods letter sequence
-keeps P5a-P5d.
-
-### Slices
-
-Each slice ends green with named per-test evidence, and each carries its own
-pre-registered falsification. Nothing is marked done because it was built.
-
-| slice | content | key risks |
-|---|---|---|
-| **A1 schema + pure model** | `payment_requests` (immutable revisions, the 13-state lifecycle), `payment_request_lines` (classification, tax treatment, optional linked product/order), `payment_allocations`. Shared pure functions: outstanding balance, legal state transitions, allocation invariants. | RLS write policies from the start, `TO authenticated`, drop-then-create, WITH CHECK. Composite FKs on every join table so a cross-owner row is unrepresentable even for the service role. Both of those are hard-won: see the P5d retraction and `0122`. |
-| **A2 server cores** | create / revise / send / cancel / expire. Immutable-revision semantics: a reviewed request is never silently modified. Gate on the seven payment entitlement keys. | "Cancelled and replaced" vs "new revision" must be one implementation, not two that agree today. |
-| **A3 quote + intent** | Server-authoritative outstanding balance; the displayed amount and the Stripe charge come from ONE quote. Idempotency keys on every Stripe call. Fee lanes through the existing `computeOrderFees`, never one rate over one total. | The two existing fee sources already disagree (`bookings.ts:853` hardcodes 300bps; `request/[token]/actions.ts:394-404` overwrites from the schedule). **Unify them in this slice**, before v2 makes the divergence visible. |
-| **A4 webhooks + allocation** | Allocation written at settlement, never one unclassified total. Converge to a target, never add a delta. Idempotent under redelivery and out-of-order events. | This is where the `charge.refunded` lesson applies literally. |
-| **A5 refunds by classification** | Full, partial, single line, proportional, deposit, goods, mixed. Fee-refund policy as versioned data (already exists in `fee-refund-policy.ts`). | Deposit / appointment / goods stay separate business commands even where they share utilities: their Connect semantics differ. |
-| **A6 client payment page** | Itemized breakdown before paying, durable confirmation. Button copy states the amount: **"Pay €X now"**, never "Continue" or "Confirm". | Copy rules apply to every string here. |
-| **A7 native twins + parity** | Mobile surfaces; `docs/web-native-parity.md` updated in the SAME change. | A new union value the app switches on is a BREAKING wire change (the `featured_collection` lesson). |
-| **A8 onboarding + reconciliation** | The Plus payment-onboarding flow that creates the connected account. **Never for a Free artist**, who today can create a live Connect account they can never use. Reconciliation backstop. | Never auto-clear `stripe_account_id`. |
-
-The spec's **27 test obligations** (§12) are the acceptance criteria, not a
-suggestion. They are enumerated there; each slice claims its subset explicitly
-and the final slice proves none were dropped.
+**All 8 slices committed on master** (A1 `0b42f2d` through A8 `290ee50`).
+Spec: `plus-payments-architecture.md`. Naming: P5b was used twice in the build
+plan; this is **P9** (the goods letter sequence keeps P5a-P5d).
 
 ---
 
-## Stage 2: P6 insights (~2-3 weeks)
+## Stage 2: P6 insights (~2-3 weeks) ← CURRENT MILESTONE
 
 Downstream of P9 because it consumes payment actuals. Carries the **advanced
 analytics** benefit, which is one of the three currently-free marketed claims
@@ -112,9 +87,22 @@ Boundary is canonical in spec §19: Free gets current operational state and all
 raw records; Plus gets history, comparisons, attribution, conversion and trends.
 Enforce at the query and server layer, never navigation only.
 
-Note `canSeeAdvancedAnalytics` currently has **zero call sites**, so unparking
-`analytics` alone changes nothing. Build, wire both web and mobile read paths,
-then unpark, with a red-then-green test.
+**Analytics wiring DONE 2026-07-31** (`f5d4737`): migration 0130 (two tables,
+enums, RLS), `/api/artist-events/collect` (hub click beacon), `HubAnalytics`
+client component (event delegation via `data-track` attributes on the RSC hub
+page), daily rollup in the cleanup cron (wa pageviews + click events + booking
+conversions + goods conversions), `getArtistHubAnalytics` gated by
+`canSeeAdvancedAnalytics` (first production call site), artist `/analytics`
+page gains Bookings/Hub tabs, mobile `/api/mobile/analytics` returns
+`hubAnalytics`, 36 pure-function tests, parity register and capability registry
+updated. `analytics` is still paused (everyone sees everything); unparking is
+a Stage 5/P7 action.
+
+**Remaining in P6:**
+- Savings dashboard (spec §12): fee savings from P5 actuals + payment savings
+  from P9 actuals. Free savings prompts in billing surfaces only. Free sees no
+  hypothetical appointment-payment savings (Free cannot collect card payments).
+- Unparking `analytics` is a P7 action, not done here.
 
 ---
 
