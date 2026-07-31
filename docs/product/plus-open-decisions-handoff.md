@@ -40,11 +40,11 @@ has only P5d collections). Nothing is live.
 
 | # | Decision | Status | Result / what's needed |
 |---|---|---|---|
-| F1 | Cover image Free or Plus | 🔴 open | Built grandfathered; needs your ruling. Unchanged. |
-| F2 | Marketing claims match delivery | 🔴 open | Pricing-page copy still unreviewed vs what P9 shipped. |
-| F3 | Ratify caps table | 🔴 open (soft) | One-line confirm; code already enforces the ratified numbers. |
-| F4 | Ack grandfathering dry-run | 🔴 open | Re-run + acknowledge before cap enforcement. |
-| F5 | Analytics: gate or soften claim | 🔴 open | **Key.** Marketed as Plus but free for all; conflicts with X3. Your call unblocks a build. |
+| F1 | Cover image Free or Plus | ✅ resolved | **Ruling 1 (2026-07-31): Free for all.** This row previously read "Built grandfathered; needs your ruling. Unchanged." — see the rulings table below; build change (remove the grandfather-only gate) still needed. |
+| F2 | Marketing claims match delivery | 🟡 direction decided | **Ruling 2 (2026-07-31): accurate wording, no no-code-path claims.** Pricing-page copy audit against what actually shipped is still the open implementation step. |
+| F3 | Ratify caps table | ✅ resolved | **Ruling 3 (2026-07-31): 3/30, 3/100, 5/50, 3/25 re-ratified as authoritative.** Code already enforces these numbers (`CANONICAL_CAPS`); this row previously called it "open (soft)". |
+| F4 | Ack grandfathering dry-run | 🟡 decided, action pending | **Ruling 4 (2026-07-31): accepted.** Re-run the recompute immediately before cap enforcement still applies. |
+| F5 | Analytics: gate or soften claim | ✅ resolved | **Ruling 5 (2026-07-31): basic Free, advanced Plus.** Gate wired (`canSeeAdvancedAnalytics`, 4 call sites); `analytics` stays parked in `DISABLED_CAPABILITIES` until un-parked (activation step, not a boundary decision). This row previously called the conflict with X3 unresolved; it no longer is. |
 | F6 | Fee schedule v2 activation | 🔴 gated | = A3. F14 now decided (below); still needs accountant sign-off + Terms/notice + the flip. |
 | F7 | Insert founder_offer_policy row | 🔴 open | Production insert; offer stays closed until then. |
 | F8 | G-5 live money test | 🔴 open | **Biggest gap:** no real charge ever observed end-to-end. |
@@ -80,7 +80,7 @@ has only P5d collections). Nothing is live.
 |---|---|---|---|
 | X1 | Custom SEO fields | 🔴 blocked | On the indexation decision (ChatGPT-owned). Not on the critical path. |
 | X2 | Terms line 76 wording | 🔴 open | Bundle into the Stage 6 versioned Terms edit. |
-| X3 | Unpark 3 capabilities | 🔴 open | custom_templates / analytics / entitlement_caps still parked; blocks F12. Analytics conflicts with F5. |
+| X3 | Unpark 3 capabilities | 🔴 open | custom_templates / analytics / entitlement_caps still parked; blocks F12. The analytics boundary itself is decided (Ruling 5) and no longer conflicts with F5; what remains open is the un-parking (activation), same as the other two. |
 | X4 | Deposits key prod migration | 🔴 open | Run `migrate-deposits-key.cjs` against prod. |
 
 ### New decisions from the 2026-07-31 build session
@@ -141,37 +141,58 @@ flip, C1 final Terms + sign-off, F12 launch key, F8 live-money test.
 
 ### F1: cover image: Free or Plus?
 
-The spec says cover image is Plus-only, but 3 of 19 production artists already
-have one. Stripping it breaks the grandfathering rule. Either make cover image
-free for all, or grandfather the existing three and gate new ones behind Plus.
+**RESOLVED 2026-07-31 (Ruling 1): cover image is Free for all.** This section
+previously posed the question as open; it is kept below as the record of what
+was asked and why.
 
-- **Blocks:** Terms wording for the booking-form customization boundary.
-- **Current state:** built as grandfathered (Free keeps it via `freeTierView`),
-  pending ruling.
+The spec said cover image is Plus-only, but 3 of 19 production artists already
+had one. Stripping it would have broken the grandfathering rule. The founder's
+ruling makes it free for all rather than grandfathering only the existing
+three.
+
+- **Blocked:** Terms wording for the booking-form customization boundary; now
+  unblocked — the boundary excludes cover image entirely.
+- **Current state:** built as grandfathered (Free keeps it via `freeTierView`)
+  as an interim state; the remaining build step is to make that the rule for
+  every Free artist, not just the pre-existing three.
 - **Source:** `plus-commercial-packages.md` section 7;
   `plus-capability-registry.ts` form_custom row.
 
 ### F2: marketing claims: "full appointment payments" and "fully customisable template"
 
-Two pricing-page claims need review against what P9 actually delivered. Confirm
-the language matches the feature, or soften the copy.
+**RESOLVED direction 2026-07-31 (Ruling 2):** use accurate wording, drop
+no-code-path claims. This closes the "confirm or soften" choice this section
+posed; the copy-audit implementation step is still open (below).
 
-- **Blocks:** commercial-readiness gate (every claim must match implementation).
-- **Current state:** P9 appointment payments built (A1-A8). Marketing copy
-  unreviewed.
+Two pricing-page claims needed review against what P9 actually delivered.
+
+- **Blocked:** commercial-readiness gate (every claim must match
+  implementation) on the decision; the copy audit itself is still open.
+- **Current state:** P9 appointment payments built (A1-A8). Neither claim is
+  in `PLUS_BENEFITS` (removed 2026-07-28, `packages/shared/src/plus-benefits.ts`).
+  Confirming no other surface (`/pricing`, plan pages) republishes them is the
+  remaining step.
 - **Source:** `plus-commercial-packages.md` section 7 open items.
 
 ### F3: caps table: ratify the published numbers over the provisional ones
 
-The spec's provisional caps (Free fields=5, Plus trips=10) conflict with the
-ratified and published numbers (Free fields=3, Plus trips=100). Code and
-advertised copy use the ratified numbers. A one-line confirmation that the
-provisional table is superseded closes this.
+**RESOLVED 2026-07-31 (Ruling 3):** the one-line confirmation this section
+asked for has been given. 3/30 fields, 3/100 trips, 5/50 studios, 3/25 active
+products are re-ratified as authoritative.
 
-- **Blocks:** documentation clarity. Code already enforces the ratified numbers.
+The spec's provisional caps (Free fields=5, Plus trips=10) conflicted with the
+ratified and published numbers (Free fields=3, Plus trips=100). Code and
+advertised copy use the ratified numbers.
+
+- **Blocked:** documentation clarity. Code already enforces the ratified
+  numbers; docs now match (`plus-commercial-packages.md` §2,
+  `pricing-model.md` §3, `account-tier-stage-2-plan.md`,
+  `billing-activation-checklist.md`, this file, `DECISIONS.md`, `roadmap.md`).
 - **Current state:** CANONICAL_CAPS in `entitlements.ts` enforces 3/30, 3/100,
-  5/50, 3/25. The DECISIONS.md row from 2026-07-25 ratified these.
-  `pricing-model.md` still says "proposed, pending confirm".
+  5/50, 3/25. The DECISIONS.md row from 2026-07-25 ratified these, and the
+  2026-07-31 rulings table re-ratifies them. `pricing-model.md` previously
+  said "proposed, pending confirm" for two of the three original caps while
+  calling the third "ratified" in the same table row; corrected 2026-07-31.
 
 ### F4: acknowledge the grandfathering dry-run report
 
@@ -186,14 +207,21 @@ enforcement.
 
 ### F5: analytics: not gated at launch, but marketed as Plus
 
-You decided not to gate analytics at launch. But "Advanced booking analytics" is
-on the pricing page, and Free gets the same analytics Plus does. Either soften
-the claim or re-decide gating.
+**RESOLVED 2026-07-31 (Ruling 5): basic Free, advanced Plus.** This section
+previously posed gate-or-soften as open; the founder re-decided gating rather
+than softening the claim, and the gate is now built to match.
 
-- **Blocks:** commercial-readiness gate flags a marketed-but-free capability as
-  a fail condition.
+Previously: "Advanced booking analytics" was on the pricing page, and Free got
+the same analytics Plus does, with no decided boundary.
+
+- **Blocked:** commercial-readiness gate flagged a marketed-but-free
+  capability as a fail condition; unblocked now that the boundary is decided.
 - **Current state:** analytics fully wired (P6 done, `canSeeAdvancedAnalytics`
-  gates queries). Key stays paused = everyone sees everything.
+  gates `getArtistHubAnalytics`, `getArtistFeeSavings`, the web goods-sales
+  page, and the mobile goods-sales route — 4 call sites). The `analytics` key
+  stays parked in `DISABLED_CAPABILITIES` so everyone still sees everything
+  until un-parking (the remaining activation step, tracked as X3, not a
+  boundary decision).
 
 ### F6: fee schedule V2 activation
 

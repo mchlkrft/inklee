@@ -48,8 +48,13 @@ checks.
 > dashboard, refund-fee policy). The boundaries below remain useful as the
 > per-capability enforcement bars (the branding/templates/analytics/caps
 > sections still describe what "enforced" means), but the LAUNCH SCOPE is the
-> spec's §15 package, not this minimum. The caps table below keeps its
-> conflict flag: still provisional, still awaiting the founder's caps ruling.
+> spec's §15 package, not this minimum. The caps table below previously kept a
+> conflict flag reading "still provisional, still awaiting the founder's caps
+> ruling." **RESOLVED 2026-07-31 (founder Ruling 3):** the table has been
+> reconciled to the ratified numbers (3/30 fields, 3/100 trips, 5/50 studios,
+> 3/25 active goods products); no conflict remains. `CANONICAL_CAPS` in
+> `packages/shared/src/entitlements.ts` is the single source; nothing in this
+> document should restate different numbers.
 
 ### Branding
 
@@ -85,18 +90,27 @@ The exact Free/Plus boundary must be **defined before enforcement** (open item
 below). Hard rule: never paywall access to raw records that belong to the
 artist (their bookings, their clients, their data exports).
 
-### Entitlement limits (provisional numbers)
+### Entitlement limits (ratified numbers)
+
+> **CORRECTED 2026-07-31 (founder Ruling 3).** This table previously showed a
+> different, lower set of numbers (Custom fields 5/30, active trips 1/10,
+> studio-library 5/50) with a note claiming that set was "the founder's newer
+> provisional instruction" superseding the 2026-07-25 ratification (OQ-4) and
+> the numbers already advertised in `PLUS_BENEFITS` and enforced in
+> `CANONICAL_CAPS`. That claim had it backwards: nothing ever superseded the
+> 2026-07-25 ratification, and Plus trips 10 would have been a REDUCTION of an
+> already-advertised benefit of 100. The table below is now the ratified set,
+> re-confirmed by the founder 2026-07-31 (Ruling 3). `CANONICAL_CAPS` in
+> `packages/shared/src/entitlements.ts` is the single source of truth; nothing
+> should restate different numbers again.
 
 | Capability | Free | Plus |
 |---|---:|---:|
-| Custom fields | 5 | 30 |
-| Active or upcoming trips | 1 | 10 |
+| Custom fields | 3 | 30 |
+| Active or upcoming trips | 3 | 100 |
 | Historical trips | Unlimited | Unlimited |
 | Studio-library items | 5 | 50 |
-
-> The 2026-07-25 ratification (OQ-4: 30 fields / 100 trips / 50 studios for
-> PLUS) predates this table. Where they differ (Plus trips 10 vs 100), THIS
-> table is the founder's newer provisional instruction, pending the dry run.
+| Active goods products | 3 | 25 |
 
 The studio-library limit applies to the artist's saved-studio library only. It
 must NOT apply to: studio ownership, studio memberships, claimed studio
@@ -188,19 +202,30 @@ was directed. Facts that bind the open items:
   deliberately never gated so saved templates keep working. The §2 requirement
   is met code-side; what remains is tests for the rejection paths and mobile
   handling of `not_entitled` (raw error today, no upsell).
-- **Analytics enforcement is DEFINED BUT UNWIRED**: `canSeeAdvancedAnalytics`
-  exists with ZERO production call sites; web `/analytics` and the mobile
-  analytics route serve the full metric set to free accounts. Un-pausing the
-  capability changes nothing. Wire it or de-scope the claim before launch.
-  (`docs/architecture/capability-registry.md:46` falsely claims it is wired —
-  registry drift to fix.)
+- **Analytics enforcement was DEFINED BUT UNWIRED on 2026-07-28**:
+  `canSeeAdvancedAnalytics` existed with ZERO production call sites; web
+  `/analytics` and the mobile analytics route served the full metric set to
+  free accounts. **CORRECTED 2026-07-31 (founder Ruling 5):** the boundary is
+  now ratified (basic operational totals Free; Hub analytics + fee savings +
+  goods sales trends Plus) and the gate is wired with real call sites —
+  `canSeeAdvancedAnalytics` (`entitlement-gates.ts:147-149`) gates
+  `getArtistHubAnalytics` (`artist-analytics-query.ts:20`), `getArtistFeeSavings`
+  (`fee-savings-query.ts:12`), the web goods-sales page
+  (`goods/sales/page.tsx:96`), and the mobile goods-sales route
+  (`api/mobile/goods/sales/route.ts:75`). Un-pausing the capability now DOES
+  change behavior. What remains is the activation step: `analytics` is still
+  named in production `DISABLED_CAPABILITIES`, so free accounts keep seeing
+  the full metric set until it is un-parked; that is a deliberate pause, not a
+  wiring gap.
 - **Caps are already enforced on ALL create paths** (web + mobile,
   count-before-insert, block-new/keep-existing), at the RATIFIED numbers: free
-  3/3/5, plus 30/100/50. **The §2 provisional table conflicts with these**
-  (Free fields 5 vs 3; Free trips 1 vs 3; Plus trips 10 vs the
-  already-advertised 100). Adopting §2's numbers requires explicit founder
-  re-ratification, and if Free trips drop below 3 the `legacy_free_v1` grant
-  computation must re-run first (grants were computed against the old caps).
+  3/3/5, plus 30/100/50 (plus active goods products, ratified 2026-07-28,
+  free 3 / plus 25). At the time this audit was written, §2's table above
+  showed a different, lower set of numbers and conflicted with these. **The
+  founder did not adopt §2's numbers**; instead, Ruling 3 (2026-07-31)
+  re-ratified the numbers already enforced here, and §2's table has been
+  rewritten to match. No conflict remains, and no `legacy_free_v1` re-run was
+  triggered by a Free-cap reduction, because none happened.
 - **Branding enforcement verified server-side already**: footer server-rendered
   on all 5 public-page surfaces, fail-safe (a plan-read error keeps the
   footer), no client bypass; grandfathering correctly never grants it. What
@@ -209,14 +234,20 @@ was directed. Facts that bind the open items:
 - **Marketing claims needing founder review**: "Take full appointment payments
   by card" has NO feature or code path anywhere (grep-empty; presumably a
   deposit-rails restatement); "fully customisable booking template" is backed
-  only by the field-count cap.
+  only by the field-count cap. **RESOLVED direction 2026-07-31 (founder
+  Ruling 2):** replace "fully customisable" with accurate wording and drop
+  no-code-path claims; neither string is in the current `PLUS_BENEFITS` array
+  (`packages/shared/src/plus-benefits.ts`), which already had both removed
+  2026-07-28 pending genuine scope closure. Confirming no other surface
+  (`/pricing`, plan pages) republishes them is the remaining copy-audit step.
 - **Grandfathering dry run** (production, read-only): 19 profiles, 5 active
   non-tester artists, 4 already tagged `legacy_free_v1` (all
   `{custom_templates:true}`, empty limits), 0 further eligible. ZERO accounts
-  have any custom template. Under §2's proposed caps exactly ONE account
-  exceeds anything: the founder's own tester (comp Plus). **Zero real free
-  artists would change behavior.** Public booking forms cannot break at
-  enforcement (create-time gating only; render path never slices).
+  have any custom template. Under §2's proposed caps (as they stood on
+  2026-07-28, before Ruling 3 reconciled §2 to the ratified numbers) exactly
+  ONE account exceeded anything: the founder's own tester (comp Plus). **Zero
+  real free artists would change behavior.** Public booking forms cannot break
+  at enforcement (create-time gating only; render path never slices).
 - **Studio-library item defined**: one row in the `studios` table = the
   artist's personal trip-planner library. The founder's §2 exclusion list is
   cleanly excluded structurally (ownership/claims/map/bookings/clients live in
@@ -239,10 +270,10 @@ was directed. Facts that bind the open items:
 
 | Item | Owner | State |
 |---|---|---|
-| Caps table conflict: §2 provisional vs ratified/advertised 30/100/50 | **Founder** | Open; blocks cap changes (audit above) |
-| **Cover image is listed Plus-only but has been a live Free feature for months** | **Founder** | Open; found building P3c 2026-07-28. Spec §6 says cover image Free=no / Plus=yes, but `settings.cover_image_url` ships free today and 3 of 19 production artists use one. Enforcing the spec strips a working feature from real artists, which the grandfathering rule forbids; leaving it free means the §6 row is wrong. Built as grandfathered (Free keeps it via `freeTierView`), pending the founder's call: either amend §6 to "cover image: yes / yes, per-surface override Plus" or grandfather the existing three explicitly and gate new ones |
-| Analytics Free/Plus boundary + WIRING the defined gate | Founder (boundary) + eng (wiring) | Open; blocks the analytics claim |
-| "Full appointment payments" + "fully customisable template" claims | **Founder** | Open; confirm intent or soften copy |
+| Caps table conflict: §2 provisional vs ratified/advertised 30/100/50 | **Founder** | RESOLVED 2026-07-31 (Ruling 3). Ratified 3/30 fields, 3/100 trips, 5/50 studios, 3/25 active products; §2's table rewritten to match. `CANONICAL_CAPS` (entitlements.ts) is the sole source. |
+| **Cover image is listed Plus-only but has been a live Free feature for months** | **Founder** | RESOLVED 2026-07-31 (Ruling 1). Cover image is Free for all, not a grandfather-only carve-out for the pre-existing three. §6 and the registry's `form_custom` row updated accordingly. |
+| Analytics Free/Plus boundary + WIRING the defined gate | Founder (boundary) + eng (wiring) | RESOLVED 2026-07-31 (Ruling 5): basic Free / advanced Plus. Gate wired (`canSeeAdvancedAnalytics`, 4 call sites, see §6 above). Remaining step is activation only: `analytics` stays in `DISABLED_CAPABILITIES` until un-parked. |
+| "Full appointment payments" + "fully customisable template" claims | **Founder** | RESOLVED direction 2026-07-31 (Ruling 2): replace "fully customisable" with accurate wording, drop no-code-path claims. Both strings are already absent from `PLUS_BENEFITS`; confirming no other surface republishes them is the remaining copy-audit step. |
 | Branding end-to-end verification pass | Eng | Stale; branding un-parked 2026-07-29 by founder confirmation |
 | Dry-run report review | **Founder** | Delivered above; review closes it |
 | Rejection-path tests (template save, mobile 403s, cap blocks) | Eng | DONE 2026-07-31; entitlement-gates.test.ts extended to 52 tests (all 10 gates x Free/Plus/paused/override) |

@@ -2,6 +2,19 @@
 
 **Status:** DRAFT for founder review, 2026-07-23. Prepared per founder direction. **No enforcement is implemented and no production migration is performed by this document.** Stage 2 code does not begin until (a) each entitlement contract below is approved, (b) the dry-run impact report (section 6) is run and reviewed, and (c) `legacy_free_v1` is implemented as a versioned entitlement source.
 
+> **This "DRAFT" status is now historical.** As of 2026-07-31 all three
+> preconditions above are met: the five entitlement contracts were approved
+> (branding, custom_templates, extra_fields as `custom_fields`, extra_trips as
+> `active_trips` + `studio_library`, analytics), the dry-run report ran and was
+> reviewed (accepted, founder Ruling 4, 2026-07-31), and `legacy_free_v1` is
+> implemented. The proposed cap NUMBERS below (`custom_fields` Plus = 20 in
+> places, "confirm or adjust" framing throughout) are superseded: the ratified
+> and re-ratified (2026-07-25, 2026-07-28, and founder Ruling 3 2026-07-31)
+> numbers are `custom_fields` 3/30, `active_trips` 3/100, `studio_library`
+> 5/50, `active_products` 3/25. `CANONICAL_CAPS` in
+> `packages/shared/src/entitlements.ts` is the single source; this document is
+> kept for its design rationale, not as a live source for the numbers.
+
 Companion to `docs/product/account-and-entitlement-system.md` and `docs/product/account-tier-migration-plan.md`. Conventions: sentence case, no em-dashes.
 
 Stage 1 shipped (1a engine, 1b deposit predictor fix, 1c account-status enforcement, plus the bio placeholder cleanup) and is a closed unit. Stage 2 wires the five inert entitlements to authoritative server enforcement, with grandfathering, so the Plus feature set becomes purchasable-ready. Goods is a separate transaction-led path (section 8) handled after D22.
@@ -64,7 +77,7 @@ Each contract must be approved before enforcement. "Current accounts affected" i
 | --- | --- |
 | Exact capability | The number of custom booking-form fields. |
 | Free | Proposed cap: 3 active custom fields (matches the DECISIONS.md MVP "max 3 custom fields"). |
-| Plus adds | A higher cap (proposed 20) or unlimited. |
+| Plus adds | A higher cap (proposed 20 at the time this draft was written) or unlimited. **Ratified 2026-07-25, re-ratified founder Ruling 3 (2026-07-31): 30, not 20.** See `CANONICAL_CAPS` in `entitlements.ts`. |
 | Boolean or limit | Limit (`custom_fields`, already defined in the engine, `limitFor`). |
 | Scope | Personal. |
 | Authoritative enforcement point | The custom-field create action (web + `/api/mobile/booking-form/fields`): block creation when the active count is at or above `limitFor(overrides, "custom_fields")`. |
@@ -126,7 +139,7 @@ The engine's Stage 1a placeholder numbers, now proposed for ratification, and wh
 
 | Limit | 1a placeholder | Proposed Free | Proposed Plus | Rationale and challenge |
 | --- | --- | --- | --- | --- |
-| `custom_fields` | 3 | 3 | 20 or unlimited | 3 covers a couple of extra questions and matches the DECISIONS.md MVP cap. No challenge. |
+| `custom_fields` | 3 | 3 | ~~20 or unlimited~~ **30 (ratified)** | 3 covers a couple of extra questions and matches the DECISIONS.md MVP cap. No challenge. This row's Plus figure originally said "20 or unlimited"; the ratified number (2026-07-25, re-ratified Ruling 3 2026-07-31) is 30, matching the `custom_fields` Plus figure used elsewhere in this same document (§9). |
 | `active_trips` | 3 | **3 (DECIDED 2026-07-23)** | unlimited | Founder confirmed 3 active trips (not the "one active trip" example): trips are the core free activation feature for the traveling and guest-spot artist segment, so the ability to travel stays free; Plus monetizes scale (many concurrent trips). Metered unit = ACTIVE trips (trips overlapping today or future) per §2.4. |
 | `studio_library` | 5 | 5 | unlimited | Venue bookmarks; 5 is generous for a solo artist. No strong challenge; could be lower, but bookmarks are private and cheap. |
 
@@ -378,7 +391,7 @@ Deferred to fast-follow (post-launch): the `branding` accent token + color sanit
 
 ### 11.4 Founder decisions required before go-live
 
-1. Plus caps `custom_fields=30` and `studio_library=50` (only `active_trips=100` is ratified).
+1. ~~Plus caps `custom_fields=30` and `studio_library=50` (only `active_trips=100` is ratified).~~ **RATIFIED 2026-07-25, re-ratified founder Ruling 3 (2026-07-31): `custom_fields=30`, `active_trips=100`, `studio_library=50`, and `active_products=25` are ALL ratified**, not only `active_trips`. `CANONICAL_CAPS` in `entitlements.ts` is the single source.
 2. Plus price + interval. Founder-window mechanic RESOLVED 2026-07-23: use a **Stripe promotion code** (`max_redemptions`), plus a new **admin promo-code function** to create customizable codes (price, cap, tier, etc). NOT a separate Price. Monthly-first (annual consumer billing stays disabled until proration is counsel-reviewed, posture section 10).
 3. `past_due` grace length (propose 7 days, aligned to Stripe Smart Retries).
 4. Whether a comped artist who buys Plus then cancels reverts to comp or to Free.

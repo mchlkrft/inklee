@@ -199,13 +199,13 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
   },
   // ------------------------------------------------------------ booking form
   {
-    name: "Booking-form customization (colors, templates, cover image, confirmation page, custom slug)",
+    name: "Booking-form customization (colors, templates, confirmation page, custom slug)",
     entitlementKey: "form_custom (+ appearance_custom for the visual layer)",
     productArea: "booking-form",
     freeBehavior:
-      "Preset themes, artist logo, the clean layout, existing cover image (grandfathered, see below)",
+      "Preset themes, artist logo, the clean layout, cover image (Free for all, founder Ruling 1, 2026-07-31; see operationalState)",
     plusBehavior:
-      "Custom colors, visual templates, cover image, custom confirmation page, custom URL slug",
+      "Custom colors, visual templates, custom confirmation page, custom URL slug (cover image is NOT a Plus perk; it is free for every artist, see Ruling 1)",
     legacyBehavior: "none",
     scope: "artist",
     serverEnforcement: "exists", // P3b-P3f: templates via surfaceAppearance, confirmation + slug via formCustomAllowed, both refused server-side
@@ -217,10 +217,10 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     feeImpact: "none",
     analyticsEvents: "none required",
     pricingPageClaim:
-      "Fully customisable booking template (now backed by templates + confirmation page + slug + the appearance layer)",
+      "none yet (this cell previously read 'Fully customisable booking template...'; that claim does not appear in PLUS_BENEFITS, which was corrected 2026-07-28 to remove it pending full scope closure per plus-benefits.ts. Founder Ruling 2, 2026-07-31: publish only accurate wording, no no-code-path claims, once the scope is genuinely complete)",
     termsClaim: "none",
     operationalState:
-      "BUILT 2026-07-28. form_custom is live (not parked): with zero Plus artists it grants nothing, so it is inert today. OPEN: the spec lists cover image as Plus-only but it has shipped FREE for months and 3 of 19 production artists use one; built grandfathered pending the founder decision recorded in plus-commercial-packages.md §7",
+      "BUILT 2026-07-28. form_custom is live (not parked): with zero Plus artists it grants nothing, so it is inert today. RESOLVED 2026-07-31 (founder Ruling 1): this row previously read 'OPEN: the spec lists cover image as Plus-only but it has shipped FREE for months and 3 of 19 production artists use one; built grandfathered pending the founder decision recorded in plus-commercial-packages.md §7.' Cover image is now Free for all by ruling, not a grandfather-only carve-out for the pre-existing three; every Free artist keeps it via `freeTierView`. plus-commercial-packages.md §7 and §6 updated accordingly.",
     testCoverage: "exists", // booking-template-styles, confirmation-page, slug-rename
     launchReadiness: "ready",
   },
@@ -355,7 +355,7 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
   // ------------------------------------------------------------------ goods
   {
     name: "Goods selling (all tiers) with active-product caps",
-    entitlementKey: "goods_module + product cap (proposed limit key)",
+    entitlementKey: "goods_module + active_products cap (ratified 2026-07-28, re-ratified founder Ruling 3 2026-07-31; CANONICAL_CAPS.active_products in entitlements.ts, not merely proposed)",
     productArea: "goods",
     freeBehavior: "Sell physical goods, 3 active products",
     plusBehavior: "25 active products",

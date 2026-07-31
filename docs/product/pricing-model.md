@@ -71,16 +71,30 @@ Apple/Google IAP).
 | **In-app card deposits** (the one enforced gate) | ✗ | ✓ (+ needs live Connect) | ✗ unless comped |
 | Remove "made with Inklee" footer (branding) | ✗ | ✓ | ✗ (never available free) |
 | Custom email templates | ✗ | ✓ | ✓ (kept; downgrade = read-only, never revert) |
-| Custom form fields | 3 | 30 *(proposed, pending confirm)* | max(3, count at cutover) |
+| Custom form fields | 3 | 30 *(ratified)* | max(3, count at cutover) |
 | Active guest-spot trips | 3 | 100 *(ratified)* | max(3, count at cutover) |
-| Studio library | 5 | 50 *(proposed, pending confirm)* | max(5, count at cutover) |
-| Advanced analytics | ✗ | ✓ | ✗ (gated for all free, decided 2026-07-23) |
+| Studio library | 5 | 50 *(ratified)* | max(5, count at cutover) |
+| Active goods products | 3 | 25 *(ratified 2026-07-28)* | not yet audited against legacy accounts (flagged, see `plus-capability-registry.ts` "Goods selling" row) |
+| Advanced analytics | ✗ (basic operational totals only) | ✓ (Hub analytics + fee savings + goods sales trends) | ✗ (gated for all free, decided 2026-07-23) |
 | Map presence, Linklee hub, Instagram import, guest-spot requests | ✓ free by locked principle | ✓ | ✓ |
 
-Enforcement status: only `deposits` is enforced in prod today; caps + branding
-footers are wired dark (BM-2.0 build, fail-open behind the kill switch); the
-customer-facing PLUS_BENEFITS copy already promises "30 fields / 100 trips /
-50 studios" verbatim.
+**Corrected 2026-07-31 (founder Ruling 3).** The three caps above previously
+read "*(proposed, pending confirm)*" while active trips alone read
+"*(ratified)*" — an internal contradiction. All four caps (fields, trips,
+studios, active goods products) are ratified: fields/trips/studios on
+2026-07-25 (OQ-4, `DECISIONS.md`), active goods products on 2026-07-28.
+`CANONICAL_CAPS` in `packages/shared/src/entitlements.ts` is the single
+source.
+
+Enforcement status: `deposits` and `branding` are both enforced in prod today
+(`branding` un-parked 2026-07-29, founder confirmation, `DECISIONS.md`
+2026-07-29 amendment); this line previously said "only `deposits`". The
+custom-field / trip / studio-library caps are wired but stay dark behind the
+`entitlement_caps` kill switch (BM-2.0 build, fail-open). The claim that
+"the customer-facing PLUS_BENEFITS copy already promises '30 fields / 100
+trips / 50 studios' verbatim" was never accurate: `PLUS_BENEFITS`
+(`packages/shared/src/plus-benefits.ts`) is a five-line USP list and contains
+no numbers anywhere.
 
 ---
 
@@ -181,13 +195,13 @@ subscription-covers-Connect-cost, fee-is-margin).
 | **OQ-1** | Exact live price display + Stripe `tax_behavior` (inclusive/exclusive) — **irreversible once the live Price is created** (`consumer_pricing_display_approved` + `pricing_display_approved`) | Nothing upstream; this IS the head of the chain. Must precede the live Price | Founder + accountant | **Approve "3.00 EUR per month, final price" with `tax_behavior = inclusive`.** Consumer law needs an all-in price anyway; unregistered today means nothing to add; and if VAT registration is ever triggered, an inclusive price keeps the consumer price stable at 3.00 (net drops ~2.70→~2.18, still above the ~2 EUR Connect cost) instead of forcing a public price rise and Terms repapering. Never `unspecified` (forces Price migration later). |
 | **OQ-2** | C7/A2: does Inklee need a (limited) VAT-ID despite being under the 40,000 EUR threshold, and what is the bounded registration trigger? Gates `invoice_config_approved` + live billing | Accountant determination; management board records the posture | Accountant | **Proceed on the unregistered posture (D2)** — cross-border B2B does not count toward the threshold and the consumer path needs no reverse charge. Record the trigger as: earlier of (a) Estonian taxable turnover reaching 35,000 EUR (early warning at 87.5%), (b) cross-border EU B2C digital revenue reaching 8,000 EUR (early warning under the 10k OSS line), (c) the accountant's annual review. The `tax_thresholds` table already exists to track exactly this — assign quarterly monitoring to the accountant. |
 | **OQ-3** | Checkout layout: price + key terms must sit on the SAME screen directly above "Order with obligation to pay" (counsel launch-blocking condition 3); the shipped draft still says "price is shown on the next step" | OQ-1 (the approved display string) | Eng (1-hour change once OQ-1 lands) | **Wire the approved string into the pre-checkout panel** ("Inklee Plus: 3.00 EUR per month, final price. Renews monthly until you cancel.") directly above the pay button, replacing the next-step sentence. Do it the day OQ-1 records. |
-| **OQ-4** | Plus caps: `custom_fields = 30` and `studio_library = 50` are "proposed, pending confirm" in code, yet already promised verbatim in customer-facing PLUS_BENEFITS copy | Founder confirmation only | Founder | **Ratify 30 / 50 as-is.** They are already public copy; changing them now costs copy + counsel churn for no economic gain, and both are generous safe caps. One-line note in DECISIONS.md closes it. |
+| **OQ-4** | Plus caps: `custom_fields = 30` and `studio_library = 50` were "proposed, pending confirm" in code as of 2026-07-25 (the "already promised verbatim in PLUS_BENEFITS copy" framing was never accurate — `PLUS_BENEFITS` carries no numbers, see §3 above) | Founder confirmation only | Founder | **Ratify 30 / 50 as-is.** They are already public copy; changing them now costs copy + counsel churn for no economic gain, and both are generous safe caps. **RATIFIED 2026-07-25 (DECISIONS.md), re-ratified 2026-07-31 (founder Ruling 3) alongside `active_trips = 100` and `active_products = 3/25`.** `CANONICAL_CAPS` in `entitlements.ts` is the single source; code no longer says "proposed". |
 | **OQ-5** | Founder-window parameters: first 50 / 100 / 250, and when the 24 EUR first-year window ends (no end date defined anywhere) | Founder decision; yearly plan build (OQ-6) | Founder | **First 100** (business-model.md's own §4.4 recommendation), implemented as the already-resolved Stripe promotion code with `max_redemptions = 100`, and **bounded: expires at 100 redemptions or 6 months after consumer go-live, whichever first**. Run it on the yearly plan only; a 24 EUR/year offer against a 3 EUR/month anchor on monthly muddies the price story. |
 | **OQ-6** | Yearly plan (24 first year → 30): planned but unbuilt; annual consumer billing deliberately disabled until annual proration is counsel-reviewed; renewal-reminder laws (FR/AT/RO/SE) target exactly annual tacit renewal | Counsel (annual proration + per-market reminders), then eng build | Founder to sequence | **Launch monthly-only** (already the wired state). Ship yearly as fast-follow only after (a) a renewal-reminder email exists and (b) counsel clears annual proration. When it ships, make yearly the *featured* option (12 dunning windows → 1) while keeping the 3 EUR monthly anchor visible — the anchor is the marketing hook ("reads as a coffee"). |
 | **OQ-7** | Does the 3% deposit fee vary by tier? | ~~Ratified flat 3% 2026-07-25~~ **SUPERSEDED 2026-07-28: card collection is Plus-only, so Free is n/a and Plus pays 0.5%** (the full-package directive; fee differentiation is the measurable proof of Plus value in the confirmed message hierarchy). SoT `plus-product-spec.md` §10; DECISIONS.md 2026-07-28 row. Historical note: the 2026-07-25 flat-3% reasoning (the fee IS the margin) was written before the goods fee lane (5%/1%) and the full-package Plus scope existed; the margin argument now spans both fee lanes plus the subscription | Founder | Superseded; see left |
 | **OQ-8** | Comp economics gap (audit C2): every comped beta artist costs Inklee ~2 EUR/month + refund/small-deposit exposure with zero subscription revenue, and **nothing sweeps `plan_expires_at`** — a lapsed comp silently stops card deposits | Founder comp policy + a small eng sweep | Founder + eng | **Keep comps for the beta cohort but give every comp an explicit expiry** (suggest 6 months), and build the expiry sweep + "your comp ends soon" notification BEFORE the first expiry (it is also launch-gate blocker 4's footnote). At expiry, offer the founder-window price as the conversion path. This converts the known silent-failure gap into the beta-to-paid funnel. |
 | **OQ-9** | Is 3 EUR/month + 3% actually the right split (subscription-led vs transaction-led)? Zero live evidence exists: G-5 unrun, fee revenue never persisted, no churn/conversion data | G-5 live money test + D21 instrumentation (`platform_fee_collected_cents` + `stripe_fee_cents` per deposit) + funnel events (D20) | Founder (G-5), eng (D21) | **Do not change any price until instrumented.** Build order per the unit-economics doc: persist the two fee columns (D21) → plan-change events (D20) → funnel events. G-5 is the single most important missing pricing datapoint; run it before any pricing debate. |
-| **OQ-10** | `past_due` grace period: proposed 7 days, "not ratified" | Founder one-liner | Founder | **Ratify 7 days** — the code already implements `GRACE_DAYS = 7` aligned to Stripe Smart Retries (`reconcile.ts`). The decision is de facto shipped; recording it just closes the register entry. |
+| **OQ-10** | `past_due` grace period: was "proposed 7 days, not ratified" as of this table's original writing | Founder one-liner | Founder | **Ratify 7 days** — the code already implements `GRACE_DAYS = 7` aligned to Stripe Smart Retries (`reconcile.ts`). **RATIFIED 2026-07-25** per the approval banner above; this row is a closed record, not an open question. |
 | **OQ-11** | A comped artist buys Plus then cancels/withdraws: revert to comp or to Free? | Founder | Founder | **Revert to Free (fail-safe), admin re-comps on request.** The grandfather-restore path already handles `legacy_free_v1` correctly; building automatic comp-restore for an edge case with (today) ~3 possible people is not worth the state-machine complexity. Document it in the admin runbook. |
 | **OQ-12** | Studio tier price (Q8): 25 EUR is simultaneously "planned" and "open"; is the 2.0 guest-spot host studio the Studio tier? | Solo/Plus data + map claim-funnel metrics + ≥5 inbound studio inquiries | Founder | **No action now.** Keep "~25 EUR/month, coming later" as a teaser only. Price it when the business model's own gate (≥5 inbound inquiries) trips; per D8, comp studio owners during map bootstrap. |
 | **OQ-13** | Goods take is decided (5% + 3%) but coded at 0% | Eng, before `GOODS_COMMERCE_ENABLED` ever flips | Eng | **Not launch-relevant** (goods parked). Add "wire `application_fee_amount` for the 5% goods take (D22)" as a hard precondition on the unpark checklist so commerce cannot relaunch at 0% take. |
@@ -201,15 +215,25 @@ subscription-covers-Connect-cost, fee-is-margin).
 To make pricing fully consistent with the current business model, the founder (with
 the accountant where marked) can close the whole open set in one pass:
 
+> **Status note, 2026-07-31:** items 3-5 below were executed as recommended
+> (per the 2026-07-25 approval banner above) and item 3's caps sub-clause was
+> re-ratified by founder Ruling 3 the same day this note was added. Item 3's
+> "flat 3% stays" sub-clause is separately superseded: OQ-7 above records that
+> the 2026-07-28 full-package directive replaced flat 3% with deposit fee
+> differentiation (Free 3% / Plus 0.5%). This list is kept as the historical
+> record of the 2026-07-25 recommendation, not a current to-do.
+
 1. **Price display** (w/ accountant): "3.00 EUR per month, final price", Stripe
    `tax_behavior = inclusive` → record `consumer_pricing_display_approved` +
    `pricing_display_approved`. *(OQ-1)*
 2. **Registration trigger** (w/ accountant): stay unregistered; triggers 35k EE /
    8k EU-B2C / annual review; accountant monitors quarterly → unlocks
    `invoice_config_approved`. *(OQ-2)*
-3. **Ratify by one-liner each:** Plus caps 30/50 *(OQ-4)*; flat 3% stays, delete
-   the "provisional" contradiction *(OQ-7)*; 7-day grace *(OQ-10)*; cancel-reverts-
-   to-Free *(OQ-11)*.
+3. **Ratify by one-liner each:** Plus caps 30/50 *(OQ-4, ratified 2026-07-25,
+   re-ratified with active_trips=100 and active_products=3/25 by Ruling 3,
+   2026-07-31)*; flat 3% stays, delete the "provisional" contradiction *(OQ-7,
+   since superseded — see the status note above)*; 7-day grace *(OQ-10,
+   ratified)*; cancel-reverts-to-Free *(OQ-11)*.
 4. **Founder window:** first 100, yearly-only, bounded 6 months. *(OQ-5)*
 5. **Sequencing:** monthly-only launch; yearly + reminders as fast-follow; comp
    expiries set + sweep built before first lapse; G-5 before any price change.
