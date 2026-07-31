@@ -4,6 +4,7 @@ import { writeAudit } from "@/lib/audit";
 import { ORDER_MONEY_STATES } from "@/lib/server/account-deletion-logic";
 import { runStayLifecycleSweep } from "@/lib/server/guest-spots";
 import { reconcileStalePaymentRequests } from "@/lib/server/appointment-payment-reconciliation";
+import { reconcileStaleSubscriptions } from "@/lib/server/billing/subscription-reconciliation";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,12 @@ export async function GET(request: Request) {
   // ── A8 payment-request reconciliation backstop ────────────────────────────
   // Catches requests stuck in payment_processing when the webhook was lost.
   const paymentReconciliation = await reconcileStalePaymentRequests();
+
+  // ── C4 billing subscription reconciliation backstop ──────────────────────
+  // Re-syncs billing_subscriptions rows that haven't been reconciled in 4h,
+  // and discovers subscriptions where the webhook was permanently lost
+  // (customer exists in account_overrides but no subscription row).
+  const billingReconciliation = await reconcileStaleSubscriptions();
 
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -42,6 +49,7 @@ export async function GET(request: Request) {
       stays_completed: stayLifecycle.completed,
       stay_requests_completed: stayLifecycle.requestsCompleted,
       payment_reconciliation: paymentReconciliation,
+      billing_reconciliation: billingReconciliation,
     });
   }
 
@@ -140,5 +148,6 @@ export async function GET(request: Request) {
     stays_completed: stayLifecycle.completed,
     stay_requests_completed: stayLifecycle.requestsCompleted,
     payment_reconciliation: paymentReconciliation,
+    billing_reconciliation: billingReconciliation,
   });
 }

@@ -4,6 +4,7 @@ import { effectivePlanTier, isGrandfathered } from "@/lib/entitlements";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 import { getWithdrawalWindow } from "@/lib/server/billing/withdrawal";
 import { getPlusPriceDisplay } from "@/lib/server/billing/subscription";
+import { reconcileOnCheckoutReturn } from "@/lib/server/billing/subscription-reconciliation";
 import { PLUS_BENEFITS } from "@inklee/shared/plus-benefits";
 import CheckBadge from "@/components/check-badge";
 import UpgradeButton from "./upgrade-button";
@@ -16,11 +17,22 @@ export const metadata = { title: "Plan" };
 // charcoal check (founder correction 2026-07-25, better visibility).
 const Check = CheckBadge;
 
-export default async function PlanPage() {
+export default async function PlanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // C4: when the user returns from Stripe Checkout, reconcile their subscription
+  // even if the webhook hasn't fired yet. Idempotent (reconcile converges).
+  const { checkout } = await searchParams;
+  if (checkout === "success" && user) {
+    await reconcileOnCheckoutReturn(user.id);
+  }
 
   const overrides = await getAccountOverrides(user!.id);
   const tier = effectivePlanTier(overrides);
