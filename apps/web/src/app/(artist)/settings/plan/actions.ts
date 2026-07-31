@@ -17,9 +17,13 @@ import {
 } from "@/lib/server/billing/activation";
 import { getLegalDoc } from "@/lib/legal/documents";
 import { BillingActivationError } from "@/lib/billing";
+import { headers } from "next/headers";
+import { getClientIp } from "@/lib/get-client-ip";
 import {
   BUSINESS_DECLARATION_VERSION,
+  BUSINESS_DECLARATION_HASH,
   IMMEDIATE_PERFORMANCE_VERSION,
+  IMMEDIATE_PERFORMANCE_HASH,
 } from "@/lib/billing-consent-copy";
 
 // The Plus price is resolved by the shared stable lookup keys (single-sourced
@@ -50,6 +54,8 @@ async function startCheckout(input: {
     now: string;
     termsVersion: string;
     termsHash: string | null;
+    ip: string | null;
+    userAgent: string | null;
   }) => ConsentRow[];
 }): Promise<CheckoutResult> {
   // THE ORDER HERE IS LOAD-BEARING (2026-07-28 audit findings 1-3). Both gates
@@ -93,9 +99,12 @@ async function startCheckout(input: {
   }
 
   const now = new Date().toISOString();
+  const hdrs = await headers();
+  const ip = getClientIp(hdrs);
+  const userAgent = hdrs.get("user-agent");
   const { error: consentErr } = await serviceClient
     .from("billing_consent_records")
-    .insert(input.consentRows({ now, termsVersion, termsHash }));
+    .insert(input.consentRows({ now, termsVersion, termsHash, ip, userAgent }));
   if (consentErr) return { message: "Something went wrong. Please try again." };
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://inklee.app";
@@ -156,7 +165,7 @@ export async function startPlusConsumerCheckoutAction(input?: {
       contractType: "consumer",
       billingInterval,
       immediatePerformanceRequested: immediate,
-      consentRows: ({ now, termsVersion, termsHash }) => {
+      consentRows: ({ now, termsVersion, termsHash, ip, userAgent }) => {
         const rows: ConsentRow[] = [
           {
             artist_id: user.id,
@@ -164,7 +173,12 @@ export async function startPlusConsumerCheckoutAction(input?: {
             consent_version: termsVersion,
             consent_hash: termsHash,
             consented_at: now,
-            context: { flow: "plus_subscription" },
+            ip,
+            user_agent: userAgent,
+            context: {
+              flow: "plus_subscription",
+              billing_interval: billingInterval,
+            },
           },
         ];
         if (immediate) {
@@ -172,9 +186,14 @@ export async function startPlusConsumerCheckoutAction(input?: {
             artist_id: user.id,
             consent_type: "immediate_performance_request",
             consent_version: IMMEDIATE_PERFORMANCE_VERSION,
-            consent_hash: null,
+            consent_hash: IMMEDIATE_PERFORMANCE_HASH,
             consented_at: now,
-            context: { flow: "plus_subscription" },
+            ip,
+            user_agent: userAgent,
+            context: {
+              flow: "plus_subscription",
+              billing_interval: billingInterval,
+            },
           });
         }
         return rows;
@@ -210,13 +229,16 @@ export async function confirmBusinessCheckoutAction(input: {
       email: user.email,
       contractType: "business",
       billingInterval: "monthly", // the deferred B2B path stays monthly-only
-      consentRows: ({ now, termsVersion, termsHash }) => [
+      consentRows: ({ now, termsVersion, termsHash, ip, userAgent }) => [
         {
           artist_id: user.id,
           consent_type: "business_use_declaration",
           consent_version: BUSINESS_DECLARATION_VERSION,
+          consent_hash: BUSINESS_DECLARATION_HASH,
           consented_at: now,
-          context: { flow: "plus_subscription" },
+          ip,
+          user_agent: userAgent,
+          context: { flow: "plus_subscription", billing_interval: "monthly" },
         },
         {
           artist_id: user.id,
@@ -224,7 +246,9 @@ export async function confirmBusinessCheckoutAction(input: {
           consent_version: termsVersion,
           consent_hash: termsHash,
           consented_at: now,
-          context: { flow: "plus_subscription" },
+          ip,
+          user_agent: userAgent,
+          context: { flow: "plus_subscription", billing_interval: "monthly" },
         },
       ],
     });
