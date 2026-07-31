@@ -77,7 +77,7 @@ plan; this is **P9** (the goods letter sequence keeps P5a-P5d).
 
 ---
 
-## Stage 2: P6 insights (~2-3 weeks) ← CURRENT MILESTONE
+## Stage 2: P6 insights — DONE
 
 Downstream of P9 because it consumes payment actuals. Carries the **advanced
 analytics** benefit, which is one of the three currently-free marketed claims
@@ -98,11 +98,19 @@ page gains Bookings/Hub tabs, mobile `/api/mobile/analytics` returns
 updated. `analytics` is still paused (everyone sees everything); unparking is
 a Stage 5/P7 action.
 
-**Remaining in P6:**
-- Savings dashboard (spec §12): fee savings from P5 actuals + payment savings
-  from P9 actuals. Free savings prompts in billing surfaces only. Free sees no
-  hypothetical appointment-payment savings (Free cannot collect card payments).
-- Unparking `analytics` is a P7 action, not done here.
+**Savings dashboard DONE 2026-07-31** (`bbf3dba`): `fee-savings.ts` types +
+`formatCentsEur`, `fee-savings-query.ts` server query gated by
+`canSeeAdvancedAnalytics` (deposit fees from `booking_requests` + goods fees
+from `orders`, hypothetical comparison under the other tier using per-transaction
+`fee_schedule_version`, subscription cost from `billing_subscriptions`), Savings
+tab on the analytics page, mobile route returns `feeSavings`. Under V1 (active
+schedule) both tiers pay 3% on appointments and 0% on goods, so savings = 0 and
+the UI explains this. P9 appointment-payment fees (stored only as Stripe
+`application_fee_amount`, not a database column) are not yet included; they are
+also 3%/3% under V1 so the gap is dormant. When V2 activates (Stage 4),
+real differentiation appears. 3 additional tests.
+
+Unparking `analytics` remains a P7 action.
 
 ---
 

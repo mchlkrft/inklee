@@ -50,6 +50,12 @@ vi.mock("@/lib/server/billing/activation", () => ({
 vi.mock("@/lib/server/billing/withdrawal", () => ({
   withdrawSubscriptionCore: (a: unknown) => h.withdrawCore(a),
 }));
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "user-agent": "test-agent" }),
+}));
+vi.mock("@/lib/get-client-ip", () => ({
+  getClientIp: () => "127.0.0.1",
+}));
 
 import {
   confirmBusinessCheckoutAction,
