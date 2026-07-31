@@ -8915,22 +8915,26 @@ findings:
         - "Whether any other grandfather grant (beyond the deposits override) crosses a v2 rate cell
           in a way the tier-only schedule does not capture."
     remediation:
-      status: "accepted"
-      proposed_action: "Rate DECIDED (provisional, F14 in docs/product/plus-build-time-decisions.md):
-        a legacy_free_v1 artist who collects card payments pays their grandfathered v1 flat
-        appointment rate (3%) under v2 (not 0% = leakage, not the Plus 0.5% = an unearned Plus
-        benefit) and the standard Free goods rate (5%). ENCODING is deferred to the fee-v2 activation
-        work (Stage 4): it is a money-path schema change (the schedule is tier-only today) for ZERO
-        current accounts while v2 is dormant, so it lands with the v2 flip alongside the A3
-        conditions rather than now. The 'undecided cell' is thus closed as a DECISION; the code guard
-        against a legacy artist resolving to 0% appointment must be in place before ACTIVE flips."
+      status: "fixed-unverified"
+      fix_commit: "e698be7"
+      proposed_action: "Rate DECIDED (F14) and now ENCODED (founder ruling 6+14, 2026-07-31: encode
+        v2 fully now, no undefined cell). A legacy_free_v1 artist who collects card payments pays
+        their grandfathered v1 flat appointment rate (3%) under v2 (not 0% = leakage, not the Plus
+        0.5% = an unearned Plus benefit) and the standard Free goods rate (5%). Implemented: a third
+        `legacy` tier on the appointment lane in fee-schedule.ts (v1 300, v2 300; goods maps
+        legacy->free), a `resolveAppointmentTier` resolver, and a server `appointmentFeeTier` helper
+        wired at all three appointment tier-resolution sites (bookings deposit create, order-fee-sync
+        re-prepare, appointment-payment-quote). ACTIVE stays v1, so no live number moves; the branch
+        activates with the v2 flip. Remaining: founder confirmation of 3%, and A3's Terms + accountant
+        conditions at the flip itself."
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "The rate is decided provisionally, not yet encoded; the code still resolves a
-        legacy card-collecting artist to the free-tier rate under v2. Not a live issue (v2 dormant,
-        zero affected accounts), but the encoding is a hard precondition on the v2 flip and must not
-        be forgotten there. Founder confirmation of the 3% choice is pending (provisional)."
+      residual_risk: "The encoding landed and is unit-tested (fee-schedule-legacy.test.ts + a legacy
+        case in order-fee-sync.test.ts), but not INDEPENDENTLY verified, and the change is invisible
+        under the active v1 schedule so no runtime path exercises the legacy branch in production yet.
+        Founder confirmation of the 3% choice is pending. The A3 activation conditions (Terms coverage
+        + accountant) still gate the v2 flip."
     disclosure:
       public_repo_safe: true
     history:
@@ -8946,6 +8950,17 @@ findings:
           appointment rate + standard 5% Free goods rate under v2; reasoning + alternatives logged in
           plus-build-time-decisions.md. Encoding deferred to the fee-v2 flip (zero affected accounts,
           v2 dormant). Founder confirmation pending."
+      - date: "2026-07-31"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Founder ruling 6+14 (encode v2 fully now, no undefined cell) superseded the deferral.
+          Encoded the legacy tier: fee-schedule.ts gained a `legacy` appointment rate (v1 300 / v2 300;
+          goods maps legacy->free) + `resolveAppointmentTier`; order-fee-sync.ts gained
+          `appointmentFeeTier` (grandfather signal = canAccess card_deposit_collection on a Free
+          artist), wired at bookings deposit-create, resolveOrderFee re-prepare, and
+          appointment-payment-quote. Types widened free|plus -> PaymentTier. Tests:
+          fee-schedule-legacy.test.ts + a legacy case in order-fee-sync.test.ts; full web suite 2593
+          green, tsc clean. ACTIVE still v1 (v1-invisible). Verification pending (not self-verified)."
 
 patterns:
   - id: "PAT-001"

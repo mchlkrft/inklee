@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `1de000e8ae42`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `19169178957a`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -35,9 +35,9 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Status | Count |
 | --- | --- |
-| accepted | 3 |
+| accepted | 2 |
 | deferred | 2 |
-| fixed-unverified | 14 |
+| fixed-unverified | 15 |
 | mitigated | 1 |
 | open | 58 |
 | verified | 5 |
@@ -247,6 +247,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
+| PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 
