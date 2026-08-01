@@ -90,6 +90,10 @@ let disabledCapabilities: string[] = [];
 const isCapabilityDisabled = vi.fn((capability: string) =>
   disabledCapabilities.includes(capability),
 );
+/** Connect routing for the SEND gate (M10). Defaults to charge-ready in
+ *  beforeEach so every pre-existing send test still exercises what it always
+ *  did; the gate's own tests flip it. */
+const getConnectRoutingForArtist = vi.fn();
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/entitlements-server", () => ({
@@ -97,6 +101,10 @@ vi.mock("@/lib/entitlements-server", () => ({
 }));
 vi.mock("@/lib/server/app-config", () => ({
   isCapabilityDisabled: (c: string) => isCapabilityDisabled(c),
+}));
+vi.mock("@/lib/stripe-connect", () => ({
+  getConnectRoutingForArtist: (...a: unknown[]) =>
+    getConnectRoutingForArtist(...a),
 }));
 
 import * as paymentsModule from "@/lib/server/appointment-payments";
@@ -309,6 +317,10 @@ beforeEach(() => {
   rpcCalls = [];
   getAccountOverrides.mockResolvedValue(PLUS);
   disabledCapabilities = [];
+  getConnectRoutingForArtist.mockResolvedValue({
+    stripeAccountId: "acct_test",
+    routeCharges: true,
+  });
 });
 
 // ===========================================================================
@@ -1254,6 +1266,34 @@ describe("sendPaymentRequestCore", () => {
       p_artist_id: ARTIST,
       p_fee_schedule_version: ACTIVE_FEE_SCHEDULE_VERSION,
     });
+  });
+
+  // THE CONNECT GATE (M10). A payment link a client cannot pay must not be
+  // sendable: without a charge-ready Connect account the failure would land on
+  // the CLIENT at pay time (the wrong party). Refused BEFORE the freeze RPC so
+  // the draft is untouched.
+  it("refuses to send without a charge-ready Connect account, before the RPC", async () => {
+    queueSendable();
+    getConnectRoutingForArtist.mockResolvedValue({
+      stripeAccountId: null,
+      routeCharges: false,
+    });
+    const r = await sendPaymentRequestCore(supabase, ARTIST, "pr1");
+    expect(r).toEqual({
+      ok: false,
+      code: "not_connected",
+      error:
+        "Connect your payout account before sending a payment request. Set it up in settings, then send again.",
+    });
+    expect(rpcCalls, "the freeze RPC must never have run").toHaveLength(0);
+    expect(writes(), "no token credential written").toHaveLength(0);
+  });
+
+  it("consults Connect routing for THIS artist on every send", async () => {
+    queueSendable();
+    rpcReplies = [{ data: "sent" }];
+    await sendPaymentRequestCore(supabase, ARTIST, "pr1");
+    expect(getConnectRoutingForArtist).toHaveBeenCalledWith(ARTIST);
   });
 
   it("defaults the link's life to the declared TTL", async () => {

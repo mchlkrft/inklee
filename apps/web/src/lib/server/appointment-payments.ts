@@ -18,6 +18,7 @@ import { ACTIVE_FEE_SCHEDULE_VERSION } from "@inklee/shared/fee-schedule";
 import { canAccess, type AccountOverrides } from "@/lib/entitlements";
 import type { EntitlementFeature } from "@/lib/entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
+import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { isCapabilityDisabled } from "./app-config";
 
 // The ONE write path for appointment payment requests (Plus build P9, slice
@@ -176,6 +177,8 @@ export type PaymentRequestWriteCode =
   | "already_outstanding"
   /** Money has been collected or is being collected against it. */
   | "settled"
+  /** The artist has no charge-ready payout account, so a client could not pay. */
+  | "not_connected"
   /** Something changed underneath; a refresh and retry is the answer. */
   | "conflict"
   /** Anything else. */
@@ -1075,6 +1078,24 @@ export async function sendPaymentRequestCore(
   );
   if (gate) return gate;
 
+  // CONNECT GATE (M10). A payment link is only sendable when a client could
+  // actually PAY it: without a charge-ready Connect account the failure would
+  // otherwise land on the CLIENT at pay time, which is the wrong party. Checked
+  // BEFORE the freeze RPC so a refused send leaves the draft untouched. Cached
+  // Connect state can lie toward stale-active (AGENTS.md), so a send can still
+  // pass here and fail later at intent creation, which refuses safely; this
+  // gate's job is the common case, never sending from a never-onboarded or
+  // known-disabled account.
+  const routing = await getConnectRoutingForArtist(artistId);
+  if (!routing.routeCharges) {
+    return {
+      ok: false,
+      code: "not_connected",
+      error:
+        "Connect your payout account before sending a payment request. Set it up in settings, then send again.",
+    };
+  }
+
   const expiresAt = resolveExpiry(options.expiresAt);
   if (!expiresAt.ok) {
     return { ok: false, code: "invalid", error: expiresAt.error };
@@ -1257,7 +1278,10 @@ export async function cancelPaymentRequestCore(
  *  contested is absent, which is what makes expiry unable to resurrect or
  *  overwrite an outcome; and `expired` itself is absent, which is what makes
  *  running it twice a no-op. */
-const EXPIRABLE_STATUSES: readonly PaymentRequestStatus[] = [
+// Exported for the cron fleet sweep (sweepExpiredPaymentRequests), so the
+// service-role sweep and the per-artist core can never disagree about what
+// expiry may touch.
+export const EXPIRABLE_STATUSES: readonly PaymentRequestStatus[] = [
   "sent",
   "viewed",
   "failed",

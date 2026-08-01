@@ -221,6 +221,67 @@ export async function settlePaymentRequestSuccess(
 }
 
 /**
+ * Record a FAILED ATTEMPT or a DEAD INTENT on an appointment payment (M7/M8).
+ *
+ * The two kinds are deliberately different, mirroring the deposit path's
+ * reasoning:
+ *
+ *   "failed"   = `payment_intent.payment_failed`. Fires PER ATTEMPT and the
+ *                client can retry the same intent immediately (the pay page
+ *                stays payable: `payment_processing` is in
+ *                PAYABLE_PAYMENT_REQUEST_STATUSES). So this NEVER transitions
+ *                state — a first declined card must not kill a live checkout.
+ *                Audit-only, for artist-side visibility.
+ *
+ *   "canceled" = `payment_intent.canceled`. The intent is dead (abandoned past
+ *                Stripe's window, or canceled by us); no retry on it is
+ *                possible. Transitions `payment_processing -> failed` (a matrix
+ *                edge), gated on THIS intent id so a newer attempt's request is
+ *                never touched. From `failed` the artist re-sends or the expiry
+ *                sweep closes it (`failed` is in EXPIRABLE_STATUSES).
+ *
+ * Idempotent: the canceled transition's conditional UPDATE matches at most
+ * once; redelivered failed events write duplicate audit rows at worst (same
+ * posture as the deposit path's attempt log).
+ */
+export async function settlePaymentRequestFailure(
+  intent: Stripe.PaymentIntent,
+  kind: "failed" | "canceled",
+): Promise<boolean> {
+  const requestId = intent.metadata?.payment_request_id;
+  if (!requestId) return false;
+
+  if (kind === "canceled") {
+    const { data: moved } = await serviceClient
+      .from("payment_requests")
+      .update({ status: "failed", updated_at: new Date().toISOString() })
+      .eq("id", requestId)
+      .eq("payment_intent_id", intent.id)
+      .eq("status", "payment_processing")
+      .select("id")
+      .maybeSingle();
+    if (!moved) return false;
+  }
+
+  void writeAudit({
+    action:
+      kind === "canceled"
+        ? "appointment_payment_intent_canceled"
+        : "appointment_payment_attempt_failed",
+    actor: "system",
+    category: "booking",
+    details: {
+      payment_request_id: requestId,
+      payment_intent_id: intent.id,
+      reason: intent.last_payment_error?.message ?? null,
+      code: intent.last_payment_error?.code ?? null,
+      via: "stripe_webhook",
+    },
+  });
+  return true;
+}
+
+/**
  * Settle a refund on an appointment-payment charge.
  *
  * Converge-to-target: reads the cumulative `amount_refunded` from the Charge,

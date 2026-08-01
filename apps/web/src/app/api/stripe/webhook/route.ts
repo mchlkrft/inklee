@@ -27,6 +27,7 @@ import {
   settlePaymentRequestSuccess,
   settlePaymentRequestRefund,
   settlePaymentRequestDispute,
+  settlePaymentRequestFailure,
 } from "@/lib/server/appointment-payment-settlement";
 
 export const runtime = "nodejs";
@@ -383,6 +384,17 @@ export async function POST(request: Request) {
   // don't want to spam the artist on each attempt.
   if (event.type === "payment_intent.payment_failed") {
     const intent = event.data.object as Stripe.PaymentIntent;
+
+    // Appointment payment attempt (M7). Dispatched BEFORE the deposit path
+    // because appointment PIs also carry booking_id; payment_request_id is the
+    // unambiguous discriminator (same rule as payment_intent.succeeded).
+    // Audit-only: the event fires per attempt and the client can retry the
+    // same intent, so no state moves here.
+    if (intent.metadata?.payment_request_id) {
+      const recorded = await settlePaymentRequestFailure(intent, "failed");
+      return NextResponse.json({ received: true, recorded });
+    }
+
     const bookingId = intent.metadata?.booking_id;
     if (!bookingId) return NextResponse.json({ received: true });
     await serviceClient.from("audit_log").insert({
@@ -395,6 +407,20 @@ export async function POST(request: Request) {
         code: intent.last_payment_error?.code ?? null,
       },
     });
+    return NextResponse.json({ received: true });
+  }
+
+  // A dead intent (M8): abandoned past Stripe's window or canceled by us. For
+  // an appointment payment this moves `payment_processing -> failed` (gated on
+  // THIS intent id, so a newer attempt is never touched); from `failed` the
+  // artist re-sends or the expiry sweep closes it. Deposit-path cancels keep
+  // their existing behaviour (none; the booking flow owns that lifecycle).
+  if (event.type === "payment_intent.canceled") {
+    const intent = event.data.object as Stripe.PaymentIntent;
+    if (intent.metadata?.payment_request_id) {
+      const recorded = await settlePaymentRequestFailure(intent, "canceled");
+      return NextResponse.json({ received: true, recorded });
+    }
     return NextResponse.json({ received: true });
   }
 

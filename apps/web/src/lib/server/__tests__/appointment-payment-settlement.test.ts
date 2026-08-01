@@ -30,6 +30,7 @@ import {
   settlePaymentRequestSuccess,
   settlePaymentRequestRefund,
   settlePaymentRequestDispute,
+  settlePaymentRequestFailure,
 } from "@/lib/server/appointment-payment-settlement";
 
 // ---------------------------------------------------------------------------
@@ -620,5 +621,71 @@ describe("settlePaymentRequestDispute", () => {
       (o) => o.table === "payment_requests" && o.verb === "update",
     );
     expect((reqOp!.payload as Record<string, unknown>).status).toBe("refunded");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Failure / cancellation (M7 / M8)
+
+describe("settlePaymentRequestFailure", () => {
+  it("'canceled' moves payment_processing -> failed, gated on THIS intent", async () => {
+    queue("payment_requests:update", { data: { id: "req_1" } });
+
+    const result = await settlePaymentRequestFailure(makeIntent(), "canceled");
+    expect(result).toBe(true);
+
+    const op = ops.find(
+      (o) => o.table === "payment_requests" && o.verb === "update",
+    );
+    expect(op).toBeDefined();
+    expect((op!.payload as Record<string, unknown>).status).toBe("failed");
+    // Gated on the request, the intent AND the in-flight status, so a newer
+    // attempt's request or a settled outcome can never be touched.
+    expect(op!.filters.id).toBe("req_1");
+    expect(op!.filters.payment_intent_id).toBe("pi_test_123");
+    expect(op!.filters.status).toBe("payment_processing");
+
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "appointment_payment_intent_canceled",
+      }),
+    );
+  });
+
+  it("'canceled' on an already-moved request is a no-op (no audit, false)", async () => {
+    // The conditional UPDATE matches nothing: settled, refunded, or a newer
+    // attempt took over. Redelivery-safe.
+    queue("payment_requests:update", { data: null });
+
+    const result = await settlePaymentRequestFailure(makeIntent(), "canceled");
+    expect(result).toBe(false);
+    expect(mockWriteAudit).not.toHaveBeenCalled();
+  });
+
+  it("'failed' is AUDIT-ONLY: no state moves, the client can retry the intent", async () => {
+    const result = await settlePaymentRequestFailure(makeIntent(), "failed");
+    expect(result).toBe(true);
+
+    // A first declined card must not kill a live checkout: payment_processing
+    // stays payable and the event fires per attempt.
+    expect(ops.filter((o) => o.table === "payment_requests")).toHaveLength(0);
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "appointment_payment_attempt_failed",
+        details: expect.objectContaining({
+          payment_request_id: "req_1",
+          payment_intent_id: "pi_test_123",
+        }),
+      }),
+    );
+  });
+
+  it("ignores intents that are not appointment payments", async () => {
+    const intent = makeIntent();
+    delete (intent.metadata as Record<string, string>).payment_request_id;
+    const result = await settlePaymentRequestFailure(intent, "canceled");
+    expect(result).toBe(false);
+    expect(ops).toHaveLength(0);
+    expect(mockWriteAudit).not.toHaveBeenCalled();
   });
 });

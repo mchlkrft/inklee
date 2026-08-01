@@ -3,7 +3,10 @@ import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
 import { ORDER_MONEY_STATES } from "@/lib/server/account-deletion-logic";
 import { runStayLifecycleSweep } from "@/lib/server/guest-spots";
-import { reconcileStalePaymentRequests } from "@/lib/server/appointment-payment-reconciliation";
+import {
+  reconcileStalePaymentRequests,
+  sweepExpiredPaymentRequests,
+} from "@/lib/server/appointment-payment-reconciliation";
 import { reconcileStaleSubscriptions } from "@/lib/server/billing/subscription-reconciliation";
 import { runCompExpirySweep } from "@/lib/server/billing/comp-expiry-sweep";
 import { runArtistAnalyticsRollup } from "@/lib/server/artist-analytics-rollup";
@@ -25,6 +28,12 @@ export async function GET(request: Request) {
   // ── A8 payment-request reconciliation backstop ────────────────────────────
   // Catches requests stuck in payment_processing when the webhook was lost.
   const paymentReconciliation = await reconcileStalePaymentRequests();
+
+  // ── M9 payment-request expiry sweep ───────────────────────────────────────
+  // Enforces expires_at fleet-wide (sent/viewed/failed -> expired). Until this
+  // sweep the expiry cores had no caller: links "expired" only if the client
+  // happened to open them.
+  const paymentExpiry = await sweepExpiredPaymentRequests();
 
   // ── C4 billing subscription reconciliation backstop ──────────────────────
   // Re-syncs billing_subscriptions rows that haven't been reconciled in 4h,
@@ -62,6 +71,7 @@ export async function GET(request: Request) {
       stays_completed: stayLifecycle.completed,
       stay_requests_completed: stayLifecycle.requestsCompleted,
       payment_reconciliation: paymentReconciliation,
+      payment_expiry: paymentExpiry,
       billing_reconciliation: billingReconciliation,
       comp_expiry: compExpiry,
       analytics_rollup: analyticsRollup,
@@ -163,6 +173,7 @@ export async function GET(request: Request) {
     stays_completed: stayLifecycle.completed,
     stay_requests_completed: stayLifecycle.requestsCompleted,
     payment_reconciliation: paymentReconciliation,
+    payment_expiry: paymentExpiry,
     billing_reconciliation: billingReconciliation,
     comp_expiry: compExpiry,
     analytics_rollup: analyticsRollup,

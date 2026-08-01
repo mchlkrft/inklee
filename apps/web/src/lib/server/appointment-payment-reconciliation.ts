@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { stripe } from "@/lib/stripe";
 import { settlePaymentRequestSuccess } from "./appointment-payment-settlement";
+import { EXPIRABLE_STATUSES } from "./appointment-payments";
 import { writeAudit } from "@/lib/audit";
 
 // A8 RECONCILIATION BACKSTOP (Plus build P9, spec section 8).
@@ -127,4 +128,48 @@ export async function reconcileStalePaymentRequests(
   }
 
   return result;
+}
+
+/**
+ * FLEET EXPIRY SWEEP (M9). `expirePaymentRequestsCore` is per-artist (it runs
+ * on the RLS client for the artist-facing surfaces), and until this sweep it
+ * had NO caller at all, so `expires_at` was written and never enforced: an
+ * expired link stayed `sent` forever unless the client happened to open it
+ * (the pay page checks the timestamp defensively).
+ *
+ * This is the service-role, all-artists version, run by the cleanup cron. Same
+ * WHERE as the core minus the artist filter, and the SAME status list
+ * (EXPIRABLE_STATUSES, imported so the two can never disagree): expiry only
+ * moves sent / viewed / failed, so it can never resurrect or overwrite a
+ * settled, cancelled or contested outcome. Idempotent: `expired` is not in the
+ * list, so a second run matches nothing.
+ */
+export async function sweepExpiredPaymentRequests(
+  options: { now?: Date } = {},
+): Promise<{ expired: number }> {
+  const nowIso = (options.now ?? new Date()).toISOString();
+  const { data, error } = await serviceClient
+    .from("payment_requests")
+    .update({ status: "expired", updated_at: nowIso })
+    .in("status", EXPIRABLE_STATUSES as string[])
+    .not("expires_at", "is", null)
+    .lte("expires_at", nowIso)
+    .select("id");
+
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "payment_request_expiry_sweep" },
+    });
+    return { expired: 0 };
+  }
+  const expired = (data ?? []).length;
+  if (expired > 0) {
+    void writeAudit({
+      action: "appointment_payment_requests_expired",
+      actor: "system",
+      category: "booking",
+      details: { count: expired, via: "cron_sweep" },
+    });
+  }
+  return { expired };
 }
