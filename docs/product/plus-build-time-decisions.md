@@ -290,3 +290,35 @@ collected money (2026-08-01).**
   for); (b) auto-refund on cancellation (rejected: moves money without an
   explicit artist action, against the money-path rules).
 - Reversible? Yes (narrowing the list back is one edit); nothing live (dark).
+
+### 2026-08-01 — Gallery real upload (Track B)
+
+**GB1 [ENG] — `.rotate()` added GLOBALLY in `processAndUpload`, not gallery-local.**
+- Context: no upload pipeline applied EXIF orientation (`.rotate()`): sharp
+  strips the orientation tag on re-encode WITHOUT applying it, so portrait
+  phone photos land sideways. Latent on the wide cover strip; glaring in a
+  square gallery grid (recon H1).
+- Decision: add no-arg `.rotate()` (auto-orient) inside `processAndUpload`,
+  which backs FOUR existing routes (goods image, profile logo, profile cover,
+  flash image) plus the new gallery path. This deliberately changes the four
+  existing routes' behaviour.
+- Why: the change is strictly corrective everywhere (nobody wants a sideways
+  image); fixing it gallery-locally would leave the same latent bug in four
+  places and fork the pipeline.
+- Alternatives: gallery-local pipeline (rejected: forks one pipeline into two
+  and preserves a known defect); `lib/image-processing.ts` reuse (it rotates
+  but serves a different surface; consolidating the two pipelines is a bigger
+  refactor than this slice warrants).
+- Reversible? Cheap (one line). EXIF is stripped either way (privacy unchanged,
+  GPS never persisted — re-encode drops metadata).
+
+**GB2 [FOUNDER-product, provisional] — the gallery editor will KEEP the URL
+field alongside the new upload button (B2).**
+- Why: existing galleries may hold external URLs (the parser accepts any
+  http(s) image URL and the data model predates upload), and power users
+  hosting elsewhere lose nothing. Upload becomes the primary affordance;
+  the URL input stays as the secondary path.
+- Confirm: founder can drop the URL field later; removing it is cosmetic (the
+  parser keeps accepting stored external URLs either way, so old data never
+  breaks).
+- Reversible? Cheap.

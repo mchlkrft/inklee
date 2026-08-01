@@ -17,14 +17,10 @@ type FileResult =
   | { ok: true; file: File }
   | { ok: false; status: number; error: string };
 
-/** Pull the `image` file out of a multipart request body + validate it. */
-export async function readImageFile(req: Request): Promise<FileResult> {
-  let form: FormData;
-  try {
-    form = await req.formData();
-  } catch {
-    return { ok: false, status: 400, error: "Expected an image upload." };
-  }
+/** Validate the `image` entry of an ALREADY-PARSED form. Split out of
+ *  `readImageFile` so web Server Actions (which receive FormData directly)
+ *  share the exact same allowlist and size cap as the mobile routes. */
+export function readImageFromForm(form: FormData): FileResult {
   const file = form.get("image");
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, status: 400, error: "No image provided." };
@@ -40,6 +36,17 @@ export async function readImageFile(req: Request): Promise<FileResult> {
     return { ok: false, status: 400, error: "Image is too large (max 4 MB)." };
   }
   return { ok: true, file };
+}
+
+/** Pull the `image` file out of a multipart request body + validate it. */
+export async function readImageFile(req: Request): Promise<FileResult> {
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return { ok: false, status: 400, error: "Expected an image upload." };
+  }
+  return readImageFromForm(form);
 }
 
 type UploadResult =
@@ -60,13 +67,25 @@ export async function processAndUpload(
     height: number;
     fit?: "cover" | "inside";
     upsert?: boolean;
+    /** Default true (fixed-path uploads like cover/logo NEED the ?t= because
+     *  replacement overwrites the same object). Pass false for unique-path
+     *  uploads (gallery): the path never repeats, and the query string would
+     *  otherwise be stored into settings JSON where deep-equality comparisons
+     *  (gateMediaBlocksForSave) have to carry it. */
+    cacheBust?: boolean;
   },
 ): Promise<UploadResult> {
   const fit = opts.fit ?? "cover";
   let processed: Buffer;
   try {
     const input = Buffer.from(await file.arrayBuffer());
+    // `.rotate()` (no args) applies the EXIF orientation BEFORE the metadata is
+    // stripped by re-encoding. Without it, sharp discards the orientation tag
+    // without applying it, so portrait phone photos land sideways — latent on
+    // the wide cover strip, glaring in a square gallery grid (GB1, 2026-08-01;
+    // deliberately global so covers/logos/flash/goods get the fix too).
     processed = await guardedSharp(input)
+      .rotate()
       .resize(opts.width, opts.height, {
         fit,
         position: "centre",
@@ -93,5 +112,11 @@ export async function processAndUpload(
   }
 
   const { data } = serviceClient.storage.from("logos").getPublicUrl(opts.path);
-  return { ok: true, url: `${data.publicUrl}?t=${Date.now()}` };
+  return {
+    ok: true,
+    url:
+      (opts.cacheBust ?? true)
+        ? `${data.publicUrl}?t=${Date.now()}`
+        : data.publicUrl,
+  };
 }
