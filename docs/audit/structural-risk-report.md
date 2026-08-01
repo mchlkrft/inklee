@@ -7,8 +7,6 @@
 
 **Ledger content hash:** `66431c5f7d48`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
-> The ledger has uncommitted changes, so this report may describe data not yet in git.
-
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
