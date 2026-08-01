@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `a4004fe8eb2f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `66431c5f7d48`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-122 recorded finding(s), 3 structural pattern(s), across 82 mapped area(s).
-100 remain open by remediation status. 94 are reachable (directly or conditionally) rather than latent.
-96 have not passed independent verification.
+123 recorded finding(s), 3 structural pattern(s), across 82 mapped area(s).
+101 remain open by remediation status. 95 are reachable (directly or conditionally) rather than latent.
+97 have not passed independent verification.
 178 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -26,7 +28,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | critical | 2 |
 | high | 29 |
 | medium | 51 |
-| low | 36 |
+| low | 37 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 33 |
+| fixed-unverified | 34 |
 | mitigated | 2 |
 | open | 62 |
 | risk-accepted | 2 |
@@ -45,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 93 |
+| not-started | 94 |
 | partially-verified | 2 |
 | passed | 26 |
 | pending | 1 |
@@ -145,7 +147,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | jobs | 13 |
 | webhook | 13 |
 | database | 10 |
-| web | 9 |
+| web | 10 |
 | testing | 7 |
 | authorization | 5 |
 | migration | 4 |
@@ -242,6 +244,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-ORPH-001 | low | conditionally-reachable | latent | createProductAction inserts the product row before processing images and returns the image error without deleting it, so every failed image upload leaves an untitled-to-the-artist orphan product that still consumes the plan's active-product cap |
 | DATA-RACE-002 | low | conditionally-reachable | latent | 0124's self-documented residual risks (timeout and deadlock) not recorded in the audit evidence register |
 | DRIFT-FN-001 | low | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
+| HUB-DST-001 | low | conditionally-reachable | latent | The FD8 destination formula called the standalone shop AVAILABLE while the platform park switch was off, so a brand-new goods block defaulted to a public link to a 404 with no editor warning, and the visibility summary reported the artist as published |
 | HUB-GAL-002 | low | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
 | HUB-GAL-005 | low | conditionally-reachable | latent | URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted to the third-party host while the SSRF guard sees only the clean hostname |
 | HUB-GAL-006 | low | conditionally-reachable | latent | The hosted-logos marker single-sourcing is incomplete: a second literal survives in mobile-goods-server.ts while the parser comment claims the drift risk was closed |
@@ -290,6 +293,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | TEST-VAC-007 | medium | fixed-unverified | not-started | 5fa0110e |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | 45a44bee |
+| HUB-DST-001 | low | fixed-unverified | not-started | b2da53c7 |
 | HUB-GAL-005 | low | fixed-unverified | not-started | 6bac9914 |
 | HUB-GAL-006 | low | fixed-unverified | not-started | 6bac9914 |
 | OPS-LINT-001 | low | fixed-unverified | not-started | 45a44bee |

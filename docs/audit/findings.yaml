@@ -12810,6 +12810,100 @@ findings:
           HOSTED_LOGOS_PUBLIC_MARKER; repo re-grepped afterwards, only test fixtures remain,
           so the bio-page.ts comment is now true of the codebase."
 
+  - id: "HUB-DST-001"
+    title: "The FD8 destination formula called the standalone shop AVAILABLE while the platform
+      park switch was off, so a brand-new goods block defaulted to a public link to a 404 with no
+      editor warning, and the visibility summary reported the artist as published"
+    summary: "FD8's literal brief made standalone_shop availability = artist toggle + goods
+      module, excluding GOODS_COMMERCE_ENABLED. But /[slug]/shop/checkout calls notFound() while
+      that switch is off, a NEW goods block defaults to standalone_shop, and the editor warning
+      keys off the same formula - so the DEFAULT state of a new block was a dead public link,
+      silently, for as long as the flag stays dark. deriveGoodsVisibilitySummary's
+      publishedNowhere inherited the same error and would have told an artist they were published
+      while every route was dead. Found by the worker IMPLEMENTING the brief (it built the
+      specified formula, wrote a test documenting the consequence, and flagged it rather than
+      deciding around it); fixed by the supervisor the same day."
+    classification:
+      domain: "web"
+      category: "broken-invariant"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "fd78-worker (implementing the FD8 brief; not the brief's author)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "db9cbcd3"
+      environment: "repository-only"
+      discovery_context: "Raised in the slice's completion report as a gap in the supervisor's
+        own specification, with a test documenting the behaviour rather than asserting around
+        it."
+    location:
+      files:
+        - "apps/web/src/lib/goods-visibility.ts"
+        - "apps/web/src/lib/goods-visibility-summary.ts"
+      symbols:
+        - "goodsDestinationAvailability"
+        - "deriveGoodsVisibilitySummary"
+    evidence:
+      observed_facts:
+        - "The standalone route calls notFound() when isGoodsCommerceEnabled() is false."
+        - "parseGoodsDestination defaults a NEW block to standalone_shop (the ruling's default)."
+        - "The pre-fix formula omitted the park switch, so availability - and therefore the
+          editor warning and publishedNowhere - read true regardless."
+      references:
+        - "apps/web/src/app/[slug]/shop/checkout/page.tsx"
+    assessment:
+      interpretation: "A specification defect, not an implementation one: the brief's author
+        (supervisor) drew the availability boundary at the artist's own switches and forgot the
+        route-level park switch. Latent only because the whole feature is dark."
+      root_cause_hypothesis: "Availability was reasoned about as an artist-intent question
+        (which surface did they choose) rather than a visitor question (can anyone land on it)."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Any artist adding a hub goods block before the goods un-park."
+      production_exposure: "None; the hub block destination and the standalone shop are both
+        unreleased."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None."
+    relationships:
+      related_findings:
+        - "SHOP-GATE-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "b2da53c7"
+      fixed_at: "2026-08-01"
+      proposed_action: "Fold the park switch into the destination's availability, injected as a
+        value (the nowMs = Date.now() house pattern) so the summary and the hub render cannot
+        disagree; keep Connect readiness OUT (a not-charge-ready artist still has a real
+        browsable shop page); keep standaloneShop.toggleOn reporting the artist's own switch
+        alone so the summary can say WHICH condition is the blocker. Done in b2da53c7, with the
+        two tests that pinned the old behaviour replaced by the corrected contract."
+    verification:
+      status: "not-started"
+      independent: false
+      verified_by: "supervisor session (author of both the defective brief and the fix)"
+      verified_at: "2026-08-01"
+      verification_commit: "b2da53c7"
+      verification_method: "Three suites re-run green (34 tests) plus the full suite (2914 + 1
+        expected fail); the corrected contract is asserted by replacement tests including the
+        park-switch-off case and the toggle-versus-availability distinction."
+      residual_risk: "Fixed by the same session that specified the defect; not independently
+        verified. No component render executed (the summary card is .tsx, outside the test
+        include)."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "fd78-worker"
+        action: "opened"
+        note: "Reported as a gap in the supervisor's brief, with a documenting test; recorded by
+          the supervisor."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in b2da53c7 the same day; queued for the next independent round."
+
 patterns:
 
   - id: "PAT-001"
