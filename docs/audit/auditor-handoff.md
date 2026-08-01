@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `66431c5f7d48`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `f5b3c48828d2`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 

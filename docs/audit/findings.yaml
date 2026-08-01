@@ -15535,3 +15535,37 @@ coverage:
     known_exclusions: "No DB, no live network: DNS and fetch mocked, no real rebinding
       executed; whether platform resolvers emit hex-spelled mapped addresses was not tested.
       Component render of the editor not executed."
+
+  - area: "FD build slices 1-4 (founder rulings FD1/3/11/13, FD4, FD7/FD8, FD10): the
+      rich_content_blocks capability split, gallery URL import, hub destination + visibility
+      summary, and shop surface content configuration"
+    subsystem: "web"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-01"
+    commit_inspected: "f043763f"
+    reviewer: "four dispatched workers (each wrote its own slice and tests) with supervisor
+      review of every commit; FD4 additionally passed an independent adversarial round"
+    evidence: "Each slice gated on tsc + eslint + the FULL web suite, which grew 2823 -> 2967
+      passing across the four with zero regressions at any step, and the supervisor re-ran the
+      touched suites on every hand-off (164, 32, 34, 78 tests respectively). FD1's no-split-gating
+      claim was grep-proven (zero gallery uses of appearance_custom remain) and its
+      no-grant-migration claim verified by reading computeLegacyFreeV1Grant rather than assumed.
+      FD4 carries its own round-4 verdict row. THREE OF THE FOUR SLICES CORRECTED A DEFECT IN
+      THEIR OWN BRIEF, which is the most useful signal in this row: the byte-cap gap (FD4), the
+      park-switch availability gap (FD8, recorded as HUB-DST-001), and the guestSpots scope
+      (FD10 - grep confirmed the surface has zero renderers outside tests, so content config
+      there would have been inert past the parser; supervisor independently re-grepped and
+      agreed). FD10 also self-reported a shared-mutable-default bug its own test caught before
+      merge (a spread-copied default left featuredCollectionIds pointing at the module constant,
+      so a mutating caller would have corrupted every artist's default process-wide) - found and
+      fixed pre-merge, never shipped, recorded here as a near-miss rather than a finding."
+    recommended_next_inspection: "After the remaining FD slices (variant bundles, partial
+      refunds + native revise, native gallery editor, seller-scoped carts) land: one adversarial
+      round over the money-path and seller-boundary work, which the founder ruling marks as
+      requiring independent verification."
+    known_exclusions: "No DB and no component render: every .tsx surface in these slices (the
+      visibility summary card, the shop content editor, both hub block editors) is outside the
+      vitest include and is verified by reading only. No native work in FD10 (no native editor
+      exists to mirror) and no native gallery editing yet (FD2, queued). The guestSpots surface
+      is deliberately unbuilt, not deferred silently."
