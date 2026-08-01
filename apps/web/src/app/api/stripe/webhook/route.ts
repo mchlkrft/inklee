@@ -16,6 +16,7 @@ import {
 import { createNotification } from "@/lib/notifications";
 import { ACTIVE_FEE_SCHEDULE_VERSION } from "@inklee/shared/fee-schedule";
 import { recordDiscountRedemption } from "@/lib/server/discounts";
+import { settleGoodsOrderRefund } from "@/lib/server/goods-refund";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { customerLabel } from "@/lib/booking-domain";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
@@ -203,12 +204,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true, settled });
     }
 
+    // Goods order on this PI (GC1 C1): converge the order's refund state,
+    // restock and release the discount redemption on a FULL refund. NO EARLY
+    // RETURN — on an entangled add-on PI the booking side below still needs
+    // its own records (sponsorship release + refund audit).
+    const goodsOutcome = await settleGoodsOrderRefund(charge);
+
     const { data: booking } = await serviceClient
       .from("booking_requests")
       .select("id, artist_id, deposit_fee_sponsorship_booked_cents")
       .eq("deposit_payment_intent_id", intentId)
       .single();
-    if (!booking) return NextResponse.json({ received: true });
+    // A standalone goods PI has no booking; the goods settle above was the
+    // whole job then.
+    if (!booking) {
+      return NextResponse.json({ received: true, goods: goodsOutcome });
+    }
 
     // Give back any sponsored platform fee. The refund returns the application
     // fee too (`refund_application_fee: true`), so a sponsored deposit that is

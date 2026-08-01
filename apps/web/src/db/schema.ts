@@ -613,13 +613,21 @@ export const orders = pgTable("orders", {
   artistId: uuid("artist_id")
     .notNull()
     .references(() => profiles.id, { onDelete: "cascade" }),
-  bookingId: uuid("booking_id")
-    .notNull()
-    .references(() => bookingRequests.id, { onDelete: "cascade" }),
+  // Nullable since 0134 (GC1 standalone orders): a standalone order has no
+  // booking; the orders_buyer_identity_check requires client_email instead.
+  bookingId: uuid("booking_id").references(() => bookingRequests.id, {
+    onDelete: "cascade",
+  }),
   clientEmail: text("client_email"),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   stripeCheckoutSessionId: text("stripe_checkout_session_id"),
   status: orderStatusEnum("status").notNull().default("pending"),
+  // Fee actuals (0116) + discounts (0118); these existed in the database but
+  // were missing here (recon-flagged drizzle drift, closed 2026-08-01).
+  feeScheduleVersion: text("fee_schedule_version"),
+  goodsFeeAmount: numeric("goods_fee_amount", { precision: 10, scale: 2 }),
+  discountCodeId: uuid("discount_code_id"),
+  discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }),
   depositAmount: numeric("deposit_amount", {
     precision: 10,
     scale: 2,

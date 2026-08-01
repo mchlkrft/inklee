@@ -343,3 +343,35 @@ bucket; downgrade hides the page render, not the object (H3).**
   data-protection analysis, or direct a change.
 - Reversible? Moderate (a later signed-URL regime is additive but touches the
   renderer and stored URLs).
+
+### 2026-08-01 — Standalone goods keystone, slice C1 (GC1)
+
+**GC2 [ENG/money] — entangled-PI refund semantics: full refund converges +
+restocks + releases the redemption; partial is visibility-only.**
+- Context: under the add-on model a deposit and goods share ONE PaymentIntent,
+  so a partial `amount_refunded` cannot be attributed per lane. The webhook now
+  settles orders on `charge.refunded` (the enum states existed since 0036 with
+  no writer).
+- Decision: only claim what the event proves. Charge FULLY refunded -> order
+  `refunded` + restock + discount-redemption release, all once-only inside the
+  flip gate. Partial -> `paid` -> `partially_refunded` as visibility, no
+  restock, no release.
+- Redemption release = DELETE the redemption row: the cap counts real net
+  sales, and a fully unwound sale is not one. The unique (code, order)
+  constraint plus the order never returning to `paid` makes re-recording
+  impossible.
+- Confirm (accountant queue, minor): redemption release on full refund matches
+  the intended discount-cap semantics.
+- Reversible? Cheap (semantics live in one function, `settleGoodsOrderRefund`).
+
+**GC3 [ENG/money] — refundDepositCore refunds only the DEPOSIT portion when a
+goods order shares the intent.**
+- Context: recon finding — the deposit refund passed no `amount`, so with a
+  paid add-on order on the same PI it silently refunded the goods money too,
+  while the order stayed `paid` and stock stayed decremented.
+- Decision: read the order on the intent; when it carries goods, pass
+  `amount` = the ORDER's own frozen `deposit_amount` (what this PI actually
+  charged, not the booking's current figure). Deposit-only intents keep the
+  whole-intent refund. On corrupt amounts the helper returns undefined
+  (whole-intent, the old behaviour) rather than inventing a number.
+- Reversible? Cheap; pure decision in `resolveDepositRefundAmountMinor`, tested.

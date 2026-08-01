@@ -35,6 +35,7 @@ import {
   appointmentApplicationFee,
   appointmentFeeTier,
 } from "@/lib/server/order-fee-sync";
+import { resolveDepositRefundAmountMinor } from "@/lib/server/goods-refund";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { isCapabilityDisabled } from "@/lib/server/app-config";
 import {
@@ -1317,6 +1318,21 @@ export async function refundDepositCore(
     return { error: "Refunds aren’t available on this deployment." };
   }
 
+  // GC1 C1 (recon finding): when a paid GOODS order shares this PaymentIntent
+  // (the add-on model), an amount-less refund would silently drag the goods
+  // money back too — while the order row stayed `paid` and stock stayed
+  // decremented. Refund only the DEPOSIT portion then (the order's own frozen
+  // deposit_amount, not the booking's, since that is what this PI charged).
+  // Deposit-only intents keep today's whole-intent refund. Read under the
+  // artist's RLS client: their own orders are SELECT-visible.
+  const { data: sharedOrder } = await supabase
+    .from("orders")
+    .select("deposit_amount, goods_amount")
+    .eq("stripe_payment_intent_id", fresh.deposit_payment_intent_id)
+    .in("status", ["paid", "partially_refunded"])
+    .maybeSingle();
+  const depositOnlyMinor = resolveDepositRefundAmountMinor(sharedOrder);
+
   let refundId: string;
   try {
     const refund = await stripe.refunds.create(
@@ -1324,6 +1340,7 @@ export async function refundDepositCore(
         payment_intent: fresh.deposit_payment_intent_id,
         reverse_transfer: true,
         refund_application_fee: true,
+        ...(depositOnlyMinor !== undefined ? { amount: depositOnlyMinor } : {}),
       },
       { idempotencyKey: `refund-deposit-${id}` },
     );
