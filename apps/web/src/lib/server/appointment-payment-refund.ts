@@ -40,6 +40,13 @@ export type RefundResult =
 // from real allocations, so a request in these states with nothing collected
 // refuses with "Nothing to refund." Exported so the UI derives its visibility
 // from THIS list instead of hand-copying it.
+//
+// `disputed` is DELIBERATELY absent (verifier follow-up, 2026-08-01), even
+// though the matrix permits disputed -> refunded: Stripe refuses a refund on a
+// charge with an open dispute, so offering the button would only manufacture a
+// failed Stripe call. Money on a disputed charge moves through the dispute
+// flow; if the dispute closes won, the request returns to `paid` and becomes
+// refundable here again.
 export const REFUNDABLE_STATUSES = [
   "paid",
   "partially_paid",

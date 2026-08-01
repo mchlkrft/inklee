@@ -3,7 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES } from "@inklee/shared/appointment-payments";
+import {
+  ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES,
+  UNFROZEN_PAYMENT_REQUEST_STATUSES,
+} from "@inklee/shared/appointment-payments";
 import type { PaymentRequestSummary } from "@/lib/server/appointment-payment-read";
 import {
   sendPaymentRequestAction,
@@ -25,7 +28,11 @@ function statusLabel(status: string): string {
 // same constant the core enforces with (authz-review Finding A: a hand-typed
 // complement here drifted from it both ways — hid Cancel on `expired`, showed
 // it on `payment_processing`).
-const SENDABLE = new Set(["draft", "ready"]);
+// Send visibility derives from UNFROZEN (draft/ready), which is exactly what
+// the send RPC accepts (0126 returns 'not_sendable' outside it). The verifier
+// confirmed the hand-typed set had NOT drifted, but nothing pinned the
+// agreement while an identical shared constant sat unused. Now it is derived.
+const SENDABLE = new Set<string>(UNFROZEN_PAYMENT_REQUEST_STATUSES);
 const CANCELLABLE = new Set<string>(
   ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES,
 );

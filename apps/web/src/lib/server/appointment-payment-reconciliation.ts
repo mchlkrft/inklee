@@ -131,18 +131,25 @@ export async function reconcileStalePaymentRequests(
 }
 
 /**
- * FLEET EXPIRY SWEEP (M9). `expirePaymentRequestsCore` is per-artist (it runs
- * on the RLS client for the artist-facing surfaces), and until this sweep it
- * had NO caller at all, so `expires_at` was written and never enforced: an
- * expired link stayed `sent` forever unless the client happened to open it
- * (the pay page checks the timestamp defensively).
+ * FLEET EXPIRY SWEEP (M9). Until this sweep NOTHING enforced `expires_at`
+ * fleet-wide: an expired link stayed `sent` forever (holding the
+ * one-payable-per-subject index) unless the client happened to open it. The
+ * money half was never exposed — the quote and the pay page both refuse an
+ * expired link on their own clocks — so the sweep's job is housekeeping the
+ * ROWS, on a daily-cron lag that the payment path does not depend on.
  *
- * This is the service-role, all-artists version, run by the cleanup cron. Same
- * WHERE as the core minus the artist filter, and the SAME status list
- * (EXPIRABLE_STATUSES, imported so the two can never disagree): expiry only
- * moves sent / viewed / failed, so it can never resurrect or overwrite a
- * settled, cancelled or contested outcome. Idempotent: `expired` is not in the
- * list, so a second run matches nothing.
+ * PRECISION (corrected 2026-08-01; the first version of this header claimed
+ * the sweep gave the per-artist expiry cores "a caller"): it does NOT call
+ * them. `expirePaymentRequestsCore` is per-artist on the RLS client and
+ * still has no caller; this is a SECOND, service-role implementation that
+ * shares only EXPIRABLE_STATUSES with it (imported, so the status lists
+ * cannot drift). The rest of the WHERE (`expires_at` non-null and past) is
+ * duplicated by hand in both places and CAN drift — if either side ever
+ * changes, change both or fold the core into this.
+ *
+ * Expiry only moves sent / viewed / failed, so it can never resurrect or
+ * overwrite a settled, cancelled or contested outcome. Idempotent: `expired`
+ * is not in the list, so a second run matches nothing.
  */
 export async function sweepExpiredPaymentRequests(
   options: { now?: Date } = {},

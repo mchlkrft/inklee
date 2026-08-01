@@ -413,7 +413,8 @@ export async function POST(request: Request) {
   // A dead intent (M8): abandoned past Stripe's window or canceled by us. For
   // an appointment payment this moves `payment_processing -> failed` (gated on
   // THIS intent id, so a newer attempt is never touched); from `failed` the
-  // artist re-sends or the expiry sweep closes it. Deposit-path cancels keep
+  // artist cancels it and creates a new request (failed is artist-cancellable,
+  // not re-sendable) or the expiry sweep closes it. Deposit-path cancels keep
   // their existing behaviour (none; the booking flow owns that lifecycle).
   if (event.type === "payment_intent.canceled") {
     const intent = event.data.object as Stripe.PaymentIntent;

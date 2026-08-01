@@ -3,6 +3,7 @@ import {
   mobileError,
   mobileOk,
 } from "@/lib/server/mobile-auth";
+import * as Sentry from "@sentry/nextjs";
 import { sendPaymentRequestCore } from "@/lib/server/appointment-payments";
 import { deliverPaymentRequestLink } from "@/lib/server/appointment-payment-delivery";
 
@@ -43,7 +44,14 @@ export async function POST(
   // AFTER the send succeeded: a provider outage never un-sends the request.
   // ADDITIVE keys (older builds ignore them); customerToken stays for the app's
   // own share-the-link flow. `customerToken?` is optional only because the
-  // write-result type is shared; a successful send always carries one.
+  // write-result type is shared; a successful send always carries one — a
+  // violation is a core bug and is CAPTURED here exactly like the web action
+  // does (verifier finding: the two surfaces answered this case differently).
+  if (!result.customerToken) {
+    Sentry.captureMessage("payment request sent without a customer token", {
+      extra: { requestId: id, surface: "mobile" },
+    });
+  }
   const delivery = result.customerToken
     ? await deliverPaymentRequestLink(
         supabase,

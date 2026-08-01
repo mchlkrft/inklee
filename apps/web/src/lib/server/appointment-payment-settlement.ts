@@ -192,6 +192,13 @@ export async function settlePaymentRequestSuccess(
   // (claim lost -> returned false above) can never double-send; and inside the
   // settlement rather than its callers, so BOTH paths (webhook + reconciliation
   // backstop) produce one. Best-effort: sendPaymentReceiptEmail never throws.
+  //
+  // AWAITED ON PURPOSE (verifier flagged the webhook-latency cost): this runs
+  // on serverless, where fire-and-forget work is killed when the response
+  // returns, so `void`-ing it would silently drop receipts. The money has
+  // already moved and the claim is already won by this point; a slow email
+  // delays only the Stripe ack, and Stripe tolerates seconds. If receipt
+  // latency ever matters, the fix is a queue, not `void`.
   await sendPaymentReceiptEmail(serviceClient, {
     artistId,
     requestId,
@@ -237,8 +244,12 @@ export async function settlePaymentRequestSuccess(
  *                Stripe's window, or canceled by us); no retry on it is
  *                possible. Transitions `payment_processing -> failed` (a matrix
  *                edge), gated on THIS intent id so a newer attempt's request is
- *                never touched. From `failed` the artist re-sends or the expiry
- *                sweep closes it (`failed` is in EXPIRABLE_STATUSES).
+ *                never touched. From `failed` the artist CANCELS it and creates
+ *                a new request (`failed` is artist-cancellable but NOT
+ *                re-sendable: the 0126 RPC only sends draft/ready), or the
+ *                expiry sweep closes it (`failed` is in EXPIRABLE_STATUSES).
+ *                (Corrected 2026-08-01: this previously said "the artist
+ *                re-sends", which the send RPC refuses.)
  *
  * Idempotent: the canceled transition's conditional UPDATE matches at most
  * once; redelivered failed events write duplicate audit rows at worst (same

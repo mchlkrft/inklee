@@ -836,9 +836,16 @@ describe("4. the displayed amount and the charged amount come from ONE quote", (
   //      pays off first.
   //
   // NOT REACHABLE TODAY, which is why it is a tripwire and not a bug report
-  // with a patch: `payment_allocations` is written by A4's settlement webhook,
-  // which does not exist, so `alreadyCollectedMinor` is 0 on every real
-  // request. It becomes reachable in the same change that makes A4 real.
+  // with a patch. REASON CORRECTED 2026-08-01 (verified by the Track A
+  // verification pass): this used to say "A4's settlement webhook does not
+  // exist". A4 EXISTS now (settlePaymentRequestSuccess writes allocations and
+  // is wired into the webhook), so that premise is false. The tripwire stays
+  // unreachable for a DIFFERENT reason: nothing anywhere writes
+  // `partially_paid` (settlement sets `paid` unconditionally), so a request
+  // carrying allocations is never in a payable state and a partial-collection
+  // re-quote cannot occur. It becomes reachable in the change that introduces
+  // real partial collection (writing `partially_paid`), which is when the
+  // lane-split decision below must be made.
   //
   // OWNER: A4, together with the allocation writer. The fix is a lane split of
   // what is being COLLECTED, not of what was quoted, and choosing it is a
