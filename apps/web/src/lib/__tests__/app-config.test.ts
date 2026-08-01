@@ -127,6 +127,7 @@ describe("capability registry", () => {
       "analytics",
       "entitlement_caps",
       "appearance_custom",
+      "rich_content_blocks",
       "form_conditional",
       "form_custom",
       "large_projects",

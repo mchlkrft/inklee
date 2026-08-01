@@ -183,6 +183,18 @@ Two things follow, both done here:
 
 ## Update log
 
+- **2026-08-01 — Rich content blocks split off `appearance_custom` (FD1
+  build slice 1, founder ruling FD1, SUPERSEDES D1).** Entitlement-key
+  change only, additive on the mobile config wire: `rich_content_blocks`
+  joins `CAPABILITIES` (`app-config.ts`) alongside `appearance_custom`, and
+  the `image_gallery` block's gate (render + both save paths) moved from
+  `appearanceCustomAllowed` to a new `richContentBlocksAllowed`. No new
+  screen, no new route, no wire-shape change — the native `GET
+  /api/mobile/settings/hub` response still returns the same
+  `richBlocksAllowed` boolean field, now derived from the new key. The
+  full correction is inline below, in the existing `image_gallery` entry
+  (2026-07-31), rather than duplicated here.
+
 - **2026-08-01 — Shop + guest-spot surface controls (Plus build C5, decisions
   S2-S6).** Three independent visibility toggles, all additive:
   1. **Booking-page shop teaser** (`hidden: ["shop"]`): was readable everywhere
@@ -277,7 +289,15 @@ Two things follow, both done here:
   as a read-only "N images · edit on the web" summary and does not add native
   image upload; it PRESERVES the block untouched on save (state holds the full
   `BioBlock`, sent back verbatim), so a web-made gallery survives native edits.
-  Gating: a Plus rich block on the `appearance_custom` entitlement. Enforced at
+  Gating: a Plus rich block, originally on the `appearance_custom` entitlement.
+  **CORRECTED 2026-08-01 (founder ruling FD1, SUPERSEDES D1): moved to its own
+  `rich_content_blocks` entitlement** (`richContentBlocksAllowed` in
+  `entitlement-gates.ts`), added to `CAPABILITIES` in `app-config.ts` (additive
+  wire, mobile config plane). `appearance_custom` now stays scoped to
+  colors/fonts/templates/styling only; no split gating remains (verified: zero
+  gallery-related call sites of `appearanceCustomAllowed` in the repo). No grant
+  migration was needed — the gallery capability was never granted under the old
+  key (`computeLegacyFreeV1Grant` only ever sets `custom_templates`). Enforced at
   RENDER (web hub) AND at SAVE on BOTH write paths — `saveBioPageAction` (web) and
   `POST /api/mobile/settings/hub` (native) both call the shared
   `gateMediaBlocksForSave`, which refuses a NEW or CHANGED gallery for an

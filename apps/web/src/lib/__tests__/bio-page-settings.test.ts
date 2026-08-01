@@ -511,8 +511,9 @@ describe("sanitizeImageUrl", () => {
 });
 
 // image_gallery (Plus build, Stage 3). Parser keeps the block regardless of
-// entitlement (that is enforced at render + editor on `appearance_custom`);
-// here we prove the content sanitization, the caps, and the drop rules.
+// entitlement (that is enforced at render + editor on `rich_content_blocks`,
+// founder ruling FD1, 2026-08-01, split off `appearance_custom`); here we
+// prove the content sanitization, the caps, and the drop rules.
 describe("parseBioPageSettings — image_gallery block", () => {
   function gallery(over: Record<string, unknown> = {}) {
     return {

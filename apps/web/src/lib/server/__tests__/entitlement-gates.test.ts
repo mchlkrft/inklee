@@ -10,6 +10,7 @@ vi.mock("@/lib/server/app-config", () => ({
 import {
   brandingRemoved,
   appearanceCustomAllowed,
+  richContentBlocksAllowed,
   conditionalQuestionsAllowed,
   formCustomAllowed,
   largeProjectsAllowed,
@@ -45,6 +46,11 @@ describe("GRANT gates (Free denied, Plus allowed, paused = inert)", () => {
       name: "appearanceCustomAllowed",
       fn: appearanceCustomAllowed,
       cap: "appearance_custom",
+    },
+    {
+      name: "richContentBlocksAllowed",
+      fn: richContentBlocksAllowed,
+      cap: "rich_content_blocks",
     },
     {
       name: "conditionalQuestionsAllowed",
@@ -100,6 +106,32 @@ describe("GRANT gates (Free denied, Plus allowed, paused = inert)", () => {
       });
     });
   }
+});
+
+describe("richContentBlocksAllowed (FD1: split off appearance_custom)", () => {
+  it("a Free artist gets appearance_custom but NOT rich_content_blocks (the two are independent, no split gating)", () => {
+    const withAppearanceOnly: AccountOverrides = {
+      ...DEFAULT_OVERRIDES,
+      entitlementOverrides: { appearance_custom: true },
+    };
+    expect(appearanceCustomAllowed(withAppearanceOnly)).toBe(true);
+    expect(richContentBlocksAllowed(withAppearanceOnly)).toBe(false);
+  });
+
+  it("the legacy_free_v1 grandfather package (custom_templates only) does NOT imply rich_content_blocks", () => {
+    // Mirrors computeLegacyFreeV1Grant's actual output shape (entitlements.ts):
+    // { features: { custom_templates: true }, limits: {...} } — the grant never
+    // touched appearance_custom or rich_content_blocks, so a grandfathered
+    // Free artist stays denied on both.
+    const grandfathered: AccountOverrides = {
+      ...DEFAULT_OVERRIDES,
+      policyId: "legacy_free_v1",
+      entitlementOverrides: { custom_templates: true },
+    };
+    expect(canEditTemplates(grandfathered)).toBe(true);
+    expect(richContentBlocksAllowed(grandfathered)).toBe(false);
+    expect(appearanceCustomAllowed(grandfathered)).toBe(false);
+  });
 });
 
 describe("canEditTemplates / canSeeAdvancedAnalytics (restriction shape)", () => {

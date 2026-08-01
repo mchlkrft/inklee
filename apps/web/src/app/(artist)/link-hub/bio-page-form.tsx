@@ -103,9 +103,10 @@ export default function BioPageForm({
   bioPage: BioPageSettings;
   /** The artist's LIVE collections, for the featured-collection picker. */
   collections?: { id: string; name: string }[];
-  /** Plus `appearance_custom` entitlement: gates the rich blocks (image
-   *  gallery) in the palette. The server (render + save) is the real gate; this
-   *  only keeps a Free artist from adding a block that would not render. */
+  /** Plus `rich_content_blocks` entitlement (founder ruling FD1, 2026-08-01):
+   *  gates the rich blocks (image gallery) in the palette. The server (render
+   *  + save) is the real gate; this only keeps a Free artist from adding a
+   *  block that would not render. */
   richBlocksAllowed?: boolean;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(

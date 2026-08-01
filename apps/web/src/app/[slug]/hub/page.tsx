@@ -11,7 +11,7 @@ import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { templateStyles } from "@inklee/shared/page-template-styles";
 import { loadHubFeatureData } from "@/lib/server/hub-feature-data";
 import { getAccountOverrides } from "@/lib/entitlements-server";
-import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
+import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import {
   HubFeatureBlock,
   HubFeaturedCollectionBlock,
@@ -119,15 +119,17 @@ export default async function ArtistHubPage({
     bookingUrl,
   });
 
-  // Rich blocks (image_gallery, Stage 3) are Plus, gated on the SAME
-  // `appearance_custom` entitlement as the custom appearance layer
-  // (features.ts). Preserved in settings but hidden here on downgrade, mirroring
-  // featured_collection. getAccountOverrides is request-cached (surfaceAppearance
-  // already read it), so this adds no query. Fail-safe to false: a plan-read
-  // blip hides a Plus block rather than 500ing a public page.
+  // Rich blocks (image_gallery, Stage 3) are Plus, gated on their OWN
+  // `rich_content_blocks` entitlement (founder ruling FD1, 2026-08-01,
+  // SUPERSEDES the earlier `appearance_custom` gate: a gallery is content, not
+  // styling, so it no longer rides the custom-appearance key). Preserved in
+  // settings but hidden here on downgrade, mirroring featured_collection.
+  // getAccountOverrides is request-cached (surfaceAppearance already read it),
+  // so this adds no query. Fail-safe to false: a plan-read blip hides a Plus
+  // block rather than 500ing a public page.
   let richBlocksAllowed = false;
   try {
-    richBlocksAllowed = appearanceCustomAllowed(
+    richBlocksAllowed = richContentBlocksAllowed(
       await getAccountOverrides(profile.id as string),
     );
   } catch {

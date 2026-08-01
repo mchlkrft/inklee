@@ -40,6 +40,21 @@ export function appearanceCustomAllowed(overrides: AccountOverrides): boolean {
   );
 }
 
+/** GRANT: true => the artist gets the RICH CONTENT blocks on the Inklee Hub
+ *  (image galleries today; the home for future rich sections such as video or
+ *  testimonials). Split off `appearance_custom` (founder ruling FD1,
+ *  2026-08-01, SUPERSEDES D1): a gallery is CONTENT, not a styling choice, and
+ *  `appearance_custom` stays scoped to colors/fonts/templates/styling only.
+ *  Paused => no rich content blocks for anyone, which is exactly today's
+ *  look before this key existed. Free artists keep every other Hub block
+ *  (headline, text, link, and the free feature blocks) either way. */
+export function richContentBlocksAllowed(overrides: AccountOverrides): boolean {
+  return (
+    !isCapabilityDisabled("rich_content_blocks") &&
+    canAccess(overrides, "rich_content_blocks")
+  );
+}
+
 /** GRANT: true => booking-form questions may carry show/hide conditions.
  *  Paused => false => conditions are IGNORED and every question shows, which
  *  is the downgrade behaviour the capability registry specifies: a condition

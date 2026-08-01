@@ -5,7 +5,7 @@ import { publicHubUrl } from "@/lib/public-url";
 import { listCollectionsForArtist } from "@/lib/server/collections";
 import { liveCollections } from "@inklee/shared/collections";
 import { getAccountOverrides } from "@/lib/entitlements-server";
-import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
+import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import BioPageForm from "./bio-page-form";
 
 export default async function BioPageSettingsPage() {
@@ -30,10 +30,11 @@ export default async function BioPageSettingsPage() {
     await listCollectionsForArtist(supabase, user!.id),
   ).map((c) => ({ id: c.id, name: c.name }));
 
-  // The rich blocks (image gallery) are gated on the appearance-custom
-  // entitlement (features.ts). The editor only offers them to an entitled
+  // The rich blocks (image gallery) are gated on their own rich_content_blocks
+  // entitlement (founder ruling FD1, 2026-08-01, SUPERSEDES the earlier
+  // appearance_custom gate). The editor only offers them to an entitled
   // artist; the server enforces the boundary at render + save.
-  const richBlocksAllowed = appearanceCustomAllowed(
+  const richBlocksAllowed = richContentBlocksAllowed(
     await getAccountOverrides(user!.id),
   );
 

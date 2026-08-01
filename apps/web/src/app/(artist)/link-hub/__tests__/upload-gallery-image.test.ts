@@ -5,13 +5,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // discards), the hosted-image ceiling counted server-side from SAVED settings
 // (H6), and the unique-path/no-cache-bust upload shape (H7).
 
-const { getUser, getAccountOverrides, appearanceCustomAllowed, processUpload } =
-  vi.hoisted(() => ({
-    getUser: vi.fn(),
-    getAccountOverrides: vi.fn(),
-    appearanceCustomAllowed: vi.fn(),
-    processUpload: vi.fn(),
-  }));
+const {
+  getUser,
+  getAccountOverrides,
+  richContentBlocksAllowed,
+  processUpload,
+} = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  getAccountOverrides: vi.fn(),
+  richContentBlocksAllowed: vi.fn(),
+  processUpload: vi.fn(),
+}));
 
 const { profileSettings } = vi.hoisted(() => ({
   profileSettings: { value: {} as Record<string, unknown> },
@@ -35,7 +39,7 @@ vi.mock("@/lib/entitlements-server", () => ({
   getAccountOverrides: (...a: unknown[]) => getAccountOverrides(...a),
 }));
 vi.mock("@/lib/server/entitlement-gates", () => ({
-  appearanceCustomAllowed: (...a: unknown[]) => appearanceCustomAllowed(...a),
+  richContentBlocksAllowed: (...a: unknown[]) => richContentBlocksAllowed(...a),
 }));
 // readImageFromForm stays REAL (pure); only the sharp/storage half is mocked.
 vi.mock("@/lib/mobile-image", async () => {
@@ -84,7 +88,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getUser.mockResolvedValue({ data: { user: { id: "artist1" } } });
   getAccountOverrides.mockResolvedValue({});
-  appearanceCustomAllowed.mockReturnValue(true);
+  richContentBlocksAllowed.mockReturnValue(true);
   profileSettings.value = { bio_page: { blocks: [], socials: [] } };
   processUpload.mockResolvedValue({
     ok: true,
@@ -113,7 +117,7 @@ describe("uploadGalleryImageAction", () => {
   });
 
   it("refuses an unentitled artist BEFORE touching storage (H4)", async () => {
-    appearanceCustomAllowed.mockReturnValue(false);
+    richContentBlocksAllowed.mockReturnValue(false);
     const r = await uploadGalleryImageAction(formWithImage());
     expect(r).toEqual({
       ok: false,
@@ -159,7 +163,7 @@ describe("uploadGalleryImageAction", () => {
     getUser.mockResolvedValue({ data: { user: null } });
     const r = await uploadGalleryImageAction(formWithImage());
     expect(r).toEqual({ ok: false, error: "Not signed in." });
-    expect(appearanceCustomAllowed).not.toHaveBeenCalled();
+    expect(richContentBlocksAllowed).not.toHaveBeenCalled();
     expect(processUpload).not.toHaveBeenCalled();
   });
 });

@@ -100,9 +100,12 @@ export function canChargeCheckoutAddons(settings: unknown): boolean {
 // layout, and the spec's explicit "do not deliberately make the Free page
 // visually poor"). What Plus adds is CUSTOMIZATION on top: layout templates,
 // the custom appearance layer, and the rich blocks. That is gated by the
-// server-enforced `appearance_custom` / `page_templates` entitlements, which is
-// exactly the "real, server-enforced entitlement" this note asked for. Still no
-// flag gating the hub's existence, and there must never be one.
+// server-enforced `appearance_custom` / `page_templates` entitlements (styling
+// + templates) and, separately, `rich_content_blocks` (image galleries and
+// future rich sections — split off `appearance_custom` by founder ruling FD1,
+// 2026-08-01, so a gallery is not tied to the styling layer), which is exactly
+// the "real, server-enforced entitlement" this note asked for. Still no flag
+// gating the hub's existence, and there must never be one.
 
 /**
  * RS-3 master park switch (money-scope reset 2026-06-03). Parks the PAYABLE

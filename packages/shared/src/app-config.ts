@@ -32,6 +32,7 @@ export const CAPABILITIES = [
   "analytics", // paused => advanced analytics visible to everyone
   "entitlement_caps", // paused => custom-field/trip/studio/product caps not enforced
   "appearance_custom", // paused => every surface renders the Free appearance (today's look)
+  "rich_content_blocks", // paused => rich content blocks (image galleries; future video/testimonials) hidden for everyone; existing galleries stay in settings, hidden only at render (FD1, split off appearance_custom 2026-08-01)
   "form_conditional", // paused => booking-form conditions ignored, every question shows
   "form_custom", // paused => the default confirmation page for everyone
   "large_projects", // paused => the /{slug}/project intake 404s; existing records stay readable

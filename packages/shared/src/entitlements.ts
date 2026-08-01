@@ -76,7 +76,18 @@ export const ENTITLEMENT_FEATURES = [
   // typography, button treatment, background images, per-surface overrides.
   // Free keeps the preset cover color + cover image it has today, which the
   // appearance parser reads through, so a Free artist loses nothing.
+  // SCOPE (founder ruling FD1, 2026-08-01): colors, fonts, templates and
+  // styling ONLY. Content blocks (galleries and other rich sections) live on
+  // `rich_content_blocks` below, not here — no split gating across the two.
   "appearance_custom",
+  // Rich content blocks on the Inklee Hub (founder ruling FD1, 2026-08-01,
+  // SUPERSEDES D1): image galleries today, and the home for future rich
+  // sections (video, testimonials) as they ship. Split OFF `appearance_custom`
+  // because a gallery is CONTENT, not a styling choice: gating it on the
+  // styling key meant an artist could get one without the other only by
+  // accident. Every gallery gate (hub render, both save paths, the web + native
+  // editors) reads this key now; `appearance_custom` no longer governs it.
+  "rich_content_blocks",
   // Booking form (Plus build P3). `appearance_custom` already governs the
   // VISUAL layer of every public surface, including the booking form's
   // templates and cover image, so these two cover only what it does not:

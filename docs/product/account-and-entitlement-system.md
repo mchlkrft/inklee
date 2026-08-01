@@ -106,8 +106,11 @@ Three cleanly separated layers:
 Types and resolution:
 
 - `PlanTier = 'free' | 'plus'`. No `studio` value.
-- `ENTITLEMENT_FEATURES`: 19 feature keys (see `entitlements.ts`). `free` grants
-  only `manual_deposit_tracking`; `plus` grants all 19.
+- `ENTITLEMENT_FEATURES`: 20 feature keys (see `entitlements.ts`). `free` grants
+  only `manual_deposit_tracking`; `plus` grants all 20. (`rich_content_blocks`
+  added 2026-08-01, founder ruling FD1: split off `appearance_custom` so the
+  Hub's rich content blocks — image galleries today, video/testimonials later
+  — are gated independently of the styling layer.)
 - `canAccess(o, feature)`: an explicit per-feature override in `entitlementOverrides` wins in both directions; otherwise the effective plan baseline. `effectivePlanTier` lapses an expired comp to free lazily at read time; the daily cleanup cron (`comp-expiry-sweep.ts`) warns 14 days before and notifies at expiry.
 
 **Enforced gates** (as of 2026-07-31, `entitlement-gates.ts`):
@@ -116,6 +119,7 @@ Types and resolution:
 |---|---|---|---|
 | GRANT | `brandingRemoved` | `branding` | footer shown (today's default) |
 | GRANT | `appearanceCustomAllowed` | `appearance_custom` | Free appearance |
+| GRANT | `richContentBlocksAllowed` | `rich_content_blocks` | no rich content blocks (today's look before this key existed) |
 | GRANT | `conditionalQuestionsAllowed` | `form_conditional` | conditions ignored |
 | GRANT | `formCustomAllowed` | `form_custom` | default confirmation page |
 | GRANT | `largeProjectsAllowed` | `large_projects` | /{slug}/project 404s |
@@ -130,7 +134,10 @@ Card deposit collection uses `card_deposit_collection` (fine key) for entitlemen
 and `deposits` (broad key) for the platform kill switch. The deposit gate is in
 `deposit-collection.ts` and enforced in `requestDepositCore` (`bookings.ts`).
 
-All 10 gates are tested (52 tests in `entitlement-gates.test.ts`).
+All 11 gates are tested (59 tests in `entitlement-gates.test.ts`, up from 52
+on 2026-08-01: `richContentBlocksAllowed` joined the table-driven GRANT-gate
+loop (+5) plus a dedicated 2-test describe block proving the grandfather
+package does not imply it, for FD1).
 
 ### 2.6 Feature-flag model
 

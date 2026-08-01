@@ -9,7 +9,7 @@ import { gateMediaBlocksForSave } from "@inklee/shared/bio-page";
 import { listCollectionsForArtist } from "@/lib/server/collections";
 import { liveCollections } from "@inklee/shared/collections";
 import { getAccountOverrides } from "@/lib/entitlements-server";
-import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
+import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import { removeDroppedHubImages } from "@/lib/server/hub-images";
 
 export const runtime = "nodejs";
@@ -42,11 +42,13 @@ export async function GET(req: Request) {
     await listCollectionsForArtist(supabase, userId),
   ).map((c) => ({ id: c.id, name: c.name }));
 
-  // ADDITIVE (Stage 3): the rich blocks (image gallery) are Plus, gated on the
-  // appearance-custom entitlement, so the native editor only offers them to an
-  // entitled artist. An older build ignores the extra key. The server enforces
-  // the boundary at render AND at save (POST below, via gateMediaBlocksForSave).
-  const richBlocksAllowed = appearanceCustomAllowed(
+  // ADDITIVE (Stage 3): the rich blocks (image gallery) are Plus, gated on
+  // their own rich_content_blocks entitlement (founder ruling FD1, 2026-08-01,
+  // SUPERSEDES the earlier appearance_custom gate), so the native editor only
+  // offers them to an entitled artist. An older build ignores the extra key.
+  // The server enforces the boundary at render AND at save (POST below, via
+  // gateMediaBlocksForSave).
+  const richBlocksAllowed = richContentBlocksAllowed(
     await getAccountOverrides(userId),
   );
 
@@ -105,12 +107,13 @@ export async function POST(req: Request) {
   });
 
   // SAVE-PATH ENTITLEMENT GATE, identical to the web action: a NEW or CHANGED
-  // image_gallery block is refused for an artist without appearance_custom, an
-  // unchanged one is kept (decision D2). Fail-safe to unentitled on a plan-read
-  // blip so a Free client cannot persist a gallery.
+  // image_gallery block is refused for an artist without rich_content_blocks
+  // (founder ruling FD1, 2026-08-01, SUPERSEDES the earlier appearance_custom
+  // gate), an unchanged one is kept (decision D2). Fail-safe to unentitled on a
+  // plan-read blip so a Free client cannot persist a gallery.
   let entitled = false;
   try {
-    entitled = appearanceCustomAllowed(await getAccountOverrides(userId));
+    entitled = richContentBlocksAllowed(await getAccountOverrides(userId));
   } catch {
     entitled = false;
   }

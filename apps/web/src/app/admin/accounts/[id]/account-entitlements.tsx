@@ -41,6 +41,7 @@ const FEATURE_LABELS: Record<EntitlementFeature, string> = {
   extra_trips: "Extra trips / studios",
   analytics: "Personal analytics",
   appearance_custom: "Custom appearance",
+  rich_content_blocks: "Rich content blocks (image galleries)",
   form_conditional: "Conditional booking-form questions",
   form_custom: "Custom confirmation page + URL slug",
   large_projects: "Large-project mode",

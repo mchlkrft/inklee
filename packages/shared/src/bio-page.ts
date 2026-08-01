@@ -73,8 +73,9 @@ export function isReferenceBlockType(v: unknown): v is "featured_collection" {
 // the content blocks but richer, and unlike feature/reference blocks they hold
 // no external reference. `image_gallery` is the first (Plus build, Stage 3). It
 // is a Plus RICH BLOCK: the hub stays free, but the rich blocks are gated by the
-// `appearance_custom` entitlement (features.ts, founder reconciliation
-// 2026-07-28), enforced at render + the editor, not in this pure parser.
+// `rich_content_blocks` entitlement (founder ruling FD1, 2026-08-01, SUPERSEDES
+// the earlier `appearance_custom` gate), enforced at render + the editor, not
+// in this pure parser.
 export function isMediaBlockType(v: unknown): v is "image_gallery" {
   return v === "image_gallery";
 }
@@ -140,8 +141,9 @@ export type BioGalleryImage = {
 };
 
 /** A media block carrying the artist's own uploaded images. A Plus rich block
- *  (gated by `appearance_custom` at render + editor); the pure parser keeps it
- *  regardless of entitlement, exactly like `featured_collection`. */
+ *  (gated by `rich_content_blocks` at render + editor, founder ruling FD1,
+ *  2026-08-01); the pure parser keeps it regardless of entitlement, exactly
+ *  like `featured_collection`. */
 export type BioImageGalleryBlock = {
   id: string;
   type: "image_gallery";
@@ -168,7 +170,7 @@ export function isFeatureBlock(block: BioBlock): block is BioFeatureBlock {
 /**
  * SAVE-PATH entitlement gate for the media rich blocks (image_gallery),
  * mirroring the RENDER gate (hub/page.tsx `richBlocksAllowed =
- * appearanceCustomAllowed`). The pure parser keeps gallery blocks regardless of
+ * richContentBlocksAllowed`). The pure parser keeps gallery blocks regardless of
  * entitlement (so a downgrade never loses stored data); this is where a write is
  * refused for an unentitled artist.
  *
@@ -462,8 +464,9 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
   // capped. Images past the cap are dropped, order preserved. A gallery with no
   // valid image is a broken section, so it is dropped exactly like an empty
   // headline. Entitlement is NOT checked here (pure parser, no database): the
-  // renderer + editor gate it on `appearance_custom`, and stripping it here on
-  // a downgrade would silently delete the artist's saved work.
+  // renderer + editor gate it on `rich_content_blocks` (founder ruling FD1,
+  // 2026-08-01), and stripping it here on a downgrade would silently delete
+  // the artist's saved work.
   if (isMediaBlockType(o.type)) {
     const rawImages = Array.isArray(o.images) ? o.images : [];
     const images: BioGalleryImage[] = [];

@@ -719,3 +719,157 @@ true`, BACKFILLED from `show_on_booking_form` in the same migration.**
   different, unscoped feature).
 - Reversible? Cheap (the render wiring is additive; removing it reverts the
   page to unstyled tokens with no data loss).
+
+### 2026-08-01 — FOUNDER RULINGS FD1-FD13 (FINAL, not provisional)
+
+The founder processed the consolidated review handoff's section 1a and issued
+thirteen FINAL rulings. These are decided; do not re-ask. Each supersedes or
+confirms the provisional entry it names. Implementation is tracked as the FD
+build board in the consolidated handoff.
+
+**FD1 [FINAL] — dedicated `rich_content_blocks` capability; SUPERSEDES D1.**
+Galleries and future rich content sections (video, testimonials) move off
+`appearance_custom` onto a new `rich_content_blocks` entitlement.
+`appearance_custom` keeps colors/fonts/templates/styling only. No split
+gating may remain.
+
+**FD2 [FINAL] — native gallery editing ships BEFORE publication; SUPERSEDES
+D4.** Full native scope: device upload, delete, reorder, captions,
+visibility, entitlement + downgrade states, progress, retry, unsupported
+files, empty states, safe render. Capability grant still waits on fresh
+smoke-tested builds (unchanged EAS gate).
+
+**FD3 [FINAL] — "section layouts" = the shipped template + section
+arrangement layer; CONFIRMS D6.** Approved wording: "Flexible section layouts
+and page templates". No page-builder claims anywhere.
+
+**FD4 [FINAL] — the permanent raw URL field is REMOVED; SUPERSEDES GB2.**
+Replaced by a secondary "Import from URL" action that validates, downloads
+SERVER-SIDE through the existing upload pipeline, stores in Inklee storage
+and persists the Inklee reference. Public gallery images never render from
+arbitrary third-party hosts. (Safe to enforce strictly: the gallery
+capability has never been granted, so no external-URL gallery data exists.)
+
+**FD5 [FINAL] — wishlist + seller-scoped carts BEFORE goods commerce enables;
+SUPERSEDES GC5's deferral.** One cart per artist, never cross-artist
+payments, wishlist may span artists, move-to-cart lands in the right seller
+cart, Buy-now stays, checkout names the artist as seller. Full list in the
+ruling; mobile parity included. Not optional polish.
+
+**FD6 [FINAL] — variant-aware bundles BEFORE publication; SUPERSEDES GC7.**
+Bundle components carry product + variant + quantity; checkout validates
+existence/ownership/availability/stock/currency/price; historical orders
+preserve the purchased variant composition; refund/restock/reconciliation
+cover variant-bearing bundles.
+
+**FD7 [FINAL] — independent non-cascading visibility; CONFIRMS S2** and adds
+required UX: a clear per-surface visibility summary showing artists where
+goods are currently public.
+
+**FD8 [FINAL] — hub goods block gets an EXPLICIT destination setting;
+SUPERSEDES S4.** Options: standalone shop (default for new configs) or
+booking-page goods section. Only valid destinations offered; unavailable
+destination -> warn the artist and hide the public block; never silently
+re-route; selection preserved; destination visible in editor + preview. The
+S4 hidden coupling is removed except when the booking page IS the selected
+destination.
+
+**FD9 [FINAL] — basic visibility controls stay Free forever; CONFIRMS S5.**
+No `goods_tools` key for show/hide. Plus may own advanced merchandising
+only.
+
+**FD10 [FINAL] — one inherited appearance system is the ARCHITECTURE, not a
+deferral; CONFIRMS S1/S6 and closes the question.** Product principle: "One
+visual identity with surface-specific content configuration." New in-scope
+work: surface-specific hero media, introduction text, featured
+products/collections, selected content blocks per surface (within the one
+appearance system). No independent theme editors, ever.
+
+**FD11 [FINAL] — v2 legacy rates confirmed; CONFIRMS F14/ruling 14.**
+Grandfathered Free appointment 3%, standard Free goods 5%, Plus appointment
+0.5%, Plus goods 1%. Grandfathering preserves capability access, never Plus
+pricing. v2 stays inactive until the accountant/Terms/notice/activation
+chain completes.
+
+**FD12 [FINAL] — partial refunds + native revise are pre-publication scope;
+SUPERSEDES the Track A "leftovers by design".** Refund by line / quantity /
+custom amount / full, remaining-balance arithmetic, deterministic fee +
+processor-cost allocation, restock selection, cap-release behaviour, over-
+and duplicate-refund prevention, no repeated cost retention, immutable
+history, buyer confirmation, reconciliation, idempotency; historical
+purchases stay refundable after archival. Native revise reaches parity with
+the web revision flow.
+
+**FD13 [FINAL] — approved marketing claims (default wording, subject only to
+release-state verification).** Payments: "Collect deposits and full
+appointment payments" / "Take a deposit first or collect the complete tattoo
+price when the appointment is ready." Customization: "Customise your booking
+page with templates, galleries and flexible sections" / "Shape your page
+around your style with custom templates, image galleries and flexible
+content layouts." Never "fully customisable", never page-builder claims,
+sentence case, no em dashes, every claim verified against the registry.
+
+### 2026-08-01 — FD build slice 1 implementation note (FD1, FD3, FD11, FD13)
+
+Implements the board's slice-1 items from `plus-consolidated-review-handoff.md`
+§1a. Full narrative in `docs/product/plus-build-progress.md` (2026-08-01
+entry); this note records what moved where and the no-split-gating
+verification specifically, since those are the facts a later reader of THIS
+file would look for.
+
+**FD1 — what moved.** `rich_content_blocks` is a new entry in
+`ENTITLEMENT_FEATURES` (`packages/shared/src/entitlements.ts`) and in
+`CAPABILITIES` (`packages/shared/src/app-config.ts`, additive mobile-config
+wire — an older client that doesn't know the name simply never matches it).
+A new GRANT gate, `richContentBlocksAllowed` (`apps/web/src/lib/server/
+entitlement-gates.ts`), replaced `appearanceCustomAllowed` at every gallery
+call site: the hub render gate (`app/[slug]/hub/page.tsx`), both save-path
+gates (`saveBioPageAction` + `uploadGalleryImageAction` in `link-hub/
+actions.ts`, and `POST /api/mobile/settings/hub`), and both editor render
+gates (`link-hub/page.tsx`, the mobile `GET` in the same route).
+`appearance_custom` keeps every non-gallery use unchanged (styling/templates
+only, per its corrected registry row).
+
+**No-split-gating verification.** `grep -rn "appearance_custom" apps/web/src
+apps/mobile` (2026-08-01) returns: the `appearanceCustomAllowed` function
+definition and its own tests (still valid — it governs styling, unchanged),
+the `app-config.ts` lockstep list, one admin label, and comments that
+narrate the FD1 supersession for a future reader. Zero call sites gate a
+gallery-related check on `appearance_custom` anymore. No grant migration was
+needed: `computeLegacyFreeV1Grant` (`entitlements.ts`) only ever produced
+`{ features: { custom_templates: true }, limits: {...} }`, so the
+legacy_free_v1 cohort never held the gallery capability under the old gate
+either, and a new `entitlement-gates.test.ts` describe block
+(`richContentBlocksAllowed (FD1: split off appearance_custom)`) pins that a
+grandfathered account with `custom_templates` does NOT get
+`rich_content_blocks`.
+
+**FD3 + FD13 — where the wording landed.** `PLUS_BENEFITS`
+(`packages/shared/src/plus-benefits.ts`) now carries "Collect deposits and
+full appointment payments" (replacing "Collect card deposits in-app") and
+"Customise your booking page with templates, galleries and flexible
+sections" (new), both release-state-verified against
+`plus-capability-registry.ts` before adding (payments: A1-A8 built,
+registry "ready"; customization: `form_custom` built + the new
+`rich_content_blocks` capability, both cited on the registry rows). FD3's
+"Flexible section layouts and page templates" phrasing is recorded as
+approved-but-withheld on the `appearance_custom` registry row (still "build"
+readiness, 5 surfaces + both editors remain) — not published on any live
+surface yet. Forbidden-phrasing sweep across `apps/` and `packages/shared/
+src` found zero live occurrences of "fully customisable" / page-builder
+language in any user-facing string.
+
+**FD11 — verified, nothing rebuilt.** The chain already held, split across
+`entitlements.test.ts` (grandfathered Free → `"legacy"` tier, not `"plus"`)
+and `fee-schedule-legacy.test.ts` (`"legacy"` → 300bps under v2, not the
+Plus 50bps). Added one explicit test naming the full composition
+(`entitlements.test.ts`, "FD11: a grandfathered artist without Plus does not
+get Plus pricing"). Per-transaction `fee_tier` stamps confirmed by reading
+migration `0136_fee_tier_stamp.sql` and the four write sites
+(`bookings.ts:943`, `appointment-payment-intent.ts:689`,
+`appointment-payment-settlement.ts:189`, `goods-checkout.ts:473`).
+
+Validation: `npx tsc --noEmit` clean (web + mobile), eslint 0 errors on every
+touched file, full `npx vitest run` 164 files / 2831 passed + 1 expected fail
+(baseline 2823 passed + 1 expected fail, +8 exactly matching the tests this
+slice added), zero regressions.

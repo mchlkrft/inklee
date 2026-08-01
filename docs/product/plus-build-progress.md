@@ -1698,3 +1698,99 @@ suite's regression net, not new named tests); a parity table ROW (the doc's
 narrative Update log entries are the established pattern for slices at this
 size, matching several immediately-preceding 2026-07-31/08-01 entries that also
 have no corresponding table row).
+
+---
+
+**2026-08-01 — FD build slice 1: FD1 (`rich_content_blocks` split) + FD3/FD13
+(marketing wording) + FD11 (v2 legacy-rate verification).** Founder rulings
+FD1-FD13 (full text `plus-build-time-decisions.md`, FD rulings section;
+board `plus-consolidated-review-handoff.md` §1a) are FINAL; this slice covers
+the four items the board marks against slice 1.
+
+**FD1 (mint `rich_content_blocks`, move `image_gallery` off `appearance_custom`,
+no split gating may remain).** Added `rich_content_blocks` to
+`ENTITLEMENT_FEATURES` (`packages/shared/src/entitlements.ts`), to
+`CAPABILITIES` (`packages/shared/src/app-config.ts`, additive mobile-config
+wire) and its lockstep test, to admin `FEATURE_LABELS`
+(`account-entitlements.tsx`), and to the capability registry
+(`docs/architecture/capability-registry.md` + `plus-capability-registry.ts`,
+new row + a corrected `appearance_custom` row scoped to styling only). Added
+the GRANT gate `richContentBlocksAllowed` (`entitlement-gates.ts`) and
+re-pointed every gallery gate onto it: the hub RENDER
+(`app/[slug]/hub/page.tsx`), BOTH save paths (`saveBioPageAction` +
+`uploadGalleryImageAction` in `link-hub/actions.ts`; `POST /api/mobile/
+settings/hub`), and both editor render gates (`link-hub/page.tsx`'s
+`richBlocksAllowed`, the mobile GET in the same route). Verified (not
+assumed) that no grant migration is needed: `computeLegacyFreeV1Grant`
+(`entitlements.ts`) only ever sets `{ features: { custom_templates: true },
+limits: {...} }`, so the legacy_free_v1 cohort never held the gallery
+capability under the old `appearance_custom` gate either — splitting the key
+changes nothing for existing grants. Grep proof (zero gallery-related
+`appearance_custom` call sites remain): `grep -rn "appearance_custom"
+apps/web/src apps/mobile` returns only the legitimate styling gate
+(`appearanceCustomAllowed`, its tests, the lockstep list, the admin label)
+and historical/explanatory comments noting the FD1 supersession — no live
+gallery gating. Native fail-safe verified by reading, not rebuilt: the
+guarded lookups from D5 (`BIO_BLOCK_META[type]?.addLabel ?? type` etc. in
+`apps/mobile/app/settings/link-hub.tsx`) mean an older client hitting the
+(unchanged) `image_gallery` block type stays safe regardless of which
+entitlement key gates it — FD1 changed the gate's NAME, not the wire shape,
+so this stays additive.
+
+**FD3 + FD13 (approved marketing wording).** `PLUS_BENEFITS`
+(`packages/shared/src/plus-benefits.ts`) restored the two claims removed
+2026-07-28, using FD13's exact FINAL wording: "Collect deposits and full
+appointment payments" (replacing the narrower "Collect card deposits
+in-app") and "Customise your booking page with templates, galleries and
+flexible sections" (new entry). Both were release-state-verified against
+the capability registry BEFORE adding, per FD13's condition: appointment
+payments are fully built (A1-A8, migrations 0125-0128, registry row
+"ready") and booking-page templates are fully built (`form_custom`,
+registry row "ready"); galleries are the `rich_content_blocks` capability
+minted in this same slice. Registry `pricingPageClaim` fields updated on
+the affected rows ("Appointment payment requests", "Booking-form
+customization", the new `rich_content_blocks` row) with the verification
+note. FD3's "Flexible section layouts and page templates" phrasing is
+recorded as approved-but-not-yet-publishable on the `appearance_custom`
+row (that capability is still "build" readiness — 5 more surfaces + both
+editors remain, P1b) — not published anywhere yet, per FD13's release-state
+condition. Forbidden-phrasing sweep (`grep -riE "fully customisable|fully
+customizable|page.?builder|drag.and.drop"` across `apps/` and
+`packages/shared/src`) found zero live occurrences in any user-facing
+string; the only hits were historical code comments narrating a past
+correction, which were left as accurate history and only annotated with the
+FD13 update.
+
+**FD11 (verify v2 legacy rates, change nothing that already holds).**
+Confirmed by reading + a new test, not rebuilt. The chain already existed
+split across two files: `entitlements.test.ts` proved a grandfathered Free
+artist resolves to the `"legacy"` tier (not `"plus"`); `fee-schedule-
+legacy.test.ts` proved `"legacy"` prices at 300bps under v2 (not the Plus
+50bps). Added one explicit test at the `appointmentTierFromOverrides` level
+per the brief (`entitlements.test.ts`, "FD11: a grandfathered artist without
+Plus does not get Plus pricing") that walks the full composition in one
+assertion: `card_deposit_collection` grant + free `planTier` →
+`"legacy"` → `laneRateBps(..., FEE_SCHEDULE_V2.version)` = 300, explicitly
+`!== ` the Plus rate. Per-transaction fee-tier stamps confirmed to exist by
+reading migration `0136_fee_tier_stamp.sql` (`fee_tier` column + a named
+CHECK constraint on `booking_requests`, `orders`, `payment_collections`,
+values constrained to `'free' | 'plus' | 'legacy'`, added via the convergent
+guarded-`do $$` pattern) and by grepping the four write sites that actually
+stamp it: `bookings.ts:943`, `appointment-payment-intent.ts:689`,
+`appointment-payment-settlement.ts:189`, `goods-checkout.ts:473`.
+
+**Validation.** `npx tsc --noEmit` (web) clean; `npx tsc --noEmit` (mobile)
+clean; `eslint` on every touched file: 0 errors (1 pre-existing unrelated
+warning, `entitlement-gates.test.ts:5` `_c` unused, present before this
+slice); full `npx vitest run` (web): 164 files, 2831 passed + 1 expected
+fail (2832 total) — up from the 2823-passed/1-expected-fail baseline by
+exactly the 8 tests this slice added (5 in the `richContentBlocksAllowed`
+GRANT-gate table + 2 in a dedicated grandfather-does-not-imply describe
+block + 1 FD11 test), zero regressions.
+
+Docs updated in the same change: `docs/architecture/capability-registry.md`
+(new `rich_content_blocks` row), `docs/web-native-parity.md` (correction
+note on the existing `image_gallery` parity entry), `docs/product/account-
+and-entitlement-system.md` (20 feature keys, 11 gates, new gate row, current
+test count), `docs/product/plus-build-time-decisions.md` (implementation
+note under the FD rulings section).

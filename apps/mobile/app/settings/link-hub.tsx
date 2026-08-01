@@ -96,9 +96,9 @@ function SocialGlyph({
  *  so the type stays honest about older responses. */
 type HubResponse = BioPageSettings & {
   collections?: { id: string; name: string }[];
-  /** Plus `appearance_custom` entitlement, from the route. Gates the rich
-   *  blocks (image gallery) in the add palette. Optional so an older response
-   *  (no key) reads as false. */
+  /** Plus `rich_content_blocks` entitlement (founder ruling FD1, 2026-08-01),
+   *  from the route. Gates the rich blocks (image gallery) in the add
+   *  palette. Optional so an older response (no key) reads as false. */
   richBlocksAllowed?: boolean;
 };
 

@@ -12,7 +12,7 @@ import {
   MAX_GALLERY_IMAGES,
 } from "@inklee/shared/bio-page";
 import { getAccountOverrides } from "@/lib/entitlements-server";
-import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
+import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import { readImageFromForm, processAndUpload } from "@/lib/mobile-image";
 import { removeDroppedHubImages } from "@/lib/server/hub-images";
 
@@ -74,14 +74,15 @@ export async function saveBioPageAction(
 
   // SAVE-PATH ENTITLEMENT GATE (image_gallery is a Plus rich block). The parser
   // keeps gallery blocks regardless of plan; the write is refused here for an
-  // artist without appearance_custom, so a Free artist cannot persist a NEW or
-  // CHANGED gallery. An existing unchanged one is kept (decision D2: downgrade
-  // hides, never deletes). Mirrors the render gate (hub/page.tsx richBlocksAllowed).
-  // Fail-safe to unentitled on a plan-read blip: refuse new Plus content rather
-  // than over-grant.
+  // artist without rich_content_blocks (founder ruling FD1, 2026-08-01,
+  // SUPERSEDES the earlier appearance_custom gate), so a Free artist cannot
+  // persist a NEW or CHANGED gallery. An existing unchanged one is kept
+  // (decision D2: downgrade hides, never deletes). Mirrors the render gate
+  // (hub/page.tsx richBlocksAllowed). Fail-safe to unentitled on a plan-read
+  // blip: refuse new Plus content rather than over-grant.
   let entitled = false;
   try {
-    entitled = appearanceCustomAllowed(await getAccountOverrides(user.id));
+    entitled = richContentBlocksAllowed(await getAccountOverrides(user.id));
   } catch {
     entitled = false;
   }
@@ -167,10 +168,11 @@ export async function uploadGalleryImageAction(
   if (!user) return { ok: false, error: "Not signed in." };
 
   // Fail-safe to unentitled on a plan-read blip: refuse new Plus content
-  // rather than over-grant (same posture as the save gate).
+  // rather than over-grant (same posture as the save gate). Gated on
+  // rich_content_blocks (founder ruling FD1, 2026-08-01), not appearance_custom.
   let entitled = false;
   try {
-    entitled = appearanceCustomAllowed(await getAccountOverrides(user.id));
+    entitled = richContentBlocksAllowed(await getAccountOverrides(user.id));
   } catch {
     entitled = false;
   }

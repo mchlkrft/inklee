@@ -17,7 +17,11 @@ import {
   DEFAULT_OVERRIDES,
   type AccountOverrides,
 } from "../entitlements";
-import { resolveAppointmentTier } from "@inklee/shared/fee-schedule";
+import {
+  resolveAppointmentTier,
+  laneRateBps,
+  FEE_SCHEDULE_V2,
+} from "@inklee/shared/fee-schedule";
 
 const base = (o: Partial<AccountOverrides> = {}): AccountOverrides => ({
   ...DEFAULT_OVERRIDES,
@@ -406,6 +410,28 @@ describe("appointmentTierFromOverrides (G1, FEE-DSP-001)", () => {
         base({ planTier: "plus", planExpiresAt: past }),
       ),
     ).toBe("free");
+  });
+
+  it("FD11: a grandfathered artist without Plus does not get Plus pricing", () => {
+    // Grandfathering (card_deposit_collection grant + free planTier) preserves
+    // ACCESS to the appointment lane, never Plus PRICING — founder ruling FD11,
+    // CONFIRMS F14/ruling 14. Full chain: overrides -> "legacy" tier -> 300bps
+    // under v2, never the Plus 50bps.
+    const grandfathered = base({
+      planTier: "free",
+      entitlementOverrides: { card_deposit_collection: true },
+    });
+    const tier = appointmentTierFromOverrides(grandfathered);
+    expect(tier).toBe("legacy");
+    expect(tier).not.toBe("plus");
+    expect(
+      laneRateBps("appointment_payment", tier, FEE_SCHEDULE_V2.version),
+    ).toBe(300);
+    expect(
+      laneRateBps("appointment_payment", tier, FEE_SCHEDULE_V2.version),
+    ).not.toBe(
+      laneRateBps("appointment_payment", "plus", FEE_SCHEDULE_V2.version),
+    );
   });
 
   it("is the same composition order-fee-sync's appointmentFeeTier delegates to", () => {

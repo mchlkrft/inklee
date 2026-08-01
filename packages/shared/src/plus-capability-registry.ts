@@ -100,8 +100,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     launchReadiness: "build",
   },
   {
-    name: "Custom colors, typography, backgrounds, buttons, section layouts",
-    entitlementKey: "appearance_custom (proposed)",
+    name: "Custom colors, typography, backgrounds, buttons, page templates (STYLING ONLY — see rich_content_blocks for galleries/rich content)",
+    entitlementKey: "appearance_custom",
     productArea: "inklee-page",
     freeBehavior: "Preset cover colors (5 swatches) and cover image",
     plusBehavior:
@@ -116,11 +116,38 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
       "Drops ONLY the custom layer (typography, buttons, per-surface overrides); theme + preset accent + background survive as Free features, so a downgrade never blanks a page. Stored config retained for re-upgrade.",
     feeImpact: "none",
     analyticsEvents: "appearance_changed (required, P1b with the editor)",
-    pricingPageClaim: "none yet",
+    pricingPageClaim:
+      "APPROVED WORDING, NOT YET PUBLISHABLE (founder ruling FD3, 2026-08-01): 'Flexible section layouts and page templates', to be used where the section-arrangement/template feature is described. Held back by release-state verification (FD13): this capability is still 'build' readiness (5 surfaces + both editors remain, P1b) — do not publish until that scope closes.",
     termsClaim: "none",
     operationalState:
-      "P1a foundation shipped dark (capability parked; emits zero css vars until an artist customizes)",
+      "P1a foundation shipped dark (capability parked; emits zero css vars until an artist customizes). CORRECTED 2026-08-01 (founder ruling FD1, SUPERSEDES D1): this capability's SCOPE is now explicitly colors/fonts/templates/styling ONLY. image_gallery (and any future rich content block) does NOT belong here; it moved to the new `rich_content_blocks` capability below, gated on its own entitlement key. No split gating remains: grep across the repo for `appearance_custom` turns up zero gallery-related call sites (verified 2026-08-01).",
     testCoverage: "exists", // 23 tests: parser incl. hostile input, override precedence, entitlement boundary, fail-safe
+    launchReadiness: "build",
+  },
+  {
+    name: "Rich content blocks on the Inklee Hub (image galleries; future video/testimonial sections)",
+    entitlementKey: "rich_content_blocks",
+    productArea: "inklee-page",
+    freeBehavior: "No rich content blocks on the Hub",
+    plusBehavior:
+      "Image galleries today (upload, layout grid/carousel); the entitlement is deliberately named for the FAMILY, not just galleries, so future rich sections (video, testimonials) land on the SAME key rather than minting a new one each time",
+    legacyBehavior:
+      "none. VERIFIED 2026-08-01: `computeLegacyFreeV1Grant` (entitlements.ts) only ever sets `{ features: { custom_templates: true }, limits: {...} }` — it never touched `appearance_custom` and therefore never touched this key either. `scripts/entitlements/legacy-free-recompute.cjs` only recomputes the CANONICAL_CAPS numeric limits, not this feature. No grant migration is needed: the gallery capability was never granted to the legacy_free_v1 cohort under the old appearance_custom gate, so splitting it onto a new key changes nothing for existing grants.",
+    scope: "artist",
+    serverEnforcement: "exists", // richContentBlocksAllowed (entitlement-gates.ts), a GRANT gate (!disabled && canAccess). Enforced at the hub RENDER (app/[slug]/hub/page.tsx) and at SAVE on BOTH write paths: saveBioPageAction + uploadGalleryImageAction (web actions.ts) and POST /api/mobile/settings/hub (native), all via the shared gateMediaBlocksForSave (bio-page.ts)
+    databaseEnforcement: "exists", // settings.bio_page JSONB, parser-validated (parseBioPageSettings keeps the block regardless of plan so a downgrade never loses data; entitlement is an application-layer gate, same pattern as every settings-JSONB capability)
+    frontendBehavior: "partial", // web editor (bio-page-form.tsx) gates the add button + upload + shows a Plus explanation for an unentitled artist; native editor renders a read-only "N images - edit on the web" summary and does not add native upload (D4/FD2: full native editing is a separate follow-on slice)
+    mobileSupport: "partial", // native read + gated add-button disable via richBlocksAllowed from GET /api/mobile/settings/hub; the guarded lookups (?.label ?? "Block", ?.addLabel ?? type) keep an older build safe on this block type. Full native upload/edit/reorder parity is FD2 (separate slice, not this one)
+    downgradeBehavior:
+      "Existing gallery blocks are preserved in settings and hidden ONLY at render (D2: downgrade hides, never deletes); an unrelated edit (reordering links, editing a headline) never strips a saved gallery, because gateMediaBlocksForSave keeps any unchanged media block by id + deep-equality",
+    feeImpact: "none",
+    analyticsEvents: "none required",
+    pricingPageClaim:
+      "'Customise your booking page with templates, galleries and flexible sections' (founder ruling FD13, 2026-08-01; added to PLUS_BENEFITS). Release-state-verified before adding: the gallery half of this claim is genuinely built (web upload/render/save-gate all exist per this row), enforced dark (zero Plus artists today, so inert until launch)",
+    termsClaim: "none",
+    operationalState:
+      "MINTED 2026-08-01 (founder ruling FD1, SUPERSEDES D1). Split OFF `appearance_custom`: image_gallery previously rode the styling entitlement, which meant an artist could not get a gallery without also being sold the custom appearance layer (and vice versa). Every gallery gate now reads this key: hub render, both save paths (web + native), and the two editors. A fresh EAS build is a prerequisite before this is granted to anyone on mobile (same gate as goods_collections/goods_bundles): the guard prevents a crash on older builds, but the native summary + gated add button only exist from the next build onward.",
+    testCoverage: "exists", // entitlement-gates.test.ts (GRANT-shape table + a dedicated grandfather-does-not-imply test), gate-media-blocks.test.ts (pure save-gate: entitled/unentitled/unchanged-preserved), upload-gallery-image.test.ts (entitlement-first upload refusal), bio-page-settings.test.ts (parser)
     launchReadiness: "build",
   },
   {
@@ -217,7 +244,7 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
     feeImpact: "none",
     analyticsEvents: "none required",
     pricingPageClaim:
-      "none yet (this cell previously read 'Fully customisable booking template...'; that claim does not appear in PLUS_BENEFITS, which was corrected 2026-07-28 to remove it pending full scope closure per plus-benefits.ts. Founder Ruling 2, 2026-07-31: publish only accurate wording, no no-code-path claims, once the scope is genuinely complete)",
+      "UPDATED 2026-08-01 (founder ruling FD13, FINAL): 'Customise your booking page with templates, galleries and flexible sections' added to PLUS_BENEFITS. This cell previously read 'none yet (...previously read \"Fully customisable booking template...\"; that claim does not appear in PLUS_BENEFITS, which was corrected 2026-07-28 to remove it pending full scope closure...)'. Release-state-verified before adding: templates via surfaceAppearance/form_custom are 'exists'/'ready' (this row); galleries are the new rich_content_blocks capability (see that row, 'exists'/'build'); flexible sections is the pre-existing Hub block arrangement. Never 'fully customisable' and no page-builder implication (forbidden phrasing, FD13).",
     termsClaim: "none",
     operationalState:
       "BUILT 2026-07-28. form_custom is live (not parked): with zero Plus artists it grants nothing, so it is inert today. RESOLVED 2026-07-31 (founder Ruling 1): this row previously read 'OPEN: the spec lists cover image as Plus-only but it has shipped FREE for months and 3 of 19 production artists use one; built grandfathered pending the founder decision recorded in plus-commercial-packages.md §7.' Cover image is now Free for all by ruling, not a grandfather-only carve-out for the pre-existing three; every Free artist keeps it via `freeTierView`. plus-commercial-packages.md §7 and §6 updated accordingly.",
@@ -345,7 +372,8 @@ export const PLUS_CAPABILITY_REGISTRY: PlusCapability[] = [
       "Fee computed per line classification through computeOrderFees (A3 unified the two legacy fee sources); fee schedule version stamped on every transaction",
     analyticsEvents:
       "payment_request_sent, payment_settled, payment_refunded (exist in audit_log)",
-    pricingPageClaim: "none yet (appointment payments not yet marketed)",
+    pricingPageClaim:
+      "UPDATED 2026-08-01 (founder ruling FD13, FINAL): 'Collect deposits and full appointment payments' added to PLUS_BENEFITS, replacing the narrower 'Collect card deposits in-app'. Release-state-verified BEFORE adding, per this row: A1-A8 are fully built (create, revise, send, pay, settle, refund all exist), so the claim is true in code today even though it ships dark (zero Plus artists, so inert until launch — same posture as every other Plus capability pre-launch).",
     termsClaim: "none",
     operationalState:
       "BUILT (A1-A8, migrations 0125-0128). Live code, not parked: with zero Plus artists, the entitlement gates refuse all requests, so the system is inert today. Connect onboarding gate (A8) prevents Free artists from creating a Connect account they cannot use",
