@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `5df8d94ad7ca`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `66839d15d260`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
@@ -35,9 +35,9 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 24 |
+| fixed-unverified | 30 |
 | mitigated | 1 |
-| open | 68 |
+| open | 62 |
 | risk-accepted | 1 |
 | verified | 19 |
 
@@ -280,10 +280,16 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-007 | medium | fixed-unverified | passed | 752e989 |
 | SHOP-FUL-004 | medium | fixed-unverified | not-started | b483efc7 |
+| TEST-VAC-004 | medium | fixed-unverified | not-started | 5fa0110e |
+| TEST-VAC-006 | medium | fixed-unverified | not-started | 5fa0110e |
+| TEST-VAC-007 | medium | fixed-unverified | not-started | 5fa0110e |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
+| SHOP-FUL-005 | low | fixed-unverified | not-started | 5fa0110e |
+| SHOP-ORD-003 | low | fixed-unverified | not-started | 5fa0110e |
+| TEST-VAC-005 | low | fixed-unverified | not-started | 5fa0110e |
 
 ## Analogous areas flagged but NOT inspected
 

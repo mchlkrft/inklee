@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `5df8d94ad7ca`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `66839d15d260`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (68)
+## Open (62)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -49,9 +49,6 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-RFD-008 | medium | payment | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | production-config | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
-| TEST-VAC-004 | medium | testing | currently-unreachable | latent | The sweep test claiming cancelled-on-Stripe-then-the-order-row asserts only existence, not sequence: reversing the order (the exact SHOP-ORD-002 defect ordering) survives the full suite |
-| TEST-VAC-006 | medium | testing | currently-unreachable | latent | SHOP-FUL-004's observability has zero tests: deleting a capture site leaves the full suite green, and no test references reportStockWriteFailure or either Sentry tag |
-| TEST-VAC-007 | medium | testing | currently-unreachable | latent | The webhook deposit fee-schedule/tier stamp, the flagship FEE-STP-001 site, has no route-level coverage: reverting it to the settlement-time ACTIVE read survives |
 | WHK-DEA-001 | medium | webhook | conditionally-reachable | latent | The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id; ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment |
 | WHK-DSP-001 | medium | webhook | unknown | unknown | The charge.dispute.* handler exists in code but no artifact in the repository subscribes the endpoint to it, and the commit that added the handler changed no runbook |
 | WHK-RFD-001 | medium | webhook | directly-reachable | latent | charge.refunded records at most one audit row per booking carrying the first cumulative amount, so a partial refund is indistinguishable from a full one and later partials are never recorded |
@@ -72,9 +69,6 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-AUD-001 | low | payment | directly-reachable | reachable-no-known-impact | audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not |
 | PAY-FEE-003 | low | payment | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
-| SHOP-FUL-005 | low | webhook | conditionally-reachable | latent | A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal falls entirely to the daily sweep: worst case roughly two days with money captured and the order still pending |
-| SHOP-ORD-003 | low | jobs | conditionally-reachable | latent | The intent-aware sweep is unbounded and serial inside a cron with no maxDuration, and skipped rows never reach the audit payload |
-| TEST-VAC-005 | low | testing | currently-unreachable | latent | The sweep's Stripe-cancel status predicate is unpinned: narrowing it strands requires_confirmation / requires_action intents payable while their rows cancel |
 | WHK-CUR-001 | low | webhook | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | WHK-EVT-001 | low | webhook | unknown | theoretical | event.account is asserted on one branch of five, event.livemode on none, and the one branch with no compensating check writes a caller-named booking_id straight into audit_log |
 | BDEL-POL-001 | informational | governance | currently-unreachable | theoretical | UNRATIFIED: no product policy exists for what deletion does to an active subscription; the period-end rule in Terms is scoped to cancellation, not deletion |
@@ -86,7 +80,7 @@ Operational view. Generated from the ledger; do not edit.
 
 _None._
 
-## Fixed but NOT verified (24)
+## Fixed but NOT verified (30)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -112,10 +106,16 @@ A commit exists. Nothing independent has confirmed it works.
 | PAY-RFD-004 | medium | payment | conditionally-reachable | latent | Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund |
 | PAY-RFD-007 | medium | payment | conditionally-reachable | latent | No artist self-serve refund path for money collected on a cancelled/expired/failed request |
 | SHOP-FUL-004 | medium | payment | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
+| TEST-VAC-004 | medium | testing | currently-unreachable | latent | The sweep test claiming cancelled-on-Stripe-then-the-order-row asserts only existence, not sequence: reversing the order (the exact SHOP-ORD-002 defect ordering) survives the full suite |
+| TEST-VAC-006 | medium | testing | currently-unreachable | latent | SHOP-FUL-004's observability has zero tests: deleting a capture site leaves the full suite green, and no test references reportStockWriteFailure or either Sentry tag |
+| TEST-VAC-007 | medium | testing | currently-unreachable | latent | The webhook deposit fee-schedule/tier stamp, the flagship FEE-STP-001 site, has no route-level coverage: reverting it to the settlement-time ACTIVE read survives |
 | BILL-UI-003 | low | billing | conditionally-reachable | latent | Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the order screen |
 | COPY-UI-001 | low | web | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
 | OPS-LINT-001 | low | ci-cd | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
 | PAY-UI-006 | low | payment | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
+| SHOP-FUL-005 | low | webhook | conditionally-reachable | latent | A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal falls entirely to the daily sweep: worst case roughly two days with money captured and the order still pending |
+| SHOP-ORD-003 | low | jobs | conditionally-reachable | latent | The intent-aware sweep is unbounded and serial inside a cron with no maxDuration, and skipped rows never reach the audit payload |
+| TEST-VAC-005 | low | testing | currently-unreachable | latent | The sweep's Stripe-cancel status predicate is unpinned: narrowing it strands requires_confirmation / requires_action intents payable while their rows cancel |
 
 ## Verified, but NOT independently (0)
 
