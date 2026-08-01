@@ -460,8 +460,20 @@ export async function POST(request: Request) {
     // Standalone goods order (GC1 C2): order_id WITHOUT booking_id. Add-on
     // orders carry both and keep taking the booking path below.
     if (intent.metadata?.order_id && !intent.metadata?.booking_id) {
-      const settled = await settleStandaloneGoodsOrder(intent);
-      return NextResponse.json({ received: true, settled });
+      const outcome = await settleStandaloneGoodsOrder(intent);
+      // SHOP-FUL-005: a pre-flip refusal (transient read failure, gate
+      // unconsumed) answers 500 so Stripe's retry ladder recovers in minutes
+      // instead of waiting on the daily sweep — same posture as the
+      // sponsorship release above. `already` is TERMINAL (another delivery
+      // or the sweep owns this order) and must answer 200, or a settled
+      // order would retry forever.
+      if (outcome === "refused") {
+        return NextResponse.json(
+          { received: true, outcome, retry: true },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({ received: true, outcome });
     }
 
     const bookingId = intent.metadata?.booking_id;

@@ -485,6 +485,26 @@ VARIANT-bearing products at checkout (SHOP-VAR-001).**
    feature is dark, and observability + manual repair is proportionate until
    real volume exists (recorded, not forgotten).
 
+**GC9 [ENG/money] — standalone settlement outcomes are a TRI-STATE, and only
+a pre-flip refusal makes the webhook answer 500 (SHOP-FUL-005, round 3).**
+- Decision: `settleStandaloneGoodsOrder` returns
+  `settled | already | refused`. The webhook maps `refused` (pre-flip
+  expansion failure, once-only gate UNCONSUMED) to HTTP 500 so Stripe's
+  retry ladder recovers in minutes; `settled` and `already` answer 200.
+- Why: a settle that returned false always answered 200, so recovery from a
+  transient read failure fell entirely to the daily sweep (Vercel Hobby
+  crons), worst case roughly two days with money captured and the order
+  still pending. The route's own precedent for a recoverable money failure
+  is a 500 (the sponsorship release). A boolean could not carry the fix: a
+  naive 500-on-false retries forever on orders another delivery already
+  settled, which is why `already` (lost flip, or sweep-owned order) is
+  terminal by construction.
+- Sweep bounds land in the same batch (SHOP-ORD-003): 200 rows per run,
+  oldest first, `skipped` included in the audit payload (a skip-only run
+  used to write no audit at all), and `maxDuration = 60` on the cleanup
+  cron so the platform default cannot cut the loop silently.
+- Reversible? Cheap (mapping + constants).
+
 ### 2026-08-01 — Fee display + tier stamp, Track D (G1/G2, FEE-DSP-001/FEE-STP-001)
 
 **D1 [ENG] — the tier-aware fee display is routed through ONE shared helper

@@ -13,6 +13,11 @@ import { runCompExpirySweep } from "@/lib/server/billing/comp-expiry-sweep";
 import { runArtistAnalyticsRollup } from "@/lib/server/artist-analytics-rollup";
 
 export const runtime = "nodejs";
+// SHOP-ORD-003: the standalone-order sweep makes up to 2 serial Stripe calls
+// per row (bounded at 200 rows/run); without an explicit ceiling the platform
+// default can cut the cron mid-loop, losing the remaining sweeps AND their
+// audit rows. 60s is the Hobby-plan maximum.
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;

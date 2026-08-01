@@ -141,6 +141,14 @@ type RecordedOp = {
    *  `in("id", ids)` is the only thing scoping it to the ids the buyer actually
    *  selected, and an unrecorded `.in` would let that assertion be vacuous. */
   inFilters: Record<string, unknown>;
+  /** `.order(col, opts)` and `.limit(n)` — a fourth and fifth bucket, for the
+   *  same reason the three above exist. These are not predicates, they are the
+   *  PAGE the sweep asks for (SHOP-ORD-003), and the two carry different
+   *  guarantees: the limit bounds the wall-clock cost of a run, the ordering
+   *  is what makes the leftovers drain instead of starve. Recorded separately
+   *  so a test can pin one without the other. */
+  orderBy: { column: string; options: unknown }[];
+  limit: number | null;
 };
 let ops: RecordedOp[] = [];
 
@@ -153,6 +161,8 @@ function newOp(table: string, verb: string, payload: unknown): RecordedOp {
     isFilters: {},
     ltFilters: {},
     inFilters: {},
+    orderBy: [],
+    limit: null,
   };
   ops.push(op);
   return op;
@@ -175,6 +185,14 @@ function makeChain(op: RecordedOp) {
     },
     in: (column: string, values: unknown) => {
       op.inFilters[column] = values;
+      return chain;
+    },
+    order: (column: string, options?: unknown) => {
+      op.orderBy.push({ column, options: options ?? null });
+      return chain;
+    },
+    limit: (n: number) => {
+      op.limit = n;
       return chain;
     },
     select: () => chain,
@@ -1116,6 +1134,15 @@ function makeIntent(
   } as unknown as Stripe.PaymentIntent;
 }
 
+// The return value is a TRI-STATE since SHOP-FUL-005, not a boolean, and the
+// distinction is the whole fix: the webhook answers HTTP 500 on `refused` (a
+// pre-flip failure that left the once-only gate unconsumed, so Stripe's retry
+// ladder recovers in minutes) and HTTP 200 on `already` (terminal: some other
+// delivery or the sweep owns this order, and a 500 would retry forever). The
+// old boolean collapsed those two into `false`, which is why every settle test
+// below asserts the exact string rather than truthiness — `toBeTruthy()` here
+// would pass on all three outcomes and `not.toBe("settled")` would pass on the
+// wrong one of the two failures.
 describe("settleStandaloneGoodsOrder", () => {
   it("flips pending -> paid once, decrements, records the redemption, emails the receipt", async () => {
     queue("orders:update", {
@@ -1133,7 +1160,7 @@ describe("settleStandaloneGoodsOrder", () => {
     queue("profiles:select", { data: { display_name: "Mika Ink" } });
 
     const settled = await settleStandaloneGoodsOrder(makeIntent());
-    expect(settled).toBe(true);
+    expect(settled).toBe("settled");
 
     const flip = ops.find((o) => o.table === "orders" && o.verb === "update");
     expect((flip!.payload as Record<string, unknown>).status).toBe("paid");
@@ -1155,10 +1182,15 @@ describe("settleStandaloneGoodsOrder", () => {
     );
   });
 
-  it("redelivery loses the flip and does nothing else (once-only)", async () => {
+  it("redelivery loses the flip and reports ALREADY, doing nothing else (once-only)", async () => {
     queue("orders:update", { data: [] });
     const settled = await settleStandaloneGoodsOrder(makeIntent());
-    expect(settled).toBe(false);
+    // `already`, NOT `refused` (SHOP-FUL-005). The pair matters more than
+    // either value alone: this order is settled or cancelled by someone else,
+    // so the webhook must answer 200. Fails if a lost flip is ever classed
+    // retryable — Stripe would then redeliver this event on its full ladder,
+    // every delivery losing the same flip, until the event expires.
+    expect(settled).toBe("already");
     expect(mockDecrement).not.toHaveBeenCalled();
     expect(mockSendEmail).not.toHaveBeenCalled();
     expect(mockWriteAudit).not.toHaveBeenCalled();
@@ -1180,15 +1212,23 @@ describe("settleStandaloneGoodsOrder", () => {
     mockSendEmail.mockRejectedValue(new Error("resend down"));
 
     const settled = await settleStandaloneGoodsOrder(makeIntent());
-    expect(settled).toBe(true);
+    // The money moved and the flip was consumed, so this is `settled` even
+    // though the receipt never left. Fails if a send failure is ever allowed
+    // to downgrade the outcome: `refused` would 500 the webhook and Stripe
+    // would redeliver a settlement that already happened.
+    expect(settled).toBe("settled");
     expect(mockDecrement).toHaveBeenCalled();
   });
 
-  it("ignores intents without an order_id", async () => {
+  it("ignores intents without an order_id, reporting ALREADY and touching nothing", async () => {
     const settled = await settleStandaloneGoodsOrder(
       makeIntent({ metadata: {} as never }),
     );
-    expect(settled).toBe(false);
+    // `already`, not `refused`: there is no order here to recover, so a retry
+    // would resolve nothing. Fails if the metadata guard is ever classed
+    // retryable, which would put every stray succeeded intent on Stripe's
+    // retry ladder answering 500 forever.
+    expect(settled).toBe("already");
     expect(ops).toHaveLength(0);
   });
 });
@@ -1237,7 +1277,7 @@ describe("settleStandaloneGoodsOrder: bundle inventory (SHOP-FUL-001)", () => {
     });
 
     const settled = await settleStandaloneGoodsOrder(makeIntent());
-    expect(settled).toBe(true);
+    expect(settled).toBe("settled");
 
     // MUTANT KILLED (settlement hands `items` straight to decrementInventory,
     // skipping the expansion): the mover would receive the raw bundle line,
@@ -1277,7 +1317,7 @@ describe("settleStandaloneGoodsOrder: bundle inventory (SHOP-FUL-001)", () => {
     expect(snapRead!.filters).toEqual({ order_item_id: "oi-b1" });
   });
 
-  it("SHOP-FUL-003: a failed snapshot read returns false WITHOUT consuming the paid flip", async () => {
+  it("SHOP-FUL-003: a failed snapshot read REFUSES without consuming the flip", async () => {
     queuePaidBundleOrder();
     queue("order_item_bundle_components:select", {
       data: null,
@@ -1294,7 +1334,14 @@ describe("settleStandaloneGoodsOrder: bundle inventory (SHOP-FUL-001)", () => {
     // Sentry. Fails if the expansion moves back below the flip: the orders
     // update is recorded here, the gate is consumed, and the decrement is
     // lost with no retry path.
-    expect(settled).toBe(false);
+    //
+    // `refused`, NOT `already` (SHOP-FUL-005). This is the one outcome the
+    // webhook must answer 500 to: the flip is unconsumed and the read is
+    // idempotent, so a redelivery settles the whole thing minutes later
+    // instead of the order waiting up to two days for the nightly sweep with
+    // the money already captured. Fails if this path is folded back into the
+    // terminal outcome, which is exactly what the boolean did.
+    expect(settled).toBe("refused");
     expect(
       ops.find((o) => o.table === "orders" && o.verb === "update"),
     ).toBeUndefined();
@@ -1442,11 +1489,38 @@ describe("sweepStalePendingStandaloneOrders", () => {
         details: expect.objectContaining({
           count: 1,
           settled_late: 0,
+          skipped: 0,
           standalone: true,
           via: "cron_sweep",
         }),
       }),
     );
+  });
+
+  // SHOP-ORD-003. The select is BOUNDED, and neither half of the bound is
+  // cosmetic. Asserted here rather than folded into the predicate test above
+  // so a failure names which property went.
+  it("SHOP-ORD-003: the sweep select is bounded and ordered oldest-first", async () => {
+    queue("orders:select", { data: [] });
+
+    await sweepStalePendingStandaloneOrders({ now: NOW });
+
+    const sel = sweepSelectOp();
+    // limit -> without it the sweep asks for EVERY stale row and makes 1-2
+    // serial Stripe round-trips each inside a cron with a hard wall-clock
+    // ceiling; a timeout mid-loop loses the remaining rows and the trailing
+    // audit write with them. (PostgREST's own default cap would then be the
+    // only bound, silently, at a number nobody in this repo chose.)
+    expect(sel.limit).toBe(25); // derived from the 60s cron budget, see SWEEP_BATCH_LIMIT
+    // order -> without it the page Postgres happens to return is arbitrary,
+    // so a backlog larger than the limit can hand back the same rows every
+    // night and starve the tail forever. Ascending, not descending: the
+    // oldest abandoned checkout is the one that has held a guest email
+    // longest. Both the column and the direction are asserted, because
+    // descending would drain the backlog from the wrong end.
+    expect(sel.orderBy).toEqual([
+      { column: "created_at", options: { ascending: true } },
+    ]);
   });
 
   it("honours an injected maxAgeHours", async () => {
@@ -1460,27 +1534,70 @@ describe("sweepStalePendingStandaloneOrders", () => {
     );
   });
 
-  it("SHOP-ORD-002: a cancelable intent is cancelled ON STRIPE and then the order row", async () => {
-    queue("orders:select", {
-      data: [{ id: "o1", stripe_payment_intent_id: "pi_1" }],
-    });
-    mockStripe.paymentIntents.retrieve.mockResolvedValue({
-      id: "pi_1",
-      status: "requires_payment_method",
-    });
-    queue("orders:update", { data: { id: "o1" } });
+  // TEST-VAC-005. Parameterized across EVERY pre-payment status Stripe can
+  // hand back, because the shipped predicate is a negation (`status !==
+  // 'canceled'`, minus the succeeded/processing branches above it) and the
+  // breadth of that negation IS the SHOP-ORD-002 guarantee. One status was
+  // covered before, so narrowing the predicate to a single literal survived
+  // the whole suite while stranding requires_confirmation and requires_action
+  // intents payable against a cancelled order.
+  //
+  //   requires_payment_method -> the buyer opened the checkout and left;
+  //   requires_confirmation   -> the card was entered, never confirmed;
+  //   requires_action         -> the buyer abandoned mid-3DS, the most likely
+  //                              of the three to be completed a day later.
+  it.each([
+    "requires_payment_method",
+    "requires_confirmation",
+    "requires_action",
+  ])(
+    "SHOP-ORD-002: a %s intent is cancelled ON STRIPE and then the order row",
+    async (status) => {
+      queue("orders:select", {
+        data: [{ id: "o1", stripe_payment_intent_id: "pi_1" }],
+      });
+      mockStripe.paymentIntents.retrieve.mockResolvedValue({
+        id: "pi_1",
+        status,
+      });
+      queue("orders:update", { data: { id: "o1" } });
 
-    const r = await sweepStalePendingStandaloneOrders({ now: NOW });
-    expect(r).toEqual({ cancelled: 1, settled: 0, skipped: 0 });
+      // TEST-VAC-004. The ORDERING is the property this test's title claims,
+      // and asserting only that both things happened cannot see it: the
+      // round-3 verifier swapped the two statements in the source and the
+      // whole suite stayed green. `ops` records an entry the moment the
+      // update chain is BUILT, synchronously, so its length sampled from
+      // inside the Stripe mock is a true "had the row already been written
+      // when we asked Stripe to cancel?".
+      let ordersUpdatesAtCancelTime = -1;
+      mockStripe.paymentIntents.cancel.mockImplementation(async () => {
+        ordersUpdatesAtCancelTime = ops.filter(
+          (o) => o.table === "orders" && o.verb === "update",
+        ).length;
+        return { id: "pi_1", status: "canceled" };
+      });
 
-    // THE point of SHOP-ORD-002: the buyer's client secret must die with the
-    // order. Fails if the sweep goes back to cancelling only the row: the
-    // intent stays payable, a next-day payment is captured against a
-    // cancelled order, and the webhook's pending-gated flip makes the money
-    // invisible to everyone.
-    expect(mockStripe.paymentIntents.cancel).toHaveBeenCalledWith("pi_1");
-    expect(onlyOrdersUpdate().payload).toMatchObject({ status: "cancelled" });
-  });
+      const r = await sweepStalePendingStandaloneOrders({ now: NOW });
+      expect(r).toEqual({ cancelled: 1, settled: 0, skipped: 0 });
+
+      // THE point of SHOP-ORD-002: the buyer's client secret must die with the
+      // order. Fails if the sweep goes back to cancelling only the row: the
+      // intent stays payable, a next-day payment is captured against a
+      // cancelled order, and the webhook's pending-gated flip makes the money
+      // invisible to everyone. Also fails, on the two new rows, if the status
+      // predicate is narrowed to a single literal.
+      expect(mockStripe.paymentIntents.cancel).toHaveBeenCalledWith("pi_1");
+      expect(onlyOrdersUpdate().payload).toMatchObject({ status: "cancelled" });
+
+      // Stripe FIRST, row second. Reversing them reopens the SHOP-ORD-002
+      // window in miniature: between a row that already says `cancelled` and
+      // a Stripe cancel that then fails (or the function timing out in
+      // between), the intent is live and payable against an order whose
+      // pending-gated flip can no longer settle it. -1 would mean the mock
+      // never ran at all, which the assertion above has already excluded.
+      expect(ordersUpdatesAtCancelTime).toBe(0);
+    },
+  );
 
   it("SHOP-ORD-002: an already-canceled intent skips the Stripe cancel but still cancels the row", async () => {
     queue("orders:select", {
@@ -1535,7 +1652,54 @@ describe("sweepStalePendingStandaloneOrders", () => {
     expect(mockWriteAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "goods_orders_expired",
-        details: expect.objectContaining({ count: 0, settled_late: 1 }),
+        details: expect.objectContaining({
+          count: 0,
+          settled_late: 1,
+          skipped: 0,
+        }),
+      }),
+    );
+  });
+
+  it("SHOP-FUL-005: a succeeded intent whose settle REFUSES counts as skipped, not settled", async () => {
+    queue("orders:select", {
+      data: [{ id: "o1", stripe_payment_intent_id: "pi_1" }],
+    });
+    mockStripe.paymentIntents.retrieve.mockResolvedValue({
+      id: "pi_1",
+      status: "succeeded",
+      amount: 5000,
+      amount_received: 5000,
+      metadata: { order_id: "o1", artist_id: "a1", standalone_goods: "1" },
+    });
+    // Drive the real settle into its pre-flip refusal: a bundle line whose
+    // sale-time snapshot read fails (SHOP-FUL-003).
+    queue("order_items:select", { data: [BUNDLE_PAID_LINE] });
+    queue("order_item_bundle_components:select", {
+      data: null,
+      error: { code: "42501", message: "permission denied" },
+    });
+
+    const r = await sweepStalePendingStandaloneOrders({ now: NOW });
+
+    // The sweep counts ONLY `settled` as a settlement. Fails if the branch is
+    // widened (`outcome !== "refused"`, or the old truthiness check against a
+    // boolean): the audit would report a late settlement that never happened
+    // and the order would be dropped from the sweep's attention while still
+    // pending with the money captured.
+    expect(r).toEqual({ cancelled: 0, settled: 0, skipped: 1 });
+    // Neither settled nor cancelled: the row stays pending for the next run.
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "update"),
+    ).toBeUndefined();
+    expect(mockStripe.paymentIntents.cancel).not.toHaveBeenCalled();
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          count: 0,
+          settled_late: 0,
+          skipped: 1,
+        }),
       }),
     );
   });
@@ -1556,7 +1720,24 @@ describe("sweepStalePendingStandaloneOrders", () => {
     expect(
       ops.find((o) => o.table === "orders" && o.verb === "update"),
     ).toBeUndefined();
-    expect(mockWriteAudit).not.toHaveBeenCalled();
+
+    // SHOP-ORD-003: a run whose every row was skipped USED to write no audit
+    // at all, so an operator reading the audit trail could not tell it apart
+    // from a run that found nothing, and the skips were visible only per-row
+    // in Sentry. Fails if `skipped` is dropped from either the guard or the
+    // payload — two separate mutants, both caught here.
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "goods_orders_expired",
+        details: expect.objectContaining({
+          count: 0,
+          settled_late: 0,
+          skipped: 1,
+          standalone: true,
+          via: "cron_sweep",
+        }),
+      }),
+    );
   });
 
   it("a Stripe failure skips the row for the next run and never touches the order", async () => {
@@ -1580,6 +1761,19 @@ describe("sweepStalePendingStandaloneOrders", () => {
         tags: { action: "standalone_pending_order_sweep" },
       }),
     );
+    // And the skip reaches the audit trail, not only Sentry (SHOP-ORD-003).
+    // A fleet-wide Stripe outage is the case this exists for: every row
+    // skipped, and without this the nightly audit says nothing happened.
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "goods_orders_expired",
+        details: expect.objectContaining({
+          count: 0,
+          settled_late: 0,
+          skipped: 1,
+        }),
+      }),
+    );
   });
 
   it("an empty sweep writes no audit row", async () => {
@@ -1587,8 +1781,11 @@ describe("sweepStalePendingStandaloneOrders", () => {
 
     const r = await sweepStalePendingStandaloneOrders({ now: NOW });
     expect(r).toEqual({ cancelled: 0, settled: 0, skipped: 0 });
-    // Fails if the `if (cancelled > 0 || settled > 0)` guard goes: a nightly
-    // count-0 audit row buries the runs that actually did something.
+    // Fails if the `if (cancelled > 0 || settled > 0 || skipped > 0)` guard
+    // goes: a nightly all-zero audit row buries the runs that actually did
+    // something. This is the counterweight to the two skip tests above — the
+    // guard widened to include `skipped`, and this pins that it did not widen
+    // into "always write".
     expect(mockWriteAudit).not.toHaveBeenCalled();
   });
 

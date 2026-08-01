@@ -38,6 +38,12 @@ item is built; what remains is human decisions and irreversible activations. The
 whole Plus/billing/bundles build sits UNPUSHED on `feat/p5d-collections` (master
 has only P5d collections). Nothing is live.
 
+> **2026-08-01: the per-owner review queues below are SUPERSEDED by
+> `docs/product/plus-consolidated-review-handoff.md`** — the one consolidated
+> package the no-deferral directive pointed at (founder confirms + go-actions,
+> counsel batch, accountant batch, sequence). This file remains the item
+> HISTORY and status ledger; take the review list from the consolidated file.
+
 ### Founder (F1-F14)
 
 | # | Decision | Status | Result / what's needed |

@@ -63,6 +63,15 @@ import {
 
 const MIN_CHARGE_MINOR = 50; // Stripe's ~0.50 EUR floor; refuse below it.
 
+// SHOP-ORD-003: the stale-order sweep processes at most this many rows per
+// nightly run. DERIVED FROM THE TIME BUDGET, not row appetite: the cleanup
+// cron runs seven sweeps sequentially under maxDuration=60, this one makes up
+// to 2 serial Stripe round-trips per row, and at ~200ms each 25 rows is ~10s
+// worst case — bounded without starving the sweeps that run after it (the
+// round-3 test agent showed 200 rows could eat ~40s and silently skip them).
+// A backlog larger than this drains across nightly runs, oldest first.
+const SWEEP_BATCH_LIMIT = 25;
+
 export type StandaloneCheckoutResult =
   | {
       ok: true;
@@ -619,6 +628,14 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   };
 }
 
+/** The three OUTCOMES a settle attempt can have (SHOP-FUL-005). The webhook
+ *  maps them to HTTP: `refused` is the ONLY retryable one (pre-flip failure,
+ *  gate unconsumed -> 500 so Stripe's retry ladder recovers in minutes);
+ *  `settled` and `already` are terminal successes (200). A boolean could not
+ *  express this: a naive 500-on-false would retry forever on orders another
+ *  delivery already settled. */
+export type StandaloneSettleOutcome = "settled" | "already" | "refused";
+
 /**
  * Settle a succeeded STANDALONE goods PaymentIntent (metadata carries order_id
  * and no booking_id). Same once-only shape as the add-on flip: only the call
@@ -626,17 +643,17 @@ export async function createStandaloneGoodsCheckoutCore(input: {
  */
 export async function settleStandaloneGoodsOrder(
   intent: Stripe.PaymentIntent,
-): Promise<boolean> {
+): Promise<StandaloneSettleOutcome> {
   const orderId = intent.metadata?.order_id;
-  if (!orderId) return false;
+  if (!orderId) return "already";
 
   // Read + EXPAND BEFORE the flip (SHOP-FUL-003, same posture as the refund
   // side's SHOP-FUL-002 fix). The expansion throws on a snapshot read failure
   // and the flip below is once-only: a throw AFTER it would consume the gate
   // with the inventory decrement lost permanently (a silent oversell). Reads
-  // are idempotent, so failing HERE returns false with the flip unconsumed,
-  // and a redelivery or the reconciliation backstop can settle the whole
-  // thing later.
+  // are idempotent, so failing HERE refuses with the flip unconsumed, and the
+  // webhook's 500 makes Stripe redeliver (SHOP-FUL-005) — recovery in
+  // minutes, not on the daily sweep.
   const { data: itemRows } = await serviceClient
     .from("order_items")
     .select(
@@ -652,7 +669,7 @@ export async function settleStandaloneGoodsOrder(
       tags: { action: "standalone_goods_inventory" },
       extra: { orderId },
     });
-    return false;
+    return "refused";
   }
 
   const { data: flipped } = await serviceClient
@@ -665,7 +682,10 @@ export async function settleStandaloneGoodsOrder(
     .eq("id", orderId)
     .eq("status", "pending")
     .select("id, artist_id, client_email, discount_code_id, discount_amount");
-  if (!flipped || flipped.length === 0) return false;
+  // A lost flip is TERMINAL: another delivery settled this order (or the
+  // sweep cancelled it, in which case the sweep owns the intent). Never
+  // retryable — a 500 here would loop forever.
+  if (!flipped || flipped.length === 0) return "already";
   const order = flipped[0];
 
   // The stock WRITE stays inside the flip gate (decrementInventory is not
@@ -756,7 +776,7 @@ Keep this email as your receipt. Pickup and delivery are arranged with ${artistN
       via: "stripe_webhook",
     },
   });
-  return true;
+  return "settled";
 }
 
 /**
@@ -816,7 +836,12 @@ export async function sweepStalePendingStandaloneOrders(
     .select("id, stripe_payment_intent_id")
     .eq("status", "pending")
     .is("booking_id", null)
-    .lt("created_at", cutoff);
+    .lt("created_at", cutoff)
+    // Bounded per run (SHOP-ORD-003): 1-2 serial Stripe round-trips per row
+    // inside a cron with a hard wall-clock ceiling. Oldest first so a backlog
+    // drains fairly across nightly runs rather than starving the tail.
+    .order("created_at", { ascending: true })
+    .limit(SWEEP_BATCH_LIMIT);
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "standalone_pending_order_sweep" },
@@ -859,8 +884,8 @@ export async function sweepStalePendingStandaloneOrders(
       const intent = await stripe.paymentIntents.retrieve(intentId);
       if (intent.status === "succeeded") {
         // The webhook was lost; converge instead of cancelling a paid order.
-        const ok = await settleStandaloneGoodsOrder(intent);
-        if (ok) settled += 1;
+        const outcome = await settleStandaloneGoodsOrder(intent);
+        if (outcome === "settled") settled += 1;
         else skipped += 1;
         continue;
       }
@@ -884,14 +909,19 @@ export async function sweepStalePendingStandaloneOrders(
     }
   }
 
-  if (cancelled > 0 || settled > 0) {
-    void writeAudit({
+  // Skipped rows count as activity too (SHOP-ORD-003): a run that skips every
+  // row used to write no audit at all and was visible only per-row in Sentry.
+  // AWAITED, not fire-and-forget: under exactly the timeout this finding is
+  // about, a voided write is the first thing lost.
+  if (cancelled > 0 || settled > 0 || skipped > 0) {
+    await writeAudit({
       action: "goods_orders_expired",
       actor: "system",
       category: "booking",
       details: {
         count: cancelled,
         settled_late: settled,
+        skipped,
         via: "cron_sweep",
         standalone: true,
       },
