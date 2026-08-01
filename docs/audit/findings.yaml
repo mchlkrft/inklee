@@ -9127,10 +9127,15 @@ findings:
         route now accepts only voluntary_full / voluntary_partial / artist_cancellation and rejects the
         rest with a 400. Core left general (a future dispute handler sets dispute/fraud server-side)."
     verification:
-      status: "not-started"
-      independent: false
-      residual_risk: "Pure allowlist unit-tested (accept/reject/garbage); the route wiring itself is not
-        covered by an integration test."
+      status: "passed"
+      independent: true
+      verified_by: "track-a-verifier (independent inklee-verifier subagent; wrote none of the code)"
+      verification_method: "Mutation at f57023e0 via an out-of-repo vitest alias rig (canary-proven
+        binding, identity-control faithfulness): adding inklee_error to the allowlist turned three
+        tests red, including the actions test proving the web action would have accepted it; the
+        allowlist is confirmed un-mocked in that suite."
+      residual_risk: "Verified at the unit/mutation level; no webhook-level integration test executes
+        the mobile route end-to-end, and no database ran in the verification pass."
     disclosure:
       public_repo_safe: true
     history:
@@ -9143,6 +9148,15 @@ findings:
         action: "fix-committed"
         note: "Route restricted to the artist-legitimate case subset; allowlist + guard added and
           unit-tested. Verification pending."
+      - date: "2026-08-01"
+        actor: "track-a-verifier (independent inklee-verifier subagent, wrote none of the code)"
+        action: "evidence-added"
+        note: "VERIFIED by mutation at f57023e0: adding inklee_error to
+          ARTIST_INITIATED_FEE_REFUND_CASES via an out-of-repo alias rig (canary-proven binding,
+          identity-control faithfulness) turned three tests red, including the actions test proving
+          the web action would have ACCEPTED the case without the real allowlist (which is not mocked
+          there — mock list verified). Both surfaces (web action + mobile route) confirmed to use the
+          same guard."
 
   - id: "PAY-RFD-004"
     title: "Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund"
@@ -9200,10 +9214,16 @@ findings:
         use the same discriminator. Unit tests assert the key is reused across a retry and advances
         after settlement."
     verification:
-      status: "not-started"
-      independent: false
-      residual_risk: "Unit-tested via the mocked Stripe client; not verified against real Stripe
-        idempotency behaviour."
+      status: "passed"
+      independent: true
+      verified_by: "track-a-verifier (independent inklee-verifier subagent; wrote none of the code)"
+      verification_method: "Mutation at f57023e0: restoring the -${Date.now()} suffix turned both M11
+        tests red with the exact expected-vs-timestamped-key signature; grep confirms the only
+        Date.now in the module is inside a comment."
+      residual_risk: "Verified deterministic at the unit/mutation level; real Stripe idempotency
+        semantics not exercised. Verifier-noted residual: two genuinely distinct partial refunds of
+        the SAME amount issued before the charge.refunded webhook lands would share a key and Stripe
+        would dedupe the second (safe direction, but a webhook-timing assumption, not an invariant)."
     disclosure:
       public_repo_safe: true
     history:
@@ -9215,6 +9235,13 @@ findings:
         actor: "no-deferral build directive (main instance)"
         action: "fix-committed"
         note: "Deterministic key from the refund's logical identity; +2 tests. Verification pending."
+      - date: "2026-08-01"
+        actor: "track-a-verifier (independent)"
+        action: "evidence-added"
+        note: "VERIFIED by mutation at f57023e0: restoring the -${Date.now()} suffix turned both M11
+          tests red with the exact expected-vs-timestamped-key signature; grep confirms the only
+          Date.now in the module is inside a comment. The same-amount-before-webhook dedupe residual
+          recorded above."
 
   - id: "HUB-GAL-001"
     title: "image_gallery entitlement enforced only at render, not at save, so a Free artist could
@@ -9360,10 +9387,17 @@ findings:
         (shared, client-safe); the detail page's REFUNDABLE set now derives from the refund core's
         exported REFUNDABLE_STATUSES so neither can drift again."
     verification:
-      status: "not-started"
-      independent: false
-      residual_risk: "The derivation is a code read; no render test asserts button visibility per state
-        (no component-render harness exists in this app)."
+      status: "passed"
+      independent: true
+      verified_by: "track-a-verifier (independent inklee-verifier subagent; wrote none of the code)"
+      verification_method: "Independent grep sweep of every payment-request status literal across the
+        payments UI at f57023e0: cancel + refund sets confirmed derived from the enforcing constants;
+        the one remaining hand-typed set (SENDABLE) checked against the 0126 RPC's actual sendable set
+        and confirmed not drifted."
+      residual_risk: "Derivation verified by an independent grep sweep of every status literal in the
+        payments UI (still no render test; no component harness exists). The sweep found ONE remaining
+        hand-typed set, SENDABLE — confirmed NOT drifted against the 0126 RPC's sendable set, and
+        pinned by derivation from UNFROZEN_PAYMENT_REQUEST_STATUSES at 5befd017."
     disclosure:
       public_repo_safe: true
     history:
@@ -9448,11 +9482,17 @@ findings:
         refuse with 'Nothing to refund.' Tests: refund-from-cancelled succeeds; the settle FROM list is
         pinned to include the three and exclude 'refunded'."
     verification:
-      status: "not-started"
-      independent: false
-      residual_risk: "Fixed by the same instance that built the surface (found independently, fixed
-        non-independently); no end-to-end Stripe-mode test exercises refund-from-cancelled. Queue for
-        the Track A independent verification pass."
+      status: "passed"
+      independent: true
+      verified_by: "track-a-verifier (independent inklee-verifier subagent; wrote none of the code)"
+      verification_method: "Mutation at f57023e0: narrowing REFUNDABLE_STATUSES to the pre-fix three
+        turned the refund-from-cancelled test red; narrowing the settle FROM list turned the
+        money-holding-states test red; each for its predicted reason. The deposit analogue was
+        investigated and does not exist (refundDepositCore has no status gate)."
+      residual_risk: "Mutation-verified at the unit level (both halves); no database or Stripe-mode
+        execution — the 0125 RLS and status semantics under real concurrency remain CI/live-test
+        territory. Verifier follow-up: `disputed` is deliberately absent from both refund lists
+        (Stripe refuses refunds on disputed charges); documented in the core at 5befd017."
     disclosure:
       public_repo_safe: true
     history:
@@ -9466,6 +9506,17 @@ findings:
         note: "Classified as a build decision (the matrix already sanctioned these refunds; extending
           the gate is reversible and bounded by allocations). Core + settlement + UI updated, +3 tests.
           Full suite 2645 green."
+      - date: "2026-08-01"
+        actor: "track-a-verifier (independent)"
+        action: "evidence-added"
+        note: "VERIFIED by mutation at f57023e0: narrowing REFUNDABLE_STATUSES back to the pre-fix
+          three turned the refund-from-cancelled test red; narrowing the settle FROM list turned the
+          money-holding-states settle test red; each for its predicted reason. Also verified the two
+          lists deliberately differ (settle additionally accepts payment_processing, correct for a
+          mid-flight dashboard refund). The DEPOSIT analogue was investigated and does NOT exist:
+          refundDepositCore has no status gate at all (bookings.ts ~1283-1314; ownership + paid +
+          not-already-refunded only), so a cancelled/rejected booking's paid deposit IS self-serve
+          refundable — recorded so nobody re-derives it."
 
 patterns:
   - id: "PAT-001"
@@ -11584,4 +11635,50 @@ coverage:
       redelivery, the link-delivery fail-soft, and the CI run of the anon regression + the
       appointment-payments DB suite. Also check refundDepositCore for the deposit-path analogue of
       PAY-RFD-007 (cancelled booking holding a paid deposit)."
+    changed_since_inspection: "yes"
+
+  - area: "Track A appointment-payments verification: slices 3-5 claims, receipt once-only, refund
+      widening, allowlist/idempotency fixes, expiry sweep, refundDepositCore analogue"
+    subsystem: "billing"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-01"
+    commit_inspected: "f57023e"
+    reviewer: "track-a-verifier (independent inklee-verifier subagent; wrote none of the code; repo
+      untouched — mutation rig built out-of-repo in the session scratchpad)"
+    evidence: "EXECUTION-BASED: nine single-policy mutants injected via a vitest alias config living
+      OUTSIDE the repo, with the alias's binding proven by a throwing canary and its faithfulness by
+      four identity-copy control runs (108/108, 17/17, 21/21, 9/9). The rig's first two runs were
+      discarded as invalid (MSYS path translation silently unbound the alias so a gate-deleted mutant
+      'passed'; caught by the canary) — recorded because a mutation harness that cannot fail is the
+      same defect class the register exists to catch. VERIFIED red-for-the-predicted-reason: M7
+      audit-only, M8 gated canceled transition, M10 Connect-gate-before-RPC (non-vacuous: positive
+      rpcCalls control in the same describe), receipt exactly-when-claim-wins (moving it above the
+      gate reds the redelivery test), both never-throws delivery contracts (rethrowing catches reds
+      their tests), REFUNDABLE widening both halves, the un-mocked refund-case allowlist, and the
+      deterministic idempotency key (restoring Date.now reds both tests). Full suite reproduced
+      exactly (2651 pass + 1 expected fail at f57023e0), tsc exit 0. Adversarial findings beyond the
+      claims, ALL RESOLVED at 5befd017: a false commit-message sub-claim ('the expiry cores finally
+      have a caller' — the sweep is a second implementation; header corrected), the money tripwire's
+      stale unreachability premise (said 'A4 does not exist'; real blocker is nothing writes
+      partially_paid; corrected), 'from failed the artist re-sends' false in two comments (corrected:
+      cancel-then-create), web/mobile customerToken divergence (mobile now Sentry-captures like web),
+      SENDABLE hand-typed beside an identical unused shared constant (now derived), and zero test
+      coverage on sweepExpiredPaymentRequests (+3 tests asserting the imported status list + expiry
+      guards + fail-soft). Deliberate decisions documented in code: disputed absent from both refund
+      lists (Stripe refuses refunds on disputed charges); the receipt awaited on purpose (serverless
+      kills fire-and-forget; a queue is the latency fix, never void)."
+    known_exclusions: "NO DATABASE EXECUTED anywhere in the pass: every unit test mocks Supabase, so
+      all state-transition claims are verified at code-path level only — 0125 RLS, 0126's
+      lock-and-recheck and the one-payable-per-subject partial unique index are unexercised here.
+      apps/web/tests/db/** including the PAY-RLS-005 anon regression could not run (Docker npipe
+      absent, verified by execution) and remain CI-pending. No webhook-level integration test
+      exercises the M7/M8 dispatch (verified by reading route.ts only). The cron route has no test
+      harness; its wiring of the sweep is read-only evidence. The it.fails fee tripwire remains a
+      deliberate live-defect marker and is the suite's '1 expected fail'."
+    recommended_next_inspection: "In CI: the tests/db suites incl. the anon regression. Before any
+      partial-collection feature (writing partially_paid): the fee-exceeds-charge tripwire becomes
+      reachable and the lane-split decision is due. At the goods/standalone build: reuse this
+      mutation-rig pattern (alias + canary + identity controls) for the order/refund cores. Consider a
+      webhook-route test harness; M7/M8 dispatch currently rests on reading."
     changed_since_inspection: "yes"

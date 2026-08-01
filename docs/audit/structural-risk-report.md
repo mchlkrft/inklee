@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `d65c7b4eac5e`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `e55549df2512`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,9 +14,9 @@
 
 ## Executive summary
 
-89 recorded finding(s), 3 structural pattern(s), across 70 mapped area(s).
+89 recorded finding(s), 3 structural pattern(s), across 71 mapped area(s).
 84 remain open by remediation status. 71 are reachable (directly or conditionally) rather than latent.
-82 have not passed independent verification.
+78 have not passed independent verification.
 158 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -46,8 +46,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 81 |
-| passed | 7 |
+| not-started | 77 |
+| passed | 11 |
 | pending | 1 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -255,13 +255,13 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
-| PAY-RFD-003 | medium | fixed-unverified | not-started | 6fb2eb1 |
-| PAY-RFD-004 | medium | fixed-unverified | not-started | 6fb2eb1 |
-| PAY-RFD-007 | medium | fixed-unverified | not-started | 752e989 |
+| PAY-RFD-003 | medium | fixed-unverified | passed | 6fb2eb1 |
+| PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
+| PAY-RFD-007 | medium | fixed-unverified | passed | 752e989 |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
-| PAY-UI-006 | low | fixed-unverified | not-started | 752e989 |
+| PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
 
 ## Analogous areas flagged but NOT inspected
 
