@@ -15966,3 +15966,39 @@ coverage:
       PATH); it rests on the drop-then-create pattern AGENTS.md documents as strongest. No Stripe
       execution: the refund arithmetic is unit-level. Production is untouched - none of
       0125-0140 is applied there."
+
+  - area: "FD5 seller-scoped carts + wishlist (the last FD build slice): guest identity, cart and
+      wishlist storage, cart-to-checkout threading, and the seller-boundary invariant"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-01"
+    commit_inspected: "9621e44b"
+    reviewer: "fd5-worker (wrote the slice and its tests); supervisor re-ran the db and unit
+      suites and read the migration's constraint shape. INDEPENDENT ADVERSARIAL VERIFICATION IS
+      STILL OUTSTANDING and is mandated for this slice by the founder ruling."
+    evidence: "The seller boundary - the invariant the whole commerce model rests on - is enforced
+      in the SCHEMA, not only in application code: shop_cart_items.artist_id is bound by TWO
+      composite FKs at once, (cart_id, artist_id) -> shop_carts and (product_id, artist_id) ->
+      products (mirrored for bundles), so a cross-artist row is UNREPRESENTABLE for every role
+      including the service role, which is the only writer (zero policies + REVOKE on
+      anon/authenticated). Proven by execution, not assertion: the db suite attempts the forbidden
+      insert three ways and gets 23503 naming the specific constraint each time, with a
+      same-seller positive control proving the path is not accidentally blocked. Application code
+      re-asserts the same invariant and refuses the WHOLE checkout rather than filtering, which
+      was the brief's explicit requirement. Cart rows store POINTERS ONLY (no price, no title), so
+      stale pricing is eliminated by construction rather than by cache invalidation. The cart
+      feeds the EXISTING checkout core through one additive nullable cartId thread - no parallel
+      money path, no client-submitted selections, and therefore no new fee arithmetic (inherited
+      whole). Suites: web 3099 passed + 1 expected fail (+68), db 255 passed (+20), both re-run by
+      the supervisor; tsc and scoped eslint clean."
+    recommended_next_inspection: "The mandated adversarial round over the three money-path slices
+      together (FD6 variant bundles, FD12 refunds, FD5 carts): probe the seller boundary from the
+      application side, the cart-to-checkout selection translation, refund arithmetic across
+      line/quantity/custom, and whether the cart-clear on settle can lose a cart on a redelivery."
+    known_exclusions: "No native cart or wishlist UI (buyer surfaces are web-only by the
+      established decision; the artist-side native Sales screens need no change because a
+      cart-originated order is indistinguishable from a Buy-now order). No authenticated-buyer
+      path because the product has no buyer accounts - verified in the auth code rather than
+      assumed, and recorded as a product-state finding rather than an omission. Guest identity is
+      a hashed cookie token, which becomes part of the GS4 counsel queue. Stripe not executed."
