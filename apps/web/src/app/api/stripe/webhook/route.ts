@@ -17,6 +17,7 @@ import { createNotification } from "@/lib/notifications";
 import { ACTIVE_FEE_SCHEDULE_VERSION } from "@inklee/shared/fee-schedule";
 import { recordDiscountRedemption } from "@/lib/server/discounts";
 import { settleGoodsOrderRefund } from "@/lib/server/goods-refund";
+import { settleStandaloneGoodsOrder } from "@/lib/server/goods-checkout";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { customerLabel } from "@/lib/booking-domain";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
@@ -444,6 +445,13 @@ export async function POST(request: Request) {
     // payment_request_id is the unambiguous discriminator.
     if (intent.metadata?.payment_request_id) {
       const settled = await settlePaymentRequestSuccess(intent);
+      return NextResponse.json({ received: true, settled });
+    }
+
+    // Standalone goods order (GC1 C2): order_id WITHOUT booking_id. Add-on
+    // orders carry both and keep taking the booking path below.
+    if (intent.metadata?.order_id && !intent.metadata?.booking_id) {
+      const settled = await settleStandaloneGoodsOrder(intent);
       return NextResponse.json({ received: true, settled });
     }
 
