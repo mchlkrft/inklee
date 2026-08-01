@@ -254,7 +254,15 @@ Two things follow, both done here:
   BOTH surfaces deliver — the web action returns `{payUrl, emailed}` and shows the
   copyable link (the token is stored hashed, so this response is its only carrier),
   and the mobile send route gained ADDITIVE `payUrl`/`emailed` keys (older builds
-  ignore them; `customerToken` unchanged). NOT yet in the nav (feature is dark /
+  ignore them; `customerToken` unchanged). **CLIENT RECEIPT (slice 4, 2026-08-01):
+  settlement now emails the client a receipt, hooked INSIDE `settlePaymentRequestSuccess`'s
+  once-only claim gate so both settlement paths (webhook + reconciliation) send
+  exactly one; no route shape changed. Refund availability WIDENED per the authz
+  review (Finding B): the core's exported `REFUNDABLE_STATUSES` now includes
+  cancelled/expired/failed (money-holding states per the transition matrix), which
+  the mobile refund route inherits automatically; the web UI derives its
+  Cancel/Refund visibility from the shared/core constants (Finding A, no more
+  hand-copied sets).** NOT yet in the nav (feature is dark /
   entitlement-gated; the item appears at launch-readiness, like `/pricing`),
   reachable by URL. NATIVE EQUIVALENT is a follow-on: the app already has the
   write + read `/api/mobile/payments/requests` routes but no management SCREEN.

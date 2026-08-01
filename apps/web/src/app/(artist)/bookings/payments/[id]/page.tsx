@@ -2,11 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPaymentRequestForArtist } from "@/lib/server/appointment-payment-read";
+import { REFUNDABLE_STATUSES } from "@/lib/server/appointment-payment-refund";
 import { RefundControl } from "./refund-control";
 
-// Statuses from which a refund can be initiated (mirrors the refund core's
-// REFUNDABLE_STATUSES). The core re-validates, so this only decides visibility.
-const REFUNDABLE = new Set(["paid", "partially_paid", "partially_refunded"]);
+// Statuses from which a refund can be initiated: DERIVED from the refund core's
+// own gate so the two can never drift (authz-review Finding A's lesson). The
+// core re-validates, so this only decides visibility.
+const REFUNDABLE = new Set<string>(REFUNDABLE_STATUSES);
 
 // Per-request detail (P9 artist UI, slice 2b-i). Read-only view of one payment
 // request and its lines, on the shared read layer. This is the surface the

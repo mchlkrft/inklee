@@ -5,9 +5,10 @@ import type Stripe from "stripe";
 // Mocks — vi.hoisted() runs before vi.mock factories, which are hoisted above
 // module-level const declarations.
 
-const { mockServiceClient, mockWriteAudit } = vi.hoisted(() => ({
+const { mockServiceClient, mockWriteAudit, mockReceipt } = vi.hoisted(() => ({
   mockServiceClient: { from: vi.fn() },
   mockWriteAudit: vi.fn(),
+  mockReceipt: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -20,6 +21,9 @@ vi.mock("@/lib/supabase/service", () => ({
 }));
 vi.mock("@/lib/audit", () => ({
   writeAudit: (...a: unknown[]) => mockWriteAudit(...a),
+}));
+vi.mock("@/lib/server/appointment-payment-delivery", () => ({
+  sendPaymentReceiptEmail: (...a: unknown[]) => mockReceipt(...a),
 }));
 
 import {
@@ -107,6 +111,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   ops = [];
   replies = {};
+  mockReceipt.mockResolvedValue(true);
   mockServiceClient.from.mockImplementation((table: string) => ({
     update: (data: unknown) => {
       const op: RecordedOp = {
@@ -292,6 +297,20 @@ describe("settlePaymentRequestSuccess", () => {
         }),
       }),
     );
+
+    // Client receipt sent ONCE, inside the claim gate, with the settled facts
+    // (Track A slice 4).
+    expect(mockReceipt).toHaveBeenCalledTimes(1);
+    expect(mockReceipt).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        artistId: "artist_1",
+        requestId: "req_1",
+        bookingId: "booking_1",
+        amountMinor: 15000,
+        currency: "eur",
+      }),
+    );
   });
 
   it("maps tattoo_service to deposit when collects=deposit", async () => {
@@ -354,6 +373,8 @@ describe("settlePaymentRequestSuccess", () => {
       0,
     );
     expect(mockWriteAudit).not.toHaveBeenCalled();
+    // And no second receipt: the once-only property is the claim gate itself.
+    expect(mockReceipt).not.toHaveBeenCalled();
   });
 
   it("returns false when metadata has no payment_request_id", async () => {
@@ -507,6 +528,33 @@ describe("settlePaymentRequestRefund", () => {
       makeCharge({ amount_refunded: 0 }),
     );
     expect(result).toBe(false);
+  });
+
+  // Authz-review Finding B (settlement half): cancelled / expired / failed can
+  // hold collected money (all reachable from partially_paid) and the matrix
+  // gives each -> partially_refunded / refunded edges. The status update's FROM
+  // list must include them, or a refund on a cancelled request leaves the row
+  // parked in `cancelled` with the money silently returned.
+  it("moves a money-holding cancelled/expired/failed request on refund settle", async () => {
+    setupRefundAllocations();
+    queue("payment_allocations:upsert", { data: [{ id: "adj_1" }] });
+    queue("payment_allocations:upsert", { data: [{ id: "adj_2" }] });
+    queue("payment_requests:update", { data: null });
+
+    const result = await settlePaymentRequestRefund(
+      makeCharge({ amount: 12000, amount_refunded: 12000, refunded: true }),
+    );
+    expect(result).toBe(true);
+
+    const statusOp = ops.find(
+      (o) => o.table === "payment_requests" && o.verb === "update",
+    );
+    expect(statusOp!.inFilter?.column).toBe("status");
+    for (const from of ["cancelled", "expired", "failed"]) {
+      expect(statusOp!.inFilter?.values).toContain(from);
+    }
+    // And never FROM a fully-refunded row: refund totals converge upward.
+    expect(statusOp!.inFilter?.values).not.toContain("refunded");
   });
 });
 

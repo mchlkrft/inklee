@@ -30,10 +30,23 @@ export type RefundResult =
   | { status: "ok"; refundId: string; refundedMinor: number }
   | { status: "error"; message: string };
 
-const REFUNDABLE_STATUSES = [
+// The states an artist can INITIATE a refund from. Wider than "paid": the
+// transition matrix (PAYMENT_REQUEST_TRANSITIONS) deliberately gives cancelled /
+// expired / failed their own -> partially_refunded / refunded edges because all
+// three are reachable from partially_paid and can be HOLDING COLLECTED MONEY.
+// Before those three were added here, money collected on a request that was
+// then cancelled/expired/failed had NO self-service refund path (authz-review
+// Finding B). Safe to include: the amount is bounded by maxRefundable, computed
+// from real allocations, so a request in these states with nothing collected
+// refuses with "Nothing to refund." Exported so the UI derives its visibility
+// from THIS list instead of hand-copying it.
+export const REFUNDABLE_STATUSES = [
   "paid",
   "partially_paid",
   "partially_refunded",
+  "cancelled",
+  "expired",
+  "failed",
 ] as const;
 
 export async function refundPaymentRequestCore(input: {

@@ -592,6 +592,33 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
   });
 
+  // Authz-review Finding B (core half): cancelled / expired / failed can hold
+  // collected money, and the transition matrix gives each its own refund edges.
+  // The artist must be able to return that money without support intervention.
+  // The amount stays bounded by the real allocations, so a cancelled request
+  // with nothing collected still refuses ("Nothing to refund.").
+  it("refunds collected money from a CANCELLED request (Finding B)", async () => {
+    queue("payment_requests:select", {
+      data: { ...REQUEST_ROW, status: "cancelled" },
+    });
+    queue("payment_allocations:select", { data: ALLOCATIONS });
+    queue("payment_allocations:select", { data: [] }); // no prior adjustments
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    expect(result).toEqual({
+      status: "ok",
+      refundId: "re_test_123",
+      refundedMinor: 15000,
+    });
+    expect(lastRefundCall().reverse_transfer).toBe(true);
+  });
+
   // M11: the idempotency key was `...-${Date.now()}`, so every retry got a
   // fresh key and Stripe created a SECOND refund on a retried request. It is now
   // derived from the refund's logical identity (request + amount + cumulative

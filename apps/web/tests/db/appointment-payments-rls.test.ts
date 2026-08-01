@@ -2043,3 +2043,87 @@ describe("account deletion cascades the whole chain", () => {
     await admin.auth.admin.deleteUser(victim.id);
   });
 });
+
+// ---------------------------------------------------------------------------
+// PAY-RLS-005 regression (migration 0133): the ANON role must see NOTHING.
+//
+// 0128 shipped anon SELECT policies whose USING clause was
+// `customer_token_hash is not null` — i.e. "any row ever sent", never a token
+// match — so the anon key could read EVERY sent payment request through
+// PostgREST. 0133 dropped both policies (nothing needs them: the pay page reads
+// through the service client). This pins that the drop happened AND stays
+// dropped: with no anon policy, an anon SELECT is USING-filtered to nothing,
+// which per the gotcha at the top of this file is a SILENT empty result
+// (`{ data: [], error: null }`), so the assertion is on the row count with the
+// error also asserted null — an error here would mean something else changed.
+describe("anon role reads nothing (PAY-RLS-005 / 0133)", () => {
+  it("a SENT request with a token hash is invisible to the anon key", async () => {
+    const { anonClient } = await import("./helpers/actor");
+
+    // Fixture via the service role: a sent request with a token hash — exactly
+    // the row 0128's policy would have exposed.
+    const fx = fixtures.get(owner.id)!;
+    const made = await admin
+      .from("payment_requests")
+      .insert({
+        artist_id: owner.id,
+        booking_id: fx.bookingId,
+        status: "sent",
+        currency: "eur",
+        collects: "deposit",
+        total_minor: 5000,
+        revision: 1,
+        sent_at: new Date().toISOString(),
+        customer_token_hash: "a1-regression-hash",
+      })
+      .select("id")
+      .single();
+    expect(made.error, made.error?.message).toBeNull();
+    const requestId = made.data!.id as string;
+
+    const line = await admin.from("payment_request_lines").insert({
+      request_id: requestId,
+      artist_id: owner.id,
+      name: "Deposit",
+      quantity: 1,
+      unit_amount_minor: 5000,
+      line_total_minor: 5000,
+      currency: "eur",
+      classification: "tattoo_service",
+    });
+    expect(line.error, line.error?.message).toBeNull();
+
+    // POSITIVE CONTROL first: the row exists and the OWNER's client sees it,
+    // so the anon emptiness below is about the ROLE, not a missing row.
+    const ownerRead = await owner.client
+      .from("payment_requests")
+      .select("id")
+      .eq("id", requestId);
+    expect(ownerRead.error, ownerRead.error?.message).toBeNull();
+    expect(ownerRead.data).toHaveLength(1);
+
+    const anon = anonClient();
+    const reqRead = await anon
+      .from("payment_requests")
+      .select("id, total_minor")
+      .eq("id", requestId);
+    expect(reqRead.error, reqRead.error?.message).toBeNull();
+    expect(
+      reqRead.data,
+      "anon must not see any payment request (0133 dropped the 0128 policy)",
+    ).toHaveLength(0);
+
+    const lineRead = await anon
+      .from("payment_request_lines")
+      .select("id")
+      .eq("request_id", requestId);
+    expect(lineRead.error, lineRead.error?.message).toBeNull();
+    expect(
+      lineRead.data,
+      "anon must not see any payment request lines",
+    ).toHaveLength(0);
+
+    // Cleanup so the frozen-request tests elsewhere never meet this fixture.
+    await admin.from("payment_requests").delete().eq("id", requestId);
+  });
+});

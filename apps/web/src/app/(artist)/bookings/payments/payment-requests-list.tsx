@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES } from "@inklee/shared/appointment-payments";
 import type { PaymentRequestSummary } from "@/lib/server/appointment-payment-read";
 import {
   sendPaymentRequestAction,
@@ -20,17 +21,14 @@ function statusLabel(status: string): string {
 
 // UI hints only: which actions to OFFER. The cores re-validate the 13-state
 // machine, so a button the state does not actually allow just returns an error
-// we surface, rather than doing anything. Send is offered before the request is
-// frozen; cancel until it reaches a terminal or paid state.
+// we surface, rather than doing anything. Cancel visibility DERIVES from the
+// same constant the core enforces with (authz-review Finding A: a hand-typed
+// complement here drifted from it both ways — hid Cancel on `expired`, showed
+// it on `payment_processing`).
 const SENDABLE = new Set(["draft", "ready"]);
-const TERMINAL = new Set([
-  "paid",
-  "cancelled",
-  "expired",
-  "refunded",
-  "partially_refunded",
-  "disputed",
-]);
+const CANCELLABLE = new Set<string>(
+  ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES,
+);
 
 export function PaymentRequestsList({
   requests,
@@ -119,7 +117,7 @@ export function PaymentRequestsList({
       )}
       <ul className="space-y-2">
         {requests.map((r) => {
-          const cancellable = !TERMINAL.has(r.status);
+          const cancellable = CANCELLABLE.has(r.status);
           const sendable = SENDABLE.has(r.status);
           const rowBusy = pending && busyId === r.id;
           return (

@@ -48,6 +48,50 @@ function formatAmount(minor: number, currency: string): string {
   return `${(minor / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
+/** The client email for a request's subject (booking or project), through
+ *  whatever client the caller runs as. At send time that is the artist's own
+ *  RLS-scoped client; at settlement time it is the service client (webhook
+ *  context has no user session), whose reads here are keyed by the ids the
+ *  settlement verified against the PaymentIntent metadata + claim. */
+async function resolveClientEmail(
+  supabase: SupabaseClient,
+  artistId: string,
+  bookingId: string | null,
+  projectId: string | null,
+): Promise<string | null> {
+  if (bookingId) {
+    const { data } = await supabase
+      .from("booking_requests")
+      .select("customer_email")
+      .eq("artist_id", artistId)
+      .eq("id", bookingId)
+      .maybeSingle();
+    return (data?.customer_email as string | null) ?? null;
+  }
+  if (projectId) {
+    const { data } = await supabase
+      .from("projects")
+      .select("customer_email")
+      .eq("artist_id", artistId)
+      .eq("id", projectId)
+      .maybeSingle();
+    return (data?.customer_email as string | null) ?? null;
+  }
+  return null;
+}
+
+async function resolveArtistName(
+  supabase: SupabaseClient,
+  artistId: string,
+): Promise<string> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", artistId)
+    .maybeSingle();
+  return (data?.display_name as string | null) || "Your artist";
+}
+
 /**
  * Email the /pay/<token> link to the request's client. Call AFTER a successful
  * `sendPaymentRequestCore`, with the same RLS-scoped client and the token it
@@ -70,36 +114,17 @@ export async function deliverPaymentRequestLink(
       .maybeSingle();
     if (!request) return { payUrl, emailed: false, reason: "send_failed" };
 
-    let clientEmail: string | null = null;
-    if (request.booking_id) {
-      const { data: booking } = await supabase
-        .from("booking_requests")
-        .select("customer_email")
-        .eq("artist_id", artistId)
-        .eq("id", request.booking_id)
-        .maybeSingle();
-      clientEmail = (booking?.customer_email as string | null) ?? null;
-    } else if (request.project_id) {
-      const { data: project } = await supabase
-        .from("projects")
-        .select("customer_email")
-        .eq("artist_id", artistId)
-        .eq("id", request.project_id)
-        .maybeSingle();
-      clientEmail = (project?.customer_email as string | null) ?? null;
-    }
-
+    const clientEmail = await resolveClientEmail(
+      supabase,
+      artistId,
+      (request.booking_id as string | null) ?? null,
+      (request.project_id as string | null) ?? null,
+    );
     if (!clientEmail || !clientEmail.includes("@")) {
       return { payUrl, emailed: false, reason: "no_email" };
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", artistId)
-      .maybeSingle();
-    const artistName =
-      (profile?.display_name as string | null) || "Your artist";
+    const artistName = await resolveArtistName(supabase, artistId);
 
     const amount = formatAmount(
       Number(request.total_minor ?? 0),
@@ -131,5 +156,71 @@ This link is personal to you. If you were not expecting this, you can ignore thi
       extra: { requestId, artistId },
     });
     return { payUrl, emailed: false, reason: "send_failed" };
+  }
+}
+
+/**
+ * CLIENT RECEIPT on settlement (Track A slice 4).
+ *
+ * Emailed to the client when their appointment payment actually settles. Called
+ * from `settlePaymentRequestSuccess` AFTER its claim gate, which returns true
+ * exactly once per collection (a webhook redelivery loses the claim and never
+ * reaches this), so the once-only property is inherited rather than re-invented.
+ * Both settlement callers (the Stripe webhook and the reconciliation backstop)
+ * therefore produce a receipt, whichever one lands the claim.
+ *
+ * BEST-EFFORT: a receipt failure must never fail the settlement (the money HAS
+ * moved; refusing to record that because an email bounced would be backwards).
+ * Failures go to Sentry and return false. Runs on the service client (webhook
+ * context has no user session); the ids come from the settlement's own verified
+ * metadata + claim, not from any client input.
+ */
+export async function sendPaymentReceiptEmail(
+  supabase: SupabaseClient,
+  args: {
+    artistId: string;
+    requestId: string;
+    bookingId: string | null;
+    projectId: string | null;
+    amountMinor: number;
+    currency: string;
+    paidAt: string;
+  },
+): Promise<boolean> {
+  try {
+    const clientEmail = await resolveClientEmail(
+      supabase,
+      args.artistId,
+      args.bookingId,
+      args.projectId,
+    );
+    if (!clientEmail || !clientEmail.includes("@")) return false;
+
+    const artistName = await resolveArtistName(supabase, args.artistId);
+    const amount = formatAmount(args.amountMinor, args.currency);
+    const paidDate = args.paidAt.slice(0, 10);
+
+    const body = `Hi,
+
+This confirms your payment of ${amount} to ${artistName}.
+
+Paid on ${paidDate}.
+
+Keep this email as your receipt. If anything looks wrong, contact ${artistName} directly.`;
+
+    await sendEmail({
+      to: clientEmail,
+      subject: `Your payment to ${artistName}`,
+      html: buildEmailHtml(body, {}, undefined, {
+        footerNote: `Sent by Inklee on behalf of ${artistName}.`,
+      }),
+    });
+    return true;
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { action: "payment_receipt_email" },
+      extra: { requestId: args.requestId, artistId: args.artistId },
+    });
+    return false;
   }
 }

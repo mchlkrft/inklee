@@ -14,7 +14,10 @@ vi.mock("@sentry/nextjs", () => ({
 }));
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deliverPaymentRequestLink } from "@/lib/server/appointment-payment-delivery";
+import {
+  deliverPaymentRequestLink,
+  sendPaymentReceiptEmail,
+} from "@/lib/server/appointment-payment-delivery";
 
 type Row = Record<string, unknown> | null;
 
@@ -112,5 +115,69 @@ describe("deliverPaymentRequestLink", () => {
     const r = await deliverPaymentRequestLink(c, "artist1", "r1", "tok123");
     expect(r.emailed).toBe(false);
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+// The settlement receipt (Track A slice 4). Once-only comes from the caller
+// (settlement's claim gate); this pins recipient resolution + fail-soft.
+describe("sendPaymentReceiptEmail", () => {
+  const ARGS = {
+    artistId: "artist1",
+    requestId: "r1",
+    bookingId: "b1",
+    projectId: null,
+    amountMinor: 15000,
+    currency: "eur",
+    paidAt: "2026-08-01T10:00:00.000Z",
+  };
+
+  it("emails the booking's client a receipt with the amount and date", async () => {
+    const c = client({
+      booking_requests: { customer_email: "client@example.com" },
+      profiles: { display_name: "Mika Ink" },
+    });
+    const ok = await sendPaymentReceiptEmail(c, ARGS);
+    expect(ok).toBe(true);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "client@example.com",
+        subject: "Your payment to Mika Ink",
+      }),
+    );
+    const html = (sendEmail.mock.calls[0]![0] as { html: string }).html;
+    expect(html).toContain("150.00 EUR");
+    expect(html).toContain("2026-08-01");
+  });
+
+  it("resolves a project subject's client", async () => {
+    const c = client({
+      projects: { customer_email: "proj@example.com" },
+      profiles: { display_name: "Mika Ink" },
+    });
+    const ok = await sendPaymentReceiptEmail(c, {
+      ...ARGS,
+      bookingId: null,
+      projectId: "p1",
+    });
+    expect(ok).toBe(true);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "proj@example.com" }),
+    );
+  });
+
+  it("returns false without sending when the subject has no email", async () => {
+    const c = client({ booking_requests: { customer_email: null } });
+    expect(await sendPaymentReceiptEmail(c, ARGS)).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("returns false (never throws) when the provider fails, and captures", async () => {
+    sendEmail.mockRejectedValue(new Error("resend down"));
+    const c = client({
+      booking_requests: { customer_email: "client@example.com" },
+      profiles: { display_name: "Mika Ink" },
+    });
+    expect(await sendPaymentReceiptEmail(c, ARGS)).toBe(false);
+    expect(captureException).toHaveBeenCalled();
   });
 });

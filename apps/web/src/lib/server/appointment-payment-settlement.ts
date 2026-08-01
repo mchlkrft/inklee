@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
 import { resolveActiveFeeRefundPolicyVersion } from "@inklee/shared/fee-refund-policy";
 import { FEE_REFUND_V1_ACTIVATION_ENABLED } from "@/lib/plus-launch-config";
+import { sendPaymentReceiptEmail } from "./appointment-payment-delivery";
 import type {
   PaymentLineClassification,
   PaymentRequestCollects,
@@ -187,6 +188,20 @@ export async function settlePaymentRequestSuccess(
     }
   }
 
+  // Client receipt (Track A slice 4). Inside the claim gate, so a redelivery
+  // (claim lost -> returned false above) can never double-send; and inside the
+  // settlement rather than its callers, so BOTH paths (webhook + reconciliation
+  // backstop) produce one. Best-effort: sendPaymentReceiptEmail never throws.
+  await sendPaymentReceiptEmail(serviceClient, {
+    artistId,
+    requestId,
+    bookingId,
+    projectId,
+    amountMinor: collectedTotalMinor,
+    currency,
+    paidAt: now,
+  });
+
   void writeAudit({
     action: "appointment_payment_settled",
     actor: "system",
@@ -291,6 +306,12 @@ export async function settlePaymentRequestRefund(
     const fullyRefunded = amountRefunded >= (charge.amount ?? 0);
     const newStatus = fullyRefunded ? "refunded" : "partially_refunded";
 
+    // The FROM list mirrors the transition matrix's reversal edges
+    // (PAYMENT_REQUEST_TRANSITIONS): cancelled / expired / failed are all
+    // reachable from partially_paid, so each can be holding collected money and
+    // each has -> partially_refunded / refunded edges. Leaving them out parked
+    // a refunded cancellation in "cancelled" with the money silently returned
+    // (authz-review Finding B).
     await serviceClient
       .from("payment_requests")
       .update({
@@ -303,6 +324,9 @@ export async function settlePaymentRequestRefund(
         "partially_paid",
         "partially_refunded",
         "payment_processing",
+        "cancelled",
+        "expired",
+        "failed",
       ]);
   }
 
