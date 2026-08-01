@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { PaymentRequestSummary } from "@/lib/server/appointment-payment-read";
 import {
   sendPaymentRequestAction,
@@ -85,7 +86,10 @@ export function PaymentRequestsList({
               key={r.id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-border px-4 py-3"
             >
-              <div className="min-w-0">
+              <Link
+                href={`/bookings/payments/${r.id}`}
+                className="min-w-0 rounded-md transition-opacity hover:opacity-80"
+              >
                 <p className="truncate text-sm font-medium text-foreground">
                   {formatAmount(r.totalMinor, r.currency)}
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -97,7 +101,7 @@ export function PaymentRequestsList({
                   {r.revision > 1 ? ` (rev ${r.revision})` : ""}
                   {r.linkSent ? " · link sent" : ""}
                 </p>
-              </div>
+              </Link>
               <div className="flex items-center gap-2">
                 {sendable && (
                   <button
