@@ -100,6 +100,32 @@ describe("fetchImageForImport", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  // HUB-GAL-005 (2026-08-01, round-4 verification): `.hostname` never
+  // includes userinfo, so a naive host-based SSRF check would pass a
+  // credentialed URL straight through while `.toString()` (what fetch()
+  // actually receives) keeps `user:secret@` and forwards it to the target.
+  it("rejects a URL with a username, before the SSRF check and before fetching", async () => {
+    const r = await fetchImageForImport("https://user@example.com/a.jpg");
+    expect(r).toEqual({
+      ok: false,
+      error: "That URL can't include a username or password.",
+    });
+    expect(mockIsPublicHostname).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a URL with a username AND password", async () => {
+    const r = await fetchImageForImport(
+      "https://user:secret@example.com/a.jpg",
+    );
+    expect(r).toEqual({
+      ok: false,
+      error: "That URL can't include a username or password.",
+    });
+    expect(mockIsPublicHostname).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a private/unreachable hostname BEFORE fetching (SSRF guard)", async () => {
     mockIsPublicHostname.mockResolvedValue(false);
     const r = await fetchImageForImport(

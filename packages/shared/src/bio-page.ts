@@ -427,9 +427,12 @@ export function sanitizeImageUrl(raw: unknown): string | null {
 }
 
 /** The Supabase Storage public-URL marker every Inklee-hosted object uses
- *  (bucket `logos`). Exported so `hub-images.ts` (web, orphan cleanup) reads
- *  the SAME literal rather than keeping a second copy that could quietly
- *  drift from what this gate accepts. */
+ *  (bucket `logos`). Exported so `hub-images.ts` (hub gallery orphan cleanup)
+ *  and `mobile-goods-server.ts` (goods image storage-path derivation) both
+ *  read the SAME literal rather than keeping their own copies that could
+ *  quietly drift from what this gate accepts. (HUB-GAL-006, 2026-08-01: a
+ *  second, untracked copy in mobile-goods-server.ts had done exactly that —
+ *  this comment previously named only hub-images.ts as converted.) */
 export const HOSTED_LOGOS_PUBLIC_MARKER = "/storage/v1/object/public/logos/";
 
 /** Allow only an Inklee-HOSTED absolute http(s) image URL: a `supabase.co`

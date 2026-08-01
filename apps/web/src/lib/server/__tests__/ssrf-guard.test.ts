@@ -73,6 +73,32 @@ describe("isPrivateIpv6", () => {
   it("allows a plainly public IPv6 address", () => {
     expect(isPrivateIpv6("2001:4860:4860::8888")).toBe(false); // Google DNS
   });
+
+  // HUB-GAL-004 (2026-08-01, round-4 verification): fixed to fail CLOSED on
+  // anything that is not even a syntactically valid IPv6 literal, via
+  // net.isIP rather than falling through unmatched patterns to `false`.
+  it("fails CLOSED on an unparseable/garbage string (previously fell OPEN)", () => {
+    expect(isPrivateIpv6("garbage")).toBe(true);
+    expect(isPrivateIpv6("not-an-ipv6-address-at-all")).toBe(true);
+    expect(isPrivateIpv6("")).toBe(true);
+  });
+
+  // HUB-GAL-004: documents what this function does NOT catch on its own —
+  // these are all real, RFC-legal spellings of a private/metadata address,
+  // and isPrivateIpv6 allows every one because its patterns only match the
+  // dotted-quad mapped spelling. This is the reason isPublicHostname (below)
+  // does not rely on isPrivateIpv6 for its real defense and instead refuses
+  // the entire IPv6 family outright.
+  it("does NOT catch every IPv4-in-IPv6 embedding format (known, documented limit)", () => {
+    // hex-group mapped (RFC 4291 alternate spelling of ::ffff:127.0.0.1)
+    expect(isPrivateIpv6("::ffff:7f00:1")).toBe(false);
+    // hex-group mapped cloud-metadata address (::ffff:169.254.169.254)
+    expect(isPrivateIpv6("::ffff:a9fe:a9fe")).toBe(false);
+    // deprecated IPv4-compatible form (::a.b.c.d, distinct from ::ffff:a.b.c.d)
+    expect(isPrivateIpv6("::127.0.0.1")).toBe(false);
+    // NAT64 well-known prefix (RFC 6052) embedding 127.0.0.1
+    expect(isPrivateIpv6("64:ff9b::7f00:1")).toBe(false);
+  });
 });
 
 describe("isPublicHostname", () => {
@@ -86,10 +112,14 @@ describe("isPublicHostname", () => {
     expect(mockLookup).not.toHaveBeenCalled();
   });
 
-  it("resolves a domain name and allows it when every address is public", async () => {
+  it("resolves a domain name and allows it when every address is public IPv4", async () => {
+    // HUB-GAL-004: a v6 address used to be allowed here alongside the v4 one;
+    // under the blanket IPv6-refusal policy this fixture is v4-only on
+    // purpose (see the dedicated "blanket IPv6 refusal" block below for what
+    // happens when a v6 address is present).
     mockLookup.mockResolvedValue([
       { address: "93.184.216.34", family: 4 },
-      { address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 },
+      { address: "8.8.8.8", family: 4 },
     ]);
     expect(await isPublicHostname("example.com")).toBe(true);
   });
@@ -107,5 +137,64 @@ describe("isPublicHostname", () => {
     expect(await isPublicHostname("nowhere.invalid")).toBe(false);
     mockLookup.mockResolvedValueOnce([]);
     expect(await isPublicHostname("empty.invalid")).toBe(false);
+  });
+});
+
+// HUB-GAL-004 (2026-08-01, round-4 verification): isPublicHostname refuses
+// EVERY IPv6 address outright — it does not consult isPrivateIpv6's
+// per-address judgment at all. Proven here against exactly the forms
+// isPrivateIpv6 itself allows (the "known limit" block above), so these
+// tests are meaningful evidence of the BLANKET policy, not a restatement of
+// isPrivateIpv6's own loopback/link-local checks.
+describe("isPublicHostname — blanket IPv6 refusal (HUB-GAL-004)", () => {
+  beforeEach(() => {
+    mockLookup.mockReset();
+  });
+
+  it("refuses IPv6 literals that isPrivateIpv6 itself does NOT recognize as private", async () => {
+    for (const ip of [
+      "::ffff:7f00:1",
+      "::ffff:a9fe:a9fe",
+      "::127.0.0.1",
+      "64:ff9b::7f00:1",
+    ]) {
+      expect(await isPublicHostname(ip), ip).toBe(false);
+    }
+    expect(mockLookup).not.toHaveBeenCalled(); // literal-IP path, no DNS needed
+  });
+
+  it("refuses a DNS-resolved IPv6 address even when it is a plainly public one", async () => {
+    mockLookup.mockResolvedValue([
+      { address: "2606:4700:4700::1111", family: 6 }, // Cloudflare DNS, genuinely public
+    ]);
+    expect(await isPublicHostname("dual-stack.example")).toBe(false);
+  });
+
+  it("refuses when a resolved set mixes a public v4 with ANY v6 address", async () => {
+    mockLookup.mockResolvedValue([
+      { address: "93.184.216.34", family: 4 },
+      { address: "2606:4700:4700::1111", family: 6 },
+    ]);
+    expect(await isPublicHostname("dual-stack.example")).toBe(false);
+  });
+
+  it("refuses an IPv6 URL literal whether or not a future change strips the brackets first", async () => {
+    // Bracketed (what URL.hostname actually returns for an IPv6 host today):
+    // net.isIP("[::1]") is 0, so this falls to the DNS-lookup branch, which
+    // fails on a non-hostname string — refused, but as a documented SIDE
+    // EFFECT, not the real policy.
+    mockLookup.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    expect(await isPublicHostname("[::1]")).toBe(false);
+    expect(mockLookup).toHaveBeenCalledWith("[::1]", expect.anything());
+
+    // Unbracketed (what a future "helpful" normalization might produce):
+    // net.isIP recognizes this as a literal IPv6 address, and the EXPLICIT
+    // blanket policy refuses it directly — no DNS lookup at all. Using
+    // "::ffff:a9fe:a9fe" (a documented isPrivateIpv6 hole, not its own
+    // loopback/link-local match) proves this is the BLANKET policy doing the
+    // work, not a coincidental isPrivateIpv6 hit.
+    mockLookup.mockClear();
+    expect(await isPublicHostname("::ffff:a9fe:a9fe")).toBe(false);
+    expect(mockLookup).not.toHaveBeenCalled();
   });
 });

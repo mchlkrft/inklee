@@ -40,6 +40,18 @@ export async function fetchImageForImport(
   if (parsed.protocol !== "https:") {
     return { ok: false, error: "Only https:// image URLs can be imported." };
   }
+  // HUB-GAL-005 (2026-08-01, round-4 verification): `.hostname` never
+  // includes userinfo, so the SSRF check above would judge a clean host even
+  // for `https://user:secret@evil.example/x.jpg` — but `.toString()`, what
+  // gets handed to `fetch()` below, KEEPS `user:secret@`. Refuse outright
+  // rather than silently stripping it: a credential in an image URL is never
+  // something to forward to an arbitrary third party on the artist's behalf.
+  if (parsed.username || parsed.password) {
+    return {
+      ok: false,
+      error: "That URL can't include a username or password.",
+    };
+  }
   if (!(await isPublicHostname(parsed.hostname))) {
     return { ok: false, error: "That URL can't be reached." };
   }

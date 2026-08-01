@@ -7,6 +7,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "@/lib/supabase/service";
+import { HOSTED_LOGOS_PUBLIC_MARKER } from "@inklee/shared/bio-page";
 
 /**
  * Revalidate the artist's public Bio Page after a goods write so a mobile edit
@@ -29,11 +30,14 @@ export async function revalidatePublicPage(
 // Derive the storage path from a public URL so we can delete the file when a
 // product is removed. Public URL shape:
 //   https://<ref>.supabase.co/storage/v1/object/public/logos/<path>
+// HUB-GAL-006 (2026-08-01, round-4 verification): this used to hold its own
+// copy of the marker literal, which was exactly the drift risk
+// HOSTED_LOGOS_PUBLIC_MARKER (bio-page.ts) exists to prevent — reads the
+// SAME constant hub-images.ts already does, so there is now one definition.
 function goodsImagePathFromUrl(url: string): string | null {
-  const marker = "/storage/v1/object/public/logos/";
-  const idx = url.indexOf(marker);
+  const idx = url.indexOf(HOSTED_LOGOS_PUBLIC_MARKER);
   if (idx < 0) return null;
-  const tail = url.slice(idx + marker.length);
+  const tail = url.slice(idx + HOSTED_LOGOS_PUBLIC_MARKER.length);
   return tail.split("?")[0] || null;
 }
 
