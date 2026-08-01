@@ -5,17 +5,19 @@
 
 # Structural risk report
 
-**Ledger content hash:** `66839d15d260`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `2fa0fa4d8eef`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-116 recorded finding(s), 3 structural pattern(s), across 79 mapped area(s).
-96 remain open by remediation status. 90 are reachable (directly or conditionally) rather than latent.
-91 have not passed independent verification.
-176 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+118 recorded finding(s), 3 structural pattern(s), across 81 mapped area(s).
+97 remain open by remediation status. 91 are reachable (directly or conditionally) rather than latent.
+93 have not passed independent verification.
+178 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -26,7 +28,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | critical | 2 |
 | high | 29 |
 | medium | 49 |
-| low | 32 |
+| low | 34 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,17 +37,17 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 30 |
+| fixed-unverified | 31 |
 | mitigated | 1 |
 | open | 62 |
-| risk-accepted | 1 |
+| risk-accepted | 2 |
 | verified | 19 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 88 |
+| not-started | 90 |
 | partially-verified | 2 |
 | passed | 25 |
 | pending | 1 |
@@ -146,10 +148,10 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | webhook | 13 |
 | database | 10 |
 | testing | 7 |
+| web | 6 |
 | authorization | 5 |
 | migration | 4 |
 | public-surface | 4 |
-| web | 4 |
 | production-config | 3 |
 | ci-cd | 2 |
 | data-retention | 2 |
@@ -241,6 +243,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-ORPH-001 | low | conditionally-reachable | latent | createProductAction inserts the product row before processing images and returns the image error without deleting it, so every failed image upload leaves an untitled-to-the-artist orphan product that still consumes the plan's active-product cap |
 | DATA-RACE-002 | low | conditionally-reachable | latent | 0124's self-documented residual risks (timeout and deadlock) not recorded in the audit evidence register |
 | DRIFT-FN-001 | low | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
+| HUB-GAL-002 | low | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
 | OBS-MAP-001 | low | directly-reachable | actively-impacting | Public-map analytics plane has recorded zero events and one pageview since the 2026-07-27 launch; silence cause indistinguishable from repo+DB evidence |
 | OPS-CFG-001 | low | directly-reachable | reachable-no-known-impact | The grandfathering backfill defaults ADMIN_EMAILS to a hardcoded personal address; the application's admin guard has no default at all |
 | OPS-CRD-001 | low | conditionally-reachable | latent | RISK INTRODUCED BY THIS REMEDIATION: an exported DATABASE_URL now outranks apps/web/.env.local in every governance recorder |
@@ -285,6 +288,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | TEST-VAC-007 | medium | fixed-unverified | not-started | 5fa0110e |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
+| HUB-GAL-003 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
 | SHOP-FUL-005 | low | fixed-unverified | not-started | 5fa0110e |
@@ -304,11 +308,13 @@ These are the register's highest-value entries for an auditor: places a recorded
 - 0125 may have other grant/revoke pairs that are not mirrored. A systematic diff of all 0125 privilege statements against seed.sql was not performed.
 - AGENTS.md and DATA-MIG-001 note 0095-0098 were also applied out of band and then repaired into the ledger. 0097 is confirmed divergent (DATA-DRIFT-004). 0095, 0096 and 0098 were compared as part of the whole-catalog diff and produced no unexplained deviation, but their SQL text was not read line by line against production.
 - All other enums consumed by the mobile app (booking_status, booking_mode, etc.) have not been audited for the same wire-change risk.
+- Any OTHER place in the codebase that fetches an artist- or attacker-influenced URL server-side was not exhaustively re-surveyed for this finding beyond the two files cited (which WERE inspected, not merely guessed-at); a repo-wide grep for `fetch(` sites that take a variable (not a literal) URL would be the next inspection to run before treating this class as closed.
 - Any admin/reconciliation tooling that could repair fee_sponsored_used_cents
 - Any future `project_id`-subject P9 intent reaching this endpoint
 - Any future charge.dispute.* handler (A5), which will meet the same seam with the same clock.
 - Any other caller that rotates customer_token_hash was not enumerated.
 - Any other durable-medium artifact composed with a fail-soft read (none found in the withdrawal/cancellation branches, but not swept repo-wide).
+- Any other server-side fetch of externally-controlled content that reads a body into memory (none currently exist for artist/third-party-supplied URLs besides this feature; see HUB-GAL-002's analogous-areas note) should be checked for the same buffer-then-check-size mistake if one is added later.
 - Any other table added after account-deletion.ts that has ON DELETE CASCADE from profiles and contains financial or legally-retainable data.
 - Any other token-gated public read (booking_requests, waitlist, pay tokens) should be re-checked for a real hash-equality predicate vs a not-null predicate.
 - Bundles: 0132_product_bundles.sql:61-62 gives product_bundles its own is_public_visible mirroring product_collections. Slice C4 (payable bundles) is not yet written; the same omission would land there. NOT inspected.

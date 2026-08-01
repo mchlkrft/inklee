@@ -9333,6 +9333,127 @@ findings:
         note: "Added the shared save-path gate + wired both call sites + corrected the records; +6 tests,
           full web suite 2610 green. Verification pending (no integration test)."
 
+  - id: "HUB-GAL-002"
+    title: "Gallery 'Import from URL' SSRF guard validates the resolved address before the request,
+      not the address fetch() itself connects to (DNS-rebinding TOCTOU)"
+    summary: "FD4 (2026-08-01) adds importGalleryImageFromUrlAction, which downloads an artist-supplied,
+      otherwise-arbitrary URL server-side. The new guard (isPublicHostname, ssrf-guard.ts) resolves the
+      hostname via dns.lookup and refuses private/loopback/link-local/cloud-metadata addresses BEFORE
+      calling fetch(). fetch() then performs its OWN, separate DNS resolution when it actually connects.
+      An attacker who controls a domain's DNS records could serve a public address to the pre-check and
+      a private one moments later to the real connection (classic DNS rebinding), reaching internal
+      infrastructure the guard exists to block. redirect:\"error\" closes the OTHER classic SSRF bypass
+      (redirect-to-internal-host) completely, since there is no second hop to re-validate; this gap is
+      specifically the TOCTOU between the pre-check and fetch()'s independent resolution, which
+      redirect:\"error\" does not touch. The SAME shape of gap (no address validation of any kind, only a
+      fixed host-suffix allowlist) exists in the pre-existing downloadInstagramThumbnail, which is MORE
+      exposed since it runs unattended in background sync rather than gated behind one authenticated,
+      rate-limited, entitlement-gated artist action."
+    classification:
+      domain: "web"
+      category: "broken-invariant"
+      severity: "low"
+      confidence: "hypothesis"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "implementation-worker (self-review while building FD4)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "02c8b814"
+      environment: "local"
+      discovery_context: "Writing the SSRF guard for FD4 (gallery Import from URL) and its own doc
+        comment/tests; reasoned through the check's timing relative to fetch()'s own DNS resolution
+        while authoring apps/web/src/lib/server/ssrf-guard.ts."
+    location:
+      files:
+        - "apps/web/src/lib/server/ssrf-guard.ts"
+        - "apps/web/src/lib/server/gallery-url-import.ts"
+        - "apps/web/src/lib/instagram-storage.ts"
+      symbols:
+        - "isPublicHostname"
+        - "fetchImageForImport"
+        - "downloadInstagramThumbnail"
+        - "isAllowedInstagramMediaUrl"
+    evidence:
+      observed_facts:
+        - "ssrf-guard.ts: isPublicHostname resolves `hostname` via dns.lookup and returns a boolean;
+          gallery-url-import.ts's fetchImageForImport then calls the platform fetch() with that SAME
+          hostname string, which performs its own independent DNS resolution at connect time (Node/undici
+          does not reuse the lookup this guard already did)."
+        - "instagram-storage.ts:13-23, isAllowedInstagramMediaUrl only checks the URL's protocol and
+          hostname SUFFIX (.cdninstagram.com / .fbcdn.net) — it performs no address resolution or
+          private-IP check at all, so if either CDN domain were ever DNS-rebound the existing code has no
+          second layer to catch it (mitigated in practice today only by Instagram/Meta controlling those
+          domains, not by any check in this repository)."
+      references:
+        - "apps/web/src/lib/server/ssrf-guard.ts"
+        - "apps/web/src/lib/server/gallery-url-import.ts"
+        - "apps/web/src/lib/instagram-storage.ts"
+      reproduction: "Not executed: reproducing DNS rebinding requires an authoritative DNS server under
+        attacker control returning a different answer on a second query within the request's lifetime,
+        which was not set up. The gap is reasoned from reading the two independent resolution points
+        (this guard's dns.lookup vs fetch()'s internal resolver), not observed via a live rebind."
+      contradictory_evidence: "redirect:\"error\" (both this guard and downloadInstagramThumbnail) closes
+        the higher-likelihood, easier-to-execute SSRF bypass (attacker's own server 302ing to an internal
+        host) completely; this finding is specifically about the narrower DNS-rebinding path, which needs
+        the attacker to control authoritative DNS for the target domain and win a race against the
+        request's own timing. The gallery import path is additionally gated behind authentication, the
+        rich_content_blocks entitlement, and a 20/artist/hour rate limit (checkGalleryImportRateLimit),
+        none of which apply to an anonymous attacker."
+    assessment:
+      interpretation: "A guard that checks 'is this address safe' and a guard that checks 'is the address
+        I am ABOUT TO CONNECT TO safe' are different properties whenever the check and the connect are two
+        separate DNS resolutions; this guard implements the first, weaker property. Fully closing it needs
+        resolving to ONE validated address and connecting to it directly (bypassing fetch()'s own second
+        lookup), which is a materially larger change (a custom dispatcher / low-level connect) than this
+        slice attempted."
+      root_cause_hypothesis: "The guard was designed and tested against a single dns.lookup call as the
+        source of truth, without accounting for fetch() performing an independent resolution of the same
+        hostname at connect time; the two were not architecturally tied together."
+      reachability: "conditionally-reachable"
+      impact_status: "theoretical"
+      production_exposure: "None observed or possible to observe: FD4 is unreleased (this commit is not on
+        origin/master), so importGalleryImageFromUrlAction has never run against a real attacker-controlled
+        domain in any environment. Exploiting it would additionally require the artist's own authenticated
+        session (or a compromised one) plus attacker control of a domain's DNS."
+      exploit_preconditions: "Attacker controls authoritative DNS for a domain, can serve a short TTL /
+        answer that changes between two queries within one request's lifetime, and can get an authenticated,
+        entitled artist to submit that domain's URL to the import action (or compromise that account)."
+      remaining_uncertainty: "Whether Vercel's runtime / undici's actual connection pooling behavior makes
+        the race easier or harder to win than a generic Node fetch() would suggest was not investigated.
+        Whether any WAF/network egress control at the platform level already narrows this (e.g. blocking
+        outbound connections to RFC1918 ranges regardless of application code) was not checked."
+    relationships:
+      analogous_uninspected_areas:
+        - "Any OTHER place in the codebase that fetches an artist- or attacker-influenced URL server-side
+          was not exhaustively re-surveyed for this finding beyond the two files cited (which WERE
+          inspected, not merely guessed-at); a repo-wide grep for `fetch(` sites that take a variable
+          (not a literal) URL would be the next inspection to run before treating this class as closed."
+    remediation:
+      status: "risk-accepted"
+      proposed_action: "If this is judged worth closing precisely: resolve the hostname to one validated
+        IP address and connect directly to it (setting the TLS SNI / Host header to the original hostname)
+        via a custom fetch dispatcher or Node's lower-level http(s).request, so there is no second,
+        independent DNS lookup for an attacker to win a race against. Until then, the mitigations already in
+        place (redirect:\"error\", auth + entitlement + rate limit gating, https-only) are the accepted
+        posture for this slice."
+      owner: "unassigned"
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed; recorded as an accepted, narrow, low-severity gap rather than silently
+        left undocumented. downloadInstagramThumbnail carries the same class of gap with less mitigation
+        around it (no auth/entitlement/rate-limit boundary, since it runs in unattended sync) and has not
+        been touched."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "implementation-worker (fd-slice1-worker, self-review while building FD4)"
+        action: "opened"
+        note: "Recorded while writing the SSRF guard itself, before any independent review looked at it;
+          flagging own residual risk rather than waiting for someone else to find it."
+
   - id: "PAY-UI-006"
     title: "Payments list UI cancel-button state set drifted from the core's authorization constant"
     summary: "payment-requests-list.tsx hand-duplicated a TERMINAL set instead of deriving cancel
@@ -12229,6 +12350,113 @@ findings:
           settled (its own new test). Mapping mutation-pinned (dropping the 500 branch
           reds the named test)."
 
+  - id: "HUB-GAL-003"
+    title: "Gallery URL-import's oversize guard buffered the ENTIRE response via
+      res.arrayBuffer() before checking its length, defeating the purpose of a
+      byte cap when Content-Length is absent or understated"
+    summary: "An earlier version of fetchImageForImport (gallery-url-import.ts) checked
+      the declared Content-Length header as an early reject, then called
+      `await res.arrayBuffer()` to read the WHOLE body before checking
+      `bytes.byteLength > MAX_UPLOAD_SIZE`. A server with no (or a false, small)
+      Content-Length header could have the function buffer an arbitrarily large body
+      into memory before the size check ever ran, which is exactly the
+      resource-exhaustion shape a streaming byte cap exists to prevent. Fixed in the
+      same slice, before this ever shipped, by reading the body via
+      `res.body.getReader()` and aborting (`reader.cancel()`) the moment the RUNNING
+      total crosses the cap, never waiting for the stream to finish."
+    classification:
+      domain: "web"
+      category: "availability"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "FD4 gallery Import-from-URL worker (inklee-worker)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "02c8b814"
+      environment: "local"
+      discovery_context: "Re-reading gallery-url-import.ts against the FD4 brief's
+        explicit requirement for 'a hard byte cap DURING streaming (not just
+        content-length header)' surfaced that the implementation only checked the
+        header early, then read the full body before its own size check."
+    location:
+      files:
+        - "apps/web/src/lib/server/gallery-url-import.ts"
+      symbols:
+        - "fetchImageForImport"
+    evidence:
+      observed_facts:
+        - "Pre-fix: `bytes = await res.arrayBuffer();` ran unconditionally once past the
+          Content-Length pre-check, before `bytes.byteLength > MAX_UPLOAD_SIZE` was ever
+          evaluated."
+        - "Mutation proof (2026-08-01): removed the mid-stream `if (total > MAX_UPLOAD_SIZE)
+          { await reader.cancel(); return ...}` check from the FIXED implementation and re-ran
+          gallery-url-import.test.ts; exactly one test failed ('aborts MID-STREAM the moment
+          actual bytes cross the cap...'), returning `{ok: true, file: File(6291456 bytes)}`
+          instead of the expected size-limit error — proving a 6MB body with no Content-Length
+          header passes through unless the streaming check is present. File restored
+          byte-identical afterwards (sha256
+          0e5513f5ccf4ffb8d3d0bbc04a9d2a2faabd9600b51af4ad4ef7e6dc684d6b42, verified before and
+          after)."
+      references:
+        - "apps/web/src/lib/server/__tests__/gallery-url-import.test.ts"
+      reproduction: "npx vitest run src/lib/server/__tests__/gallery-url-import.test.ts after
+        reverting the mid-stream abort check; the named MID-STREAM test fails, all others
+        pass."
+      contradictory_evidence: "None: the gap and the fix are both directly observed in the same
+        file, in the same slice, before any commit shipped it."
+    assessment:
+      interpretation: "A cap that is only ever evaluated on the fully-buffered result is not a
+        streaming cap; it buffers first and checks second, which is the opposite of what a
+        byte-cap-during-streaming requirement is for."
+      root_cause_hypothesis: "The declared-Content-Length early check reads as a complete
+        defense at a glance (it does reject the common case of an honest, oversized
+        Content-Length), so the second, authoritative check was written against the
+        already-fully-read `bytes` value rather than against the stream itself."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      production_exposure: "None: caught and fixed within the same uncommitted slice, before
+        any commit that included the arrayBuffer()-based version was created."
+      remaining_uncertainty: "None on the gap or the fix; both are directly observed and
+        mutation-proven in the same session."
+    relationships:
+      related_findings:
+        - "HUB-GAL-002"
+      analogous_uninspected_areas:
+        - "Any other server-side fetch of externally-controlled content that reads a body
+          into memory (none currently exist for artist/third-party-supplied URLs besides this
+          feature; see HUB-GAL-002's analogous-areas note) should be checked for the same
+          buffer-then-check-size mistake if one is added later."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "unknown"
+      proposed_action: "Already applied: stream the response via res.body.getReader(), track a
+        running byte total, and reader.cancel() the moment it exceeds MAX_UPLOAD_SIZE, never
+        waiting for the stream to complete or trusting Content-Length as anything more than an
+        early, optional pre-check."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Fixed by the same worker who found it; not independently verified. The
+        mutation proof (observed_facts above) shows the fix is load-bearing, but an independent
+        reviewer has not confirmed the fix itself is correct end-to-end (e.g. against a real
+        streamed HTTP response rather than the test's synthetic chunked-body double)."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "FD4 gallery Import-from-URL worker (inklee-worker)"
+        action: "opened"
+        note: "Found while re-reading the implementation against the FD4 brief's explicit
+          streaming-cap requirement."
+      - date: "2026-08-01"
+        actor: "FD4 gallery Import-from-URL worker (inklee-worker)"
+        action: "fix-committed"
+        note: "Rewrote the size check to stream via res.body.getReader() with a running-total
+          abort; mutation-proven (see observed_facts). fix_commit to be filled in after this
+          slice's commit is created."
+
 patterns:
 
   - id: "PAT-001"
@@ -14746,3 +14974,91 @@ coverage:
       reasoned only. No component-render harness: fee-display null branches on the three
       UI surfaces and the checkout UI are read-only conclusions. Mutants and logs retained
       outside the repo (session scratchpad trackc/ and A:/WORK/_verify-trackc)."
+
+  - area: "FD4 gallery 'Import from URL': the SSRF guard (ssrf-guard.ts), the guarded
+      server-side fetch (gallery-url-import.ts), the two actions that call it
+      (uploadGalleryImageAction / importGalleryImageFromUrlAction, actions.ts), the
+      rate limit (checkGalleryImportRateLimit, ratelimit.ts), and the parser's
+      Inklee-hosted-only restriction (sanitizeHostedGalleryImageUrl, bio-page.ts)"
+    subsystem: "web"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-01"
+    commit_inspected: "02c8b814"
+    reviewer: "implementation-worker who wrote this code (fd-slice1-worker) — NOT an
+      independent review; self-authored coverage only"
+    evidence: "ssrf-guard.test.ts (12 tests): IPv4/IPv6 private-range detection incl.
+      cloud metadata (169.254.169.254), CGNAT, documentation/benchmarking ranges, the
+      IPv4-mapped-IPv6 unwrap, fail-closed on an unparseable address / a DNS lookup
+      error / an empty resolution, and the DNS-rebinding-SHAPED case (one public +
+      one private resolved address must refuse). gallery-url-import.test.ts (12
+      tests): scheme/format validation, the SSRF refusal path, content-type allowlist
+      incl. a charset parameter, the declared-Content-Length short-circuit BEFORE
+      touching the body, the mid-stream byte-count abort with an assertion the
+      stream's cancel() was actually called, empty body, missing body. upload-
+      gallery-image.test.ts extended: entitlement-first (before any network call),
+      rate-limit refusal (before the ceiling read and the fetch), ceiling check,
+      guard-failure passthrough, not-signed-in — all asserting the ORDER of checks,
+      not just the outcome. bio-page-settings.test.ts extended: the real parser
+      drops a non-hosted https URL end-to-end (not just the pure-function unit
+      test), plus a dedicated sanitizeHostedGalleryImageUrl describe block incl. the
+      anchored-suffix check against a notsupabase.co-style near-miss host. Full repo
+      test suite: 166 files, 2868 passed + 1 expected fail (2869 total), up from the
+      2831-passed/1-expected-fail baseline (commit 02c8b814) by exactly the 37 tests
+      this slice added, zero regressions. tsc --noEmit clean (web + mobile); eslint
+      clean on every touched file."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "HUB-GAL-002"
+      - "HUB-GAL-003"
+    known_exclusions: "No live DNS-rebinding attempt (HUB-GAL-002's residual risk is
+      reasoned from the code, not reproduced against a real rebind). No independent
+      (different-instance) review of this slice yet — self-authored tests only. The
+      mobile side is untouched by design (native import is FD2, a separate,
+      already-queued item) and was not inspected here beyond confirming it has no
+      code path that could reach this feature yet. Rate limiting, the streaming
+      byte-cap fix (HUB-GAL-003), and the editor's separated upload/import pending
+      state were re-verified/completed in a LATER pass over this same slice (same
+      commit at entry time) after an earlier pass's edits to ratelimit.ts and
+      gallery-url-import.ts did not persist; six SSRF-guard mutations (169.254
+      range, DNS-rebinding fail-closed logic, the mid-stream byte cap,
+      redirect:\"error\", the isPublicHostname call itself, and the parser's
+      .supabase.co suffix check) were each individually deleted, confirmed to flip
+      exactly the test naming that guard red, and restored sha256-byte-identical."
+    recommended_next_inspection: "Independent review of the SSRF guard specifically
+      (a second instance, per the register's verification-independence rule); a
+      repo-wide grep for other fetch() call sites that take a variable (not literal)
+      URL, to check whether this class of gap is wider than the two files named in
+      HUB-GAL-002."
+
+  - area: "instagram-storage.ts's downloadInstagramThumbnail: the pre-existing
+      server-side fetch of an Instagram-supplied media URL, inspected ONLY as a
+      comparable while building the FD4 SSRF guard, not as its own audit target"
+    subsystem: "web"
+    coverage: "partial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-01"
+    commit_inspected: "02c8b814"
+    reviewer: "implementation-worker building FD4 (fd-slice1-worker), reading this
+      file only to compare its guard shape against the new one being written"
+    evidence: "Read isAllowedInstagramMediaUrl and downloadInstagramThumbnail in full
+      (instagram-storage.ts:1-87). Confirmed it validates ONLY protocol (https) and
+      hostname SUFFIX against a fixed allowlist (.cdninstagram.com, .fbcdn.net) —
+      no DNS resolution, no private-IP check of any kind — and uses
+      redirect:\"error\", the same redirect-bypass closure the new guard uses. This
+      is the SAME class of gap as HUB-GAL-002 (no defense against the target domain
+      itself being DNS-rebound), and it is LESS mitigated: no auth/entitlement/
+      rate-limit boundary around it, since it runs unattended in the Instagram sync
+      background job rather than from one gated artist action."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "HUB-GAL-002"
+    known_exclusions: "The REST of the Instagram sync pipeline (OAuth token
+      handling, the sync/import routes, rate limiting on the sync job itself) was
+      not inspected; only the one download function was read, and only for this one
+      comparison."
+    recommended_next_inspection: "A dedicated review of instagram-storage.ts as its
+      own audit target, not merely as a comparable: whether Instagram/Meta's own
+      domain stability is a defensible mitigation on its own, and whether the same
+      DNS-rebinding closure (if ever built for HUB-GAL-002) should be shared rather
+      than duplicated here."

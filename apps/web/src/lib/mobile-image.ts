@@ -8,10 +8,13 @@
 import { guardedSharp } from "@/lib/image-guard";
 import { serviceClient } from "@/lib/supabase/service";
 
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+// Exported so any OTHER path that produces bytes for this same pipeline (the
+// gallery "Import from URL" server-side fetch, FD4, 2026-08-01) enforces the
+// identical allowlist and cap rather than restating the numbers.
+export const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 // Kept under Vercel's ~4.5MB serverless body cap (a larger body is rejected by
 // the platform before the handler runs). The picker compresses well under this.
-const MAX_UPLOAD_SIZE = 4 * 1024 * 1024; // 4MB
+export const MAX_UPLOAD_SIZE = 4 * 1024 * 1024; // 4MB
 
 type FileResult =
   | { ok: true; file: File }

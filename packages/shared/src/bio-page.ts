@@ -409,7 +409,9 @@ export function sanitizeBioLinkUrl(raw: unknown): string | null {
 /** Allow only absolute http(s) image URLs. Unlike sanitizeBioLinkUrl this
  *  rejects mailto: and never prepends a scheme: an image src must be a real
  *  absolute URL, and a bare/relative value is dropped rather than guessed. This
- *  is what keeps a gallery's <img src> safe on a public page. */
+ *  is what keeps a gallery's <img src> safe on a public page. General-purpose
+ *  primitive; gallery images use the stricter `sanitizeHostedGalleryImageUrl`
+ *  below, which calls this first. */
 export function sanitizeImageUrl(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const v = raw.trim();
@@ -422,6 +424,43 @@ export function sanitizeImageUrl(raw: unknown): string | null {
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
   return parsed.toString();
+}
+
+/** The Supabase Storage public-URL marker every Inklee-hosted object uses
+ *  (bucket `logos`). Exported so `hub-images.ts` (web, orphan cleanup) reads
+ *  the SAME literal rather than keeping a second copy that could quietly
+ *  drift from what this gate accepts. */
+export const HOSTED_LOGOS_PUBLIC_MARKER = "/storage/v1/object/public/logos/";
+
+/** Allow only an Inklee-HOSTED absolute http(s) image URL: a `supabase.co`
+ *  host, under the `logos` bucket's public-object path (founder ruling FD4,
+ *  2026-08-01, SUPERSEDES GB2). A public gallery image must never render
+ *  from an arbitrary third-party host. Safe to enforce strictly
+ *  retroactively: the gallery capability has never been granted, so no
+ *  external-URL gallery data exists to break (verified against
+ *  `computeLegacyFreeV1Grant`, entitlements.ts).
+ *
+ *  Trust boundary note: this matches the CSP's existing `img-src
+ *  https://*.supabase.co` directive (next.config.ts) — any `*.supabase.co`
+ *  subdomain, not only this project's — so it is not a NEW trust boundary,
+ *  only this parser catching up to what the page already renders. A
+ *  same-project-only check would be strictly tighter but needs an env read,
+ *  which this module deliberately has none of (PURE, safe for client
+ *  bundles); the actual upload/import pipeline only ever writes to THIS
+ *  project's bucket, so this only matters for a hand-crafted save payload
+ *  naming a foreign Supabase project's public storage. */
+export function sanitizeHostedGalleryImageUrl(raw: unknown): string | null {
+  const url = sanitizeImageUrl(raw);
+  if (!url) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!parsed.hostname.toLowerCase().endsWith(".supabase.co")) return null;
+  if (!parsed.pathname.includes(HOSTED_LOGOS_PUBLIC_MARKER)) return null;
+  return url;
 }
 
 function blockId(raw: Record<string, unknown>, fallback: string): string {
@@ -460,13 +499,18 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
   }
 
   // An image gallery carries the artist's own images. Each image is kept only
-  // if its url is a safe absolute http(s) URL; captions/alt are trimmed and
-  // capped. Images past the cap are dropped, order preserved. A gallery with no
-  // valid image is a broken section, so it is dropped exactly like an empty
-  // headline. Entitlement is NOT checked here (pure parser, no database): the
-  // renderer + editor gate it on `rich_content_blocks` (founder ruling FD1,
-  // 2026-08-01), and stripping it here on a downgrade would silently delete
-  // the artist's saved work.
+  // if its url is an Inklee-HOSTED absolute http(s) URL (founder ruling FD4,
+  // 2026-08-01, SUPERSEDES GB2: the permanent free-text URL field is removed
+  // from the editor, so a gallery image now only ever reaches this parser via
+  // the direct-upload or "Import from URL" pipelines, both of which always
+  // write to Inklee's own storage — an external URL is dropped, exactly like
+  // an unsafe one); captions/alt are trimmed and capped. Images past the cap
+  // are dropped, order preserved. A gallery with no valid image is a broken
+  // section, so it is dropped exactly like an empty headline. Entitlement is
+  // NOT checked here (pure parser, no database): the renderer + editor gate
+  // it on `rich_content_blocks` (founder ruling FD1, 2026-08-01), and
+  // stripping it here on a downgrade would silently delete the artist's
+  // saved work.
   if (isMediaBlockType(o.type)) {
     const rawImages = Array.isArray(o.images) ? o.images : [];
     const images: BioGalleryImage[] = [];
@@ -474,7 +518,7 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
       if (images.length >= MAX_GALLERY_IMAGES) break;
       if (!item || typeof item !== "object") continue;
       const io = item as Record<string, unknown>;
-      const url = sanitizeImageUrl(io.url);
+      const url = sanitizeHostedGalleryImageUrl(io.url);
       if (!url) continue;
       const image: BioGalleryImage = { url };
       if (typeof io.caption === "string" && io.caption.trim()) {

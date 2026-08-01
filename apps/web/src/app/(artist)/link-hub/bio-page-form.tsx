@@ -2,7 +2,11 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { Trash2, Plus, Upload, ArrowUp, ArrowDown } from "lucide-react";
-import { saveBioPageAction, uploadGalleryImageAction } from "./actions";
+import {
+  saveBioPageAction,
+  uploadGalleryImageAction,
+  importGalleryImageFromUrlAction,
+} from "./actions";
 import { prepareImageUpload } from "@/lib/image-compress";
 import {
   MAX_HEADLINE,
@@ -167,10 +171,6 @@ export default function BioPageForm({
     block.type === "image_gallery" ? block.images : [];
   const setGalleryImages = (id: string, images: BioGalleryImage[]) =>
     patchBlock(id, { images });
-  const addImage = (id: string, current: BioGalleryImage[]) => {
-    if (current.length >= MAX_GALLERY_IMAGES) return;
-    setGalleryImages(id, [...current, { url: "" }]);
-  };
   const patchImage = (
     id: string,
     current: BioGalleryImage[],
@@ -201,8 +201,7 @@ export default function BioPageForm({
 
   // Real upload (Track B slice B2). Out-of-band from the settings save: the
   // action stores the image and returns a hosted URL, which is appended to the
-  // block like any other image and persisted by the normal Save. The URL input
-  // stays alongside (GB2: existing galleries may hold external URLs).
+  // block like any other image and persisted by the normal Save.
   const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [, startUploadTransition] = useTransition();
@@ -233,6 +232,49 @@ export default function BioPageForm({
         }
       } finally {
         setUploadingBlockId(null);
+      }
+    });
+  };
+
+  // "Import from URL" (founder ruling FD4, 2026-08-01, SUPERSEDES GB2):
+  // replaces the removed permanent free-text URL field. The typed URL is
+  // transient editor state, never part of the persisted block — the server
+  // downloads it, re-encodes it through the SAME pipeline as a direct upload,
+  // and returns an Inklee-hosted URL, which is appended exactly like an
+  // upload result. OWN pending/error state, deliberately not shared with
+  // upload: reusing uploadingBlockId/uploadError here would make the Upload
+  // button's own label read "Uploading..." while an import is in flight (and
+  // vice versa) — each control still disables the OTHER while either is
+  // pending, but the label always names the operation actually running.
+  const [importUrlByBlock, setImportUrlByBlock] = useState<
+    Record<string, string>
+  >({});
+  const [importingBlockId, setImportingBlockId] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [, startImportTransition] = useTransition();
+
+  const importImage = (
+    blockId: string,
+    current: BioGalleryImage[],
+    url: string,
+  ) => {
+    setImportError(null);
+    setImportingBlockId(blockId);
+    startImportTransition(async () => {
+      try {
+        const form = new FormData();
+        form.set("url", url);
+        const result = await importGalleryImageFromUrlAction(form);
+        if (!result.ok) {
+          setImportError(result.error);
+          return;
+        }
+        if (current.length < MAX_GALLERY_IMAGES) {
+          setGalleryImages(blockId, [...current, { url: result.url }]);
+        }
+        setImportUrlByBlock((prev) => ({ ...prev, [blockId]: "" }));
+      } finally {
+        setImportingBlockId(null);
       }
     });
   };
@@ -529,7 +571,7 @@ export default function BioPageForm({
                     </div>
                     {galleryImages(block).length === 0 && (
                       <p className="text-xs text-muted-foreground">
-                        No images yet. Add an image URL to show it here. An
+                        No images yet. Upload one or import from a URL below. An
                         empty gallery is not saved.
                       </p>
                     )}
@@ -540,18 +582,13 @@ export default function BioPageForm({
                           key={imgIndex}
                           className="flex flex-wrap items-start gap-2 rounded-md border border-border/60 px-2 py-2"
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={img.url}
+                            alt={img.alt ?? img.caption ?? ""}
+                            className="h-16 w-16 shrink-0 rounded object-cover"
+                          />
                           <div className="flex-1 space-y-2">
-                            <input
-                              value={img.url}
-                              onChange={(e) =>
-                                patchImage(block.id, imgs, imgIndex, {
-                                  url: e.target.value,
-                                })
-                              }
-                              placeholder="https://… image URL"
-                              inputMode="url"
-                              className={INPUT}
-                            />
                             <input
                               value={img.caption ?? ""}
                               onChange={(e) =>
@@ -606,11 +643,17 @@ export default function BioPageForm({
                     {uploadError && uploadingBlockId === null && (
                       <p className="text-xs text-destructive">{uploadError}</p>
                     )}
+                    {importError && importingBlockId === null && (
+                      <p className="text-xs text-destructive">{importError}</p>
+                    )}
                     {galleryImages(block).length < MAX_GALLERY_IMAGES && (
                       <div className="flex flex-wrap items-center gap-2">
                         <label
                           className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-brand-mustard px-3 py-1.5 text-xs font-semibold text-brand-charcoal transition-opacity hover:opacity-90 ${
-                            uploadingBlockId === block.id ? "opacity-60" : ""
+                            uploadingBlockId !== null ||
+                            importingBlockId !== null
+                              ? "pointer-events-none opacity-60"
+                              : ""
                           }`}
                         >
                           <Upload className="h-4 w-4" aria-hidden />
@@ -621,7 +664,10 @@ export default function BioPageForm({
                             type="file"
                             accept="image/png,image/jpeg,image/webp"
                             className="hidden"
-                            disabled={uploadingBlockId !== null}
+                            disabled={
+                              uploadingBlockId !== null ||
+                              importingBlockId !== null
+                            }
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               e.target.value = "";
@@ -635,15 +681,41 @@ export default function BioPageForm({
                             }}
                           />
                         </label>
+                        <input
+                          value={importUrlByBlock[block.id] ?? ""}
+                          onChange={(e) =>
+                            setImportUrlByBlock((prev) => ({
+                              ...prev,
+                              [block.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="https://… import from URL"
+                          inputMode="url"
+                          disabled={
+                            uploadingBlockId !== null ||
+                            importingBlockId !== null
+                          }
+                          className={`${INPUT} max-w-[14rem]`}
+                        />
                         <button
                           type="button"
-                          onClick={() =>
-                            addImage(block.id, galleryImages(block))
+                          disabled={
+                            uploadingBlockId !== null ||
+                            importingBlockId !== null ||
+                            !(importUrlByBlock[block.id] ?? "").trim()
                           }
-                          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+                          onClick={() =>
+                            importImage(
+                              block.id,
+                              galleryImages(block),
+                              (importUrlByBlock[block.id] ?? "").trim(),
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:opacity-40"
                         >
-                          <Plus className="h-4 w-4" aria-hidden />
-                          Add image URL
+                          {importingBlockId === block.id
+                            ? "Importing..."
+                            : "Import from URL"}
                         </button>
                       </div>
                     )}
@@ -696,8 +768,9 @@ export default function BioPageForm({
               // Featuring needs something to feature, and something NOT ALREADY
               // featured: seeding a duplicate would produce a block the parser
               // drops on save. The image gallery is a Plus rich block, so it is
-              // gated on the appearance-custom entitlement (the server enforces
-              // it at render + save; this only stops adding one that won't show).
+              // gated on the rich_content_blocks entitlement (founder ruling
+              // FD1, 2026-08-01; the server enforces it at render + save, this
+              // only stops adding one that won't show).
               disabled={
                 !canAddBlock(blocks, type) ||
                 (type === "featured_collection" &&

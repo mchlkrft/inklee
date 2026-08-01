@@ -223,6 +223,23 @@ export async function checkPublicMapSearchRateLimit(ip: string) {
   return check(publicMapSearchRl, ip);
 }
 
+// Gallery "Import from URL" (founder ruling FD4, 2026-08-01): 20 / artist /
+// hour. Unlike a direct upload, this call makes an OUTBOUND server-side fetch
+// to an artist-supplied, otherwise-arbitrary host (egress cost + SSRF-guard
+// work on every attempt), so it gets its own bucket rather than riding the
+// upload path's implicit no-limit. Per-user, no IP needed (an authenticated
+// Server Action, same shape as checkConnectKycRateLimit/
+// checkDepositRequestRateLimit): 20/h is generous for a real import session
+// (a dozen images from a portfolio site) while bounding how much outbound-
+// fetch amplification one account can trigger.
+const galleryImportRl = makeLimit(
+  Ratelimit.slidingWindow(20, "1 h"),
+  "inklee:gallery-import",
+);
+export async function checkGalleryImportRateLimit(userId: string) {
+  return check(galleryImportRl, userId);
+}
+
 // Studio media proxy (go-live plan S2b): image fan-out, so the ceiling is far
 // above the detail budget. One studio page can request a logo plus a dozen
 // photos, and browsers parallelize them; CDN hits never reach the function,

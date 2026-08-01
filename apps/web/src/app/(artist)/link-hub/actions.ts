@@ -14,7 +14,9 @@ import {
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import { readImageFromForm, processAndUpload } from "@/lib/mobile-image";
+import { fetchImageForImport } from "@/lib/server/gallery-url-import";
 import { removeDroppedHubImages } from "@/lib/server/hub-images";
+import { checkGalleryImportRateLimit } from "@/lib/ratelimit";
 
 type State =
   | { error: string }
@@ -143,51 +145,32 @@ export type GalleryUploadResult =
  *  shared caps, never a magic number, so a cap change moves this with it. */
 const MAX_HOSTED_GALLERY_IMAGES = MAX_BLOCKS_PER_TYPE * MAX_GALLERY_IMAGES;
 
-/**
- * Upload ONE gallery image (Track B slice B1). Out-of-band from the settings
- * save on purpose: the editor submits blocks as JSON, so files cannot ride that
- * submit; this action stores the image and returns the URL the client writes
- * into the block, which the normal save then persists.
- *
- * ENTITLEMENT FIRST (H4): the save path gates gallery blocks, so an unentitled
- * upload would only produce an orphaned storage object — refuse before touching
- * storage. The stored-image CEILING is counted server-side from the SAVED
- * settings (H6): the per-block cap of 12 lives in the parser, but an unsaved
- * block is invisible here, so the enforceable server bound is the total across
- * all saved gallery blocks. Unique path per upload (`{uid}/hub/{uuid}.webp`,
- * upsert:false, no cache-bust — the path never repeats and a query string
- * would pollute the settings JSON the save-gate deep-compares).
- */
-export async function uploadGalleryImageAction(
-  formData: FormData,
-): Promise<GalleryUploadResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Not signed in." };
-
-  // Fail-safe to unentitled on a plan-read blip: refuse new Plus content
-  // rather than over-grant (same posture as the save gate). Gated on
-  // rich_content_blocks (founder ruling FD1, 2026-08-01), not appearance_custom.
-  let entitled = false;
+/** ENTITLEMENT FIRST (H4), shared by BOTH ways a gallery image enters storage
+ *  (direct upload and "Import from URL", FD4): the save path gates gallery
+ *  blocks, so an unentitled write would only produce an orphaned storage
+ *  object — refuse before touching storage OR making an outbound fetch on the
+ *  artist's behalf. Fail-safe to unentitled on a plan-read blip. */
+async function requireGalleryEntitlement(userId: string): Promise<boolean> {
   try {
-    entitled = richContentBlocksAllowed(await getAccountOverrides(user.id));
+    return richContentBlocksAllowed(await getAccountOverrides(userId));
   } catch {
-    entitled = false;
+    return false;
   }
-  if (!entitled) {
-    return { ok: false, error: "Image galleries are a Plus feature." };
-  }
+}
 
-  const read = readImageFromForm(formData);
-  if (!read.ok) return { ok: false, error: read.error };
-
-  // Ceiling check against SAVED galleries.
+/** The stored-image CEILING, counted server-side from the SAVED settings
+ *  (H6), shared by both write paths: the per-block cap of 12 lives in the
+ *  parser, but an unsaved block is invisible here, so the enforceable server
+ *  bound is the total across all saved gallery blocks. Checked BEFORE the
+ *  (possibly network) work of processing or importing a new image. */
+async function galleryAtCapacity(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<boolean> {
   const { data: profile } = await supabase
     .from("profiles")
     .select("settings")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
   const bio = parseBioPageSettings(
     ((profile?.settings ?? {}) as Record<string, unknown>).bio_page,
@@ -196,15 +179,20 @@ export async function uploadGalleryImageAction(
     (sum, b) => sum + (b.type === "image_gallery" ? b.images.length : 0),
     0,
   );
-  if (storedImages >= MAX_HOSTED_GALLERY_IMAGES) {
-    return {
-      ok: false,
-      error: `You've reached the limit of ${MAX_HOSTED_GALLERY_IMAGES} gallery images. Remove some to add more.`,
-    };
-  }
+  return storedImages >= MAX_HOSTED_GALLERY_IMAGES;
+}
 
-  const result = await processAndUpload(read.file, {
-    path: `${user.id}/hub/${crypto.randomUUID()}.webp`,
+/** Re-encode + upload an already-validated file through the ONE sharp
+ *  pipeline every gallery image goes through, direct upload or import alike.
+ *  Unique path per upload (`{uid}/hub/{uuid}.webp`, upsert:false, no
+ *  cache-bust — the path never repeats and a query string would pollute the
+ *  settings JSON the save-gate deep-compares). */
+async function uploadProcessedGalleryFile(
+  userId: string,
+  file: File,
+): Promise<GalleryUploadResult> {
+  const result = await processAndUpload(file, {
+    path: `${userId}/hub/${crypto.randomUUID()}.webp`,
     width: 1600,
     height: 1600,
     // `inside`, never `cover`: the renderer crops with object-cover itself, and
@@ -215,4 +203,94 @@ export async function uploadGalleryImageAction(
   });
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true, url: result.url };
+}
+
+/**
+ * Upload ONE gallery image from a device file (Track B slice B1). Out-of-band
+ * from the settings save on purpose: the editor submits blocks as JSON, so
+ * files cannot ride that submit; this action stores the image and returns the
+ * URL the client writes into the block, which the normal save then persists.
+ */
+export async function uploadGalleryImageAction(
+  formData: FormData,
+): Promise<GalleryUploadResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  if (!(await requireGalleryEntitlement(user.id))) {
+    return { ok: false, error: "Image galleries are a Plus feature." };
+  }
+
+  const read = readImageFromForm(formData);
+  if (!read.ok) return { ok: false, error: read.error };
+
+  if (await galleryAtCapacity(supabase, user.id)) {
+    return {
+      ok: false,
+      error: `You've reached the limit of ${MAX_HOSTED_GALLERY_IMAGES} gallery images. Remove some to add more.`,
+    };
+  }
+
+  return uploadProcessedGalleryFile(user.id, read.file);
+}
+
+/**
+ * Import ONE gallery image from a URL (founder ruling FD4, 2026-08-01,
+ * SUPERSEDES GB2): replaces the removed permanent free-text URL field.
+ * Downloads the artist-supplied URL SERVER-SIDE under the SSRF guard
+ * (gallery-url-import.ts), then re-encodes and stores it through the SAME
+ * pipeline as a direct upload (`uploadProcessedGalleryFile`) — the stored
+ * gallery image is always Inklee-hosted either way, which is what makes the
+ * FD1 parser restriction (`sanitizeHostedGalleryImageUrl`, bio-page.ts) safe
+ * to enforce strictly.
+ *
+ * Same ordering as the direct upload for the shared checks (entitlement
+ * first, before any network fetch on the artist's behalf), plus one this
+ * action alone needs: a rate limit (checkGalleryImportRateLimit) BEFORE the
+ * capacity ceiling and the guarded download, since only THIS path spends
+ * Inklee's own egress fetching an artist-supplied, otherwise-arbitrary host.
+ */
+export async function importGalleryImageFromUrlAction(
+  formData: FormData,
+): Promise<GalleryUploadResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  if (!(await requireGalleryEntitlement(user.id))) {
+    return { ok: false, error: "Image galleries are a Plus feature." };
+  }
+
+  const rawUrl = formData.get("url");
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) {
+    return { ok: false, error: "Enter an image URL." };
+  }
+
+  // Rate limit BEFORE the ceiling read and the outbound fetch: unlike a
+  // direct upload, this action spends Inklee's own egress fetching an
+  // artist-supplied, otherwise-arbitrary URL (FD4, founder ruling 2026-08-01).
+  const limit = await checkGalleryImportRateLimit(user.id);
+  if (!limit.allowed) {
+    return {
+      ok: false,
+      error: "Too many attempts. Please wait a moment and try again.",
+    };
+  }
+
+  if (await galleryAtCapacity(supabase, user.id)) {
+    return {
+      ok: false,
+      error: `You've reached the limit of ${MAX_HOSTED_GALLERY_IMAGES} gallery images. Remove some to add more.`,
+    };
+  }
+
+  const fetched = await fetchImageForImport(rawUrl.trim());
+  if (!fetched.ok) return fetched;
+
+  return uploadProcessedGalleryFile(user.id, fetched.file);
 }

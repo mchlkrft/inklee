@@ -10,11 +10,15 @@ const {
   getAccountOverrides,
   richContentBlocksAllowed,
   processUpload,
+  fetchImageForImport,
+  checkGalleryImportRateLimit,
 } = vi.hoisted(() => ({
   getUser: vi.fn(),
   getAccountOverrides: vi.fn(),
   richContentBlocksAllowed: vi.fn(),
   processUpload: vi.fn(),
+  fetchImageForImport: vi.fn(),
+  checkGalleryImportRateLimit: vi.fn(),
 }));
 
 const { profileSettings } = vi.hoisted(() => ({
@@ -52,8 +56,18 @@ vi.mock("@/lib/mobile-image", async () => {
     processAndUpload: (...a: unknown[]) => processUpload(...a),
   };
 });
+vi.mock("@/lib/server/gallery-url-import", () => ({
+  fetchImageForImport: (...a: unknown[]) => fetchImageForImport(...a),
+}));
+vi.mock("@/lib/ratelimit", () => ({
+  checkGalleryImportRateLimit: (...a: unknown[]) =>
+    checkGalleryImportRateLimit(...a),
+}));
 
-import { uploadGalleryImageAction } from "../actions";
+import {
+  uploadGalleryImageAction,
+  importGalleryImageFromUrlAction,
+} from "../actions";
 
 function formWithImage(): FormData {
   const form = new FormData();
@@ -63,6 +77,13 @@ function formWithImage(): FormData {
   );
   return form;
 }
+
+// Real Inklee-hosted shape (founder ruling FD4, 2026-08-01, SUPERSEDES GB2):
+// the parser now drops a non-hosted URL, so a fixture using a plain
+// `cdn.example` stand-in would silently parse to ZERO stored images and
+// falsely pass the H6 ceiling test regardless of the count below.
+const HOSTED =
+  "https://x.supabase.co/storage/v1/object/public/logos/artist1/hub";
 
 /** N stored gallery images across blocks, as saved settings would hold them. */
 function settingsWithImages(count: number): Record<string, unknown> {
@@ -76,7 +97,7 @@ function settingsWithImages(count: number): Record<string, unknown> {
       type: "image_gallery",
       layout: "grid",
       images: Array.from({ length: n }, (_, j) => ({
-        url: `https://cdn.example/${i}-${j}.webp`,
+        url: `${HOSTED}/${i}-${j}.webp`,
       })),
     });
     remaining -= n;
@@ -94,7 +115,18 @@ beforeEach(() => {
     ok: true,
     url: "https://cdn.example/logos/artist1/hub/uuid.webp",
   });
+  fetchImageForImport.mockResolvedValue({
+    ok: true,
+    file: new File([new Uint8Array(16)], "a.jpg", { type: "image/jpeg" }),
+  });
+  checkGalleryImportRateLimit.mockResolvedValue({ allowed: true });
 });
+
+function formWithUrl(url: string): FormData {
+  const form = new FormData();
+  form.set("url", url);
+  return form;
+}
 
 describe("uploadGalleryImageAction", () => {
   it("uploads with the unique hub path, inside-fit, no upsert, no cache-bust", async () => {
@@ -165,5 +197,99 @@ describe("uploadGalleryImageAction", () => {
     expect(r).toEqual({ ok: false, error: "Not signed in." });
     expect(richContentBlocksAllowed).not.toHaveBeenCalled();
     expect(processUpload).not.toHaveBeenCalled();
+  });
+});
+
+// importGalleryImageFromUrlAction (founder ruling FD4, 2026-08-01, SUPERSEDES
+// GB2): the SAME entitlement-first / ceiling / unique-path posture as the
+// direct upload, sourcing bytes from `fetchImageForImport` (mocked here —
+// its own guard logic is covered by gallery-url-import.test.ts) instead of a
+// device file.
+describe("importGalleryImageFromUrlAction", () => {
+  it("imports and uploads through the SAME pipeline as a direct upload", async () => {
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg"),
+    );
+    expect(r).toEqual({
+      ok: true,
+      url: "https://cdn.example/logos/artist1/hub/uuid.webp",
+    });
+    expect(fetchImageForImport).toHaveBeenCalledWith(
+      "https://example.com/a.jpg",
+    );
+    expect(processUpload).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        path: expect.stringMatching(/^artist1\/hub\/[0-9a-f-]{36}\.webp$/),
+        fit: "inside",
+        upsert: false,
+        cacheBust: false,
+      }),
+    );
+  });
+
+  it("refuses a rate-limited artist BEFORE the ceiling read and BEFORE fetching", async () => {
+    checkGalleryImportRateLimit.mockResolvedValue({ allowed: false });
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg"),
+    );
+    expect(r).toEqual({
+      ok: false,
+      error: "Too many attempts. Please wait a moment and try again.",
+    });
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unentitled artist BEFORE fetching anything (H4, extended to imports)", async () => {
+    richContentBlocksAllowed.mockReturnValue(false);
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg"),
+    );
+    expect(r).toEqual({
+      ok: false,
+      error: "Image galleries are a Plus feature.",
+    });
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing/blank url before anything else", async () => {
+    const r = await importGalleryImageFromUrlAction(formWithUrl("   "));
+    expect(r).toEqual({ ok: false, error: "Enter an image URL." });
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+  });
+
+  it("enforces the SAME hosted-image ceiling as direct upload (H6), before fetching", async () => {
+    profileSettings.value = settingsWithImages(120);
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg"),
+    );
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toContain("limit of 120");
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the guard's specific failure reason unchanged (e.g. SSRF refusal)", async () => {
+    fetchImageForImport.mockResolvedValue({
+      ok: false,
+      error: "That URL can't be reached.",
+    });
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://169.254.169.254/latest/meta-data/"),
+    );
+    expect(r).toEqual({ ok: false, error: "That URL can't be reached." });
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it("refuses when not signed in, before anything else", async () => {
+    getUser.mockResolvedValue({ data: { user: null } });
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg"),
+    );
+    expect(r).toEqual({ ok: false, error: "Not signed in." });
+    expect(richContentBlocksAllowed).not.toHaveBeenCalled();
+    expect(fetchImageForImport).not.toHaveBeenCalled();
   });
 });

@@ -317,10 +317,37 @@ Two things follow, both done here:
   is a prerequisite before the rich blocks are granted to anyone** (same gate as
   `goods_collections`): the guard prevents a crash, but the native summary +
   gated add button only exist from the next build onward. Files: shared
-  `bio-page.ts` (union + parser + `sanitizeImageUrl`), web `hub/page.tsx` +
-  `feature-blocks.tsx` (render), `link-hub/*` (editor), mobile
-  `settings/hub/route.ts` (`richBlocksAllowed`) + `app/settings/link-hub.tsx`
+  `bio-page.ts` (union + parser + `sanitizeHostedGalleryImageUrl`, FD4 below),
+  web `hub/page.tsx` + `feature-blocks.tsx` (render), `link-hub/*` (editor),
+  mobile `settings/hub/route.ts` (`richBlocksAllowed`) + `app/settings/link-hub.tsx`
   (summary + gated add). On `feat/p5d-collections`, NOT on master.
+
+  **FD4 (2026-08-01, founder ruling, SUPERSEDES GB2): the permanent free-text
+  gallery URL field is REMOVED.** In its place, `link-hub/bio-page-form.tsx`
+  gained an "Import from URL" control (a per-image thumbnail preview replaces
+  the old editable url `<input>`). The new `importGalleryImageFromUrlAction`
+  (`link-hub/actions.ts`) downloads the artist-supplied URL SERVER-SIDE under
+  an SSRF guard (`lib/server/ssrf-guard.ts`: resolves the hostname, refuses a
+  private/loopback/link-local/cloud-metadata address; `redirect:"error"` so a
+  redirect can't bypass the check; a mid-stream byte-count abort so the 4MB
+  cap holds even against a body with no or a false Content-Length) plus a
+  20/artist/hour rate limit (`checkGalleryImportRateLimit`, `lib/ratelimit.ts`,
+  since this action spends Inklee's own egress on an otherwise-arbitrary host),
+  then re-encodes and stores it through the SAME `processAndUpload` pipeline as
+  a direct upload. The shared parser (`sanitizeHostedGalleryImageUrl`,
+  `bio-page.ts`) now ALSO refuses any gallery image url that is not on this
+  project's Supabase Storage `logos` bucket, so a hand-crafted save payload
+  naming an external URL is dropped at the data layer too, not only hidden by
+  the editor. Web-only, matching D4's existing web-only-editing-v1 posture:
+  the native editor still shows a read-only summary and does not gain a native
+  import affordance in this slice (that is FD2, native full editing parity,
+  tracked separately). Residual risk, recorded rather than hidden
+  (`docs/audit/findings.yaml`): the SSRF guard validates the resolved address
+  BEFORE the request, not the address `fetch()` itself connects to, so a
+  DNS-rebinding attacker could in principle serve a public address to the
+  check and a private one to the real connection — closing that fully needs
+  resolving to one address and connecting to it directly, a larger change than
+  this slice.
 
 - **2026-08-01 — P9 artist payment-requests WEB UI, slices 2a + 2b (branch-only).**
   Web surface for appointment payments under `(artist)/bookings/payments`: the

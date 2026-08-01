@@ -1794,3 +1794,97 @@ note on the existing `image_gallery` parity entry), `docs/product/account-
 and-entitlement-system.md` (20 feature keys, 11 gates, new gate row, current
 test count), `docs/product/plus-build-time-decisions.md` (implementation
 note under the FD rulings section).
+
+---
+
+**2026-08-01 — FD4: gallery "Import from URL" (SUPERSEDES GB2).** Founder
+ruling FD4 (board item, `plus-consolidated-review-handoff.md` §1a): "the
+permanent raw URL field is removed... download SERVER-SIDE through the
+existing upload pipeline, stores in Inklee storage." Same slice as the FD1
+build above extends into.
+
+**What shipped.** `link-hub/bio-page-form.tsx`'s per-image editable url
+`<input>` is REMOVED, replaced by a read-only thumbnail preview and an
+"Import from URL" control next to "Upload image". New
+`importGalleryImageFromUrlAction` (`link-hub/actions.ts`) downloads the
+artist-supplied URL server-side and stores it through the SAME
+`processAndUpload` pipeline as a direct upload — refactored the shared tail
+(`requireGalleryEntitlement`, `galleryAtCapacity`,
+`uploadProcessedGalleryFile`) so both actions enforce the identical
+entitlement-first / ceiling-before-network-work ordering rather than
+diverging over time.
+
+**New SSRF guard** (`apps/web/src/lib/server/ssrf-guard.ts`): resolves the
+target hostname via DNS and refuses to fetch if it (or an IP-literal itself)
+is loopback, RFC1918-private, link-local (including the 169.254.169.254
+cloud-metadata address every cloud provider uses), CGNAT, documentation, or
+multicast/reserved — fails closed on a lookup error or an unparseable
+address. This is a DIFFERENT shape of guard than the pre-existing
+`downloadInstagramThumbnail` (`instagram-storage.ts`), which trusts a FIXED
+host-suffix allowlist (Instagram/Facebook's own CDN): the whole point of
+gallery import is fetching a host nobody pre-approved, so there is no
+allowlist to lean on, and the address-validation step is the actual defense.
+`redirect:"error"` on the outbound `fetch()` (`gallery-url-import.ts`) closes
+the redirect-based bypass completely (no second hop to re-validate). The
+declared `Content-Length` is treated as an early, cheap rejection only; the
+actual response body is read via a streaming reader that counts bytes as
+they arrive and aborts (cancelling the stream) the moment the running total
+crosses the 4MB cap, so the cap holds even against a server that sends an
+unbounded body with no, or a false, Content-Length. A 20/artist/hour rate
+limit (`checkGalleryImportRateLimit`, `lib/ratelimit.ts`) sits before the
+ceiling check and the fetch, since this action spends Inklee's own egress on
+an otherwise-arbitrary host, unlike a direct upload.
+
+**Parser tightened to match** (`packages/shared/src/bio-page.ts`): a new
+`sanitizeHostedGalleryImageUrl` requires a `supabase.co` host under the
+`logos` bucket's public-object marker (`HOSTED_LOGOS_PUBLIC_MARKER`, also
+now the ONE source `hub-images.ts`'s orphan-cleanup path imports, closing a
+second local copy of the same literal that could have drifted). A gallery
+image whose url is not Inklee-hosted is dropped at the parser, not merely
+hidden by the editor UI — so a hand-crafted save payload naming an external
+URL is refused at the data layer. Safe to enforce strictly retroactively:
+re-verified (same check as FD1) that `computeLegacyFreeV1Grant` never
+granted the gallery capability, so no external-URL gallery data exists
+anywhere to break.
+
+**Scope boundary.** Web-only, matching D4's pre-existing web-only-editing-v1
+posture: the native editor is untouched (still a read-only summary) and does
+not gain an import affordance in this slice. Native gallery editing
+(including import) is FD2, a separate already-queued build item (#48).
+
+**Residual risk, recorded not hidden** (`docs/audit/findings.yaml`): the
+SSRF guard validates the resolved address BEFORE the request, not the
+address `fetch()` itself connects to. A DNS-rebinding attacker who controls
+a domain's records could in principle serve a public address to the check
+and a private one moments later to the real connection; fully closing that
+needs resolving to one address and connecting to it directly (bypassing the
+independent DNS lookup inside `fetch`), a larger change than this slice. The
+same gap exists, MORE exposed, in the pre-existing
+`downloadInstagramThumbnail`, which runs unattended in background sync
+rather than from one explicit artist action, and has no address-validation
+step at all today.
+
+**Validation.** `npx tsc --noEmit` clean (web + mobile); `eslint` 0 errors
+on every touched file. New/updated test files: `ssrf-guard.test.ts` (12
+tests: IPv4/IPv6 private-range detection incl. cloud metadata and the
+IPv4-mapped-IPv6 unwrap, the DNS-rebinding-shaped "any address private"
+case, fail-closed on lookup error/empty result), `gallery-url-import.test.ts`
+(12 tests: scheme/format validation, the SSRF refusal, content-type
+allowlist incl. a charset parameter, the declared-length short-circuit, the
+mid-stream abort with an assertion the stream was actually cancelled, empty
+body, missing body), `upload-gallery-image.test.ts` (extended: entitlement-
+first, rate-limit refusal, ceiling, guard-failure passthrough, not-signed-in,
+all before-the-network-work ordering), `bio-page-settings.test.ts` (extended:
+the parser drops a non-hosted https url end-to-end, plus a dedicated
+`sanitizeHostedGalleryImageUrl` describe block incl. the anchored-suffix
+check against a `notsupabase.co`-style near-miss host). Full `npx vitest run`:
+166 files, 2868 passed + 1 expected fail (2869 total) — up from the
+2831-passed/1-expected-fail baseline (FD1 commit `02c8b814`) by exactly the
+37 tests this slice added (12 `ssrf-guard.test.ts` + 12 `gallery-url-
+import.test.ts`, both new files, + 6 `bio-page-settings.test.ts` + 7
+`upload-gallery-image.test.ts`), zero regressions. `pnpm audit:validate` /
+`pnpm audit:generate` both clean; new findings `HUB-GAL-002` (the SSRF
+guard's DNS-rebinding residual risk, self-flagged) and `HUB-GAL-003` (an
+earlier draft's byte cap buffered the whole response via `res.arrayBuffer()`
+before checking length; found and fixed in the same slice, mutation-proven
+via a streaming running-total abort) plus coverage rows.

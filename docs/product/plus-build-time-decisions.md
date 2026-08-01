@@ -873,3 +873,72 @@ Validation: `npx tsc --noEmit` clean (web + mobile), eslint 0 errors on every
 touched file, full `npx vitest run` 164 files / 2831 passed + 1 expected fail
 (baseline 2823 passed + 1 expected fail, +8 exactly matching the tests this
 slice added), zero regressions.
+
+### 2026-08-01 — FD4 implementation note (gallery "Import from URL")
+
+Implements board item FD4 (`plus-consolidated-review-handoff.md` §1a):
+"the permanent raw URL field is REMOVED; SUPERSEDES GB2." Full narrative in
+`docs/product/plus-build-progress.md`.
+
+**What changed.** `link-hub/bio-page-form.tsx`'s per-image editable url
+`<input>` (the field an artist could paste ANY url into) is gone, replaced by
+a read-only thumbnail plus an "Import from URL" control beside "Upload
+image". The new `importGalleryImageFromUrlAction` (`link-hub/actions.ts`)
+downloads the artist-supplied URL SERVER-SIDE — under an SSRF guard
+(`lib/server/ssrf-guard.ts`: resolves the hostname via DNS, refuses a
+private/loopback/link-local/cloud-metadata address, fails closed on a lookup
+error) plus `redirect:"error"` (no bypass via a redirect to an internal
+host) plus a mid-stream byte-count abort (`gallery-url-import.ts`: the 4MB
+cap holds even against a body with no, or a false, Content-Length) — then
+re-encodes and stores it through the SAME `processAndUpload` pipeline a
+direct upload uses. A 20/artist/hour rate limit
+(`checkGalleryImportRateLimit`, `lib/ratelimit.ts`) sits before the fetch,
+since this action spends Inklee's own egress on an otherwise-arbitrary host.
+The shared parser (`sanitizeHostedGalleryImageUrl`, `packages/shared/src/
+bio-page.ts`) now ALSO refuses a gallery image whose url is not on this
+project's Supabase Storage `logos` bucket, so a hand-crafted save payload
+naming an external URL is dropped at the data layer, not merely hidden by
+the editor UI. Safe to enforce this strictly, retroactively: the gallery
+capability has never been granted (verified against
+`computeLegacyFreeV1Grant`, entitlements.ts, same check as FD1), so no
+external-URL gallery data exists anywhere to break.
+
+**Scope boundary.** Web-only, matching D4's existing web-only-editing-v1
+posture: the native editor is unchanged (still a read-only summary) and does
+not gain an import affordance in this slice — native gallery editing,
+including import, is FD2 (a separate, already-queued build item), not part
+of FD4.
+
+**Residual risk, recorded rather than hidden**
+(`docs/audit/findings.yaml`): the SSRF guard validates the resolved address
+BEFORE the request, not the address the eventual `fetch()` call actually
+connects to. A DNS-rebinding attacker who controls a domain's records could
+in principle serve a public address to the check and a private one moments
+later to the real connection. `redirect:"error"` closes the OTHER classic
+SSRF bypass (redirect-to-internal-host) completely, since there is no second
+hop to rebind. Fully closing the DNS-rebinding gap needs resolving to ONE
+validated address and connecting to it directly (bypassing the independent
+DNS lookup inside `fetch`) via a custom dispatcher — a larger change than
+this slice, flagged rather than silently accepted as solved. The SAME gap
+exists, more exposed, in the pre-existing `downloadInstagramThumbnail`
+(`instagram-storage.ts`), which runs unattended in background sync rather
+than from a single explicit artist action and has no address-validation step
+at all today (only a fixed CDN host-suffix allowlist).
+
+Validation: `npx tsc --noEmit` clean (web + mobile), eslint 0 errors on every
+touched file; new/updated tests: `ssrf-guard.test.ts` (12), `gallery-url-
+import.test.ts` (12), `upload-gallery-image.test.ts` (extended, 14 total: 7
+original + 7 new in the import/rate-limit describe block), `bio-page-settings.test.ts`
+(extended with the FD4 hosted-only parser tests + a dedicated
+`sanitizeHostedGalleryImageUrl` describe block). Full `npx vitest run`: 166
+files, 2868 passed + 1 expected fail (2869 total), up from the
+2831-passed/1-expected-fail FD1 baseline by exactly the 37 tests this slice
+added, zero regressions. `docs/audit/findings.yaml` updated: new findings
+`HUB-GAL-002` (the guard's DNS-rebinding residual risk, self-flagged rather
+than left unrecorded) and `HUB-GAL-003` (an earlier draft of the byte cap
+read the WHOLE response via `res.arrayBuffer()` before checking its length,
+found re-reading against this brief's own "cap DURING streaming"
+requirement and fixed in the same slice by switching to a
+`res.body.getReader()` running-total mid-stream abort; mutation-proven —
+deleting the abort check flips exactly the MID-STREAM test) plus coverage
+rows; `pnpm audit:validate` and `pnpm audit:generate` both clean.

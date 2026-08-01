@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `66839d15d260`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `2fa0fa4d8eef`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -80,7 +80,7 @@ Operational view. Generated from the ledger; do not edit.
 
 _None._
 
-## Fixed but NOT verified (30)
+## Fixed but NOT verified (31)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -111,6 +111,7 @@ A commit exists. Nothing independent has confirmed it works.
 | TEST-VAC-007 | medium | testing | currently-unreachable | latent | The webhook deposit fee-schedule/tier stamp, the flagship FEE-STP-001 site, has no route-level coverage: reverting it to the settlement-time ACTIVE read survives |
 | BILL-UI-003 | low | billing | conditionally-reachable | latent | Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the order screen |
 | COPY-UI-001 | low | web | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
+| HUB-GAL-003 | low | web | currently-unreachable | latent | Gallery URL-import's oversize guard buffered the ENTIRE response via res.arrayBuffer() before checking its length, defeating the purpose of a byte cap when Content-Length is absent or understated |
 | OPS-LINT-001 | low | ci-cd | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
 | PAY-UI-006 | low | payment | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
 | SHOP-FUL-005 | low | webhook | conditionally-reachable | latent | A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal falls entirely to the daily sweep: worst case roughly two days with money captured and the order still pending |
@@ -129,10 +130,11 @@ _None._
 | --- | --- | --- | --- | --- | --- |
 | PAY-BAL-001 | high | payment | conditionally-reachable | latent | deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production |
 
-## Risk accepted (1)
+## Risk accepted (2)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
+| HUB-GAL-002 | low | web | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
 | SHOP-MIG-002 | low | database | currently-unreachable | latent | order_items.bundle_id is a single-column FK, not the composite artist-scoped FK the repo convention uses to make cross-artist rows unstorable |
 
 ## Mitigated but not fixed (1)

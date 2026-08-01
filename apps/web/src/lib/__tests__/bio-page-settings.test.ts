@@ -16,6 +16,7 @@ import {
   MAX_TEXT,
   MAX_BLOCKS_PER_TYPE,
   sanitizeImageUrl,
+  sanitizeHostedGalleryImageUrl,
   MAX_GALLERY_IMAGES,
   MAX_GALLERY_CAPTION,
 } from "../bio-page-settings";
@@ -513,14 +514,19 @@ describe("sanitizeImageUrl", () => {
 // image_gallery (Plus build, Stage 3). Parser keeps the block regardless of
 // entitlement (that is enforced at render + editor on `rich_content_blocks`,
 // founder ruling FD1, 2026-08-01, split off `appearance_custom`); here we
-// prove the content sanitization, the caps, and the drop rules.
+// prove the content sanitization, the caps, and the drop rules. Fixture URLs
+// use the real Inklee-hosted shape (founder ruling FD4, 2026-08-01,
+// SUPERSEDES GB2: gallery images must be Inklee-hosted, so a `cdn.inklee`-style
+// stand-in URL is no longer "safe" — it is exactly what this parser now drops).
+const HOSTED = "https://x.supabase.co/storage/v1/object/public/logos/u1/hub";
+
 describe("parseBioPageSettings — image_gallery block", () => {
   function gallery(over: Record<string, unknown> = {}) {
     return {
       blocks: [
         {
           type: "image_gallery",
-          images: [{ url: "https://cdn.inklee/a.jpg" }],
+          images: [{ url: `${HOSTED}/a.jpg` }],
           ...over,
         },
       ],
@@ -533,7 +539,7 @@ describe("parseBioPageSettings — image_gallery block", () => {
     const b = blocks[0];
     expect(b.type).toBe("image_gallery");
     if (b.type === "image_gallery") {
-      expect(b.images).toEqual([{ url: "https://cdn.inklee/a.jpg" }]);
+      expect(b.images).toEqual([{ url: `${HOSTED}/a.jpg` }]);
       expect(b.layout).toBe("grid");
     }
   });
@@ -557,12 +563,12 @@ describe("parseBioPageSettings — image_gallery block", () => {
         images: [
           { url: "javascript:alert(1)" },
           { url: "/relative.jpg" },
-          { url: "https://cdn.inklee/ok.jpg" },
+          { url: `${HOSTED}/ok.jpg` },
         ],
       }),
     ).blocks[0];
     expect((kept as { images: unknown[] }).images).toEqual([
-      { url: "https://cdn.inklee/ok.jpg" },
+      { url: `${HOSTED}/ok.jpg` },
     ]);
 
     const dropped = parseBioPageSettings(
@@ -575,17 +581,40 @@ describe("parseBioPageSettings — image_gallery block", () => {
     );
   });
 
+  // FD4 (2026-08-01, SUPERSEDES GB2): the permanent free-text URL field is
+  // removed from the editor precisely because an external URL must never
+  // reach a public gallery. Proves the END-TO-END behaviour through the real
+  // parser, not just the unit-level sanitizeHostedGalleryImageUrl below: an
+  // otherwise well-formed, absolute https URL is dropped, and a mixed gallery
+  // keeps only the hosted image.
+  it("drops an otherwise-valid but NON-Inklee-hosted https URL", () => {
+    const dropped = parseBioPageSettings(
+      gallery({ images: [{ url: "https://cdn.example.com/a.jpg" }] }),
+    ).blocks;
+    expect(dropped).toHaveLength(0);
+
+    const mixed = parseBioPageSettings(
+      gallery({
+        images: [
+          { url: "https://cdn.example.com/external.jpg" },
+          { url: `${HOSTED}/kept.jpg` },
+        ],
+      }),
+    ).blocks[0] as { images: { url: string }[] };
+    expect(mixed.images).toEqual([{ url: `${HOSTED}/kept.jpg` }]);
+  });
+
   it("caps images at MAX_GALLERY_IMAGES, order preserved", () => {
     const many = Array.from({ length: MAX_GALLERY_IMAGES + 5 }, (_, i) => ({
-      url: `https://cdn.inklee/${i}.jpg`,
+      url: `${HOSTED}/${i}.jpg`,
     }));
     const b = parseBioPageSettings(gallery({ images: many })).blocks[0] as {
       images: { url: string }[];
     };
     expect(b.images).toHaveLength(MAX_GALLERY_IMAGES);
-    expect(b.images[0].url).toBe("https://cdn.inklee/0.jpg");
+    expect(b.images[0].url).toBe(`${HOSTED}/0.jpg`);
     expect(b.images.at(-1)!.url).toBe(
-      `https://cdn.inklee/${MAX_GALLERY_IMAGES - 1}.jpg`,
+      `${HOSTED}/${MAX_GALLERY_IMAGES - 1}.jpg`,
     );
   });
 
@@ -594,7 +623,7 @@ describe("parseBioPageSettings — image_gallery block", () => {
       gallery({
         images: [
           {
-            url: "https://cdn.inklee/a.jpg",
+            url: `${HOSTED}/a.jpg`,
             caption: "  hello  ",
             alt: "   ",
           },
@@ -608,7 +637,7 @@ describe("parseBioPageSettings — image_gallery block", () => {
   it("caps a long caption at MAX_GALLERY_CAPTION", () => {
     const b = parseBioPageSettings(
       gallery({
-        images: [{ url: "https://cdn.inklee/a.jpg", caption: "x".repeat(500) }],
+        images: [{ url: `${HOSTED}/a.jpg`, caption: "x".repeat(500) }],
       }),
     ).blocks[0] as { images: { caption?: string }[] };
     expect(b.images[0].caption).toHaveLength(MAX_GALLERY_CAPTION);
@@ -617,9 +646,70 @@ describe("parseBioPageSettings — image_gallery block", () => {
   it("caps gallery blocks at the standard per-type block cap", () => {
     const blocks = Array.from({ length: MAX_BLOCKS_PER_TYPE + 3 }, () => ({
       type: "image_gallery",
-      images: [{ url: "https://cdn.inklee/a.jpg" }],
+      images: [{ url: `${HOSTED}/a.jpg` }],
     }));
     const parsed = parseBioPageSettings({ blocks }).blocks;
     expect(parsed).toHaveLength(MAX_BLOCKS_PER_TYPE);
+  });
+});
+
+// The pure host+path restriction directly (FD4, 2026-08-01, SUPERSEDES GB2),
+// independent of the parser's other rules (caps, caption trimming, etc.).
+describe("sanitizeHostedGalleryImageUrl", () => {
+  it("accepts a supabase.co host under the logos bucket's public marker", () => {
+    expect(sanitizeHostedGalleryImageUrl(`${HOSTED}/a.jpg`)).toBe(
+      `${HOSTED}/a.jpg`,
+    );
+    expect(
+      sanitizeHostedGalleryImageUrl(
+        "http://project-ref.supabase.co/storage/v1/object/public/logos/x.png",
+      ),
+    ).toBe(
+      "http://project-ref.supabase.co/storage/v1/object/public/logos/x.png",
+    );
+  });
+
+  it("rejects a well-formed http(s) URL on a non-supabase.co host", () => {
+    expect(
+      sanitizeHostedGalleryImageUrl("https://cdn.example.com/a.jpg"),
+    ).toBeNull();
+  });
+
+  it("rejects a supabase.co host missing the logos-bucket public marker", () => {
+    // Right host, wrong path shape (a different bucket, or not a storage URL
+    // at all) — the host alone is not sufficient.
+    expect(
+      sanitizeHostedGalleryImageUrl(
+        "https://x.supabase.co/storage/v1/object/public/other-bucket/a.jpg",
+      ),
+    ).toBeNull();
+    expect(
+      sanitizeHostedGalleryImageUrl(
+        "https://x.supabase.co/some/other/path.jpg",
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects a host that merely CONTAINS supabase.co without being a subdomain of it", () => {
+    // "notsupabase.co" does not end with ".supabase.co" (no dot boundary);
+    // proves the suffix check is anchored, not a bare substring match.
+    expect(
+      sanitizeHostedGalleryImageUrl(
+        "https://notsupabase.co/storage/v1/object/public/logos/a.jpg",
+      ),
+    ).toBeNull();
+  });
+
+  it("still rejects everything the base sanitizeImageUrl rejects (relative, mailto, data, javascript)", () => {
+    for (const bad of [
+      "cdn.inklee/x.jpg",
+      "/uploads/x.jpg",
+      "mailto:hi@artist.com",
+      "data:image/png;base64,AAAA",
+      "javascript:alert(1)",
+      "",
+    ]) {
+      expect(sanitizeHostedGalleryImageUrl(bad), bad).toBeNull();
+    }
   });
 });

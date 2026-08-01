@@ -1,7 +1,10 @@
 import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
-import type { BioBlock } from "@inklee/shared/bio-page";
+import {
+  HOSTED_LOGOS_PUBLIC_MARKER,
+  type BioBlock,
+} from "@inklee/shared/bio-page";
 
 // Hosted gallery-image lifecycle (Track B slice B2).
 //
@@ -14,20 +17,21 @@ import type { BioBlock } from "@inklee/shared/bio-page";
 // sweepable orphan, never a ghost reference; the losing writer in a race never
 // deletes objects the winning row still references, the FU-18 rule).
 //
-// SECURITY: a block's `url` is ARTIST-SUPPLIED and may legitimately be an
-// external URL (the editor keeps the URL field, GB2). Every candidate is
-// re-validated through `ownedHubImagePath`, which only ever yields paths inside
-// THIS artist's own hub namespace — an external URL, another artist's object, a
-// sibling feature's object (`{uid}/flash/...`), or a crafted traversal all
-// return null and are simply not storage candidates. Mirrors
+// SECURITY: a block's `url` is re-validated through `ownedHubImagePath`
+// regardless, which only ever yields paths inside THIS artist's own hub
+// namespace — another artist's object, a sibling feature's object
+// (`{uid}/flash/...`), or a crafted traversal all return null and are simply
+// not storage candidates. An external URL ALSO returns null here, and as of
+// FD4 (2026-08-01, SUPERSEDES GB2) can no longer even survive the parser into
+// a gallery block in the first place (the permanent free-text URL field is
+// removed); this function keeps rejecting one defensively regardless, for any
+// row written before that change and as defense in depth. Mirrors
 // `ownedGoodsStoragePath` (mobile-goods-server.ts) verbatim in spirit.
 
-const PUBLIC_MARKER = "/storage/v1/object/public/logos/";
-
 function hubImagePathFromUrl(url: string): string | null {
-  const idx = url.indexOf(PUBLIC_MARKER);
+  const idx = url.indexOf(HOSTED_LOGOS_PUBLIC_MARKER);
   if (idx < 0) return null;
-  const tail = url.slice(idx + PUBLIC_MARKER.length);
+  const tail = url.slice(idx + HOSTED_LOGOS_PUBLIC_MARKER.length);
   return tail.split("?")[0] || null;
 }
 
