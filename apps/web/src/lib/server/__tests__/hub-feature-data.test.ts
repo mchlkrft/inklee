@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from "vitest";
 
 // loadHubFeatureData (Plus build P2b, extended by C5's decisions S3/S4).
 // canUseGoods / isModuleVisible / parseBioPageSettings are pure and used for
@@ -12,6 +20,21 @@ const { mockCollections } = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+
+// The standalone_shop destination is bounded by the platform park switch
+// (supervisor fix on the FD8 slice: "available" must mean a visitor can land
+// on it, and the standalone route 404s while the switch is off). These tests
+// exercise the artist-facing conditions, so the switch is turned ON for the
+// suite and restored after; the OFF case is pinned in goods-visibility.test.ts
+// and goods-visibility-summary.test.ts.
+const REAL_GOODS_FLAG = process.env.GOODS_COMMERCE_ENABLED;
+beforeAll(() => {
+  process.env.GOODS_COMMERCE_ENABLED = "true";
+});
+afterAll(() => {
+  if (REAL_GOODS_FLAG === undefined) delete process.env.GOODS_COMMERCE_ENABLED;
+  else process.env.GOODS_COMMERCE_ENABLED = REAL_GOODS_FLAG;
+});
 vi.mock("../collections", () => ({
   publicCollectionsForArtist: (...a: unknown[]) => mockCollections(...a),
 }));

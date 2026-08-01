@@ -6,10 +6,27 @@ import { parseBioPageSettings } from "../bio-page-settings";
 // warning, the public render, and the FD7 /goods summary must all agree on.
 
 describe("goodsDestinationAvailability", () => {
-  it("standalone_shop is available by default (shop_checkout defaults on)", () => {
+  it("standalone_shop is available by default ONCE the park switch is on (shop_checkout defaults on)", () => {
     const bioPage = parseBioPageSettings({});
-    const result = goodsDestinationAvailability({}, bioPage);
+    const result = goodsDestinationAvailability({}, bioPage, true);
     expect(result.standalone_shop).toBe(true);
+  });
+
+  it("standalone_shop is UNAVAILABLE while the platform park switch is off, whatever the artist set", () => {
+    // Supervisor fix on the FD8 slice (gap found by the implementing worker):
+    // the standalone route calls notFound() while GOODS_COMMERCE_ENABLED is
+    // off, so calling the destination "available" would link every visitor to
+    // a 404 — and since a NEW block defaults to standalone_shop, that would be
+    // the DEFAULT state, with no editor warning, for as long as the flag stays
+    // dark. Fails if the park switch is dropped from the formula.
+    const bioPage = parseBioPageSettings({});
+    expect(
+      goodsDestinationAvailability(
+        { features: { shop_checkout: true } },
+        bioPage,
+        false,
+      ).standalone_shop,
+    ).toBe(false);
   });
 
   it("standalone_shop is unavailable when the artist's toggle is off", () => {
@@ -59,8 +76,19 @@ describe("goodsDestinationAvailability", () => {
     const result = goodsDestinationAvailability(
       { features: { shop_checkout: true } },
       bioPage,
+      true,
     );
     expect(result.booking_page).toBe(false);
     expect(result.standalone_shop).toBe(true);
+  });
+
+  it("the park switch bounds ONLY standalone_shop, never the booking page", () => {
+    // The booking-page teaser is served by the artist page, which the park
+    // switch does not gate. Fails if a future change hangs both destinations
+    // off one platform flag.
+    const bioPage = parseBioPageSettings({});
+    const result = goodsDestinationAvailability({}, bioPage, false);
+    expect(result.standalone_shop).toBe(false);
+    expect(result.booking_page).toBe(true);
   });
 });

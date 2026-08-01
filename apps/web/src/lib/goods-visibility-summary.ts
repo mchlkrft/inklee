@@ -1,6 +1,7 @@
 import type { BioBlock, BioPageSettings } from "@/lib/bio-page-settings";
 import type { BioGoodsDestination } from "@inklee/shared/bio-page";
 import { goodsDestinationAvailability } from "@/lib/goods-visibility";
+import { shopCheckoutEnabled } from "@/lib/features";
 
 /**
  * The artist's at-a-glance visibility state across every surface goods can
@@ -50,9 +51,15 @@ export function deriveGoodsVisibilitySummary(input: {
    *  Stripe state, this function only combines booleans. */
   connectReady: boolean;
 }): GoodsVisibilitySummary {
+  // The flag is threaded in rather than re-read, so the summary and the hub
+  // render can never disagree about whether standalone_shop is available
+  // (supervisor fix on the FD8 slice: "available" must mean a visitor can
+  // actually land on it, and the standalone route 404s while the park switch
+  // is off).
   const availability = goodsDestinationAvailability(
     input.settings,
     input.bioPage,
+    input.goodsCommerceEnabled,
   );
   const goods = input.blocks.find(
     (b): b is Extract<BioBlock, { type: "goods" }> => b.type === "goods",
@@ -60,7 +67,11 @@ export function deriveGoodsVisibilitySummary(input: {
 
   const bookingPage = { visible: availability.booking_page };
 
-  const toggleOn = availability.standalone_shop;
+  // `toggleOn` reports the ARTIST's own switch alone, deliberately NOT the
+  // composed availability: the summary's job is telling the artist which of
+  // the three conditions is the one holding their shop back, so the platform
+  // flag and Connect readiness stay separate lines below.
+  const toggleOn = shopCheckoutEnabled(input.settings);
   const showingProducts =
     toggleOn && input.goodsCommerceEnabled && input.connectReady;
   const standaloneShop = {

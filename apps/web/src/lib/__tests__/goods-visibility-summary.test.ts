@@ -112,16 +112,39 @@ describe("deriveGoodsVisibilitySummary — hubBlock", () => {
     expect(h.available).toBe(false);
   });
 
-  it("standalone_shop destination's availability does not depend on the platform dark flag or Connect", () => {
-    // hubBlock.available tracks the ARTIST's own toggle only (matches
-    // goodsDestinationAvailability); the dark-flag / Connect state is
-    // reported separately under standaloneShop, never folded into this.
-    const h = derive({
-      blocks: [goods("standalone_shop")],
-      goodsCommerceEnabled: false,
-      connectReady: false,
-    }).hubBlock;
-    expect(h.available).toBe(true);
+  it("a standalone_shop block is NOT available while the park switch is off (the link would 404)", () => {
+    // Supervisor fix on this slice, replacing a test that pinned the opposite
+    // and documented it as a known gap. hubBlock.available must mean "a
+    // visitor can land on it": the standalone route notFound()s while
+    // GOODS_COMMERCE_ENABLED is off. Connect readiness is deliberately still
+    // NOT folded in (a not-charge-ready artist has a real, browsable shop
+    // page that explains it cannot take card orders yet), so this asserts
+    // BOTH halves of that distinction in one test.
+    expect(
+      derive({
+        blocks: [goods("standalone_shop")],
+        goodsCommerceEnabled: false,
+        connectReady: false,
+      }).hubBlock.available,
+    ).toBe(false);
+    expect(
+      derive({
+        blocks: [goods("standalone_shop")],
+        goodsCommerceEnabled: true,
+        connectReady: false,
+      }).hubBlock.available,
+    ).toBe(true);
+  });
+
+  it("the artist's own toggle line still reports the toggle alone, not the composed availability", () => {
+    // standaloneShop.toggleOn exists to tell the artist WHICH condition is
+    // holding their shop back; folding the park switch into it would report
+    // "you turned it off" when they did not. Fails if toggleOn is ever wired
+    // to the composed availability.
+    const s = derive({ goodsCommerceEnabled: false }).standaloneShop;
+    expect(s.toggleOn).toBe(true);
+    expect(s.commerceLive).toBe(false);
+    expect(s.showingProducts).toBe(false);
   });
 });
 
@@ -149,14 +172,13 @@ describe("deriveGoodsVisibilitySummary — publishedNowhere", () => {
     expect(summary.publishedNowhere).toBe(false);
   });
 
-  it("false when only an AVAILABLE hub block is present, everything else hidden", () => {
-    // hubBlock.available is the FD8 render gate (artist toggle + module
-    // only), deliberately NOT the platform dark flag / Connect readiness —
-    // those are reported separately under standaloneShop. So this fixture
-    // is a real, if narrow, edge case: the block counts as "published" here
-    // even though goodsCommerceEnabled is false and its standalone_shop
-    // target would actually 404 for a visitor today. Documented rather than
-    // silently papered over — see the FD7/FD8 implementation note.
+  it("TRUE when the only surface is a hub block whose target is parked (nothing a visitor can reach)", () => {
+    // This replaces a test that asserted publishedNowhere:false here and
+    // documented the wrongness in a comment. With the park switch folded into
+    // availability, the honest answer is that the artist is published
+    // NOWHERE: the teaser is hidden and the block's standalone target 404s.
+    // Telling them "you are published" while every route is dead is the exact
+    // failure the FD7 summary exists to prevent.
     const summary = derive({
       hidden: ["shop"],
       blocks: [goods("standalone_shop")],
@@ -164,6 +186,16 @@ describe("deriveGoodsVisibilitySummary — publishedNowhere", () => {
     });
     expect(summary.bookingPage.visible).toBe(false);
     expect(summary.standaloneShop.showingProducts).toBe(false);
+    expect(summary.hubBlock.available).toBe(false);
+    expect(summary.publishedNowhere).toBe(true);
+  });
+
+  it("false once the park switch is on and the hub block's target is reachable", () => {
+    const summary = derive({
+      hidden: ["shop"],
+      blocks: [goods("standalone_shop")],
+      goodsCommerceEnabled: true,
+    });
     expect(summary.hubBlock.available).toBe(true);
     expect(summary.publishedNowhere).toBe(false);
   });

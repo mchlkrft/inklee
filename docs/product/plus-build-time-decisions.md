@@ -998,3 +998,26 @@ from the 2876-passed/1-expected-fail baseline (commit `6bac9914`) by exactly
 the 34 tests this slice added (9 `bio-page-settings.test.ts`, 7 new
 `goods-visibility.test.ts`, 14 new `goods-visibility-summary.test.ts`, net +4
 `hub-feature-data.test.ts`), zero regressions.
+
+**FD8 supervisor correction (2026-08-01, same day as the slice) — the park
+switch belongs in the destination's availability.** The FD8 brief's literal
+formula made `standalone_shop` availability = artist toggle + goods module,
+deliberately excluding `GOODS_COMMERCE_ENABLED`. The implementing worker built
+it as specified and FLAGGED the consequence rather than silently deciding
+around it: the standalone route calls `notFound()` while the park switch is
+off, a NEW goods block defaults to `standalone_shop`, and the editor shows no
+warning, so the default state of a brand-new block was a public link to a 404
+for as long as the flag stays dark. `publishedNowhere` inherited the same
+error and would have told an artist they were published while every route was
+dead. Corrected: the park switch is now part of the destination's
+availability, threaded in as an injected value (the `nowMs = Date.now()`
+house pattern) so the summary and the hub render cannot disagree. Connect
+readiness is deliberately still NOT folded in: an artist who is not
+charge-ready still has a real, browsable shop page that explains it cannot
+take card orders yet, so hiding the hub link would hide a working surface.
+`standaloneShop.toggleOn` continues to report the artist's own switch alone,
+because the summary's job is telling them WHICH condition is holding the shop
+back. Two tests that pinned the old behaviour (one explicitly documenting it
+as a known gap) were replaced by tests asserting the corrected contract plus
+the toggle/availability distinction. Credit where due: the gap was found by
+the worker implementing the brief, not by the brief's author.
