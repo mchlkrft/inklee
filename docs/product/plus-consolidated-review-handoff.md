@@ -10,16 +10,19 @@ alternatives for every provisional entry live in
 `docs/product/plus-open-decisions-handoff.md` (whose per-owner queues this
 document supersedes as the review list).
 
-**Build state in one paragraph.** Local `master` is ~95 commits ahead of
-`origin/master`, unpushed. Migrations **0125-0137 are NOT applied to
+**Build state in one paragraph.** Local `master` is **123 commits ahead** of
+`origin/master`, unpushed. Migrations **0125-0141 are NOT applied to
 production**; pushing master deploys code that expects them, so the release
-requires the sequencer flow (apply catalog-verified, then push — never a casual
-push). Everything money-adjacent is behind gates: `ACTIVE_FEE_SCHEDULE_VERSION`
-= v1, fee-refund policy v0, `GOODS_COMMERCE_ENABLED` off,
-`consumer_sales_launch_approved` unrecorded, three capabilities still parked.
-The audit register holds 116 findings and 79 coverage areas; every remediation
-this phase is either independently verified or explicitly marked with what is
-NOT yet verified.
+requires the sequencer flow (apply catalog-verified, then push, never a casual
+push), and 0140 must follow 0138. Everything money-adjacent is behind gates:
+`ACTIVE_FEE_SCHEDULE_VERSION` = v1, fee-refund policy v0,
+`GOODS_COMMERCE_ENABLED` off, `consumer_sales_launch_approved` unrecorded,
+three capabilities parked and three ungranted. The audit register holds **129
+findings and 86 coverage areas**; the web suite is 3101 passing and the
+database suite 255 passing (it ran for the first time on 2026-08-01 and
+immediately found a real defect). **All thirteen founder rulings FD1-FD13 are
+implemented** — see `docs/product/fd-rulings-completion-report.md` for the
+per-ruling status, what is verified, and what explicitly is not.
 
 **The one hard line (unchanged).** Nothing in this document is an approval.
 Building against a provisional call is not going live: no fee/refund flip, no
