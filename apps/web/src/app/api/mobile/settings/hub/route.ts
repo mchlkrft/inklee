@@ -10,6 +10,7 @@ import { listCollectionsForArtist } from "@/lib/server/collections";
 import { liveCollections } from "@inklee/shared/collections";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
+import { removeDroppedHubImages } from "@/lib/server/hub-images";
 
 export const runtime = "nodejs";
 
@@ -128,6 +129,10 @@ export async function POST(req: Request) {
     })
     .eq("id", userId);
   if (error) return mobileError(500, error.message);
+
+  // Orphan cleanup AFTER the write won, identical to the web action: dropped
+  // hosted gallery objects are removed, everything else re-validated away.
+  await removeDroppedHubImages(userId, currentBio.blocks, settings.blocks);
 
   // The public Hub (/<slug>/hub) is server-rendered; bust its cache so an edit
   // from the app shows immediately, mirroring saveBioPageAction's revalidate.

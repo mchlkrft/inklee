@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Trash2, Plus, ArrowUp, ArrowDown } from "lucide-react";
-import { saveBioPageAction } from "./actions";
+import { useActionState, useState, useTransition } from "react";
+import { Trash2, Plus, Upload, ArrowUp, ArrowDown } from "lucide-react";
+import { saveBioPageAction, uploadGalleryImageAction } from "./actions";
+import { prepareImageUpload } from "@/lib/image-compress";
 import {
   MAX_HEADLINE,
   MAX_TEXT,
@@ -195,6 +196,44 @@ export default function BioPageForm({
     const next = [...current];
     [next[index], next[target]] = [next[target], next[index]];
     setGalleryImages(id, next);
+  };
+
+  // Real upload (Track B slice B2). Out-of-band from the settings save: the
+  // action stores the image and returns a hosted URL, which is appended to the
+  // block like any other image and persisted by the normal Save. The URL input
+  // stays alongside (GB2: existing galleries may hold external URLs).
+  const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [, startUploadTransition] = useTransition();
+
+  const uploadImage = (
+    blockId: string,
+    current: BioGalleryImage[],
+    file: File,
+  ) => {
+    setUploadError(null);
+    setUploadingBlockId(blockId);
+    startUploadTransition(async () => {
+      try {
+        const prepared = await prepareImageUpload(file);
+        if ("error" in prepared) {
+          setUploadError(prepared.error);
+          return;
+        }
+        const form = new FormData();
+        form.set("image", prepared.file);
+        const result = await uploadGalleryImageAction(form);
+        if (!result.ok) {
+          setUploadError(result.error);
+          return;
+        }
+        if (current.length < MAX_GALLERY_IMAGES) {
+          setGalleryImages(blockId, [...current, { url: result.url }]);
+        }
+      } finally {
+        setUploadingBlockId(null);
+      }
+    });
   };
 
   const updateSocial = (index: number, patch: Partial<BioSocial>) =>
@@ -563,15 +602,49 @@ export default function BioPageForm({
                         </div>
                       );
                     })}
+                    {uploadError && uploadingBlockId === null && (
+                      <p className="text-xs text-destructive">{uploadError}</p>
+                    )}
                     {galleryImages(block).length < MAX_GALLERY_IMAGES && (
-                      <button
-                        type="button"
-                        onClick={() => addImage(block.id, galleryImages(block))}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
-                      >
-                        <Plus className="h-4 w-4" aria-hidden />
-                        Add image
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label
+                          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-brand-mustard px-3 py-1.5 text-xs font-semibold text-brand-charcoal transition-opacity hover:opacity-90 ${
+                            uploadingBlockId === block.id ? "opacity-60" : ""
+                          }`}
+                        >
+                          <Upload className="h-4 w-4" aria-hidden />
+                          {uploadingBlockId === block.id
+                            ? "Uploading..."
+                            : "Upload image"}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            disabled={uploadingBlockId !== null}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) {
+                                uploadImage(
+                                  block.id,
+                                  galleryImages(block),
+                                  file,
+                                );
+                              }
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            addImage(block.id, galleryImages(block))
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+                        >
+                          <Plus className="h-4 w-4" aria-hidden />
+                          Add image URL
+                        </button>
+                      </div>
                     )}
                   </>
                 ) : (

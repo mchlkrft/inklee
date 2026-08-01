@@ -228,7 +228,15 @@ Two things follow, both done here:
   `POST /api/mobile/settings/hub` (native) both call the shared
   `gateMediaBlocksForSave`, which refuses a NEW or CHANGED gallery for an
   unentitled artist and keeps an existing unchanged one (D2: hide-on-downgrade,
-  never delete). (Corrected 2026-07-31: the save paths previously did NOT enforce
+  never delete). **REAL UPLOAD (Track B, 2026-08-01): the web editor uploads
+  files via `uploadGalleryImageAction` (entitlement-first, 120-image server
+  ceiling, `logos/{uid}/hub/{uuid}.webp`; the shared `processAndUpload` pipeline
+  gained a GLOBAL `.rotate()` EXIF-orientation fix that also corrects
+  goods/logo/cover/flash uploads). BOTH save paths (web action + the mobile hub
+  POST) now run `removeDroppedHubImages` orphan cleanup after the write wins,
+  path-ownership-guarded (`ownedHubImagePath`). Native gallery upload stays a
+  follow-on per D4 (web-only editing v1); a future native route reuses the same
+  action-shaped core.** (Corrected 2026-07-31: the save paths previously did NOT enforce
   this despite comments claiming they did; finding recorded and fixed.) The pure
   parser still keeps the block regardless of plan, so a downgrade hides rather
   than loses it. **A fresh EAS build

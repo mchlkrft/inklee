@@ -14,6 +14,7 @@ import {
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { appearanceCustomAllowed } from "@/lib/server/entitlement-gates";
 import { readImageFromForm, processAndUpload } from "@/lib/mobile-image";
+import { removeDroppedHubImages } from "@/lib/server/hub-images";
 
 type State =
   | { error: string }
@@ -103,6 +104,12 @@ export async function saveBioPageAction(
     .eq("id", user.id);
 
   if (error) return { error: error.message };
+
+  // Orphan cleanup AFTER the write won (row-first, object-second): hosted
+  // gallery objects whose URLs were dropped by this save are removed;
+  // external URLs and anything outside this artist's hub namespace are
+  // re-validated away inside the helper. Best-effort, never fails the save.
+  await removeDroppedHubImages(user.id, currentBio.blocks, settings.blocks);
 
   revalidatePath("/link-hub");
   if (profile?.slug) revalidatePath(`/${profile.slug}/hub`);
