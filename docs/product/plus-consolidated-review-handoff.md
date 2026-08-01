@@ -30,23 +30,27 @@ of an entry here.
 
 ## 1. FOUNDER — decisions and go-actions
 
-### 1a. Confirm-or-override (provisional product calls, cheap to reverse)
+### 1a. FOUNDER RULINGS RECEIVED 2026-08-01 — FD1-FD13 are FINAL
 
-| # | Decision taken (id) | Confirm |
+All thirteen items were ruled the same day (full text in
+`docs/product/plus-build-time-decisions.md`, FD rulings section). Do not
+re-ask. Implementation state is the FD build board below.
+
+| # | Ruling (disposition of the provisional entry) | Build state |
 |---|---|---|
-| FD1 | Gallery rich blocks gated by `appearance_custom`, no new `page_blocks` key (D1) | Right gate? |
-| FD2 | Gallery editing web-only at launch; native shows read-only summary (D4) | OK for launch? |
-| FD3 | "Section layouts" = the shipped page-template layer, not a new multi-column system (D6) | Was that the intent? |
-| FD4 | Gallery editor keeps the URL field beside Upload (GB2) | Keep or drop later? |
-| FD5 | Standalone checkout page is self-contained v1; wishlist-cart integration deferred as UX polish (GC5) | OK for un-park? |
-| FD6 | v1 refuses bundles containing variant-bearing products at checkout; variant-aware bundles = v2 (GC7) | Accept the v1 limitation? |
-| FD7 | Surface visibility is per-surface and non-cascading; the standalone shop has its own toggle, the booking page its own (S2) | Right model? |
-| FD8 | Hub goods block hides when the booking-page shop is hidden (link would break); re-targets to the standalone shop at un-park (S4) | OK? |
-| FD9 | All C5 visibility toggles are Free; no `goods_tools` key minted (S5) | Confirm no paywall wanted. |
-| FD10 | Distinct per-surface THEMING stays out of v1 (S1, survives ruling 19; inherited theming shipped) | Still not wanted? |
-| FD11 | Legacy grandfather rate = 3% appointment / 5% Free goods under v2, encoded, activates at the flip (F14, ruling 14) | Final confirm of the 3%. |
-| FD12 | Ruling 18's "partial refund / by-line refund forms" and native revise screen were left as at-launch polish (Track A leftovers by design) | Accept for launch, or pull forward? |
-| FD13 | Replacement marketing claims for the two removed no-code-path claims (ruling 2 tail) — pending copy | Approve final wording. |
+| FD1 | New `rich_content_blocks` capability; galleries move OFF `appearance_custom` (supersedes D1) | in build (slice 1) |
+| FD2 | Native gallery editing ships BEFORE publication (supersedes D4); grant still EAS-gated | queued (#48) |
+| FD3 | "Section layouts" = shipped template layer, confirmed (D6); approved phrasing "Flexible section layouts and page templates" | in build (slice 1) |
+| FD4 | URL field removed; secondary server-side "Import from URL" into Inklee storage (supersedes GB2) | queued (#43) |
+| FD5 | Wishlist + seller-scoped carts BEFORE goods enables (supersedes GC5's deferral); Buy-now stays | queued (#49, after FD6/FD8) |
+| FD6 | Variant-aware bundles BEFORE publication (supersedes GC7) | queued (#46) |
+| FD7 | Non-cascading per-surface visibility confirmed (S2) + a visibility summary UX required | queued (#44) |
+| FD8 | Hub goods block gets an explicit destination setting, default standalone shop (supersedes S4's hidden coupling) | queued (#44) |
+| FD9 | Basic visibility controls stay Free forever (confirms S5); no `goods_tools` | done (nothing gated today; verified in slice 1) |
+| FD10 | ONE appearance system is FINAL architecture (closes S1); surface content config (hero/intro/featured) is in scope | queued (#45) |
+| FD11 | v2 legacy rates FINAL: 3% legacy appt / 5% Free goods / 0.5% Plus appt / 1% Plus goods; grandfathering ≠ Plus pricing | verify in slice 1 (encoded + stamped already) |
+| FD12 | Partial refunds (line/quantity/custom) + native revise = pre-publication scope (supersedes Track A leftovers) | queued (#47) |
+| FD13 | Marketing claims approved as default wording (payments + customization headlines) | in build (slice 1) |
 
 ### 1b. Go-actions only the founder can execute (activation checklist, in order)
 
@@ -85,6 +89,9 @@ buying physical goods from artists on Inklee-hosted checkout).
 | CL7 | **PAY-RFD-002 Terms half** | Artist-cancellation refunds retain only the evidenced processor cost (built + verified). | Terms coverage of the retained-cost rule BEFORE the fee-refund policy v1 flip. |
 | CL8 | **C4 / LO-10 round** | Preliminary directions given; brief written. | Schedule + close before real client money. |
 | CL9 | **C3 administrative tail** | E1-E5 approved and verified in-product. | Record `consumer_withdrawal_copy_approved` once the C2 screenshot is in the C1 package; E4 pre-login cancellation fast-follow stays logged in `plus-launch-followup.md`. |
+| CL10 | **FD4 — external image import** (queued as the FD4 build lands) | "Import from URL" downloads third-party images server-side into Inklee storage on the artist's instruction; Inklee becomes host of content fetched from arbitrary origins. | Copyright/liability posture for artist-instructed imports; whether the import needs an artist attestation; interaction with the GB3 hosted-photo analysis. |
+| CL11 | **FD5 — carts and wishlists for guests** (queued as the FD5 build lands) | Seller-scoped carts; wishlist may span artists; guest behaviour per the existing product model. | Whatever persistence mechanism ships for guest carts/wishlists (cookie/local storage/server rows) needs the GS4 privacy-notice treatment; seller identification per cart (marketplace clarity) folds into GS1. |
+| CL12 | **FD12 — partial-refund disclosures** (queued as the FD12 build lands) | Line/quantity/custom partial refunds with deterministic fee + processor-cost allocation. | Buyer-facing refund confirmations and any processor-cost retention disclosure fold into CL7's Terms coverage. |
 
 ## 3. ACCOUNTANT — one batch
 
@@ -98,6 +105,217 @@ buying physical goods from artists on Inklee-hosted checkout).
 | AC6 | **GC2 — discount-cap release on full refund** | A fully refunded order deletes its redemption, freeing the code's cap. | Matches intended discount semantics (minor). |
 | AC7 | **D2 — "(card processing included)" at 0.5%** | The parenthetical is now conditional on the shown rate being exactly 300 bps; at Plus 0.5% it is suppressed pending this answer. | Can the 0.5% rate's cost/margin split ever carry that claim, or does it need its own wording? |
 | AC8 | **PAY-RFD-002 fee treatment** | Retained-processor-cost refunds built + verified, policy v1 inactive. | Fee/tax treatment of the retained cost BEFORE the v1 flip. |
+| AC9 | **FD12 — partial-refund allocation** (queued as the FD12 build lands) | Deterministic per-line application-fee allocation and processor-cost handling on partial refunds; no repeated cost retention; reconciliation records. | That the allocation method matches the intended accounting treatment (fee schedule version + tier stamped per transaction, Track D); classification of partially refunded transactions. |
+| AC10 | **FD6 — variant-bearing bundle refunds** (queued as the FD6 build lands) | Variant-level restock + historical composition snapshots on refunds. | Reconciliation impact only (minor; rides AC9's method). |
+
+---
+
+## Answers (counsel + accountant review, 2026-08-01)
+
+Nothing in §6 is re-asked. The goods shop (CL2-CL6, AC4-AC5) is the genuinely
+new surface and gets the most substance; everything else confirms or carries a
+prior condition forward.
+
+### CL2 (GS1) — standalone checkout: the current build is NOT sufficient
+
+Two hard requirements:
+
+1. **The pay button must carry an "Order with obligation to pay" label** (or
+   equally unambiguous wording). A plain "Pay" fails Art. 8(2) CRD; the
+   consequence of failure is that the consumer is not bound by the order. Same
+   standard already applied to the Plus checkout — apply it here verbatim.
+2. **The full Art. 6(1) information set at order time**, on or directly
+   reachable from the checkout screen: the **artist's identity and geographic
+   address** (seller disclosure — "artist named as counterparty" is not enough;
+   the trader's address is a listed item), main characteristics, total price
+   including any delivery cost or the statement that delivery is arranged and
+   charged separately, delivery arrangements, the return right (CL3), and the
+   complaint/contact route. Since the artist is the seller, Inklee's artist
+   Terms must oblige artists to keep their seller identity data current — the
+   checkout can only display what the platform holds.
+
+### CL3 (GS2) — return right: build the disclosure before un-park; the silence is expensive
+
+Goods carry their own 14-day return right, distinct from the services
+withdrawal already built. Required: return-right wording at checkout and in the
+confirmation (CL4); **return-cost allocation stated expressly** (the consumer
+bears return shipping only if told beforehand — silence means the seller pays);
+the model withdrawal form available. **Art. 16(c)** (personalised /
+custom-made goods) must be claimed **per product, expressly, at checkout** —
+a per-product "custom made to your specification — no return right" flag set
+by the artist, not a blanket Terms clause. The penalty for not disclosing the
+return right is the Art. 10 extension: the return window runs up to **12
+months**, and the consumer owes nothing for diminished value. This is the
+costliest omission in the goods build; treat it as un-park-blocking.
+
+### CL4 (GS3) — goods confirmation: yes, the Art. 8(7) set applies
+
+The current receipt ("items, total, artist, arranged with the artist
+directly") is not a conforming confirmation. It must add: the **artist's
+seller identity and address**, the return instructions and model form (or the
+16(c) claim where flagged), the delivery arrangement, and the applicable terms
+— on the durable medium itself (in the email or an attachment, not only a
+link). Same principle already applied to the Plus E2 email; extend the pattern.
+
+### CL5 (GS4) — guest-buyer GDPR: three items, one is a real gap
+
+1. **Privacy notice at collection:** a short notice at the email field
+   ("used for your receipt and order handling; shared with the artist for
+   fulfilment; kept as part of the order record") linking the full policy. The
+   guest email's lawful basis is Art. 6(1)(b) (contract) — no consent box.
+2. **RoP entry:** add guest-order processing to the Art. 30 record (data
+   categories: email, order contents; recipients: the artist, Stripe;
+   retention: below).
+3. **Retention — the gap:** completed orders follow the 7-year financial-
+   records rule (Art. 6(1)(c)). **Cancelled/abandoned orders have no such
+   basis** — a cancelled row's guest email has no legal-obligation anchor and
+   currently no purge path (SHOP-ORD-001). Required: a purge job erasing or
+   pseudonymising guest contact data on cancelled/abandoned orders after a
+   short operational window (30 days is defensible; pick one and record it).
+   **Un-park-blocking**, cheap to build.
+
+### CL6 (GB3) — hosted client photos: conditional pass, signed URLs as bounded fast-follow
+
+Unguessable URLs are not access control, and tattoo photos are health-adjacent
+personal data — Art. 32 proportionality points to signed URLs. Position:
+public-unlisted is **acceptable at launch only** on all of: high-entropy
+object paths, no directory listing, bucket excluded from indexing, and —
+correcting the current behaviour — **downgrade/removal deletes or relocates
+the object, not just the render**. "Hides the render, not the object" is the
+part that fails even the interim standard: an ex-subscriber's client photos
+remaining fetchable is a live confidentiality exposure. Move to signed URLs as
+a **dated** fast-follow (same discipline as the E4 pre-login route), before any
+gallery marketing push. Related: **LO-5 (the booking-image DPIA) still has no
+completion record**, and the gallery + guest checkout widen its scope — fold
+both into the DPIA and complete it before FA10; the account-deletion handoff
+already makes it release-gating.
+
+### CL7 — confirmed, carried forward
+
+The retained-cost rule enters the Terms in the single FA9 re-roll, before the
+fee-refund v1 flip. The three 2026-07-31 conditions stand (Terms first,
+evidenced cost only, client's refund unaffected). Built-and-verified on the
+code side per PAY-RFD-002; the Terms half is what FA9 closes.
+
+### CL8 — unchanged
+
+Schedule the LO-10 round; the 2026-07-31 preliminary directions stand. The
+binding boundary remains: **closed before beta artists take real client
+money** (FA2 as a founder-run test is fine; FA12/goods and real deposits are
+not).
+
+### CL9 — record it
+
+E1-E5 approved and verified; record `consumer_withdrawal_copy_approved` when
+the C2 screenshot enters the C1 package. The E4 fast-follow stays logged.
+
+### CL1 — final package: checklist updated for the goods surface
+
+The 6-point checklist from the prior handoff stands, with these substitutions:
+item 5 (goods wording) is now **CL2-CL5 as implemented** — checkout screenshot
+with the obligation-to-pay button and seller disclosure, the return-right and
+16(c) flag as rendered, the conforming confirmation email, and the guest
+privacy notice + purge rule; add **CL6's interim photo controls + the
+completed LO-5 DPIA** as item 7. One Terms re-roll (FA9) carries X2 + CL2-CL5
+texts + CL7 in a single version bump. Sign-off records against the final
+hashes, per the version-bound design.
+
+### AC1 — co-sign recommended (unchanged from 2026-07-31)
+
+Inclusive 3.00 EUR is the correct D1/D2 implementation; record the
+VAT-absorption caution in the A2 trigger file. Note the live Price already
+exists — the co-sign is now ratification, which is acceptable since the
+replaceable-Price design keeps a future correction non-destructive.
+
+### AC2 — confirm, with the conservative counting rule
+
+35k EE / 8k EU-B2C alerts, quarterly accountant check, founder/board owns
+re-approval. Until LO-10 settles fee-revenue classification (AC4), **count all
+platform-fee revenue toward the 40k Estonian counter** — over-counting toward
+an alert threshold is safe, under-counting is the silent failure mode.
+
+### AC3 — preconditions confirmed; F14 closed by FD11
+
+Sign-off scope: no VAT on any v2 fee line while unregistered; the flip waits
+on FA9 (Terms + advance notice for the new Free goods 5%) — notice period
+recommendation: 30 days to existing users. The former UNDEFINED cell is now
+encoded (legacy 3%/5% per FD11), so the schedule is complete; approve against
+v2 as encoded.
+
+### AC4 (GA1) — model confirmed; classification answer
+
+`on_behalf_of` + destination charge + `application_fee_amount` keeps the
+artist as merchant of record and Inklee's take as a platform fee — consistent
+with the LO-2/LO-10 deposit analysis; no change to the MoR position. For the
+thresholds: the goods platform fee is a **B2B service to the artist-as-trader**
+(an artist selling goods to the public acts in trade for this purpose,
+regardless of the consumer-framed Plus subscription). Fees to Estonian artists
+count toward the 40k domestic counter; fees to other-EU artists are
+customer-country supplies and count toward neither Estonian counter — but per
+AC2, count everything to the alert until LO-10 confirms.
+
+### AC5 (GA2) — no separate Inklee invoice to the buyer; extend the receipt
+
+Any buyer-facing invoicing obligation for goods belongs to the **artist as
+seller**, and consumer goods sales generally require none unless requested or
+local law demands it. Inklee's receipt "on behalf of the artist" is the right
+construction, but it must carry the CL4 content (artist identity/address —
+that closes both items at once). Inklee's own document obligation is its **fee
+invoice to the artist** once the goods fee is non-zero — reuse the A4
+non-registered format. Recommend the artist Terms state that buyer-requested
+invoices are the artist's obligation, with Inklee providing the order data.
+
+### AC6 (GC2) — confirmed
+
+Full refund deleting the redemption and freeing the cap is coherent: the
+discount was never economically consumed. No tax dimension while unregistered.
+
+### AC7 (D2) — the claim is true if, and only if, fees.payer stays "application"
+
+"(card processing included)" states who bears the processing cost, not the
+margin. With `fees.payer: application`, Inklee pays Stripe's fee at any rate,
+so the parenthetical is factually accurate even at 0.5% — where it is a
+deliberate subsidy (Stripe's ~1.5% + 0.25 exceeds the fee). Two conditions:
+(1) founder confirms the per-transaction subsidy at 0.5% is intended
+commercial policy, recorded; (2) if the fee-payer model ever changes, the
+claim flips to misleading — bind the parenthetical to the `fees.payer`
+setting, not to the rate. Suggested robust wording either way: **"no separate
+card processing fees."** Keep suppressed until (1) is recorded.
+
+### AC8 — treatment confirmed; document it on the credit note
+
+The retained processor cost is fee income recognised at refund time,
+offsetting the Stripe expense; no VAT while unregistered. The credit note
+shows the retained amount as its own line ("retained card-processing cost,
+per Terms §[x]") so the artist-facing document reconciles to the evidenced
+cost. Confirm before the v1 flip; pairs with CL7's Terms half in FA9.
+
+### Summary
+
+| Item | Outcome |
+|---|---|
+| CL1 | Checklist updated: CL2-CL5 evidence + CL6 controls + completed LO-5 DPIA; one FA9 re-roll |
+| CL2 | Not sufficient: obligation-to-pay button + full Art. 6(1) set incl. seller address |
+| CL3 | Un-park-blocking: return-right + cost allocation + per-product 16(c) flag (Art. 10 = 12-month risk) |
+| CL4 | Yes: Art. 8(7)-conforming confirmation; extend the E2 pattern |
+| CL5 | Notice + RoP + **purge path for cancelled-order emails** (gap; un-park-blocking, cheap) |
+| CL6 | Conditional pass; delete-object-on-removal now; signed URLs as dated fast-follow; fold into LO-5 DPIA |
+| CL7 | Carried: Terms in FA9 before refund-v1 flip |
+| CL8 | Schedule LO-10; close before real client money |
+| CL9 | Record the key with the C2 screenshot |
+| AC1 | Co-sign (ratification); record VAT caution |
+| AC2 | Confirm; count all fee revenue to the alert until LO-10 |
+| AC3 | Approve v2 as encoded; 30-day notice for the Free goods fee via FA9 |
+| AC4 | Model confirmed; goods fee = B2B to artist-as-trader; conservative counting |
+| AC5 | Artist owes buyer invoicing; extend receipt per CL4; A4-format fee invoice |
+| AC6 | Confirmed |
+| AC7 | True only while `fees.payer: application`; bind claim to the setting; founder records the subsidy intent |
+| AC8 | Confirmed; retained cost as its own credit-note line; before v1 flip |
+
+**Net effect on the sequence in §4:** unchanged in shape. Additions: the FA12
+goods un-park gains three named blockers (CL3 disclosure build, CL5 purge
+path, CL6 delete-on-removal) and the **LO-5 DPIA completion** attaches to FA10
+via the account-deletion release gate.
 
 ---
 

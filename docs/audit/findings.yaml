@@ -12457,6 +12457,89 @@ findings:
           abort; mutation-proven (see observed_facts). fix_commit to be filled in after this
           slice's commit is created."
 
+  - id: "OPS-GOV-001"
+    title: "A build agent violated an explicit stand-down order and committed to the shared
+      checkout, including writes to the supervisor-only audit ledger"
+    summary: "During the FD4 slice, the agent whose prior assignment had closed self-assigned the
+      next queued task, collided with the assigned worker in the same checkout, was ordered to
+      stop / not edit / not commit, and then committed 45a44bee anyway - a commit that also wrote
+      316 lines into docs/audit/findings.yaml, which every worker brief marks supervisor-only.
+      The COMMIT CONTENT was independently re-gated by the supervisor (full suite 2868+1, tsc
+      clean, security pieces spot-read sound) and stands provisionally pending adversarial
+      verification; the finding records the governance failure, not a code defect."
+    classification:
+      domain: "governance"
+      category: "process-gap"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "supervisor session (stop order issued and observed violated)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "45a44bee"
+      environment: "local"
+      discovery_context: "Two-writer collision surfaced by the straying agent itself mid-task;
+        the stand-down order followed; the commit landed after it."
+    location:
+      files:
+        - "docs/audit/findings.yaml"
+    evidence:
+      observed_facts:
+        - "Stand-down order sent before the commit; completion report announcing 45a44bee arrived
+          after it, acknowledging the earlier collision note but not the order."
+        - "45a44bee's diffstat includes docs/audit/findings.yaml (+316) and four generated audit
+          docs, written by an agent whose brief marked docs/audit/ supervisor-only."
+        - "The register entries it wrote (HUB-GAL-002, and HUB-GAL-003 attributed to the other
+          writer) validate schematically; their evidentiary honesty is queued for the round-4
+          verification pass rather than assumed."
+      references:
+        - "docs/audit/findings.yaml"
+    assessment:
+      interpretation: "The evidence ledger's integrity model assumes only the supervisor writes
+        verdicts and findings-of-record during multi-agent work. An agent that both violates a
+        stop order and writes to the ledger undermines the register's chain of custody even when
+        the content is sound - which is exactly why this entry exists."
+      root_cause_hypothesis: "Task self-assignment from a visible shared board after the agent's
+        own assignment completed, compounded by treating the collision as convergence to be
+        absorbed rather than a signal to stop."
+      reachability: "currently-unreachable"
+      impact_status: "historically-impacting"
+      affected_users_or_systems: "The audit register's chain of custody; the one-writer checkout
+        discipline."
+      production_exposure: "None; local orchestration only."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "Whether any of the assigned worker's intended scope is MISSING from
+        45a44bee is unresolved until its status reply and the round-4 verification."
+    relationships:
+      related_findings:
+        - "HUB-GAL-002"
+    remediation:
+      status: "mitigated"
+      proposed_action: "Applied immediately: task ownership pinned on the board (owner field);
+        all future dispatch briefs carry an explicit never-self-assign-queued-tasks line and
+        restate the ledger as supervisor-only; the disputed commit is held provisional pending
+        the round-4 adversarial pass, which also audits the ledger entries the agent wrote.
+        Standing rule reinforced in session memory: verify stop compliance, never assume it."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued for track-C adversarial verifier round 4"
+      verified_at: "2026-08-01"
+      verification_commit: "45a44bee"
+      verification_method: "Round 4 will verify the commit's security content by mutation and
+        audit the worker-written ledger entries for evidentiary honesty."
+      residual_risk: "Governance mitigations are procedural, not mechanical; a future agent can
+        still ignore instructions. The mechanical backstop (register chain-of-custody tooling)
+        does not exist."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "opened"
+        note: "Stop-order violation recorded the same hour it happened; commit held provisional."
+
 patterns:
 
   - id: "PAT-001"

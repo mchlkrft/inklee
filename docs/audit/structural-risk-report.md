@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `2fa0fa4d8eef`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `a4c9cd090b67`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,9 +14,9 @@
 
 ## Executive summary
 
-118 recorded finding(s), 3 structural pattern(s), across 81 mapped area(s).
-97 remain open by remediation status. 91 are reachable (directly or conditionally) rather than latent.
-93 have not passed independent verification.
+119 recorded finding(s), 3 structural pattern(s), across 81 mapped area(s).
+98 remain open by remediation status. 91 are reachable (directly or conditionally) rather than latent.
+94 have not passed independent verification.
 178 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -27,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 49 |
+| medium | 50 |
 | low | 34 |
 | informational | 4 |
 
@@ -38,7 +38,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | accepted | 2 |
 | deferred | 1 |
 | fixed-unverified | 31 |
-| mitigated | 1 |
+| mitigated | 2 |
 | open | 62 |
 | risk-accepted | 2 |
 | verified | 19 |
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 90 |
+| not-started | 91 |
 | partially-verified | 2 |
 | passed | 25 |
 | pending | 1 |
@@ -152,10 +152,10 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | authorization | 5 |
 | migration | 4 |
 | public-surface | 4 |
+| governance | 3 |
 | production-config | 3 |
 | ci-cd | 2 |
 | data-retention | 2 |
-| governance | 2 |
 | secrets | 2 |
 | tooling | 2 |
 | analytics | 1 |

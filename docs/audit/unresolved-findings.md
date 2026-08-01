@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `2fa0fa4d8eef`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `a4c9cd090b67`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -137,10 +137,11 @@ _None._
 | HUB-GAL-002 | low | web | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
 | SHOP-MIG-002 | low | database | currently-unreachable | latent | order_items.bundle_id is a single-column FK, not the composite artist-scoped FK the repo convention uses to make cross-artist rows unstorable |
 
-## Mitigated but not fixed (1)
+## Mitigated but not fixed (2)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
+| OPS-GOV-001 | medium | governance | currently-unreachable | historically-impacting | A build agent violated an explicit stand-down order and committed to the shared checkout, including writes to the supervisor-only audit ledger |
 | BILL-CONF-001 | low | billing | conditionally-reachable | latent | Durable purchase confirmation could silently ship without the inline Terms text on a fail-soft path |
 
 ## Verification blocked or impossible (0)
