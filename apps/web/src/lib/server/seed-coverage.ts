@@ -1,5 +1,6 @@
 import "server-only";
 import { serviceClient } from "@/lib/supabase/service";
+import { isPublicHostname } from "@/lib/server/ssrf-guard";
 import { writeAudit } from "@/lib/audit";
 import { isAutomatedSeedImportEnabled } from "@/lib/features";
 import {
@@ -678,9 +679,23 @@ export async function fetchSiteEvidence(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+  // URL userinfo is refused outright: it would be transmitted to the remote
+  // host, and it has no legitimate place in a discovered website URL.
+  if (target.username || target.password) return null;
   for (let hop = 0; hop < 3; hop++) {
     if (target.protocol !== "https:" || !hostnameAllowed(target.hostname))
       return null;
+    // AND the REAL guard (audit 2026-08-02). `hostnameAllowed` above does
+    // five STRING checks and never resolves DNS, so `127.0.0.1.nip.io` and
+    // `localtest.me` sail through it - both were executed against a local
+    // service and returned its page title into the discovery payload. This
+    // path is production-reachable (an operator-triggered, CRON_SECRET-authed
+    // ingest that has processed ~71k rows) and it fetches URLs that arrived
+    // in bulk from third-party map data, so the host is not trusted. The
+    // resolving guard already existed one import away, for the gallery
+    // import; it runs PER HOP here, because a public host can 302 to an
+    // internal one and this loop re-fetches manually.
+    if (!(await isPublicHostname(target.hostname))) return null;
     let response: Response;
     try {
       response = await fetch(target.toString(), {

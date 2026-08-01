@@ -101,10 +101,30 @@ export function isPrivateIpv6(ip: string): boolean {
  *
  * POLICY (HUB-GAL-004, 2026-08-01): every IPv6 address is disallowed,
  * unconditionally — `isPrivateIpv6`'s own recognized-private ranges are never
- * even consulted here. A public image host is reachable over IPv4 regardless,
- * so refusing the whole address family removes every IPv4-in-IPv6 embedding
- * bypass at once (see isPrivateIpv6's doc comment for the specific forms this
- * closes) instead of extending a regex for each newly-discovered spelling.
+ * even consulted here. Refusing the whole address family removes every
+ * IPv4-in-IPv6 embedding bypass at once (see isPrivateIpv6's doc comment for
+ * the specific forms this closes) instead of extending a regex for each
+ * newly-discovered spelling.
+ *
+ * ⚠️ CORRECTION (audit 2026-08-02). This comment used to add "a public image
+ * host is reachable over IPv4 regardless, so this costs nothing in practice".
+ * THAT IS FALSE and it was measured: the real exported `isPublicHostname` was
+ * run against live DNS for 20 popular image hosts and REFUSED 14 of them,
+ * including unsplash, cloudinary, jsdelivr, wikimedia, googleusercontent and
+ * pinimg. Every refusal has AAAA records; `dns.lookup({all:true})` returns
+ * them regardless of the runtime's own IPv6 connectivity because no hints are
+ * passed, and the `.every()` over the full result then refuses the host. So
+ * "Import from URL" currently fails on most real hosts. It is contained ONLY
+ * by darkness: zero artists hold `rich_content_blocks`.
+ *
+ * DO NOT "relax" this by filtering AAAA out of the resolved set and allowing
+ * the rest. That looks like the fix and is not: `fetch()` re-resolves
+ * independently and can still dial the AAAA address. A correct dual-stack
+ * allowance needs the v4 set validated AND the connection pinned to one
+ * chosen validated v4 address via a custom undici dispatcher — which is the
+ * same work HUB-GAL-002's rebinding TOCTOU needs, so do them together. Until
+ * then the policy stays, because a broken-but-safe import beats a working
+ * one that reopens the metadata endpoint.
  * `isPrivateIpv6` remains exported and tested as an honest, narrower-scoped
  * utility; this function simply does not lean on it for the real defense.
  */
