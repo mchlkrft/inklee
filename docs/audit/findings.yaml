@@ -11513,6 +11513,168 @@ findings:
           client-writability residual, as recorded). payment_collections has no drizzle
           mirror at all (pre-existing, now flagged in schema.ts)."
 
+  - id: "SURF-VIS-001"
+    title: "hidden:['shop'] is a fully built, parser-preserved, renderer-honoured visibility
+      control that NO surface can write: the artist cannot hide their shop from their booking
+      page"
+    summary: "BioModuleKey includes 'shop' (bio-page.ts:17), the booking page honours it
+      ([slug]/page.tsx:182), the parser preserves it (bio-page.ts:599-606), and the only writer
+      anywhere pushes 'policy' (bookings/settings/actions.ts:247 + the mobile twin). Grep for a
+      write of 'shop' into hidden returns only test fixtures. Slice 72 of the bio-page goods plan
+      specified per-module visibility; only the policy half got a UI."
+    classification:
+      domain: "web"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "read-only C5 surfaces recon (c5-surfaces-recon)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "C5 scoping sweep of every surface-level content control."
+    location:
+      files:
+        - "packages/shared/src/bio-page.ts"
+        - "apps/web/src/app/(artist)/bookings/settings/actions.ts"
+    evidence:
+      observed_facts:
+        - "bio-page.ts:17 BioModuleKey = links|policy|shop; :599-606 the parser preserves hidden."
+        - "[slug]/page.tsx:182 gates the shop teaser on isModuleVisible(bioPage,'shop')."
+        - "bookings/settings/actions.ts:247 and api/mobile/settings/booking-policy/route.ts:82
+          write only 'policy'; no other writer exists outside test fixtures."
+      references:
+        - "docs/bio-page-goods-plan.md"
+    assessment:
+      interpretation: "A finished control with no steering wheel; the cheapest item in C5."
+      root_cause_hypothesis: "Slice 72 shipped the model and the policy UI; the shop toggle was
+        never picked up."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists wanting a booking page without the shop section."
+      production_exposure: "Cosmetic only; no data exposure."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None."
+    relationships:
+      related_findings:
+        - "SHOP-GATE-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "292c02fb"
+      fixed_at: "2026-08-01"
+      proposed_action: "C5 decision S2: give hidden:['shop'] a write path (web toggle + mobile
+        twin) following the policy toggle's exact shape; the key governs ONLY the booking-page
+        teaser (non-cascading, per-surface model)."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "c5-surfaces-recon (read-only)"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Grep for writers of the hidden key across web actions, mobile routes
+        and fixtures; render/parse halves confirmed by reading the cited lines."
+      residual_risk: "None; static property."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "c5-surfaces-recon"
+        action: "opened"
+        note: "Recorded by the supervisor from the recon report."
+      - date: "2026-08-01"
+        actor: "c5-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fix in 292c02fb (c5-worker; supervisor re-ran the touched suites, 118/118):
+          saveShopVisibilityAction + ShopVisibilityToggle in bookings settings plus the
+          mobile twin route, all through the shared parser preserving policy and every
+          other key; governs ONLY the booking-page teaser per decision S2 (non-cascading)."
+
+  - id: "SHOP-GATE-001"
+    title: "The standalone shop checkout ignores the artist's own goods-module switch: neither
+      canUseGoods nor any module visibility gates the page, the action or the money-path core"
+    summary: "/[slug]/shop/checkout gates only on GOODS_COMMERCE_ENABLED, artist existence and
+      Connect charge-readiness (verified across page.tsx, checkout/actions.ts and
+      goods-checkout.ts). The booking page's shop teaser requires canUseGoods (the artist's
+      settings.features.goods_module toggle); an artist who switched their goods module OFF would
+      still have a live standalone shop the moment the park flag flips. Dark today, so latent."
+    classification:
+      domain: "public-surface"
+      category: "missing-authorization"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "read-only C5 surfaces recon (c5-surfaces-recon)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "Surface-by-surface comparison of goods gating."
+    location:
+      files:
+        - "apps/web/src/app/[slug]/shop/checkout/page.tsx"
+        - "apps/web/src/app/[slug]/shop/checkout/actions.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+    evidence:
+      observed_facts:
+        - "No canUseGoods / isModuleVisible call exists anywhere on the standalone checkout path
+          (grep across the three files)."
+        - "[slug]/page.tsx:182 requires canUseGoods for the booking-page teaser, so the two
+          public surfaces disagree about the same artist switch."
+      references:
+        - "apps/web/src/lib/features.ts"
+    assessment:
+      interpretation: "The artist's own off switch governs one public surface and not the other;
+        the money path is the half that matters (serviceClient bypasses RLS)."
+      root_cause_hypothesis: "C3 was built against the park flag as the only gate; the artist's
+        module toggle predates it and was not consulted."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists with goods_module off, once GOODS_COMMERCE_ENABLED
+        flips."
+      production_exposure: "None today (park flag off)."
+      exploit_preconditions: "GOODS_COMMERCE_ENABLED on; no authentication needed."
+      remaining_uncertainty: "None on the mechanism."
+    relationships:
+      related_findings:
+        - "SURF-VIS-001"
+        - "SHOP-VIS-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "292c02fb"
+      fixed_at: "2026-08-01"
+      proposed_action: "C5 decision S2: the standalone shop gets its own features.shop_checkout
+        switch (default on while goods_module is on) AND honours canUseGoods, enforced in the
+        page AND the money-path core (fail closed on a settings read error)."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "c5-surfaces-recon (read-only)"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Negative grep for the gate calls across the three files of the
+        standalone path, contrasted with the booking page's gated read at the cited line."
+      residual_risk: "Read-based; no render executed."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "c5-surfaces-recon"
+        action: "opened"
+        note: "Recorded by the supervisor from the recon report."
+      - date: "2026-08-01"
+        actor: "c5-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fix in 292c02fb: settings.features.shop_checkout (default on while goods_module
+          is on) enforced at the page (notFound), the action, AND
+          createStandaloneGoodsCheckoutCore itself, which reads the artist's settings
+          server-side and fails CLOSED on a genuine read error while a missing row resolves
+          to the default (cannot regress artists who never touched the toggle). Toggle UI on
+          /goods (no goods_module editor existed anywhere — worker-verified; deviation
+          recorded)."
+
 patterns:
 
   - id: "PAT-001"
@@ -13965,3 +14127,30 @@ coverage:
       SHOP-ORD-002 late-payment sequence reasoned, not executed. The checkout UI
       (shop-checkout.tsx, page.tsx) remains untested by any suite; the page's is_public_visible
       filter is read-verified only."
+
+  - area: "C5 scoping recon: every artist-facing surface-level content control across the booking
+      page shop teaser, guest-spot surfaces (travel card, hub block, studio timeline), the
+      standalone checkout, and the hub feature blocks; plus the appearance system's per-surface
+      wiring"
+    subsystem: "web"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-01"
+    commit_inspected: "78bcecb8"
+    reviewer: "c5-surfaces-recon (read-only Explore agent); conclusions consumed by the
+      supervisor into decisions S2-S6"
+    evidence: "Mapped all four surface families with citations: the unwritable hidden:['shop']
+      key (SURF-VIS-001), the ungated standalone checkout (SHOP-GATE-001), the guest-spots
+      show_on_booking_form flag governing three surfaces under one name
+      (hub-feature-data.ts:82-83), the hub goods block's broken-link hazard once the shop module
+      hides, and the standalone checkout applying no surfaceAppearance despite 'shop' existing in
+      APPEARANCE_SURFACES since P1 (S1's 'surfaces already inherit' premise predates C3 and is
+      false for that one surface). Storage homes enumerated (settings jsonb families, entity
+      columns, profiles columns) so no new home gets invented."
+    recommended_next_inspection: "After the C5 slice lands: verify the write paths round-trip,
+      the money-path gate refuses, and the trips backfill preserved observed behaviour; then a
+      register pass flipping SURF-VIS-001/SHOP-GATE-001."
+    known_exclusions: "Read-only: nothing executed, no render tested. The studio page's
+      guest-artist timeline deliberately excluded from C5 scope (guest_naming_opt_out governs
+      naming; it is the studio's surface). Mobile renderers not in scope (public surfaces are
+      web-only by decision)."

@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `0fdd0878617f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `e9ae31798e91`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-108 recorded finding(s), 3 structural pattern(s), across 77 mapped area(s).
-96 remain open by remediation status. 87 are reachable (directly or conditionally) rather than latent.
-91 have not passed independent verification.
+110 recorded finding(s), 3 structural pattern(s), across 78 mapped area(s).
+98 remain open by remediation status. 88 are reachable (directly or conditionally) rather than latent.
+93 have not passed independent verification.
 176 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,8 +27,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 45 |
-| low | 28 |
+| medium | 46 |
+| low | 29 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 30 |
+| fixed-unverified | 32 |
 | mitigated | 1 |
 | open | 62 |
 | risk-accepted | 1 |
@@ -45,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 89 |
+| not-started | 91 |
 | partially-verified | 1 |
 | passed | 17 |
 | pending | 1 |
@@ -147,10 +149,10 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | database | 10 |
 | authorization | 5 |
 | migration | 4 |
+| public-surface | 4 |
+| web | 4 |
 | production-config | 3 |
-| public-surface | 3 |
 | testing | 3 |
-| web | 3 |
 | ci-cd | 2 |
 | data-retention | 2 |
 | governance | 2 |
@@ -221,6 +223,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | SHOP-DROP-001 | medium | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
 | SHOP-FUL-003 | medium | conditionally-reachable | latent | Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read failure on a paid bundle order permanently skips inventory decrement (oversell), the exact shape SHOP-FUL-002 fixed on the refund side |
 | SHOP-FUL-004 | medium | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
+| SHOP-GATE-001 | medium | conditionally-reachable | latent | The standalone shop checkout ignores the artist's own goods-module switch: neither canUseGoods nor any module visibility gates the page, the action or the money-path core |
 | SHOP-ORD-001 | medium | conditionally-reachable | latent | A standalone goods order abandoned at the payment step stays pending forever: no webhook branch and no cron sweep can ever reach it |
 | SHOP-VAR-001 | medium | conditionally-reachable | latent | Bundles cannot express variants, and nothing guards the gap: a variant-stocked product inside a bundle sells with no variant chosen and no stock moved |
 | SHOP-VIS-001 | medium | conditionally-reachable | latent | The standalone shop lists and sells products the artist marked NOT publicly visible: is_public_visible is filtered by the public artist page but by neither of the two new standalone-checkout reads |
@@ -281,12 +284,14 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | SHOP-DROP-001 | medium | fixed-unverified | not-started | b483efc7 |
 | SHOP-FUL-003 | medium | fixed-unverified | not-started | b483efc7 |
 | SHOP-FUL-004 | medium | fixed-unverified | not-started | b483efc7 |
+| SHOP-GATE-001 | medium | fixed-unverified | not-started | 292c02fb |
 | SHOP-VAR-001 | medium | fixed-unverified | not-started | b483efc7 |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
 | SHOP-MIG-001 | low | fixed-unverified | not-started | b483efc7 |
+| SURF-VIS-001 | low | fixed-unverified | not-started | 292c02fb |
 
 ## Analogous areas flagged but NOT inspected
 

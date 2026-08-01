@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `0fdd0878617f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `e9ae31798e91`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -80,7 +80,7 @@ Operational view. Generated from the ledger; do not edit.
 
 _None._
 
-## Fixed but NOT verified (30)
+## Fixed but NOT verified (32)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -110,12 +110,14 @@ A commit exists. Nothing independent has confirmed it works.
 | SHOP-DROP-001 | medium | public-surface | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
 | SHOP-FUL-003 | medium | payment | conditionally-reachable | latent | Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read failure on a paid bundle order permanently skips inventory decrement (oversell), the exact shape SHOP-FUL-002 fixed on the refund side |
 | SHOP-FUL-004 | medium | payment | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
+| SHOP-GATE-001 | medium | public-surface | conditionally-reachable | latent | The standalone shop checkout ignores the artist's own goods-module switch: neither canUseGoods nor any module visibility gates the page, the action or the money-path core |
 | SHOP-VAR-001 | medium | payment | conditionally-reachable | latent | Bundles cannot express variants, and nothing guards the gap: a variant-stocked product inside a bundle sells with no variant chosen and no stock moved |
 | BILL-UI-003 | low | billing | conditionally-reachable | latent | Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the order screen |
 | COPY-UI-001 | low | web | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
 | OPS-LINT-001 | low | ci-cd | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
 | PAY-UI-006 | low | payment | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
 | SHOP-MIG-001 | low | migration | currently-unreachable | latent | 0135 declares the snapshot table's PRIMARY KEY inline inside create table if not exists, under a comment claiming plain columns only |
+| SURF-VIS-001 | low | web | currently-unreachable | latent | hidden:['shop'] is a fully built, parser-preserved, renderer-honoured visibility control that NO surface can write: the artist cannot hide their shop from their booking page |
 
 ## Verified, but NOT independently (0)
 
