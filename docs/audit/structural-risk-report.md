@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `c0bcdfa8dc61`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `85a150438b61`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-97 recorded finding(s), 3 structural pattern(s), across 74 mapped area(s).
-92 remain open by remediation status. 78 are reachable (directly or conditionally) rather than latent.
-86 have not passed independent verification.
-171 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+98 recorded finding(s), 3 structural pattern(s), across 75 mapped area(s).
+93 remain open by remediation status. 79 are reachable (directly or conditionally) rather than latent.
+87 have not passed independent verification.
+172 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -28,7 +28,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | critical | 2 |
 | high | 28 |
 | medium | 39 |
-| low | 24 |
+| low | 25 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -37,16 +37,16 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 22 |
+| fixed-unverified | 26 |
 | mitigated | 1 |
-| open | 66 |
+| open | 63 |
 | verified | 5 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 84 |
+| not-started | 85 |
 | partially-verified | 1 |
 | passed | 11 |
 | pending | 1 |
@@ -141,7 +141,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 20 |
+| payment | 21 |
 | jobs | 12 |
 | webhook | 12 |
 | billing | 11 |
@@ -242,6 +242,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-AUD-001 | low | directly-reachable | reachable-no-known-impact | audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not |
 | PAY-FEE-003 | low | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | PAY-UI-006 | low | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
+| SHOP-FUL-001 | low | conditionally-reachable | latent | Settlement and refund disagree on which order_items reach inventory: settle passes ALL lines to decrementInventory while refund restocks only type='product' |
 | WHK-CUR-001 | low | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | OPS-DOC-001 | informational | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
@@ -267,6 +268,10 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-003 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-007 | medium | fixed-unverified | passed | 752e989 |
+| SHOP-ORD-001 | medium | fixed-unverified | not-started | 27f3aa5a |
+| SHOP-VIS-001 | medium | fixed-unverified | not-started | 27f3aa5a |
+| TEST-VAC-002 | medium | fixed-unverified | not-started | 27f3aa5a |
+| TEST-VAC-003 | medium | fixed-unverified | not-started | 27f3aa5a |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
@@ -358,6 +363,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The lifecycle engine's own send limits were not inspected and could interact with the same per-artist volume.
 - The mobile app's copy was NOT swept.
 - The mobile deposit route (apps/web/src/app/api/mobile/bookings/[id]/deposit/route.ts) was NOT inspected by me for the same degradation.
+- The mobile order surfaces, if any read order_items by type, were NOT inspected.
 - The mobile payouts onboarding route, if one exists
 - The mobile routes OUTSIDE my assigned subset (bookings/*, flash/*, instagram/*, map/*, notifications/*, onboarding/*, account, analytics, billing/*, clients/*, calendar/*, devices, events, home, me, support, slots, waitlist) were included in the grep count but not read, so I know they carry the idiom and not whether they carry anything worse.
 - The mobile shop surfaces, if any, were NOT inspected for this filter.

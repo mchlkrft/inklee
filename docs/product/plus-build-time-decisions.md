@@ -391,3 +391,54 @@ into it yet: the interest context is scoped to the booking surface, and
 plumbing it across routes is UX polish for a dark feature. Confirm: founder ok
 that v1 checkout is its own page; the ShopTeaser gains a link to it at un-park.
 Reversible? Additive (context integration later changes no server contract).
+
+**GC6 [ENG/money] — bundle checkout uses a FIRST-CLASS `'bundle'` order item +
+a composition snapshot table (CONFIRMS AND REVISES B2's provisional
+one-product-line rule, at the checkout slice as B2 required).**
+- Decision: `order_item_type` gains `'bundle'`; `order_items` gains `bundle_id`
+  (FK `on delete set null`); new `order_item_bundle_components` table snapshots
+  the composition at sale time (order_item_id, product_id `on delete set null`,
+  title snapshot, quantity, component list price at sale). The fee base stays
+  unambiguously the bundle price (B2's intent), carried on the single bundle
+  line's `total_amount`.
+- Why the fork went this way. B2's pure `type: "product"` line at the bundle
+  price leaves three money-path holes (C4 recon, 2026-08-01):
+  1. `decrementInventory`/`restockInventory` branch on `variant_id` then
+     `product_id` and silently no-op on a line with neither
+     (`order-fulfillment.ts`), so fulfilment AND refund restock would both
+     quietly skip bundle sales.
+  2. `productHasOrderReferences` (`goods-guard.ts`) keys the archive-vs-delete
+     guard on `order_items.product_id`; a component sold only inside bundles
+     looks unreferenced, gets hard-deleted, and 0132's `ON DELETE CASCADE`
+     erases it from the bundle with no record of what was sold.
+  3. `settleGoodsOrderRefund` filters `.eq("type","product")` and would hand
+     the bundle line to a restock that restocks nothing.
+  With `bundle_id` + the snapshot table: fulfilment expands components at
+  paid time from the SNAPSHOT (never live rows), the deletion guard also
+  checks `order_item_bundle_components.product_id`, and composition history
+  survives product deletion.
+- MUST land in the same slice: `goodsBaseMinorFromLines` filters
+  `type === "product"` (`order-fees.ts:138`); widening it to include
+  `'bundle'` ships WITH the enum value, because under v1's 0% goods rate the
+  omission is green and only detonates at the P7 v2 flip.
+- Sellability: new shared `bundlePurchasable()` — bundle `is_public_visible`
+  and not archived AND every component product active + `is_public_visible` +
+  sufficient stock for (component qty x line qty). The artist editor
+  legitimately allows hidden/inactive components in a bundle; the checkout
+  refuses the bundle rather than selling it short. Money-path re-check lives
+  in `goods-checkout.ts` (serviceClient bypasses RLS; same rule as
+  SHOP-VIS-001).
+- Currency: bundle catalog read filters `.eq("currency", "eur")`, matching
+  `addon-products.ts`; the standalone path charges EUR unconditionally.
+- Prices snapshot at checkout; nothing later recomputes from live
+  `products.price_amount` (`bundleSavings` stays display-only, as documented).
+- Alternatives: keep the pure product line (rejected: the three holes each
+  need bespoke workarounds and composition history is unrecoverable); expand
+  the bundle into N component lines at prorated prices (rejected: invents
+  per-item prices nobody set, makes the fee base ambiguous, contradicts B2's
+  founder-priced offer).
+- Supersession note: the "bundle composition snapshot" half of GC1 Phase 1
+  moves here; the refund-hole half already landed in C1
+  (`settleGoodsOrderRefund`).
+- Reversible? Migration is additive (enum value + nullable column + new
+  table); moderate to unwind once orders exist, cheap before un-park.

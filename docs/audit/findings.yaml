@@ -9767,7 +9767,9 @@ findings:
           read collections was NOT inspected."
         - "The mobile shop surfaces, if any, were NOT inspected for this filter."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "27f3aa5a"
+      fixed_at: "2026-08-01"
       proposed_action: "Add .eq(is_public_visible, true) to BOTH reads, the money path first
         (goods-checkout.ts:147-153), and pin it with a test whose failure mode is a hidden product
         being sellable, not merely unlisted. If the product decision is instead that the shop sells
@@ -9793,6 +9795,13 @@ findings:
         actor: "independent falsification verifier for Track C"
         action: "opened"
         note: "Found during adversarial verification of GC1 C1-C3 at 97735cd0."
+      - date: "2026-08-01"
+        actor: "supervisor session (source fixes) + test-integrity agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 27f3aa5a: .eq(is_public_visible, true) added to the money-path catalog read
+          (goods-checkout.ts) AND the page read, with the money path first as proposed; pinned
+          by an exact-shape filter test (artist_id + status + is_public_visible, no more),
+          proven red under deletion of the single .eq line (mutation M3)."
 
   - id: "SHOP-ORD-001"
     title: "A standalone goods order abandoned at the payment step stays pending forever: no webhook
@@ -9884,7 +9893,9 @@ findings:
         - "Stripe PaymentIntents left uncancelled by an abandoned standalone checkout were NOT
           inspected (they expire on Stripe's side; nothing reconciles them back)."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "27f3aa5a"
+      fixed_at: "2026-08-01"
       proposed_action: "Add a standalone branch to payment_intent.payment_failed and .canceled keyed
         the same way as the succeeded branch (order_id without booking_id), moving pending to
         cancelled (the enum already has it, 0036:9). Because a failed card can be retried on the
@@ -9910,6 +9921,15 @@ findings:
       - date: "2026-08-01"
         actor: "independent falsification verifier for Track C"
         action: "opened"
+      - date: "2026-08-01"
+        actor: "supervisor session (source fixes) + test-integrity agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 27f3aa5a: payment_intent.canceled gained the standalone branch (order_id
+          present AND booking_id absent; payment-request precedence and the booking-order
+          exclusion pinned by route-level tests), and sweepStalePendingStandaloneOrders (24h,
+          booking_id NULL, pending only) wired into the cleanup cron. Cancel-on-canceled plus
+          sweep, NOT first payment_failed, exactly as proposed. Retention of the CANCELLED
+          row's guest email remains open with the GS4 guest-GDPR counsel question."
 
   - id: "TEST-VAC-002"
     title: "The goods-refund suite's once-only restock guarantee cannot fail: moving restockInventory
@@ -10022,7 +10042,9 @@ findings:
           identical harness (its :90-94 nextReply is the same code) and was checked only for the
           mutations in this pass."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "27f3aa5a"
+      fixed_at: "2026-08-01"
       proposed_action: "Queue an order_items:select reply in the redelivery and partial tests so the
         guard is exercised with a non-empty array, which makes both mockRestock assertions
         load-bearing. Optionally make nextReply throw on an unqueued key so a missing fixture is a
@@ -10047,6 +10069,15 @@ findings:
       - date: "2026-08-01"
         actor: "independent falsification verifier for Track C"
         action: "opened"
+      - date: "2026-08-01"
+        actor: "supervisor session (source fixes) + test-integrity agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 27f3aa5a: both negative tests queue realistic order_items rows and assert the
+          queues were never consumed (distinguishing guard-held from read-came-back-empty).
+          Vacuity was REPRODUCED, not assumed: the pre-fix file ran beside the fixed one under
+          the same mutation (hoist restock above the flip gate); pre-fix stayed green, fixed
+          went red. The proposed throw-on-unqueued-key option was not taken; the
+          assert-unconsumed helper covers the same failure mode."
 
   - id: "TEST-VAC-003"
     title: "The standalone checkout's discount arithmetic has no effective coverage: neither the fee
@@ -10147,7 +10178,9 @@ findings:
           2702-test suite (the C2 happy path). That suggests other consumers of computeAddonLines
           mock it. NOT inspected."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "27f3aa5a"
+      fixed_at: "2026-08-01"
       proposed_action: "Add one happy-path test with mockResolveDiscount returning a non-zero
         discountMinor and a non-null codeId, asserting the PaymentIntent amount, the order row's
         subtotal_amount and discount_amount, and the fee base. Pin the fee assertion against a
@@ -10171,6 +10204,13 @@ findings:
       - date: "2026-08-01"
         actor: "independent falsification verifier for Track C"
         action: "opened"
+      - date: "2026-08-01"
+        actor: "supervisor session (source fixes) + test-integrity agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 27f3aa5a: accepted-discount test kills the charge-full-price mutant on the
+          returned total and the fee-on-gross mutant on the computeOrderFees ARGUMENT via an
+          importOriginal spy-wrap, rather than stubbing a non-zero rate as proposed; the
+          argument assertion is red under v1's 0% rate, which was the vacuity's cause."
 
   - id: "PAY-RFD-008"
     title: "refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and
@@ -10307,6 +10347,111 @@ findings:
       - date: "2026-08-01"
         actor: "independent falsification verifier for Track C"
         action: "opened"
+
+  - id: "SHOP-FUL-001"
+    title: "Settlement and refund disagree on which order_items reach inventory: settle passes ALL
+      lines to decrementInventory while refund restocks only type='product'"
+    summary: "settleStandaloneGoodsOrder reads the paid order's items with no type filter and hands
+      every row to decrementInventory, which itself branches only on variant_id/product_id and never
+      reads type. settleGoodsOrderRefund, on the same order, restocks via a read filtered
+      .eq(type,'product'). Today the asymmetry is latent because every standalone line is inserted
+      type='product', but the same settlement function's receipt body already filters
+      i.type === 'product', so non-product lines are clearly anticipated. When the C4 'bundle'
+      order_item_type lands (migration 0135, decision GC6), any line shape the two sides classify
+      differently produces one-way inventory drift: decremented at settle, never restocked at
+      refund."
+    classification:
+      domain: "payment"
+      category: "divergent-implementation"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "test-integrity agent authoring the track-C fix-batch tests (did not write the
+        settlement or refund code)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "d24c060e"
+      environment: "repository-only"
+      discovery_context: "Noticed while strengthening the goods-refund restock assertions
+        (TEST-VAC-002): making the refund-side order_items read's type filter load-bearing exposed
+        that the settle side has no such filter."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/lib/order-fulfillment.ts"
+        - "apps/web/src/lib/server/goods-refund.ts"
+      symbols:
+        - "settleStandaloneGoodsOrder"
+        - "decrementInventory"
+        - "settleGoodsOrderRefund"
+    evidence:
+      observed_facts:
+        - "apps/web/src/lib/server/goods-checkout.ts settleStandaloneGoodsOrder reads order_items
+          with .eq(order_id, ...) and NO type predicate, then passes the rows to
+          decrementInventory."
+        - "apps/web/src/lib/order-fulfillment.ts:72-98 decrementInventory branches on variant_id
+          then product_id and never reads item.type; restockInventory (:128-163) mirrors it."
+        - "apps/web/src/lib/server/goods-refund.ts:98 the refund-side restock read filters
+          .eq(type, 'product')."
+        - "The settlement receipt body filters i.type === 'product' in the same function that
+          passes the unfiltered list to inventory, so the two treatments coexist in one function."
+      references:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/lib/order-fulfillment.ts"
+      inspected_comparables_without_issue:
+        - "The booking add-on settlement path filters to product lines before inventory (webhook
+          route payment_intent.succeeded booking branch); the asymmetry is specific to the
+          standalone settle side."
+    assessment:
+      interpretation: "A filter divergence between the two directions of the same inventory
+        movement. Harmless for the line shapes that exist today; a trap for the first line shape
+        the two sides classify differently."
+      root_cause_hypothesis: "The settle side was written against a catalog where every non-deposit
+        line is a product, and the refund side was written later with the type filter as
+        defensive scoping; nobody reconciled the pair."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists' stock counts, once any non-product payable line type
+        ships (C4 bundles are the first)."
+      production_exposure: "None today: GOODS_COMMERCE_ENABLED off, 0134/0135 not applied to
+        production, and all existing standalone lines are type='product'."
+      exploit_preconditions: "Not attacker-driven; the drift needs only normal buy-then-refund
+        traffic on a non-product line type."
+      remaining_uncertainty: "The drift itself was not reproduced (no line type other than
+        'product' can currently be inserted). Under the GC6 design, bundle lines carry product_id
+        NULL and are expanded from the snapshot table, so whether the CURRENT decrement branches
+        would even touch a bundle line depends on the C4 implementation, which is in flight."
+    relationships:
+      related_findings:
+        - "TEST-VAC-002"
+      analogous_uninspected_areas:
+        - "The mobile order surfaces, if any read order_items by type, were NOT inspected."
+    remediation:
+      status: "open"
+      proposed_action: "Close the asymmetry in the C4 bundle slice, where both call sites are being
+        rewritten anyway: settle and refund should share ONE rule for which lines move inventory
+        (product lines directly; bundle lines via the order_item_bundle_components snapshot), and
+        the rule should live in order-fulfillment.ts, not in each caller's query."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "supervisor session (reviewed the cited lines; did not write the settlement or
+        refund code)"
+      verified_at: "2026-08-01"
+      verification_commit: "d24c060e"
+      verification_method: "Static comparison of the settle-side and refund-side order_items reads
+        and of decrementInventory/restockInventory branching at the cited lines. A linear read
+        settles the divergence claim; the drift consequence was NOT executed."
+      residual_risk: "The divergence is a static property of two queries and one branch structure.
+        The consequence (one-way drift) is unreproduced and conditional on C4."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "test-integrity agent"
+        action: "opened"
+        note: "Reported during the track-C fix-batch test authoring; recorded by the supervisor."
 
 patterns:
   - id: "PAT-001"
@@ -12630,3 +12775,46 @@ coverage:
       the two once-only flips with two real connections, because that property is currently asserted
       by nothing but query shape. Sweep the C4 bundle slice for the same is_public_visible omission
       when it lands."
+
+  - area: "Track C fix batch (SHOP-VIS-001, SHOP-ORD-001, TEST-VAC-002, TEST-VAC-003): source fixes
+      and the tests that pin them (goods-refund, goods-checkout, webhook payment_intent.canceled)"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-01"
+    commit_inspected: "27f3aa5a"
+    reviewer: "test-integrity agent (authored the tests; did NOT author the source fixes) with
+      supervisor re-run of the suites"
+    evidence: "TEN PRE-REGISTERED MUTATIONS applied to source one at a time, each producing exactly
+      its predicted named failure; all three mutated source files restored byte-exact (sha256
+      verified after every mutation and at the end). Vacuity of the pre-fix goods-refund tests was
+      REPRODUCED, not assumed: the HEAD version of the file was extracted beside the fixed one and
+      run under the same mutation (hoist restock above the flip gate); pre-fix stayed 9/9 green,
+      fixed went red on both strengthened tests with the queued rows consumed, full-refund positive
+      control green. Discount mutants isolated separately: charge-full-price fails the returned
+      total (6000 vs 4500); fee-on-gross fails ONLY the spy-wrapped computeOrderFees argument
+      (importOriginal delegation, shipped arithmetic still runs), which is the mutant that is
+      invisible under v1's 0% goods rate. SHOP-VIS-001 pinned by an exact-equality filter-shape
+      test (artist_id + status + is_public_visible, flags any unreviewed fourth filter); deleting
+      the .eq line turns exactly that test red. SHOP-ORD-001 pinned at BOTH levels: function-level
+      (pending-only flip with a matched-nothing positive control, .is(booking_id,null) bucketed
+      separately from .eq because they are different PostgREST predicates, injected now with
+      distinct default-24h and 1h cutoffs so a wrong time unit fails, error path queues rows AND an
+      error together so {cancelled:0} cannot pass vacuously) and route-level (new webhook dispatch
+      harness: payment-request precedence over the standalone branch, booking-carrying intents
+      excluded from the standalone cancel, forwarded boolean not hardcoded). Suites: 35 tests green
+      across the three files; full suite 157 files / 2716 tests green; tsc and eslint clean;
+      supervisor independently re-ran all three suites (35/35) before commit."
+    recommended_next_inspection: "After the C4 bundle slice lands: re-run the three suites, add
+      the route-level dispatch tests for payment_intent.succeeded / charge.refunded on the new
+      harness, and route the four fixed-unverified remediations to an independent verifier."
+    known_exclusions: "(1) src/app/api/cron/cleanup/route.ts has ZERO route-level tests; the
+      sweep's no-arg call (24h default) and the stale_standalone_orders response field are
+      unpinned at the route level. (2) payment_intent.succeeded and charge.refunded share the same
+      order_id-without-booking_id dispatch shape and payment_request_id precedence question;
+      neither has a route-level dispatch test (the new harness makes these cheap to add). (3)
+      restockInventory and decrementInventory are mocked in both suites; their variant/product
+      branching is exercised nowhere (see SHOP-FUL-001). (4) All coverage is mock-level; no
+      real-client RLS (tests/db/) coverage exists for the standalone order path, CI-pending like
+      the rest of the local suite (no local Docker). (5) Fix VERIFICATION is not this row:
+      remediations are fixed-unverified pending an independent verifier pass."
