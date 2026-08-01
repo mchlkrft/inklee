@@ -9767,7 +9767,7 @@ findings:
           read collections was NOT inspected."
         - "The mobile shop surfaces, if any, were NOT inspected for this filter."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "27f3aa5a"
       fixed_at: "2026-08-01"
       proposed_action: "Add .eq(is_public_visible, true) to BOTH reads, the money path first
@@ -9775,19 +9775,20 @@ findings:
         being sellable, not merely unlisted. If the product decision is instead that the shop sells
         hidden products deliberately, record that as a decision and say so in the GC4 comment."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "independent falsification verifier for Track C"
+      verified_by: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "97735cd0"
-      verification_method: "Static comparison of the three product queries at the named lines, plus
-        a read of the compositor to establish that no downstream gate re-imposes visibility. NOT
-        executed against a database: there is no local Docker/Supabase in this environment, so the
-        rendered-page and end-to-end purchase behaviours were not reproduced."
-      residual_risk: "The defect is established by reading query predicates, which a linear read
-        does settle (it is not a sequence or state-transition claim). What is NOT established by
-        execution: that a hidden product actually renders on the page and actually completes a
-        purchase. Both follow from the code path but were not run."
+      verification_commit: "78bcecb8"
+      verification_method: "Executed. Full-suite mutation via canary-proven out-of-repo alias rig: deleting
+        the is_public_visible predicate from the core catalog read, and separately inverting it
+        to false (an unregistered variant), each red the exact-filter assertion at
+        goods-checkout.test.ts:368, so the test pins the VALUE, not just the key. The page read
+        carries the filter too but is verified by reading only (.tsx server components sit
+        outside the test include)."
+      residual_risk: "No database executed (no local Docker): 0135 never applied to
+        Postgres, RLS/enum/cascade behaviour and both once-only flips unverified as real
+        concurrency. No Stripe call made."
     disclosure:
       public_repo_safe: true
     history:
@@ -9802,6 +9803,10 @@ findings:
           (goods-checkout.ts) AND the page read, with the money path first as proposed; pinned
           by an exact-shape filter test (artist_id + status + is_public_visible, no more),
           proven red under deletion of the single .eq line (mutation M3)."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-2 verdict CONFIRMED-FIXED at 78bcecb8; method in verification block."
 
   - id: "SHOP-ORD-001"
     title: "A standalone goods order abandoned at the payment step stays pending forever: no webhook
@@ -9893,7 +9898,7 @@ findings:
         - "Stripe PaymentIntents left uncancelled by an abandoned standalone checkout were NOT
           inspected (they expire on Stripe's side; nothing reconciles them back)."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "27f3aa5a"
       fixed_at: "2026-08-01"
       proposed_action: "Add a standalone branch to payment_intent.payment_failed and .canceled keyed
@@ -9903,18 +9908,21 @@ findings:
         first .payment_failed. Add a cron sweep for pending orders older than N hours that does not
         key on booking_id, and decide the retention period for the guest email."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "independent falsification verifier for Track C"
+      verified_by: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "97735cd0"
-      verification_method: "Read of both webhook branches and the cleanup cron at the named lines,
-        plus an enumeration of every cron route and a grep for orders access in retention-purge. The
-        conclusion is a reachability claim about code that does not exist, which a linear read
-        settles. NOT executed: no webhook delivery was replayed and no cron was run (no local
-        Docker/Supabase in this environment)."
-      residual_risk: "A cleanup path outside apps/web (a Supabase scheduled function, a pg_cron job)
-        would not have been seen by this method. Production was not read."
+      verification_commit: "78bcecb8"
+      verification_method: "Executed. Route-level dispatch mutations through a plugin-scoped swap of the
+        webhook route (canary-proven): reordering the standalone branch above the payment-request
+        branch, and removing the booking_id exclusion, each red their own named dispatch test.
+        Four mutations of the sweep's predicates and two of the cancel function's pending gate
+        all red. SQL predicates pinned as query shape against a recording double, not executed
+        against Postgres. NOTE the residual found in the same pass: the sweep leaves the
+        PaymentIntent payable (opened as SHOP-ORD-002)."
+      residual_risk: "No database executed (no local Docker): 0135 never applied to
+        Postgres, RLS/enum/cascade behaviour and both once-only flips unverified as real
+        concurrency. No Stripe call made."
     disclosure:
       public_repo_safe: true
     history:
@@ -9930,6 +9938,10 @@ findings:
           booking_id NULL, pending only) wired into the cleanup cron. Cancel-on-canceled plus
           sweep, NOT first payment_failed, exactly as proposed. Retention of the CANCELLED
           row's guest email remains open with the GS4 guest-GDPR counsel question."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-2 verdict CONFIRMED-FIXED at 78bcecb8; method in verification block."
 
   - id: "TEST-VAC-002"
     title: "The goods-refund suite's once-only restock guarantee cannot fail: moving restockInventory
@@ -10042,7 +10054,7 @@ findings:
           identical harness (its :90-94 nextReply is the same code) and was checked only for the
           mutations in this pass."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "27f3aa5a"
       fixed_at: "2026-08-01"
       proposed_action: "Queue an order_items:select reply in the redelivery and partial tests so the
@@ -10050,19 +10062,19 @@ findings:
         load-bearing. Optionally make nextReply throw on an unqueued key so a missing fixture is a
         test error rather than a silent empty result: that single change would have surfaced this."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "independent falsification verifier for Track C"
+      verified_by: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "97735cd0"
-      verification_method: "Executed. Full web suite run per mutant (156 files) with a canary-proven
-        alias rig held entirely outside the repository; the repo tree was never modified (git status
-        clean apart from two pre-existing untracked out-of-scope directories). Survivors r2 and r3a
-        reported at exit 0 with baseline-identical counts; every red is reported with its named test
-        and its assertion line."
-      residual_risk: "Mutation survival proves the CURRENT suite cannot detect the change. It does
-        not prove the production behaviour would be wrong, which would need a real database: with no
-        local Docker/Supabase the db suite could not run at all this session (CI-pending)."
+      verification_commit: "78bcecb8"
+      verification_method: "Executed. The specific mutation that SURVIVED at 97735cd0 (guarded restock added
+        to the PARTIAL branch) is now red at goods-refund.test.ts:374. Additional unregistered
+        mutations (restock write hoisted outside the once-only gate, adapted because 82a8d0af
+        makes the read pre-flip by design, red on 3 named tests; redemption release removed, red)
+        confirm the assertions are load-bearing rather than satisfied by an empty fixture."
+      residual_risk: "No database executed (no local Docker): 0135 never applied to
+        Postgres, RLS/enum/cascade behaviour and both once-only flips unverified as real
+        concurrency. No Stripe call made."
     disclosure:
       public_repo_safe: true
     history:
@@ -10078,6 +10090,10 @@ findings:
           the same mutation (hoist restock above the flip gate); pre-fix stayed green, fixed
           went red. The proposed throw-on-unqueued-key option was not taken; the
           assert-unconsumed helper covers the same failure mode."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-2 verdict CONFIRMED-FIXED at 78bcecb8; method in verification block."
 
   - id: "TEST-VAC-003"
     title: "The standalone checkout's discount arithmetic has no effective coverage: neither the fee
@@ -10178,7 +10194,7 @@ findings:
           2702-test suite (the C2 happy path). That suggests other consumers of computeAddonLines
           mock it. NOT inspected."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "27f3aa5a"
       fixed_at: "2026-08-01"
       proposed_action: "Add one happy-path test with mockResolveDiscount returning a non-zero
@@ -10187,17 +10203,18 @@ findings:
         non-zero goods rate (pass an explicit version or stub the tier) so it does not go vacuous
         again under v1's 0%."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "independent falsification verifier for Track C"
+      verified_by: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "97735cd0"
-      verification_method: "Executed. Two single-line mutations, one policy at a time, each run
-        against the full 156-file suite through a canary-proven out-of-repo alias rig. Both exited 0
-        with counts identical to the unmutated baseline."
-      residual_risk: "Establishes only that the suite cannot detect these changes. Whether a real
-        discounted standalone purchase charges correctly was NOT executed (no Stripe key, no local
-        database)."
+      verification_commit: "78bcecb8"
+      verification_method: "Executed. Both named mutants re-applied independently and each red two tests,
+        under v1's 0% goods rate; the fee assertion bites because computeOrderFees is spy-wrapped
+        via importOriginal and the DISCOUNTED goodsBaseMinor is asserted as an argument rather
+        than inferred from the resulting fee."
+      residual_risk: "No database executed (no local Docker): 0135 never applied to
+        Postgres, RLS/enum/cascade behaviour and both once-only flips unverified as real
+        concurrency. No Stripe call made."
     disclosure:
       public_repo_safe: true
     history:
@@ -10211,6 +10228,10 @@ findings:
           returned total and the fee-on-gross mutant on the computeOrderFees ARGUMENT via an
           importOriginal spy-wrap, rather than stubbing a non-zero rate as proposed; the
           argument assertion is red under v1's 0% rate, which was the vacuity's cause."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-2 verdict CONFIRMED-FIXED at 78bcecb8; method in verification block."
 
   - id: "PAY-RFD-008"
     title: "refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and
@@ -10428,7 +10449,7 @@ findings:
       analogous_uninspected_areas:
         - "The mobile order surfaces, if any read order_items by type, were NOT inspected."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "82a8d0af"
       fixed_at: "2026-08-01"
       proposed_action: "Close the asymmetry in the C4 bundle slice, where both call sites are being
@@ -10436,17 +10457,21 @@ findings:
         (product lines directly; bundle lines via the order_item_bundle_components snapshot), and
         the rule should live in order-fulfillment.ts, not in each caller's query."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "supervisor session (reviewed the cited lines; did not write the settlement or
-        refund code)"
+      verified_by: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "d24c060e"
-      verification_method: "Static comparison of the settle-side and refund-side order_items reads
-        and of decrementInventory/restockInventory branching at the cited lines. A linear read
-        settles the divergence claim; the drift consequence was NOT executed."
-      residual_risk: "The divergence is a static property of two queries and one branch structure.
-        The consequence (one-way drift) is unreproduced and conditional on C4."
+      verification_commit: "78bcecb8"
+      verification_method: "Executed. Removing the line-quantity multiplication from
+        expandInventoryMovements reds 5 named tests across three suites; narrowing the refund
+        read's type filter reds its exact-value assertion. Divergence probing found NO line shape
+        the two callers classify differently at this commit. Structural residual recorded: the
+        refund side keeps a second SQL classifier (.in type product,bundle) in front of the one
+        rule where settle has none; a future inventory-moving type would be honoured by settle
+        and silently dropped by refund, and the exact-value assertion would still pass."
+      residual_risk: "No database executed (no local Docker): 0135 never applied to
+        Postgres, RLS/enum/cascade behaviour and both once-only flips unverified as real
+        concurrency. No Stripe call made."
     disclosure:
       public_repo_safe: true
     history:
@@ -10464,6 +10489,10 @@ findings:
           inside its own catch; refund reads+expands before its flip, see SHOP-FUL-002).
           Pinned by the new order-fulfillment-expansion suite (9 mutants) and the
           bundle-order refund test (expanded components restocked, 3x2=6)."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-2 verdict CONFIRMED-FIXED at 78bcecb8; method in verification block."
 
   - id: "SHOP-FUL-002"
     title: "A bundle-snapshot read failure during a FULL goods refund permanently loses the
@@ -10566,7 +10595,7 @@ findings:
         - "Every other caller of a deliberately-throwing helper placed after a once-only
           conditional update was NOT enumerated."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "82a8d0af"
       fixed_at: "2026-08-01"
       proposed_action: "Decide the posture deliberately and make the two callers of
@@ -10574,18 +10603,21 @@ findings:
         a test: none exists today, because the current behaviour IS the defect and pinning it
         would go red on the fix."
     verification:
-      status: "not-started"
-      independent: false
-      verified_by: "not yet verified by a second instance; the reproduction above was run by the
-        reporting agent"
+      status: "passed"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "f6298940"
-      verification_method: "Throwaway vitest probe (since deleted) driving the real
-        settleGoodsOrderRefund through a recording serviceClient double, asserting the observed
-        call/no-call facts rather than reading them off the source."
-      residual_risk: "Self-reported and self-reproduced. The control-flow claim is executed, but
-        the reproduction is against a double, not a real database, and no second instance has
-        re-run it."
+      verification_commit: "78bcecb8"
+      verification_method: "Executed for the fix's stated scope: restoring the pre-fix ordering (read
+        after flip) reds exactly the two predicted named tests. The pre-flip-read race is
+        harmless by reasoning (the flip loser returns without restocking; order_items are
+        immutable). The BROADER recoverability claim was REFUTED IN PART and opened as
+        SHOP-FUL-004: silently swallowed post-flip WRITE failures (restockInventory ignores its
+        PostgREST error; the redemption delete's result is discarded) still lose restock/release
+        with the gate consumed."
+      residual_risk: "No database executed (no local Docker): 0135 never applied to
+        Postgres, RLS/enum/cascade behaviour and both once-only flips unverified as real
+        concurrency. No Stripe call made."
     disclosure:
       public_repo_safe: true
     history:
@@ -10607,6 +10639,556 @@ findings:
           restock/release/audit not run. Mutation-proven by execution: restoring the
           pre-fix shape (flip hoisted above the read) turns exactly the two predicted
           tests red; file restored sha256-byte-exact."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-2 verdict CONFIRMED-FIXED at 78bcecb8; method in verification block."
+
+  - id: "SHOP-FUL-004"
+    title: "Post-flip WRITE failures on the refund path are silently swallowed: restockInventory
+      ignores its PostgREST errors and the redemption delete's result is discarded, losing restock
+      and/or cap release with the flip consumed and no observability"
+    summary: "SHOP-FUL-002 moved the THROWING failure (snapshot read) before the once-only flip.
+      The round-2 verifier refuted the broader recoverability claim: restockInventory destructures
+      only data and never inspects error (order-fulfillment.ts:198-233), and the
+      discount_redemptions delete's result is discarded entirely (goods-refund.ts:129-134). Either
+      failing after the flip leaves the order refunded with stock un-restocked and/or the discount
+      cap still consumed, with no Sentry capture, and a redelivery cannot recover because the
+      order lookup filters .in(status, [paid, partially_refunded]). The swallow is arguably worse
+      than the old throw because nothing observes it."
+    classification:
+      domain: "payment"
+      category: "silent-failure"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 2, while refuting SHOP-FUL-002's
+        recoverability claim"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "The supervisor's dispatch asked explicitly whether any path still
+        consumes the flip and loses restock/release. Two do."
+    location:
+      files:
+        - "apps/web/src/lib/order-fulfillment.ts"
+        - "apps/web/src/lib/server/goods-refund.ts"
+      symbols:
+        - "restockInventory"
+        - "settleGoodsOrderRefund"
+    evidence:
+      observed_facts:
+        - "order-fulfillment.ts restockInventory (and decrementInventory) destructure { data }
+          from every supabase call and never read error."
+        - "goods-refund.ts:129-134 issues the discount_redemptions delete without capturing its
+          result."
+        - "goods-refund.ts:76-80 the order lookup excludes 'refunded', so no redelivery can
+          re-enter after the flip."
+      references:
+        - "apps/web/src/lib/server/goods-refund.ts"
+    assessment:
+      interpretation: "The failure window was narrowed by SHOP-FUL-002, not closed. The remaining
+        failures are silent by construction."
+      root_cause_hypothesis: "The inventory movers predate the money-path fail-loud rules and were
+        written best-effort; nobody revisited their error handling when they became the tail of a
+        once-only gate."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists' stock counts and discount caps on refunds, once goods
+        commerce un-parks."
+      production_exposure: "None today: GOODS_COMMERCE_ENABLED off, 0134/0135 not in prod."
+      exploit_preconditions: "Not attacker-driven; needs a transient DB write failure in exactly
+        the post-flip window."
+      remaining_uncertainty: "Whether the movers should fail loud (throw pre-flip is impossible
+        for writes) or capture-and-audit is a posture decision for the fix."
+    relationships:
+      related_findings:
+        - "SHOP-FUL-002"
+        - "SHOP-FUL-003"
+    remediation:
+      status: "open"
+      proposed_action: "Make the movers report: restockInventory/decrementInventory return or
+        surface per-line write failures; the refund path captures them to Sentry with the order id
+        and writes an audit row naming what was NOT restocked/released, so the loss is at least
+        observable and manually repairable. Alternatively restructure to a compensating retry
+        table. Decide the posture deliberately; land a test with it."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Established by reading the two call sites and the order lookup's
+        status filter; no failure was injected (the movers' error paths have no harness)."
+      residual_risk: "Read-based; the swallow is a static property of the destructuring."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2"
+        action: "opened"
+        note: "Partial refutation of SHOP-FUL-002's recoverability claim, recorded by the
+          supervisor."
+
+  - id: "SHOP-DROP-001"
+    title: "The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable
+      consults only stock, so an undropped product refused for direct purchase is obtainable via
+      any bundle containing it"
+    summary: "Drops are enforced by productAvailability inside computeAddonLines
+      (orders.ts:114-132), which bundle lines never pass through. resolveBundleLines hands
+      bundlePurchasable only { stock: product.quantity } (goods-checkout.ts:230-240). The round-2
+      verifier EXECUTED both shipped gates on the same product (active, visible, non-preorder,
+      available_from a day ahead): productAvailability answered upcoming/not-purchasable,
+      bundlePurchasable answered ok. Every bundle test fixture uses available_from null, so no
+      test covers it. The C3 page compounds the display half: it does not select available_from
+      at all, so undropped products list as buyable (the direct-purchase money path still refuses
+      them via the compositor; the bundle money path does not)."
+    classification:
+      domain: "public-surface"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 2 (C4 sweep)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "local"
+      discovery_context: "Adversarial sweep of resolveBundleLines' purchasability contract against
+        the compositor's gate set."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "packages/shared/src/bundles.ts"
+        - "apps/web/src/app/[slug]/shop/checkout/page.tsx"
+      symbols:
+        - "resolveBundleLines"
+        - "bundlePurchasable"
+    evidence:
+      observed_facts:
+        - "Executed: productAvailability -> {state: upcoming, purchasable: false} and
+          bundlePurchasable -> {ok: true} for the same future-dropped product."
+        - "bundles.ts:178-183 documents the sellable catalog as 'active + publicly visible +
+          matching currency', omitting the drop gate, which lives in the compositor, not the
+          query."
+        - "goods-checkout.test.ts:230,261 every bundle fixture has available_from null."
+      references:
+        - "apps/web/src/lib/orders.ts"
+    assessment:
+      interpretation: "A merchandising gate (drops build hype; early access defeats the point)
+        enforced on one purchase path and absent on the other. Not a documented decision
+        anywhere."
+      root_cause_hypothesis: "bundlePurchasable was designed against the FILTERED catalog read as
+        its oracle; drops are the one sellability rule that never lived in the query."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists running drops with bundles containing dropped products,
+        once goods commerce un-parks."
+      production_exposure: "None today (park switch off)."
+      exploit_preconditions: "GOODS_COMMERCE_ENABLED on; a bundle containing an undropped
+        product; no authentication needed."
+      remaining_uncertainty: "None on the mechanism."
+    relationships:
+      related_findings:
+        - "SHOP-VIS-001"
+    remediation:
+      status: "open"
+      proposed_action: "resolveBundleLines resolves each component through productAvailability
+        (drop + preorder + stock) and refuses the bundle when any component is not purchasable
+        (component_unavailable; sell-short is already forbidden by contract). Mirror the same
+        availability rule into the page's bundle availability and select available_from/preorder
+        for the product list so undropped products do not render buyable."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Both real gates executed side by side on the same fixture product;
+        divergence observed directly."
+      residual_risk: "None on the divergence; the fix needs its own test with a future
+        available_from fixture."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2"
+        action: "opened"
+        note: "Proven by executing productAvailability and bundlePurchasable on the same
+          undropped product."
+
+  - id: "SHOP-FUL-003"
+    title: "Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read
+      failure on a paid bundle order permanently skips inventory decrement (oversell), the exact
+      shape SHOP-FUL-002 fixed on the refund side"
+    summary: "goods-checkout.ts:597-605 runs expandInventoryMovements inside a try/catch AFTER
+      the pending->paid flip. The C4 test at goods-checkout.test.ts:1120 documents the
+      consequence as intended behaviour: settled true, decrement never called. The verifier's
+      point: the flip is only 'already consumed' because the read sits after it; the identical
+      pre-flip move made on the refund side is available here and was not made. A paid bundle
+      order then oversells silently (Sentry only)."
+    classification:
+      domain: "payment"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 2 (C4 sweep)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "Symmetry check of the SHOP-FUL-002 posture across both callers of the
+        expansion."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+      symbols:
+        - "settleStandaloneGoodsOrder"
+    evidence:
+      observed_facts:
+        - "goods-checkout.ts:597-605 expansion after the flip, in a catch that keeps
+          settled=true."
+        - "goods-checkout.test.ts:1120 pins decrement-not-called on a snapshot read failure with
+          settlement succeeding — an existing PASSING test documents the loss."
+      references:
+        - "apps/web/src/lib/server/goods-refund.ts"
+    assessment:
+      interpretation: "Same defect class as SHOP-FUL-002, opposite direction (oversell instead of
+        lost restock). The try/catch is right given the ordering; the ordering is wrong."
+      root_cause_hypothesis: "The settlement hardening predates the refund-side posture decision
+        by a few hours and was not revisited when the posture was chosen."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists' stock on paid bundle orders, once un-parked."
+      production_exposure: "None today."
+      exploit_preconditions: "Transient snapshot read failure in the settlement window."
+      remaining_uncertainty: "For payment_intent.succeeded there is no Stripe-driven retry on a
+        200; recoverability after a pre-flip refusal relies on the reconciliation backstop or
+        redelivery, same as the refund side. The fix should say so."
+    relationships:
+      related_findings:
+        - "SHOP-FUL-002"
+        - "SHOP-FUL-004"
+    remediation:
+      status: "open"
+      proposed_action: "Move the items read + expansion BEFORE the paid flip in
+        settleStandaloneGoodsOrder, exactly like the refund side: an expansion failure returns
+        false with the flip unconsumed. Update the test at goods-checkout.test.ts:1120 to pin the
+        new posture (flip NOT consumed) instead of documenting the loss."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Evidenced by the existing passing test that pins the lossy behaviour,
+        plus reading the ordering; no new execution needed."
+      residual_risk: "None on the mechanism."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2"
+        action: "opened"
+        note: "Asymmetry with the refund-side posture, documented by the C4 suite's own test."
+
+  - id: "SHOP-ORD-002"
+    title: "The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and
+      payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt
+      and no artist visibility"
+    summary: "sweepStalePendingStandaloneOrders makes no Stripe call; the buyer still holds the
+      client secret and Stripe PaymentIntents do not expire in 24h. If the buyer pays after the
+      sweep, settleStandaloneGoodsOrder's flip conditions on status=pending, loses, returns
+      false, and the webhook answers 200 so Stripe stops retrying: money captured, order
+      cancelled, no decrement, no receipt, no goods_order_paid audit, invisible on the artist's
+      sales surfaces (which filter to paid/refunded/partially_refunded). The source comment
+      asserts the late success 'just no-ops' — a no-op is not safe once money has moved."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 2 (C4 sweep)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "Follow-through on the SHOP-ORD-001 fix: what happens to the intent the
+        cancelled order was created for."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+      symbols:
+        - "sweepStalePendingStandaloneOrders"
+        - "settleStandaloneGoodsOrder"
+    evidence:
+      observed_facts:
+        - "The only paymentIntents.cancel in goods-checkout.ts is the link-failure rollback; the
+          sweep touches only the orders table."
+        - "settleStandaloneGoodsOrder flips .eq(status, 'pending'); a cancelled order can never
+          settle, and the webhook returns 200 either way, ending redelivery."
+        - "The sweep's own comment claims the late-success case is safe because the flip no-ops."
+      references:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+    assessment:
+      interpretation: "The retention fix (SHOP-ORD-001) created a capture-without-goods window.
+        Buyer's money is taken against a cancelled order; nothing surfaces it to anyone."
+      root_cause_hypothesis: "The sweep was designed as a data-retention measure and reasoned
+        about the ORDER lifecycle only, treating the intent as someone else's problem."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Guest buyers returning to an open checkout tab more than 24h
+        after starting it; the artist who never learns a sale happened."
+      production_exposure: "None today (park switch off, 0134/0135 not in prod)."
+      exploit_preconditions: "None beyond a slow buyer; no exotic payment method needed."
+      remaining_uncertainty: "Stripe-side behaviour (cancel of a processing intent, race between
+        cancel and confirm) reasoned, not executed; no Stripe call was made in verification."
+    relationships:
+      related_findings:
+        - "SHOP-ORD-001"
+    remediation:
+      status: "open"
+      proposed_action: "The sweep must resolve the INTENT, not just the row: check the intent's
+        status first; succeeded -> run settleStandaloneGoodsOrder (converge, a lost-webhook
+        recovery for free); otherwise cancel the intent via Stripe and only then cancel the
+        order; rows with no intent id cancel directly. Treat cancel-vs-confirm races by
+        rechecking the intent on Stripe error. The webhook's canceled-branch path is unaffected
+        (there the intent is already dead)."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Established by reading the sweep, the flip conditions and the webhook
+        response codes; the late-payment sequence was reasoned end to end but no Stripe call was
+        executed."
+      residual_risk: "The Stripe-side race (confirm racing cancel) needs test-mode execution
+        during the fix."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2"
+        action: "opened"
+        note: "Found by following the money past the SHOP-ORD-001 fix's stated scope."
+
+  - id: "SHOP-MIG-001"
+    title: "0135 declares the snapshot table's PRIMARY KEY inline inside create table if not
+      exists, under a comment claiming plain columns only"
+    summary: "Every other constraint in 0135 is in a guarded do-block per the 0122 convergence
+      lesson; the PK (line 46) is inline, so a manually dropped PK would not be restored by a
+      re-run. Low: dropping a PK is an extreme repair scenario, and 0135 is not yet applied
+      anywhere."
+    classification:
+      domain: "migration"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 2 (C4 sweep)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "Convergence-discipline check of 0135 against its own preamble."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0135_bundle_order_items.sql"
+    evidence:
+      observed_facts:
+        - "0135 line 46: id uuid primary key default gen_random_uuid() inline; the file's comment
+          says constraints follow guarded."
+      references:
+        - "apps/web/supabase/migrations/0122_collection_items.sql"
+    assessment:
+      interpretation: "Consistency gap with the file's own stated discipline, cheap to close
+        while 0135 is unapplied."
+      root_cause_hypothesis: "PKs read as part of the column, not as a constraint."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future repair scenarios only."
+      production_exposure: "None; 0135 unapplied."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None."
+    relationships:
+      related_findings:
+        - "SHOP-MIG-002"
+    remediation:
+      status: "open"
+      proposed_action: "Add a guarded do-block restoring the PK by conname, alongside the other
+        guards. 0135 is unapplied, so editing it is forward-safe."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Read of the migration file against the convergence pattern."
+      residual_risk: "None."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2"
+        action: "opened"
+        note: "Consistency check."
+
+  - id: "SHOP-MIG-002"
+    title: "order_items.bundle_id is a single-column FK, not the composite artist-scoped FK the
+      repo convention uses to make cross-artist rows unstorable"
+    summary: "0135 references product_bundles(id) alone; the 0122/0132 convention uses composite
+      (id, artist_id) FKs on join tables so a row referencing another artist's parent cannot be
+      stored. order_items has NO artist_id column (artist lives on orders), so the composite
+      shape is not directly expressible; cross-artist attribution is prevented only in
+      application code (resolveBundleLines scopes the bundle read by artist_id)."
+    classification:
+      domain: "database"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 2 (C4 sweep)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "Convention check against 0132's composite FKs."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0135_bundle_order_items.sql"
+      database_objects:
+        - "order_items.bundle_id"
+    evidence:
+      observed_facts:
+        - "0135:34-38 foreign key (bundle_id) references product_bundles (id) on delete set
+          null; no artist column exists on order_items to compose with."
+      references:
+        - "apps/web/supabase/migrations/0132_product_bundles.sql"
+    assessment:
+      interpretation: "A deliberate deviation forced by order_items' shape; the write path is
+        service-role-only and scopes the bundle read by artist, so the exposure is a future
+        service-role bug, not an RLS hole."
+      root_cause_hypothesis: "order_items predates the composite-FK convention and carries no
+        artist column."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future service-role code paths writing bundle attributions."
+      production_exposure: "None; 0135 unapplied, table service-role-write-only."
+      exploit_preconditions: "Requires a service-role code defect; no client write path exists."
+      remaining_uncertainty: "None."
+    relationships:
+      related_findings:
+        - "SHOP-MIG-001"
+    remediation:
+      status: "risk-accepted"
+      proposed_action: "Documented as a deliberate deviation in 0135's comments (the composite
+        shape is not expressible without adding artist_id to order_items, which is out of
+        proportion). Revisit only if a client write path to order_items ever appears."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Read of 0135 against the 0132 convention and of order_items' column
+        set."
+      residual_risk: "Cross-artist attribution depends on application code remaining correct."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2"
+        action: "opened"
+        note: "Recorded as accepted deviation; order_items has no artist column to compose
+          with."
+
+  - id: "SHOP-VAR-001"
+    title: "Bundles cannot express variants, and nothing guards the gap: a variant-stocked
+      product inside a bundle sells with no variant chosen and no stock moved"
+    summary: "product_bundle_items has no variant column (documented v1 scope). Undocumented and
+      unguarded: an artist CAN add a variant-stocked product to a bundle; if the parent
+      products.quantity is null (stock tracked per variant), bundlePurchasable treats it as
+      unlimited (verifier executed: {quantity:1, product:{stock:null}}, lineQuantity 99 -> ok),
+      expandInventoryMovements emits variant_id null, and decrementInventory reads the null
+      parent quantity and moves nothing. The same product bought directly REQUIRES a variant
+      choice in computeAddonLines. So the bundle sale is fulfillable only by asking the buyer
+      afterwards, and no stock ledger reflects it."
+    classification:
+      domain: "payment"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 2 (C4 sweep)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "local"
+      discovery_context: "Gate execution with a null-parent-stock component."
+    location:
+      files:
+        - "packages/shared/src/bundles.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/lib/order-fulfillment.ts"
+    evidence:
+      observed_facts:
+        - "Executed: bundlePurchasable(bundle, [{quantity:1, product:{stock:null}}], 99) ->
+          {ok: true}."
+        - "bundles.ts:189 documents variant-level stock as not consulted; nothing refuses a
+          variant-bearing component."
+        - "computeAddonLines requires a variant choice for the same product bought directly."
+      references:
+        - "apps/web/src/lib/orders.ts"
+    assessment:
+      interpretation: "The v1 'products, not variants' scope is honest about pricing but silent
+        about stock and fulfilment; the gap sells ambiguous goods and skips the ledger."
+      root_cause_hypothesis: "The scope note was written for the display model before the
+        payable slice existed."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists with variant-stocked products in bundles, once
+        un-parked."
+      production_exposure: "None today."
+      exploit_preconditions: "None beyond normal purchases."
+      remaining_uncertainty: "Whether v1 should refuse variant-bearing components at checkout or
+        support variant selection is a product decision to log."
+    relationships:
+      related_findings:
+        - "SHOP-DROP-001"
+    remediation:
+      status: "open"
+      proposed_action: "v1 conservative rule (sell-short is forbidden by contract): the checkout
+        refuses a bundle whose component product has active variants (component_unavailable),
+        because neither a variant choice nor variant stock can be expressed. Log the decision;
+        variant-aware bundles are a v2 scope with a snapshot schema change."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 2"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "bundlePurchasable executed with a null-stock component at high line
+        quantity; the fulfilment no-op established by reading decrementInventory's branches."
+      residual_risk: "The end-to-end sale was not executed (no DB/Stripe)."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 2"
+        action: "opened"
+        note: "Gate executed; fulfilment half by reading."
 
 patterns:
 
@@ -13021,3 +13603,42 @@ coverage:
       real-client RLS (tests/db/) coverage exists for the standalone order path, CI-pending like
       the rest of the local suite (no local Docker). (5) Fix VERIFICATION is not this row:
       remediations are fixed-unverified pending an independent verifier pass."
+
+  - area: "Track C round-2 independent verification: the six fixed-unverified remediations
+      (SHOP-VIS-001, SHOP-ORD-001, TEST-VAC-002, TEST-VAC-003, SHOP-FUL-001, SHOP-FUL-002) and an
+      adversarial sweep of the C4 payable-bundle slice"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-01"
+    commit_inspected: "78bcecb8"
+    reviewer: "track-C adversarial verifier, round 2; wrote none of the fixes and none of their
+      tests"
+    evidence: "Baseline reproduced first (158 files, 2755 passed + 1 expected fail, tsc exit 0).
+      Rig re-proven at this HEAD: four canaries bound and failed only their expected files; three
+      identity copies each restored the exact baseline. Twenty mutations, one policy each, FULL
+      suite every run, probes held OUTSIDE the repo (A:\\WORK\\_verify-trackc, same drive because
+      vitest cannot resolve a cross-drive include); the repo tree never modified. Five
+      remediations CONFIRMED-FIXED including value-not-just-key pinning (is_public_visible
+      inverted to false, not only deleted), the exact mutation that survived at 97735cd0 now red,
+      and both discount mutants red under the v1 0% rate. SHOP-FUL-002 confirmed for its stated
+      scope (pre-fix ordering reds exactly the two predicted tests) with the broader
+      recoverability claim REFUTED IN PART (opened as SHOP-FUL-004). Six new findings opened:
+      SHOP-DROP-001 (drop gate bypassed via bundles, both real gates executed side by side),
+      SHOP-FUL-003 (settle-side expansion still post-flip, pinned by the suite's own passing
+      test), SHOP-ORD-002 (sweep leaves the intent payable; capture-without-goods), SHOP-MIG-001
+      (inline PK vs the file's own discipline), SHOP-MIG-002 (single-column FK deviation,
+      risk-accepted), SHOP-VAR-001 (variant-stocked bundle components sell with no variant and no
+      stock movement, gate executed). One honest survivor: the positional-vs-bundle_id snapshot
+      mapping mutation SURVIVES the full suite (multiple-bundles-per-order remains untested,
+      exactly as the C4 coverage row recorded); the shipped mapping is correct by reading."
+    recommended_next_inspection: "After the fix batch for SHOP-DROP-001 / SHOP-FUL-003 /
+      SHOP-ORD-002 / SHOP-VAR-001 / SHOP-FUL-004 lands: re-verify by mutation, add a
+      multiple-bundles-per-order test that kills the surviving positional-mapping mutant, and run
+      the 0135 db suite in CI."
+    known_exclusions: "No database executed (no local Docker): 0135 never applied to Postgres;
+      RLS, enum addition, SET NULL/CASCADE and both once-only flips unverified as real
+      concurrency. No Stripe call made: destination-charge shape, idempotency keys and the
+      SHOP-ORD-002 late-payment sequence reasoned, not executed. The checkout UI
+      (shop-checkout.tsx, page.tsx) remains untested by any suite; the page's is_public_visible
+      filter is read-verified only."

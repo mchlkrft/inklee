@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `2c8240ce356f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `022f6a77b842`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,9 +14,9 @@
 
 ## Executive summary
 
-99 recorded finding(s), 3 structural pattern(s), across 76 mapped area(s).
-94 remain open by remediation status. 80 are reachable (directly or conditionally) rather than latent.
-88 have not passed independent verification.
+106 recorded finding(s), 3 structural pattern(s), across 77 mapped area(s).
+94 remain open by remediation status. 85 are reachable (directly or conditionally) rather than latent.
+89 have not passed independent verification.
 174 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -26,9 +26,9 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Severity | Count |
 | --- | --- |
 | critical | 2 |
-| high | 28 |
-| medium | 39 |
-| low | 26 |
+| high | 29 |
+| medium | 43 |
+| low | 28 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -37,18 +37,19 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 28 |
+| fixed-unverified | 22 |
 | mitigated | 1 |
-| open | 62 |
-| verified | 5 |
+| open | 68 |
+| risk-accepted | 1 |
+| verified | 11 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 86 |
+| not-started | 87 |
 | partially-verified | 1 |
-| passed | 11 |
+| passed | 17 |
 | pending | 1 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -141,20 +142,20 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 22 |
+| payment | 26 |
 | jobs | 12 |
 | webhook | 12 |
 | billing | 11 |
-| database | 9 |
+| database | 10 |
 | authorization | 5 |
-| migration | 3 |
+| migration | 4 |
 | production-config | 3 |
+| public-surface | 3 |
 | testing | 3 |
 | web | 3 |
 | ci-cd | 2 |
 | data-retention | 2 |
 | governance | 2 |
-| public-surface | 2 |
 | secrets | 2 |
 | tooling | 2 |
 | analytics | 1 |
@@ -187,6 +188,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-ORD-002 | high | conditionally-reachable | latent | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |
 | PAY-RFD-001 | high | conditionally-reachable | latent | A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status |
 | PAY-SPON-001 | high | directly-reachable | historically-impacting | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
+| SHOP-ORD-002 | high | conditionally-reachable | latent | The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt and no artist visibility |
 | TEST-VAC-001 | high | directly-reachable | historically-impacting | Tests incapable of failing, found in at least five independent rounds, including the suite written specifically to prove an RLS repair |
 | WHK-ERR-001 | high | directly-reachable | unknown | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
 | WHK-TOK-001 | high | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
@@ -216,7 +218,11 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-008 | medium | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
 | SEED-GRT-001 | medium | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
+| SHOP-DROP-001 | medium | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
+| SHOP-FUL-003 | medium | conditionally-reachable | latent | Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read failure on a paid bundle order permanently skips inventory decrement (oversell), the exact shape SHOP-FUL-002 fixed on the refund side |
+| SHOP-FUL-004 | medium | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
 | SHOP-ORD-001 | medium | conditionally-reachable | latent | A standalone goods order abandoned at the payment step stays pending forever: no webhook branch and no cron sweep can ever reach it |
+| SHOP-VAR-001 | medium | conditionally-reachable | latent | Bundles cannot express variants, and nothing guards the gap: a variant-stocked product inside a bundle sells with no variant chosen and no stock moved |
 | SHOP-VIS-001 | medium | conditionally-reachable | latent | The standalone shop lists and sells products the artist marked NOT publicly visible: is_public_visible is filtered by the public artist page but by neither of the two new standalone-checkout reads |
 | TEST-VAC-002 | medium | directly-reachable | latent | The goods-refund suite's once-only restock guarantee cannot fail: moving restockInventory outside the flip gate leaves the whole suite green |
 | TEST-VAC-003 | medium | directly-reachable | latent | The standalone checkout's discount arithmetic has no effective coverage: neither the fee base nor the amount the buyer is CHARGED can be broken by a test |
@@ -269,16 +275,10 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-003 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-007 | medium | fixed-unverified | passed | 752e989 |
-| SHOP-ORD-001 | medium | fixed-unverified | not-started | 27f3aa5a |
-| SHOP-VIS-001 | medium | fixed-unverified | not-started | 27f3aa5a |
-| TEST-VAC-002 | medium | fixed-unverified | not-started | 27f3aa5a |
-| TEST-VAC-003 | medium | fixed-unverified | not-started | 27f3aa5a |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
-| SHOP-FUL-001 | low | fixed-unverified | not-started | 82a8d0af |
-| SHOP-FUL-002 | low | fixed-unverified | not-started | 82a8d0af |
 
 ## Analogous areas flagged but NOT inspected
 
@@ -487,14 +487,15 @@ These are the register's highest-value entries for an auditor: places a recorded
 24. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
 25. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
 26. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
-27. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
-28. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
-29. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
-30. **Uninspected**: Mobile client (Expo app) / mobile
-31. **Uninspected**: Background jobs and crons / jobs
-32. **Uninspected**: Dependency security / secops
-33. **Uninspected**: Production configuration / platform
-34. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
+27. **SHOP-ORD-002** (high, unverified): The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt and no artist visibility
+28. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
+29. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
+30. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
+31. **Uninspected**: Mobile client (Expo app) / mobile
+32. **Uninspected**: Background jobs and crons / jobs
+33. **Uninspected**: Dependency security / secops
+34. **Uninspected**: Production configuration / platform
+35. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
 
 ## Limitations and confidence warnings
 
