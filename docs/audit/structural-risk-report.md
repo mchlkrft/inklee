@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `3827de4049d9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `c5bc3d3c6a41`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-119 recorded finding(s), 3 structural pattern(s), across 81 mapped area(s).
-98 remain open by remediation status. 91 are reachable (directly or conditionally) rather than latent.
-94 have not passed independent verification.
+122 recorded finding(s), 3 structural pattern(s), across 82 mapped area(s).
+100 remain open by remediation status. 94 are reachable (directly or conditionally) rather than latent.
+96 have not passed independent verification.
 178 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,8 +27,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 50 |
-| low | 34 |
+| medium | 51 |
+| low | 36 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,19 +37,19 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 31 |
+| fixed-unverified | 30 |
 | mitigated | 2 |
-| open | 62 |
+| open | 65 |
 | risk-accepted | 2 |
-| verified | 19 |
+| verified | 20 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 91 |
+| not-started | 93 |
 | partially-verified | 2 |
-| passed | 25 |
+| passed | 26 |
 | pending | 1 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -145,8 +147,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | jobs | 13 |
 | webhook | 13 |
 | database | 10 |
+| web | 9 |
 | testing | 7 |
-| web | 6 |
 | authorization | 5 |
 | migration | 4 |
 | public-surface | 4 |
@@ -209,6 +211,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | FEE-DSP-001 | medium | conditionally-reachable | latent | The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the moment fee schedule v2 activates |
 | FEE-STP-001 | medium | conditionally-reachable | latent | Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane stamps the version only into the audit log, and the deposit lane stamps it at settlement time rather than from the intent |
 | HUB-GAL-001 | medium | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
+| HUB-GAL-004 | medium | conditionally-reachable | latent | isPrivateIpv6 has proven coverage holes (v4-mapped hex, v4-compatible, NAT64 forms all ALLOWED), fails OPEN on garbage against its own doc comment, and the IPv6-literal branch is dead only by accident of URL bracket handling |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
 | PAY-CHK-001 | medium | conditionally-reachable | latent | prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state |
@@ -242,6 +245,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-RACE-002 | low | conditionally-reachable | latent | 0124's self-documented residual risks (timeout and deadlock) not recorded in the audit evidence register |
 | DRIFT-FN-001 | low | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
 | HUB-GAL-002 | low | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
+| HUB-GAL-005 | low | conditionally-reachable | latent | URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted to the third-party host while the SSRF guard sees only the clean hostname |
+| HUB-GAL-006 | low | conditionally-reachable | latent | The hosted-logos marker single-sourcing is incomplete: a second literal survives in mobile-goods-server.ts while the parser comment claims the drift risk was closed |
 | OBS-MAP-001 | low | directly-reachable | actively-impacting | Public-map analytics plane has recorded zero events and one pageview since the 2026-07-27 launch; silence cause indistinguishable from repo+DB evidence |
 | OPS-CFG-001 | low | directly-reachable | reachable-no-known-impact | The grandfathering backfill defaults ADMIN_EMAILS to a hardcoded personal address; the application's admin guard has no default at all |
 | OPS-CRD-001 | low | conditionally-reachable | latent | RISK INTRODUCED BY THIS REMEDIATION: an exported DATABASE_URL now outranks apps/web/.env.local in every governance recorder |
@@ -270,12 +275,12 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RLS-005 | high | fixed-unverified | not-started | 6fb2eb1 |
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
-| BILL-UI-001 | medium | fixed-unverified | not-started | unknown |
+| BILL-UI-001 | medium | fixed-unverified | not-started | 45a44bee |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
-| OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
+| OPS-TOOL-001 | medium | fixed-unverified | not-started | 45a44bee |
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
 | PAY-RFD-003 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
@@ -285,9 +290,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | TEST-VAC-006 | medium | fixed-unverified | not-started | 5fa0110e |
 | TEST-VAC-007 | medium | fixed-unverified | not-started | 5fa0110e |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
-| COPY-UI-001 | low | fixed-unverified | not-started | unknown |
-| HUB-GAL-003 | low | fixed-unverified | not-started | unknown |
-| OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
+| COPY-UI-001 | low | fixed-unverified | not-started | 45a44bee |
+| OPS-LINT-001 | low | fixed-unverified | not-started | 45a44bee |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
 | SHOP-FUL-005 | low | fixed-unverified | not-started | 5fa0110e |
 | SHOP-ORD-003 | low | fixed-unverified | not-started | 5fa0110e |

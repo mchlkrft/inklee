@@ -1651,7 +1651,7 @@ findings:
         as before. The fix is deliberately left unverified by me: a separate independent pass should
         confirm it."
       fixed_at: "2026-07-30"
-      fix_commit: "unknown"
+      fix_commit: "45a44bee"
     verification:
       status: "not-started"
       independent: false
@@ -1776,7 +1776,7 @@ findings:
       proposed_action: "Add eslint config and lint script to packages/shared; wire into monorepo root
         lint. Answered the open question: 81 files linted, 0 findings."
       fixed_at: "2026-07-31"
-      fix_commit: "unknown"
+      fix_commit: "45a44bee"
     verification:
       status: "not-started"
       independent: false
@@ -1890,7 +1890,7 @@ findings:
       proposed_action: "C6: replace em-dashes with colons. C2: yearly available when yearlyBaseLabel is
         not null, independent of founder offer."
       fixed_at: "2026-07-31"
-      fix_commit: "unknown"
+      fix_commit: "45a44bee"
     verification:
       status: "not-started"
       independent: false
@@ -7462,7 +7462,7 @@ findings:
           inspected."
     remediation:
       status: "fixed-unverified"
-      fix_commit: "unknown"
+      fix_commit: "45a44bee"
       proposed_action: "Added revalidatePath('/settings/plan') after a successful withdrawal in
         withdrawFromSubscriptionAction. Only the completed path revalidates; no_subscription and
         not_available do not (nothing changed). Test updated to assert revalidation on success
@@ -9359,7 +9359,7 @@ findings:
       detected_by: "implementation-worker (self-review while building FD4)"
       repository: "mchlkrft/inklee"
       branch: "master"
-      commit: "02c8b814"
+      commit: "45a44bee"
       environment: "local"
       discovery_context: "Writing the SSRF guard for FD4 (gallery Import from URL) and its own doc
         comment/tests; reasoned through the check's timing relative to fetch()'s own DNS resolution
@@ -9453,6 +9453,13 @@ findings:
         action: "opened"
         note: "Recorded while writing the SSRF guard itself, before any independent review looked at it;
           flagging own residual risk rather than waiting for someone else to find it."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 4"
+        action: "evidence-added"
+        note: "Entry audited: description matches the shipped code, mitigations fairly stated,
+          no self-verification. Scoping caveat recorded: this documents A residual, not THE
+          residuals - the round-4 IPv6 gaps (HUB-GAL-004) are a second, different gap in the
+          same guard. discovery.commit corrected to 45a44bee."
 
   - id: "PAY-UI-006"
     title: "Payments list UI cancel-button state set drifted from the core's authorization constant"
@@ -12374,7 +12381,7 @@ findings:
       detected_by: "FD4 gallery Import-from-URL worker (inklee-worker)"
       repository: "mchlkrft/inklee"
       branch: "master"
-      commit: "02c8b814"
+      commit: "45a44bee"
       environment: "local"
       discovery_context: "Re-reading gallery-url-import.ts against the FD4 brief's
         explicit requirement for 'a hard byte cap DURING streaming (not just
@@ -12429,19 +12436,23 @@ findings:
           feature; see HUB-GAL-002's analogous-areas note) should be checked for the same
           buffer-then-check-size mistake if one is added later."
     remediation:
-      status: "fixed-unverified"
-      fix_commit: "unknown"
+      status: "verified"
+      fix_commit: "45a44bee"
       proposed_action: "Already applied: stream the response via res.body.getReader(), track a
         running byte total, and reader.cancel() the moment it exceeds MAX_UPLOAD_SIZE, never
         waiting for the stream to complete or trusting Content-Length as anything more than an
         early, optional pre-check."
     verification:
-      status: "not-started"
-      independent: false
-      residual_risk: "Fixed by the same worker who found it; not independently verified. The
-        mutation proof (observed_facts above) shows the fix is load-bearing, but an independent
-        reviewer has not confirmed the fix itself is correct end-to-end (e.g. against a real
-        streamed HTTP response rather than the test's synthetic chunked-body double)."
+      status: "passed"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 4 (wrote none of the code)"
+      verified_at: "2026-08-01"
+      verification_commit: "45a44bee"
+      verification_method: "The claimed fix independently re-derived: an equivalent mutation
+        of the verifier's own construction (cap check moved after full buffering) reds the
+        named MID-STREAM test the entry cites. The original worker had correctly left
+        verification open and disclosed independent:false; round 4 closed it."
+      residual_risk: "Unit-level only; no live network."
     disclosure:
       public_repo_safe: true
     history:
@@ -12456,6 +12467,11 @@ findings:
         note: "Rewrote the size check to stream via res.body.getReader() with a running-total
           abort; mutation-proven (see observed_facts). fix_commit to be filled in after this
           slice's commit is created."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 4"
+        action: "verified"
+        note: "Fix behaviourally real; discovery.commit and fix_commit corrected to 45a44bee
+          (register-accuracy defect N5 from the same pass)."
 
   - id: "OPS-GOV-001"
     title: "A build agent violated an explicit stand-down order and committed to the shared
@@ -12557,6 +12573,207 @@ findings:
           fog where each read the other's edits as convergence. The stop-order violation and the
           false work-claiming remain the stood-down agent's alone. Round-4 verification of the
           content proceeds unchanged."
+
+  - id: "HUB-GAL-004"
+    title: "isPrivateIpv6 has proven coverage holes (v4-mapped hex, v4-compatible, NAT64 forms all
+      ALLOWED), fails OPEN on garbage against its own doc comment, and the IPv6-literal branch
+      is dead only by accident of URL bracket handling"
+    summary: "Executed against the shipped module: ::ffff:7f00:1, ::ffff:a9fe:a9fe (cloud metadata),
+      ::127.0.0.1 and 64:ff9b::7f00:1 (NAT64 loopback) are all ALLOWED - the mapped-address
+      regex matches the dotted spelling only, while the doc comment claims a v4 address cannot
+      sneak past the IPv6 check. isPrivateIpv6 on garbage returns false (allowed) against the
+      fail-closed claim. Live feed is DNS AAAA answers (attacker-controlled records). Sharpest
+      trap: IPv6 URL LITERALS are blocked only because hostname keeps brackets, net.isIP returns
+      0 and the DNS lookup then fails closed - anyone tidying the bracket handling turns every
+      hole above into directly reachable SSRF."
+    classification:
+      domain: "web"
+      category: "missing-authorization"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 4"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "45a44bee"
+      environment: "local"
+      discovery_context: "Round-4 verification of the FD4 import slice."
+    location:
+      files:
+        - "apps/web/src/lib/server/ssrf-guard.ts"
+    evidence:
+      observed_facts:
+        - "All four IPv6 forms executed against the real module and allowed; the garbage input
+          executed and allowed; the bracket accident traced through new URL().hostname."
+      references:
+        - "apps/web/src/lib/server/gallery-url-import.ts"
+    assessment:
+      interpretation: "The IPv6 half of the guard does not deliver what its comment promises, and its current
+        safety rests on an undocumented parser accident."
+      root_cause_hypothesis: "The guard was built IPv4-first; IPv6 handling and URL
+        userinfo were assumed rather than probed."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "The server-side import fetch path (artist-supplied URLs)."
+      production_exposure: "None; feature dark (capability ungranted) and unpushed."
+      exploit_preconditions: "An entitled artist account and, for the IPv6 gaps, an
+        attacker-controlled AAAA record."
+      remaining_uncertainty: "Whether platform resolvers emit the hex spelling of mapped
+        addresses was not executed; the non-dotted forms need no such assumption."
+    relationships:
+      related_findings:
+        - "HUB-GAL-002"
+    remediation:
+      status: "open"
+      proposed_action: "Conservative fix: refuse ALL IPv6 resolution results for the import fetch (public image
+        hosts are IPv4-reachable; failing closed on the whole class removes it), fix the
+        fail-open garbage branch, document the bracket accident with a pinning test, and correct
+        the comment. A future dual-stack allowance needs a real normalizing parser, not a regex."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 4"
+      verified_at: "2026-08-01"
+      verification_commit: "45a44bee"
+      verification_method: "Proven by executing the real shipped module with the named
+        inputs (IPv6 forms allowed; URL userinfo retained into the fetched string)."
+      residual_risk: "Unit-level; no live DNS."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 4"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-4 report."
+
+  - id: "HUB-GAL-005"
+    title: "URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted
+      to the third-party host while the SSRF guard sees only the clean hostname"
+    summary: "new URL with user:secret@example.com yields hostname example.com (guard passes) while
+      toString retains the userinfo, and that exact string is handed to fetch(). Credential
+      rejection was a named FD4 spec requirement; grep across the three modules finds no check."
+    classification:
+      domain: "web"
+      category: "missing-authorization"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 4"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "45a44bee"
+      environment: "local"
+      discovery_context: "Round-4 verification of the FD4 import slice."
+    location:
+      files:
+        - "apps/web/src/lib/server/gallery-url-import.ts"
+    evidence:
+      observed_facts:
+        - "Executed: hostname/toString divergence shown on the real URL parser; grep for any
+          username or password check returned nothing."
+      references:
+        - "apps/web/src/lib/server/gallery-url-import.ts"
+    assessment:
+      interpretation: "A named spec item simply absent; consequence is credential forwarding to arbitrary hosts
+        on the artist's instruction."
+      root_cause_hypothesis: "The guard was built IPv4-first; IPv6 handling and URL
+        userinfo were assumed rather than probed."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "The server-side import fetch path (artist-supplied URLs)."
+      production_exposure: "None; feature dark (capability ungranted) and unpushed."
+      exploit_preconditions: "An entitled artist account and, for the IPv6 gaps, an
+        attacker-controlled AAAA record."
+      remaining_uncertainty: "Whether platform resolvers emit the hex spelling of mapped
+        addresses was not executed; the non-dotted forms need no such assumption."
+    relationships:
+      related_findings:
+        - "HUB-GAL-004"
+    remediation:
+      status: "open"
+      proposed_action: "Reject any URL whose username or password component is non-empty, with its own named test."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 4"
+      verified_at: "2026-08-01"
+      verification_commit: "45a44bee"
+      verification_method: "Proven by executing the real shipped module with the named
+        inputs (IPv6 forms allowed; URL userinfo retained into the fetched string)."
+      residual_risk: "Unit-level; no live DNS."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 4"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-4 report."
+
+  - id: "HUB-GAL-006"
+    title: "The hosted-logos marker single-sourcing is incomplete: a second literal survives in
+      mobile-goods-server.ts while the parser comment claims the drift risk was closed"
+    summary: "bio-page.ts claims the marker is single-sourced; hub-images.ts was converted;
+      mobile-goods-server.ts:33 still holds its own copy of the literal. Different feature
+      (goods images), no gallery-security consequence today - a drift trap, not a hole."
+    classification:
+      domain: "web"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 4"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "45a44bee"
+      environment: "local"
+      discovery_context: "Round-4 verification of the FD4 import slice."
+    location:
+      files:
+        - "apps/web/src/lib/mobile-goods-server.ts"
+        - "packages/shared/src/bio-page.ts"
+    evidence:
+      observed_facts:
+        - "Repo-wide grep found the one unconverted duplicate at mobile-goods-server.ts:33."
+      references:
+        - "apps/web/src/lib/server/gallery-url-import.ts"
+    assessment:
+      interpretation: "A comment promising more than the codebase delivers is the PAT-001 shape in miniature."
+      root_cause_hypothesis: "The guard was built IPv4-first; IPv6 handling and URL
+        userinfo were assumed rather than probed."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "The server-side import fetch path (artist-supplied URLs)."
+      production_exposure: "None; feature dark (capability ungranted) and unpushed."
+      exploit_preconditions: "An entitled artist account and, for the IPv6 gaps, an
+        attacker-controlled AAAA record."
+      remaining_uncertainty: "Whether platform resolvers emit the hex spelling of mapped
+        addresses was not executed; the non-dotted forms need no such assumption."
+    relationships:
+      related_findings:
+        - "HUB-GAL-003"
+    remediation:
+      status: "open"
+      proposed_action: "Convert the remaining literal to the shared constant; correct the comment if any other
+        copy is discovered."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 4"
+      verified_at: "2026-08-01"
+      verification_commit: "45a44bee"
+      verification_method: "Proven by executing the real shipped module with the named
+        inputs (IPv6 forms allowed; URL userinfo retained into the fetched string)."
+      residual_risk: "Unit-level; no live DNS."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 4"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-4 report."
 
 patterns:
 
@@ -15163,3 +15380,29 @@ coverage:
       domain stability is a defensible mitigation on its own, and whether the same
       DNS-rebinding closure (if ever built for HUB-GAL-002) should be shared rather
       than duplicated here."
+
+  - area: "Round-4 verification of 45a44bee (FD4 gallery Import-from-URL): SSRF guard,
+      action ordering, parser restriction, worker-written ledger entries, missing-scope"
+    subsystem: "web"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-01"
+    commit_inspected: "45a44bee"
+    reviewer: "track-C adversarial verifier, round 4; wrote none of the commit"
+    evidence: "Baseline reproduced (2868 passed + 1 expected fail, tsc clean). Fifteen aimed
+      mutations all red with named tests across the SSRF guard (7), import module (4), action
+      ordering (3, asserting before-fetch order not just outcomes) and the parser restriction
+      (1 killing 4 tests). Rig honesty: the first canaries stayed green (relative imports);
+      rebound via importer-scoped resolvers and re-proven before any verdict was accepted.
+      Obfuscated IPv4 literals confirmed neutralised by the WHATWG URL parser (an
+      undocumented implicit dependency). Ledger audit: both worker-written entries honest
+      with no self-verification laundering; HUB-GAL-003 independently re-derived and now
+      verified; two accuracy defects corrected. Missing-scope: six of seven spec items
+      present and verified, credential rejection ABSENT (HUB-GAL-005). New findings:
+      HUB-GAL-004 (IPv6 holes proven by execution, including the bracket-accident trap),
+      HUB-GAL-006 (marker duplication). VERDICT: KEEP with amendments; revert unjustified."
+    recommended_next_inspection: "After the amendment batch: re-verify HUB-GAL-004/005/006 by
+      mutation and close the OPS-GOV-001 verification item."
+    known_exclusions: "No DB, no live network: DNS and fetch mocked, no real rebinding
+      executed; whether platform resolvers emit hex-spelled mapped addresses was not tested.
+      Component render of the editor not executed."
