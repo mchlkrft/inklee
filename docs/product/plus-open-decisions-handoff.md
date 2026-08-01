@@ -1,8 +1,10 @@
 # Plus launch: open decisions handoff
 
-**Written 2026-07-31. Updated 2026-07-31 after the build session** (the status
-snapshot below marks what moved). Each item names the person who must act and
-what is waiting on them.
+**Written 2026-07-31. Updated 2026-07-31 after the build session, and again
+2026-08-01** (the status snapshot marks what moved; the 🆕 NEW AREA section
+covers the standalone shop + hosted client content built 2026-08-01 — a
+consumer-law and accounting surface no prior review round has seen). Each item
+names the person who must act and what is waiting on them.
 
 The original 24 items (F1-F14, A1-A5, C1-C4, X1-X4) are kept verbatim below as
 the record, followed by the counsel/accountant answers and the engineering
@@ -91,11 +93,46 @@ findings in `docs/audit/findings.yaml`.
 | Item | Owner | Status | What's needed |
 |---|---|---|---|
 | **PAY-RFD-002** fee-refund cost-only | founder + counsel + accountant | 🟢 fixed + verified | The v1 artist-cancellation refund now retains only the real Stripe cost, not the whole fee (was a dormant defect). Before the v1 refund-policy flip: Terms coverage of the retained-cost rule + accountant confirm of the fee treatment. Dormant today (v1 inactive). |
-| **BILL-UI-003** null-price checkout fallback | counsel | 🔴 open | When Stripe price resolution fails, the panel defers the total to "the next step". Rule whether that copy is acceptable under Art. 8(2), or require blocking the order when no price is on-screen. No silent charge (Stripe Checkout shows price before pay). |
-| **F14** legacy fee rate | founder | 🟡 provisional | (see F14 above) — confirm 3% vs 0.5% (Plus) vs 0% (full grandfather). |
-| **D1-D6** image-gallery scope | founder + eng | 🟡 provisional | Rich blocks gated via `appearance_custom`; hidden-on-downgrade; native editing web-only for v1; EAS-gated rollout. Confirm. |
-| **B1-B5** bundles scope | founder + eng | 🟡 provisional | Entity + display shipped now; payable checkout deferred to P7; archive-first delete; `goods_bundles` gate; fee on the bundle price. Confirm. |
-| **S1** shop / guest-spots per-surface theming | founder | ⏸ deferred | Deferred as low-value / design-led; the surfaces already inherit the artist's appearance. Confirm it is not wanted for launch. |
+| **BILL-UI-003** null-price checkout fallback | counsel | ✅ resolved by ruling 16 (2026-08-01) | Superseded the counsel deferral: no on-screen price → the order is BLOCKED with a retryable no-charge message (built `eb91f1c`, mutation-context verified). Counsel sees the final screen in the C1 package; no separate ruling needed any more. |
+| **F14** legacy fee rate | founder | ✅ confirmed + encoded | Ruling 14 confirmed 3%; encoded at `e698be7` (no undefined v2 cell), independently verified. Activates only with the gated v2 flip. |
+| **D1-D6** image-gallery scope | founder + eng | ✅ delivered (ruling 17) | Full gallery shipped: save-gate, export, locked preview, REAL upload (global EXIF-rotation fix). Only D4 native editing stays web-only v1. |
+| **B1-B5** bundles scope | founder + eng | 🔄 superseded by ruling 18 + GC1 | Display-only bundles shipped earlier; PAYABLE bundles are now in scope on the standalone-shop keystone (Track C4, next). |
+| **S1** shop / guest-spots per-surface theming | founder | 🔄 superseded by ruling 19 | Inherited theming + surface-specific CONTENT controls are in scope (Track C5). |
+
+### 🆕 NEW AREA OPEN (2026-08-01): the standalone shop + hosted client content
+
+**Built this session (all DARK behind `GOODS_COMMERCE_ENABLED`; nothing
+activated): a full standalone goods shop.** Guest buyers (consumers, identified
+by email only) can buy an artist's products at `/[slug]/shop/checkout` on the
+artist's own PaymentIntent — schema (migration 0134), checkout core, public
+page, settlement (inventory, discounts, buyer receipt), refunds and restock.
+Plus real image upload for galleries (Inklee now HOSTS client-photo content).
+This is a **new consumer-law and accounting surface that no prior counsel or
+accountant round has seen** — it materially widens the C1 item counsel already
+flagged as the one never-reviewed component (goods-marketplace wording).
+
+**Counsel — new open items (queue with the C1 package):**
+
+| Item | What was built (provisional posture) | What counsel must decide |
+|---|---|---|
+| **GS1 — distance-selling duties on the standalone checkout** | A guest consumer buys physical goods on a checkout page carrying: items, prices, server-confirmed total on the pay button, artist named as the counterparty ("Pay X to {artist}", "pickup/delivery arranged with the artist"). | Whether the page needs the full Art. 6/8 CRD information set at order time (seller identity + address, goods return right, delivery terms, complaint route) and an "order with obligation to pay" button label; today it is a plain "Pay" flow built before wording review. |
+| **GS2 — goods return/withdrawal right for standalone purchases** | Nothing on the page or receipt mentions the 14-day goods return right or the Art. 16(c) personalised-goods exemption. Refund MACHINERY exists (full/partial, restock); the legal DISCLOSURE does not. | The goods return-right wording, return-cost allocation, and where the Art. 16(c) exemption for custom items is claimed. Same list C1 already carries — now live-shaped by a real purchase flow. |
+| **GS3 — order confirmation as durable medium** | The buyer receipt email carries items, total, artist, "arranged with the artist directly". It does NOT carry seller identity/address, return-right instructions, or terms. | Whether the goods order confirmation must carry the Art. 8(7) information set (as the Plus purchase confirmation does), and its exact content. |
+| **GS4 — guest-buyer personal data (GDPR)** | A guest's email is stored on the order (buyer identity per 0134), used for the receipt and fulfilment contact. No account, no consent checkbox, no privacy notice on the page. | Records-of-processing entry, privacy-notice link on the checkout page, retention alignment with the 7-year financial-records rule vs the buyer's erasure rights. |
+| **GB3 — hosted client-photo content** | Gallery images live on the public-unlisted bucket; downgrade hides the page render, not the object; deletion-on-removal + account-deletion purge are built. Tattoo photos are health-adjacent personal data on skin. | Confirm the public-unlisted posture satisfies the data-protection analysis, or direct a signed-URL change (moderate rework). |
+
+**Accountant — new open items:**
+
+| Item | What was built | What the accountant must confirm |
+|---|---|---|
+| **GA1 — standalone goods sales flows** | Artist is merchant of record (`on_behalf_of` + destination charge); Inklee takes `application_fee_amount` from the versioned schedule (v1 goods = 0%, so no live fee until the gated v2 flip). | That the standalone flow changes nothing in the agreed model (artist's revenue, Inklee's fee = the only Inklee revenue), and how goods fee revenue classifies for the registration thresholds (ties into the existing C4/A2 fee-classification question). |
+| **GC2 — discount-cap release on full refund** | A fully refunded order DELETES its discount redemption, freeing the code's cap (the cap counts real net sales). | That this matches the intended discount semantics (minor). |
+| **GA2 — goods invoicing** | The buyer gets a receipt email from Inklee "on behalf of the artist". No invoice document is generated for goods sales (the A4 invoice format covered Plus subscriptions only). | Whether artist-as-seller goods sales need an invoice/receipt document beyond the email, and who issues it (likely the artist's own obligation; confirm Inklee's posture). |
+
+**Status: every item above is BUILD-COMPLETE and GATED.** None blocks
+continued building; all of it goes into the consolidated review. The un-park of
+`GOODS_COMMERCE_ENABLED` is a new activation gate alongside the existing ones,
+and it must not flip before GS1-GS4 + GA1-GA2 are answered.
 
 ### The critical chain, restated with current status
 
