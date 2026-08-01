@@ -679,7 +679,7 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
 
     expect(firstKey).toBe(retryKey);
     // request + amount (15000 = the full 10000+3000+2000) + already-refunded (0).
-    expect(firstKey).toBe("refund-apt-req_1-15000-0");
+    expect(firstKey).toBe("refund-apt-req_1-15000-0-amount");
     // No timestamp component: the whole defect was a fresh number per call.
     expect(firstKey).not.toMatch(/\d{13}/);
   });
@@ -701,7 +701,72 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
       case: "voluntary_partial",
     });
 
-    expect(lastIdempotencyKey()).toBe("refund-apt-req_1-2000-5000");
+    expect(lastIdempotencyKey()).toBe("refund-apt-req_1-2000-5000-amount");
+  });
+
+  it("gives two DIFFERENT by-line selections at the same baseline DIFFERENT keys", async () => {
+    // Round-5 finding: the goods path fingerprints the line selection and the
+    // appointment path did not, though FD12 is what made this path by-line.
+    // Two different selections can sum to the same amount, and the baseline
+    // only advances once the webhook writes the adjustment — so before this
+    // fix the second refund reused the first key, Stripe deduped it, the
+    // ledger insert hit the UNIQUE constraint, and the artist was told a
+    // refund succeeded while Stripe had moved nothing.
+    //
+    // FAILS IF the fingerprint is dropped from the key: both selections
+    // produce refund-apt-req_1-5000-0 and the assertion of difference breaks.
+    // Two lines of the SAME unit price, so both selections sum to 2000 at the
+    // same zero baseline: identical amount, different logical refund.
+    const keyFor = async (lineId: string) => {
+      queue("payment_requests:select", { data: REQUEST_ROW });
+      queue("payment_allocations:select", {
+        data: [
+          {
+            id: "a1",
+            line_id: "lA",
+            component: "physical_goods",
+            amount_minor: 2000,
+            currency: "eur",
+            collected_total_minor: 4000,
+          },
+          {
+            id: "a2",
+            line_id: "lB",
+            component: "physical_goods",
+            amount_minor: 2000,
+            currency: "eur",
+            collected_total_minor: 4000,
+          },
+        ],
+      });
+      queue("payment_allocations:select", { data: [] }); // existingAdj
+      queue("payment_request_lines:select", {
+        data: [
+          { id: "lA", name: "Print A", quantity: 1, unit_amount_minor: 2000 },
+          { id: "lB", name: "Print B", quantity: 1, unit_amount_minor: 2000 },
+        ],
+      });
+      queue("refund_lines:select", { data: [] });
+      await refundPaymentRequestCore({
+        artistId: "artist_1",
+        requestId: "req_1",
+        refundType: "by_line",
+        lineIds: [lineId],
+        lineQuantities: { [lineId]: 1 },
+        case: "voluntary_partial",
+      });
+      return lastIdempotencyKey();
+    };
+
+    const a = await keyFor("lA");
+    const b = await keyFor("lB");
+
+    expect(a).not.toBe(b);
+    expect(a).toContain("lA");
+    expect(b).toContain("lB");
+    // Same amount, same baseline: only the fingerprint separates them.
+    expect(a).toContain("-2000-0-");
+    expect(b).toContain("-2000-0-");
   });
 });
 

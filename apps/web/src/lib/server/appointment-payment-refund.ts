@@ -393,7 +393,25 @@ export async function refundPaymentRequestCore(input: {
   // genuinely separate later refund runs after that adjustment lands, so
   // `alreadyRefunded` has advanced and the key differs. Same shape for the
   // application-fee refund below.
-  const idempotencyKey = `refund-apt-${input.requestId}-${refundMinor}-${alreadyRefunded}`;
+  //
+  // FD12 round-5 correction: the key ALSO fingerprints the line selection, for
+  // exactly the reason the goods path documents. Two different by-line
+  // selections at the same baseline can sum to the SAME amount, and the
+  // baseline only advances once the webhook writes the adjustment — so two
+  // equal-value by-line refunds issued before that lands used to collide on
+  // one key. Stripe then deduped the second, the ledger insert failed the
+  // UNIQUE constraint (so nothing was corrupted, and no money was lost), but
+  // the insert error was swallowed and the artist was told a refund succeeded
+  // when Stripe had moved nothing. The fingerprint makes the two logically
+  // distinct refunds distinct to Stripe as well.
+  const lineFingerprint =
+    input.refundType === "by_line" && refundLinePlan.length > 0
+      ? refundLinePlan
+          .map((p) => `${p.lineId}:${p.quantity ?? "all"}`)
+          .sort()
+          .join("_")
+      : "amount";
+  const idempotencyKey = `refund-apt-${input.requestId}-${refundMinor}-${alreadyRefunded}-${lineFingerprint}`;
 
   let refund: Stripe.Refund;
   try {
@@ -501,7 +519,7 @@ export async function refundPaymentRequestCore(input: {
   // a ledger write failure must never unwind or fail the response — it is a
   // reconciliation gap, Sentry-visible, same posture as 6b above.
   try {
-    const { data: ledgerRow } = await serviceClient
+    const { data: ledgerRow, error: ledgerError } = await serviceClient
       .from("refunds")
       .insert({
         domain: "appointment_payment",
@@ -523,6 +541,21 @@ export async function refundPaymentRequestCore(input: {
       })
       .select("id")
       .maybeSingle();
+
+    // Best-effort does NOT mean unobserved (round-5 finding): swallowing this
+    // is what let a duplicate-key collision report success while nothing was
+    // recorded. A 23505 here specifically means the idempotency key was
+    // already used, i.e. Stripe deduped the refund and no money moved.
+    if (ledgerError) {
+      Sentry.captureException(ledgerError, {
+        tags: { action: "appointment_refund_ledger_write" },
+        extra: {
+          requestId: input.requestId,
+          idempotencyKey,
+          duplicateKey: (ledgerError as { code?: string }).code === "23505",
+        },
+      });
+    }
 
     if (ledgerRow) {
       const lineRows =

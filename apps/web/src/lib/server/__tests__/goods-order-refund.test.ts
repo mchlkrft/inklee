@@ -261,6 +261,36 @@ describe("refundGoodsOrderCore: full refund", () => {
     expect(discountDelete?.filters).toEqual({ order_id: "order_1" });
   });
 
+  it("does NOT release the cap when the refunded flip is lost (once-only gate)", async () => {
+    // Round-5 verifier: the release sits inside the `paid|partially_refunded`
+    // -> `refunded` flip gate, so a redelivery or a concurrent second caller
+    // that loses the flip cannot release the cap twice — but NOTHING PINNED
+    // that. Removing the gate survived the whole suite. This is that pin.
+    //
+    // FAILS IF the `flipped && flipped.length > 0` condition is dropped: the
+    // delete fires on a call that moved no row, freeing a discount code's cap
+    // a second time for one unwound sale.
+    setupOrder({ discount_code_id: "disc_1" });
+    claimOk();
+    alreadyRefundedForItem(0); // nothing refunded yet -> full refund path
+    // The flip returns NO rows: another delivery already converged this order.
+    queue("orders:update", { data: [] });
+
+    const result = await refundGoodsOrderCore({
+      artistId: "artist_1",
+      orderId: "order_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(
+      ops.find(
+        (o) => o.table === "discount_redemptions" && o.verb === "delete",
+      ),
+    ).toBeUndefined();
+  });
+
   it("does not release the discount cap on a partial (by-line) refund", async () => {
     setupOrder({ discount_code_id: "disc_1" });
     claimOk();
