@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `6a038460f4ef`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `4e6c00e303ec`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-127 recorded finding(s), 3 structural pattern(s), across 85 mapped area(s).
-105 remain open by remediation status. 99 are reachable (directly or conditionally) rather than latent.
-101 have not passed independent verification.
+129 recorded finding(s), 3 structural pattern(s), across 86 mapped area(s).
+106 remain open by remediation status. 100 are reachable (directly or conditionally) rather than latent.
+102 have not passed independent verification.
 179 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,8 +27,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 54 |
-| low | 38 |
+| medium | 55 |
+| low | 39 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,19 +37,19 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 37 |
+| fixed-unverified | 38 |
 | mitigated | 2 |
 | open | 63 |
 | risk-accepted | 2 |
-| verified | 20 |
+| verified | 21 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 97 |
-| partially-verified | 3 |
-| passed | 26 |
+| not-started | 99 |
+| partially-verified | 2 |
+| passed | 27 |
 | pending | 1 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -140,13 +142,13 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 27 |
+| payment | 28 |
 | billing | 13 |
 | jobs | 13 |
 | webhook | 13 |
 | database | 12 |
 | web | 10 |
-| testing | 7 |
+| testing | 8 |
 | authorization | 5 |
 | migration | 4 |
 | public-surface | 4 |
@@ -220,6 +222,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-007 | medium | conditionally-reachable | latent | No artist self-serve refund path for money collected on a cancelled/expired/failed request |
 | PAY-RFD-008 | medium | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
 | PAY-RFD-009 | medium | conditionally-reachable | latent | The appointment by-line refund summed each selected line's FULL original allocation every call, so re-selecting an exhausted line over-refunded by misattribution |
+| PAY-RFD-010 | medium | conditionally-reachable | latent | The appointment refund's idempotency key omitted the line selection the goods path deliberately fingerprints, and the ledger insert that caught the collision was swallowed, so the artist was told a refund succeeded while Stripe moved nothing |
 | SEED-GRT-001 | medium | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
 | SHOP-DROP-001 | medium | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
@@ -280,7 +283,6 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
 | BILL-UI-001 | medium | fixed-unverified | not-started | 45a44bee |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
-| BUNDLE-RLS-001 | medium | fixed-unverified | partially-verified | 48cfbab2 |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | GOODS-VAR-001 | medium | fixed-unverified | not-started | 88c9e544 |
@@ -292,6 +294,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-007 | medium | fixed-unverified | passed | 752e989 |
 | PAY-RFD-009 | medium | fixed-unverified | not-started | c3699793 |
+| PAY-RFD-010 | medium | fixed-unverified | not-started | 01003200 |
 | SHOP-FUL-004 | medium | fixed-unverified | not-started | b483efc7 |
 | TEST-VAC-004 | medium | fixed-unverified | not-started | 5fa0110e |
 | TEST-VAC-006 | medium | fixed-unverified | not-started | 5fa0110e |
@@ -306,6 +309,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | SHOP-FUL-005 | low | fixed-unverified | not-started | 5fa0110e |
 | SHOP-ORD-003 | low | fixed-unverified | not-started | 5fa0110e |
 | TEST-VAC-005 | low | fixed-unverified | not-started | 5fa0110e |
+| TEST-VAC-008 | low | fixed-unverified | not-started | 01003200 |
 
 ## Analogous areas flagged but NOT inspected
 

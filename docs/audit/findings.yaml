@@ -13074,7 +13074,7 @@ findings:
           that shares a column name with the policy's own table. Not swept. This is the highest
           value follow-up from this finding, because the defect class is invisible to reading."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "48cfbab2"
       fixed_at: "2026-08-01"
       proposed_action: "0140 qualifies the reference (product_bundle_items.product_id) and
@@ -13082,18 +13082,20 @@ findings:
         editing 0138, since other local databases had already run it. Proven red-then-green by
         execution against local Postgres."
     verification:
-      status: "partially-verified"
-      independent: false
-      verified_by: "supervisor session (reproduced the failure, wrote the fix, re-ran the suite)"
+      status: "passed"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 5 (wrote neither 0138 nor 0140)"
       verified_at: "2026-08-01"
-      verification_commit: "48cfbab2"
-      verification_method: "EXECUTED against local Postgres: the failing case reproduced before
-        the fix (1 failed of 17), 0140 applied via supabase db push, the same suite re-run green
-        (17/17), then the FULL db suite green (235/235). Convergence of 0140 itself rests on the
-        drop-then-create pattern that AGENTS.md documents as the strongest convergent shape; it
-        was NOT falsified by a hand-drop because psql is not on PATH in this shell."
-      residual_risk: "Fixed by the same session that diagnosed it; independent re-verification
-        queued. The analogous-policy sweep has not been done."
+      verification_commit: "02aa48a4"
+      verification_method: "EXECUTED against local Postgres as the authenticated role with
+        real JWT claims, three cases, twice: once against the shipped 0140 policy and once
+        with the pre-0140 shadowed policy restored and DEPARSE-VERIFIED in the same
+        transaction (pg_get_expr printed pv.product_id = pv.product_id, confirming the red
+        control was genuinely the broken shape). Own-variant-matching-product allowed in
+        both runs; another-artist variant denied in both; own-variant-of-a-DIFFERENT-product
+        allowed pre-fix and 42501 post-fix. Both controls passing in both runs proves the
+        probe is not vacuous. All transactions rolled back."
+      residual_risk: "Local migrated schema, not production (0138/0140 are unapplied there)."
     disclosure:
       public_repo_safe: true
     history:
@@ -13107,6 +13109,18 @@ findings:
         action: "fix-committed"
         note: "Root-caused to SQL column shadowing and fixed in 48cfbab2; the FD6 records that
           claimed RLS proved variant ownership are corrected by this entry."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 5"
+        action: "verified"
+        note: "Fix confirmed by execution. SCOPE CORRECTION, established by the same probe
+          and recorded because the supervisor's round-5 brief had widened this finding: the
+          cross-artist case was NEVER open. Under the tautological policy another artist's
+          variant was still denied, because the subquery runs as `authenticated` and
+          product_variants' OWN RLS hides it — so product_variants RLS is load-bearing
+          defence-in-depth here. The tautology's only reachable effect was a same-artist
+          product/variant mismatch: a data-integrity bug in the artist's own bundle, not a
+          seller-boundary breach. This entry's original text said exactly that; the finding
+          was right and the brief that re-described it was wrong."
 
   - id: "PAY-RFD-009"
     title: "The appointment by-line refund summed each selected line's FULL original allocation
@@ -13272,6 +13286,175 @@ findings:
         action: "opened"
         note: "Documented in the FD2 note so it could not be mistaken for a regression of that
           slice; recorded here by the supervisor with the remediation question."
+
+  - id: "PAY-RFD-010"
+    title: "The appointment refund's idempotency key omitted the line selection the goods path
+      deliberately fingerprints, and the ledger insert that caught the collision was swallowed, so
+      the artist was told a refund succeeded while Stripe moved nothing"
+    summary: "goods-order-refund.ts builds refund-ord-{order}-{amount}-{baseline}-{lineFingerprint}
+      and comments that two different line selections at the same baseline can sum to the same
+      amount and must not be one logical refund. appointment-payment-refund.ts built
+      refund-apt-{request}-{amount}-{baseline} with NO fingerprint - and FD12 is precisely what
+      made the appointment path by-line, so the property the goods path guards was introduced next
+      door without the guard. The baseline only advances when the webhook writes the adjustment, so
+      two equal-value by-line refunds issued before that lands collided on one key. Blast radius
+      was bounded by refunds_idempotency_key_key UNIQUE (confirmed on the live database): the
+      second ledger insert failed, so the per-line ledger was NOT corrupted and no money was lost.
+      But that insert error was discarded by a data-only destructure inside a best-effort
+      try/catch, so Sentry never fired and the call still returned success with a decremented
+      remaining balance. Net: a silent, self-healing-on-reload lie to the artist."
+    classification:
+      domain: "payment"
+      category: "silent-failure"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 5"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "02aa48a4"
+      environment: "repository-only"
+      discovery_context: "Comparing the two refund lanes' idempotency-key construction while
+        probing FD12's duplicate-refund defences."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+        - "apps/web/src/lib/server/goods-order-refund.ts"
+    evidence:
+      observed_facts:
+        - "The two key constructions differ by exactly the fingerprint; the goods path's own
+          comment states why the fingerprint is required."
+        - "claimRefundSlot (the pre-Stripe claim gate) has one caller: the goods path."
+        - "refunds_idempotency_key_key UNIQUE confirmed by querying the live local database,
+          which is what bounds the damage to a lost ledger row rather than a corrupted one."
+      references:
+        - "apps/web/supabase/migrations/0139_refund_ledger.sql"
+    assessment:
+      interpretation: "A guard that existed on one lane and not the other, where the lane missing
+        it had just acquired the very feature the guard protects. The swallowed error is the half
+        that turned a handled collision into a false success message."
+      root_cause_hypothesis: "The goods lane was written fresh in FD12 with the fingerprint
+        designed in; the appointment lane's key predated by-line refunds and was extended in place
+        without revisiting its identity."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "An artist issuing two equal-value by-line refunds on one payment
+        request before the first webhook lands."
+      production_exposure: "None: appointment payments are unreleased and 0139 is unapplied."
+      exploit_preconditions: "Not attacker-driven; a fast double refund with equal amounts."
+      remaining_uncertainty: "No Stripe execution and no concurrent two-refund run; the collision
+        is established by reading the key construction plus the live UNIQUE constraint."
+    relationships:
+      related_findings:
+        - "PAY-RFD-009"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "01003200"
+      fixed_at: "2026-08-01"
+      proposed_action: "Both halves fixed in 01003200: the key carries a sorted line fingerprint
+        (lineId:quantity), pinned by a test using two same-priced lines so the two selections sum
+        identically at the same baseline and ONLY the fingerprint separates them; and the ledger
+        insert's error is captured to Sentry with an explicit duplicate-key flag instead of
+        discarded. The pre-Stripe claim gate remains goods-only by the earlier deliberate
+        decision (the appointment lane's deterministic Stripe key is its defence), which this fix
+        restores to actually being deterministic per logical refund."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-01"
+      verification_commit: "01003200"
+      verification_method: "Supervisor re-ran the touched suites and the full suite (3101 + 1
+        expected fail). The fingerprint test is named and asserts the two keys differ while both
+        carry the same amount and baseline segment."
+      residual_risk: "Fixed by the supervisor, not independently re-verified; no Stripe run."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 5"
+        action: "opened"
+        note: "Found by cross-lane comparison; blast radius established against the live database
+          rather than assumed."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Both halves closed in 01003200."
+
+  - id: "TEST-VAC-008"
+    title: "The goods cap-release once-only flip gate was correct but UNPINNED: removing it
+      survived the entire suite"
+    summary: "The discount cap release sits inside the paid|partially_refunded -> refunded flip
+      gate, so a lost flip (redelivery, or a concurrent second caller) cannot release a code's cap
+      twice. The verifier removed the gate and the full suite stayed green at baseline-identical
+      counts. No live double-fire could be constructed (a second refund on a fully refunded order
+      is refused earlier by maxRefundable), so this was an unpinned invariant rather than a live
+      defect - the same shape as the round-3 TEST-VAC findings."
+    classification:
+      domain: "testing"
+      category: "untestable-or-vacuous-test"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 5"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "02aa48a4"
+      environment: "local"
+      discovery_context: "Probing FD12's cap-release for a double-fire path."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-order-refund.ts"
+    evidence:
+      observed_facts:
+        - "Removing `flipped && flipped.length > 0` from the release condition left the full suite
+          green at baseline-identical counts, with a valid identity control."
+      references:
+        - "apps/web/src/lib/server/__tests__/goods-order-refund.test.ts"
+    assessment:
+      interpretation: "An invariant that holds by construction today and would break silently
+        under any future refactor of the flip."
+      root_cause_hypothesis: "The gate was inherited from the settlement pattern and never given
+        its own negative test, because the positive path already exercised it."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Discount cap accounting, if the gate were ever removed."
+      production_exposure: "None."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None."
+    relationships:
+      related_findings:
+        - "TEST-VAC-004"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "01003200"
+      fixed_at: "2026-08-01"
+      proposed_action: "Pinned in 01003200 by a test that queues an EMPTY flip result (another
+        delivery already converged the order) and asserts no discount_redemptions delete is
+        issued. MUTATION-PROVEN: removing the gate reds exactly that test and nothing else;
+        source restored sha256-byte-exact."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-01"
+      verification_commit: "01003200"
+      verification_method: "Supervisor applied the verifier's own mutation after writing the pin
+        and confirmed it now reds the named test, then restored the file byte-exact."
+      residual_risk: "None material; the pin is mutation-proven."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 5"
+        action: "opened"
+        note: "Reported as an unpinned invariant, explicitly NOT as a live defect."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Pinned and mutation-proven in 01003200."
 
 patterns:
 
@@ -16002,3 +16185,42 @@ coverage:
       path because the product has no buyer accounts - verified in the auth code rather than
       assumed, and recorded as a product-state finding rather than an omission. Guest identity is
       a hashed cookie token, which becomes part of the GS4 counsel queue. Stripe not executed."
+
+  - area: "Round-5 money-path verification of the FD phase: the RLS column-shadowing sweep, the
+      0140 repair, FD12's duplicate/retention/cap guards, and FD5's seller-boundary refusal"
+    subsystem: "money"
+    coverage: "partial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-01"
+    commit_inspected: "02aa48a4"
+    reviewer: "track-C adversarial verifier, round 5; wrote none of the code under review"
+    evidence: "Baselines reproduced: unit 3099 passed + 1 expected fail, db 255/255, repo
+      untouched, local database left exactly as found (95 policies, 0 scratch tables, 0 probe
+      rows; every probe inside a rolled-back transaction). THE RLS COLUMN-SHADOWING CLASS IS
+      CLEAN: rather than grepping SQL, the sweep reads all 95 public policies through pg_policies,
+      whose pg_get_expr output DEPARSES THE RESOLVED BINDING - so a shadowed reference prints as
+      `pv.product_id = pv.product_id` and the class becomes mechanically detectable instead of
+      invisible. Two detectors (self-comparison; subquery never qualifying the outer table) were
+      PROVEN TO FIRE first by recreating the pre-0140 shape on scratch tables, then the scratch
+      was dropped and the re-sweep returned 0 hits; the 21 subquery-bearing expressions were
+      additionally hand-adjudicated for the weaker wrong-column-correlation failure and all
+      correlate on a sensible FK. 0140 confirmed red-then-green by a three-case authenticated-role
+      probe with the pre-fix policy deparse-verified mid-transaction. FD12: the processor-cost
+      double-retention guard is real and pinned (mutation reds its test); the cap-release gate was
+      correct but UNPINNED (TEST-VAC-008). FD5's seller boundary REFUSES rather than filters, and
+      the refusal is mutation-pinned. New finding PAY-RFD-010 (cross-lane idempotency asymmetry).
+      A SCOPE CORRECTION was established by execution and applied to the narrative: the 0138
+      tautology was never a seller-boundary breach."
+    recommended_next_inspection: "Keep the policy sweep as a CI step - it is cheap, canary-proven,
+      and this defect class is invisible to review by construction. Then cover what this round did
+      not: the multi-refund interleaving arithmetic, cart-clear on webhook redelivery and on
+      failed payment, cart repricing when the catalog moves underneath it, guest cookie handling,
+      FD6's one-rule resolveBundleComponent claim and the expansion's variant pass-through,
+      GOODS-VAR-001, and the native revise screen."
+    known_exclusions: "PARTIAL COVERAGE, stated by the verifier and not to be read as a clearance:
+      the refund ARITHMETIC across successive partial refunds was NOT tested (guards around it
+      were), so per-line-ledger-versus-order-balance consistency over three or more refunds is
+      UNVERIFIED; GOODS-VAR-001 not verified; cart-clear on redelivery, cart repricing, guest
+      cookie handling, FD6's one-rule claim, the simple-FK deviation's application guards and the
+      native revise screen all uncovered. No Stripe call was made anywhere in this round. The
+      policy sweep covers the migrated LOCAL schema, not production."
