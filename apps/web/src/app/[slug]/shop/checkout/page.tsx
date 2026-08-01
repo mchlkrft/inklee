@@ -37,6 +37,8 @@ export default async function ShopCheckoutPage({
   const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null;
   const chargeReady = routing.routeCharges && Boolean(publishableKey);
 
+  // is_public_visible: the artist's hide switch, honoured exactly like the
+  // public artist page does (SHOP-VIS-001 — the core re-filters too).
   const { data: rows } = await serviceClient
     .from("products")
     .select(
@@ -44,6 +46,7 @@ export default async function ShopCheckoutPage({
     )
     .eq("artist_id", artist.id as string)
     .eq("status", "active")
+    .eq("is_public_visible", true)
     .order("created_at", { ascending: false });
 
   const products: CheckoutProduct[] = (rows ?? []).map((p) => ({

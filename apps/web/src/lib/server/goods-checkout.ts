@@ -143,14 +143,20 @@ export async function createStandaloneGoodsCheckoutCore(input: {
     return { ok: false, error: "This shop can't take card orders yet." };
   }
 
-  // Catalog: every ACTIVE product of this artist (GC4), server-read.
+  // Catalog: every ACTIVE, PUBLICLY VISIBLE product of this artist (GC4).
+  // is_public_visible is the artist's own hide-from-my-public-page switch, and
+  // this read FEEDS THE MONEY PATH via serviceClient (RLS never applies), so
+  // omitting it sold hidden products to anonymous buyers (SHOP-VIS-001) — a
+  // crafted selections payload would have reached them even with the page
+  // fixed, which is why the filter lives HERE, not only in the page read.
   const { data: rows } = await serviceClient
     .from("products")
     .select(
       "id, title, price_amount, currency, status, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
     )
     .eq("artist_id", input.artistId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .eq("is_public_visible", true);
   const catalog = toAddonProducts((rows ?? []) as CatalogRow[]);
 
   const computed = computeAddonLines(catalog, input.selections);
@@ -426,4 +432,68 @@ Keep this email as your receipt. Pickup and delivery are arranged with ${artistN
     },
   });
   return true;
+}
+
+/**
+ * A dead standalone-goods intent (abandoned past Stripe's window, or canceled)
+ * cancels its PENDING order (SHOP-ORD-001 half 1). Conditional on `pending`,
+ * so a paid or already-cancelled order is never touched; items are kept (the
+ * row is the retention subject, swept by the same retention rules as other
+ * cancelled orders).
+ */
+export async function cancelStandalonePendingOrder(
+  intent: Stripe.PaymentIntent,
+): Promise<boolean> {
+  const orderId = intent.metadata?.order_id;
+  if (!orderId) return false;
+  const { data } = await serviceClient
+    .from("orders")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/**
+ * FLEET SWEEP for abandoned standalone checkouts (SHOP-ORD-001 half 2). A
+ * buyer who opens the checkout and walks away leaves a `pending` order holding
+ * their email, and nothing else could ever touch it: the webhook only fires on
+ * payment events, the cleanup cron matched orders through booking ids (NULL
+ * here), and ORDER_MONEY_STATES excludes `pending`. Cancels standalone pending
+ * orders older than 24 hours (Stripe intents are long dead by then; the paid
+ * flip conditions on `pending`, so even a freak late success cannot resurrect
+ * a cancelled row into paid — it just no-ops). Run by the cleanup cron.
+ */
+export async function sweepStalePendingStandaloneOrders(
+  options: { now?: Date; maxAgeHours?: number } = {},
+): Promise<{ cancelled: number }> {
+  const now = options.now ?? new Date();
+  const cutoff = new Date(
+    now.getTime() - (options.maxAgeHours ?? 24) * 60 * 60 * 1000,
+  ).toISOString();
+  const { data, error } = await serviceClient
+    .from("orders")
+    .update({ status: "cancelled", updated_at: now.toISOString() })
+    .eq("status", "pending")
+    .is("booking_id", null)
+    .lt("created_at", cutoff)
+    .select("id");
+  if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "standalone_pending_order_sweep" },
+    });
+    return { cancelled: 0 };
+  }
+  const cancelled = (data ?? []).length;
+  if (cancelled > 0) {
+    void writeAudit({
+      action: "goods_orders_expired",
+      actor: "system",
+      category: "booking",
+      details: { count: cancelled, via: "cron_sweep", standalone: true },
+    });
+  }
+  return { cancelled };
 }

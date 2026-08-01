@@ -7,6 +7,7 @@ import {
   reconcileStalePaymentRequests,
   sweepExpiredPaymentRequests,
 } from "@/lib/server/appointment-payment-reconciliation";
+import { sweepStalePendingStandaloneOrders } from "@/lib/server/goods-checkout";
 import { reconcileStaleSubscriptions } from "@/lib/server/billing/subscription-reconciliation";
 import { runCompExpirySweep } from "@/lib/server/billing/comp-expiry-sweep";
 import { runArtistAnalyticsRollup } from "@/lib/server/artist-analytics-rollup";
@@ -34,6 +35,12 @@ export async function GET(request: Request) {
   // sweep the expiry cores had no caller: links "expired" only if the client
   // happened to open them.
   const paymentExpiry = await sweepExpiredPaymentRequests();
+
+  // ── SHOP-ORD-001 stale standalone-order sweep ─────────────────────────────
+  // Cancels pending standalone goods orders older than 24h. Nothing else can:
+  // the webhook only fires on payment events, and the booking cleanup below
+  // matches orders through booking ids, which are NULL here.
+  const staleStandaloneOrders = await sweepStalePendingStandaloneOrders();
 
   // ── C4 billing subscription reconciliation backstop ──────────────────────
   // Re-syncs billing_subscriptions rows that haven't been reconciled in 4h,
@@ -72,6 +79,7 @@ export async function GET(request: Request) {
       stay_requests_completed: stayLifecycle.requestsCompleted,
       payment_reconciliation: paymentReconciliation,
       payment_expiry: paymentExpiry,
+      stale_standalone_orders: staleStandaloneOrders,
       billing_reconciliation: billingReconciliation,
       comp_expiry: compExpiry,
       analytics_rollup: analyticsRollup,
@@ -174,6 +182,7 @@ export async function GET(request: Request) {
     stay_requests_completed: stayLifecycle.requestsCompleted,
     payment_reconciliation: paymentReconciliation,
     payment_expiry: paymentExpiry,
+    stale_standalone_orders: staleStandaloneOrders,
     billing_reconciliation: billingReconciliation,
     comp_expiry: compExpiry,
     analytics_rollup: analyticsRollup,

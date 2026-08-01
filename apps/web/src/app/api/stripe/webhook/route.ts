@@ -17,7 +17,10 @@ import { createNotification } from "@/lib/notifications";
 import { ACTIVE_FEE_SCHEDULE_VERSION } from "@inklee/shared/fee-schedule";
 import { recordDiscountRedemption } from "@/lib/server/discounts";
 import { settleGoodsOrderRefund } from "@/lib/server/goods-refund";
-import { settleStandaloneGoodsOrder } from "@/lib/server/goods-checkout";
+import {
+  settleStandaloneGoodsOrder,
+  cancelStandalonePendingOrder,
+} from "@/lib/server/goods-checkout";
 import { revalidateBookingViews } from "@/lib/revalidate-bookings";
 import { customerLabel } from "@/lib/booking-domain";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
@@ -433,6 +436,12 @@ export async function POST(request: Request) {
     if (intent.metadata?.payment_request_id) {
       const recorded = await settlePaymentRequestFailure(intent, "canceled");
       return NextResponse.json({ received: true, recorded });
+    }
+    // Standalone goods order (SHOP-ORD-001): a dead intent cancels its pending
+    // order so an abandoned checkout does not hold a guest email forever.
+    if (intent.metadata?.order_id && !intent.metadata?.booking_id) {
+      const cancelled = await cancelStandalonePendingOrder(intent);
+      return NextResponse.json({ received: true, cancelled });
     }
     return NextResponse.json({ received: true });
   }
