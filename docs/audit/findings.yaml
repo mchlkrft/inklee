@@ -10428,7 +10428,9 @@ findings:
       analogous_uninspected_areas:
         - "The mobile order surfaces, if any read order_items by type, were NOT inspected."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "82a8d0af"
+      fixed_at: "2026-08-01"
       proposed_action: "Close the asymmetry in the C4 bundle slice, where both call sites are being
         rewritten anyway: settle and refund should share ONE rule for which lines move inventory
         (product lines directly; bundle lines via the order_item_bundle_components snapshot), and
@@ -10452,6 +10454,16 @@ findings:
         actor: "test-integrity agent"
         action: "opened"
         note: "Reported during the track-C fix-batch test authoring; recorded by the supervisor."
+      - date: "2026-08-01"
+        actor: "supervisor session (source fix) + test-integrity agent (C4 tests)"
+        action: "fix-committed"
+        note: "Fix in 82a8d0af, exactly as proposed: expandInventoryMovements in
+          order-fulfillment.ts is the ONE rule (product pass-through, bundle lines expand
+          from the 0135 snapshot multiplied by line quantity, deposit/unknown move
+          nothing, read failure throws), and BOTH callers route through it (settlement
+          inside its own catch; refund reads+expands before its flip, see SHOP-FUL-002).
+          Pinned by the new order-fulfillment-expansion suite (9 mutants) and the
+          bundle-order refund test (expanded components restocked, 3x2=6)."
 
   - id: "SHOP-FUL-002"
     title: "A bundle-snapshot read failure during a FULL goods refund permanently loses the
@@ -10554,7 +10566,9 @@ findings:
         - "Every other caller of a deliberately-throwing helper placed after a once-only
           conditional update was NOT enumerated."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "82a8d0af"
+      fixed_at: "2026-08-01"
       proposed_action: "Decide the posture deliberately and make the two callers of
         expandInventoryMovements match, or document why they differ. Whichever is chosen, it needs
         a test: none exists today, because the current behaviour IS the defect and pinning it
@@ -10580,8 +10594,22 @@ findings:
         action: "opened"
         note: "Found while pinning the settlement-side guard; reported without a fix, per the
           test-only scope of the task."
+      - date: "2026-08-01"
+        actor: "supervisor session (source fix) + test-integrity agent (C4 tests)"
+        action: "fix-committed"
+        note: "Fix in 82a8d0af. Posture decided: reads + expansion run BEFORE the once-only
+          flip, so an expansion failure returns with the gate unconsumed and a redelivery
+          or manual replay can settle later; the stock WRITE stays inside the gate (no
+          double restock). NOT the settlement posture (local catch + continue): on the
+          refund side a swallowed failure would still lose restock forever, because a
+          retry cannot re-enter past the flip. The test the finder prescribed landed with
+          the fix: snapshot read failure -> outcome none, orders update never issued,
+          restock/release/audit not run. Mutation-proven by execution: restoring the
+          pre-fix shape (flip hoisted above the read) turns exactly the two predicted
+          tests red; file restored sha256-byte-exact."
 
 patterns:
+
   - id: "PAT-001"
     title: "A safety property is asserted in a comment or commit message before it has ever been
       executed, and the assertion then suppresses the next reader's inspection"

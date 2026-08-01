@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `9cba2a44a28c`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `2c8240ce356f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (64)
+## Open (62)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -69,8 +69,6 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-AUD-001 | low | payment | directly-reachable | reachable-no-known-impact | audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not |
 | PAY-FEE-003 | low | payment | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
-| SHOP-FUL-001 | low | payment | conditionally-reachable | latent | Settlement and refund disagree on which order_items reach inventory: settle passes ALL lines to decrementInventory while refund restocks only type='product' |
-| SHOP-FUL-002 | low | payment | conditionally-reachable | latent | A bundle-snapshot read failure during a FULL goods refund permanently loses the restock, the discount-redemption release and the audit row, because the throw lands after the once-only flip has been consumed and no retry can re-enter |
 | WHK-CUR-001 | low | webhook | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | WHK-EVT-001 | low | webhook | unknown | theoretical | event.account is asserted on one branch of five, event.livemode on none, and the one branch with no compensating check writes a caller-named booking_id straight into audit_log |
 | BDEL-POL-001 | informational | governance | currently-unreachable | theoretical | UNRATIFIED: no product policy exists for what deletion does to an active subscription; the period-end rule in Terms is scoped to cancellation, not deletion |
@@ -82,7 +80,7 @@ Operational view. Generated from the ledger; do not edit.
 
 _None._
 
-## Fixed but NOT verified (26)
+## Fixed but NOT verified (28)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -114,6 +112,8 @@ A commit exists. Nothing independent has confirmed it works.
 | COPY-UI-001 | low | web | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
 | OPS-LINT-001 | low | ci-cd | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
 | PAY-UI-006 | low | payment | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
+| SHOP-FUL-001 | low | payment | conditionally-reachable | latent | Settlement and refund disagree on which order_items reach inventory: settle passes ALL lines to decrementInventory while refund restocks only type='product' |
+| SHOP-FUL-002 | low | payment | conditionally-reachable | latent | A bundle-snapshot read failure during a FULL goods refund permanently loses the restock, the discount-redemption release and the audit row, because the throw lands after the once-only flip has been consumed and no retry can re-enter |
 
 ## Verified, but NOT independently (0)
 

@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `9cba2a44a28c`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `2c8240ce356f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -37,9 +37,9 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 26 |
+| fixed-unverified | 28 |
 | mitigated | 1 |
-| open | 64 |
+| open | 62 |
 | verified | 5 |
 
 ## Findings by verification status
@@ -277,6 +277,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
+| SHOP-FUL-001 | low | fixed-unverified | not-started | 82a8d0af |
+| SHOP-FUL-002 | low | fixed-unverified | not-started | 82a8d0af |
 
 ## Analogous areas flagged but NOT inspected
 
