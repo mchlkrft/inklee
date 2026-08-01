@@ -49,7 +49,9 @@ export async function GET(req: Request) {
     listBundlesForArtist(supabase, userId),
     supabase
       .from("products")
-      .select("id, title, price_amount")
+      .select(
+        "id, title, price_amount, product_variants(id, name, price_amount_override, status, sort_order)",
+      )
       .eq("artist_id", userId)
       .neq("status", "archived")
       .order("sort_order", { ascending: true }),
@@ -74,6 +76,7 @@ export async function GET(req: Request) {
       archivedAt: b.archivedAt ?? null,
       items: b.items.map((it) => ({
         productId: it.productId,
+        variantId: it.variantId,
         quantity: it.quantity,
         position: it.position,
       })),
@@ -82,6 +85,25 @@ export async function GET(req: Request) {
       id: p.id as string,
       title: p.title as string,
       priceAmount: toPriceNumber(p.price_amount),
+      variants: (
+        (p.product_variants ?? []) as {
+          id: string;
+          name: string;
+          price_amount_override: number | null;
+          status: string;
+          sort_order: number;
+        }[]
+      )
+        .filter((v) => v.status === "active")
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((v) => ({
+          id: v.id,
+          name: v.name,
+          priceAmount:
+            v.price_amount_override === null
+              ? null
+              : toPriceNumber(v.price_amount_override),
+        })),
     })),
   };
   return mobileOk(body);
@@ -156,8 +178,10 @@ export async function PATCH(req: Request) {
 
     case "setItems": {
       if (!str(b.bundleId)) return mobileError(400, "Missing bundle id.");
-      // Each item is { productId, quantity }; anything malformed is filtered so
-      // the core receives a clean list (it de-dupes and caps as well).
+      // Each item is { productId, quantity, variantId? }; anything malformed
+      // is filtered so the core receives a clean list (it de-dupes and caps
+      // as well). variantId (FD6) is the artist's fixed choice for this
+      // slot; omitted or non-string collapses to null ("no variant").
       const rawItems = Array.isArray(b.items) ? b.items : [];
       const items = rawItems
         .map((it) => {
@@ -167,10 +191,18 @@ export async function PATCH(req: Request) {
             typeof o.quantity === "number" && o.quantity > 0
               ? Math.floor(o.quantity)
               : 1;
-          return productId ? { productId, quantity } : null;
+          const variantId =
+            typeof o.variantId === "string" ? o.variantId : null;
+          return productId ? { productId, quantity, variantId } : null;
         })
         .filter(
-          (x): x is { productId: string; quantity: number } => x !== null,
+          (
+            x,
+          ): x is {
+            productId: string;
+            quantity: number;
+            variantId: string | null;
+          } => x !== null,
         );
       return writeResponse(
         await setBundleItemsCore(supabase, userId, str(b.bundleId), items),

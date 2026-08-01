@@ -704,6 +704,14 @@ export const orderItemBundleComponents = pgTable(
     productId: uuid("product_id").references(() => products.id, {
       onDelete: "set null",
     }),
+    // The variant this component was actually sold at (FD6, migration 0138),
+    // and its name at sale time. Both null when the product needed no
+    // variant. SET NULL keeps the row (and variantSnapshot's TEXT) after the
+    // variant is deleted, same posture as productId above.
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "set null",
+    }),
+    variantSnapshot: text("variant_snapshot"),
     titleSnapshot: text("title_snapshot").notNull(),
     quantity: integer("quantity").notNull(),
     // The component's LIST price at sale, major units, records/display only;

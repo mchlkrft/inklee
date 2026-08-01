@@ -30,7 +30,9 @@ import type { PaymentTier } from "@inklee/shared/fee-schedule";
 import {
   bundlePurchasable,
   bundlePriceMinor,
+  resolveBundleComponent,
   type Bundle,
+  type BundleComponentResolution,
 } from "@inklee/shared/bundles";
 import {
   decrementInventory,
@@ -139,20 +141,26 @@ type ResolvedBundleLine = {
   /** Bundle price, major units (the charged unit price, decision B2/GC6). */
   unitAmount: number;
   totalMinor: number;
-  /** Sale-time composition snapshot rows (0135), quantity per ONE bundle. */
+  /** Sale-time composition snapshot rows (0135, variant fields added 0138),
+   *  quantity per ONE bundle. */
   components: {
     productId: string;
     title: string;
     quantity: number;
     unitListPrice: number;
+    /** The artist's fixed variant choice for this slot (FD6), or null. */
+    variantId: string | null;
+    /** The variant's own name at resolution time, or null. */
+    variantSnapshot: string | null;
   }[];
 };
 
 /**
- * Resolve bundle selections into payable lines (GC6). Server-authoritative,
- * mirroring computeAddonLines' discipline: duplicates are aggregated BEFORE
- * the quantity cap and stock checks so a crafted payload cannot split its way
- * past either; prices come from the bundle row, never the client.
+ * Resolve bundle selections into payable lines (GC6, variant-aware per FD6 —
+ * supersedes GC7's blanket refusal). Server-authoritative, mirroring
+ * computeAddonLines' discipline: duplicates are aggregated BEFORE the
+ * quantity cap and stock checks so a crafted payload cannot split its way past
+ * either; prices come from the bundle row, never the client.
  *
  * SALE rules are stricter than DISPLAY rules on purpose: the shop may render
  * a bundle while omitting a hidden component (understating the saving), but
@@ -163,18 +171,24 @@ type ResolvedBundleLine = {
  * inactive products inside a bundle; the answer here is "refuse", never
  * "sell it short" (bundlePurchasable's contract).
  *
- * A component RESOLVES only when all of these hold (else `product: null`):
+ * A component RESOLVES only when all of these hold (else `resolved: null`,
+ * via the SHARED `resolveBundleComponent` rule so this file and any display
+ * mirror cannot drift):
  *   - present in the sellable catalog (active + publicly visible + this
  *     artist);
  *   - purchasable per productAvailability, the SAME gate the compositor runs
  *     for direct purchases (SHOP-DROP-001: drops live in the compositor, not
  *     the catalog query, so a stock-only check sold undropped products
  *     through bundles that were refused when bought directly);
- *   - variant-free (SHOP-VAR-001, decision GC7): v1 bundles cannot express a
- *     variant choice, and a variant-stocked parent has quantity null, which
- *     reads as unlimited while decrementInventory moves nothing. A product
- *     that REQUIRES a choice when bought directly must not sell choicelessly
- *     inside a bundle.
+ *   - either the product has NO active variant (no choice needed), or the
+ *     bundle's declared `variant_id` for this slot names an ACTIVE variant of
+ *     THIS SAME product (never a global lookup — a cross-product or unknown
+ *     variant id simply does not match, which is both "variant exists" and
+ *     "variant belongs to this product" in one comparison, re-checked here
+ *     regardless of what the RLS write path already proved, the same
+ *     money-path posture as SHOP-VIS-001). A variant-bearing product with no
+ *     selection for this slot is UN-SELECTABLE (`component_needs_variant`,
+ *     the honest remnant of GC7/SHOP-VAR-001) rather than sold choicelessly.
  */
 async function resolveBundleLines(
   artistId: string,
@@ -218,7 +232,7 @@ async function resolveBundleLines(
       .in("id", ids),
     serviceClient
       .from("product_bundle_items")
-      .select("bundle_id, product_id, quantity")
+      .select("bundle_id, product_id, variant_id, quantity")
       .eq("artist_id", artistId)
       .in("bundle_id", ids),
   ]);
@@ -226,6 +240,83 @@ async function resolveBundleLines(
     (bundleRows ?? []).map((b) => [b.id as string, b]),
   );
   const productById = new Map(sellableCatalog.map((p) => [p.id, p]));
+
+  // One resolution per component row, computed ONCE and reused for both the
+  // purchasability verdict and the sale-time snapshot, so the two cannot
+  // disagree about which variant resolved (a risk a second independent
+  // lookup would reintroduce).
+  type ResolvedComponent = {
+    resolution: BundleComponentResolution;
+    productId: string;
+    title: string;
+    unitListPrice: number;
+    variantSnapshot: string | null;
+  };
+  function resolveComponentRow(c: {
+    product_id: unknown;
+    variant_id: unknown;
+    quantity: unknown;
+  }): ResolvedComponent {
+    const productId = c.product_id as string;
+    // The bundle's fixed, artist-chosen variant for this slot (FD6) — a
+    // buyer never picks one at checkout.
+    const variantId = (c.variant_id as string | null) ?? null;
+    const quantity = Number(c.quantity ?? 1);
+    const product = productById.get(productId);
+    if (!product) {
+      return {
+        resolution: {
+          quantity,
+          variantId,
+          productHasActiveVariants: false,
+          resolved: null,
+        },
+        productId,
+        title: "",
+        unitListPrice: 0,
+        variantSnapshot: null,
+      };
+    }
+    // The compositor's own gate: drops, preorder and status, evaluated at
+    // the same instant for every component (SHOP-DROP-001).
+    const availability = productAvailability(
+      {
+        status: product.status,
+        availableFrom: product.available_from,
+        preorder: product.preorder === true,
+        stockQuantity:
+          product.quantity === null ? null : Number(product.quantity),
+      },
+      nowMs,
+    );
+    const activeVariants = (product.product_variants ?? []).filter(
+      (v) => v.status === "active",
+    );
+    // SHARED rule (resolveBundleComponent): scoped to THIS product's own
+    // active-variant list, never a global lookup — a cross-product or
+    // unknown variant id simply does not match.
+    const { productHasActiveVariants, resolved } = resolveBundleComponent(
+      variantId,
+      {
+        available: availability.purchasable,
+        activeVariants: activeVariants.map((v) => ({
+          id: v.id,
+          stock: v.stock_quantity,
+        })),
+        productStock: product.quantity,
+      },
+    );
+    const variantSnapshot = variantId
+      ? (activeVariants.find((v) => v.id === variantId)?.name ?? null)
+      : null;
+    return {
+      resolution: { quantity, variantId, productHasActiveVariants, resolved },
+      productId,
+      title: product.title,
+      unitListPrice: Number(product.price_amount ?? 0),
+      variantSnapshot,
+    };
+  }
 
   const lines: ResolvedBundleLine[] = [];
   for (const [bundleId, qty] of wanted) {
@@ -252,43 +343,18 @@ async function resolveBundleLines(
       isPublicVisible: true,
       archivedAt: null,
     };
+    const resolvedComponents = componentRows.map((c) => resolveComponentRow(c));
     const verdict = bundlePurchasable(
       bundle,
-      componentRows.map((c) => {
-        const product = productById.get(c.product_id as string);
-        if (!product)
-          return { quantity: Number(c.quantity ?? 1), product: null };
-        // The compositor's own gate: drops, preorder and status, evaluated at
-        // the same instant for every component (SHOP-DROP-001).
-        const availability = productAvailability(
-          {
-            status: product.status,
-            availableFrom: product.available_from,
-            preorder: product.preorder === true,
-            stockQuantity:
-              product.quantity === null ? null : Number(product.quantity),
-          },
-          nowMs,
-        );
-        // v1 bundles cannot carry a variant choice (SHOP-VAR-001, GC7).
-        const hasActiveVariants = (product.product_variants ?? []).some(
-          (v) => v.status === "active",
-        );
-        return {
-          quantity: Number(c.quantity ?? 1),
-          product:
-            availability.purchasable && !hasActiveVariants
-              ? { stock: product.quantity }
-              : null,
-        };
-      }),
+      resolvedComponents.map((rc) => rc.resolution),
       qty,
     );
     if (!verdict.ok) {
       const error =
         verdict.reason === "component_out_of_stock"
           ? `Not enough stock for "${bundle.name}".`
-          : verdict.reason === "component_unavailable"
+          : verdict.reason === "component_unavailable" ||
+              verdict.reason === "component_needs_variant"
             ? "Part of that bundle isn't available right now."
             : "That bundle isn't available right now.";
       return { ok: false, error };
@@ -299,15 +365,14 @@ async function resolveBundleLines(
       quantity: qty,
       unitAmount: bundle.priceAmount,
       totalMinor: bundlePriceMinor(bundle.priceAmount) * qty,
-      components: componentRows.map((c) => {
-        const product = productById.get(c.product_id as string)!;
-        return {
-          productId: c.product_id as string,
-          title: product.title,
-          quantity: Number(c.quantity ?? 1),
-          unitListPrice: Number(product.price_amount ?? 0),
-        };
-      }),
+      components: resolvedComponents.map((rc) => ({
+        productId: rc.productId,
+        title: rc.title,
+        quantity: rc.resolution.quantity,
+        unitListPrice: rc.unitListPrice,
+        variantId: rc.resolution.variantId,
+        variantSnapshot: rc.variantSnapshot,
+      })),
     });
   }
   return { ok: true, lines };
@@ -547,6 +612,11 @@ export async function createStandaloneGoodsCheckoutCore(input: {
         title_snapshot: c.title,
         quantity: c.quantity,
         unit_list_price: c.unitListPrice,
+        // FD6: the variant this slot was fixed to (artist-chosen at bundle
+        // build time), and its name at sale time. Both null when the
+        // product needed no variant.
+        variant_id: c.variantId,
+        variant_snapshot: c.variantSnapshot,
       }));
     });
     const missingSnapshot =

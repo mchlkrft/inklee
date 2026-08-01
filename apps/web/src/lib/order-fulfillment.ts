@@ -61,7 +61,11 @@ export type InventoryOrderItem = PaidOrderItem & {
  *   delete. Snapshot quantity is per ONE bundle; it is multiplied by the
  *   line's own quantity here, so decrement and restock cannot multiply
  *   differently. Components whose product_id was SET NULL by a deletion are
- *   skipped (nothing left to move).
+ *   skipped (nothing left to move). The snapshot's variant_id (FD6) is passed
+ *   straight through: decrementInventory/restockInventory already branch on
+ *   variant_id first, so a variant-bearing component takes the SAME variant
+ *   stock-counter branch a direct variant purchase would, with no separate
+ *   code path to keep in sync.
  * - Everything else (deposit, future types) moves NOTHING, explicitly.
  */
 export async function expandInventoryMovements(
@@ -80,7 +84,9 @@ export async function expandInventoryMovements(
 
     const { data: components, error } = await serviceClient
       .from("order_item_bundle_components")
-      .select("product_id, title_snapshot, quantity")
+      .select(
+        "product_id, variant_id, title_snapshot, variant_snapshot, quantity",
+      )
       .eq("order_item_id", item.id);
     if (error) {
       // Fail loud to the caller's Sentry path is not available here; skipping
@@ -94,11 +100,15 @@ export async function expandInventoryMovements(
       if (!c.product_id) continue;
       movements.push({
         product_id: c.product_id as string,
-        variant_id: null,
+        // FD6: the variant SOLD for this component, if any. A variant that
+        // was later deleted lands here as null (the FK's ON DELETE SET NULL,
+        // migration 0138) and this component moves nothing rather than
+        // falling back to the parent's own (untracked-by-design) quantity.
+        variant_id: (c.variant_id as string | null) ?? null,
         quantity: Math.max(0, Number(c.quantity) || 0) * lineQty,
         type: "product",
         title_snapshot: (c.title_snapshot as string) ?? "",
-        variant_snapshot: null,
+        variant_snapshot: (c.variant_snapshot as string | null) ?? null,
         total_amount: 0,
       });
     }

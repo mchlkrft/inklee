@@ -11,7 +11,10 @@ import {
   canDeleteBundle,
   bundleSavings,
   bundlePurchasable,
+  resolveBundleComponent,
   type Bundle,
+  type BundleComponentResolution,
+  type BundleComponentCatalogInfo,
 } from "@inklee/shared/bundles";
 
 function bundle(over: Partial<Bundle> = {}): Bundle {
@@ -124,12 +127,27 @@ describe("bundleSavings (display only)", () => {
 // names the source change that turns it red.
 
 /** A component as the caller hands it over: the bundle-declared per-bundle
- *  count, plus the product AS RESOLVED against the sellable catalog (null when
- *  it did not resolve). */
-function comp(quantity: number, stock: number | null) {
-  return { quantity, product: { stock } };
+ *  count, plus the RESOLVED sellable unit (null when it did not resolve). No
+ *  variant in play for these fixtures — `productHasActiveVariants: false`, so
+ *  `component_needs_variant` never fires and every existing assertion below
+ *  exercises exactly the pre-FD6 behaviour. */
+function comp(
+  quantity: number,
+  stock: number | null,
+): BundleComponentResolution {
+  return {
+    quantity,
+    variantId: null,
+    productHasActiveVariants: false,
+    resolved: { stock },
+  };
 }
-const MISSING = { quantity: 1, product: null };
+const MISSING: BundleComponentResolution = {
+  quantity: 1,
+  variantId: null,
+  productHasActiveVariants: false,
+  resolved: null,
+};
 
 describe("bundlePurchasable (sale rule, GC6)", () => {
   it("refuses a hidden or archived bundle, and the SAME components sell on a public one", () => {
@@ -239,10 +257,169 @@ describe("bundlePurchasable (sale rule, GC6)", () => {
     // `Math.max(1, ...)` / finite guard is dropped: `0 < NaN` and `0 < 0` are
     // both false, so a zero-stock component would sell.
     for (const q of [Number.NaN, 0, -2]) {
-      expect(
-        bundlePurchasable(bundle(), [{ quantity: q, product: { stock: 0 } }]),
-      ).toEqual({ ok: false, reason: "component_out_of_stock" });
+      expect(bundlePurchasable(bundle(), [comp(q, 0)])).toEqual({
+        ok: false,
+        reason: "component_out_of_stock",
+      });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FD6: variant-aware bundles, supersedes GC7's blanket refusal of any
+// variant-bearing component. A bundle slot now carries the ARTIST's fixed
+// variant choice; the rule narrows from "any active variant on the product
+// refuses the whole bundle" to "a product that NEEDS a choice and got none".
+
+function variantComp(
+  over: Partial<BundleComponentResolution> = {},
+): BundleComponentResolution {
+  return {
+    quantity: 1,
+    variantId: "v1",
+    productHasActiveVariants: true,
+    resolved: { stock: 10 },
+    ...over,
+  };
+}
+
+describe("bundlePurchasable: variant-aware components (FD6)", () => {
+  it("sells a variant-bearing product when a variant IS selected and its stock suffices", () => {
+    // Positive control: without it, every refusal below could also be a
+    // function that refuses every variant-bearing product outright (GC7's
+    // old, now-superseded behaviour).
+    expect(bundlePurchasable(bundle(), [variantComp()])).toEqual({ ok: true });
+  });
+
+  it("refuses component_needs_variant when the product needs a choice and the slot has none", () => {
+    // FAILS IF this check is dropped: an un-selectable slot would fall through
+    // to the stock check below, which (with resolved stock null->unlimited or
+    // a stale parent quantity) can pass and sell an ambiguous good.
+    expect(
+      bundlePurchasable(
+        bundle(),
+        [variantComp({ variantId: null, resolved: null })],
+        1,
+      ),
+    ).toEqual({ ok: false, reason: "component_needs_variant" });
+  });
+
+  it("null variant on a product with NO active variants is fine (product-level stock)", () => {
+    // FAILS IF `component_needs_variant` fires whenever variantId is null,
+    // rather than only when the product actually requires a choice: every
+    // pre-FD6 no-variant bundle would break.
+    expect(
+      bundlePurchasable(bundle(), [
+        variantComp({
+          variantId: null,
+          productHasActiveVariants: false,
+          resolved: { stock: 3 },
+        }),
+      ]),
+    ).toEqual({ ok: true });
+  });
+
+  it("consults the VARIANT's stock, not some other number, for the boundary", () => {
+    // Two per bundle, one bundle wanted, variant stock exactly enough.
+    expect(
+      bundlePurchasable(bundle(), [
+        variantComp({ quantity: 2, resolved: { stock: 2 } }),
+      ]),
+    ).toEqual({ ok: true });
+    // FAILS IF the stock check is skipped for variant-selected components (a
+    // regression a blanket-refuse-then-remove-the-check rewrite could
+    // introduce): one short must still refuse.
+    expect(
+      bundlePurchasable(bundle(), [
+        variantComp({ quantity: 2, resolved: { stock: 1 } }),
+      ]),
+    ).toEqual({ ok: false, reason: "component_out_of_stock" });
+  });
+
+  it("component_needs_variant is checked BEFORE component_unavailable", () => {
+    // An un-selectable slot with resolved: null must report the specific
+    // reason, not the generic "unavailable" one — a later reader debugging a
+    // "why won't my bundle sell" report needs to see WHICH gate fired.
+    expect(
+      bundlePurchasable(bundle(), [
+        variantComp({ variantId: null, resolved: null }),
+      ]),
+    ).toEqual({ ok: false, reason: "component_needs_variant" });
+  });
+});
+
+describe("resolveBundleComponent (FD6)", () => {
+  const TWO_VARIANTS: BundleComponentCatalogInfo = {
+    available: true,
+    activeVariants: [
+      { id: "v1", stock: 5 },
+      { id: "v2", stock: 0 },
+    ],
+    productStock: null,
+  };
+  const NO_VARIANTS: BundleComponentCatalogInfo = {
+    available: true,
+    activeVariants: [],
+    productStock: 7,
+  };
+
+  it("resolves the SPECIFIC variant's stock when the id matches this product's own list", () => {
+    expect(resolveBundleComponent("v1", TWO_VARIANTS)).toEqual({
+      productHasActiveVariants: true,
+      resolved: { stock: 5 },
+    });
+  });
+
+  it("refuses (resolved: null) a variant id that is not in THIS product's active list", () => {
+    // Covers both the cross-product case (an id that belongs to some other
+    // product entirely) and the "exists but not active" case (hidden /
+    // sold-out variants are pre-filtered out of activeVariants by the
+    // caller) — either way the lookup is scoped to `info.activeVariants` and
+    // a non-member id simply does not match. FAILS IF this becomes a global
+    // lookup instead of a scoped `.find` over THIS product's own list, which
+    // would let a bundle slot resolve against another product's variant.
+    expect(
+      resolveBundleComponent("unknown-or-foreign-variant", TWO_VARIANTS),
+    ).toEqual({ productHasActiveVariants: true, resolved: null });
+  });
+
+  it("null variant + product HAS active variants -> un-selectable, not product-level stock", () => {
+    // FAILS IF this falls back to `info.productStock`: a variant-stocked
+    // parent's own quantity is null/stale by design (0035), so this branch
+    // existing is exactly what GC7 existed to prevent — selling the ambiguous
+    // parent as if picking a variant were optional.
+    expect(resolveBundleComponent(null, TWO_VARIANTS)).toEqual({
+      productHasActiveVariants: true,
+      resolved: null,
+    });
+  });
+
+  it("null variant + product has NO active variants -> product-level stock", () => {
+    expect(resolveBundleComponent(null, NO_VARIANTS)).toEqual({
+      productHasActiveVariants: false,
+      resolved: { stock: 7 },
+    });
+  });
+
+  it("an unavailable product resolves to null regardless of variant selection", () => {
+    const unavailable: BundleComponentCatalogInfo = {
+      ...TWO_VARIANTS,
+      available: false,
+    };
+    // Drops (SHOP-DROP-001) and status gates apply before variant resolution
+    // even matters. FAILS IF `available` is not checked first: an undropped
+    // or archived product's variant would still resolve and sell.
+    expect(resolveBundleComponent("v1", unavailable)).toEqual({
+      productHasActiveVariants: true,
+      resolved: null,
+    });
+  });
+
+  it("a missing component product (info: null) resolves to null with no active variants", () => {
+    expect(resolveBundleComponent("v1", null)).toEqual({
+      productHasActiveVariants: false,
+      resolved: null,
+    });
   });
 });
 

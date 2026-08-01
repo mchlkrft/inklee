@@ -76,7 +76,11 @@ export async function reconcileVariants(
   // when referenced so booking_interests + order_items keep their pointer.
   for (const ex of existing) {
     if (keptIds.has(ex.id)) continue;
-    const [{ count: interestRefs }, { count: orderRefs }] = await Promise.all([
+    const [
+      { count: interestRefs },
+      { count: orderRefs },
+      { count: bundleRefs },
+    ] = await Promise.all([
       serviceClient
         .from("booking_interests")
         .select("id", { count: "exact", head: true })
@@ -85,8 +89,21 @@ export async function reconcileVariants(
         .from("order_items")
         .select("id", { count: "exact", head: true })
         .eq("variant_id", ex.id),
+      // FD6: a variant sold ONLY inside a bundle (never as a direct order
+      // line) has no order_items.variant_id row — the sale lives in the
+      // bundle's own composition snapshot instead. Without this leg, such a
+      // variant looked unreferenced and was hard-deleted here, and the FK's
+      // ON DELETE SET NULL (migration 0138) would then null the snapshot's
+      // variant_id, leaving only the variant_snapshot TEXT — display-only
+      // history survives, but a later refund's restock falls through to the
+      // parent product's branch (which, for a variant-tracked product, has
+      // no tracked quantity by convention) and moves nothing back.
+      serviceClient
+        .from("order_item_bundle_components")
+        .select("id", { count: "exact", head: true })
+        .eq("variant_id", ex.id),
     ]);
-    if ((interestRefs ?? 0) + (orderRefs ?? 0) > 0) {
+    if ((interestRefs ?? 0) + (orderRefs ?? 0) + (bundleRefs ?? 0) > 0) {
       // Keep the row; hide it so it doesn't surface in the public shop or
       // checkout, and the FK link survives for historical reads.
       await serviceClient

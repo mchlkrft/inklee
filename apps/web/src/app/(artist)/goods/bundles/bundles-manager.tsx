@@ -21,7 +21,19 @@ import {
 
 type State = { error: string } | { success: true } | null;
 
-export type ProductRow = { id: string; title: string; priceAmount: number };
+export type ProductVariantRow = {
+  id: string;
+  name: string;
+  priceAmount: number | null;
+};
+export type ProductRow = {
+  id: string;
+  title: string;
+  priceAmount: number;
+  /** This product's ACTIVE variants only (FD6) — the picker offers a choice
+   *  from exactly these, matching what the checkout itself will accept. */
+  variants: ProductVariantRow[];
+};
 
 const FIELD =
   "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring";
@@ -119,9 +131,16 @@ function BundleForm({
   );
 }
 
+/** One (product, variant) slot in the bundle-being-edited. A product may hold
+ *  more than one slot (FD6): once per distinct variant. */
+type Slot = { productId: string; variantId: string | null; quantity: number };
+
 /** The per-bundle product picker: choose products + quantities, then save the
- *  whole set at once (the core replaces the bundle's items to match). Shows the
- *  saving vs buying the selected products separately at their list prices. */
+ *  whole set at once (the core replaces the bundle's items to match). A
+ *  product WITH active variants gets a picker per slot (FD6) — the artist
+ *  fixes the variant when building the bundle; there is no buyer-time choice.
+ *  Shows the saving vs buying the selected products separately at their list
+ *  (or, when a variant is chosen, variant) prices. */
 function BundleItemsEditor({
   bundle,
   products,
@@ -135,42 +154,77 @@ function BundleItemsEditor({
 }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
-  // productId -> quantity, seeded from the bundle's current items.
-  const [qty, setQty] = useState<Record<string, number>>(() =>
-    Object.fromEntries(bundle.items.map((it) => [it.productId, it.quantity])),
+  const [slots, setSlots] = useState<Slot[]>(() =>
+    bundle.items.map((it) => ({
+      productId: it.productId,
+      variantId: it.variantId,
+      quantity: it.quantity,
+    })),
   );
 
-  const selectedIds = Object.keys(qty);
-  const overCap = selectedIds.length > MAX_BUNDLE_ITEMS;
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const overCap = slots.length > MAX_BUNDLE_ITEMS;
+  // A slot on a product WITH active variants but no selection blocks save
+  // rather than silently sending an incomplete bundle (the same rule the
+  // checkout enforces server-side as `component_needs_variant`).
+  const needsVariantCount = slots.filter((s) => {
+    const p = productById.get(s.productId);
+    return !!p && p.variants.length > 0 && !s.variantId;
+  }).length;
 
-  const components = selectedIds
-    .map((id) => {
-      const p = products.find((x) => x.id === id);
-      return p ? { priceAmount: p.priceAmount, quantity: qty[id] } : null;
+  const components = slots
+    .map((s) => {
+      const p = productById.get(s.productId);
+      if (!p) return null;
+      const variant = s.variantId
+        ? p.variants.find((v) => v.id === s.variantId)
+        : undefined;
+      const priceAmount = variant?.priceAmount ?? p.priceAmount;
+      return { priceAmount, quantity: s.quantity };
     })
     .filter((c): c is { priceAmount: number; quantity: number } => c !== null);
   const savings = bundleSavings(bundle.priceAmount, components);
 
-  function toggle(id: string) {
+  function toggleProduct(id: string) {
     setSaved(false);
-    setQty((prev) => {
-      const next = { ...prev };
-      if (id in next) delete next[id];
-      else next[id] = 1;
-      return next;
+    setSlots((prev) => {
+      const has = prev.some((s) => s.productId === id);
+      // Toggling off removes EVERY slot for this product, including any
+      // extra variant slots added below.
+      if (has) return prev.filter((s) => s.productId !== id);
+      return [...prev, { productId: id, variantId: null, quantity: 1 }];
     });
   }
-  function setQuantity(id: string, n: number) {
+  function addVariantSlot(productId: string) {
     setSaved(false);
-    setQty((prev) => ({ ...prev, [id]: Math.max(1, Math.floor(n) || 1) }));
+    setSlots((prev) => [...prev, { productId, variantId: null, quantity: 1 }]);
+  }
+  function setSlotVariant(index: number, variantId: string | null) {
+    setSaved(false);
+    setSlots((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, variantId } : s)),
+    );
+  }
+  function setSlotQuantity(index: number, n: number) {
+    setSaved(false);
+    setSlots((prev) =>
+      prev.map((s, i) =>
+        i === index ? { ...s, quantity: Math.max(1, Math.floor(n) || 1) } : s,
+      ),
+    );
+  }
+  function removeSlot(index: number) {
+    setSaved(false);
+    setSlots((prev) => prev.filter((_, i) => i !== index));
   }
 
   function save() {
     onError(null);
     setSaved(false);
-    const items = selectedIds.map((id) => ({
-      productId: id,
-      quantity: qty[id],
+    const items = slots.map((s) => ({
+      productId: s.productId,
+      quantity: s.quantity,
+      variantId: s.variantId,
     }));
     startTransition(async () => {
       const r = await setBundleItemsAction(bundle.id, items);
@@ -179,48 +233,112 @@ function BundleItemsEditor({
     });
   }
 
+  const canSave = !overCap && needsVariantCount === 0;
+
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-3">
       <p className="text-xs text-muted-foreground">
-        Products in this bundle. Tick each one and set how many.
+        Products in this bundle. Tick each one and set how many. A product with
+        options needs a variant chosen for each slot.
       </p>
       <ul className="space-y-1.5">
         {products.map((p) => {
-          const on = p.id in qty;
+          const productSlots = slots
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => s.productId === p.id);
+          const on = productSlots.length > 0;
+          const hasVariants = p.variants.length > 0;
+          const usedVariantIds = new Set(
+            productSlots.map(({ s }) => s.variantId).filter((v) => v !== null),
+          );
+          const canAddAnotherVariant =
+            on && hasVariants && usedVariantIds.size < p.variants.length;
+
           return (
-            <li key={p.id} className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-pressed={on}
-                disabled={!entitled}
-                onClick={() => toggle(p.id)}
-                className={`flex-1 rounded-md border px-3 py-1.5 text-left text-xs transition-colors disabled:opacity-50 ${
-                  on
-                    ? "border-foreground bg-foreground/5 text-foreground"
-                    : "border-border text-muted-foreground hover:border-foreground/40"
-                }`}
-              >
-                {p.title}
-                <span className="ml-1 text-muted-foreground">
-                  {formatPrice(p.priceAmount, bundle.currency)}
-                </span>
-              </button>
-              {on && (
-                <input
-                  type="number"
-                  min={1}
-                  value={qty[p.id]}
-                  onChange={(e) => setQuantity(p.id, Number(e.target.value))}
-                  aria-label={`Quantity of ${p.title}`}
-                  className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-foreground"
-                />
+            <li key={p.id} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-pressed={on}
+                  disabled={!entitled}
+                  onClick={() => toggleProduct(p.id)}
+                  className={`flex-1 rounded-md border px-3 py-1.5 text-left text-xs transition-colors disabled:opacity-50 ${
+                    on
+                      ? "border-foreground bg-foreground/5 text-foreground"
+                      : "border-border text-muted-foreground hover:border-foreground/40"
+                  }`}
+                >
+                  {p.title}
+                  <span className="ml-1 text-muted-foreground">
+                    {formatPrice(p.priceAmount, bundle.currency)}
+                  </span>
+                </button>
+              </div>
+
+              {productSlots.map(({ s, i }) => (
+                <div key={i} className="ml-4 flex flex-wrap items-center gap-2">
+                  {hasVariants && (
+                    <select
+                      value={s.variantId ?? ""}
+                      onChange={(e) =>
+                        setSlotVariant(i, e.target.value || null)
+                      }
+                      aria-label={`Variant of ${p.title}`}
+                      className={`${FIELD} w-auto`}
+                    >
+                      <option value="">Needs a variant</option>
+                      {p.variants
+                        .filter(
+                          (v) =>
+                            v.id === s.variantId || !usedVariantIds.has(v.id),
+                        )
+                        .map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                  <input
+                    type="number"
+                    min={1}
+                    value={s.quantity}
+                    onChange={(e) => setSlotQuantity(i, Number(e.target.value))}
+                    aria-label={`Quantity of ${p.title}${s.variantId ? ` ${p.variants.find((v) => v.id === s.variantId)?.name ?? ""}` : ""}`}
+                    className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-foreground"
+                  />
+                  {productSlots.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSlot(i)}
+                      className={LINK}
+                    >
+                      Remove
+                    </button>
+                  )}
+                  {hasVariants && !s.variantId && (
+                    <span className="text-xs text-destructive">
+                      Needs a variant
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              {canAddAnotherVariant && (
+                <button
+                  type="button"
+                  onClick={() => addVariantSlot(p.id)}
+                  className={`ml-4 ${LINK}`}
+                >
+                  + Add another variant
+                </button>
               )}
             </li>
           );
         })}
       </ul>
 
-      {selectedIds.length > 0 && (
+      {slots.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {savings.isSaving ? (
             <>
@@ -245,10 +363,15 @@ function BundleItemsEditor({
           A bundle can hold at most {MAX_BUNDLE_ITEMS} products.
         </p>
       )}
+      {needsVariantCount > 0 && (
+        <p className="text-xs text-destructive">
+          Choose a variant for every highlighted product before saving.
+        </p>
+      )}
 
       <button
         type="button"
-        disabled={pending || !entitled || overCap}
+        disabled={pending || !entitled || !canSave}
         onClick={save}
         className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground transition-colors hover:border-foreground/40 disabled:opacity-50"
       >

@@ -15,12 +15,15 @@ export default async function BundlesPage() {
 
   // Every read goes through RLS scoped to the owner, so the queries are the
   // authorization. Products carry their list price so the editor can show the
-  // saving a bundle offers vs buying the parts separately.
+  // saving a bundle offers vs buying the parts separately, and their ACTIVE
+  // variants (FD6) so a variant-bearing product gets a picker per slot.
   const [bundles, { data: rawProducts }] = await Promise.all([
     listBundlesForArtist(supabase, user!.id),
     supabase
       .from("products")
-      .select("id, title, price_amount")
+      .select(
+        "id, title, price_amount, product_variants(id, name, price_amount_override, status, sort_order)",
+      )
       .eq("artist_id", user!.id)
       .neq("status", "archived")
       .order("sort_order", { ascending: true }),
@@ -30,6 +33,25 @@ export default async function BundlesPage() {
     id: p.id as string,
     title: p.title as string,
     priceAmount: toPriceNumber(p.price_amount),
+    variants: (
+      (p.product_variants ?? []) as {
+        id: string;
+        name: string;
+        price_amount_override: number | null;
+        status: string;
+        sort_order: number;
+      }[]
+    )
+      .filter((v) => v.status === "active")
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((v) => ({
+        id: v.id,
+        name: v.name,
+        priceAmount:
+          v.price_amount_override === null
+            ? null
+            : toPriceNumber(v.price_amount_override),
+      })),
   }));
 
   let entitled = false;

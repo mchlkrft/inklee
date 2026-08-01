@@ -174,13 +174,73 @@ describe("expandInventoryMovements: bundle expansion (0135 snapshot)", () => {
     // mutates with the artist's edits and cascades away on product delete, so a
     // refund would restock whatever the bundle contains TODAY rather than what
     // was sold. Fails too if the eq is dropped, which would expand every bundle
-    // sale in the table into one order's movements.
+    // sale in the table into one order's movements. Fails too (FD6) if
+    // variant_id/variant_snapshot are dropped from the select: without them a
+    // variant-bearing component's movement always lands in the product-level
+    // branch downstream, decrementing/restocking the wrong counter.
     expect(reads).toEqual([
       {
         table: "order_item_bundle_components",
-        columns: "product_id, title_snapshot, quantity",
+        columns:
+          "product_id, variant_id, title_snapshot, variant_snapshot, quantity",
         filters: { order_item_id: "oi-bundle" },
       },
+    ]);
+  });
+
+  it("FD6: passes the snapshot's variant_id and variant_snapshot through to the movement", async () => {
+    replies.push({
+      data: [
+        {
+          product_id: "p1",
+          variant_id: "v1",
+          title_snapshot: "Tee",
+          variant_snapshot: "M",
+          quantity: 1,
+        },
+      ],
+    });
+
+    const out = await expandInventoryMovements([BUNDLE_LINE]);
+
+    // FAILS IF variant_id is hardcoded to null (the pre-FD6 behaviour): the
+    // mover would take the PRODUCT branch instead of the VARIANT branch and
+    // decrement/restock the parent's (untracked-by-design) quantity instead
+    // of the sold variant's own stock counter.
+    expect(out).toEqual([
+      {
+        product_id: "p1",
+        variant_id: "v1",
+        quantity: 3, // 1 per bundle x 3 bundles (BUNDLE_LINE.quantity)
+        type: "product",
+        title_snapshot: "Tee",
+        variant_snapshot: "M",
+        total_amount: 0,
+      },
+    ]);
+  });
+
+  it("FD6: a component whose variant was later deleted (SET NULL) carries variant_id null, not stale", async () => {
+    replies.push({
+      data: [
+        {
+          product_id: "p1",
+          variant_id: null,
+          title_snapshot: "Tee",
+          variant_snapshot: "M", // the snapshot TEXT survives the FK's SET NULL
+          quantity: 1,
+        },
+      ],
+    });
+
+    const out = await expandInventoryMovements([BUNDLE_LINE]);
+
+    expect(out).toEqual([
+      expect.objectContaining({
+        product_id: "p1",
+        variant_id: null,
+        variant_snapshot: "M",
+      }),
     ]);
   });
 

@@ -96,10 +96,11 @@ export async function reorderBundlesAction(
 }
 
 /** The bundle's product editor holds the whole answer, so it sends the whole
- *  answer: the full set of products (with quantities) the bundle contains. */
+ *  answer: the full set of (product, variant) slots and quantities the
+ *  bundle contains. `variantId` (FD6) is the artist's fixed choice per slot. */
 export async function setBundleItemsAction(
   bundleId: string,
-  items: { productId: string; quantity: number }[],
+  items: { productId: string; quantity: number; variantId?: string | null }[],
 ): Promise<State> {
   const { supabase, userId } = await artist();
   if (!userId) return { error: "Not signed in." };

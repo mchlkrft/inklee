@@ -282,6 +282,32 @@ Two things follow, both done here:
   by design (a settings summary page, not a wire-affecting feature) — no
   native row.
 
+- **2026-08-01 — Variant-aware bundles (founder ruling FD6, supersedes GC7,
+  branch-only).** Extends the 2026-07-31 bundle-management parity rows (below)
+  and the 2026-08-01 payable-bundles entry: a bundle slot now carries the
+  artist's fixed variant choice (`product_bundle_items.variant_id`, migration
+  0138), so the same product can appear twice in one bundle at two different
+  variants, and the checkout's old blanket refusal of any variant-bearing
+  component (GC7/SHOP-VAR-001) narrows to "un-selectable" (a slot with no
+  variant on a product that needs one). Wire change: `MobileBundleList`
+  (`packages/shared/src/mobile-api.ts`) gains `items[].variantId` and
+  `products[].variants[]` (id/name/priceAmount), both ADDITIVE — an older
+  installed build simply never reads them, same version-skew posture as every
+  other mobile wire type, so this alone does not force a build. The native
+  editor `apps/mobile/app/(tabs)/goods/bundles.tsx` DOES change: a
+  variant-bearing product renders one `FilterChip` per active variant (tap to
+  add/remove that exact slot) instead of a single product toggle, matching the
+  web editor's per-slot picker (`bundles-manager.tsx`); an existing slot with
+  no variant on a product that now HAS variants surfaces as its own "needs a
+  variant" callout with a Remove action, on both surfaces, rather than
+  silently blocking or breaking. `/api/mobile/goods/bundles` GET now joins
+  `product_variants` per product and PATCH `op:"setItems"` accepts
+  `items[].variantId`, both through the SAME `setBundleItemsCore` the web
+  action calls, so the rule cannot drift between surfaces. STILL: the fresh
+  EAS build already required before `goods_bundles` is granted (2026-07-31
+  row) remains the gate — this entry does not loosen or tighten it, since the
+  capability itself has not shipped to any device yet.
+
 - **2026-08-01 — Standalone shop checkout (GC1 C2/C3) + payable bundles (C4,
   both branch-only).** The public guest-buyer checkout at
   `/[slug]/shop/checkout` (products + bundles, PaymentElement on the artist's

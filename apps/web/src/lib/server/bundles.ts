@@ -222,14 +222,48 @@ export async function deleteBundleCore(
   return { ok: false, code: "failed", error: "That bundle is gone." };
 }
 
-/** Add a product to a bundle (idempotent: a repeat is a no-op). Quantity
- *  defaults to 1; a caller may pass more. */
+/** Match a nullable variant_id filter. `.eq(col, null)` is NOT the same
+ *  PostgREST predicate as `.is(col, null)` (0138's own lesson, applied here):
+ *  a variant-scoped lookup needs the right one depending on whether a variant
+ *  was actually declared for this slot.
+ *
+ *  T is left UNCONSTRAINED and the call is routed through a local, non-
+ *  recursive shape on purpose: a constraint like `T extends { eq: (...) =>
+ *  T }` asks TypeScript to structurally verify that Supabase's own (already
+ *  deeply generic) filter-builder type satisfies "returns itself", which
+ *  blows up with "Type instantiation is excessively deep and possibly
+ *  infinite" (TS2589) against the real builder type. The cast is safe: every
+ *  Supabase query-builder stage exposes both `.eq()` and `.is()` returning a
+ *  builder of the same shape (that is what makes `.eq(...).eq(...)`
+ *  chainable at all), so this reflects only what the two call sites below
+ *  already relied on. */
+function byVariant<T>(query: T, variantId: string | null): T {
+  const filterable = query as unknown as {
+    eq: (c: string, v: unknown) => unknown;
+    is: (c: string, v: unknown) => unknown;
+  };
+  return (
+    variantId === null
+      ? filterable.is("variant_id", null)
+      : filterable.eq("variant_id", variantId)
+  ) as T;
+}
+
+/** Add a product to a bundle (idempotent per (product, variant): a repeat is
+ *  a no-op). Quantity defaults to 1; a caller may pass more. `variantId` is
+ *  the artist's fixed choice for this slot (FD6); the RLS WITH CHECK (0138)
+ *  verifies it belongs to `productId` and refuses the write otherwise — this
+ *  function surfaces that as the generic `invalid` result, same as any other
+ *  insert failure. NOTE: the editor's actual write path is
+ *  `setBundleItemsCore` below (a full-list replace); this lower-level pair
+ *  exists for the entitlement-gate battery and any future singular caller. */
 export async function addProductToBundleCore(
   supabase: SupabaseClient,
   artistId: string,
   bundleId: string,
   productId: string,
   quantity = 1,
+  variantId: string | null = null,
 ): Promise<BundleWriteResult> {
   const gate = await requireEntitlement(artistId);
   if (gate) return gate;
@@ -237,12 +271,14 @@ export async function addProductToBundleCore(
   const qty =
     Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : 1;
 
-  const { data: existing } = await supabase
-    .from("product_bundle_items")
-    .select("id")
-    .eq("bundle_id", bundleId)
-    .eq("product_id", productId)
-    .maybeSingle();
+  const { data: existing } = await byVariant(
+    supabase
+      .from("product_bundle_items")
+      .select("id")
+      .eq("bundle_id", bundleId)
+      .eq("product_id", productId),
+    variantId,
+  ).maybeSingle();
   if (existing) return { ok: true, id: existing.id as string };
 
   const { count } = await supabase
@@ -266,13 +302,16 @@ export async function addProductToBundleCore(
     .maybeSingle();
   const position = ((last?.position as number | undefined) ?? -1) + 1;
 
-  // artist_id is supplied; the composite FKs + RLS WITH CHECK verify it against
-  // BOTH parents, so a foreign bundle or product id cannot produce a row.
+  // artist_id is supplied; the composite FKs + RLS WITH CHECK verify it
+  // against BOTH parents (and, since 0138, that a non-null variant_id
+  // belongs to THIS product), so a foreign bundle, product or variant id
+  // cannot produce a row.
   const { data, error } = await supabase
     .from("product_bundle_items")
     .insert({
       bundle_id: bundleId,
       product_id: productId,
+      variant_id: variantId,
       artist_id: artistId,
       quantity: qty,
       position,
@@ -294,41 +333,70 @@ export async function removeProductFromBundleCore(
   artistId: string,
   bundleId: string,
   productId: string,
+  variantId: string | null = null,
 ): Promise<BundleWriteResult> {
   const gate = await requireEntitlement(artistId);
   if (gate) return gate;
 
-  const { error } = await supabase
-    .from("product_bundle_items")
-    .delete()
-    .eq("bundle_id", bundleId)
-    .eq("product_id", productId)
-    .eq("artist_id", artistId);
+  const { error } = await byVariant(
+    supabase
+      .from("product_bundle_items")
+      .delete()
+      .eq("bundle_id", bundleId)
+      .eq("product_id", productId)
+      .eq("artist_id", artistId),
+    variantId,
+  );
   if (error) return { ok: false, code: "failed", error: "Couldn't remove." };
   return { ok: true, id: productId };
 }
 
+export type BundleItemInput = {
+  productId: string;
+  quantity: number;
+  /** The artist's fixed variant choice for this slot (FD6). Omitted or null
+   *  means "no variant" — valid so long as the product itself has no ACTIVE
+   *  variant to choose; otherwise the RLS WITH CHECK (0138) or the shared
+   *  purchasability rule flags it as needing one. */
+  variantId?: string | null;
+};
+
+/** Identity key for a bundle slot: a product now legitimately appears more
+ *  than once in one bundle (FD6), once per distinct variant, so identity is
+ *  (productId, variantId) together, never productId alone. */
+function slotKey(productId: string, variantId: string | null): string {
+  return `${productId}::${variantId ?? ""}`;
+}
+
 /**
  * Set the FULL item list of a bundle (the editor holds the whole answer).
- * Upserts each wanted product at its array position with its quantity, and
- * removes any current item not in the wanted set. Additions past the item cap
- * are refused. Quantities and positions of surviving items are updated.
+ * Upserts each wanted (product, variant) slot at its array position with its
+ * quantity, and removes any current slot not in the wanted set. Additions
+ * past the item cap are refused. Quantities and positions of surviving slots
+ * are updated.
  */
 export async function setBundleItemsCore(
   supabase: SupabaseClient,
   artistId: string,
   bundleId: string,
-  items: { productId: string; quantity: number }[],
+  items: BundleItemInput[],
 ): Promise<BundleWriteResult> {
   const gate = await requireEntitlement(artistId);
   if (gate) return gate;
 
-  // De-dupe by productId (keep first), and cap.
+  // De-dupe by (product, variant) slot (keep first), and cap.
   const seen = new Set<string>();
   const wanted = items
+    .map((it) => ({
+      productId: it.productId,
+      quantity: it.quantity,
+      variantId: it.variantId ?? null,
+    }))
     .filter((it) => {
-      if (!it.productId || seen.has(it.productId)) return false;
-      seen.add(it.productId);
+      if (!it.productId) return false;
+      const key = slotKey(it.productId, it.variantId);
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     })
     .slice(0, MAX_BUNDLE_ITEMS);
@@ -346,32 +414,45 @@ export async function setBundleItemsCore(
 
   const { data: current, error: readError } = await supabase
     .from("product_bundle_items")
-    .select("product_id")
+    .select("product_id, variant_id")
     .eq("bundle_id", bundleId)
     .eq("artist_id", artistId);
   if (readError) return { ok: false, code: "failed", error: "Couldn't save." };
-  const held = new Set((current ?? []).map((r) => r.product_id as string));
-  const wantedIds = new Set(wanted.map((w) => w.productId));
+  const held = new Map(
+    (current ?? []).map((r) => {
+      const productId = r.product_id as string;
+      const variantId = (r.variant_id as string | null) ?? null;
+      return [slotKey(productId, variantId), { productId, variantId }];
+    }),
+  );
+  const wantedKeys = new Set(
+    wanted.map((w) => slotKey(w.productId, w.variantId)),
+  );
 
   // Upsert wanted, at array order, with quantity.
   for (let i = 0; i < wanted.length; i += 1) {
     const w = wanted[i];
+    const key = slotKey(w.productId, w.variantId);
     const qty =
       Number.isFinite(w.quantity) && w.quantity > 0
         ? Math.floor(w.quantity)
         : 1;
-    if (held.has(w.productId)) {
-      const { error } = await supabase
-        .from("product_bundle_items")
-        .update({ quantity: qty, position: i })
-        .eq("bundle_id", bundleId)
-        .eq("product_id", w.productId)
-        .eq("artist_id", artistId);
+    if (held.has(key)) {
+      const { error } = await byVariant(
+        supabase
+          .from("product_bundle_items")
+          .update({ quantity: qty, position: i })
+          .eq("bundle_id", bundleId)
+          .eq("product_id", w.productId)
+          .eq("artist_id", artistId),
+        w.variantId,
+      );
       if (error) return { ok: false, code: "failed", error: "Couldn't save." };
     } else {
       const { error } = await supabase.from("product_bundle_items").insert({
         bundle_id: bundleId,
         product_id: w.productId,
+        variant_id: w.variantId,
         artist_id: artistId,
         quantity: qty,
         position: i,
@@ -385,15 +466,18 @@ export async function setBundleItemsCore(
       }
     }
   }
-  // Remove held items no longer wanted.
-  for (const id of held) {
-    if (wantedIds.has(id)) continue;
-    const { error } = await supabase
-      .from("product_bundle_items")
-      .delete()
-      .eq("bundle_id", bundleId)
-      .eq("product_id", id)
-      .eq("artist_id", artistId);
+  // Remove held slots no longer wanted.
+  for (const [key, h] of held) {
+    if (wantedKeys.has(key)) continue;
+    const { error } = await byVariant(
+      supabase
+        .from("product_bundle_items")
+        .delete()
+        .eq("bundle_id", bundleId)
+        .eq("product_id", h.productId)
+        .eq("artist_id", artistId),
+      h.variantId,
+    );
     if (error) return { ok: false, code: "failed", error: "Couldn't save." };
   }
   return { ok: true, id: bundleId };
@@ -438,7 +522,7 @@ export async function listBundlesForArtist(
 
   const { data: items, error: itemsError } = await supabase
     .from("product_bundle_items")
-    .select("bundle_id, product_id, quantity, position")
+    .select("bundle_id, product_id, variant_id, quantity, position")
     .eq("artist_id", artistId);
   if (itemsError) {
     throw new Error(`Could not load bundle contents: ${itemsError.message}`);
@@ -451,6 +535,7 @@ export async function listBundlesForArtist(
     list.push({
       bundleId: key,
       productId: it.product_id as string,
+      variantId: (it.variant_id as string | null) ?? null,
       quantity: it.quantity as number,
       position: it.position as number,
     });
@@ -498,7 +583,7 @@ export async function publicBundlesForArtist(
 
   const { data: rawItems, error: itemsError } = await supabase
     .from("product_bundle_items")
-    .select("bundle_id, product_id, quantity, position")
+    .select("bundle_id, product_id, variant_id, quantity, position")
     .eq("artist_id", artistId)
     .in(
       "bundle_id",
@@ -514,6 +599,7 @@ export async function publicBundlesForArtist(
     list.push({
       bundleId: key,
       productId: it.product_id as string,
+      variantId: (it.variant_id as string | null) ?? null,
       quantity: it.quantity as number,
       position: it.position as number,
     });

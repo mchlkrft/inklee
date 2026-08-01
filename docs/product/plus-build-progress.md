@@ -2005,3 +2005,169 @@ new `goods-visibility-summary.test.ts`, and a net +4 in
 explicit `destination` and extended with `result.goods` assertions, plus 4
 new: standalone-shop-toggle-off, standalone-available-with-teaser-hidden,
 empty-shop-still-hidden, never-re-routes). Zero regressions.
+
+---
+
+**2026-08-01 — FD6: variant-aware bundles (FINAL ruling, SUPERSEDES GC7).**
+Founder ruling FD6 (`plus-build-time-decisions.md`, FD rulings section):
+"Bundle components carry product + variant + quantity; checkout validates
+existence/ownership/availability/stock/currency/price; historical orders
+preserve the purchased variant composition; refund/restock/reconciliation
+cover variant-bearing bundles." Baseline for this slice: `f043763f`, 2967
+passed + 1 expected fail.
+
+**What shipped, migration.** `0138_bundle_item_variants.sql`:
+`product_bundle_items.variant_id` (nullable = "no variant needed", valid only
+while the product has no ACTIVE variant to choose) and
+`order_item_bundle_components.variant_id` + `variant_snapshot` (the sale-time
+record). The OLD `unique (bundle_id, product_id)` is replaced by TWO
+constraints rather than one straight 3-column swap, because Postgres treats
+NULL as distinct from every other NULL: a real `unique (bundle_id, product_id,
+variant_id)` constraint for the non-null case (two rows collide only when
+their variant_id values are equal AND non-null — "same product, same variant,
+twice"), plus a PARTIAL unique INDEX on `(bundle_id, product_id) where
+variant_id is null` for the null case, since a plain UNIQUE constraint cannot
+carry a WHERE clause. Without the second half, the same product could be
+added twice to a bundle with no variant chosen for either — exactly the
+common case, since a product with no active variants always carries
+`variant_id` null.
+
+**The composite-FK decision, and why it was rejected.** `variant_id` is a
+SIMPLE (non-composite) FK to `product_variants(id)`, not a composite FK to
+`(id, product_id)`. A composite FK's `ON DELETE SET NULL` nulls EVERY column
+of that FK at once (pre-PG15; PG15+ can scope it to named columns, but that is
+a needless version dependency here), so it would null `product_id` too the
+moment a variant is deleted — destroying which PRODUCT the slot names, not
+just which variant. "Belongs to this product" is instead proven in
+application code, in two places proportional to who writes: the artist's own
+writes (user-scoped client, the editor) get it in the RLS `WITH CHECK`
+(`variant_id is null or exists (select 1 from product_variants pv where
+pv.id = variant_id and pv.product_id = product_id)`); the checkout snapshot
+write (service-role, bypasses RLS) gets it in `resolveBundleLines`, which
+resolves a bundle's declared `variant_id` ONLY within that component's own
+product's variant list — the same scoping `computeAddonLines` already uses
+for a direct purchase, re-checked at sale time regardless of what the RLS
+layer already proved on write (the SHOP-VIS-001 money-path posture). A `tests/
+db/bundle-items-rls.test.ts` case DOCUMENTS this boundary explicitly: the
+service role is NOT stopped from writing a cross-product `variant_id` (by
+design — RLS does not apply to it), with a comment naming exactly which
+application-code check is the real guard, so a later reader does not mistake
+the absence of a DB-level composite guard for an oversight.
+
+**What shipped, shared model** (`packages/shared/src/bundles.ts`).
+`BundleItem` gains `variantId`. `bundlePurchasable` gains a
+`component_needs_variant` reason and a widened per-component input
+(`BundleComponentResolution`: quantity, variantId, productHasActiveVariants,
+resolved) — the honest remnant of GC7, narrowed from "any active variant on
+the product refuses the whole bundle" to "a product that NEEDS a choice and
+got none." New `resolveBundleComponent(variantId, catalogInfo)` is the ONE
+place that decides which stock number a component consults: the chosen
+variant's when `variantId` resolves, the product's own when the product has
+no active variant, null (unresolved) otherwise — called from BOTH the money
+path (`goods-checkout.ts`) and the display mirror
+(`[slug]/shop/checkout/page.tsx`), closing the exact kind of duplicate-rule
+drift that made GC7 need a "round-2 verifier executed both gates side by
+side" fix in the first place.
+
+**What shipped, checkout** (`resolveBundleLines`, `goods-checkout.ts`).
+Validates, per component: product exists in the sellable catalog; if the
+bundle's slot names a variant, it must resolve within THAT product's OWN
+active-variant list (never a global lookup — a cross-product or unknown id
+simply does not match, which is both the "exists" and "belongs to this
+product" checks in one comparison); `productAvailability` still gates drops/
+preorder/status (SHOP-DROP-001, unchanged); sufficient stock at the resolved
+level (variant or product) for `perBundle x lineQty`; bundle price stays
+authoritative from the row (unchanged). The snapshot write now carries
+`variant_id` + `variant_snapshot` (the variant's name at resolution time) per
+component.
+
+**What shipped, fulfilment** (`order-fulfillment.ts`). `expandInventoryMovements`
+now selects and passes through the snapshot's `variant_id`/`variant_snapshot`
+instead of hardcoding null, so `decrementInventory`/`restockInventory` — which
+already branch on `variant_id` first — take the SAME variant-stock branch a
+direct variant purchase would, with no separate code path to keep in sync
+(SHOP-FUL-001's symmetry argument extends unchanged: both directions read
+through the one expansion rule). A component whose variant was later deleted
+(the FK's `ON DELETE SET NULL`) carries `variant_id: null` with the
+`variant_snapshot` TEXT intact, so display history survives even though there
+is no live counter left to move.
+
+**What shipped, a gap found and fixed in the same slice**
+(`goods-variants.ts`). `reconcileVariants`' removed-variant guard (decides
+hide-vs-hard-delete when the artist removes a variant from a product's form)
+checked only `booking_interests.variant_id` and `order_items.variant_id`
+before this slice. A variant sold ONLY inside a bundle writes no
+`order_items.variant_id` row at all — the sale lives in
+`order_item_bundle_components`'s snapshot instead — so such a variant looked
+unreferenced and was hard-deleted, and the FK's `ON DELETE SET NULL` would
+then null the snapshot's `variant_id`, leaving a later refund's restock to
+fall through to the product-level branch (untracked by convention for a
+variant-tracked product) and move nothing back. Fixed by adding
+`order_item_bundle_components.variant_id` as a third reference leg, tested in
+a new `goods-variants.test.ts` (positive control: no references anywhere ->
+hard delete; baseline: direct order reference -> hide; the fix itself:
+bundle-only reference -> hide, not delete; the reference check is scoped to
+the specific variant id).
+
+**What shipped, editors.** Web (`bundles-manager.tsx`): a variant-bearing
+product renders a `<select>` per slot instead of a single quantity stepper,
+plus a "+ Add another variant" action so the same product can hold two slots
+at two variants; Save is disabled and a "needs a variant" message shown while
+any slot on a variant-bearing product carries no selection. Native
+(`apps/mobile/app/(tabs)/goods/bundles.tsx`): a variant-bearing product
+renders one `FilterChip` per active variant (tap to add/remove that exact
+slot) instead of a single product toggle; an existing slot with no variant on
+a product that now HAS variants gets its own "needs a variant" callout with a
+Remove action (chips alone cannot represent a null-variant slot, so it would
+otherwise be invisible and un-fixable in the UI). Both write through the SAME
+`setBundleItemsCore` (`lib/server/bundles.ts`), whose identity key changed
+from `productId` alone to `(productId, variantId)` — de-dupe, held-lookup,
+update and delete all now match on the pair, using `.is("variant_id", null)`
+for the null case (`.eq(col, null)` is a different PostgREST predicate and
+would silently match zero rows). Wire: `MobileBundleList` gains
+`items[].variantId` and `products[].variants[]` (id/name/priceAmount), both
+ADDITIVE (an older app build never reads them). `docs/web-native-parity.md`
+updated in the same change (founder rule).
+
+**Mutation proofs** (money-path requirement). Two guards were deleted, the
+named test confirmed red, then the file restored byte-exact (sha256 compared
+before/after): (1) the cross-product variant scoping in `goods-checkout.ts`
+(temporarily pooling every catalog product's variants instead of the
+component's own) turned "FD6: refuses a bundle slot whose variant id does not
+belong to ITS OWN product (cross-product)" red; (2) the stock comparison in
+`bundlePurchasable` (`packages/shared/src/bundles.ts`, temporarily short-
+circuited to `false && ...`) turned both "consults the VARIANT's stock, not
+some other number, for the boundary" (shared model) and "FD6: refuses when
+the declared variant is short on stock" plus the pre-existing product-level
+stock test (`goods-checkout.test.ts`) red, confirming the check is shared
+across both stock levels.
+
+**Deliberately NOT built in this slice.** A buyer-facing variant PICKER at
+checkout: the variant is the ARTIST's fixed choice, baked into the bundle's
+recipe when built, not a buyer-time selection — the bundle is still bought as
+one unit. `addProductToBundleCore`/`removeProductFromBundleCore` (lower-level
+single-item helpers, not reachable from any UI — the editors use
+`setBundleItemsCore`'s full-list replace) gained an optional `variantId`
+param for API consistency but were not otherwise redesigned. A DB-level
+composite FK proving "variant belongs to product" was considered and
+rejected (see above) in favour of the RLS + application-code pair.
+
+**Validation.** `npx tsc --noEmit` clean (web); `npx tsc --noEmit` clean +
+`node scripts/check-lucide-icons.cjs` clean (mobile, 138 icon imports OK);
+`eslint` 0 errors on every touched file. Full `npx vitest run`: 172 files,
+2992 passed + 1 expected fail (2993 total) — up from the 2967-passed baseline
+by exactly the 25 tests this slice added (11 in `lib/__tests__/bundles.test.ts`
+incl. the new `resolveBundleComponent`/`component_needs_variant` describe
+blocks, 2 in `order-fulfillment-expansion.test.ts`, 3 net in
+`goods-checkout.test.ts` incl. the SHOP-VAR-001 test's rename to the FD6
+un-selectable case, 5 in `lib/server/__tests__/bundles.test.ts`, and 4 in the
+new `goods-variants.test.ts`), zero regressions. `tests/db/
+bundle-items-rls.test.ts` gained 6 new cases (two-variants-two-slots,
+same-variant-twice-refused, cross-product-refused, cross-artist-refused,
+null-variant-always-accepted, the service-role boundary documentation) but
+**could not be executed in this session**: `pnpm test:db` requires a local
+Supabase/Docker stack, and Docker was not running in this environment
+(`supabase status` failed with "cannot connect to the docker API"). These
+cases are typechecked and lint-clean but UNVERIFIED against a live Postgres;
+flagging for whoever next has Docker available, or for the release-sequencer
+before this migration is applied.

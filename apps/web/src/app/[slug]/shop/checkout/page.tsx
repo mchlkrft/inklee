@@ -7,7 +7,11 @@ import { surfaceAppearance } from "@/lib/server/appearance";
 import { resolvedSurfaceContent } from "@/lib/server/surface-content";
 import { publicCollectionsForArtist } from "@/lib/server/collections";
 import { resolveFeaturedCollections } from "@inklee/shared/collections";
-import { bundleSavings, bundlePurchasable } from "@inklee/shared/bundles";
+import {
+  bundleSavings,
+  bundlePurchasable,
+  resolveBundleComponent,
+} from "@inklee/shared/bundles";
 import { productAvailability } from "@inklee/shared/product-availability";
 import {
   ShopCheckout,
@@ -152,13 +156,15 @@ export default async function ShopCheckoutPage({
       })),
   }));
 
-  // Bundles (GC6): publicBundlesForArtist is entitlement- and kill-switch-
-  // aware (fails flat, so a plan blip never breaks the page). Display rules:
-  // savings computed against the VISIBLE components only (a hidden component
-  // understates the saving, the safe direction); availability mirrors the
-  // money path's bundlePurchasable so the buyer is not offered a bundle the
-  // server will refuse. Non-EUR bundles are dropped because the standalone
-  // path charges EUR unconditionally.
+  // Bundles (GC6, variant-aware per FD6): publicBundlesForArtist is
+  // entitlement- and kill-switch-aware (fails flat, so a plan blip never
+  // breaks the page). Display rules: savings computed against the VISIBLE
+  // components only (a hidden component understates the saving, the safe
+  // direction); availability uses the SAME shared `resolveBundleComponent` /
+  // `bundlePurchasable` rule the money path runs, via one function instead of
+  // a second hand-written copy (the GC7-era duplication this replaces), so the
+  // buyer is never offered a bundle the server will refuse. Non-EUR bundles
+  // are dropped because the standalone path charges EUR unconditionally.
   const rawBundles = await publicBundlesForArtist(
     serviceClient,
     artist.id as string,
@@ -169,36 +175,49 @@ export default async function ShopCheckoutPage({
     .map((b) => {
       const components = b.items.map((it) => {
         const p = productRowById.get(it.productId);
-        // Mirror of the money path's component rule (SHOP-DROP-001 /
-        // SHOP-VAR-001): unresolved, undropped or variant-bearing components
-        // make the bundle unavailable, so the page never offers a bundle the
-        // server will refuse.
-        const sellable =
-          p !== undefined &&
-          availabilityOf(p as AvailabilityRow).purchasable &&
-          !((p.product_variants ?? []) as { status: string }[]).some(
-            (v) => v.status === "active",
-          );
+        const activeVariants = (
+          (p?.product_variants ?? []) as {
+            id: string;
+            name: string;
+            price_amount_override: number | null;
+            stock_quantity: number | null;
+            status: string;
+          }[]
+        ).filter((v) => v.status === "active");
+        const { productHasActiveVariants, resolved } = resolveBundleComponent(
+          it.variantId,
+          p
+            ? {
+                available: availabilityOf(p as AvailabilityRow).purchasable,
+                activeVariants: activeVariants.map((v) => ({
+                  id: v.id,
+                  stock: v.stock_quantity,
+                })),
+                productStock: p.quantity === null ? null : Number(p.quantity),
+              }
+            : null,
+        );
+        const matchedVariant = it.variantId
+          ? activeVariants.find((v) => v.id === it.variantId)
+          : undefined;
+        const priceAmount =
+          matchedVariant?.price_amount_override != null
+            ? Number(matchedVariant.price_amount_override)
+            : Number(p?.price_amount ?? 0);
         return {
           quantity: it.quantity,
-          product:
-            p && sellable
-              ? {
-                  stock: p.quantity === null ? null : Number(p.quantity),
-                  title: (p.title as string) ?? "",
-                  priceAmount: Number(p.price_amount ?? 0),
-                }
-              : null,
+          variantId: it.variantId,
+          productHasActiveVariants,
+          resolved,
+          title: p ? ((p.title as string) ?? "") : "",
+          priceAmount,
         };
       });
-      const present = components.filter(
-        (c): c is typeof c & { product: NonNullable<(typeof c)["product"]> } =>
-          c.product !== null,
-      );
+      const present = components.filter((c) => c.resolved !== null);
       const savings = bundleSavings(
         b.priceAmount,
         present.map((c) => ({
-          priceAmount: c.product.priceAmount,
+          priceAmount: c.priceAmount,
           quantity: c.quantity,
         })),
       );
@@ -206,7 +225,9 @@ export default async function ShopCheckoutPage({
         b,
         components.map((c) => ({
           quantity: c.quantity,
-          product: c.product ? { stock: c.product.stock } : null,
+          variantId: c.variantId,
+          productHasActiveVariants: c.productHasActiveVariants,
+          resolved: c.resolved,
         })),
         1,
       );
@@ -217,10 +238,7 @@ export default async function ShopCheckoutPage({
         currency: b.currency,
         savingsAmount: savings.isSaving ? savings.savingsAmount : 0,
         componentSummary: present
-          .map(
-            (c) =>
-              `${c.quantity > 1 ? `${c.quantity}x ` : ""}${c.product.title}`,
-          )
+          .map((c) => `${c.quantity > 1 ? `${c.quantity}x ` : ""}${c.title}`)
           .join(" + "),
         available: verdict.ok,
       };

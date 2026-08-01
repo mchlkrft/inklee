@@ -47,6 +47,12 @@ type RecordedOp = {
   verb: "select" | "insert" | "update" | "delete";
   payload: Record<string, unknown> | null;
   filters: Record<string, unknown>;
+  /** `.is(col, v)` — a SEPARATE bucket from `.eq`, on purpose (FD6). PostgREST
+   *  treats `col=eq.null` and `col=is.null` as different predicates and only
+   *  the latter matches a null column; a test asserting on `.filters` alone
+   *  cannot tell "matched with IS" from "matched with EQ", which is exactly
+   *  the distinction a null-variant bundle slot depends on. */
+  isFilters: Record<string, unknown>;
   inFilter: { column: string; values: unknown[] } | null;
 };
 
@@ -83,7 +89,7 @@ function makeChain(op: RecordedOp): Chain {
       return self;
     },
     is: (c, v) => {
-      op.filters[c] = v;
+      op.isFilters[c] = v;
       return self;
     },
     not: (c, o, v) => {
@@ -108,7 +114,14 @@ function start(
   verb: RecordedOp["verb"],
   payload: Record<string, unknown> | null,
 ): Chain {
-  const op: RecordedOp = { table, verb, payload, filters: {}, inFilter: null };
+  const op: RecordedOp = {
+    table,
+    verb,
+    payload,
+    filters: {},
+    isFilters: {},
+    inFilter: null,
+  };
   ops.push(op);
   return makeChain(op);
 }
@@ -319,9 +332,40 @@ describe("addProductToBundleCore", () => {
     expect(ins?.payload).toMatchObject({
       bundle_id: "b1",
       product_id: "p2",
+      variant_id: null,
       artist_id: ARTIST,
       quantity: 3,
       position: 5,
+    });
+  });
+
+  it("FD6: inserts with the declared variant_id, and idempotency is scoped to (product, variant)", async () => {
+    queue(`${ITEMS}:select`, { data: null }); // not present at this variant
+    queue(`${ITEMS}:select`, { count: 1 });
+    queue(`${ITEMS}:select`, { data: { position: 0 } });
+    queue(`${ITEMS}:insert`, { data: { id: "it10" } });
+    const r = await addProductToBundleCore(
+      supabase,
+      ARTIST,
+      "b1",
+      "p2",
+      1,
+      "v1",
+    );
+    expect(r).toEqual({ ok: true, id: "it10" });
+    const ins = ops.find((o) => o.table === ITEMS && o.verb === "insert");
+    expect(ins?.payload).toMatchObject({ product_id: "p2", variant_id: "v1" });
+
+    // The idempotency read is scoped by variant: FAILS IF it matches on
+    // product_id alone, which would report "already added" for a DIFFERENT
+    // variant of the same product and silently drop the second variant.
+    const existingRead = ops.find(
+      (o) => o.table === ITEMS && o.verb === "select",
+    );
+    expect(existingRead?.filters).toMatchObject({
+      bundle_id: "b1",
+      product_id: "p2",
+      variant_id: "v1",
     });
   });
 });
@@ -359,6 +403,98 @@ describe("setBundleItemsCore syncs the full item list", () => {
       { productId: "p1", quantity: 1 },
     ]);
     expect(r).toMatchObject({ ok: false, code: "failed" });
+  });
+
+  // FD6: identity is (product, variant), not product alone — a product can
+  // legitimately appear twice in one bundle at two different variants.
+
+  it("FD6: keeps the SAME product twice as two distinct slots when the variants differ", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    queue(`${ITEMS}:select`, { data: [] }); // nothing held yet
+    queue(`${ITEMS}:insert`, { data: null }); // slot 1 (variant v1)
+    queue(`${ITEMS}:insert`, { data: null }); // slot 2 (variant v2)
+    const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 1, variantId: "v1" },
+      { productId: "p1", quantity: 1, variantId: "v2" },
+    ]);
+    expect(r).toEqual({ ok: true, id: "b1" });
+    // FAILS IF de-duping keys on productId alone: the second slot would be
+    // dropped as a "duplicate" of the first, and the bundle could never carry
+    // two variants of the same product — exactly what FD6 requires it can.
+    const inserts = ops.filter((o) => o.table === ITEMS && o.verb === "insert");
+    expect(inserts).toHaveLength(2);
+    expect(
+      inserts.map((i) => (i.payload as Record<string, unknown>).variant_id),
+    ).toEqual(["v1", "v2"]);
+  });
+
+  it("FD6: de-dupes a repeated (product, SAME variant) pair, keeping the first", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    queue(`${ITEMS}:select`, { data: [] });
+    queue(`${ITEMS}:insert`, { data: null });
+    const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 1, variantId: "v1" },
+      { productId: "p1", quantity: 9, variantId: "v1" }, // same slot again
+    ]);
+    expect(r).toEqual({ ok: true, id: "b1" });
+    const inserts = ops.filter((o) => o.table === ITEMS && o.verb === "insert");
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]!.payload).toMatchObject({ quantity: 1 }); // first kept
+  });
+
+  it("FD6: updates a HELD variant slot by (product, variant), not by product alone", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    // Two EXISTING slots for the same product, at different variants.
+    queue(`${ITEMS}:select`, {
+      data: [
+        { product_id: "p1", variant_id: "v1" },
+        { product_id: "p1", variant_id: "v2" },
+      ],
+    });
+    queue(`${ITEMS}:update`, { data: { id: "u1" } });
+    queue(`${ITEMS}:delete`, { data: null }); // v2 slot dropped
+    const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 5, variantId: "v1" },
+    ]);
+    expect(r).toEqual({ ok: true, id: "b1" });
+    // FAILS IF the held-lookup key drops variant_id: the v1 update could
+    // instead match (and silently "update") the v2 row, or the v2 removal
+    // could delete BOTH rows by matching on product_id alone.
+    const upd = ops.find((o) => o.table === ITEMS && o.verb === "update");
+    expect(upd?.filters).toMatchObject({
+      bundle_id: "b1",
+      product_id: "p1",
+      variant_id: "v1",
+      artist_id: ARTIST,
+    });
+    const del = ops.find((o) => o.table === ITEMS && o.verb === "delete");
+    expect(del?.filters).toMatchObject({
+      bundle_id: "b1",
+      product_id: "p1",
+      variant_id: "v2",
+      artist_id: ARTIST,
+    });
+  });
+
+  it("FD6: a null-variant slot is matched with IS, not EQ", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    queue(`${ITEMS}:select`, {
+      data: [{ product_id: "p1", variant_id: null }],
+    });
+    queue(`${ITEMS}:update`, { data: { id: "u1" } });
+    const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 2 }, // variantId omitted -> null
+    ]);
+    expect(r).toEqual({ ok: true, id: "b1" });
+    // `.eq("variant_id", null)` and `.is("variant_id", null)` are DIFFERENT
+    // PostgREST predicates; only `.is` matches a null column, so this MUST
+    // land in isFilters, not filters. FAILS IF the null branch calls `.eq`
+    // instead of `.is` (byVariant's whole reason to exist): in production
+    // that update would match zero rows and silently no-op.
+    const upd = ops.find((o) => o.table === ITEMS && o.verb === "update");
+    expect(upd?.isFilters).toMatchObject({ variant_id: null });
+    expect(upd?.filters).toMatchObject({ product_id: "p1" });
+    expect(upd?.filters).not.toHaveProperty("variant_id");
   });
 });
 

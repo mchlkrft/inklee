@@ -442,9 +442,17 @@ function BundleEditForm({
   );
 }
 
+/** One (product, variant) slot in the bundle-being-edited. A product may hold
+ *  more than one slot (FD6): once per distinct variant. */
+type Slot = { productId: string; variantId: string | null; quantity: number };
+
 /** Per-bundle product picker: toggle products in/out and set quantities, then
- *  save the whole set (the core replaces the bundle's items to match). Shows the
- *  saving vs buying the parts separately. */
+ *  save the whole set (the core replaces the bundle's items to match). A
+ *  product WITH active variants shows a chip PER VARIANT instead of a single
+ *  product toggle (FD6): tapping a variant chip adds or removes that exact
+ *  slot, so two variants of the same product can both be in the bundle at
+ *  once — the artist fixes the choice here; there is no buyer-time picker.
+ *  Shows the saving vs buying the parts separately. */
 function BundleItemsEditor({
   bundle,
   products,
@@ -454,79 +462,191 @@ function BundleItemsEditor({
   bundle: Bundle;
   products: ProductRow[];
   busy: boolean;
-  onSave: (items: { productId: string; quantity: number }[]) => void;
+  onSave: (
+    items: { productId: string; quantity: number; variantId: string | null }[],
+  ) => void;
 }) {
-  const [qty, setQty] = useState<Record<string, number>>(() =>
-    Object.fromEntries(bundle.items.map((it) => [it.productId, it.quantity])),
+  const [slots, setSlots] = useState<Slot[]>(() =>
+    bundle.items.map((it) => ({
+      productId: it.productId,
+      variantId: it.variantId,
+      quantity: it.quantity,
+    })),
   );
 
-  const selectedIds = Object.keys(qty);
-  const overCap = selectedIds.length > MAX_BUNDLE_ITEMS;
-  const components = selectedIds
-    .map((id) => {
-      const p = products.find((x) => x.id === id);
-      return p ? { priceAmount: p.priceAmount, quantity: qty[id] } : null;
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const overCap = slots.length > MAX_BUNDLE_ITEMS;
+  const needsVariantCount = slots.filter((s) => {
+    const p = productById.get(s.productId);
+    return !!p && p.variants.length > 0 && !s.variantId;
+  }).length;
+
+  const components = slots
+    .map((s) => {
+      const p = productById.get(s.productId);
+      if (!p) return null;
+      const variant = s.variantId
+        ? p.variants.find((v) => v.id === s.variantId)
+        : undefined;
+      const priceAmount = variant?.priceAmount ?? p.priceAmount;
+      return { priceAmount, quantity: s.quantity };
     })
     .filter((x): x is { priceAmount: number; quantity: number } => x !== null);
   const savings = bundleSavings(bundle.priceAmount, components);
 
-  function toggle(id: string) {
-    setQty((prev) => {
-      const next = { ...prev };
-      if (id in next) delete next[id];
-      else next[id] = 1;
-      return next;
+  function toggleNoVariantProduct(id: string) {
+    setSlots((prev) => {
+      const has = prev.some((s) => s.productId === id);
+      if (has) return prev.filter((s) => s.productId !== id);
+      return [...prev, { productId: id, variantId: null, quantity: 1 }];
     });
   }
-  function step(id: string, delta: 1 | -1) {
-    setQty((prev) => {
-      const cur = prev[id] ?? 1;
-      return { ...prev, [id]: Math.max(1, cur + delta) };
+  function toggleVariantSlot(productId: string, variantId: string) {
+    setSlots((prev) => {
+      const idx = prev.findIndex(
+        (s) => s.productId === productId && s.variantId === variantId,
+      );
+      if (idx >= 0) return prev.filter((_, i) => i !== idx);
+      return [...prev, { productId, variantId, quantity: 1 }];
     });
+  }
+  function removeSlotAt(index: number) {
+    setSlots((prev) => prev.filter((_, i) => i !== index));
+  }
+  function step(index: number, delta: 1 | -1) {
+    setSlots((prev) =>
+      prev.map((s, i) =>
+        i === index ? { ...s, quantity: Math.max(1, s.quantity + delta) } : s,
+      ),
+    );
   }
 
   return (
     <View className="mt-3 border-t border-shell-border pt-3">
       <Text className="mb-2 text-xs text-shell-dim">
-        Tap the products in this bundle, then set how many.
+        Tap the products in this bundle, then set how many. A product with
+        options needs a variant chosen for each one you add.
       </Text>
       {products.map((p) => {
-        const on = p.id in qty;
-        return (
-          <View key={p.id} className="mb-1.5 flex-row items-center gap-2">
-            <View className="flex-1">
-              <FilterChip
-                label={`${p.title}  ${formatPrice(p.priceAmount, bundle.currency)}`}
-                selected={on}
-                onPress={() => toggle(p.id)}
-              />
-            </View>
-            {on ? (
-              <View className="flex-row items-center gap-2">
-                <Pressable
-                  onPress={() => step(p.id, -1)}
-                  accessibilityLabel={`Fewer ${p.title}`}
-                  className="h-8 w-8 items-center justify-center rounded-full border border-shell-border active:opacity-60"
-                >
-                  <Text className="text-shell-text">-</Text>
-                </Pressable>
-                <Text className="w-5 text-center text-sm text-shell-text">
-                  {qty[p.id]}
-                </Text>
-                <Pressable
-                  onPress={() => step(p.id, 1)}
-                  accessibilityLabel={`More ${p.title}`}
-                  className="h-8 w-8 items-center justify-center rounded-full border border-shell-border active:opacity-60"
-                >
-                  <Text className="text-shell-text">+</Text>
-                </Pressable>
+        const hasVariants = p.variants.length > 0;
+        const productSlots = slots
+          .map((s, i) => ({ s, i }))
+          .filter(({ s }) => s.productId === p.id);
+
+        if (!hasVariants) {
+          const on = productSlots.length > 0;
+          const index = productSlots[0]?.i ?? -1;
+          return (
+            <View key={p.id} className="mb-1.5 flex-row items-center gap-2">
+              <View className="flex-1">
+                <FilterChip
+                  label={`${p.title}  ${formatPrice(p.priceAmount, bundle.currency)}`}
+                  selected={on}
+                  onPress={() => toggleNoVariantProduct(p.id)}
+                />
               </View>
-            ) : null}
+              {on ? (
+                <View className="flex-row items-center gap-2">
+                  <Pressable
+                    onPress={() => step(index, -1)}
+                    accessibilityLabel={`Fewer ${p.title}`}
+                    className="h-8 w-8 items-center justify-center rounded-full border border-shell-border active:opacity-60"
+                  >
+                    <Text className="text-shell-text">-</Text>
+                  </Pressable>
+                  <Text className="w-5 text-center text-sm text-shell-text">
+                    {slots[index]?.quantity ?? 1}
+                  </Text>
+                  <Pressable
+                    onPress={() => step(index, 1)}
+                    accessibilityLabel={`More ${p.title}`}
+                    className="h-8 w-8 items-center justify-center rounded-full border border-shell-border active:opacity-60"
+                  >
+                    <Text className="text-shell-text">+</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          );
+        }
+
+        // Variant-bearing product: one chip per ACTIVE variant, each an
+        // independent slot toggle.
+        return (
+          <View key={p.id} className="mb-1.5">
+            <Text className="mb-1 text-xs text-shell-text">{p.title}</Text>
+            {p.variants.map((v) => {
+              const slotIndex = slots.findIndex(
+                (s) => s.productId === p.id && s.variantId === v.id,
+              );
+              const on = slotIndex >= 0;
+              return (
+                <View
+                  key={v.id}
+                  className="mb-1 flex-row items-center gap-2 pl-2"
+                >
+                  <View className="flex-1">
+                    <FilterChip
+                      label={`${v.name}  ${formatPrice(v.priceAmount ?? p.priceAmount, bundle.currency)}`}
+                      selected={on}
+                      onPress={() => toggleVariantSlot(p.id, v.id)}
+                    />
+                  </View>
+                  {on ? (
+                    <View className="flex-row items-center gap-2">
+                      <Pressable
+                        onPress={() => step(slotIndex, -1)}
+                        accessibilityLabel={`Fewer ${p.title} ${v.name}`}
+                        className="h-8 w-8 items-center justify-center rounded-full border border-shell-border active:opacity-60"
+                      >
+                        <Text className="text-shell-text">-</Text>
+                      </Pressable>
+                      <Text className="w-5 text-center text-sm text-shell-text">
+                        {slots[slotIndex]?.quantity ?? 1}
+                      </Text>
+                      <Pressable
+                        onPress={() => step(slotIndex, 1)}
+                        accessibilityLabel={`More ${p.title} ${v.name}`}
+                        className="h-8 w-8 items-center justify-center rounded-full border border-shell-border active:opacity-60"
+                      >
+                        <Text className="text-shell-text">+</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+            {(() => {
+              // An EXISTING slot with no variant, on a product that now HAS
+              // active variants: invisible in the chip list above (no chip
+              // maps to a null variantId), so it needs its own callout or the
+              // artist could never see or clear it (FD6 editor requirement:
+              // surface as "needs a variant", never silently break).
+              const orphanIndex = slots.findIndex(
+                (s) => s.productId === p.id && s.variantId === null,
+              );
+              if (orphanIndex < 0) return null;
+              return (
+                <View className="mb-1 flex-row items-center gap-2 pl-2">
+                  <Text className="flex-1 text-xs text-danger">
+                    An existing item here needs a variant chosen.
+                  </Text>
+                  <Pressable
+                    onPress={() => removeSlotAt(orphanIndex)}
+                    accessibilityLabel={`Remove the unresolved ${p.title} item`}
+                  >
+                    <Text className="text-xs text-shell-dim underline">
+                      Remove
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })()}
           </View>
         );
       })}
 
-      {selectedIds.length > 0 ? (
+      {slots.length > 0 ? (
         <Text className="mt-1 text-xs text-shell-dim">
           {savings.isSaving
             ? `Bundle ${formatPrice(bundle.priceAmount, bundle.currency)}, parts ${formatPrice(savings.componentTotal, bundle.currency)}. Save ${formatPrice(savings.savingsAmount, bundle.currency)} (${savings.savingsPercent}%).`
@@ -538,14 +658,23 @@ function BundleItemsEditor({
           A bundle can hold at most {MAX_BUNDLE_ITEMS} products.
         </Text>
       ) : null}
+      {needsVariantCount > 0 ? (
+        <Text className="mt-1 text-xs text-danger">
+          Choose a variant for every highlighted product before saving.
+        </Text>
+      ) : null}
 
       <View className="mt-3">
         <Button
           label="Save products"
-          disabled={busy || overCap}
+          disabled={busy || overCap || needsVariantCount > 0}
           onPress={() =>
             onSave(
-              selectedIds.map((id) => ({ productId: id, quantity: qty[id] })),
+              slots.map((s) => ({
+                productId: s.productId,
+                quantity: s.quantity,
+                variantId: s.variantId,
+              })),
             )
           }
         />

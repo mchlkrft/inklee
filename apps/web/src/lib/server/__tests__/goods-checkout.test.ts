@@ -298,9 +298,26 @@ const BUNDLE_ROW = {
 };
 
 const BUNDLE_ITEM_ROWS = [
-  { bundle_id: "b1", product_id: "p1", quantity: 1 },
-  { bundle_id: "b1", product_id: "p2", quantity: 2 },
+  { bundle_id: "b1", product_id: "p1", variant_id: null, quantity: 1 },
+  { bundle_id: "b1", product_id: "p2", variant_id: null, quantity: 2 },
 ];
+
+/** A variant-bearing product (FD6): quantity is null by convention (0035 —
+ *  stock lives on the variant, not the parent), with one active variant. */
+const CATALOG_ROW_VARIANT = {
+  ...CATALOG_ROW,
+  quantity: null,
+  product_variants: [
+    {
+      id: "v1",
+      name: "M",
+      price_amount_override: null,
+      stock_quantity: 3,
+      status: "active",
+      sort_order: 0,
+    },
+  ],
+};
 
 /** An explicit per-feature entitlement override, so the gate's answer does not
  *  depend on which features the free/plus baselines happen to carry today. */
@@ -738,6 +755,8 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
         title_snapshot: "Print",
         quantity: 1,
         unit_list_price: 30,
+        variant_id: null,
+        variant_snapshot: null,
       },
       {
         order_item_id: "oi-b1",
@@ -745,6 +764,8 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
         title_snapshot: "Tee",
         quantity: 2,
         unit_list_price: 11,
+        variant_id: null,
+        variant_snapshot: null,
       },
     ]);
   });
@@ -944,33 +965,22 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
     ).toBeUndefined();
   });
 
-  it("SHOP-VAR-001 (GC7): a bundle containing a VARIANT-bearing product is refused", async () => {
+  it("FD6 (was SHOP-VAR-001/GC7): a variant-bearing component with NO variant selected is UN-SELECTABLE and refused", async () => {
     // A variant-stocked parent has quantity null, which reads as unlimited
-    // while decrementInventory moves nothing, and v1 bundles cannot carry a
-    // variant choice at all. The same product bought directly REQUIRES a
-    // choice in the compositor, so selling it choicelessly inside a bundle
-    // sells ambiguous goods and skips the stock ledger.
-    queue("products:select", {
+    // while decrementInventory moves nothing for it. FD6 lifts GC7's blanket
+    // refusal of any variant-bearing component, but a bundle slot that names
+    // no variant AT ALL for a product that requires a choice is still
+    // refused — this is the honest remnant of GC7, narrowed from "any
+    // variant present" to "un-selectable".
+    queue("products:select", { data: [CATALOG_ROW_VARIANT, CATALOG_ROW_2] });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    // p1's slot names NO variant, even though p1 now has an active one.
+    queue("product_bundle_items:select", {
       data: [
-        {
-          ...CATALOG_ROW,
-          quantity: null,
-          product_variants: [
-            {
-              id: "v1",
-              name: "M",
-              price_amount_override: null,
-              stock_quantity: 3,
-              status: "active",
-              sort_order: 0,
-            },
-          ],
-        },
-        CATALOG_ROW_2,
+        { bundle_id: "b1", product_id: "p1", variant_id: null, quantity: 1 },
+        { bundle_id: "b1", product_id: "p2", variant_id: null, quantity: 2 },
       ],
     });
-    queue("product_bundles:select", { data: [BUNDLE_ROW] });
-    queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
 
     const r = await createStandaloneGoodsCheckoutCore({
       ...INPUT,
@@ -978,13 +988,141 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
       bundles: [{ bundleId: "b1", quantity: 1 }],
     });
 
-    // Fails if the active-variants check is dropped from the component
-    // resolution: the bundle sells with no variant chosen and no stock moved
-    // (the round-2 verifier executed bundlePurchasable at lineQuantity 99
-    // against a null-stock parent and it answered ok).
+    // Fails if `component_needs_variant` is dropped from bundlePurchasable
+    // (or the un-selectable check is bypassed here): the bundle would sell
+    // with no variant chosen and no stock moved (the round-2 verifier
+    // executed bundlePurchasable at lineQuantity 99 against a null-stock
+    // parent under the OLD rule and it answered ok).
     expect(r).toEqual({
       ok: false,
       error: "Part of that bundle isn't available right now.",
+    });
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "insert"),
+    ).toBeUndefined();
+  });
+
+  it("FD6: a bundle slot with a DECLARED, in-stock variant sells, decrementing the VARIANT not the parent", async () => {
+    queue("products:select", { data: [CATALOG_ROW_VARIANT, CATALOG_ROW_2] });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", {
+      data: [
+        { bundle_id: "b1", product_id: "p1", variant_id: "v1", quantity: 1 },
+        { bundle_id: "b1", product_id: "p2", variant_id: null, quantity: 2 },
+      ],
+    });
+    queue("orders:insert", { data: { id: "o1" } });
+    queue("order_items:insert", { data: [{ id: "oi-b1", bundle_id: "b1" }] });
+    queue("order_item_bundle_components:insert", { data: null });
+    queue("orders:update", { data: null });
+
+    const r = await createStandaloneGoodsCheckoutCore({
+      ...INPUT,
+      selections: [],
+      bundles: [{ bundleId: "b1", quantity: 1 }],
+    });
+
+    // Fails if the un-selectable refusal fires even with a variant declared:
+    // the sale would be blocked despite everything being resolvable.
+    expect(r).toMatchObject({ ok: true });
+
+    const snap = ops.find(
+      (o) => o.table === "order_item_bundle_components" && o.verb === "insert",
+    );
+    // The snapshot carries WHICH variant was sold, by id and by name — this is
+    // what the fulfilment expansion and any later reader (refund, historical
+    // order view) need. Fails if variant_id/variant_snapshot are dropped or
+    // left null despite a real selection.
+    expect(snap!.payload).toEqual([
+      {
+        order_item_id: "oi-b1",
+        product_id: "p1",
+        title_snapshot: "Print",
+        quantity: 1,
+        unit_list_price: 30,
+        variant_id: "v1",
+        variant_snapshot: "M",
+      },
+      {
+        order_item_id: "oi-b1",
+        product_id: "p2",
+        title_snapshot: "Tee",
+        quantity: 2,
+        unit_list_price: 11,
+        variant_id: null,
+        variant_snapshot: null,
+      },
+    ]);
+  });
+
+  it("FD6: refuses a bundle slot whose variant id does not belong to ITS OWN product (cross-product)", async () => {
+    // p2 has no variants of its own; its slot names p1's variant id "v1" — a
+    // shape that should never occur through the artist's own RLS-checked
+    // writes (migration 0138), but the checkout re-verifies independently of
+    // what the write path already proved (the SHOP-VIS-001 money-path
+    // posture: never trust an upstream invariant at the point money moves).
+    queue("products:select", { data: [CATALOG_ROW_VARIANT, CATALOG_ROW_2] });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", {
+      data: [
+        { bundle_id: "b1", product_id: "p1", variant_id: "v1", quantity: 1 },
+        { bundle_id: "b1", product_id: "p2", variant_id: "v1", quantity: 2 },
+      ],
+    });
+
+    const r = await createStandaloneGoodsCheckoutCore({
+      ...INPUT,
+      selections: [],
+      bundles: [{ bundleId: "b1", quantity: 1 }],
+    });
+
+    // Fails if variant resolution ever becomes a global `product_variants`
+    // lookup instead of being scoped to THIS component's own
+    // `product.product_variants` list: a global lookup would find "v1" (it
+    // exists, just on a different product) and sell p2 as if a variant
+    // choice had been made for it.
+    expect(r).toEqual({
+      ok: false,
+      error: "Part of that bundle isn't available right now.",
+    });
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "insert"),
+    ).toBeUndefined();
+  });
+
+  it("FD6: refuses when the declared variant is short on stock, naming the bundle", async () => {
+    queue("products:select", {
+      data: [
+        {
+          ...CATALOG_ROW_VARIANT,
+          product_variants: [
+            { ...CATALOG_ROW_VARIANT.product_variants[0], stock_quantity: 1 },
+          ],
+        },
+        CATALOG_ROW_2,
+      ],
+    });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", {
+      // Needs 2 (perBundle) x 1 (lineQty) = 2; only 1 in stock.
+      data: [
+        { bundle_id: "b1", product_id: "p1", variant_id: "v1", quantity: 2 },
+        { bundle_id: "b1", product_id: "p2", variant_id: null, quantity: 1 },
+      ],
+    });
+
+    const r = await createStandaloneGoodsCheckoutCore({
+      ...INPUT,
+      selections: [],
+      bundles: [{ bundleId: "b1", quantity: 1 }],
+    });
+
+    // Fails if the stock check reads the PARENT's (null-by-convention)
+    // quantity instead of the selected VARIANT's — a null parent quantity
+    // reads as unlimited and would sell straight through this refusal.
+    expect(r).toEqual({
+      ok: false,
+      error: 'Not enough stock for "Starter kit".',
     });
     expect(
       ops.find((o) => o.table === "orders" && o.verb === "insert"),

@@ -38,6 +38,18 @@ export type Bundle = {
 export type BundleItem = {
   bundleId: string;
   productId: string;
+  /**
+   * The ARTIST's fixed variant choice for this slot (FD6, variant-aware
+   * bundles; supersedes GC7's blanket refusal of any variant-bearing
+   * component). Chosen once, when the bundle is built — a bundle is still
+   * bought as ONE unit at checkout, so there is no buyer-time variant picker.
+   * Null means "no variant needed", which is only a complete answer while the
+   * product itself has no ACTIVE variant to choose; a variant-bearing product
+   * with a null slot is UN-SELECTABLE (see `bundlePurchasable`'s
+   * `component_needs_variant` reason) rather than silently sold or silently
+   * broken.
+   */
+  variantId: string | null;
   /** How many of this product the bundle includes. Always >= 1. */
   quantity: number;
   position: number;
@@ -167,36 +179,108 @@ export type BundlePurchasability =
         | "not_public"
         | "empty"
         | "component_unavailable"
-        | "component_out_of_stock";
+        | "component_out_of_stock"
+        // FD6: a component whose product HAS an active variant to choose,
+        // but whose bundle slot carries no variant selection at all. The
+        // honest remnant of GC7's blanket refusal — un-selectable, not
+        // "any variant present".
+        | "component_needs_variant";
     };
 
+/** One resolved bundle component, as `bundlePurchasable` consumes it. Callers
+ *  build this with `resolveBundleComponent` below rather than by hand, so the
+ *  server checkout and any display mirror cannot diverge on the rule. */
+export type BundleComponentResolution = {
+  /** Bundle-declared count of this product per ONE bundle. */
+  quantity: number;
+  /** The artist's fixed variant choice for this slot (`BundleItem.variantId`). */
+  variantId: string | null;
+  /** Whether the product currently has at least one ACTIVE variant to choose
+   *  from. Together with `variantId`, this is what distinguishes "no variant
+   *  needed" from "un-selectable". */
+  productHasActiveVariants: boolean;
+  /** The RESOLVED sellable unit: the chosen variant's stock when `variantId`
+   *  is set and resolves, the product's own stock when the product has no
+   *  active variant. Null when nothing resolved at all (missing/archived/
+   *  hidden/undropped product, or a variant id that did not resolve against
+   *  THIS product's own variant list — the cross-product / unknown case). */
+  resolved: { stock: number | null } | null;
+};
+
 /**
- * Whether a bundle can be SOLD right now (decision GC6). Display rules and
- * sale rules deliberately differ: the shop MAY show a bundle while omitting a
- * hidden component (understating the saving, the safe direction for a claim),
- * but the checkout must refuse to charge for a bundle it cannot fulfil whole.
+ * The catalog facts `resolveBundleComponent` needs for ONE component product,
+ * already filtered to the SELLABLE catalog (active + publicly visible +
+ * matching currency + dropped, the same read that prices the order).
+ */
+export type BundleComponentCatalogInfo = {
+  /** Whether the product itself resolves as purchasable right now (status,
+   *  drop/preorder timing), independent of variants. Callers compute this
+   *  with `productAvailability`. */
+  available: boolean;
+  /** Every ACTIVE variant of this product. */
+  activeVariants: { id: string; stock: number | null }[];
+  /** The product's own tracked stock, consulted only when it has no active
+   *  variant (null = untracked = unlimited). */
+  productStock: number | null;
+};
+
+/**
+ * Resolve ONE bundle component against the live catalog (FD6). Pure and
+ * SHARED, so the money path (goods-checkout.ts) and any display mirror (the
+ * standalone checkout page's own sellability preview) consult the identical
+ * rule instead of maintaining two copies that can drift — which is exactly
+ * how GC7's blanket-refusal duplicate lived in two files before this.
  *
- * The caller resolves each component against the SELLABLE catalog (active +
- * publicly visible + matching currency, the same filtered read that prices the
- * order) and passes `product: null` for any component that did not resolve.
- * That keeps this function pure and makes the money-path rule explicit at the
- * call site: an artist can legitimately keep a hidden or archived product
- * inside a bundle (the editor allows it), and the answer is "not purchasable",
- * never "sell it short".
+ * `info` is null when the component product itself does not resolve at all
+ * (missing from the sellable catalog read).
+ */
+export function resolveBundleComponent(
+  variantId: string | null,
+  info: BundleComponentCatalogInfo | null,
+): Pick<BundleComponentResolution, "productHasActiveVariants" | "resolved"> {
+  const productHasActiveVariants = (info?.activeVariants.length ?? 0) > 0;
+  if (!info || !info.available) {
+    return { productHasActiveVariants, resolved: null };
+  }
+  if (variantId) {
+    // Scoped to THIS product's own active-variant list only — never a global
+    // variant lookup. A variant id belonging to a different product (or a
+    // hidden/sold-out one, filtered out of activeVariants) simply does not
+    // match, which is both the "variant exists" and the "variant belongs to
+    // this product" checks in one comparison.
+    const variant = info.activeVariants.find((v) => v.id === variantId);
+    return {
+      productHasActiveVariants,
+      resolved: variant ? { stock: variant.stock } : null,
+    };
+  }
+  if (productHasActiveVariants) {
+    // Un-selectable: the product requires a choice this slot does not carry.
+    return { productHasActiveVariants, resolved: null };
+  }
+  return { productHasActiveVariants, resolved: { stock: info.productStock } };
+}
+
+/**
+ * Whether a bundle can be SOLD right now (decision GC6, variant-aware per
+ * FD6). Display rules and sale rules deliberately differ: the shop MAY show a
+ * bundle while omitting a hidden component (understating the saving, the safe
+ * direction for a claim), but the checkout must refuse to charge for a bundle
+ * it cannot fulfil whole.
  *
- * Stock is the parent product's tracked quantity (`null` = untracked =
- * unlimited, matching the product card's own sold-out rule). v1 bundles group
- * products, not variants, so variant-level stock is not consulted here.
+ * The caller resolves each component with `resolveBundleComponent` against
+ * the SELLABLE catalog. That keeps this function pure and makes the
+ * money-path rule explicit at the call site: an artist can legitimately keep
+ * a hidden or archived product inside a bundle (the editor allows it), and
+ * the answer is "not purchasable", never "sell it short".
+ *
+ * Stock is the RESOLVED unit's tracked quantity (`null` = untracked =
+ * unlimited, matching the product card's own sold-out rule) — the chosen
+ * variant's stock when one is selected, the parent product's otherwise.
  */
 export function bundlePurchasable(
   bundle: Bundle,
-  components: {
-    /** Bundle-declared count of this product per ONE bundle. */
-    quantity: number;
-    /** The component as resolved against the sellable catalog; null when the
-     *  product is missing, archived, hidden, or otherwise not sellable. */
-    product: { stock: number | null } | null;
-  }[],
+  components: BundleComponentResolution[],
   /** How many bundles the buyer wants. */
   lineQuantity = 1,
 ): BundlePurchasability {
@@ -204,9 +288,12 @@ export function bundlePurchasable(
   if (components.length === 0) return { ok: false, reason: "empty" };
   const wanted = Number.isFinite(lineQuantity) ? Math.max(1, lineQuantity) : 1;
   for (const c of components) {
-    if (!c.product) return { ok: false, reason: "component_unavailable" };
+    if (c.productHasActiveVariants && !c.variantId) {
+      return { ok: false, reason: "component_needs_variant" };
+    }
+    if (!c.resolved) return { ok: false, reason: "component_unavailable" };
     const perBundle = Number.isFinite(c.quantity) ? Math.max(1, c.quantity) : 1;
-    const { stock } = c.product;
+    const { stock } = c.resolved;
     if (stock !== null && stock < perBundle * wanted) {
       return { ok: false, reason: "component_out_of_stock" };
     }

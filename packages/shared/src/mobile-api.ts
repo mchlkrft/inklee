@@ -1165,10 +1165,14 @@ export type MobileCollectionList = {
   memberships: { collectionId: string; productId: string; position: number }[];
 };
 
-/** GET /api/mobile/goods/bundles (Stage 3). Mirrors the web manager: every
- *  bundle (live AND archived) with its items, plus the products (with list
- *  price, so the app can show the saving) for the picker. `entitled` is
- *  server-resolved so the app never re-derives a plan rule. */
+/** GET /api/mobile/goods/bundles (Stage 3, variant-aware since FD6). Mirrors
+ *  the web manager: every bundle (live AND archived) with its items, plus the
+ *  products (with list price and their ACTIVE variants, so the app can show
+ *  the saving and offer a variant picker) for the editor. `entitled` is
+ *  server-resolved so the app never re-derives a plan rule. Additive field
+ *  (`variantId` on an item, `variants` on a product): an older app build that
+ *  does not know either name simply never reads them, same version-skew
+ *  posture as every other mobile wire type. */
 export type MobileBundleList = {
   entitled: boolean;
   bundles: {
@@ -1179,7 +1183,20 @@ export type MobileBundleList = {
     position: number;
     isPublicVisible: boolean;
     archivedAt: string | null;
-    items: { productId: string; quantity: number; position: number }[];
+    items: {
+      productId: string;
+      /** The artist's fixed variant choice for this slot (FD6), or null. */
+      variantId: string | null;
+      quantity: number;
+      position: number;
+    }[];
   }[];
-  products: { id: string; title: string; priceAmount: number }[];
+  products: {
+    id: string;
+    title: string;
+    priceAmount: number;
+    /** This product's ACTIVE variants only — the editor offers a choice from
+     *  exactly these, matching what the checkout itself will accept. */
+    variants: { id: string; name: string; priceAmount: number | null }[];
+  }[];
 };
