@@ -87,6 +87,9 @@ function CreateTrip() {
   const [iconColor, setIconColor] = useState<string | null>(null);
   const [iconBg, setIconBg] = useState<string | null>(null);
   const [show, setShow] = useState(true);
+  // The Hub's own visibility flag (migration 0137, decision S3), independent
+  // of "Show on booking form" above.
+  const [showHub, setShowHub] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,7 +99,8 @@ function CreateTrip() {
     icon !== initialIcon ||
     iconColor !== null ||
     iconBg !== null ||
-    show !== true;
+    show !== true ||
+    showHub !== true;
   const { leave } = useUnsavedGuard(dirty && !saving, create);
 
   async function create() {
@@ -112,6 +116,7 @@ function CreateTrip() {
         title: title.trim(),
         description: description.trim() || null,
         showOnBookingForm: show,
+        isPublicVisible: showHub,
         icon,
         iconColor,
         iconBg,
@@ -166,6 +171,12 @@ function CreateTrip() {
           placeholder="Details clients see"
         />
         <ShowToggle value={show} onChange={setShow} />
+        <ShowToggle
+          value={showHub}
+          onChange={setShowHub}
+          label="Show on your Hub"
+          help="Visible in your Hub's guest-spots section, separate from your booking form."
+        />
         {error ? (
           <Text className="mb-3 text-sm text-danger-fg">{error}</Text>
         ) : null}
@@ -185,6 +196,9 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
   const seedIconColor = sanitizeTravelIconColor(initial.iconColor ?? null);
   const seedIconBg = sanitizeTravelIconBg(initial.iconBg ?? null);
   const seedShow = initial.showOnBookingForm;
+  // Additive field (older server): default true, matching the create route's
+  // own default when the client never sends it.
+  const seedShowHub = initial.isPublicVisible ?? true;
 
   const [title, setTitle] = useState(seedTitle);
   const [description, setDescription] = useState(seedDescription);
@@ -192,6 +206,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
   const [iconColor, setIconColor] = useState<string | null>(seedIconColor);
   const [iconBg, setIconBg] = useState<string | null>(seedIconBg);
   const [show, setShow] = useState(seedShow);
+  const [showHub, setShowHub] = useState(seedShowHub);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,7 +216,8 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
     icon !== seedIcon ||
     iconColor !== seedIconColor ||
     iconBg !== seedIconBg ||
-    show !== seedShow;
+    show !== seedShow ||
+    showHub !== seedShowHub;
   const { leave } = useUnsavedGuard(dirty && !saving, saveTrip);
 
   async function saveTrip() {
@@ -217,6 +233,7 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
         title: title.trim(),
         description: description.trim() || null,
         showOnBookingForm: show,
+        isPublicVisible: showHub,
         icon,
         iconColor,
         iconBg,
@@ -296,6 +313,12 @@ function EditTrip({ id, initial }: { id: string; initial: MobileTripDetail }) {
           placeholder="Details clients see"
         />
         <ShowToggle value={show} onChange={setShow} />
+        <ShowToggle
+          value={showHub}
+          onChange={setShowHub}
+          label="Show on your Hub"
+          help="Visible in your Hub's guest-spots section, separate from your booking form."
+        />
 
         <Text className="mb-2 mt-7 text-xs font-semibold uppercase tracking-wide text-shell-mute">
           Date stops
@@ -360,17 +383,19 @@ function OverlapNotice() {
 function ShowToggle({
   value,
   onChange,
+  label = "Show on booking form",
+  help = "Let clients pick this trip when they book.",
 }: {
   value: boolean;
   onChange: (v: boolean) => void;
+  label?: string;
+  help?: string;
 }) {
   return (
     <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
       <View className="flex-1 pr-3">
-        <Text className="text-base text-foreground">Show on booking form</Text>
-        <Text className="mt-0.5 text-sm text-shell-dim">
-          Let clients pick this trip when they book.
-        </Text>
+        <Text className="text-base text-foreground">{label}</Text>
+        <Text className="mt-0.5 text-sm text-shell-dim">{help}</Text>
       </View>
       <Switch
         value={value}

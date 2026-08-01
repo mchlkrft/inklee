@@ -5,6 +5,7 @@ import {
   canUseGoods,
   canUseCheckoutAddons,
   canChargeCheckoutAddons,
+  shopCheckoutEnabled,
   isGoodsCommerceEnabled,
   DEFAULT_FEATURES,
 } from "../features";
@@ -41,6 +42,38 @@ describe("featuresFromSettings + helpers", () => {
     expect(canUseGoods(null)).toBe(true);
     expect(canUseGoods({})).toBe(true);
     expect(canUseCheckoutAddons({})).toBe(true);
+  });
+});
+
+describe("shopCheckoutEnabled (decision S2, Plus build C5)", () => {
+  it("defaults on when settings are absent or empty", () => {
+    expect(shopCheckoutEnabled(null)).toBe(true);
+    expect(shopCheckoutEnabled({})).toBe(true);
+  });
+
+  it("is off when the artist explicitly turned it off", () => {
+    expect(shopCheckoutEnabled({ features: { shop_checkout: false } })).toBe(
+      false,
+    );
+  });
+
+  it("is off when the whole goods module is off, even if shop_checkout wasn't touched", () => {
+    expect(shopCheckoutEnabled({ features: { goods_module: false } })).toBe(
+      false,
+    );
+  });
+
+  it("is on only when BOTH goods_module and shop_checkout are on", () => {
+    expect(
+      shopCheckoutEnabled({
+        features: { goods_module: true, shop_checkout: true },
+      }),
+    ).toBe(true);
+    expect(
+      shopCheckoutEnabled({
+        features: { goods_module: false, shop_checkout: true },
+      }),
+    ).toBe(false);
   });
 });
 

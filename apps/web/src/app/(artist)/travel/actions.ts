@@ -330,6 +330,11 @@ export async function createTripAction(
   if (!meta.ok) return { error: meta.error };
   const { title, description } = meta.value;
   const showOnBookingForm = formData.get("show_on_booking_form") !== "false";
+  // is_public_visible (migration 0137, decision S3): the Hub's OWN visibility
+  // control, independent of show_on_booking_form. Same "absent = visible"
+  // default as the booking-form flag above, since the web form always posts
+  // both hidden inputs on every submit.
+  const isPublicVisible = formData.get("show_on_hub") !== "false";
   const icon = sanitizeTravelIcon(
     (formData.get("icon") as string)?.trim() || null,
   );
@@ -373,6 +378,7 @@ export async function createTripAction(
       title,
       description,
       show_on_booking_form: showOnBookingForm,
+      is_public_visible: isPublicVisible,
       icon,
       icon_color: iconColor,
       icon_bg: iconBg,
@@ -421,6 +427,9 @@ export async function updateTripAction(
   if (!meta.ok) return { error: meta.error };
   const { title, description } = meta.value;
   const showOnBookingForm = formData.get("show_on_booking_form") === "true";
+  // Same independent Hub flag as createTripAction (S3); the edit form always
+  // posts it, so "true"/"false" is exact, not an absence-defaults-true guess.
+  const isPublicVisible = formData.get("show_on_hub") === "true";
   // The edit form always posts the icon input ("" = none) — explicit clear.
   const icon = sanitizeTravelIcon(
     (formData.get("icon") as string)?.trim() || null,
@@ -438,6 +447,7 @@ export async function updateTripAction(
       title,
       description,
       show_on_booking_form: showOnBookingForm,
+      is_public_visible: isPublicVisible,
       icon,
       icon_color: iconColor,
       icon_bg: iconBg,
@@ -463,6 +473,29 @@ export async function toggleTripVisibilityAction(
   const { error } = await supabase
     .from("trips")
     .update({ show_on_booking_form: show })
+    .eq("id", id)
+    .eq("artist_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/travel");
+  return { success: true };
+}
+
+// The Hub's own visibility flag (migration 0137, decision S3), the sibling of
+// toggleTripVisibilityAction above — same shape, different column.
+export async function toggleTripHubVisibilityAction(
+  id: string,
+  show: boolean,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase
+    .from("trips")
+    .update({ is_public_visible: show })
     .eq("id", id)
     .eq("artist_id", user.id);
 

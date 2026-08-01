@@ -4,7 +4,11 @@ import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { todayInTimeZone } from "@/lib/date-utils";
 import { canUseGoods } from "@/lib/features";
 import { publicCollectionsForArtist } from "./collections";
-import type { BioBlock } from "@/lib/bio-page-settings";
+import {
+  parseBioPageSettings,
+  isModuleVisible,
+  type BioBlock,
+} from "@/lib/bio-page-settings";
 import type { HubFeatureData } from "@/app/[slug]/hub/feature-blocks";
 
 // Data loader for the hub's feature blocks (Plus build P2b).
@@ -45,7 +49,17 @@ export async function loadHubFeatureData(input: {
 
   const jobs: Promise<void>[] = [];
 
-  if (types.has("goods") && canUseGoods(input.settings)) {
+  // The "goods" feature block deep-links to the booking page's shop teaser
+  // (feature-blocks.tsx: href={data.bookingUrl}), so it is gated on that
+  // teaser's OWN visibility (decision S4) — a narrow, deliberate cascade that
+  // suppresses a broken link, not a surface. When goods-commerce un-parks and
+  // this block links to the standalone shop instead, this dependency should
+  // be dropped.
+  const bioPage = parseBioPageSettings(input.settings.bio_page);
+  const goodsBlockAllowed =
+    canUseGoods(input.settings) && isModuleVisible(bioPage, "shop");
+
+  if (types.has("goods") && goodsBlockAllowed) {
     jobs.push(
       (async () => {
         const { data } = await serviceClient
@@ -74,10 +88,13 @@ export async function loadHubFeatureData(input: {
   if (types.has("guest_spots")) {
     jobs.push(
       (async () => {
-        // Mirrors the booking page's trip query exactly: `show_on_booking_form`
-        // is the artist's public-visibility control (there is no
-        // is_public_visible on trips), and location lives on the linked studio
-        // via trip_legs, not on the trip itself.
+        // `is_public_visible` (migration 0137, decision S3) is the Hub's OWN
+        // visibility control, independent of `show_on_booking_form` (the
+        // booking page's flag). Before 0137 this read reused
+        // show_on_booking_form, which coupled the two surfaces: hiding a trip
+        // from the booking form also hid it here, whether the artist meant
+        // that or not. Location lives on the linked studio via trip_legs, not
+        // on the trip itself.
         const today = new Date().toISOString().slice(0, 10);
         const { data } = await serviceClient
           .from("trips")
@@ -85,7 +102,7 @@ export async function loadHubFeatureData(input: {
             "title, trip_legs!inner(starts_on, ends_on, studios(city, country))",
           )
           .eq("artist_id", input.artistId)
-          .eq("show_on_booking_form", true)
+          .eq("is_public_visible", true)
           .gte("trip_legs.ends_on", today)
           .order("starts_on", {
             ascending: true,

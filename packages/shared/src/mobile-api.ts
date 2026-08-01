@@ -600,6 +600,9 @@ export type MobileTrip = {
   title: string;
   description: string | null;
   showOnBookingForm: boolean;
+  /** The Hub's own visibility flag (migration 0137, decision S3), independent
+   *  of showOnBookingForm. Additive: an older build ignores it. */
+  isPublicVisible?: boolean;
   legCount: number;
   /** Library icon key (artist-side display only); null/absent = default glyph. */
   icon?: string | null;
@@ -701,6 +704,9 @@ export type MobileTripDetail = {
   title: string;
   description: string | null;
   showOnBookingForm: boolean;
+  /** The Hub's own visibility flag (migration 0137, decision S3), independent
+   *  of showOnBookingForm. Additive: an older build ignores it. */
+  isPublicVisible?: boolean;
   legs: MobileTripLeg[];
   studios: MobileStudioOption[];
   /** Library icon key (artist-side display only); null/absent = default glyph. */

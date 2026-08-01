@@ -4,16 +4,22 @@
 // + docs/bio-page-goods-plan.md §8) will flip. NO billing, NO plan enforcement
 // here: this only gives us one place to read a flag from.
 
-export type FeatureKey = "goods_module" | "checkout_addons";
+export type FeatureKey = "goods_module" | "checkout_addons" | "shop_checkout";
 
 export type Features = Record<FeatureKey, boolean>;
 
 export const DEFAULT_FEATURES: Features = {
   goods_module: true,
   checkout_addons: true,
+  // Standalone shop checkout (decision S2, Plus build C5). Joins the existing
+  // features keys rather than becoming a bio-page module: it gates the
+  // STANDALONE /[slug]/shop/checkout page, not anything rendered inside the
+  // booking page. Default ON while goods_module is on, matching every other
+  // key here — visibility hygiene, not a paywall.
+  shop_checkout: true,
 };
 
-const KEYS: FeatureKey[] = ["goods_module", "checkout_addons"];
+const KEYS: FeatureKey[] = ["goods_module", "checkout_addons", "shop_checkout"];
 
 export function parseFeatures(raw: unknown): Features {
   const out: Features = { ...DEFAULT_FEATURES };
@@ -40,6 +46,26 @@ export function canUseGoods(settings: unknown): boolean {
 
 export function canUseCheckoutAddons(settings: unknown): boolean {
   return featuresFromSettings(settings).checkout_addons;
+}
+
+/**
+ * Whether the artist's STANDALONE shop (`/[slug]/shop/checkout`) may take
+ * orders (decision S2, Plus build C5). Distinct from `canUseGoods`, which
+ * gates the booking-page shop teaser and product display generally: an
+ * artist can keep the goods module on (products still show on their booking
+ * page and Hub) while turning the standalone, no-appointment-needed checkout
+ * off. Requires goods_module on AND shop_checkout not explicitly false, so
+ * turning the whole goods module off also turns the standalone shop off
+ * without needing two flags flipped.
+ *
+ * This is visibility, not the money park switch: `isGoodsCommerceEnabled()`
+ * still gates whether the standalone path can charge at all. Both must be
+ * checked at every money-path entry point (page, action, core) per the
+ * SHOP-VIS-001 lesson: a page-only filter never protects the money path.
+ */
+export function shopCheckoutEnabled(settings: unknown): boolean {
+  const f = featuresFromSettings(settings);
+  return f.goods_module && f.shop_checkout;
 }
 
 /**

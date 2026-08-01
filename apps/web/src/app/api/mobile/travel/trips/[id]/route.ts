@@ -42,7 +42,7 @@ export async function GET(
   const { data: trip, error } = await supabase
     .from("trips")
     .select(
-      "id, title, description, show_on_booking_form, icon, icon_color, icon_bg",
+      "id, title, description, show_on_booking_form, is_public_visible, icon, icon_color, icon_bg",
     )
     .eq("id", id)
     .eq("artist_id", userId)
@@ -80,6 +80,7 @@ export async function GET(
     title: trip.title,
     description: trip.description,
     showOnBookingForm: trip.show_on_booking_form,
+    isPublicVisible: trip.is_public_visible,
     legs: legItems,
     studios: (studios ?? []).map((s) => ({
       id: s.id,
@@ -123,12 +124,16 @@ export async function PUT(
   if (readErr) return mobileError(500, readErr.message);
   if (!existing) return mobileError(404, "Trip not found.", "not_found");
 
-  // icon is tri-state: absent (old app) = leave the column untouched.
+  // icon (and isPublicVisible below) are tri-state: absent (old app) = leave
+  // the column untouched.
   const update: Record<string, unknown> = {
     title: v.title,
     description: v.description,
     show_on_booking_form: v.showOnBookingForm,
   };
+  if (v.isPublicVisible !== undefined) {
+    update.is_public_visible = v.isPublicVisible;
+  }
   if (v.icon !== undefined) update.icon = v.icon;
   if (v.iconColor !== undefined) update.icon_color = v.iconColor;
   if (v.iconBg !== undefined) update.icon_bg = v.iconBg;

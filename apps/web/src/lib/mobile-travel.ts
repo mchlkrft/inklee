@@ -64,6 +64,13 @@ export type TripInput = {
   title: string;
   description: string | null;
   showOnBookingForm: boolean;
+  /** The Hub's own visibility flag (migration 0137, decision S3). Tri-state
+   *  like icon below (undefined = not sent, leave the column untouched on an
+   *  UPDATE): unlike showOnBookingForm, an old app build that has never heard
+   *  of this field must not silently reset it to true on every save. On
+   *  CREATE there is no existing value to preserve, so the route defaults it
+   *  to true when absent, same as showOnBookingForm. */
+  isPublicVisible?: boolean;
   /** undefined = the client didn't send the field (old app) — leave the
    *  column untouched; null = clear; a key = set. */
   icon?: TravelIconKey | null;
@@ -86,6 +93,12 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
   ) {
     return { ok: false, error: "showOnBookingForm must be a boolean." };
   }
+  if (
+    b.isPublicVisible !== undefined &&
+    typeof b.isPublicVisible !== "boolean"
+  ) {
+    return { ok: false, error: "isPublicVisible must be a boolean." };
+  }
 
   const value: TripInput = {
     title: meta.value.title,
@@ -94,7 +107,11 @@ export function normalizeTripInput(body: unknown): Result<TripInput> {
     showOnBookingForm: b.showOnBookingForm !== false,
   };
   // Tri-state: only set when the client sent the field, so an old app's save
-  // can never wipe an icon chosen elsewhere.
+  // can never wipe a value chosen elsewhere (icons below, and isPublicVisible
+  // — unlike showOnBookingForm above, which every app build has always sent).
+  if ("isPublicVisible" in b) {
+    value.isPublicVisible = b.isPublicVisible as boolean;
+  }
   if ("icon" in b) {
     value.icon = sanitizeTravelIcon(b.icon);
   }

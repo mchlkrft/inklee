@@ -13,9 +13,16 @@ const { mockCore, mockLimit, mockProfile, flags } = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({
   headers: async () => ({ get: () => "203.0.113.9, 10.0.0.1" }),
 }));
-vi.mock("@/lib/features", () => ({
-  isGoodsCommerceEnabled: () => flags.goodsCommerce,
-}));
+// Partial mock: isGoodsCommerceEnabled is the controllable park switch, but
+// shopCheckoutEnabled stays the REAL pure function so the S2 refusal test
+// below exercises it through mockProfile's settings, not a stub.
+vi.mock("@/lib/features", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/features")>();
+  return {
+    ...actual,
+    isGoodsCommerceEnabled: () => flags.goodsCommerce,
+  };
+});
 vi.mock("@/lib/ratelimit", () => ({
   checkShopCheckoutRateLimit: (...a: unknown[]) => mockLimit(...a),
 }));
@@ -89,6 +96,22 @@ describe("startShopCheckoutAction", () => {
     const r = await startShopCheckoutAction(INPUT);
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toContain("Too many attempts");
+    expect(mockCore).not.toHaveBeenCalled();
+  });
+
+  // Decision S2 (Plus build C5): the artist's own standalone-shop toggle,
+  // double-gated here the same way isGoodsCommerceEnabled is above (the page
+  // 404s, the action refuses too) — the core re-checks it again regardless.
+  it("refuses when the artist turned shop_checkout off, without reaching the core or rate-limiting", async () => {
+    mockProfile.mockReturnValue({
+      data: { id: "a1", settings: { features: { shop_checkout: false } } },
+    });
+    const r = await startShopCheckoutAction(INPUT);
+    expect(r).toEqual({
+      ok: false,
+      error: "The shop isn't taking card orders yet.",
+    });
+    expect(mockLimit).not.toHaveBeenCalled();
     expect(mockCore).not.toHaveBeenCalled();
   });
 });

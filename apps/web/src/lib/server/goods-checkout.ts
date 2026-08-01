@@ -7,7 +7,7 @@ import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email/send";
 import { buildEmailHtml } from "@/lib/email/booking-templates";
-import { isGoodsCommerceEnabled } from "@/lib/features";
+import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { goodsBundlesAllowed } from "@/lib/server/entitlement-gates";
@@ -335,6 +335,24 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   const routing = await getConnectRoutingForArtist(input.artistId);
   if (!routing.routeCharges || !routing.stripeAccountId) {
     return { ok: false, error: "This shop can't take card orders yet." };
+  }
+
+  // Artist's own standalone-shop toggle (decision S2). The page and the
+  // action both re-check this too (defense in depth), but THIS is the money
+  // path: page filters never protect it (SHOP-VIS-001). Fail CLOSED on a
+  // genuine read error (money rule) — a missing/empty settings row is not an
+  // error and resolves to the default (shop_checkout on), so this cannot
+  // regress every existing artist who has never touched the toggle.
+  const { data: profileRow, error: profileErr } = await serviceClient
+    .from("profiles")
+    .select("settings")
+    .eq("id", input.artistId)
+    .maybeSingle();
+  if (profileErr) {
+    return { ok: false, error: "Couldn't prepare the order. Try again." };
+  }
+  if (!shopCheckoutEnabled(profileRow?.settings)) {
+    return { ok: false, error: "The shop isn't taking card orders yet." };
   }
 
   // Catalog: every ACTIVE, PUBLICLY VISIBLE product of this artist (GC4).

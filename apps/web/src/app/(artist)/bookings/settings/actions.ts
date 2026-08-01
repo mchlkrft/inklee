@@ -266,3 +266,49 @@ export async function saveBookingPolicyAction(
   if (existing?.slug) revalidatePath(`/${existing.slug}`);
   return { success: true };
 }
+
+// Shop teaser visibility on the booking page (decision S2, Plus build C5).
+// `hidden: ["shop"]` was already read everywhere (the public page, the parser)
+// but had no writer anywhere — this is that writer. Same shape as
+// saveBookingPolicyAction: read the current bio_page, toggle only the "shop"
+// key in `hidden`, and write back through the shared parser so bookingPolicy
+// and every other module's visibility are preserved untouched. This governs
+// ONLY the booking-page teaser; the STANDALONE shop's own visibility is the
+// separate `settings.features.shop_checkout` flag (non-cascading, S2).
+export async function saveShopVisibilityAction(
+  showShop: boolean,
+): Promise<{ error: string } | { success: true }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("slug, settings")
+    .eq("id", user.id)
+    .single();
+
+  const current = (existing?.settings ?? {}) as Record<string, unknown>;
+  const currentBio = parseBioPageSettings(current.bio_page);
+
+  const hidden: BioModuleKey[] = currentBio.hidden.filter((k) => k !== "shop");
+  if (!showShop) hidden.push("shop");
+
+  const settings = parseBioPageSettings({ ...currentBio, hidden });
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      settings: { ...current, bio_page: settings },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/bookings/settings");
+  if (existing?.slug) revalidatePath(`/${existing.slug}`);
+  return { success: true };
+}

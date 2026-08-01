@@ -23,7 +23,7 @@ export default async function TravelPage() {
       supabase
         .from("trips")
         .select(
-          "id, title, description, show_on_booking_form, icon, icon_color, icon_bg, trip_legs(id, starts_on, ends_on, notes, studios(id, name))",
+          "id, title, description, show_on_booking_form, is_public_visible, icon, icon_color, icon_bg, trip_legs(id, starts_on, ends_on, notes, studios(id, name))",
         )
         .eq("artist_id", user!.id)
         .order("created_at", { ascending: false }),
@@ -47,6 +47,7 @@ export default async function TravelPage() {
     title: t.title,
     description: t.description,
     showOnBookingForm: t.show_on_booking_form,
+    isPublicVisible: t.is_public_visible,
     icon: (t.icon as string | null) ?? null,
     iconColor: (t.icon_color as string | null) ?? null,
     iconBg: (t.icon_bg as string | null) ?? null,

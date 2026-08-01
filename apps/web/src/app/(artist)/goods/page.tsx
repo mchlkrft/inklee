@@ -4,8 +4,10 @@ import {
   isProductStatus,
   type ProductStatus,
 } from "@/lib/goods";
+import { shopCheckoutEnabled } from "@/lib/features";
 import GoodsNewButton from "./goods-new-button";
 import GoodsTile, { type GoodsTileItem } from "./goods-tile";
+import ShopCheckoutToggle from "./shop-checkout-toggle";
 
 type RawRow = {
   id: string;
@@ -23,6 +25,12 @@ export default async function GoodsPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", user!.id)
+    .single();
 
   const { data: raw } = await supabase
     .from("products")
@@ -71,6 +79,10 @@ export default async function GoodsPage() {
         </div>
         {products.length > 0 && <GoodsNewButton />}
       </div>
+
+      <ShopCheckoutToggle
+        enabled={shopCheckoutEnabled(profile?.settings ?? {})}
+      />
 
       {products.length === 0 ? (
         <div className="space-y-4 rounded-[20px] border border-dashed border-border px-6 py-12 text-center">

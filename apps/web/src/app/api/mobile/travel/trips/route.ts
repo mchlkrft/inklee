@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   const { data: trips, error } = await supabase
     .from("trips")
     .select(
-      "id, title, description, show_on_booking_form, icon, icon_color, icon_bg",
+      "id, title, description, show_on_booking_form, is_public_visible, icon, icon_color, icon_bg",
     )
     .eq("artist_id", userId)
     .order("created_at", { ascending: false });
@@ -48,6 +48,7 @@ export async function GET(req: Request) {
     title: t.title,
     description: t.description,
     showOnBookingForm: t.show_on_booking_form,
+    isPublicVisible: t.is_public_visible,
     legCount: counts.get(t.id) ?? 0,
     icon: (t.icon as string | null) ?? null,
     iconColor: (t.icon_color as string | null) ?? null,
@@ -109,6 +110,10 @@ export async function POST(req: Request) {
       title: v.title,
       description: v.description,
       show_on_booking_form: v.showOnBookingForm,
+      // No existing row to preserve on CREATE, so default true when absent,
+      // same as showOnBookingForm (unlike the PUT route below, which is
+      // tri-state).
+      is_public_visible: v.isPublicVisible ?? true,
       icon: v.icon ?? null,
       icon_color: v.iconColor ?? null,
       icon_bg: v.iconBg ?? null,

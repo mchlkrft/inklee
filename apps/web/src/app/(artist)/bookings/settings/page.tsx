@@ -5,6 +5,7 @@ import {
   Clock,
   MapPin,
   FileText,
+  ShoppingBag,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isDateKeyBefore, todayInTimeZone } from "@/lib/date-utils";
@@ -16,6 +17,7 @@ import { IconChip } from "@/components/ui/card";
 import BookingModeForm from "./booking-mode-form";
 import AvailabilityForm from "./availability-form";
 import BookingPolicyForm from "./booking-policy-form";
+import ShopVisibilityToggle from "./shop-visibility-toggle";
 import AddSlotButton from "../slots/add-slot-button";
 import SlotList from "../slots/slot-list";
 
@@ -149,6 +151,23 @@ export default async function BookingSettingsPage() {
           policy={bioPage.bookingPolicy ?? ""}
           show={isModuleVisible(bioPage, "policy")}
         />
+      </section>
+
+      {/* Shop teaser visibility on the booking page (decision S2). The
+          standalone shop checkout has its own, separate toggle on /goods. */}
+      <section className="space-y-4">
+        <div className="border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <IconChip icon={ShoppingBag} tint="mustard" size="sm" />
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Shop
+            </h2>
+          </div>
+          <p className="mt-1.5 text-sm text-foreground">
+            Show your products under your booking form.
+          </p>
+        </div>
+        <ShopVisibilityToggle show={isModuleVisible(bioPage, "shop")} />
       </section>
 
       {/* Studios — secondary entry point to the studio library */}

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { goodsSchedulingAllowed } from "@/lib/server/entitlement-gates";
+import { parseFeatures } from "@/lib/features";
 import {
   parsePriceInput,
   parseOptionalPriceInput,
@@ -831,5 +832,47 @@ export async function setProductStatusAction(
 
   revalidatePath("/goods");
   await revalidatePublicPage(user.id);
+  return { success: true };
+}
+
+// Standalone shop checkout on/off (decision S2, Plus build C5). Stored in
+// `settings.features.shop_checkout`, joining the existing goods_module /
+// checkout_addons flags rather than becoming a bio-page module: this governs
+// the STANDALONE /[slug]/shop/checkout page, not anything the booking-page
+// shop teaser shows (that is the separate hidden:["shop"] toggle under
+// booking settings). Read -> merge into the existing features object -> write
+// back, so goods_module and checkout_addons are preserved untouched.
+export async function saveShopCheckoutEnabledAction(
+  enabled: boolean,
+): Promise<{ error: string } | { success: true }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("id", user.id)
+    .single();
+
+  const current = (existing?.settings ?? {}) as Record<string, unknown>;
+  const currentFeatures = parseFeatures(current.features);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      settings: {
+        ...current,
+        features: { ...currentFeatures, shop_checkout: enabled },
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/goods");
   return { success: true };
 }

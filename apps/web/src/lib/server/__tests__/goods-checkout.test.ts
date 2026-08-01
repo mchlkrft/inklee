@@ -64,9 +64,16 @@ vi.mock("@/lib/stripe", () => ({ stripe: mockStripe }));
 vi.mock("@/lib/audit", () => ({
   writeAudit: (...a: unknown[]) => mockWriteAudit(...a),
 }));
-vi.mock("@/lib/features", () => ({
-  isGoodsCommerceEnabled: () => flags.goodsCommerce,
-}));
+// Partial mock: isGoodsCommerceEnabled is the controllable park switch, but
+// shopCheckoutEnabled must stay the REAL pure function — the S2 toggle tests
+// below exercise it through the profiles:select mock data, not a stub.
+vi.mock("@/lib/features", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/features")>();
+  return {
+    ...actual,
+    isGoodsCommerceEnabled: () => flags.goodsCommerce,
+  };
+});
 vi.mock("@/lib/stripe-connect", () => ({
   getConnectRoutingForArtist: (...a: unknown[]) => mockRouting(...a),
 }));
@@ -462,6 +469,78 @@ describe("createStandaloneGoodsCheckoutCore", () => {
     const r = await createStandaloneGoodsCheckoutCore(INPUT);
     expect(r.ok).toBe(false);
     expect(ops).toHaveLength(0);
+  });
+
+  // Decision S2 (Plus build C5): the artist's own standalone-shop toggle,
+  // re-checked on the money path itself (SHOP-VIS-001 lesson: a page filter
+  // never protects the money path). The page and the action both check this
+  // too, but this core is the authority.
+  describe("shop_checkout toggle (S2)", () => {
+    it("refuses BEFORE any order insert when the artist turned shop_checkout off", async () => {
+      queue("profiles:select", {
+        data: { settings: { features: { shop_checkout: false } } },
+      });
+      // Nothing past the gate should be queued/consumed: if the gate were
+      // deleted, the happy path below would carry the order through and this
+      // test would still see r.ok === true.
+      const r = await createStandaloneGoodsCheckoutCore(INPUT);
+      expect(r).toEqual({
+        ok: false,
+        error: "The shop isn't taking card orders yet.",
+      });
+      expect(
+        ops.find((o) => o.table === "products" && o.verb === "select"),
+      ).toBeUndefined();
+      expect(
+        ops.find((o) => o.table === "orders" && o.verb === "insert"),
+      ).toBeUndefined();
+    });
+
+    it("refuses when the whole goods module is off, even if shop_checkout itself is untouched", async () => {
+      queue("profiles:select", {
+        data: { settings: { features: { goods_module: false } } },
+      });
+      const r = await createStandaloneGoodsCheckoutCore(INPUT);
+      expect(r.ok).toBe(false);
+      expect(
+        ops.find((o) => o.table === "orders" && o.verb === "insert"),
+      ).toBeUndefined();
+    });
+
+    it("fails CLOSED on a genuine profile-settings read error (money rule)", async () => {
+      queue("profiles:select", {
+        data: null,
+        error: { code: "42501", message: "permission denied" },
+      });
+      const r = await createStandaloneGoodsCheckoutCore(INPUT);
+      expect(r).toEqual({
+        ok: false,
+        error: "Couldn't prepare the order. Try again.",
+      });
+      expect(
+        ops.find((o) => o.table === "orders" && o.verb === "insert"),
+      ).toBeUndefined();
+    });
+
+    it("proceeds when the artist explicitly left shop_checkout on", async () => {
+      queue("profiles:select", {
+        data: { settings: { features: { shop_checkout: true } } },
+      });
+      queueHappyPath();
+      const r = await createStandaloneGoodsCheckoutCore(INPUT);
+      expect(r.ok).toBe(true);
+    });
+
+    it("defaults ON for an artist who has never touched the toggle (no settings row, no error)", async () => {
+      // No profiles:select queued at all: the mock's default reply is
+      // { data: null, error: null } — a legitimately empty/missing settings
+      // row, NOT a read failure. Every other test in this file relies on this
+      // exact default to keep working after the gate was added, so this test
+      // pins that it is intentional, not an accident of the mock.
+      queueHappyPath();
+      const r = await createStandaloneGoodsCheckoutCore(INPUT);
+      expect(r.ok).toBe(true);
+    });
   });
 
   it("refuses an invalid buyer email before any reads", async () => {

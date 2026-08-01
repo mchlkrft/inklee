@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { serviceClient } from "@/lib/supabase/service";
-import { isGoodsCommerceEnabled } from "@/lib/features";
+import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { publicBundlesForArtist } from "@/lib/server/bundles";
+import { surfaceAppearance } from "@/lib/server/appearance";
 import { bundleSavings, bundlePurchasable } from "@inklee/shared/bundles";
 import { productAvailability } from "@inklee/shared/product-availability";
 import {
@@ -54,12 +55,31 @@ export default async function ShopCheckoutPage({
   const { slug } = await params;
   const { data: artist } = await serviceClient
     .from("profiles")
-    .select("id, display_name")
+    .select("id, display_name, settings")
     .eq("slug", slug)
     .maybeSingle();
   if (!artist) notFound();
 
+  // Decision S2: the artist's own standalone-shop toggle. 404, not a message —
+  // consistent with the park switch above, this route is invisible when off.
+  if (!shopCheckoutEnabled(artist.settings)) notFound();
+
   const artistName = (artist.display_name as string | null) || "This artist";
+
+  // Inherited theming (decision S6): the "shop" surface, resolved the SAME
+  // way [slug]/page.tsx resolves "bookingForm" — an unconfigured artist gets
+  // an empty cssVars object (byte-identical render), a Plus artist's accent /
+  // font / button-radius choices apply. `data-appearance` is clamped to
+  // "light" rather than the resolved theme, same as the booking page's own
+  // panel: this page's markup uses the generic app tokens (text-foreground
+  // etc.), which have no [data-appearance="dark"] block defined yet. A
+  // per-surface appearance EDITOR is out of scope (S1's deferral stands);
+  // this only makes the surface INHERIT what the artist already set.
+  const appearance = await surfaceAppearance(
+    artist.id as string,
+    artist.settings,
+    "shop",
+  );
 
   // Charge-readiness decides whether the form renders at all: a shop that
   // cannot be paid must not collect an email and fail at the last step.
@@ -193,7 +213,11 @@ export default async function ShopCheckoutPage({
     });
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8">
+    <div
+      data-appearance="light"
+      style={appearance.cssVars as React.CSSProperties}
+      className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8"
+    >
       <header className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">Shop checkout</h1>
         <p className="text-sm text-muted-foreground">

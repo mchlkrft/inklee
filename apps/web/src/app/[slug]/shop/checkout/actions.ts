@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { serviceClient } from "@/lib/supabase/service";
-import { isGoodsCommerceEnabled } from "@/lib/features";
+import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
 import { checkShopCheckoutRateLimit } from "@/lib/ratelimit";
 import { getClientIp } from "@/lib/get-client-ip";
 import {
@@ -40,10 +40,19 @@ export async function startShopCheckoutAction(input: {
 
   const { data: artist } = await serviceClient
     .from("profiles")
-    .select("id")
+    .select("id, settings")
     .eq("slug", slug)
     .maybeSingle();
   if (!artist) return { ok: false, error: "This shop could not be found." };
+
+  // Decision S2, same double-gate shape as the park switch above: the page
+  // 404s when the artist's own toggle is off, and the action refuses too, so
+  // a held request from before the artist turned it off cannot start a
+  // checkout after. The core re-checks this again (the money path's own
+  // authority); this is defense in depth, not the only gate.
+  if (!shopCheckoutEnabled(artist.settings)) {
+    return { ok: false, error: "The shop isn't taking card orders yet." };
+  }
   const artistId = artist.id as string;
 
   // Public-submit rate limit, keyed by caller IP + the target artist so one

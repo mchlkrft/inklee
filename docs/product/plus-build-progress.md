@@ -1620,3 +1620,81 @@ creates an account".
 lock out the artists who already have accounts and would still leave the Plus
 payment-onboarding flow unbuilt. Both halves belong to A8 and have to move
 together.
+
+---
+
+## C5 — Shop + guest-spot surface controls (2026-08-01, ready for review)
+
+Task #38 (M2), founder ruling 19. Decisions S2-S6 recorded in
+`plus-build-time-decisions.md`. Three independent, additive visibility
+controls, all FREE (no new entitlement, S5):
+
+1. **`hidden: ["shop"]` finally gets a writer.** It was readable everywhere
+   (the public page, the parser) but nothing wrote it. New toggle on
+   `/bookings/settings` (`saveShopVisibilityAction`, same read-merge-write
+   shape as the booking-policy toggle) + sibling mobile route
+   `GET/POST /api/mobile/settings/shop-visibility`.
+2. **`settings.features.shop_checkout`**, a new key alongside `goods_module` /
+   `checkout_addons` (`shopCheckoutEnabled()` in `lib/features.ts`). Toggle on
+   `/goods` + sibling mobile route `GET/POST /api/mobile/goods/settings`.
+   Enforced at THREE points: the standalone checkout page (`notFound()`), the
+   public action (`startShopCheckoutAction`), and — the one that actually
+   matters — the money-path core (`createStandaloneGoodsCheckoutCore`), which
+   now reads the artist's profile settings server-side and fails CLOSED on a
+   genuine read error (money rule), open (default-on) on a merely
+   missing/empty settings row.
+3. **`trips.is_public_visible`** (migration `0137`), backfilled from
+   `show_on_booking_form` in the SAME migration (a guarded, convergent
+   column-add: re-running after the column exists skips both the add and the
+   backfill, so it cannot clobber an artist's later independent choice). The
+   Hub's guest-spots block previously reused `show_on_booking_form`; now
+   independent. Web (`travel/trip-manager.tsx`, both modals) and native
+   (`apps/mobile/.../trips/[id].tsx`, both screens) both gained the second
+   "Show on your Hub" switch. The native mobile-wire field is TRI-STATE
+   (`isPublicVisible?: boolean`) unlike `showOnBookingForm`, specifically so an
+   old app build cannot silently reset the new flag to `true` on every save.
+4. **`hub-feature-data.ts`'s "goods" block** additionally gates on
+   `isModuleVisible(bioPage, "shop")` (S4): it deep-links to the booking-page
+   shop teaser, so hiding that teaser now also hides the block rather than
+   leaving a broken link on the Hub.
+5. **Standalone-shop theming (S6):** `/[slug]/shop/checkout` now resolves
+   `surfaceAppearance(artistId, settings, "shop")`, applying the artist's
+   accent/font/button-radius the same way the booking page does, clamped to
+   `data-appearance="light"` (no dark CSS block exists for this page's
+   markup, same clamp the booking page and large-project page already use).
+
+**Deviation from the brief, with reasoning:** the brief assumed an existing
+"goods_module switch" the new `shop_checkout` toggle could sit beside. No such
+artist-facing editor exists anywhere (web or mobile) — `goods_module` and
+`checkout_addons` are both settings-only flags with no UI, confirmed by
+repo-wide search. The new toggle was placed on `/goods` (the natural home for
+shop-related artist controls) instead, always visible regardless of the dark
+`GOODS_COMMERCE_ENABLED` park switch — matching the precedent already set by
+`/goods/bundles` and `/goods/discounts`, which show their management UI
+whether or not the money path is live.
+
+**Also flagged, not fixed (out of scope for this slice):** `apps/web/src/db/
+schema.ts` is a Drizzle reference file for the `trips` table that is ALREADY
+stale before this change (missing `icon_color`/`icon_bg` from earlier
+migrations), so it is evidently not a maintained sync target; `is_public_
+visible` was not added there to avoid extending an already-drifted, seemingly
+unused artifact under an unrelated change.
+
+Tests added: `features.test.ts` (`shopCheckoutEnabled`), `mobile-travel.test.ts`
+(tri-state `isPublicVisible`), `goods-checkout.test.ts` (four new cases: off /
+goods-module-off / read-error-fails-closed / default-on), `shop/checkout/
+__tests__/actions.test.ts` (one new refusal case), a new `hub-feature-data.
+test.ts` (goods-block S4 gate + guest_spots column), a new `bookings/settings/
+__tests__/actions.test.ts` (shop-visibility round-trip), and a new `goods/
+__tests__/shop-checkout-toggle-action.test.ts`. Migration `0137` is repo-only;
+no local Docker Postgres in this environment, so its SQL is unverified against
+a real database — recorded as CI-pending, not faked. `docs/web-native-parity.md`
+updated in the same commit (new Update log entry, dated 2026-08-01).
+
+Not built in this slice (no brief item covered them, flagged rather than
+silently dropped): dedicated unit tests for `travel/actions.ts`'s new
+`is_public_visible` read/write (covered only by typecheck + the existing
+suite's regression net, not new named tests); a parity table ROW (the doc's
+narrative Update log entries are the established pattern for slices at this
+size, matching several immediately-preceding 2026-07-31/08-01 entries that also
+have no corresponding table row).

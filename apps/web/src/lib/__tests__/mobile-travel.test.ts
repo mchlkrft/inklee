@@ -38,6 +38,42 @@ describe("normalizeTripInput", () => {
     ).toBe(false);
   });
 
+  // The Hub's own visibility flag (migration 0137, decision S3). Tri-state,
+  // UNLIKE showOnBookingForm above: an old app build that has never heard of
+  // this field must not silently reset a value the artist set elsewhere (web,
+  // or a newer app build) back to true on every save.
+  it("keeps isPublicVisible tri-state: absent = omitted, sent = passed through", () => {
+    const omitted = normalizeTripInput({ title: "Trip" });
+    expect(omitted.ok).toBe(true);
+    if (omitted.ok) {
+      expect("isPublicVisible" in omitted.value).toBe(false);
+    }
+
+    const setTrue = normalizeTripInput({
+      title: "Trip",
+      isPublicVisible: true,
+    });
+    expect(setTrue.ok).toBe(true);
+    if (setTrue.ok) {
+      expect(setTrue.value.isPublicVisible).toBe(true);
+    }
+
+    const setFalse = normalizeTripInput({
+      title: "Trip",
+      isPublicVisible: false,
+    });
+    expect(setFalse.ok).toBe(true);
+    if (setFalse.ok) {
+      expect(setFalse.value.isPublicVisible).toBe(false);
+    }
+  });
+
+  it("rejects a non-boolean isPublicVisible", () => {
+    expect(
+      normalizeTripInput({ title: "Trip", isPublicVisible: "yes" }).ok,
+    ).toBe(false);
+  });
+
   it("keeps iconBg tri-state: absent = omitted, sent = sanitized", () => {
     const omitted = normalizeTripInput({ title: "Trip" });
     expect(omitted.ok).toBe(true);

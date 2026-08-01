@@ -588,3 +588,114 @@ and deliberately NOT backfilled.**
 - Reversible? Additive migration (nullable columns + guarded CHECK
   constraints); cheap to unwind before any row is written, moderate after
   (dropping a stamped, reconciliation-relevant column).
+
+### 2026-08-01 — Shop + guest-spot surface controls (Track C5, ruling 19)
+
+**S2 [ENG/product, provisional] — surface visibility is PER-SURFACE and
+NON-CASCADING.**
+- Decision: `hidden: ["shop"]` governs ONLY the booking-page shop teaser and
+  finally gets a write path (it was readable everywhere but had no writer). The
+  STANDALONE shop's visibility is a NEW `settings.features.shop_checkout`
+  boolean (default ON while `goods_module` is on), joining the existing
+  `features` keys rather than becoming a bio-page module — it is not a
+  booking-page module. The money path re-checks server-side
+  (`createStandaloneGoodsCheckoutCore`, page filters never protect the money
+  path — the SHOP-VIS-001 lesson).
+- Why: the two surfaces are genuinely independent (an artist may want products
+  visible on the booking page but no standalone no-appointment checkout, or
+  the reverse), and cascading one flag into the other would silently take away
+  a choice the artist didn't make.
+- Alternatives: a single flag governing both surfaces (rejected: exactly the
+  coupling this decision undoes for trips in S3, and the same defect class);
+  a THIRD bio-page module for the standalone shop (rejected: the standalone
+  checkout is not rendered inside the booking page, so it is not a booking-page
+  module by the existing definition).
+- Confirm: founder confirms the non-cascading split is the right shape (vs. one
+  flag for "goods visibility" everywhere).
+- Reversible? Cheap (both are boolean flags; no schema coupling between them).
+
+**S3 [ENG/product] — trips gain `is_public_visible boolean not null default
+true`, BACKFILLED from `show_on_booking_form` in the same migration.**
+- Decision: migration `0137`. The Hub's guest-spots block used to reuse
+  `show_on_booking_form` (the booking-page flag) as its own visibility signal,
+  with a comment admitting trips had no public-visibility flag of their own.
+  The backfill copies the CURRENT value of `show_on_booking_form` into the new
+  column rather than defaulting every row to `true`: until this migration
+  shipped, a trip hidden from the booking form WAS, as an observed side
+  effect, also hidden from the Hub. Defaulting bare-`true` would surface trips
+  an artist had deliberately hidden — a privacy regression, not a neutral
+  default. This is copying OBSERVED behaviour forward, which is the opposite
+  situation from the 0116/0131 no-backfill precedent (there, no prior value
+  existed to preserve, so inventing one would have been worse than an honest
+  null; here a prior value genuinely exists). The Hub (and any future public
+  surface) now reads `is_public_visible`; the booking page keeps
+  `show_on_booking_form` unchanged.
+- Why not rename `show_on_booking_form`: 20+ call sites across web + native +
+  mobile-wire types reference it by name; a rename is pure churn for the same
+  outcome a new column achieves additively.
+- Alternatives: rename the existing column and add a new one for the booking
+  form (rejected: more churn, no behavioural difference); default the new
+  column to `true` unconditionally (rejected: the privacy regression above).
+- Reversible? Additive migration (nullable-free but a plain new column);
+  cheap to unwind before independent values diverge, and the column-add itself
+  is guarded so a re-run cannot re-copy over an artist's later independent
+  change (see the migration file's own convergence note).
+
+**S4 [ENG/UX, provisional] — the Hub's "goods" feature block adds
+`isModuleVisible(bioPage, "shop")` to its gate.**
+- Decision: a narrow, deliberate cascade. The block deep-links to the
+  booking page's shop teaser (`feature-blocks.tsx`: `href={data.bookingUrl}`),
+  so hiding that teaser (S2) would otherwise leave the Hub's "goods" block
+  pointing at a dead end. Gating the BLOCK on the TEASER's own visibility
+  suppresses a broken link, not a surface.
+- Why this is not the general cascading rule S2 rejects: S2 is about two
+  surfaces that each SELL or DISPLAY goods independently; this is one block
+  whose only job is to hand the visitor to the OTHER surface, so its
+  visibility is derived from what it points at, not an independent choice.
+- Revisit note: at the goods-commerce un-park, this block should link to the
+  standalone shop instead of the booking page, and this dependency should be
+  dropped at that point (the standalone shop is a real, independent
+  destination once it takes real orders).
+- Reversible? Cheap (one boolean in the gate expression).
+
+**S5 [ENG/product] — every C5 toggle is FREE; no new entitlement key.**
+- Decision: neither the shop-teaser toggle nor the standalone-checkout toggle
+  is gated by a Plus entitlement. Both ride the existing free `features`
+  JSONB / bio-page `hidden` mechanisms.
+- Why: visibility control is hygiene, not a paywalled capability — consistent
+  with `is_public_visible` (product-level) already being free, and with the
+  registry's proposed `goods_tools` entitlement staying unminted (no live,
+  server-enforced use for it exists). Per-surface THEMING (S6) rides the
+  existing `appearance_custom` entitlement rather than a new key, for the same
+  reason: it is the existing gate for the custom layer, not a new capability.
+- Confirm: none needed (no paywall introduced; consistent with standing
+  entitlement policy).
+- Reversible? N/A (no gate to remove); minting a future entitlement here would
+  be additive.
+
+**S6 [ENG] — inherited theming lands on the standalone shop.**
+- Decision: `/[slug]/shop/checkout` now resolves `surfaceAppearance(artistId,
+  settings, "shop")` and applies `data-appearance` + `cssVars` on its outer
+  wrapper, the same pattern `[slug]/page.tsx` uses for the `bookingForm`
+  surface. `data-appearance` is CLAMPED to `"light"` rather than the resolved
+  theme (the same clamp `[slug]/page.tsx` and `[slug]/project/page.tsx` both
+  apply): this page's markup uses the generic app tokens (`text-foreground`
+  etc.), which have no `[data-appearance="dark"]` CSS block defined, so an
+  unclamped dark theme would produce the same invisible-text failure the
+  booking page's own comment already documents.
+- Why this does not reopen S1: S1 deferred a DISTINCT per-surface appearance
+  EDITOR + override for `shop`/`guestSpots` (the "shop" surface slot already
+  existed in `APPEARANCE_SURFACES` but was applied nowhere). This wires the
+  EXISTING resolver onto a NEW page that did not previously apply any
+  appearance system at all (it rendered with plain, unstyled tokens) — it is
+  closing a gap the standalone checkout introduced after S1 was written, not
+  building the deferred editor. An artist who has set a `shop`-surface
+  override in the (still nonexistent) editor would see it here once one
+  exists; today everyone gets the GLOBAL appearance, same as any surface with
+  no override set.
+- Considered and excluded: a per-surface appearance EDITOR (S1's deferral
+  stands — still unspecified, still low launch-value); a `/[slug]/shop` index
+  page (out of scope, not requested); per-collection surface assignment (a
+  different, unscoped feature).
+- Reversible? Cheap (the render wiring is additive; removing it reverts the
+  page to unstyled tokens with no data loss).

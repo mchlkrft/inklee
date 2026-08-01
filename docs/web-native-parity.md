@@ -183,6 +183,43 @@ Two things follow, both done here:
 
 ## Update log
 
+- **2026-08-01 — Shop + guest-spot surface controls (Plus build C5, decisions
+  S2-S6).** Three independent visibility toggles, all additive:
+  1. **Booking-page shop teaser** (`hidden: ["shop"]`): was readable everywhere
+     but had NO writer. New toggle on `/bookings/settings` (web) writes it via
+     `saveShopVisibilityAction`; new sibling mobile route
+     `GET/POST /api/mobile/settings/shop-visibility` (no native screen consumes
+     it yet — a tracked gap, not a build blocker, since the field only needs a
+     server route to be wire-ready).
+  2. **Standalone shop checkout on/off**: new `settings.features.shop_checkout`
+     boolean (joins `goods_module`/`checkout_addons`, `shopCheckoutEnabled()` in
+     `lib/features.ts`). Web toggle on `/goods`; new sibling mobile route
+     `GET/POST /api/mobile/goods/settings` (same tracked-gap status: route
+     exists, no native screen yet). Enforced on the money path itself
+     (`createStandaloneGoodsCheckoutCore`, fail-closed on a genuine
+     profile-settings read error), not just the page/action — the SHOP-VIS-001
+     lesson that a page filter never protects the money path.
+  3. **Trip Hub-visibility** (`trips.is_public_visible`, migration `0137`,
+     backfilled from `show_on_booking_form`): the Hub's guest-spots block used
+     to reuse the booking-form flag; now independent. ✅ BOTH surfaces at
+     parity: web trip editor (`travel/trip-manager.tsx`, both create + edit
+     modals) and native (`apps/mobile/app/(tabs)/travel/trips/[id].tsx`, both
+     screens) gained the second "Show on your Hub" switch. Wire is additive and
+     TRI-STATE on the mobile PUT route (`isPublicVisible?: boolean`, unlike
+     `showOnBookingForm` which every app build already always sends): an old
+     app build that has never heard of this field leaves the column untouched
+     on save rather than resetting it to `true`. `MobileTrip` / `MobileTripDetail`
+     both gained the optional field. No native BUILD is a hard prerequisite
+     (unlike a new block type): a build is needed before an artist can use the
+     new switch, but an installed build with no knowledge of the field is
+     unaffected (it simply never sends `isPublicVisible`, and the PUT route's
+     tri-state handling leaves the column as whatever it already was).
+  No new block type, no wire-breaking change. `hub-feature-data.ts`'s "goods"
+  feature block additionally gates on the booking-page shop teaser's own
+  visibility (S4): it deep-links there, so hiding the teaser also hides the
+  block rather than shipping the artist a broken link — a narrow, deliberate
+  cascade, not a new surface dependency.
+
 - **2026-08-01 — Standalone shop checkout (GC1 C2/C3) + payable bundles (C4,
   both branch-only).** The public guest-buyer checkout at
   `/[slug]/shop/checkout` (products + bundles, PaymentElement on the artist's

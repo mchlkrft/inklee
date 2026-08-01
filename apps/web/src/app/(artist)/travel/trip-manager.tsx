@@ -18,6 +18,7 @@ import {
   updateTripAction,
   deleteTripAction,
   toggleTripVisibilityAction,
+  toggleTripHubVisibilityAction,
   createTripLegAction,
   deleteTripLegAction,
   createStudioAndReturnAction,
@@ -51,6 +52,9 @@ type Trip = {
   title: string;
   description: string | null;
   showOnBookingForm: boolean;
+  /** The Hub's own visibility flag (migration 0137, decision S3), independent
+   *  of showOnBookingForm. */
+  isPublicVisible: boolean;
   legs: TripLeg[];
   icon?: string | null;
   iconColor?: string | null;
@@ -368,6 +372,9 @@ function CreateTripModal({
   studios: Studio[];
 }) {
   const [show, setShow] = useState(true);
+  // The Hub's own visibility flag (migration 0137, decision S3), independent
+  // of "Show on booking form" above.
+  const [showHub, setShowHub] = useState(true);
   const [stops, setStops] = useState<PendingStop[]>([]);
   const [addingStop, setAddingStop] = useState(false);
   const [stopFrom, setStopFrom] = useState("");
@@ -620,6 +627,34 @@ function CreateTripModal({
           />
         </div>
 
+        <div className="flex items-center justify-between rounded-md border-2 border-border px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Show on your Hub
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Visible in your Hub&apos;s guest-spots section, separate from your
+              booking form.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showHub}
+            onClick={() => setShowHub((v) => !v)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+              showHub ? "bg-foreground" : "bg-border"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow transition-transform ${
+                showHub ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+          <input type="hidden" name="show_on_hub" value={String(showHub)} />
+        </div>
+
         {state && "error" in state && (
           <p className="text-sm text-destructive">{state.error}</p>
         )}
@@ -773,6 +808,7 @@ function EditTripModal({
 }) {
   const today = localDateKey();
   const [show, setShow] = useState(trip.showOnBookingForm);
+  const [showHub, setShowHub] = useState(trip.isPublicVisible);
   const [deletingLeg, setDeletingLeg] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -824,6 +860,14 @@ function EditTripModal({
     setShow(next);
     startTransition(async () => {
       await toggleTripVisibilityAction(trip.id, next);
+    });
+  }
+
+  function handleToggleHubVisibility() {
+    const next = !showHub;
+    setShowHub(next);
+    startTransition(async () => {
+      await toggleTripHubVisibilityAction(trip.id, next);
     });
   }
 
@@ -903,6 +947,34 @@ function EditTripModal({
             name="show_on_booking_form"
             value={String(show)}
           />
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border-2 border-border px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Show on your Hub
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Visible in your Hub&apos;s guest-spots section, separate from your
+              booking form.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showHub}
+            onClick={handleToggleHubVisibility}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+              showHub ? "bg-foreground" : "bg-border"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow transition-transform ${
+                showHub ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+          <input type="hidden" name="show_on_hub" value={String(showHub)} />
         </div>
       </form>
 
