@@ -322,3 +322,24 @@ field alongside the new upload button (B2).**
   parser keeps accepting stored external URLs either way, so old data never
   breaks).
 - Reversible? Cheap.
+
+**GB3 [COUNSEL, provisional] — hosted gallery objects on a public-unlisted
+bucket; downgrade hides the page render, not the object (H3).**
+- Context: gallery images now live in the `logos` bucket (public objects,
+  unlisted since 0040 — URLs work, enumeration does not), like covers, flash
+  and product images before them. On DOWNGRADE the gallery block is hidden from
+  the public page but the stored object stays fetchable at its stable URL by
+  anyone who has it; on REMOVAL from a block the object is deleted by the
+  save-diff orphan cleanup.
+- Decision (provisional): keep the existing platform posture (public-unlisted,
+  render-gated) rather than inventing a signed-URL regime for one block type.
+- Why: consistent with every existing image surface; a signed-URL scheme would
+  fork the render path and break the settings-JSON model for marginal gain
+  (the URL was already shared with whoever holds it).
+- Confirm (counsel queue, with the C1 package): Inklee is now the HOST of
+  client-photo content (tattoos are health-adjacent personal data on skin);
+  confirm the public-unlisted posture + deletion-on-removal + purge-on-account-
+  deletion (purgeStoragePrefix already covers `logos/{uid}`) satisfies the
+  data-protection analysis, or direct a change.
+- Reversible? Moderate (a later signed-URL regime is additive but touches the
+  renderer and stored URLs).

@@ -11682,3 +11682,42 @@ coverage:
       mutation-rig pattern (alias + canary + identity controls) for the order/refund cores. Consider a
       webhook-route test harness; M7/M8 dispatch currently rests on reading."
     changed_since_inspection: "yes"
+
+  - area: "Link Hub gallery real upload (Track B): pipeline rotate/cache-bust, upload action gates,
+      path-ownership guard, save-diff orphan cleanup on both save paths"
+    subsystem: "web"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-01"
+    commit_inspected: "644b32e"
+    reviewer: "build instance (self; not independently verified)"
+    evidence: "Built across 65cbd58 (B1) + 644b32e (B2) with 19 new tests. Pinned by test: .rotate()
+      runs BEFORE resize with NO angle argument (EXIF orientation APPLIED, not just stripped — the
+      GB1 global fix also corrects goods/logo/cover/flash, whose pipelines silently discarded
+      orientation); cacheBust:false returns the bare URL for unique-path uploads; upload action
+      refuses unentitled artists BEFORE storage (H4), fails safe to unentitled on a plan-read blip,
+      enforces the 120-image ceiling from SAVED settings with an under-ceiling positive control (H6),
+      and validates files through the REAL shared validator; ownedHubImagePath admits only
+      {uid}/hub/<one-segment> (external URLs, other artists, sibling namespaces, traversals, nested
+      paths all rejected; query strings stripped); removeDroppedHubImages removes exactly the dropped
+      HOSTED objects, treats a URL moved between blocks as kept, no-ops cleanly, and fails soft on a
+      storage error. PRIVACY NOTE for the record: the sharp re-encode strips ALL metadata including
+      GPS EXIF; .rotate() applies orientation before that strip, so hosting client photos adds no
+      location-data exposure."
+    known_exclusions: "SELF-built and self-tested; no independent verification pass yet (queue with
+      the next verifier round; the mutation-rig pattern from the Track A pass applies directly to
+      hub-images.ts and the upload action). No end-to-end browser test drives the editor upload UI
+      (no component harness exists). The EXIF-strip claim rests on sharp's documented default
+      behaviour, not on a fixture-based test asserting absence of GPS tags in the output bytes — a
+      real-fixture test would need a GPS-tagged JPEG checked into the repo (public repo: use a
+      synthetic fixture, never a real photo). H3 residual flagged to the counsel queue: the `logos`
+      bucket is public-unlisted, so a downgraded (or deleted-from-block) image whose URL was shared
+      stays fetchable at its stable URL until the orphan cleanup removes it; on DOWNGRADE (block kept,
+      hidden) the object deliberately remains — consistent with the existing cover/flash/goods
+      posture, but Inklee is now the HOST of client-photo content, which is a data-protection surface
+      counsel has not reviewed."
+    recommended_next_inspection: "Independent verification of ownedHubImagePath (mutation: drop the
+      prefix check) and the orphan-cleanup after-write ordering. A synthetic-EXIF fixture test for the
+      GPS-strip claim. Counsel: the H3 hosted-content posture alongside the C1 goods-marketplace
+      wording review."
+    changed_since_inspection: "no"
