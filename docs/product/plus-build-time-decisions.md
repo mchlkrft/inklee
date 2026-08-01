@@ -1391,3 +1391,204 @@ implementing worker mapped the phrase to the grid/carousel layout picker and
 flagged the stretch; the layout picker is genuinely at parity too, but it is
 not what the phrase describes. Recorded so a later reader comparing the ruling
 to the product does not conclude a control went missing.
+
+### 2026-08-01 — FD5 implementation note (wishlist + seller-scoped carts)
+
+Implements FD5 in full: migration `0141_shop_carts_wishlist.sql`, wishlist +
+cart cores, cart-to-checkout integration into the EXISTING standalone shop
+checkout, and the seller-boundary invariant enforced at the schema level.
+This is the last FD build slice and the one the founder flagged as carrying
+"the hardest invariant in the whole build". Full narrative for a later reader;
+the register itself (this task's supervisor owns it, per this task's brief)
+is the durable evidence trail.
+
+**Design decision 1 — guest identity: a random opaque token in an httpOnly
+cookie, hashed server-side, matching `booking_requests.customer_token_hash`.**
+Considered and rejected: (a) a client-only cart with no server row at all,
+until checkout — rejected because it cannot satisfy "wishlist may span
+artists" or "a buyer may hold separate carts for different artists,
+simultaneously" across a page reload, and cross-tab/cross-visit persistence
+is explicitly implied by "cart" as a durable concept, not a per-render one;
+(b) an IP/fingerprint-derived identity (the shape the public analytics
+collector already uses, `public-web-analytics.md`'s cookie-free daily visitor
+HMAC) — rejected because that mechanism is deliberately NOT stable across a
+session for one specific privacy reason (it rotates daily and is designed to
+be unable to re-identify a visitor), which is the wrong direction for
+something that MUST reliably re-find the same cart tomorrow, and because an
+IP-derived identity is sharable across unrelated people behind the same NAT/
+CGNAT, which would leak one visitor's cart to another — a correctness bug,
+not just a privacy one. The chosen shape (opaque random token, httpOnly
+cookie, only the SHA-256 hash stored) is the SAME pattern already proven
+safe for anonymous booking clients, stores the least possible data (no IP,
+no email, no name, until an actual checkout happens), and is explicitly
+counsel-queue-aware: GS4 (guest-buyer privacy) is already an open queue item
+in `docs/product/plus-open-decisions-handoff.md`, and this shape adds nothing
+new to that queue's growth path rather than inventing a second guest-identity
+model for counsel to separately evaluate.
+
+**Design decision 2 — wishlist storage for guests vs "authenticated" buyers:
+VERIFIED there is no authenticated buyer concept in this product at all, so
+there is exactly ONE buyer identity model (guest), not two.** Checked before
+designing, per the brief's own instruction: `app/(auth)/signup/actions.ts`
+(the only account-creation path in the whole product) calls
+`supabase.auth.signUp` and always produces an ARTIST profile — there is no
+buyer signup flow, no buyer role on `profiles`, and no `customers` table
+anywhere in `supabase/migrations/`. The closest thing a buyer ever holds to a
+persistent identity is a booking's own `customer_token_hash` link
+(`booking_requests`), which is scoped to ONE booking with ONE artist, not a
+cross-shop identity, and is a fundamentally different lifecycle (an
+artist-driven accept/decline flow, `booking_interests`) from a buyer-driven
+browse-and-buy cart. Consequence: "guest AND authenticated buyer behaviour"
+from the required list resolves to "there is one behaviour, because there is
+one buyer identity" — every wishlist/cart test in
+`shop-cart.test.ts`/`shop-wishlist.test.ts` exercises the guest path because
+it is the ONLY path. The shape is intentionally left extensible (a future
+`buyer_account_id`-style column could be added to `shop_carts`/
+`shop_wishlist_items` without a schema rewrite) but nothing resembling a
+buyer account was invented to satisfy the brief's wording.
+
+**Consequence of decision 2 — booking_interests is NOT extended, per the
+brief's own instruction to justify rather than silently duplicate.**
+`booking_interests` (migration `0037`) is a per-BOOKING record of goods a
+client asked about when submitting THAT booking request: artist-scoped
+implicitly (through the booking), status is decided by the ARTIST on Accept
+(`pending`/`available`/`unavailable`), and its RLS policy
+(`artist_id = auth.uid()`) has no notion of a buyer identity at all — a buyer
+never authenticates against it, an artist reads/writes it entirely. FD5's
+wishlist/cart is the opposite shape on every axis that matters: buyer-driven
+(not tied to a specific booking submission), cross-artist for the wishlist
+half (the ruling's own requirement), and the STATUS its rows care about is
+availability/price at browse-and-buy time, not an artist's accept-time
+decision. Extending `booking_interests` to be cross-artist and buyer-owned
+would have broken its existing single-artist RLS shape and conflated two
+different lifecycles under one table. New tables (`shop_carts`,
+`shop_cart_items`, `shop_wishlist_items`) it is.
+
+**Design decision 3 — a cart persists server-side from the FIRST add, not
+only materialised at the checkout call.** Considered and rejected:
+materialising a cart only when "Checkout cart" is pressed, built entirely
+from client-held state until then. Rejected because it fails "a buyer may
+hold separate carts for different artists, simultaneously" the moment the
+buyer closes the tab and returns later (the ruling's own requirement implies
+a cart that survives more than one page load), and because it would have
+forced the money path (`createStandaloneGoodsCheckoutCore`) to accept
+client-submitted selections for the FULL cart at checkout time exactly like
+"Buy now" already does — reopening the very drift risk `resolveBundleLines`/
+`computeAddonLines` were built to close for the DIRECT purchase path. A
+persisted cart, read server-side from stored rows at checkout, removes the
+client from the trust boundary entirely for that flow: `startCartCheckoutAction`
+takes only an email and an optional discount code from the browser, never
+a selections array. The smallest EXTRA storage this required beyond decision
+1: `shop_cart_items` never stores price or title — it is (product_id,
+variant_id | bundle_id, quantity) only, so "stale price" is eliminated by
+never having a cached price to go stale (`getCartForDisplay` and
+`resolveCartSelectionsForCheckout` both resolve live, every read).
+
+**The seller boundary.** `shop_cart_items.artist_id` is bound by TWO
+composite foreign keys simultaneously: `(cart_id, artist_id) ->
+shop_carts(id, artist_id)` and `(product_id, artist_id) ->
+products(id, artist_id)` (mirrored for `bundle_id` against
+`product_bundles(id, artist_id)`). A row can only exist where the cart's
+owner and the item's owner are the SAME artist_id — a cross-artist item is
+schema-impossible for any role, including the service role that is the ONLY
+writer of these tables (0141 gives them zero Postgres policies and REVOKEs
+every verb from `anon`/`authenticated`, so there is no other writer to
+consider). Proven, not asserted: `tests/db/shop-carts-seller-boundary.test.ts`
+attempts the forbidden insert three ways (foreign product under the right
+cart owner, foreign cart-owner claim, foreign bundle) and observes `23503`
+each time, plus a positive control proving the same-seller path is not
+merely blocked-by-accident. `resolveCartSelectionsForCheckout`
+(`shop-cart.ts`) additionally asserts the same invariant in application code
+as defense-in-depth (never rely solely on "the query already filtered it",
+the established SHOP-VIS-001 posture) — if it ever fires, the ENTIRE
+checkout is refused, never a partial cart, per the ruling's explicit
+wording.
+
+**Reuse, not rebuild.** Cart-to-checkout does not introduce a second money
+path: `resolveCartSelectionsForCheckout` turns stored cart rows into the
+EXACT `AddonSelection[]`/`BundleSelection[]` shapes `createStandaloneGoodsCheckoutCore`
+already accepts from "Buy now", and that core (catalog re-read, stock/variant/
+drop checks, discount, fee-on-discounted-base, MIN_CHARGE_MINOR floor, order
+insert, destination-charge PI) is UNCHANGED except for one additive,
+nullable `cart_id` thread: stamped on the order at create, read back at
+settle to clear the cart's items (successful-payment cleanup), left alone on
+a failed or abandoned attempt so the buyer can retry with the same cart
+(the existing `sweepStalePendingStandaloneOrders`/webhook-failure paths never
+touch `shop_cart_items` at all). "Fee calculation" from the required list is
+therefore satisfied by INHERITANCE, not new logic — there is no new fee math
+in FD5, and the `createStandaloneGoodsCheckoutCore: FD5 cart threading` tests
+prove the REAL fee engine still runs unchanged when `cartId` is present,
+rather than exercising a duplicate implementation.
+
+**Mobile parity.** No native cart or wishlist screen. This is NOT a silent
+web-only gap: it matches the ALREADY-ESTABLISHED, repeatedly-recorded pattern
+for every other buyer-facing commerce surface in `docs/web-native-parity.md`
+("Shop collections (P5d)": *"The public shop stays web: it is a visitor
+surface"*; "Discount codes (P5b)": *"The client checkout stays web: it is a
+visitor surface"*) — the Inklee mobile app has no buyer-facing screen
+anywhere (its full tab set is account/bookings/clients/projects/settings/
+waitlist/insights/notifications/onboarding; every buyer touchpoint —
+booking form, shop checkout, discount entry — is a public WEB page). The
+ACTUAL parity question is whether the ARTIST-facing app needs to change, and
+it does not: a cart-originated order is a ROW in `orders`/`order_items`
+indistinguishable from a "Buy now" order (same table, same `cart_id`-nullable
+column, same fee/status machinery), so `/api/mobile/goods/sales` and the
+native Sales screens already show it correctly with zero code change. Row
+added to `docs/web-native-parity.md` recording this reasoning explicitly
+rather than leaving the table silent on FD5.
+
+**What could NOT be satisfied from the ruling's list, and why.** Nothing on
+the required list was skipped. The closest to a partial: "authenticated
+buyer behaviour" resolves to "does not exist as a distinct path" (decision 2
+above) rather than to a second, separately-tested flow — this is a finding
+about the product's current state, not an omission, and the brief's own
+"verify that before designing" instruction anticipated exactly this
+possibility.
+
+**What might be wrong in this brief.** The required-behaviour list names
+"fee calculation" alongside genuinely-new items (seller boundary, cart
+quantity changes) as if it needed its own new implementation; for FD5 it is
+entirely inherited from the pre-existing, already-tested standalone-checkout
+fee engine (see "Reuse, not rebuild" above) — a reviewer expecting new fee
+code for this slice specifically would be looking for something that does
+not exist by design, not by omission.
+
+**Validation.** `npx tsc --noEmit` (web) clean. `pnpm --filter inklee
+typecheck` (web, `next typegen && tsc --noEmit`) clean. `pnpm --filter
+@inklee/mobile typecheck` clean (no mobile files touched, per the parity
+decision above). `eslint` scoped to every touched/new file: 0 errors, 0
+warnings (a full-repo `pnpm lint` run in this session also reported ~150
+errors, entirely inside the gitignored, Supabase-CLI-generated
+`apps/web/supabase/.temp/...` directory created by this session's own local
+`supabase migration up` — unrelated to any source change, pre-existing
+tooling gap: the eslint config has no ignore entry for `supabase/.temp`).
+Full `npx vitest run`: 180 files, 3099 passed + 1 expected fail (3100 total),
+up from the 3031-passed/1-expected-fail baseline by exactly the 68 tests this
+slice added, zero regressions. `pnpm test:db` (`vitest.db.config.ts`): 255
+passed, up from the 235 baseline by exactly the 20 new RLS/seller-boundary
+tests in `tests/db/shop-carts-rls.test.ts` (15) and
+`tests/db/shop-carts-seller-boundary.test.ts` (5), zero regressions, and the
+new migration's objects (`shop_carts`, `shop_cart_items`,
+`shop_wishlist_items`, `orders.cart_id`) verified to actually exist against
+the local Postgres instance (constraint list + grant list queried directly,
+per the AGENTS.md convergence-verification rule) before any test was
+written against them.
+
+Files: `apps/web/supabase/migrations/0141_shop_carts_wishlist.sql` (new);
+`apps/web/src/lib/server/shop-guest-identity.ts` (new) +
+`__tests__/shop-guest-identity.test.ts` (new); `apps/web/src/lib/server/shop-cart.ts`
+(new) + `__tests__/shop-cart.test.ts` (new); `apps/web/src/lib/server/shop-wishlist.ts`
+(new) + `__tests__/shop-wishlist.test.ts` (new); `apps/web/src/lib/server/goods-checkout.ts`
+(exported `CatalogRow`/`fetchSellableCatalogRows`/`resolveBundleLines`,
+threaded `cartId` through `createStandaloneGoodsCheckoutCore`, cart-clear in
+`settleStandaloneGoodsOrder`) + its existing `__tests__/goods-checkout.test.ts`
+(extended); `apps/web/src/lib/ratelimit.ts` (added `checkShopCartRateLimit`,
+`checkShopWishlistRateLimit`); `apps/web/src/app/[slug]/shop/checkout/actions.ts`
+(extended) + new `__tests__/cart-actions.test.ts`; `apps/web/src/app/[slug]/shop/checkout/page.tsx`
++ `shop-checkout.tsx` (cart/wishlist UI: heart toggle, Add to cart, cart
+summary, Checkout cart, on the SAME page "Buy now" already lives on);
+`apps/web/src/app/wishlist/page.tsx` + `wishlist-view.tsx` + `actions.ts`
+(new, cross-artist) + `__tests__/actions.test.ts` (new).
+`tests/db/shop-carts-rls.test.ts` (new) + `tests/db/shop-carts-seller-boundary.test.ts`
+(new). `docs/web-native-parity.md` updated in the same change (founder
+rule).

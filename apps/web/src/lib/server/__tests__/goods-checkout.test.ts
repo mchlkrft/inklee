@@ -1948,3 +1948,122 @@ describe("sweepStalePendingStandaloneOrders", () => {
     );
   });
 });
+
+// ===========================================================================
+// FD5 (2026-08-01): cart-originated checkouts thread `cartId` through the
+// SAME core "Buy now" already uses — no parallel money logic. These tests
+// cover the two ends of that thread: the order insert on create, and the
+// cart-clear on settle (SUCCESSFUL-PAYMENT CLEANUP) / non-clear otherwise
+// (FAILED/ABANDONED CHECKOUT RECOVERY).
+
+describe("createStandaloneGoodsCheckoutCore: FD5 cart threading", () => {
+  it("stamps cart_id on the order when the checkout came from a cart", async () => {
+    queueHappyPath();
+    await createStandaloneGoodsCheckoutCore({ ...INPUT, cartId: "cart1" });
+    const orderInsert = ops.find(
+      (o) => o.table === "orders" && o.verb === "insert",
+    );
+    expect(orderInsert!.payload).toMatchObject({ cart_id: "cart1" });
+  });
+
+  it("leaves cart_id null for a direct 'Buy now' checkout (no cart involved)", async () => {
+    queueHappyPath();
+    await createStandaloneGoodsCheckoutCore(INPUT); // no cartId field at all
+    const orderInsert = ops.find(
+      (o) => o.table === "orders" && o.verb === "insert",
+    );
+    expect(orderInsert!.payload).toMatchObject({ cart_id: null });
+  });
+});
+
+describe("settleStandaloneGoodsOrder: FD5 successful-payment cart cleanup", () => {
+  it("clears the cart's items once the order that came from it settles", async () => {
+    queue("orders:update", {
+      data: [
+        {
+          id: "o1",
+          artist_id: "a1",
+          client_email: "buyer@example.com",
+          discount_code_id: null,
+          discount_amount: 0,
+          cart_id: "cart1",
+        },
+      ],
+    });
+    queue("order_items:select", { data: PAID_ITEMS });
+    queue("profiles:select", { data: { display_name: "Mika Ink" } });
+
+    const settled = await settleStandaloneGoodsOrder(makeIntent());
+    expect(settled).toBe("settled");
+
+    const cartClear = ops.find(
+      (o) => o.table === "shop_cart_items" && o.verb === "delete",
+    );
+    expect(cartClear, "the cart's items must be cleared").toBeDefined();
+    expect(cartClear!.filters).toMatchObject({ cart_id: "cart1" });
+  });
+
+  it("never touches shop_cart_items for a direct 'Buy now' order (cart_id null)", async () => {
+    queue("orders:update", {
+      data: [
+        {
+          id: "o1",
+          artist_id: "a1",
+          client_email: "buyer@example.com",
+          discount_code_id: null,
+          discount_amount: 0,
+          cart_id: null,
+        },
+      ],
+    });
+    queue("order_items:select", { data: PAID_ITEMS });
+    queue("profiles:select", { data: { display_name: "Mika Ink" } });
+
+    const settled = await settleStandaloneGoodsOrder(makeIntent());
+    expect(settled).toBe("settled");
+    expect(
+      ops.find((o) => o.table === "shop_cart_items" && o.verb === "delete"),
+    ).toBeUndefined();
+  });
+
+  it("a cart-clear failure never fails the settlement (best-effort, after the money flip)", async () => {
+    queue("orders:update", {
+      data: [
+        {
+          id: "o1",
+          artist_id: "a1",
+          client_email: "buyer@example.com",
+          discount_code_id: null,
+          discount_amount: 0,
+          cart_id: "cart1",
+        },
+      ],
+    });
+    queue("order_items:select", { data: PAID_ITEMS });
+    queue("profiles:select", { data: { display_name: "Mika Ink" } });
+    queue("shop_cart_items:delete", {
+      data: null,
+      error: { code: "42501", message: "boom" },
+    });
+
+    const settled = await settleStandaloneGoodsOrder(makeIntent());
+    // The settlement itself is unaffected: money already moved before the
+    // cart clear even runs.
+    expect(settled).toBe("settled");
+    expect(mockCaptureException).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "42501" }),
+      expect.objectContaining({
+        tags: { action: "standalone_goods_cart_clear" },
+      }),
+    );
+  });
+
+  it("FAILED/ABANDONED CHECKOUT RECOVERY: a redelivery that loses the flip never touches the cart", async () => {
+    queue("orders:update", { data: [] }); // lost flip -> "already"
+    const settled = await settleStandaloneGoodsOrder(makeIntent());
+    expect(settled).toBe("already");
+    expect(
+      ops.find((o) => o.table === "shop_cart_items" && o.verb === "delete"),
+    ).toBeUndefined();
+  });
+});

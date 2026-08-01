@@ -9,7 +9,16 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { formatPrice } from "@/lib/goods";
-import { startShopCheckoutAction } from "./actions";
+import {
+  startShopCheckoutAction,
+  startCartCheckoutAction,
+  addToCartAction,
+  addBundleToCartAction,
+  updateCartItemQuantityAction,
+  removeCartItemAction,
+  addToWishlistAction,
+  removeFromWishlistByProductAction,
+} from "./actions";
 
 // The guest buyer's checkout (GC1 C3). Two phases on one page: pick + email,
 // then pay (PaymentElement on the intent the server created). Every amount on
@@ -45,6 +54,37 @@ export type CheckoutBundle = {
   /** Purchasable right now (visible components in stock). Display-only; the
    *  server re-checks at order time. */
   available: boolean;
+};
+
+// FD5: the buyer's PERSISTED, seller-scoped cart for THIS artist — separate
+// from the local `quantities`/`bundleQuantities` state below, which drives
+// the existing self-contained "Buy now" flow (decision: Buy now stays, per
+// the ruling, as an independent path rather than being folded into the
+// cart). Mirrors shop-cart.ts's `CartDisplay`/`CartDisplayLine` shape rather
+// than importing those types from a `server-only` module, matching this
+// file's own existing convention of defining its own display types
+// (CheckoutProduct/CheckoutBundle above) instead of importing server ones.
+export type CartLine = {
+  cartItemId: string;
+  kind: "product" | "bundle";
+  productId: string | null;
+  variantId: string | null;
+  bundleId: string | null;
+  title: string;
+  variantName: string | null;
+  quantity: number;
+  unitAmount: number;
+  lineTotal: number;
+  currency: string;
+  available: boolean;
+  unavailableReason: string | null;
+};
+
+export type CartState = {
+  cartId: string | null;
+  lines: CartLine[];
+  totalMinor: number;
+  currency: string;
 };
 
 const MAX_QTY = 10;
@@ -107,12 +147,21 @@ export function ShopCheckout({
   products,
   bundles = [],
   stripePublishableKey,
+  initialCart,
+  wishlistedKeys = [],
 }: {
   slug: string;
   artistName: string;
   products: CheckoutProduct[];
   bundles?: CheckoutBundle[];
   stripePublishableKey: string;
+  /** FD5: the buyer's persisted cart for THIS artist, resolved server-side
+   *  (guest cookie) before render. Absent buyer -> empty cart, never an
+   *  error. */
+  initialCart?: CartState;
+  /** `${productId}::${variantId ?? ""}` keys already on the buyer's
+   *  wishlist, for the heart button's initial filled/unfilled state. */
+  wishlistedKeys?: string[];
 }) {
   const stripePromise = useMemo(
     () => loadStripe(stripePublishableKey),
@@ -134,6 +183,142 @@ export function ShopCheckout({
   const [variantChoice, setVariantChoice] = useState<Record<string, string>>(
     {},
   );
+
+  // FD5: persisted cart + wishlist. Separate pending/error state from the
+  // Buy-now flow above — a cart mutation must never disable or block the
+  // independent Buy-now "Continue" button, and vice versa.
+  const [cart, setCart] = useState<CartState>(
+    initialCart ?? { cartId: null, lines: [], totalMinor: 0, currency: "eur" },
+  );
+  const [wishlisted, setWishlisted] = useState<Set<string>>(
+    () => new Set(wishlistedKeys),
+  );
+  const [cartBusyKey, setCartBusyKey] = useState<string | null>(null);
+  const [cartError, setCartError] = useState<string | null>(null);
+  const [, startCartTransition] = useTransition();
+
+  const wishlistKey = (productId: string, variantId: string | null) =>
+    `${productId}::${variantId ?? ""}`;
+
+  const toggleWishlist = (productId: string, variantId: string | null) => {
+    const key = wishlistKey(productId, variantId);
+    const isWishlisted = wishlisted.has(key);
+    // Optimistic: a heart toggle is low-stakes and instant feedback matters
+    // more here than anywhere else on this page.
+    setWishlisted((prev) => {
+      const next = new Set(prev);
+      if (isWishlisted) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    startCartTransition(async () => {
+      const result = isWishlisted
+        ? await removeFromWishlistByProductAction({ productId, variantId })
+        : await addToWishlistAction({ slug, productId, variantId });
+      if (!result.ok) {
+        // Revert the optimistic flip and surface why.
+        setWishlisted((prev) => {
+          const next = new Set(prev);
+          if (isWishlisted) next.add(key);
+          else next.delete(key);
+          return next;
+        });
+        setCartError(result.error);
+      }
+    });
+  };
+
+  const addProductToCart = (productId: string, variantId: string | null) => {
+    setCartError(null);
+    const key = wishlistKey(productId, variantId);
+    setCartBusyKey(key);
+    startCartTransition(async () => {
+      const result = await addToCartAction({
+        slug,
+        productId,
+        variantId,
+        quantity: 1,
+      });
+      setCartBusyKey(null);
+      if (!result.ok) {
+        setCartError(result.error);
+        return;
+      }
+      setCart(result.cart);
+    });
+  };
+
+  const addBundleToCart = (bundleId: string) => {
+    setCartError(null);
+    setCartBusyKey(`bundle::${bundleId}`);
+    startCartTransition(async () => {
+      const result = await addBundleToCartAction({
+        slug,
+        bundleId,
+        quantity: 1,
+      });
+      setCartBusyKey(null);
+      if (!result.ok) {
+        setCartError(result.error);
+        return;
+      }
+      setCart(result.cart);
+    });
+  };
+
+  const setCartLineQuantity = (cartItemId: string, quantity: number) => {
+    setCartError(null);
+    setCartBusyKey(cartItemId);
+    startCartTransition(async () => {
+      const result = await updateCartItemQuantityAction({
+        slug,
+        cartItemId,
+        quantity,
+      });
+      setCartBusyKey(null);
+      if (!result.ok) {
+        setCartError(result.error);
+        return;
+      }
+      setCart(result.cart);
+    });
+  };
+
+  const removeCartLine = (cartItemId: string) => {
+    setCartError(null);
+    setCartBusyKey(cartItemId);
+    startCartTransition(async () => {
+      const result = await removeCartItemAction({ slug, cartItemId });
+      setCartBusyKey(null);
+      if (!result.ok) {
+        setCartError(result.error);
+        return;
+      }
+      setCart(result.cart);
+    });
+  };
+
+  const cartAvailableCount = cart.lines.filter((l) => l.available).length;
+
+  const startCartCheckout = () => {
+    setCartError(null);
+    startTransition(async () => {
+      const result = await startCartCheckoutAction({
+        slug,
+        email,
+        discountCode: discountCode.trim() || undefined,
+      });
+      if (!result.ok) {
+        setCartError(result.error);
+        return;
+      }
+      setPhase({
+        step: "pay",
+        clientSecret: result.clientSecret,
+        totalMinor: result.totalMinor,
+      });
+    });
+  };
 
   const setQty = (key: string, qty: number) =>
     setQuantities((prev) => ({
@@ -310,6 +495,18 @@ export function ShopCheckout({
                     >
                       +
                     </button>
+                    {/* FD5: adds to the PERSISTED, seller-scoped cart —
+                        independent of the Buy-now stepper above. */}
+                    <button
+                      type="button"
+                      onClick={() => addBundleToCart(b.id)}
+                      disabled={
+                        !b.available || cartBusyKey === `bundle::${b.id}`
+                      }
+                      className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-40"
+                    >
+                      Add to cart
+                    </button>
                   </div>
                 </li>
               );
@@ -331,15 +528,35 @@ export function ShopCheckout({
             : null;
           const unit = variant?.priceAmount ?? p.priceAmount;
           const soldOut = hasVariants ? (variant?.soldOut ?? true) : p.soldOut;
+          const effectiveVariantId = hasVariants ? chosenVariant || null : null;
+          const isWishlisted = wishlisted.has(
+            wishlistKey(p.id, effectiveVariantId),
+          );
+          const addBusyKey = wishlistKey(p.id, effectiveVariantId);
           return (
             <li
               key={p.id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-border px-4 py-3"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {p.title}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {p.title}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => toggleWishlist(p.id, effectiveVariantId)}
+                    aria-label={
+                      isWishlisted
+                        ? `Remove ${p.title} from wishlist`
+                        : `Save ${p.title} to wishlist`
+                    }
+                    aria-pressed={isWishlisted}
+                    className="shrink-0 text-sm leading-none text-muted-foreground hover:text-foreground"
+                  >
+                    {isWishlisted ? "♥" : "♡"}
+                  </button>
+                </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatPrice(unit, p.currency)}
                   {p.upcoming ? " · drops soon" : soldOut ? " · sold out" : ""}
@@ -387,11 +604,95 @@ export function ShopCheckout({
                 >
                   +
                 </button>
+                {/* FD5: adds to the PERSISTED, seller-scoped cart —
+                    independent of the Buy-now stepper's local `qty`. */}
+                <button
+                  type="button"
+                  onClick={() => addProductToCart(p.id, effectiveVariantId)}
+                  disabled={
+                    soldOut || p.upcoming === true || cartBusyKey === addBusyKey
+                  }
+                  className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-40"
+                >
+                  Add to cart
+                </button>
               </div>
             </li>
           );
         })}
       </ul>
+
+      {(cart.lines.length > 0 || cartError) && (
+        <div className="space-y-2 rounded-[14px] border border-border p-4">
+          <h2 className="text-sm font-medium text-foreground">
+            Your cart{cartAvailableCount > 0 ? ` (${cartAvailableCount})` : ""}
+          </h2>
+          {cartError && <p className="text-sm text-destructive">{cartError}</p>}
+          {cart.lines.length > 0 && (
+            <ul className="space-y-2">
+              {cart.lines.map((line) => (
+                <li
+                  key={line.cartItemId}
+                  className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-2 first:border-t-0 first:pt-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-foreground">
+                      {line.title}
+                      {line.variantName ? ` · ${line.variantName}` : ""}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {formatPrice(line.unitAmount, line.currency)} ×{" "}
+                      {line.quantity}
+                      {line.available
+                        ? ` = ${formatPrice(line.lineTotal, line.currency)}`
+                        : ` · ${line.unavailableReason ?? "unavailable"}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCartLineQuantity(line.cartItemId, line.quantity - 1)
+                      }
+                      disabled={cartBusyKey === line.cartItemId}
+                      aria-label={`Fewer ${line.title}`}
+                      className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground disabled:opacity-40"
+                    >
+                      -
+                    </button>
+                    <span className="w-6 text-center text-sm text-foreground">
+                      {line.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCartLineQuantity(line.cartItemId, line.quantity + 1)
+                      }
+                      disabled={
+                        cartBusyKey === line.cartItemId ||
+                        line.quantity >= MAX_QTY
+                      }
+                      aria-label={`More ${line.title}`}
+                      className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground disabled:opacity-40"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeCartLine(line.cartItemId)}
+                      disabled={cartBusyKey === line.cartItemId}
+                      aria-label={`Remove ${line.title}`}
+                      className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="space-y-3">
         <label className="block space-y-1 text-sm">
@@ -432,11 +733,27 @@ export function ShopCheckout({
           ? "Preparing..."
           : nothingPicked
             ? "Pick something to buy"
-            : `Continue (${formatPrice(estimateMinor / 100, "eur")})`}
+            : `Buy now (${formatPrice(estimateMinor / 100, "eur")})`}
       </button>
+
+      {cartAvailableCount > 0 && (
+        <button
+          type="button"
+          onClick={startCartCheckout}
+          disabled={pending || !email.includes("@")}
+          className="w-full rounded-full border border-border px-5 py-2.5 text-sm font-medium text-foreground disabled:opacity-50"
+        >
+          {pending
+            ? "Preparing..."
+            : `Checkout cart (${formatPrice(cart.totalMinor / 100, cart.currency)})`}
+        </button>
+      )}
+
       <p className="text-xs text-muted-foreground">
         The final total, including any discount, is confirmed on the next step
-        before you pay.
+        before you pay. Buy now and your cart are separate: {artistName} is the
+        seller either way, and a cart never combines items from more than one
+        artist.
       </p>
     </div>
   );

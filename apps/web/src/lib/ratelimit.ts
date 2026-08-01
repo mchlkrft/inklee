@@ -46,6 +46,27 @@ export async function checkShopCheckoutRateLimit(ip: string, artistId: string) {
   return check(shopCheckoutRl, `${artistId}:${ip}`);
 }
 
+// FD5 cart mutations (add/update/remove): 60 / artist / IP / hour. Its own,
+// higher bucket than checkout starts — normal browsing produces many more
+// quantity tweaks than actual checkout attempts.
+const shopCartRl = makeLimit(
+  Ratelimit.slidingWindow(60, "1 h"),
+  "inklee:shop-cart",
+);
+export async function checkShopCartRateLimit(ip: string, artistId: string) {
+  return check(shopCartRl, `${artistId}:${ip}`);
+}
+
+// FD5 wishlist mutations: cross-artist by design, so keyed by IP alone.
+// 60 / IP / hour, same order of magnitude as cart mutations.
+const shopWishlistRl = makeLimit(
+  Ratelimit.slidingWindow(60, "1 h"),
+  "inklee:shop-wishlist",
+);
+export async function checkShopWishlistRateLimit(ip: string) {
+  return check(shopWishlistRl, ip);
+}
+
 // Waitlist form: 3 submissions / IP / hour
 const waitlistRl = makeLimit(
   Ratelimit.slidingWindow(3, "1 h"),

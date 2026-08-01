@@ -84,7 +84,7 @@ export type StandaloneCheckoutResult =
     }
   | { ok: false; error: string };
 
-type CatalogRow = {
+export type CatalogRow = {
   id: string;
   title: string;
   price_amount: number;
@@ -102,6 +102,26 @@ type CatalogRow = {
     sort_order: number;
   }[];
 };
+
+// The SELLABLE catalog read (GC4: every ACTIVE, PUBLICLY VISIBLE product of
+// this artist). Exported so the cart layer (shop-cart.ts) resolves
+// availability/price/stock against the EXACT same read the checkout core
+// uses, rather than a second hand-rolled copy that could drift from it
+// (SHOP-VIS-001's lesson: the money path's own catalog read is the only one
+// that matters, so anything that feeds the money path must use it).
+export async function fetchSellableCatalogRows(
+  artistId: string,
+): Promise<CatalogRow[]> {
+  const { data: rows } = await serviceClient
+    .from("products")
+    .select(
+      "id, title, price_amount, currency, status, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+    )
+    .eq("artist_id", artistId)
+    .eq("status", "active")
+    .eq("is_public_visible", true);
+  return (rows ?? []) as CatalogRow[];
+}
 
 function toAddonProducts(rows: CatalogRow[]): AddonProduct[] {
   return rows.map((p) => ({
@@ -190,7 +210,7 @@ type ResolvedBundleLine = {
  *     selection for this slot is UN-SELECTABLE (`component_needs_variant`,
  *     the honest remnant of GC7/SHOP-VAR-001) rather than sold choicelessly.
  */
-async function resolveBundleLines(
+export async function resolveBundleLines(
   artistId: string,
   selections: BundleSelection[],
   sellableCatalog: CatalogRow[],
@@ -389,6 +409,17 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   selections: AddonSelection[];
   bundles?: BundleSelection[];
   discountCode?: string;
+  /** FD5: set when this checkout was built from a persisted cart rather than
+   *  the page's own local picks. Stamped onto the order so a successful
+   *  settle can clear the cart it came from (SUCCESSFUL-PAYMENT CLEANUP);
+   *  left untouched on failure/abandonment so the buyer can retry
+   *  (FAILED/ABANDONED CHECKOUT RECOVERY — the cart is orthogonal to the
+   *  order's own pending-order sweep). Ownership (does this cart actually
+   *  belong to `artistId`?) is the CALLER'S responsibility
+   *  (resolveCartSelectionsCore in shop-cart.ts) — the seller-boundary
+   *  invariant is enforced there AND unrepresentable at the schema level
+   *  (0141's composite FKs), so this core only threads the id through. */
+  cartId?: string | null;
 }): Promise<StandaloneCheckoutResult> {
   // Master park switch: fail closed, same as the add-on path.
   if (!isGoodsCommerceEnabled()) {
@@ -435,15 +466,8 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   // omitting it sold hidden products to anonymous buyers (SHOP-VIS-001) — a
   // crafted selections payload would have reached them even with the page
   // fixed, which is why the filter lives HERE, not only in the page read.
-  const { data: rows } = await serviceClient
-    .from("products")
-    .select(
-      "id, title, price_amount, currency, status, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
-    )
-    .eq("artist_id", input.artistId)
-    .eq("status", "active")
-    .eq("is_public_visible", true);
-  const catalog = toAddonProducts((rows ?? []) as CatalogRow[]);
+  const rows = await fetchSellableCatalogRows(input.artistId);
+  const catalog = toAddonProducts(rows);
 
   const computed = computeAddonLines(catalog, input.selections);
   if (!computed.ok) return { ok: false, error: computed.error };
@@ -454,7 +478,7 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   const resolvedBundles = await resolveBundleLines(
     input.artistId,
     input.bundles ?? [],
-    (rows ?? []) as CatalogRow[],
+    rows,
   );
   if (!resolvedBundles.ok) return { ok: false, error: resolvedBundles.error };
   const bundleLines = resolvedBundles.lines;
@@ -528,6 +552,7 @@ export async function createStandaloneGoodsCheckoutCore(input: {
       artist_id: input.artistId,
       booking_id: null,
       client_email: email,
+      cart_id: input.cartId ?? null,
       status: "pending",
       deposit_amount: 0,
       goods_amount: computed.goodsAmount + bundleGrossMinor / 100,
@@ -751,12 +776,39 @@ export async function settleStandaloneGoodsOrder(
     })
     .eq("id", orderId)
     .eq("status", "pending")
-    .select("id, artist_id, client_email, discount_code_id, discount_amount");
+    .select(
+      "id, artist_id, client_email, discount_code_id, discount_amount, cart_id",
+    );
   // A lost flip is TERMINAL: another delivery settled this order (or the
   // sweep cancelled it, in which case the sweep owns the intent). Never
   // retryable — a 500 here would loop forever.
   if (!flipped || flipped.length === 0) return "already";
   const order = flipped[0];
+
+  // FD5 SUCCESSFUL-PAYMENT CLEANUP: a cart-originated order clears the cart
+  // it came from, so the buyer doesn't return to a shop still showing items
+  // they already paid for. Best-effort and AFTER the flip: this is cosmetic
+  // tidy-up, not a money decision, and must never make a paid order look
+  // unsettled. Only ITEMS are cleared, not the cart row itself, so the same
+  // guest identity/artist pair reuses one cart row on their next visit
+  // instead of forking a fresh one. Deliberately NOT run on failure or
+  // abandonment (FAILED/ABANDONED CHECKOUT RECOVERY): the cart is untouched
+  // by both the sweep (sweepStalePendingStandaloneOrders) and a failed
+  // PaymentIntent, so the buyer can simply retry checkout with the same cart.
+  if (order.cart_id) {
+    try {
+      const { error: cartClearErr } = await serviceClient
+        .from("shop_cart_items")
+        .delete()
+        .eq("cart_id", order.cart_id as string);
+      if (cartClearErr) throw cartClearErr;
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { action: "standalone_goods_cart_clear" },
+        extra: { orderId, cartId: order.cart_id },
+      });
+    }
+  }
 
   // The stock WRITE stays inside the flip gate (decrementInventory is not
   // internally idempotent; the gate is what makes a redelivered succeeded

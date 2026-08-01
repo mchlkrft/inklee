@@ -13,6 +13,9 @@ import {
   resolveBundleComponent,
 } from "@inklee/shared/bundles";
 import { productAvailability } from "@inklee/shared/product-availability";
+import { readGuestTokenHash } from "@/lib/server/shop-guest-identity";
+import { getCartForDisplay } from "@/lib/server/shop-cart";
+import { listWishlistedKeysForArtist } from "@/lib/server/shop-wishlist";
 import {
   ShopCheckout,
   type CheckoutProduct,
@@ -269,6 +272,22 @@ export default async function ShopCheckoutPage({
     );
   }
 
+  // FD5: persisted cart + wishlist state, read-only here (a Server Component
+  // render cannot set the guest cookie; a first-time visitor with none yet
+  // simply has an empty cart/wishlist — not an error).
+  const guestTokenHash = await readGuestTokenHash();
+  const initialCart = guestTokenHash
+    ? await getCartForDisplay(guestTokenHash, artist.id as string)
+    : { cartId: null, lines: [], totalMinor: 0, currency: "eur" };
+  const wishlistedKeys = guestTokenHash
+    ? [
+        ...(await listWishlistedKeysForArtist(
+          guestTokenHash,
+          artist.id as string,
+        )),
+      ]
+    : [];
+
   return (
     <div
       data-appearance="light"
@@ -324,6 +343,8 @@ export default async function ShopCheckoutPage({
           products={products}
           bundles={bundles}
           stripePublishableKey={publishableKey as string}
+          initialCart={initialCart}
+          wishlistedKeys={wishlistedKeys}
         />
       )}
     </div>

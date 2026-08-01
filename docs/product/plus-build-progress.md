@@ -2360,3 +2360,60 @@ this slice added (9 new-route tests, 4 hub-route tests), zero regressions.
 Windows/Docker worker-crash flake with no failing assertion; this slice
 touches no schema/RLS/migration). RN component logic is outside the vitest
 include, stated as a real coverage limit rather than papered over.
+
+## FD5: wishlist + seller-scoped carts (2026-08-01, ready for review)
+
+Founder ruling FD5 (`plus-build-time-decisions.md`, "wishlist +
+seller-scoped carts BEFORE goods commerce enables; SUPERSEDES GC5's
+deferral"), the LAST FD build slice and the founder's named "hardest
+invariant in the whole build". Full report and the three mandated design
+decisions delivered to the team lead via SendMessage; the durable
+implementation note (design justifications, seller-boundary proof,
+reuse-not-rebuild reasoning) is in `plus-build-time-decisions.md` under the
+same heading — this entry is the short progress-log summary.
+
+**What shipped.** Migration `0141`: `shop_carts` (one per guest identity per
+artist, per the ruling's "never cross-artist payments"), `shop_cart_items`,
+`shop_wishlist_items` (cross-artist, per "wishlist MAY span artists"), plus
+an additive nullable `orders.cart_id`. Guest identity is an httpOnly cookie
+token (only its hash stored), matching the `booking_requests.customer_token_hash`
+pattern — VERIFIED first that no buyer-account concept exists anywhere in
+the product. Cart/wishlist UI lives on the existing `/[slug]/shop/checkout`
+page (heart-toggle wishlist, Add to cart, a persisted cart summary, a
+"Checkout cart" action) alongside the existing, unchanged, self-contained
+"Buy now" flow, plus a new cross-artist `/wishlist` page. Cart-to-checkout
+never accepts client-submitted selections: it reads the buyer's own stored
+cart rows server-side and hands them to the SAME, unmodified
+`createStandaloneGoodsCheckoutCore` "Buy now" already uses, with one
+additive `cartId` thread (stamped on the order at create, read at settle to
+clear the cart — successful-payment cleanup; left untouched on a
+failed/abandoned attempt so the buyer can retry).
+
+**The seller boundary.** Enforced at the schema level, not just in
+application code: `shop_cart_items.artist_id` is bound by two composite
+foreign keys at once (to its own cart's owner AND to its product's/bundle's
+owner), making a cross-artist row unrepresentable for any role, including
+the service role that is the table's only writer. `tests/db/shop-carts-seller-boundary.test.ts`
+proves this by attempting the forbidden insert three ways and observing
+`23503` each time, plus a positive control. `resolveCartSelectionsForCheckout`
+additionally asserts the same invariant in application code as
+defense-in-depth, refusing the ENTIRE checkout (never a partial cart) if it
+ever fires.
+
+**Validation.** `npx tsc --noEmit` (web) clean, `pnpm --filter inklee
+typecheck` clean, `pnpm --filter @inklee/mobile typecheck` clean (no mobile
+files touched — mobile parity for this slice is 🌐 by decision, matching the
+established pattern for every buyer-facing commerce surface; see
+`docs/web-native-parity.md`). `eslint` 0 errors/warnings on every
+touched/new file (a full-repo `pnpm lint` in this session separately failed
+on ~150 pre-existing errors inside the gitignored, locally-generated
+`apps/web/supabase/.temp/...` directory — unrelated to any source change).
+Full `npx vitest run`: 180 files, 3099 passed + 1 expected fail (3100
+total), up from the 3031-passed/1-expected-fail baseline by exactly the 68
+tests this slice added, zero regressions. `pnpm test:db`: 255 passed, up
+from the 235 baseline by exactly the 20 new tests in
+`shop-carts-rls.test.ts` (15, RLS lockdown for all three new tables) and
+`shop-carts-seller-boundary.test.ts` (5, the schema-level mutation proof),
+zero regressions; every new schema object verified to actually exist against
+the local Postgres instance before any test was written against it, per the
+AGENTS.md convergence rule.
