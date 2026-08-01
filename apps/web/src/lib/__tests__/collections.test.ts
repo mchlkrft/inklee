@@ -7,6 +7,7 @@ import {
   isCollectionPublic,
   liveCollections,
   archivedCollections,
+  resolveFeaturedCollections,
   COLLECTION_NAME_MAX,
   type ProductCollection,
   type CollectionMembership,
@@ -250,5 +251,78 @@ describe("groupProductsByCollection", () => {
     );
     const seen = groups.flatMap((g) => g.products.map((p) => p.id)).sort();
     expect(seen).toEqual(["p1", "p2", "p3", "p4", "p5"]);
+  });
+});
+
+describe("resolveFeaturedCollections (FD10 surface content)", () => {
+  const visible = new Set(["p1", "p2", "p3"]);
+
+  it("resolves in the artist's FEATURED order, not the collection's shop position", () => {
+    const collections = [col("a", 0), col("b", 1)];
+    const memberships = [...inC("a", ["p1"]), ...inC("b", ["p2"])];
+    // "b" is featured before "a", the reverse of shop position.
+    const featured = resolveFeaturedCollections(
+      ["b", "a"],
+      collections,
+      memberships,
+      visible,
+    );
+    expect(featured.map((f) => f.id)).toEqual(["b", "a"]);
+  });
+
+  it("drops a dangling reference (id not found at all)", () => {
+    const featured = resolveFeaturedCollections(
+      ["gone"],
+      [col("a", 0)],
+      inC("a", ["p1"]),
+      visible,
+    );
+    expect(featured).toEqual([]);
+  });
+
+  it("drops an archived collection", () => {
+    const featured = resolveFeaturedCollections(
+      ["a"],
+      [col("a", 0, true, "2026-01-01T00:00:00Z")],
+      inC("a", ["p1"]),
+      visible,
+    );
+    expect(featured).toEqual([]);
+  });
+
+  it("drops a hidden (not public) collection", () => {
+    const featured = resolveFeaturedCollections(
+      ["a"],
+      [col("a", 0, false)],
+      inC("a", ["p1"]),
+      visible,
+    );
+    expect(featured).toEqual([]);
+  });
+
+  it("drops a collection whose only members are outside the visible product set (sold through / hidden)", () => {
+    const featured = resolveFeaturedCollections(
+      ["a"],
+      [col("a", 0)],
+      inC("a", ["p9"]), // not in `visible`
+      visible,
+    );
+    expect(featured).toEqual([]);
+  });
+
+  it("counts only visible products, not every membership row", () => {
+    const featured = resolveFeaturedCollections(
+      ["a"],
+      [col("a", 0)],
+      inC("a", ["p1", "p2", "p9"]), // p9 is not visible
+      visible,
+    );
+    expect(featured).toEqual([{ id: "a", name: "Ca", productCount: 2 }]);
+  });
+
+  it("an empty featuredCollectionIds list resolves to nothing", () => {
+    expect(
+      resolveFeaturedCollections([], [col("a", 0)], inC("a", ["p1"]), visible),
+    ).toEqual([]);
   });
 });

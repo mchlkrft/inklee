@@ -6,8 +6,13 @@ import { guardedSharp } from "@/lib/image-guard";
 import { createClient } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { getAccountOverrides } from "@/lib/entitlements-server";
-import { goodsSchedulingAllowed } from "@/lib/server/entitlement-gates";
+import {
+  goodsSchedulingAllowed,
+  richContentBlocksAllowed,
+} from "@/lib/server/entitlement-gates";
 import { parseFeatures } from "@/lib/features";
+import { readImageFromForm, processAndUpload } from "@/lib/mobile-image";
+import { saveSurfaceContentCore } from "@/lib/server/surface-content-write";
 import {
   parsePriceInput,
   parseOptionalPriceInput,
@@ -874,5 +879,96 @@ export async function saveShopCheckoutEnabledAction(
   if (error) return { error: error.message };
 
   revalidatePath("/goods");
+  return { success: true };
+}
+
+// Shop surface content (founder ruling FD10, 2026-08-01): hero image, intro
+// line, and featured collections for the "shop" surface, consumed by BOTH
+// the standalone checkout page and the booking-page shop teaser (surface-
+// content.ts's module header). Entitlement is `rich_content_blocks`, not
+// `appearance_custom` — this is content, matching the FD1 split.
+
+export type ShopHeroUploadResult =
+  | { ok: true; url: string }
+  | { ok: false; error: string };
+
+/** Upload a hero image for the "shop" surface. Direct-upload only in this
+ *  slice (unlike the Hub gallery, no "Import from URL" companion) — a
+ *  deliberate scope cut, flagged rather than silently matched to the fuller
+ *  gallery precedent; see the FD10 implementation note in
+ *  plus-build-time-decisions.md. Mirrors uploadGalleryImageAction's shape:
+ *  entitlement checked BEFORE spending any upload work. */
+export async function uploadShopHeroImageAction(
+  formData: FormData,
+): Promise<ShopHeroUploadResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  let entitled = false;
+  try {
+    entitled = richContentBlocksAllowed(await getAccountOverrides(user.id));
+  } catch {
+    entitled = false;
+  }
+  if (!entitled) {
+    return { ok: false, error: "Custom shop content is a Plus feature." };
+  }
+
+  const read = readImageFromForm(formData);
+  if (!read.ok) return { ok: false, error: read.error };
+
+  const result = await processAndUpload(read.file, {
+    path: `${user.id}/shop/${crypto.randomUUID()}.webp`,
+    width: 1600,
+    height: 800,
+    fit: "cover",
+    upsert: false,
+    // Unique path per upload, so no cache-bust query string ends up stored
+    // in settings JSON (same reasoning as the Hub gallery's uploadProcessedGalleryFile).
+    cacheBust: false,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, url: result.url };
+}
+
+type ShopContentState = { error: string } | { success: true } | null;
+
+/** Save the "shop" surface's content record. One action for all three
+ *  fields (hero url already resolved by the upload action above, intro
+ *  text, featured collection ids) — the write core (surface-content-
+ *  write.ts) applies the null-clears-vs-inherits merge, so a field the form
+ *  did not include in this submit is left exactly as it was stored. */
+export async function saveShopContentAction(
+  _prev: ShopContentState,
+  formData: FormData,
+): Promise<ShopContentState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const introTextRaw = formData.get("introText");
+  const heroMediaUrlRaw = formData.get("heroMediaUrl");
+  const featuredRaw = formData.getAll("featuredCollectionIds");
+
+  const result = await saveSurfaceContentCore(supabase, user.id, {
+    surface: "shop",
+    introText: typeof introTextRaw === "string" ? introTextRaw : undefined,
+    // The hidden field is always present on this form (empty string clears,
+    // a url string sets), so it is always "in" the patch — see the
+    // clear-hero button below, which submits it explicitly empty.
+    heroMediaUrl:
+      typeof heroMediaUrlRaw === "string" ? heroMediaUrlRaw : undefined,
+    featuredCollectionIds: featuredRaw.length > 0 ? featuredRaw : [],
+  });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/goods");
+  await revalidatePublicPage(user.id);
   return { success: true };
 }

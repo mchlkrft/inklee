@@ -4,6 +4,9 @@ import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { publicBundlesForArtist } from "@/lib/server/bundles";
 import { surfaceAppearance } from "@/lib/server/appearance";
+import { resolvedSurfaceContent } from "@/lib/server/surface-content";
+import { publicCollectionsForArtist } from "@/lib/server/collections";
+import { resolveFeaturedCollections } from "@inklee/shared/collections";
 import { bundleSavings, bundlePurchasable } from "@inklee/shared/bundles";
 import { productAvailability } from "@inklee/shared/product-availability";
 import {
@@ -76,6 +79,17 @@ export default async function ShopCheckoutPage({
   // per-surface appearance EDITOR is out of scope (S1's deferral stands);
   // this only makes the surface INHERIT what the artist already set.
   const appearance = await surfaceAppearance(
+    artist.id as string,
+    artist.settings,
+    "shop",
+  );
+
+  // Surface content (founder ruling FD10, 2026-08-01): hero media, an intro
+  // line, and featured collections on top of the appearance system above.
+  // Fail-safe + entitlement-gated like appearance: an unconfigured or
+  // unentitled artist gets the all-default (empty) content, which renders
+  // byte-identically to this page before FD10 existed.
+  const surfaceContent = await resolvedSurfaceContent(
     artist.id as string,
     artist.settings,
     "shop",
@@ -212,19 +226,70 @@ export default async function ShopCheckoutPage({
       };
     });
 
+  // Featured collections (FD10). Only queried when the artist actually
+  // featured something — an unconfigured artist (the common case today,
+  // since this is dark-launched at 0 Plus artists) costs this page nothing
+  // extra. Counted against the products this render is ACTUALLY showing, so
+  // a collection whose members are all sold through or hidden never
+  // promotes an empty shelf (resolveFeaturedCollections' own contract).
+  let featuredCollections: {
+    id: string;
+    name: string;
+    productCount: number;
+  }[] = [];
+  if (surfaceContent.featuredCollectionIds.length > 0) {
+    const { collections, memberships } = await publicCollectionsForArtist(
+      serviceClient,
+      artist.id as string,
+    );
+    const visibleProductIds = new Set(products.map((p) => p.id));
+    featuredCollections = resolveFeaturedCollections(
+      surfaceContent.featuredCollectionIds,
+      collections,
+      memberships,
+      visibleProductIds,
+    );
+  }
+
   return (
     <div
       data-appearance="light"
       style={appearance.cssVars as React.CSSProperties}
       className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8"
     >
+      {surfaceContent.heroMediaUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={surfaceContent.heroMediaUrl}
+          alt=""
+          className="h-40 w-full rounded-[14px] object-cover sm:h-56"
+        />
+      )}
+
       <header className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">Shop checkout</h1>
         <p className="text-sm text-muted-foreground">
           Buy directly from {artistName}. Pickup and delivery are arranged with
           the artist after your order.
         </p>
+        {surfaceContent.introText && (
+          <p className="text-sm text-foreground">{surfaceContent.introText}</p>
+        )}
       </header>
+
+      {featuredCollections.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {featuredCollections.map((c) => (
+            <li
+              key={c.id}
+              className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground"
+            >
+              {c.name} ·{" "}
+              {c.productCount === 1 ? "1 item" : `${c.productCount} items`}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {!chargeReady ? (
         <p className="rounded-[14px] border border-border px-4 py-6 text-sm text-muted-foreground">

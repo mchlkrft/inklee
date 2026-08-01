@@ -162,3 +162,63 @@ export function groupProductsByCollection<T extends { id: string }>(
   }
   return groups;
 }
+
+export type FeaturedCollectionSummary = {
+  id: string;
+  name: string;
+  productCount: number;
+};
+
+/**
+ * Resolve a surface's FEATURED collection ids (founder ruling FD10,
+ * 2026-08-01) into display data, in the artist's chosen order (the order
+ * `featuredCollectionIds` was saved in, not the collection's own shop
+ * position — featuring is a promotion, distinct from where a section sits in
+ * the normal grid).
+ *
+ * `visibleProductIds` is the id set of products the CALLING page is actually
+ * about to render (already filtered for visibility / status / currency,
+ * whatever that page's own rules are) — mirrors `groupProductsByCollection`'s
+ * own discipline of dropping a membership that names a product outside the
+ * passed-in list, "which keeps the section honest rather than rendering a
+ * hole": without this, a collection whose only members are hidden or sold
+ * out would still report a nonzero productCount and promote an empty shelf.
+ *
+ * A dangling reference (archived, hidden, deleted, or simply empty of
+ * VISIBLE products) resolves to NOTHING for that id, exactly like the Hub's
+ * featured_collection block (bio-page.ts, HubFeaturedCollectionBlock): an
+ * artist who archives a featured collection must not discover a broken
+ * promotional section on their public page. Whether the id still resolves is
+ * intentionally checked HERE rather than in the pure settings parser
+ * (surface-content.ts), for the same reason bio-page.ts's own comment gives
+ * for featured_collection blocks — this function has the live collections
+ * read available to it; the settings parser does not and must not need one.
+ */
+export function resolveFeaturedCollections(
+  featuredCollectionIds: string[],
+  collections: ProductCollection[],
+  memberships: CollectionMembership[],
+  visibleProductIds: ReadonlySet<string>,
+): FeaturedCollectionSummary[] {
+  const publicById = new Map(
+    collections.filter(isCollectionPublic).map((c) => [c.id, c]),
+  );
+  const countByCollection = new Map<string, number>();
+  for (const m of memberships) {
+    if (!visibleProductIds.has(m.productId)) continue;
+    countByCollection.set(
+      m.collectionId,
+      (countByCollection.get(m.collectionId) ?? 0) + 1,
+    );
+  }
+
+  const out: FeaturedCollectionSummary[] = [];
+  for (const id of featuredCollectionIds) {
+    const collection = publicById.get(id);
+    if (!collection) continue;
+    const productCount = countByCollection.get(id) ?? 0;
+    if (productCount === 0) continue; // empty collection: nothing to promote
+    out.push({ id: collection.id, name: collection.name, productCount });
+  }
+  return out;
+}

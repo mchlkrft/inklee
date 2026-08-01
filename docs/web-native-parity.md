@@ -121,6 +121,7 @@ top control row instead, which is also where the platform maps put theirs.
 | Shop collections (P5d) | `/goods/collections` manager (many-to-many membership, per-collection order, archive/restore, eligible-delete) + grouped public shop | ✅ `(tabs)/goods/collections` + GET/POST/PATCH/DELETE `/api/mobile/goods/collections`, every write through the SAME cores, so the entitlement refusal and the delete-eligibility rule are one implementation (**branch-only**, `feat/p5d-collections`, `caa1be1` — NOT on master, so these routes do not exist in production; then a build). ONE deliberate difference: web can drag to reorder, the app cannot. The reorder cores and the `reorder` / `reorderProducts` ops exist and are wired server-side, so the native gesture is additive whenever it is worth the surface. The public shop stays web: it is a visitor surface | ~ |
 | Featured-collection Hub block (P5d) | `featured_collection` block in the Link Hub editor + rendered on `/<slug>/hub` | ✅ picker on `settings/link-hub`, fed by the `collections` key added to GET `/api/mobile/settings/hub` (**branch-only**, `feat/p5d-collections`, `25dda4f` — NOT on master; then a build, and that build is a HARD PREREQUISITE, see the wire hazard below). Both surfaces seed from the same shared parser, which drops a block naming nothing and keeps one block per collection | ✅ |
 | Goods Hub block destination (founder ruling FD8, 2026-08-01, SUPERSEDES S4) | `destination` field (`standalone_shop` \| `booking_page`) on the `goods` block, `link-hub/bio-page-form.tsx`'s `<select>` picker, warns when the SAVED selection is currently unavailable (never silently re-routes). `hub-feature-data.ts` resolves visibility + href server-side, one source of truth with the FD7 `/goods` summary card (`goods-visibility.ts`) | ✅ FilterChip picker on `settings/link-hub.tsx`, fed by the ADDITIVE `goodsAvailability` key on GET `/api/mobile/settings/hub`. No new block TYPE (contrast the `featured_collection` row above and the wire hazard below) — an installed build that predates this field ignores `goodsAvailability` and omits `destination` on save, which `preserveGoodsDestinationOnSave` (bio-page.ts) reads as "keep whatever is already stored" rather than resetting it; no build is a hard prerequisite for existing artists, only for using the picker itself | ✅ |
+| Surface content configuration — shop hero/intro/featured collections (founder ruling FD10, 2026-08-01, CONFIRMS S1/S6) | `settings.surface_content` (surface-content.ts), gated `rich_content_blocks`. Editor on `/goods` (`shop-content-form.tsx`): hero image upload (direct upload only, no "Import from URL" companion this slice), intro line, up to 6 featured collections. Consumed by BOTH `/[slug]/shop/checkout` and the booking-page `ShopTeaser`, resolved through `resolvedSurfaceContent` (fail-safe + entitlement, mirrors `surfaceAppearance`) | — no native editor and no mobile route this slice. `settings/page-appearance.tsx` (the one native appearance screen) is global-only and styling-only, so there is no native precedent to extend; a native editor is a new, scoped screen, not this slice's job. DELIBERATE web-only, not a silent gap | 🌐 by decision this slice (see the Update log entry below for the full scope reasoning, incl. why `guestSpots` has no content config either) |
 | Appointment payment request cores (P9 A2) | `server/appointment-payments.ts`: create / revise / send / cancel / expire, plus migration `0126` (`payment_requests.collects`, the atomic `send_payment_request` RPC) | ✅ A7 mobile routes: POST `/api/mobile/payments/requests` (create), POST `.../[id]/send`, `.../[id]/cancel`, `.../[id]/revise`, `.../[id]/refund`. Every route is a thin wrapper around the SAME core the web actions call. **No route adds its own entitlement gate**: create / revise / send are gated inside the cores; cancel is deliberately UNGATED (an artist who lapses to Free must still stop a live request for money); refund wraps `refundPaymentRequestCore` which gates on the settled state, not on entitlement. Status mapping: 403 `not_entitled`, 404 `not_found`, 409 `settled`, 400 everything else. `send` returns `customerToken` so the app can build the `/pay/<token>` link. **+ 2026-07-31 the READ half (was missing — every core is a write): GET `/api/mobile/payments/requests` (list, newest-first) and GET `.../[id]` (detail + lines), both wrapping the shared RLS-scoped `appointment-payment-read.ts`.** (**branch-only**, `feat/p5d-collections` — NOT on master; then a build) | ✅ |
 | Appointment payment quote + intent (P9 A3) | `server/appointment-payment-quote.ts` (the ONE server-authoritative quote) and `server/appointment-payment-intent.ts` (the Stripe PaymentIntent for a payment request), plus migration `0127` (`payment_requests.payment_intent_id` / `payment_intent_amount_minor`) and the FEE UNIFICATION: the deposit path's `application_fee_amount` now comes from `appointmentApplicationFee` instead of the hardcoded `platformFeeCents`, so one implementation prices both lanes on both paths | n/a: the A7 routes wrap the cores; no mobile route computes or sends an amount. `buildPaymentQuote` is the ONE producer; the `/pay/<token>` page (A6) calls it server-side. The client-facing payment surface is A6 (web) and is a VISITOR surface. The native app never prices an appointment payment | 🌐 |
 | `appointment_payments` capability (P9 A2) | new name in `CAPABILITIES`, so `GET /api/mobile/config` now emits it whenever it is paused | ✅ automatically, and safely: `disabledCapabilities` is typed `string[]` on the wire and consumers ignore names they do not know, which is the documented safe-ignore path for old builds. NOT a breaking wire change (contrast the `featured_collection` block type below: THAT is a union the app switches on). No new build is needed for installed apps to tolerate it; a build IS needed before any app surface can honour it | ✅ |
@@ -183,6 +184,38 @@ Two things follow, both done here:
   needs writing down rather than remembering.
 
 ## Update log
+
+- **2026-08-01 — Surface content configuration (founder ruling FD10,
+  CONFIRMS S1/S6, closes the per-surface-theming question forever).** New
+  `settings.surface_content` JSONB namespace (sibling to `settings.appearance`
+  / `settings.bio_page`, `packages/shared/src/surface-content.ts`), gated
+  `rich_content_blocks` (the same key FD1 minted for Hub galleries — content,
+  not styling). A hero image, an intro line, and up to 6 featured collections
+  for the "shop" surface, consumed by BOTH `/[slug]/shop/checkout` and the
+  booking-page `ShopTeaser` (one artist-authored record covers both places
+  shop content renders — the teaser is a compact preview of the same shop,
+  not an independent content surface). Web editor on `/goods`
+  (`shop-content-form.tsx`); hero upload is direct-file only this slice, no
+  "Import from URL" companion (a deliberate scope cut vs. the Hub gallery
+  precedent). **Web-only, DELIBERATELY, this slice**: `settings/page-
+  appearance.tsx` (the one native appearance screen) is global-only and
+  styling-only — grepping it for "surface"/"Surface" returns only a code
+  comment — so there is no native precedent to extend, and building one is a
+  new, scoped native slice, not an automatic extension of this one.
+  **Scope is narrower than the brief that requested it, on purpose:** the
+  appearance system enumerates FIVE surfaces (hub, bookingForm, largeProject,
+  shop, guestSpots); this covers ONLY "shop". `hub` already has its own,
+  richer content system (the `bio_page` block list) and duplicating it here
+  would compete with it. `guestSpots` has ZERO renderers anywhere in the app
+  (grepped `surfaceAppearance(...,"guestSpots")`, 2026-08-01, finds only test
+  files) — the trip content that exists today (the booking page's
+  `TravelCard` popover, the Hub's `guest_spots` block) lives INSIDE the
+  `bookingForm` and `hub` surfaces, not on an independent page. Guest-spot
+  surface content is therefore NOT built and not tracked as remaining work;
+  it needs a renderer to exist before it needs a content config. Full
+  reasoning (storage/entitlement decisions, the null-clears-vs-inherits
+  merge, the shallow-copy default-array bug this slice's own tests caught):
+  the FD10 implementation note in `docs/product/plus-build-time-decisions.md`.
 
 - **2026-08-01 — Rich content blocks split off `appearance_custom` (FD1
   build slice 1, founder ruling FD1, SUPERSEDES D1).** Entitlement-key

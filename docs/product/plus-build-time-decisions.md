@@ -1021,3 +1021,207 @@ back. Two tests that pinned the old behaviour (one explicitly documenting it
 as a known gap) were replaced by tests asserting the corrected contract plus
 the toggle/availability distinction. Credit where due: the gap was found by
 the worker implementing the brief, not by the brief's author.
+
+### 2026-08-01 — FD10 implementation note (surface-specific content configuration)
+
+Implements FD10 ("one inherited appearance system is the ARCHITECTURE, not a
+deferral; CONFIRMS S1/S6 and closes the question"). Product principle,
+verbatim from the ruling: **"One visual identity with surface-specific
+content configuration."** The one shared appearance system
+(`packages/shared/src/appearance.ts`) remains the only STYLING layer —
+colors, fonts, templates, buttons — across every public surface; no
+independent theme editor exists or was built. What shipped is a second,
+independent CONTENT layer on top of it.
+
+**Scope, precisely, and why it is narrower than the brief's surface list.**
+The brief named three targets: the standalone shop checkout surface, the
+booking-page shop teaser, and the guest-spot surfaces. Grepping the app for
+every call site of `surfaceAppearance(...)` (2026-08-01) found FOUR live
+appearance-surface renderers — `hub` (`app/[slug]/hub/page.tsx`),
+`bookingForm` (`app/[slug]/page.tsx`), `largeProject`
+(`app/[slug]/project/page.tsx`), and `shop`
+(`app/[slug]/shop/checkout/page.tsx`) — and ZERO for `guestSpots` outside
+test files. The trip content that exists today (the booking page's
+`TravelCard` popover, the Hub's `guest_spots` feature block) lives INSIDE the
+`bookingForm` and `hub` surfaces; there is no independent "guestSpots" page
+to attach content configuration to. Building a content record for a surface
+nothing renders would be inert past the parser and unverifiable end to end —
+exactly the trap the brief itself warned against ("do not build content
+config for a surface that has no renderer"). This is flagged as the kind of
+correction the brief invited rather than silently narrowed: **guest-spot
+surface content is NOT built this slice** and is not tracked as remaining
+work, because there is nothing to build it against; if a standalone
+guest-spot public page is ever built, its content configuration is a new,
+separate slice with a renderer to prove it against.
+
+The "booking-page shop teaser" is not an independent appearance surface
+either — `ShopTeaser` renders INSIDE the `bookingForm` surface. Rather than
+inventing a `bookingForm`-scoped content record for it, the teaser reads the
+SAME `shop`-surface content record the standalone checkout page reads: the
+teaser is a compact preview of the same shop, not a second content surface,
+so one artist-authored intro line / hero / featured selection covers both
+places goods content renders. This is a design decision, not an accident —
+recorded here because it is the one place "the same content on two pages"
+could have gone the other way (a separate `bookingForm` record) and did not.
+
+**What shipped: hero media, an intro line, and featured collections for the
+"shop" surface only** (`packages/shared/src/surface-content.ts`,
+`SURFACE_CONTENT_SURFACES = ["shop"]`, a deliberately narrower type than
+`AppearanceSurface` so widening it requires a conscious code change, not
+silent scope creep). "Selected content blocks per surface" (the ruling's
+fourth phrase) is interpreted as satisfied by the featured-collections
+mechanism — picking which existing collections to promote — rather than as a
+second, competing block-ordering system alongside the Hub's own `bio_page`
+blocks; building a parallel block editor for `shop`/`guestSpots` would
+duplicate `bio-page.ts`'s block model for no surface that needs it yet. If a
+future slice wants literal block content (headline/text/gallery) on a
+non-hub surface, that is a new, scoped decision, not an automatic extension
+of this one.
+
+**Storage decision: a NEW `settings.surface_content` namespace, sibling to
+`settings.appearance` / `settings.bio_page`, not an additive section inside
+the appearance system's per-surface entries.** Considered and rejected:
+folding content fields into `AppearanceOverride`
+(`packages/shared/src/appearance.ts`). Rejected because `appearance.ts`'s own
+module header declares it PURE styling ("no React, no DOM, no server
+imports... consumed by the existing `[data-appearance]` token scoping") and
+its entitlement gate (`appearance_custom`) is styling-only per FD1; folding
+content in would either reopen split gating within one object (some fields
+gated on `appearance_custom`, others on `rich_content_blocks`) or would
+require moving ALL of appearance under `rich_content_blocks`, neither of
+which is what FD1 or FD10 asked for. A new sibling namespace keeps the two
+entitlement boundaries as clean as the two settings keys they live under.
+There is deliberately NO "global" tier for content (unlike appearance's
+global-plus-per-surface-override shape): a hero image or intro line has no
+artist-meaningful single default that would apply identically across
+dissimilar pages (a shop checkout page and a future guest-spot page share no
+sensible common hero), so `SurfaceContentSettings` is a flat
+`Partial<Record<surface, SurfaceContent>>` with no global fallback layer.
+
+**The null-clears-vs-inherits distinction, applied at the WRITE layer, not
+the read layer.** Because there is no global tier, the distinction the brief
+asked for (the one `appearance.ts`'s own parser already draws for `accent`
+and `backgroundImageUrl`: `override.field !== undefined ? override.field :
+base.field`) has no read-time analogue here — a single stored entry has
+nothing to inherit FROM. It resurfaces instead at the SAVE path
+(`apps/web/src/lib/server/surface-content-write.ts`, mirroring
+`appearance-write.ts`'s `normalize()`): a field OMITTED from an incoming save
+request leaves the currently stored value untouched (inherits — editing the
+intro line alone can never wipe an already-set hero image), while a field
+PRESENT in the request — even when it sanitizes to null or empty — overwrites
+the stored value (clears). The `"key" in input` check is what makes the two
+distinguishable; a plain `input.field ?? current.field` cannot, because an
+absent key and an explicit `null` both fall through the same `??` branch.
+Tested directly: `surface-content-write.test.ts`'s "null-clears-vs-inherits"
+block pins that saving `introText` alone preserves a previously-stored
+`heroMediaUrl` and `featuredCollectionIds` untouched, and that an explicit
+empty/`null` value on any one field clears only that field.
+
+**Entitlement decision: `rich_content_blocks`, not `appearance_custom`.**
+FD1 drew the line already: `appearance_custom` is "colors/fonts/templates/
+styling ONLY," and `rich_content_blocks` is content, "the home for future
+rich sections" as they ship. A hero image, an intro line, and a featured-
+collection selection are CONTENT by that same test, not a styling choice, so
+riding `rich_content_blocks` is the FD1-consistent answer, not a new
+judgment call. Gating WRITES: `saveSurfaceContentCore` refuses an unentitled
+save before touching storage (mirrors `saveAppearanceCore`'s `not_entitled`
+code) and refuses on a plan-read blip too (the opposite direction from
+render, on purpose — persisting an entitled-only shape on an unverified plan
+is the worse failure). Gating RENDER: `resolvedSurfaceContent`
+(`apps/web/src/lib/server/surface-content.ts`) fails safe to the all-default
+(empty) content on a plan-read blip, exactly like `surfaceAppearance`'s
+free-tier fallback. Unlike appearance, there is no PARTIAL free view — FD9
+already drew this boundary ("basic visibility controls stay Free forever...
+Plus may own advanced merchandising only"): nothing in this content layer is
+a visibility control (S2/S5/FD9 already cover shop visibility separately via
+`hidden`/`shop_checkout`), so an unentitled artist's effective content is
+fully empty, not a partial subset. A downgrade never deletes the stored
+configuration — `parseSurfaceContentSettings` has no entitlement awareness at
+all (pure, no database), so the settings row keeps whatever the artist
+configured; only the render-time view hides it, and a re-upgrade sees it
+again unchanged (pinned by `surface-content.test.ts`'s
+"downgrade-then-reupgrade round trip" test). `plus-capability-registry.ts`'s
+`rich_content_blocks` row is updated to name this second use rather than
+describing only Hub galleries.
+
+**Hero media stays on the FD4 posture.** `SurfaceContent.heroMediaUrl` is
+validated with `bio-page.ts`'s existing `sanitizeHostedGalleryImageUrl` —
+the SAME gate the Hub gallery uses, not a second copy of the supabase.co /
+logos-bucket check (the HUB-GAL-006 lesson about drifting duplicate copies).
+Upload is direct-file-only in this slice
+(`uploadShopHeroImageAction`, `apps/web/src/app/(artist)/goods/actions.ts`):
+unlike the Hub gallery there is no "Import from URL" companion action. This
+is a deliberate scope cut, not an oversight — flagged here per the brief's
+own instruction to say when a brief's fuller precedent was not fully matched.
+An artist without an "Import from URL" affordance for the shop hero can
+still get any image onto Inklee storage via the Hub gallery's own import
+action and use that resulting URL, since the parser accepts any Inklee-
+hosted `logos`-bucket URL regardless of which upload path produced it.
+
+**Featured collections resolve live, drop dangling references.**
+`resolveFeaturedCollections` (`packages/shared/src/collections.ts`) mirrors
+the Hub's `featured_collection` block discipline exactly: an id that is
+archived, hidden, deleted, or whose only members are outside the page's own
+visible-product set resolves to nothing for that entry, rather than a broken
+promotional chip. The visibility check is stricter than a naive membership
+count — it counts only memberships whose product is in the CALLING page's
+own already-filtered visible set (mirroring `groupProductsByCollection`'s own
+"keeps the section honest" discipline), so a collection whose only products
+are sold through or hidden never promotes an empty shelf.
+
+**Editor home: the Goods page, not the Appearance settings page.** Both
+exist and both were considered, per the brief. Placed on Goods
+(`apps/web/src/app/(artist)/goods/page.tsx`, `shop-content-form.tsx`)
+alongside the existing shop-teaser/standalone-checkout visibility controls
+(`ShopCheckoutToggle`, `GoodsVisibilitySummaryCard`) rather than Appearance,
+because this is content ABOUT the shop specifically (which collections to
+feature is meaningless without the Goods page's own collection list already
+being read there), and putting a `rich_content_blocks`-gated form on the
+`appearance_custom`-titled settings page risked reading as "one more styling
+toggle" when it is a different entitlement and a different kind of choice.
+The editor reads the PURE, unfiltered parser for display (so an artist's own
+stored configuration remains visible to them even mid-downgrade — nothing
+looks silently erased) and reads `richContentBlocksAllowed` separately to
+decide only whether the form is interactive, matching the Hub gallery
+editor's own locked-but-visible posture.
+
+**Native: no editor exists for any surface's content this slice — a parity
+row, not a native screen.** `apps/mobile/app/settings/page-appearance.tsx`
+(the one native appearance editor) is global-only and styling-only; grepping
+it for "surface"/"Surface" (2026-08-01) returns only a code comment. There is
+therefore no native precedent to mirror for surface CONTENT, and the brief's
+own instruction is explicit for this case: "where it does not [have a native
+editor], that is a parity-register row, not a new native screen in this
+slice." Recorded in `docs/web-native-parity.md` as web-only by decision, not
+as a tracked gap.
+
+Validation: `npx tsc --noEmit` clean (web app; mobile untouched this slice,
+so `pnpm typecheck` for mobile was not re-run), eslint 0 errors on every
+touched file (web + shared). New/updated tests: `surface-content.test.ts`
+(shared parser, 25: round trip, hostile input, hero-media host restriction,
+`resolveSurfaceContent` defaults incl. a shared-mutable-array bug the tests
+themselves caught and a fix verified), `surface-content.test.ts` (server
+render resolver, 6: entitlement boundary, fail-safe, downgrade-then-
+reupgrade round trip), `surface-content-write.test.ts` (15: entitlement gate
+incl. refusing before any read/write, merge-into-settings, the five
+null-clears-vs-inherits cases, hero host restriction, cap+dedupe),
+`collections.test.ts` (7 new: `resolveFeaturedCollections` order, dangling
+reference, archived, hidden, outside-visible-set, count-precision, empty
+list). Full `npx vitest run`: 171 files, 2967 passed + 1 expected fail (2968
+total), up from the 2914-passed/1-expected-fail baseline (`b2da53c7`) by
+exactly the 53 tests this slice added, zero regressions.
+
+**A defect this slice's own tests caught, fixed in the same commit, not
+worth a separate register entry (caught before merge, not a shipped bug):**
+`resolveSurfaceContent`'s and `parseSurfaceContentEntry`'s default-value
+fallbacks originally used `{ ...DEFAULT_SURFACE_CONTENT }`, which shallow-
+copies only the top-level keys — `featuredCollectionIds` stayed the SAME
+array reference as the module-level constant. A caller mutating "their"
+default (`.push(...)`) would have corrupted `DEFAULT_SURFACE_CONTENT` for
+every subsequent call for every artist, process-wide. Found by a test
+written to check the opposite ("does not mutate DEFAULT_SURFACE_CONTENT
+across calls"), which failed on the first run; fixed with a `freshDefault()`
+helper that always allocates a new array. Recorded here rather than in
+`docs/audit/findings.yaml` per this task's brief (the supervisor owns the
+register for this task); worth naming so a later reader does not wonder why
+a `freshDefault()` helper exists when `{ ...DEFAULT }` looks sufficient.

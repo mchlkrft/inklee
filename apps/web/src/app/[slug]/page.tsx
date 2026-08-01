@@ -16,14 +16,17 @@ import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import { publicBrandingHidden } from "@/lib/server/public-branding";
 import { surfaceAppearance } from "@/lib/server/appearance";
+import { resolvedSurfaceContent } from "@/lib/server/surface-content";
 import { applyConditionEntitlement } from "@/lib/server/form-entitlements";
 import { accentHex } from "@inklee/shared/appearance";
 import { COVER_COLORS } from "@inklee/shared/cover-colors";
 import { bookingTemplateStyles } from "@inklee/shared/booking-template-styles";
 import { shopAvailabilityResolver } from "@/lib/server/shop-availability";
-import type {
-  ProductCollection,
-  CollectionMembership,
+import {
+  resolveFeaturedCollections,
+  type ProductCollection,
+  type CollectionMembership,
+  type FeaturedCollectionSummary,
 } from "@inklee/shared/collections";
 import { publicCollectionsForArtist } from "@/lib/server/collections";
 import { publicBundlesForArtist } from "@/lib/server/bundles";
@@ -179,6 +182,13 @@ export default async function ArtistPublicPage({
   let shopCollections: ProductCollection[] = [];
   let shopMemberships: CollectionMembership[] = [];
   let shopBundles: PublicBundle[] = [];
+  // Surface content (founder ruling FD10, 2026-08-01): the SAME "shop"
+  // surface record the standalone checkout page reads. The teaser is a
+  // compact preview of the same shop, not an independent content surface,
+  // so one artist-authored intro line / featured selection covers both
+  // places goods content renders.
+  let shopIntroText: string | null = null;
+  let shopFeaturedCollections: FeaturedCollectionSummary[] = [];
   if (isModuleVisible(bioPage, "shop") && canUseGoods(profileSettings)) {
     const { data: rawProducts } = await serviceClient
       .from("products")
@@ -297,6 +307,22 @@ export default async function ArtistPublicPage({
           })),
       };
     });
+
+    const surfaceContent = await resolvedSurfaceContent(
+      profile.id as string,
+      profileSettings,
+      "shop",
+    );
+    shopIntroText = surfaceContent.introText;
+    if (surfaceContent.featuredCollectionIds.length > 0) {
+      const visibleProductIds = new Set(shopProducts.map((p) => p.id));
+      shopFeaturedCollections = resolveFeaturedCollections(
+        surfaceContent.featuredCollectionIds,
+        shopCollections,
+        shopMemberships,
+        visibleProductIds,
+      );
+    }
   }
 
   const { data: rawCustomFields } = await serviceClient
@@ -615,6 +641,8 @@ export default async function ArtistPublicPage({
                     bundles={shopBundles}
                     itemBg={goodsItemBg}
                     artistName={profile.display_name}
+                    introText={shopIntroText}
+                    featuredCollections={shopFeaturedCollections}
                   />
                 )}
               </div>

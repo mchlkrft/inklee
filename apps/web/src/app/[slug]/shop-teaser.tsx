@@ -19,6 +19,7 @@ import {
   groupProductsByCollection,
   type ProductCollection,
   type CollectionMembership,
+  type FeaturedCollectionSummary,
 } from "@inklee/shared/collections";
 import {
   bundleSavings,
@@ -401,6 +402,8 @@ export default function ShopTeaser({
   bundles = [],
   itemBg = null,
   artistName,
+  introText = null,
+  featuredCollections = [],
 }: {
   products: PublicProduct[];
   /** Visible collections in the artist's order (P5d). Empty = one flat list,
@@ -417,6 +420,15 @@ export default function ShopTeaser({
   itemBg?: string | null;
   // Drives the editorial-sized overlay headline: "{artistName} shop".
   artistName: string;
+  /** Surface content (founder ruling FD10, 2026-08-01): the "shop" surface's
+   *  intro line, shown under the headline. Null when unset or unentitled —
+   *  resolvedSurfaceContent (the caller) already applies the entitlement +
+   *  fail-safe boundary, so this component just renders what it is given. */
+  introText?: string | null;
+  /** The artist's promoted collections for this surface, already resolved
+   *  (dangling / empty references dropped server-side). Empty for an
+   *  unconfigured or unentitled artist — renders nothing, same as today. */
+  featuredCollections?: FeaturedCollectionSummary[];
 }) {
   // Interest selections are owned by InterestSelectionsProvider higher in the
   // tree so BookingForm (rendered elsewhere on the page) can read them on
@@ -611,6 +623,26 @@ export default function ShopTeaser({
             <h2 className="text-center text-4xl font-bold tracking-tight text-brand-bone md:text-5xl lg:text-6xl">
               {artistName} shop
             </h2>
+            {introText && (
+              <p className="mx-auto mt-3 max-w-xl text-center text-sm text-brand-bone/75">
+                {introText}
+              </p>
+            )}
+            {featuredCollections.length > 0 && (
+              <ul className="mx-auto mt-5 flex max-w-xl flex-wrap justify-center gap-2">
+                {featuredCollections.map((c) => (
+                  <li
+                    key={c.id}
+                    className="rounded-full border border-brand-bone/25 px-3 py-1 text-xs font-medium text-brand-bone/85"
+                  >
+                    {c.name} ·{" "}
+                    {c.productCount === 1
+                      ? "1 item"
+                      : `${c.productCount} items`}
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {/* Cart-style summary. One row per (product, variant) combo, with
                 an X to remove. Small "Done" link below for quick return to the

@@ -8,10 +8,19 @@ import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
 import { deriveConnectRouting } from "@/lib/stripe-connect";
 import { deriveGoodsVisibilitySummary } from "@/lib/goods-visibility-summary";
+import {
+  parseSurfaceContentSettings,
+  resolveSurfaceContent,
+} from "@inklee/shared/surface-content";
+import { liveCollections } from "@inklee/shared/collections";
+import { listCollectionsForArtist } from "@/lib/server/collections";
+import { getAccountOverrides } from "@/lib/entitlements-server";
+import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import GoodsNewButton from "./goods-new-button";
 import GoodsTile, { type GoodsTileItem } from "./goods-tile";
 import ShopCheckoutToggle from "./shop-checkout-toggle";
 import GoodsVisibilitySummaryCard from "./goods-visibility-summary-card";
+import ShopContentForm from "./shop-content-form";
 
 type RawRow = {
   id: string;
@@ -88,6 +97,29 @@ export default async function GoodsPage() {
     connectReady: connectRouting.routeCharges,
   });
 
+  // Shop surface content (founder ruling FD10, 2026-08-01). The editor reads
+  // the PURE, unfiltered parser (not resolvedSurfaceContent's entitlement
+  // view): an artist's own stored configuration must still be visible to
+  // them here even mid-downgrade, so nothing looks silently erased. `entitled`
+  // decides only whether the form is interactive.
+  const shopContent = resolveSurfaceContent(
+    parseSurfaceContentSettings(settings.surface_content),
+    "shop",
+  );
+  let richContentEntitled = false;
+  try {
+    richContentEntitled = richContentBlocksAllowed(
+      await getAccountOverrides(user!.id),
+    );
+  } catch {
+    richContentEntitled = false;
+  }
+  const allCollections = await listCollectionsForArtist(supabase, user!.id);
+  const featurableCollections = liveCollections(allCollections).map((c) => ({
+    id: c.id,
+    name: c.name,
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -107,6 +139,12 @@ export default async function GoodsPage() {
       <GoodsVisibilitySummaryCard summary={visibilitySummary} />
 
       <ShopCheckoutToggle enabled={shopCheckoutEnabled(settings)} />
+
+      <ShopContentForm
+        content={shopContent}
+        entitled={richContentEntitled}
+        collections={featurableCollections}
+      />
 
       {products.length === 0 ? (
         <div className="space-y-4 rounded-[20px] border border-dashed border-border px-6 py-12 text-center">
