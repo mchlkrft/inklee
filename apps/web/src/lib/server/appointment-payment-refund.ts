@@ -113,12 +113,21 @@ export async function refundPaymentRequestCore(input: {
   }
 
   // 2. Read existing allocations to compute the refundable amount.
+  //
+  // ARTIST-SCOPED (audit 2026-08-02). Keying on the intent id ALONE was safe
+  // only by accident: `payment_requests.payment_intent_id` is artist-writable,
+  // and what stopped a forged id from reaching a victim's allocations was a
+  // partial unique index plus the fact that nothing currently writes
+  // `partially_paid` — an undocumented accident one feature away from
+  // dissolving. `payment_allocations.artist_id` exists; use it, so the scope
+  // is a property of the query rather than of the rest of the system.
   const { data: allocations } = await serviceClient
     .from("payment_allocations")
     .select(
       "id, line_id, component, amount_minor, currency, collected_total_minor",
     )
     .eq("payment_intent_id", request.payment_intent_id)
+    .eq("artist_id", input.artistId)
     .neq("component", "refund_adjustment");
 
   if (!allocations || allocations.length === 0) {
@@ -140,6 +149,7 @@ export async function refundPaymentRequestCore(input: {
     .from("payment_allocations")
     .select("amount_minor")
     .eq("payment_intent_id", request.payment_intent_id)
+    .eq("artist_id", input.artistId)
     .eq("component", "refund_adjustment");
 
   const alreadyRefunded = Math.abs(
@@ -480,7 +490,8 @@ export async function refundPaymentRequestCore(input: {
         processor_cost_retained_minor:
           alreadyRetainedMinor + retainedAppliedMinor,
       })
-      .eq("payment_intent_id", request.payment_intent_id);
+      .eq("payment_intent_id", request.payment_intent_id)
+      .eq("artist_id", input.artistId);
     if (retErr) {
       Sentry.captureException(retErr, {
         tags: { action: "appointment_payment_record_retained_cost" },

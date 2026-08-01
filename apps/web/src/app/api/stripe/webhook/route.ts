@@ -214,11 +214,38 @@ export async function POST(request: Request) {
     // its own records (sponsorship release + refund audit).
     const goodsOutcome = await settleGoodsOrderRefund(charge);
 
-    const { data: booking } = await serviceClient
+    const { data: bookingRows, error: bookingErr } = await serviceClient
       .from("booking_requests")
       .select("id, artist_id, deposit_fee_sponsorship_booked_cents")
-      .eq("deposit_payment_intent_id", intentId)
-      .single();
+      .eq("deposit_payment_intent_id", intentId);
+    // AMBIGUITY IS NOT ABSENCE (audit 2026-08-02). This used `.single()` and
+    // discarded its error, so TWO rows carrying the same intent id (the column
+    // is artist-writable and not uniquely indexed) produced PGRST116, read as
+    // "no booking", and the handler returned 200 having skipped the
+    // sponsorship release AND the deposit_refunded audit row — which is also
+    // the guard refundDepositCore uses against a second refund. Silent, and
+    // plantable by the payer. Now: exactly one row proceeds; more than one is
+    // a data-integrity emergency that must be LOUD and must not be treated as
+    // "nothing to do".
+    if (bookingErr) {
+      Sentry.captureException(bookingErr, {
+        tags: { action: "charge_refunded_booking_lookup" },
+        extra: { intentId },
+      });
+      return NextResponse.json({ error: "lookup failed" }, { status: 500 });
+    }
+    if ((bookingRows?.length ?? 0) > 1) {
+      Sentry.captureMessage(
+        "charge.refunded: MULTIPLE bookings claim this payment intent",
+        {
+          level: "error",
+          tags: { action: "charge_refunded_booking_lookup" },
+          extra: { intentId, count: bookingRows!.length },
+        },
+      );
+      return NextResponse.json({ error: "ambiguous booking" }, { status: 500 });
+    }
+    const booking = bookingRows?.[0] ?? null;
     // A standalone goods PI has no booking; the goods settle above was the
     // whole job then.
     if (!booking) {
