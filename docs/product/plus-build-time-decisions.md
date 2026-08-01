@@ -1225,3 +1225,17 @@ helper that always allocates a new array. Recorded here rather than in
 `docs/audit/findings.yaml` per this task's brief (the supervisor owns the
 register for this task); worth naming so a later reader does not wonder why
 a `freshDefault()` helper exists when `{ ...DEFAULT }` looks sufficient.
+
+**FD6 correction (2026-08-01, same day): the RLS half of the
+variant-ownership claim was FALSE until 0140.** The FD6 slice recorded that
+"variant belongs to product" was proven in two places, RLS `WITH CHECK` and
+application code. The RLS half was a tautology (`pv.product_id = product_id`
+inside a subquery over `product_variants` resolves BOTH sides to the inner
+table's column), so it proved only that the variant existed. Nobody caught it
+by reading: the author wrote it, the supervisor accepted it, and the migration
+comment asserted it. It turned red the first time a session had Docker and ran
+`pnpm test:db`, and is fixed forward-only by migration 0140. The application
+half was always real, so no bundle could ever have been SOLD with a mis-owned
+variant. Recorded as BUNDLE-RLS-001, whose widening question is the durable
+part: no other policy has been swept for the same column-shadowing shape, and
+that defect class cannot be found by review.

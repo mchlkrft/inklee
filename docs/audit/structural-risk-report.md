@@ -5,17 +5,19 @@
 
 # Structural risk report
 
-**Ledger content hash:** `46aa3e72122d`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `13461d574bbb`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-124 recorded finding(s), 3 structural pattern(s), across 83 mapped area(s).
-102 remain open by remediation status. 96 are reachable (directly or conditionally) rather than latent.
-98 have not passed independent verification.
-178 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+126 recorded finding(s), 3 structural pattern(s), across 84 mapped area(s).
+104 remain open by remediation status. 98 are reachable (directly or conditionally) rather than latent.
+100 have not passed independent verification.
+179 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -25,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 52 |
+| medium | 54 |
 | low | 37 |
 | informational | 4 |
 
@@ -35,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 35 |
+| fixed-unverified | 37 |
 | mitigated | 2 |
 | open | 62 |
 | risk-accepted | 2 |
@@ -45,8 +47,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 95 |
-| partially-verified | 2 |
+| not-started | 96 |
+| partially-verified | 3 |
 | passed | 26 |
 | pending | 1 |
 
@@ -140,11 +142,11 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 26 |
+| payment | 27 |
 | billing | 13 |
 | jobs | 13 |
 | webhook | 13 |
-| database | 11 |
+| database | 12 |
 | web | 10 |
 | testing | 7 |
 | authorization | 5 |
@@ -194,6 +196,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BILL-ENT-001 | medium | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
 | BILL-UI-001 | medium | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
 | BILL-UI-002 | medium | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
+| BUNDLE-RLS-001 | medium | conditionally-reachable | latent | 0138's variant-ownership RLS check was a TAUTOLOGY: the unqualified column resolved to the subquery's own table, so the clause proved only that the variant exists |
 | CRON-CAP-001 | medium | conditionally-reachable | latent | The per-artist 10-email daily cap is consumed in branch order, and a capped appointment reminder is lost rather than deferred |
 | CRON-COV-001 | medium | conditionally-reachable | unknown | coverage-worker has no run-level mutual exclusion and its real cadence comes from a GitHub Actions schedule against production, making overlap plausible for the non-task work |
 | CRON-GRW-001 | medium | directly-reachable | historically-impacting | The daily growth snapshot has two permanent unrecoverable gaps and nothing detects or backfills a missed run |
@@ -218,6 +221,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-004 | medium | conditionally-reachable | latent | Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund |
 | PAY-RFD-007 | medium | conditionally-reachable | latent | No artist self-serve refund path for money collected on a cancelled/expired/failed request |
 | PAY-RFD-008 | medium | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
+| PAY-RFD-009 | medium | conditionally-reachable | latent | The appointment by-line refund summed each selected line's FULL original allocation every call, so re-selecting an exhausted line over-refunded by misattribution |
 | SEED-GRT-001 | medium | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
 | SHOP-DROP-001 | medium | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
@@ -277,6 +281,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
 | BILL-UI-001 | medium | fixed-unverified | not-started | 45a44bee |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
+| BUNDLE-RLS-001 | medium | fixed-unverified | partially-verified | 48cfbab2 |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | GOODS-VAR-001 | medium | fixed-unverified | not-started | 88c9e544 |
@@ -287,6 +292,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-003 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-007 | medium | fixed-unverified | passed | 752e989 |
+| PAY-RFD-009 | medium | fixed-unverified | not-started | c3699793 |
 | SHOP-FUL-004 | medium | fixed-unverified | not-started | b483efc7 |
 | TEST-VAC-004 | medium | fixed-unverified | not-started | 5fa0110e |
 | TEST-VAC-006 | medium | fixed-unverified | not-started | 5fa0110e |
@@ -327,6 +333,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Bundles: 0132_product_bundles.sql:61-62 gives product_bundles its own is_public_visible mirroring product_collections. Slice C4 (payable bundles) is not yet written; the same omission would land there. NOT inspected.
 - Commit edb99fb (2026-07-21) records that 0095-0098 ALSO had to be repaired into the ledger because 'they had been applied by another session via direct SQL and were unrecorded' — a second, later ledger/reality divergence, in the safe direction. Whether other silent divergences exist was NOT checked against a live catalog.
 - Every /api/mobile/* route relies on requireMobileUser and none of the routes I read carries a rate limit except events/route.ts and settings/connect-link/route.ts. The authenticated-but-unthrottled write routes (goods, travel, booking-form fields) were not assessed for abuse volume.
+- Every other RLS policy whose WITH CHECK contains an `exists` subquery over a table that shares a column name with the policy's own table. Not swept. This is the highest value follow-up from this finding, because the defect class is invisible to reading.
 - Every other `revoke execute ... from public` in the migration set was NOT enumerated. Any function whose only caller is the service role and which revokes from PUBLIC without an explicit service_role grant has the live version of this defect.
 - Every other caller of a deliberately-throwing helper placed after a once-only conditional update was NOT enumerated.
 - Every other fixture divergence between the local stack and production: seed.sql also runs ALTER DEFAULT PRIVILEGES (lines 27-30), so future objects created locally differ too, and pg_default_acl was not diffed.

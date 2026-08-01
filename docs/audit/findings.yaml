@@ -13001,6 +13001,195 @@ findings:
         note: "Found and fixed in the same commit; reported for the register per the task's
           supervisor-ledgers rule."
 
+  - id: "BUNDLE-RLS-001"
+    title: "0138's variant-ownership RLS check was a TAUTOLOGY: the unqualified column resolved to
+      the subquery's own table, so the clause proved only that the variant exists"
+    summary: "0138 added `exists (select 1 from product_variants pv where pv.id = variant_id and
+      pv.product_id = product_id)` to both bundle-item write policies, intending to prove a slot's
+      variant belongs to that slot's product. Inside the subquery the unqualified `product_id`
+      resolves to the INNER table's column, so it compiled to `pv.product_id = pv.product_id` and
+      was true for every row - exactly what the foreign key already proved. `pv.id = variant_id`
+      was unaffected (product_variants has no such column). An artist's own client could therefore
+      write a bundle slot naming a variant of a DIFFERENT product. The money path never trusted
+      it: FD6's resolveBundleComponent resolves a variant only from its own product's list, so a
+      mis-owned row could not be SOLD; the exposure was the write and the editor rendering a slot
+      whose variant name belongs to something else."
+    classification:
+      domain: "database"
+      category: "missing-authorization"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "fd12-worker (ran pnpm test:db with Docker available and reported the red
+        test); root cause and fix by the supervisor"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "88c9e544"
+      environment: "local"
+      discovery_context: "The FD6 slice shipped with its db tests UNRUN (no Docker in that
+        session) and the policy read as correct to three separate readers, including its author
+        and the supervisor who accepted it. The first session with Docker turned it red."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0138_bundle_item_variants.sql"
+      database_objects:
+        - "product_bundle_items"
+    evidence:
+      observed_facts:
+        - "bundle-items-rls.test.ts 'refuses a variant that belongs to a DIFFERENT product, even
+          the SAME owner's (RLS, 42501)' failed: the insert succeeded where 42501 was expected.
+          Reproduced by the supervisor before any fix (1 failed | 16 passed)."
+        - "Root cause read directly from 0138: `pv.product_id = product_id` inside a subquery
+          over product_variants, where the FROM-clause column shadows the outer row reference."
+        - "After 0140 (qualified as product_bundle_items.product_id, drop-then-create): 17/17
+          pass."
+      references:
+        - "apps/web/tests/db/bundle-items-rls.test.ts"
+      inspected_comparables_without_issue:
+        - "The sibling `exists` clauses in the same policies are safe: products has no
+          `product_id` column and product_bundles has no `bundle_id` column, so those unqualified
+          names still resolve to the row being written. Checked explicitly rather than assumed."
+    assessment:
+      interpretation: "PAT-001 in its purest form: a safety property asserted in a migration
+        comment, a decision record and a supervisor acceptance message, none of which had ever
+        been executed. The SQL scoping rule that defeated it is invisible to review - three
+        readers passed it."
+      root_cause_hypothesis: "Policy subqueries look like ordinary SQL but carry an implicit
+        outer row whose columns are shadowed by any FROM-clause table sharing a column name; the
+        one column name shared here was the one the check depended on."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Bundle item writes by an authenticated artist; no sale path."
+      production_exposure: "None: 0138 is unapplied to production and bundles are unreleased."
+      exploit_preconditions: "An authenticated artist crafting a bundle-item write outside the
+        editor UI."
+      remaining_uncertainty: "Whether other policies in the repo share the shadowing shape was
+        NOT swept in this pass - recorded as the widening question below."
+    relationships:
+      related_findings:
+        - "GOODS-VAR-001"
+      analogous_uninspected_areas:
+        - "Every other RLS policy whose WITH CHECK contains an `exists` subquery over a table
+          that shares a column name with the policy's own table. Not swept. This is the highest
+          value follow-up from this finding, because the defect class is invisible to reading."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "48cfbab2"
+      fixed_at: "2026-08-01"
+      proposed_action: "0140 qualifies the reference (product_bundle_items.product_id) and
+        recreates both policies drop-then-create; forward-only per the 0133 precedent rather than
+        editing 0138, since other local databases had already run it. Proven red-then-green by
+        execution against local Postgres."
+    verification:
+      status: "partially-verified"
+      independent: false
+      verified_by: "supervisor session (reproduced the failure, wrote the fix, re-ran the suite)"
+      verified_at: "2026-08-01"
+      verification_commit: "48cfbab2"
+      verification_method: "EXECUTED against local Postgres: the failing case reproduced before
+        the fix (1 failed of 17), 0140 applied via supabase db push, the same suite re-run green
+        (17/17), then the FULL db suite green (235/235). Convergence of 0140 itself rests on the
+        drop-then-create pattern that AGENTS.md documents as the strongest convergent shape; it
+        was NOT falsified by a hand-drop because psql is not on PATH in this shell."
+      residual_risk: "Fixed by the same session that diagnosed it; independent re-verification
+        queued. The analogous-policy sweep has not been done."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "fd12-worker"
+        action: "opened"
+        note: "Reported as a red db test out of its own scope, with a citation to FD6's own
+          progress note admitting the tests had never run."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Root-caused to SQL column shadowing and fixed in 48cfbab2; the FD6 records that
+          claimed RLS proved variant ownership are corrected by this entry."
+
+  - id: "PAY-RFD-009"
+    title: "The appointment by-line refund summed each selected line's FULL original allocation
+      every call, so re-selecting an exhausted line over-refunded by misattribution"
+    summary: "The pre-existing by_line branch computed a refund from the selected lines' original
+      allocations rather than their REMAINING balances. Re-selecting an already-refunded line
+      while another line still held balance summed too much; the order-level maxRefundable clamp
+      then silently reattributed the excess to the wrong line, so the total could be right while
+      the per-line ledger was wrong. Found by the FD12 worker while building quantity-based
+      refunds on top of it, and fixed in the same commit by tracking each line's own remaining
+      balance through the new refund ledger."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "fd12-worker (implementing FD12 on top of the existing branch)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "c3699793"
+      environment: "repository-only"
+      discovery_context: "Building the quantity dimension required per-line remaining balances,
+        which exposed that the existing branch had none."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+    evidence:
+      observed_facts:
+        - "Pinned by the named test 'does not misattribute an exhausted line's balance to another
+          line (by_line over-refund fix)'."
+        - "A second, related gap found in the same slice: the goods full-refund path had no
+          cross-check against the order-level maxRefundable (only by_line did), so a prior bare
+          custom-amount refund could let a later full refund proceed on stale per-item math. Both
+          now refuse on disagreement rather than clamping."
+      references:
+        - "apps/web/src/lib/server/goods-order-refund.ts"
+    assessment:
+      interpretation: "Clamping instead of refusing is the through-line in both halves: a total
+        that looks right while the attribution is wrong is exactly what an immutable per-line
+        ledger exists to prevent."
+      root_cause_hypothesis: "The original by_line branch predated any per-line refund history,
+        so 'already refunded' had nowhere to live."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists issuing successive partial refunds on one payment
+        request; the fee-refund arithmetic downstream of the attribution."
+      production_exposure: "None: appointment payments are unreleased and the fee-refund policy
+        is inactive."
+      exploit_preconditions: "Not attacker-driven; ordinary successive-refund use."
+      remaining_uncertainty: "No Stripe test-mode execution; the arithmetic is unit-level."
+    relationships:
+      related_findings:
+        - "PAY-RFD-002"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "c3699793"
+      fixed_at: "2026-08-01"
+      proposed_action: "Per-line remaining balances tracked via the new refunds/refund_lines
+        ledger (migration 0139); both lanes now refuse when the per-item ledger disagrees with
+        the order-level balance instead of clamping. Distinct idempotency keys per line
+        selection close a latent collision the amount-only key shape carried."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued for the money-path adversarial round"
+      verified_at: "2026-08-01"
+      verification_commit: "c3699793"
+      verification_method: "Supervisor re-ran the full web suite (3018 + 1 expected fail) and the
+        full db suite (235/235, including the slice's 17 new refund-ledger RLS tests). The
+        arithmetic itself is covered by the slice's named tests; not executed against Stripe."
+      residual_risk: "Self-found and self-fixed within one slice; independent verification of the
+        refund arithmetic is the single highest-value remaining check in the FD phase."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "fd12-worker"
+        action: "opened"
+        note: "Found and fixed in the same commit; reported for the register per the task's
+          supervisor-ledgers rule."
+
 patterns:
 
   - id: "PAT-001"
@@ -15666,3 +15855,31 @@ coverage:
       vitest include and is verified by reading only. No native work in FD10 (no native editor
       exists to mirror) and no native gallery editing yet (FD2, queued). The guestSpots surface
       is deliberately unbuilt, not deferred silently."
+
+  - area: "First full execution of the database test suite against Postgres (migrations
+      0135-0140), plus the FD12 refund slice"
+    subsystem: "database"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-01"
+    commit_inspected: "48cfbab2"
+    reviewer: "fd12-worker (had Docker; ran the suite and reported three reds out of its own
+      scope) and the supervisor (root-caused and fixed all three)"
+    evidence: "Every db test in this repo had been CI-pending for the whole build phase - no
+      session before this one had a running Postgres, so migrations 0135-0140 had never been
+      executed at all. Running them turned up one PRODUCT defect and two TEST defects, none of
+      which reading had caught: BUNDLE-RLS-001 (0138's variant-ownership check was a tautology
+      through SQL column shadowing - reproduced red, fixed by 0140, re-run green); a convergence
+      test that dropped every constraint and index across four tables while replaying only two
+      of the six owning migrations, so it measured a gap it had created itself; and an anon-RLS
+      fixture that violated two 0125/0126 invariants and therefore could never have passed. All
+      three fixed. FULL DB SUITE 235/235 GREEN, the first complete green run in the repo's
+      history. Web suite 3018 passed + 1 expected fail; tsc clean."
+    recommended_next_inspection: "Sweep every other RLS policy whose WITH CHECK contains an
+      `exists` subquery over a table sharing a column name with the policy's own table - the
+      BUNDLE-RLS-001 defect class is invisible to reading and only one instance has been
+      checked. Then run this suite in CI so it cannot go dark again."
+    known_exclusions: "0140's own convergence was not falsified by a hand-drop (psql absent from
+      PATH); it rests on the drop-then-create pattern AGENTS.md documents as strongest. No Stripe
+      execution: the refund arithmetic is unit-level. Production is untouched - none of
+      0125-0140 is applied there."
