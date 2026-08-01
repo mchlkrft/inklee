@@ -224,3 +224,64 @@ Keep this email as your receipt. If anything looks wrong, contact ${artistName} 
     return false;
   }
 }
+
+/**
+ * REFUND CONFIRMATION (FD12: the founder's list names "buyer confirmation" as
+ * a required behaviour, matching `sendPaymentReceiptEmail`'s existing pattern
+ * for the collection side). Called from `refundPaymentRequestCore` after
+ * Stripe has confirmed the refund; best-effort for the same reason a receipt
+ * is: the money has already moved, so a bounced email is a delivery gap, not
+ * a reason to report the refund as failed.
+ */
+export async function sendRefundConfirmationEmail(
+  supabase: SupabaseClient,
+  args: {
+    artistId: string;
+    requestId: string;
+    bookingId: string | null;
+    projectId: string | null;
+    refundedMinor: number;
+    remainingRefundableMinor: number;
+    currency: string;
+  },
+): Promise<boolean> {
+  try {
+    const clientEmail = await resolveClientEmail(
+      supabase,
+      args.artistId,
+      args.bookingId,
+      args.projectId,
+    );
+    if (!clientEmail || !clientEmail.includes("@")) return false;
+
+    const artistName = await resolveArtistName(supabase, args.artistId);
+    const amount = formatAmount(args.refundedMinor, args.currency);
+    const remaining =
+      args.remainingRefundableMinor > 0
+        ? `\n\n${formatAmount(args.remainingRefundableMinor, args.currency)} of your original payment remains, unaffected by this refund.`
+        : "";
+
+    const body = `Hi,
+
+${artistName} has refunded ${amount} to your original payment method.
+
+Refunds typically appear on your statement within 5 to 10 business days, depending on your bank.${remaining}
+
+If anything looks wrong, contact ${artistName} directly.`;
+
+    await sendEmail({
+      to: clientEmail,
+      subject: `Refund from ${artistName}`,
+      html: buildEmailHtml(body, {}, undefined, {
+        footerNote: `Sent by Inklee on behalf of ${artistName}.`,
+      }),
+    });
+    return true;
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { action: "payment_refund_confirmation_email" },
+      extra: { requestId: args.requestId, artistId: args.artistId },
+    });
+    return false;
+  }
+}

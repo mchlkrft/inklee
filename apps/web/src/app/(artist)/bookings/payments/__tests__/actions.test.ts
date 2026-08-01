@@ -67,6 +67,7 @@ beforeEach(() => {
     status: "ok",
     refundId: "re1",
     refundedMinor: 5000,
+    remainingRefundableMinor: 0,
   });
 });
 
@@ -272,7 +273,11 @@ describe("refundPaymentRequestAction", () => {
       refundType: "full",
       case: "voluntary_full",
     });
-    expect(r).toEqual({ ok: true });
+    expect(r).toEqual({
+      ok: true,
+      refundedMinor: 5000,
+      remainingRefundableMinor: 0,
+    });
     expect(refundCore).toHaveBeenCalledWith(
       expect.objectContaining({
         artistId: "artist1",
@@ -282,6 +287,24 @@ describe("refundPaymentRequestAction", () => {
       }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/bookings/payments/r1");
+  });
+
+  it("forwards a by_line refund's lineIds and lineQuantities to the core (FD12)", async () => {
+    const r = await refundPaymentRequestAction({
+      id: "r1",
+      refundType: "by_line",
+      lineIds: ["l1", "l2"],
+      lineQuantities: { l1: 2 },
+      case: "voluntary_full",
+    });
+    expect(r.ok).toBe(true);
+    expect(refundCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refundType: "by_line",
+        lineIds: ["l1", "l2"],
+        lineQuantities: { l1: 2 },
+      }),
+    );
   });
 
   it("rejects a fee-manipulating case WITHOUT calling the core (real allowlist)", async () => {

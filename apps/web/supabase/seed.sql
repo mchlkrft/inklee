@@ -74,6 +74,18 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_allocations
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_collections
   FROM anon, authenticated;
 
+-- Mirror of 0139_refund_ledger.sql. Same rationale and the SAME footgun
+-- proven above: without this, `truncate refunds` (and INSERT/UPDATE/DELETE)
+-- succeed as `authenticated` on a freshly reset local stack, because the
+-- blanket GRANT ALL clobbers the migration's own REVOKE. Executed, not
+-- assumed: refund-ledger-rls.test.ts's INSERT/UPDATE/DELETE/TRUNCATE
+-- refusals all went green (no error) immediately after `supabase db reset`
+-- until this mirror was added.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.refunds
+  FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.refund_lines
+  FROM anon, authenticated;
+
 -- Mirror of 0074_profiles_column_privileges.sql + the 0076 + 0084 + 0102 grant
 -- extensions:
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;

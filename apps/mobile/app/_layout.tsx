@@ -233,6 +233,10 @@ function RootNavigator() {
           options={{ ...stackHeader, title: "New appointment" }}
         />
         <Stack.Screen
+          name="bookings/payments/[id]/revise"
+          options={{ ...stackHeader, title: "Revise payment request" }}
+        />
+        <Stack.Screen
           name="clients/[email]"
           options={{ ...stackHeader, title: "Client" }}
         />

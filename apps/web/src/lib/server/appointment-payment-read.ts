@@ -28,6 +28,11 @@ export type PaymentRequestSummary = {
   linkSent: boolean;
   createdAt: string;
   sentAt: string | null;
+  /** FD12: exposed so a caller with no OTHER way to read this frozen-set
+   *  column (the native app, which has no raw table access) can prefill a
+   *  revise form. The web revise page reads it separately, through its own
+   *  RLS-scoped client; this is additive, not a replacement for that. */
+  collects: string;
 };
 
 export type PaymentRequestLineView = {
@@ -47,7 +52,7 @@ export type PaymentRequestDetail = PaymentRequestSummary & {
 };
 
 const SUMMARY_COLS =
-  "id, status, booking_id, project_id, currency, total_minor, revision, sent_at, created_at";
+  "id, status, booking_id, project_id, currency, total_minor, revision, sent_at, created_at, collects";
 
 function toSummary(row: Record<string, unknown>): PaymentRequestSummary {
   const bookingId = (row.booking_id as string | null) ?? null;
@@ -63,6 +68,7 @@ function toSummary(row: Record<string, unknown>): PaymentRequestSummary {
     linkSent: Boolean(row.sent_at),
     createdAt: row.created_at as string,
     sentAt: (row.sent_at as string | null) ?? null,
+    collects: (row.collects as string | null) ?? "deposit",
   };
 }
 

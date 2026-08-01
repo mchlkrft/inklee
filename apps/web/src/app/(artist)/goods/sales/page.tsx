@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatPrice, toPriceNumber } from "@/lib/goods";
 import { getAccountOverrides } from "@/lib/entitlements-server";
@@ -40,6 +41,7 @@ type RawOrder = {
 
 type Row = {
   key: string;
+  orderId: string;
   date: string;
   client: string;
   bookingId: string;
@@ -61,6 +63,7 @@ function buildRows(
     items.forEach((i, idx) => {
       rows.push({
         key: `${o.id}-${idx}`,
+        orderId: o.id,
         date: o.created_at,
         client,
         bookingId: o.booking_id,
@@ -291,6 +294,7 @@ export default async function GoodsSalesPage() {
                   <th className="px-4 py-3 text-center font-medium">Qty</th>
                   <th className="px-4 py-3 text-right font-medium">Amount</th>
                   <th className="px-4 py-3 font-medium">Pickup</th>
+                  <th className="px-4 py-3 font-medium" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -315,6 +319,14 @@ export default async function GoodsSalesPage() {
                           : r.fulfillment === "cancelled"
                             ? "Cancelled"
                             : "Awaiting pickup"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <Link
+                        href={`/goods/sales/${r.orderId}`}
+                        className="text-xs text-muted-foreground underline hover:text-foreground"
+                      >
+                        View
+                      </Link>
                     </td>
                   </tr>
                 ))}

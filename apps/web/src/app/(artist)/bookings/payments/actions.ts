@@ -160,17 +160,24 @@ export async function revisePaymentRequestAction(
   return { ok: true, id: result.id };
 }
 
+export type RefundPaymentRequestResult =
+  | { ok: true; refundedMinor: number; remainingRefundableMinor: number }
+  | { ok: false; error: string };
+
 /** Refund a paid request. The fee-refund CASE decides Inklee's fee treatment, so
  *  an artist may only assert the artist-initiated subset (voluntary / cancellation);
  *  the route-level allowlist mirrors the mobile refund route. The core (with the
- *  M5/M11 fixes) computes amounts + fee handling from stored transaction state. */
+ *  M5/M11 fixes) computes amounts + fee handling from stored transaction state.
+ *  `lineQuantities` (FD12) refunds a PARTIAL quantity of a `by_line` selection;
+ *  a line named without a quantity refunds its full remaining amount. */
 export async function refundPaymentRequestAction(input: {
   id: string;
   refundType: "full" | "partial" | "by_line";
   case: string;
   amountMinor?: number;
   lineIds?: string[];
-}): Promise<PaymentActionResult> {
+  lineQuantities?: Record<string, number>;
+}): Promise<RefundPaymentRequestResult> {
   const auth = await currentArtistId();
   if (!auth.ok) return { ok: false, error: "Not signed in." };
   if (!isArtistInitiatedFeeRefundCase(input.case)) {
@@ -182,10 +189,15 @@ export async function refundPaymentRequestAction(input: {
     refundType: input.refundType,
     amountMinor: input.amountMinor,
     lineIds: input.lineIds,
+    lineQuantities: input.lineQuantities,
     case: input.case,
   });
   if (result.status === "error") return { ok: false, error: result.message };
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${input.id}`);
-  return { ok: true };
+  return {
+    ok: true,
+    refundedMinor: result.refundedMinor,
+    remainingRefundableMinor: result.remainingRefundableMinor,
+  };
 }

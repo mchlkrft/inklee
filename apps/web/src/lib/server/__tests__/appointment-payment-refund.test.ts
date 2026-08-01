@@ -67,6 +67,14 @@ function makeChain(op: RecordedOp) {
       op.filters[`neq:${column}`] = value;
       return self;
     },
+    // FD12: the by_line branch reads `payment_request_lines` via `.in(...)`.
+    // Recorded like `.eq()`; unqueued keys fall back to the same
+    // `{ data: null, error: null }` default, so every pre-FD12 test that
+    // never touches this table is unaffected.
+    in: (column: string, value: unknown) => {
+      op.filters[`in:${column}`] = value;
+      return self;
+    },
     maybeSingle: () => Promise.resolve(nextReply(key)),
     then: (
       onFulfilled?: (value: Reply) => unknown,
@@ -95,6 +103,22 @@ beforeEach(() => {
       const op: RecordedOp = {
         table,
         verb: "update",
+        payload,
+        filters: {},
+      };
+      ops.push(op);
+      return makeChain(op);
+    },
+    // FD12: the immutable ledger write (`refunds` / `refund_lines`). Every
+    // PRE-FD12 test leaves this unqueued, so it resolves the same
+    // `{ data: null, error: null }` default as any other unqueued key — the
+    // ledger-write code treats a null `ledgerRow` as "insert produced no row"
+    // and skips the dependent `refund_lines` insert / `refund_status` update
+    // entirely, so no existing assertion is affected.
+    insert: (payload: unknown) => {
+      const op: RecordedOp = {
+        table,
+        verb: "insert",
         payload,
         filters: {},
       };
@@ -209,6 +233,7 @@ describe("refundPaymentRequestCore", () => {
       status: "ok",
       refundId: "re_test_123",
       refundedMinor: 15000,
+      remainingRefundableMinor: 0,
     });
 
     expect(mockStripe.refunds.create).toHaveBeenCalledWith(
@@ -615,6 +640,7 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
       status: "ok",
       refundId: "re_test_123",
       refundedMinor: 15000,
+      remainingRefundableMinor: 0,
     });
     expect(lastRefundCall().reverse_transfer).toBe(true);
   });
@@ -676,5 +702,244 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     });
 
     expect(lastIdempotencyKey()).toBe("refund-apt-req_1-2000-5000");
+  });
+});
+
+// FD12: quantity-based line refunds, the immutable ledger, and a real
+// over-refund bug this rebuild found and fixed in the SAME by_line branch: the
+// old code summed a selected line's FULL ORIGINAL allocation every time, so
+// re-selecting an already-refunded line while ANOTHER line still held balance
+// summed too much and the overall `maxRefundable` clamp then silently
+// attributed the excess to the wrong line instead of refusing it.
+describe("refundPaymentRequestCore FD12: quantity refunds + ledger + over-refund fix", () => {
+  it("does not misattribute an exhausted line's balance to another line (by_line over-refund fix)", async () => {
+    setupStandardRefund();
+    // l1: nothing refunded yet. l2: ALREADY fully refunded (3000 of 3000),
+    // proven via the immutable ledger rather than the converging allocation
+    // total (which may not have caught up yet — the exact race this fix
+    // closes).
+    queue("refund_lines:select", { data: [] });
+    queue("refund_lines:select", { data: [{ amount_minor: 3000 }] });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "by_line",
+      lineIds: ["l1", "l2"],
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      // Only l1's 10000. The pre-fix code would have summed l1 (10000) +
+      // l2's FULL original amount (3000) = 13000, then let the overall
+      // 15000 balance clamp accept it — silently refunding l2 a second time.
+      expect(result.refundedMinor).toBe(10000);
+    }
+    expect(lastRefundCall().amount).toBe(10000);
+  });
+
+  it("refunds only the requested quantity's share of a multi-quantity line", async () => {
+    queue("payment_requests:select", { data: REQUEST_ROW });
+    queue("payment_allocations:select", {
+      data: [
+        {
+          id: "a1",
+          line_id: "l1",
+          component: "full_price",
+          amount_minor: 10000,
+          currency: "eur",
+          collected_total_minor: 13000,
+        },
+        {
+          id: "a2",
+          line_id: "l2",
+          component: "physical_goods",
+          amount_minor: 3000,
+          currency: "eur",
+          collected_total_minor: 13000,
+        },
+      ],
+    });
+    queue("payment_allocations:select", { data: [] }); // existingAdj
+    queue("payment_request_lines:select", {
+      data: [
+        { id: "l2", name: "T-shirt", quantity: 3, unit_amount_minor: 1000 },
+      ],
+    });
+    queue("refund_lines:select", { data: [] }); // l2: nothing refunded yet
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "by_line",
+      lineIds: ["l2"],
+      lineQuantities: { l2: 1 },
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.refundedMinor).toBe(1000); // 1 of 3 units @ 1000/unit
+    }
+    expect(lastRefundCall().amount).toBe(1000);
+  });
+
+  it("caps a requested quantity at what remains on the line, never exceeding it", async () => {
+    queue("payment_requests:select", { data: REQUEST_ROW });
+    queue("payment_allocations:select", {
+      data: [
+        {
+          id: "a1",
+          line_id: "l2",
+          component: "physical_goods",
+          amount_minor: 3000,
+          currency: "eur",
+          collected_total_minor: 3000,
+        },
+      ],
+    });
+    queue("payment_allocations:select", { data: [] });
+    queue("payment_request_lines:select", {
+      data: [
+        { id: "l2", name: "T-shirt", quantity: 3, unit_amount_minor: 1000 },
+      ],
+    });
+    queue("refund_lines:select", { data: [] });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "by_line",
+      lineIds: ["l2"],
+      lineQuantities: { l2: 99 }, // way more than the line's own quantity of 3
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.refundedMinor).toBe(3000); // capped at the line's full 3 units
+    }
+  });
+
+  it("writes an immutable refunds ledger row and per-line refund_lines rows for a by_line refund", async () => {
+    setupStandardRefund();
+    queue("refund_lines:select", { data: [] }); // l2 remaining lookup
+    queue("refund_lines:select", { data: [] }); // l3 remaining lookup
+    queue("refunds:insert", { data: { id: "refund_led_1" } });
+    queue("refund_lines:select", { data: [{ amount_minor: 3000 }] }); // l2 total-after (refund_status)
+    queue("refund_lines:select", { data: [{ amount_minor: 2000 }] }); // l3 total-after (refund_status)
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "by_line",
+      lineIds: ["l2", "l3"],
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+
+    const refundInsert = ops.find(
+      (o) => o.table === "refunds" && o.verb === "insert",
+    );
+    expect(refundInsert?.payload).toEqual(
+      expect.objectContaining({
+        domain: "appointment_payment",
+        payment_request_id: "req_1",
+        refund_type: "by_line",
+        fee_refund_case: "voluntary_full",
+        status: "succeeded",
+        amount_minor: 5000,
+        stripe_refund_id: "re_test_123",
+      }),
+    );
+
+    const linesInsert = ops.find(
+      (o) => o.table === "refund_lines" && o.verb === "insert",
+    );
+    expect(linesInsert?.payload).toEqual([
+      expect.objectContaining({
+        refund_id: "refund_led_1",
+        payment_request_line_id: "l2",
+        amount_minor: 3000,
+      }),
+      expect.objectContaining({
+        refund_id: "refund_led_1",
+        payment_request_line_id: "l3",
+        amount_minor: 2000,
+      }),
+    ]);
+
+    // Both touched lines are now exhausted -> refund_status flips to 'full'.
+    const statusUpdates = ops.filter(
+      (o) => o.table === "payment_request_lines" && o.verb === "update",
+    );
+    expect(statusUpdates).toHaveLength(2);
+    expect(
+      statusUpdates.every(
+        (o) =>
+          (o.payload as { refund_status: string }).refund_status === "full",
+      ),
+    ).toBe(true);
+  });
+
+  it("marks every line 'full' when the whole request is refunded via refundType 'full'", async () => {
+    setupStandardRefund();
+    queue("refunds:insert", { data: { id: "refund_led_3" } });
+
+    await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    const statusUpdate = ops.find(
+      (o) => o.table === "payment_request_lines" && o.verb === "update",
+    );
+    expect(statusUpdate?.payload).toEqual({ refund_status: "full" });
+    expect(statusUpdate?.filters).toEqual({ request_id: "req_1" });
+  });
+
+  it("does not attempt a per-line refund_status update for an amount-only partial refund", async () => {
+    setupStandardRefund();
+    queue("refunds:insert", { data: { id: "refund_led_4" } });
+
+    await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "partial",
+      amountMinor: 5000,
+      case: "voluntary_partial",
+    });
+
+    const statusUpdate = ops.find(
+      (o) => o.table === "payment_request_lines" && o.verb === "update",
+    );
+    expect(statusUpdate).toBeUndefined();
+  });
+
+  it("a failed ledger write never affects the refund result (best-effort isolation)", async () => {
+    setupStandardRefund();
+    queue("refund_lines:select", { data: [] });
+    queue("refund_lines:select", { data: [] });
+    queue("refunds:insert", {
+      data: null,
+      error: { message: "boom", code: "500" },
+    });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "by_line",
+      lineIds: ["l2", "l3"],
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.refundedMinor).toBe(5000);
+    }
   });
 });

@@ -120,7 +120,11 @@ export default async function PaymentRequestDetailPage({
       {REFUNDABLE.has(request.status) && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium text-foreground">Refund</h2>
-          <RefundControl requestId={request.id} />
+          <RefundControl
+            requestId={request.id}
+            lines={request.lines}
+            currency={request.currency}
+          />
         </section>
       )}
     </div>

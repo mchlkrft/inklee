@@ -2171,3 +2171,154 @@ Supabase/Docker stack, and Docker was not running in this environment
 cases are typechecked and lint-clean but UNVERIFIED against a live Postgres;
 flagging for whoever next has Docker available, or for the release-sequencer
 before this migration is applied.
+
+**Update (2026-08-01, FD12 session): this handoff was actioned, and the flagged
+gap was real.** Docker was started and the full `pnpm test:db` suite run for
+the first time since this note was written. `bundle-items-rls.test.ts >
+refuses a variant that belongs to a DIFFERENT product, even the SAME owner's
+(RLS, 42501)` FAILS: `error?.code` is `undefined` (the insert SUCCEEDED)
+instead of the expected `42501`. Reproduced twice, in isolation and inside the
+full suite, on a freshly `supabase db reset` database — not flaky, not
+environment noise. This is a genuine, previously-never-executed RLS gap in the
+FD6 slice (migration 0138 / `bundle-items-rls.test.ts:339-385`): a bundle slot
+can apparently be saved with a variant that belongs to a product OTHER than
+the one the slot names, which the positive control two lines above proves is
+supposed to be refused. Out of scope for FD12 to fix (money-adjacent schema
+this session does not own the context for); reported to the team lead for
+routing to whoever owns FD6/0138 next. Two OTHER pre-existing, unrelated
+`test:db` failures were also found and confirmed unrelated to any file this
+session touched: `appointment-payments-convergence.test.ts`'s "restores the
+WHOLE constraint set" / "restores the indexes too" drop-and-restore its
+re-run list at `[0125, 0126, 0127]`, which predates 0131
+(`payment_collection_processor_cost.sql`) and 0136 (`fee_tier_stamp.sql`)
+adding their OWN constraints to `payment_collections` — those two migrations'
+constraints on that table are consequently never exercised by this
+convergence proof, a test-coverage gap rather than evidence 0131/0136
+themselves fail to converge. `appointment-payments-rls.test.ts`'s "a SENT
+request with a token hash is invisible to the anon key" fixture (line ~2066)
+inserts a `sent_at`-populated row without `fee_schedule_version`, which
+`payment_requests_fee_version_check` (present since 0125) has always
+rejected — the fixture cannot have run successfully since that constraint
+existed. Separately, this session found and fixed a REAL local-only
+environment footgun while validating migration 0139 (see the FD12 entry
+below): `supabase/seed.sql` was missing the REVOKE mirror for the two new
+`refunds`/`refund_lines` tables, reproducing the exact `payment_allocations`
+footgun 0125's own seed.sql comment already documents (`GRANT ALL` in
+seed.sql runs AFTER migrations on a local reset and silently undoes a
+migration's own REVOKE) — now fixed for the new tables; the fix does not
+touch prod, since seed.sql never runs there.
+
+## FD12: partial refunds engine + native revise (2026-08-01, ready for review)
+
+Founder ruling FD12 (`plus-build-time-decisions.md`, "partial refunds + native
+revise are pre-publication scope; SUPERSEDES the Track A leftovers by
+design"). Full report delivered to the team lead via SendMessage; this entry
+is the durable summary.
+
+**What shipped.**
+
+- Migration `0139_refund_ledger.sql`: a domain-generic (`appointment_payment` |
+  `goods_order`) immutable refund ledger, `refunds` + `refund_lines`, SELECT-only
+  for the owning artist / service-role-only writes (same posture as
+  `payment_allocations`/`payment_collections`), composite-FK ownership
+  (`refunds_payment_request_fk`, `refunds_order_fk`, `refund_lines_refund_fk`),
+  a domain/subject CHECK, and a unique `idempotency_key` that is the
+  duplicate-refund CLAIM GATE. Plus `processor_cost_minor` /
+  `processor_cost_status` / `processor_cost_retained_minor` /
+  `fee_refund_policy_version` on `orders`, mirroring 0131's columns on
+  `payment_collections` (captured only at STANDALONE order settlement —
+  add-on orders share a PI with the deposit, so their processor cost is not
+  goods-attributable, the same entangled-PI reasoning `goods-refund.ts`
+  already documents for refund amounts).
+- `appointment-payment-refund.ts` (existing, tested file — additive only, zero
+  behaviour change when the new params are omitted): quantity-based `by_line`
+  refunds (`lineQuantities`), a per-line remaining-balance fix (see Findings),
+  a best-effort immutable ledger write + per-line `refund_status` update after
+  Stripe confirms, a `remainingRefundableMinor` field on the ok result, and a
+  buyer confirmation email (`sendRefundConfirmationEmail`).
+- `goods-order-refund.ts` (new): the by-line/quantity/custom-amount engine
+  goods orders never had (the existing `goods-refund.ts` is the WEBHOOK
+  convergence backstop for an out-of-band refund and is unchanged). Full /
+  by-line-with-quantity / custom-amount, restock SELECTION via the existing
+  `expandInventoryMovements`/`restockInventory` (no second classifier),
+  discount cap-release gated on genuine full unwind (by amount, so it fires
+  correctly even when reached across several partial refunds), the same
+  PAY-RFD-002 fee/processor-cost policy reused via a new pure helper
+  (`refund-fee-treatment.ts`, factored out of the appointment core's decision
+  logic), and the pre-Stripe-call claim gate (`refund-ledger.ts`) as this
+  lane's ONLY duplicate-refund defense (unlike the appointment lane, which
+  already had a deterministic Stripe idempotency key).
+- Web UI: `RefundControl` (appointment) rebuilt for full/by-line-with-quantity/
+  custom-amount with a two-step confirm; a new goods order detail page
+  (`goods/sales/[id]`) + `GoodsRefundControl`, linked from the sales table.
+- Native: `apps/mobile/app/bookings/payments/[id]/revise.tsx`, the screen the
+  app never had (route existed since A7). `docs/web-native-parity.md` updated
+  in the same change (founder rule), including the reachability residual
+  (no native list/detail screen exists yet to link this from).
+
+**Findings from this rebuild, not carried in from elsewhere.**
+
+1. **A real over-refund-by-misattribution bug in the EXISTING `by_line`
+   branch**, found while adding quantity support. The old code summed a
+   selected line's FULL ORIGINAL allocation on every call; re-selecting an
+   already-refunded line while ANOTHER line still held balance summed too
+   much, and the overall `maxRefundable` clamp then silently reattributed the
+   excess to the wrong line instead of refusing it. Fixed by tracking each
+   line's OWN remaining balance via the new ledger
+   (`sumRefundedAmountForRequestLine`); mutation-tested
+   (`appointment-payment-refund.test.ts`, "does not misattribute an exhausted
+   line's balance to another line").
+2. **The `full` refund type had NO cross-check against the order-level
+   `maxRefundable`** in the new goods engine's first draft (only `by_line`
+   did) — a prior bare custom-amount refund (which touches no per-item row)
+   could let a later `full` refund proceed on stale per-item math alone.
+   Fixed by moving the check to apply uniformly to both, refusing on
+   disagreement rather than silently clamping (which would misattribute the
+   restock too); mutation-tested (`goods-order-refund.test.ts`, "refuses a
+   full refund when the per-item ledger disagrees with the order-level
+   balance").
+3. **A test-mock key collision** self-found while writing
+   `goods-order-refund.test.ts`: two different queries against the SAME table
+   (`sumSucceededRefundedMinor`'s list select vs. the claim gate's
+   single-row fallback select on `refunds`) shared one FIFO reply queue in
+   the naive mock, which would have silently fed one call's fixture to the
+   other. Fixed by keying the mock on `.maybeSingle()` vs. bare `await`
+   (a real distinction a live Supabase client also makes), not by table+verb
+   alone.
+4. **The `seed.sql` REVOKE-mirror footgun (0125's own documented pattern)
+   recurred for the new tables**, found by executing `supabase db reset` and
+   watching `refund-ledger-rls.test.ts`'s INSERT/UPDATE/DELETE/TRUNCATE
+   refusals go green with no error. Fixed in `seed.sql`, matching the exact
+   comment 0125 left for `payment_allocations`/`payment_collections`.
+5. **Three pre-existing `test:db` failures unrelated to this session**,
+   found because this is the first `pnpm test:db` run since the FD6 slice
+   above and since 0131/0136 shipped — recorded in the update note directly
+   above this entry, not repeated here.
+
+**Deliberately not built, with reasoning (per the brief's own allowance).**
+A pre-Stripe-call claim gate for the APPOINTMENT lane: it already has a
+deterministic Stripe idempotency key (M11) that makes a second layer lower
+value there; adding one would touch the existing tested Stripe-call code path
+for marginal benefit, so the appointment core's ledger write stays
+post-Stripe-success and best-effort, and the goods lane (which had NO
+pre-existing dedupe) gets the pre-flight claim gate instead. Processor-cost
+capture for ADD-ON (booking-entangled) goods orders: not attributable to
+goods alone on a shared PI, same reasoning `goods-refund.ts` already uses for
+refund amounts; those orders read the cost as null and fail safe. A native
+payment-request LIST/DETAIL screen: FD12 named native REVISE specifically;
+building the full management surface is materially larger scope than this
+ticket, and the revise screen's reachability gap is named rather than papered
+over (see `docs/web-native-parity.md`).
+
+**Validation.** `npx tsc --noEmit` clean (web + mobile) + `node
+scripts/check-lucide-icons.cjs` clean (138 icons). `eslint` 0 errors on every
+touched/new file. Full `npx vitest run`: 173 files, 3018 passed + 1 expected
+fail (3019 total) — up from the 2992-passed baseline by the ~26 tests this
+slice added, zero regressions. `pnpm test:db`: migration 0139 applied via
+`supabase db push` AND from a full `supabase db reset` (clean rebuild from
+0000-0139), constraint-drop-and-restore falsification executed on
+`refunds_payment_request_fk` (dropped -> red -> re-ran 0139 alone -> restored
+-> green), 17/17 new `refund-ledger-rls.test.ts` cases pass, all of
+`appointment-payment-refund.test.ts` (46, up from ~39) and the new
+`goods-order-refund.test.ts` (17) pass; the 3 pre-existing failures above are
+the only red in the full 235-test `test:db` suite.

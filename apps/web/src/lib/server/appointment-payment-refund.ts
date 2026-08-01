@@ -9,6 +9,8 @@ import {
   ACTIVE_FEE_REFUND_POLICY_VERSION,
   type FeeRefundCase,
 } from "@inklee/shared/fee-refund-policy";
+import { sumRefundedAmountForRequestLine } from "./refund-ledger";
+import { sendRefundConfirmationEmail } from "./appointment-payment-delivery";
 
 // APPOINTMENT PAYMENT REFUND INITIATION (Plus build P9, slice A5).
 //
@@ -27,7 +29,15 @@ import {
 // differ.
 
 export type RefundResult =
-  | { status: "ok"; refundId: string; refundedMinor: number }
+  | {
+      status: "ok";
+      refundId: string;
+      refundedMinor: number;
+      /** What remains refundable on this request AFTER this refund, in minor
+       *  units. Computed from the same allocation math as `maxRefundable`
+       *  above (FD12), so it needs no extra query. */
+      remainingRefundableMinor: number;
+    }
   | { status: "error"; message: string };
 
 // The states an artist can INITIATE a refund from. Wider than "paid": the
@@ -62,6 +72,11 @@ export async function refundPaymentRequestCore(input: {
   refundType: "full" | "partial" | "by_line";
   amountMinor?: number;
   lineIds?: string[];
+  /** FD12: optional per-line QUANTITY for a `by_line` refund, keyed by
+   *  `lineIds` entry. A line named here without a quantity (or omitted
+   *  entirely) refunds its full remaining amount, matching pre-FD12
+   *  behaviour exactly. */
+  lineQuantities?: Record<string, number>;
   case: FeeRefundCase;
 }): Promise<RefundResult> {
   if (!stripe) {
@@ -133,6 +148,13 @@ export async function refundPaymentRequestCore(input: {
   const maxRefundable = positiveTotal - alreadyRefunded;
 
   let refundMinor: number;
+  // Populated only for `by_line` (FD12), for the ledger's per-line history.
+  let refundLinePlan: {
+    lineId: string;
+    name: string;
+    quantity: number | null;
+    amountMinor: number;
+  }[] = [];
   if (input.refundType === "full") {
     refundMinor = maxRefundable;
   } else if (input.refundType === "partial") {
@@ -166,7 +188,71 @@ export async function refundPaymentRequestCore(input: {
         message: "No matching allocations for the specified lines.",
       };
     }
-    refundMinor = lineAllocations.reduce((s, a) => s + a.amount_minor, 0);
+
+    // FD12 fix: a line's remaining refundable amount is its OWN allocation
+    // minus what THIS SPECIFIC LINE has already had refunded (via the
+    // immutable ledger), not the full original allocation every time. Without
+    // this, re-selecting an already-refunded line while other lines still
+    // hold balance summed the line's FULL original amount, which the overall
+    // `maxRefundable` clamp below then silently reattributed to the wrong
+    // line (an over-refund by misattribution, not by total). Names/quantities
+    // are fetched only for `by_line` (never for `full`/`partial`, and never a
+    // new query for a caller that omits `lineQuantities`).
+    const { data: lineRows } = await serviceClient
+      .from("payment_request_lines")
+      .select("id, name, quantity, unit_amount_minor")
+      .in("id", input.lineIds);
+    const lineDetailsById = new Map(
+      (lineRows ?? []).map((l) => [
+        l.id as string,
+        {
+          name: (l.name as string) ?? "Line",
+          quantity: Number(l.quantity) || 1,
+          unitAmountMinor: Number(l.unit_amount_minor) || 0,
+        },
+      ]),
+    );
+
+    let sum = 0;
+    const plan: {
+      lineId: string;
+      name: string;
+      quantity: number | null;
+      amountMinor: number;
+    }[] = [];
+    for (const alloc of lineAllocations) {
+      const lineId = alloc.line_id as string;
+      const alreadyForLine = await sumRefundedAmountForRequestLine(lineId);
+      const remainingForLine = Math.max(0, alloc.amount_minor - alreadyForLine);
+      if (remainingForLine <= 0) continue;
+
+      const details = lineDetailsById.get(lineId);
+      const requestedQty = input.lineQuantities?.[lineId];
+      let lineAmount = remainingForLine;
+      let quantity: number | null = null;
+      if (
+        requestedQty &&
+        requestedQty > 0 &&
+        details &&
+        details.unitAmountMinor > 0
+      ) {
+        quantity = Math.min(requestedQty, details.quantity);
+        lineAmount = Math.min(
+          details.unitAmountMinor * quantity,
+          remainingForLine,
+        );
+      }
+      if (lineAmount <= 0) continue;
+      sum += lineAmount;
+      plan.push({
+        lineId,
+        name: details?.name ?? "Line",
+        quantity,
+        amountMinor: lineAmount,
+      });
+    }
+    refundMinor = sum;
+    refundLinePlan = plan;
     if (refundMinor > maxRefundable) {
       refundMinor = maxRefundable;
     }
@@ -407,9 +493,125 @@ export async function refundPaymentRequestCore(input: {
     },
   });
 
+  // FD12: immutable per-event ledger row(s), for history/reconciliation that
+  // the converging `payment_allocations.refund_adjustment` rows cannot give
+  // (those hold only the CURRENT cumulative total, never individual events).
+  // Best-effort and isolated in its own try/catch: the Stripe refund has
+  // already succeeded and every prior step has already run by this point, so
+  // a ledger write failure must never unwind or fail the response — it is a
+  // reconciliation gap, Sentry-visible, same posture as 6b above.
+  try {
+    const { data: ledgerRow } = await serviceClient
+      .from("refunds")
+      .insert({
+        domain: "appointment_payment",
+        artist_id: input.artistId,
+        payment_request_id: input.requestId,
+        currency: allocations[0]?.currency ?? "eur",
+        refund_type:
+          input.refundType === "partial" ? "partial_amount" : input.refundType,
+        fee_refund_case: input.case,
+        status: "succeeded",
+        amount_minor: refundMinor,
+        application_fee_return_minor: feeOutcome.returnMinor,
+        application_fee_retain_minor: feeOutcome.retainMinor,
+        processor_cost_retained_minor: retainedAppliedMinor,
+        fee_refund_policy_version: feeOutcome.policyVersion,
+        stripe_refund_id: refund.id,
+        idempotency_key: idempotencyKey,
+        initiated_by: input.artistId,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (ledgerRow) {
+      const lineRows =
+        input.refundType === "by_line" && refundLinePlan.length > 0
+          ? refundLinePlan.map((p) => ({
+              refund_id: ledgerRow.id,
+              artist_id: input.artistId,
+              payment_request_id: input.requestId,
+              payment_request_line_id: p.lineId,
+              name_snapshot: p.name,
+              quantity_refunded: p.quantity,
+              amount_minor: p.amountMinor,
+              restocked: false,
+            }))
+          : [
+              {
+                refund_id: ledgerRow.id,
+                artist_id: input.artistId,
+                payment_request_id: input.requestId,
+                payment_request_line_id: null,
+                name_snapshot:
+                  input.refundType === "full"
+                    ? "Full refund"
+                    : "Partial amount",
+                quantity_refunded: null,
+                amount_minor: refundMinor,
+                restocked: false,
+              },
+            ];
+      await serviceClient.from("refund_lines").insert(lineRows);
+    }
+
+    // Per-line refund_status (read by the UI, previously write-less: this
+    // column has existed since 0125 with nothing ever setting it). A `full`
+    // refund closes the whole request, so every line on it is now fully
+    // refunded. A `by_line` refund updates only the touched lines, comparing
+    // this line's TOTAL refunded-to-date against its own total (so a second
+    // partial refund on the same line correctly reads 'full' once exhausted,
+    // not just 'partial' again). A bare amount-only `partial` cannot honestly
+    // attribute to specific lines, so it updates none, matching this file's
+    // existing entangled-amount honesty elsewhere.
+    if (input.refundType === "full") {
+      await serviceClient
+        .from("payment_request_lines")
+        .update({ refund_status: "full" })
+        .eq("request_id", input.requestId);
+    } else if (input.refundType === "by_line") {
+      for (const p of refundLinePlan) {
+        const totalForLine = await sumRefundedAmountForRequestLine(p.lineId);
+        const lineOriginal = positiveAllocations.find(
+          (a) => a.line_id === p.lineId,
+        )?.amount_minor;
+        const status =
+          lineOriginal != null && totalForLine >= lineOriginal
+            ? "full"
+            : "partial";
+        await serviceClient
+          .from("payment_request_lines")
+          .update({ refund_status: status })
+          .eq("id", p.lineId);
+      }
+    }
+  } catch (ledgerErr) {
+    Sentry.captureException(ledgerErr, {
+      tags: { action: "appointment_payment_refund_ledger" },
+      extra: { requestId: input.requestId },
+    });
+  }
+
+  const remainingRefundableMinor = Math.max(0, maxRefundable - refundMinor);
+
+  // FD12 buyer confirmation. Best-effort (never fails the refund result, same
+  // posture as sendPaymentReceiptEmail on the collection side) and AWAITED for
+  // the same reason that one is: this runs on serverless, where fire-and-forget
+  // work is killed once the response returns.
+  await sendRefundConfirmationEmail(serviceClient, {
+    artistId: input.artistId,
+    requestId: input.requestId,
+    bookingId: (request.booking_id as string | null) ?? null,
+    projectId: (request.project_id as string | null) ?? null,
+    refundedMinor: refundMinor,
+    remainingRefundableMinor,
+    currency: allocations[0]?.currency ?? "eur",
+  });
+
   return {
     status: "ok",
     refundId: refund.id,
     refundedMinor: refundMinor,
+    remainingRefundableMinor,
   };
 }

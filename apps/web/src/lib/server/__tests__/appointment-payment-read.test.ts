@@ -45,6 +45,7 @@ describe("listPaymentRequestsForArtist", () => {
             revision: 2,
             sent_at: "2026-07-31T10:00:00Z",
             created_at: "2026-07-31T09:00:00Z",
+            collects: "balance",
           },
           {
             id: "r2",
@@ -56,6 +57,7 @@ describe("listPaymentRequestsForArtist", () => {
             revision: 1,
             sent_at: null,
             created_at: "2026-07-30T09:00:00Z",
+            collects: null,
           },
         ],
         error: null,
@@ -75,6 +77,7 @@ describe("listPaymentRequestsForArtist", () => {
         linkSent: true,
         createdAt: "2026-07-31T09:00:00Z",
         sentAt: "2026-07-31T10:00:00Z",
+        collects: "balance",
       },
       {
         id: "r2",
@@ -88,6 +91,11 @@ describe("listPaymentRequestsForArtist", () => {
         linkSent: false,
         createdAt: "2026-07-30T09:00:00Z",
         sentAt: null,
+        // No stamp on an unsent draft (0125's freeze latch); the read layer
+        // falls back to the same "deposit" default the create form's own
+        // COLLECTS list starts on, so a caller with no OTHER source (the
+        // native revise screen) prefills something valid rather than "null".
+        collects: "deposit",
       },
     ]);
   });

@@ -2,31 +2,36 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { refundPaymentRequestAction } from "../actions";
-import type { PaymentRequestLineView } from "@/lib/server/appointment-payment-read";
+import { refundGoodsOrderAction } from "../actions";
 
 const INPUT =
   "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring";
 
 type Mode = "full" | "by_line" | "custom";
 
+type LineView = {
+  id: string;
+  name: string;
+  quantity: number;
+  totalMinor: number;
+};
+
 function formatMinor(minor: number, currency: string): string {
   return `${(minor / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
-// Refund control on the request detail (FD12: by-line + quantity + custom
-// amount, replacing the earlier full-refund-only control). The engine
-// (refundPaymentRequestCore) already computed and enforces every amount; this
-// component only chooses WHICH shape of refund and a permitted case, and
-// shows a buyer-facing confirmation copy before submitting because a refund
-// moves money and cannot be undone from here.
-export function RefundControl({
-  requestId,
+// Refund control for a goods order (FD12). Same shape as the appointment
+// lane's RefundControl: the engine (refundGoodsOrderCore) already enforces
+// every amount, restock and cap-release decision; this only chooses which
+// kind of refund and confirms before submitting, because it moves money and
+// (for by-line/full) returns stock that cannot be un-returned from here.
+export function GoodsRefundControl({
+  orderId,
   lines,
   currency,
 }: {
-  requestId: string;
-  lines: PaymentRequestLineView[];
+  orderId: string;
+  lines: LineView[];
   currency: string;
 }) {
   const router = useRouter();
@@ -45,22 +50,19 @@ export function RefundControl({
     remainingRefundableMinor: number;
   } | null>(null);
 
-  // A line already fully refunded has nothing left to select.
-  const refundableLines = lines.filter((l) => l.refundStatus !== "full");
-
   function summary(): string {
     if (mode === "full")
-      return "Return the full remaining amount to the client.";
+      return "Return the full remaining balance and restock every remaining line.";
     if (mode === "custom") {
       const n = Number.parseFloat(customAmount || "0");
       return Number.isFinite(n) && n > 0
-        ? `Return ${n.toFixed(2)} ${currency.toUpperCase()} to the client.`
+        ? `Return ${n.toFixed(2)} ${currency.toUpperCase()}. Nothing will be restocked (no specific lines chosen).`
         : "Enter an amount to refund.";
     }
     const count = Object.values(selectedLines).filter(Boolean).length;
     return count === 0
-      ? "Select at least one line to refund."
-      : `Return ${count} selected line${count === 1 ? "" : "s"} to the client.`;
+      ? "Select at least one line to refund and restock."
+      : `Return ${count} selected line${count === 1 ? "" : "s"} and restock the refunded quantity.`;
   }
 
   function submit() {
@@ -73,8 +75,8 @@ export function RefundControl({
       }
       startTransition(async () => {
         finish(
-          await refundPaymentRequestAction({
-            id: requestId,
+          await refundGoodsOrderAction({
+            orderId,
             refundType: "partial",
             amountMinor: minor,
             case: "voluntary_partial",
@@ -84,29 +86,24 @@ export function RefundControl({
       return;
     }
     if (mode === "by_line") {
-      const lineIds = Object.keys(selectedLines).filter(
-        (id) => selectedLines[id],
-      );
-      if (lineIds.length === 0) {
+      const ids = Object.keys(selectedLines).filter((id) => selectedLines[id]);
+      if (ids.length === 0) {
         setError("Select at least one line.");
         return;
       }
-      const lineQuantities: Record<string, number> = {};
-      for (const id of lineIds) {
+      const payloadLines = ids.map((id) => {
         const raw = quantities[id];
         const n = raw ? Number.parseInt(raw, 10) : NaN;
-        if (Number.isFinite(n) && n > 0) lineQuantities[id] = n;
-      }
+        return Number.isFinite(n) && n > 0
+          ? { orderItemId: id, quantity: n }
+          : { orderItemId: id };
+      });
       startTransition(async () => {
         finish(
-          await refundPaymentRequestAction({
-            id: requestId,
+          await refundGoodsOrderAction({
+            orderId,
             refundType: "by_line",
-            lineIds,
-            lineQuantities:
-              Object.keys(lineQuantities).length > 0
-                ? lineQuantities
-                : undefined,
+            lines: payloadLines,
             case: "voluntary_full",
           }),
         );
@@ -115,8 +112,8 @@ export function RefundControl({
     }
     startTransition(async () => {
       finish(
-        await refundPaymentRequestAction({
-          id: requestId,
+        await refundGoodsOrderAction({
+          orderId,
           refundType: "full",
           case: "voluntary_full",
         }),
@@ -124,7 +121,7 @@ export function RefundControl({
     });
   }
 
-  function finish(r: Awaited<ReturnType<typeof refundPaymentRequestAction>>) {
+  function finish(r: Awaited<ReturnType<typeof refundGoodsOrderAction>>) {
     setConfirming(false);
     if (!r.ok) {
       setError(r.error);
@@ -144,7 +141,7 @@ export function RefundControl({
         Refunded {formatMinor(result.refundedMinor, currency)}.{" "}
         {result.remainingRefundableMinor > 0
           ? `${formatMinor(result.remainingRefundableMinor, currency)} still refundable.`
-          : "Nothing further is refundable on this request."}
+          : "Nothing further is refundable on this order."}
       </p>
     );
   }
@@ -194,12 +191,12 @@ export function RefundControl({
 
       {mode === "by_line" && (
         <div className="space-y-2">
-          {refundableLines.length === 0 ? (
+          {lines.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Every line has already been fully refunded.
+              No lines on this order.
             </p>
           ) : (
-            refundableLines.map((line) => (
+            lines.map((line) => (
               <label
                 key={line.id}
                 className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 px-2 py-2 text-sm"
@@ -217,12 +214,9 @@ export function RefundControl({
                 <span className="flex-1 truncate text-foreground">
                   {line.name}
                   {line.quantity > 1 ? ` (qty ${line.quantity})` : ""}
-                  {line.refundStatus === "partial"
-                    ? " · partially refunded"
-                    : ""}
                 </span>
                 <span className="text-muted-foreground">
-                  {formatMinor(line.lineTotalMinor, currency)}
+                  {formatMinor(line.totalMinor, currency)}
                 </span>
                 {line.quantity > 1 && selectedLines[line.id] && (
                   <input

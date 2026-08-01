@@ -425,6 +425,33 @@ Two things follow, both done here:
   resolving to one address and connecting to it directly, a larger change than
   this slice.
 
+- **2026-08-01 — FD12: native REVISE screen closes the parity gap the P9
+  slice-2b entry below named ("mobile already had the revise ROUTE from A7,
+  but no native SCREEN yet").** `apps/mobile/app/bookings/payments/[id]/
+  revise.tsx`, registered in the root `_layout.tsx` Stack. Feature parity with
+  `RevisePaymentRequestForm`: loads the current request via GET
+  `/api/mobile/payments/requests/:id`, edits `collects` + line items
+  (name/amount/classification) with add/remove, recalculates the total live
+  from the draft, an `Alert.alert` confirm before POSTing (native's equivalent
+  of the web two-step control), conflict handling (`code:"settled"` ->
+  reload-and-retry copy, not a silent failure), `not_entitled`/`cap_reached`
+  routed through the existing `planBoundaryMessage` IAP-safe mapper, and a
+  clear retryable error state throughout. ONE additive read-layer change
+  needed to make this possible without a second data source: `collects` (the
+  frozen-set column the web page reads through its OWN separate RLS-scoped
+  query) is now also on `PaymentRequestSummary`/`PaymentRequestDetail`
+  (`appointment-payment-read.ts`), since the app has no raw-table access and
+  needed it from the SAME JSON response the detail route already serves; the
+  web page's own separate query is untouched (this is additive, not a
+  replacement). REACHABILITY, named rather than glossed: the app has no
+  payment-request LIST/DETAIL screen yet (only this revise screen and the
+  underlying API routes exist), so today this route is reachable only by an
+  explicit `router.push`, mirroring the web revise route's own current
+  "not yet in the nav, reachable by URL" posture — the capability is not
+  absent, but a tap-to-reach entry point needs the native list screen that
+  same P9 slice-2b entry below also marks as a native follow-on, not built
+  here. Next EAS build required (current `da93749b` predates this route).
+
 - **2026-08-01 — P9 artist payment-requests WEB UI, slices 2a + 2b (branch-only).**
   Web surface for appointment payments under `(artist)/bookings/payments`: the
   list (2a, read-only via the shared read layer), the per-request detail page
