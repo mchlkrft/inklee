@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import {
   createPaymentRequestCore,
+  revisePaymentRequestCore,
   sendPaymentRequestCore,
   cancelPaymentRequestCore,
   type PaymentSubjectInput,
@@ -17,9 +18,9 @@ import { isArtistInitiatedFeeRefundCase } from "@inklee/shared/fee-refund-policy
 // Web server actions for the artist payment-requests surface. Thin wrappers over
 // the SAME cores the mobile routes call (one implementation, two surfaces), with
 // the cookie (RLS-scoped) client and a revalidate. Argument-free operations only
-// here (send, cancel); create/revise/refund come with their forms in a later
-// slice. Send stays gated inside the core; cancel is deliberately UNGATED so a
-// lapsed-to-Free artist can still stop a live request for money.
+// here (send, cancel); create/revise/refund come with their forms. Send stays
+// gated inside the core; cancel is deliberately UNGATED so a lapsed-to-Free
+// artist can still stop a live request for money.
 
 export type PaymentActionResult = { ok: true } | { ok: false; error: string };
 
@@ -124,6 +125,38 @@ export async function createPaymentRequestAction(
   });
   if (!result.ok) return { ok: false, error: result.error };
   revalidatePath(LIST_PATH);
+  return { ok: true, id: result.id };
+}
+
+export type RevisePaymentRequestInput = {
+  id: string;
+  collects?: string;
+  lines: PaymentLineInput[];
+};
+
+export type RevisePaymentRequestResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
+
+/** Create a new draft revision of a SENT request. The predecessor (named by
+ *  `id`) stays live and payable until the revision is sent: sendPaymentRequestCore
+ *  cancels it atomically (migration 0126). The core refuses an unsent draft
+ *  (that is edited, not revised, so it returns "invalid") and a request already
+ *  settled beyond replacement ("settled"); both surface here as `error`. */
+export async function revisePaymentRequestAction(
+  input: RevisePaymentRequestInput,
+): Promise<RevisePaymentRequestResult> {
+  const auth = await currentArtistId();
+  if (!auth.ok) return { ok: false, error: "Not signed in." };
+  const result = await revisePaymentRequestCore(
+    auth.supabase,
+    auth.id,
+    input.id,
+    { collects: input.collects, lines: input.lines },
+  );
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath(LIST_PATH);
+  revalidatePath(`${LIST_PATH}/${input.id}`);
   return { ok: true, id: result.id };
 }
 

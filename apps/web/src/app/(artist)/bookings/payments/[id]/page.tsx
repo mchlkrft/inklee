@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SUPERSEDABLE_PAYMENT_REQUEST_STATUSES } from "@inklee/shared/appointment-payments";
 import { createClient } from "@/lib/supabase/server";
 import { getPaymentRequestForArtist } from "@/lib/server/appointment-payment-read";
 import { REFUNDABLE_STATUSES } from "@/lib/server/appointment-payment-refund";
@@ -10,10 +11,18 @@ import { RefundControl } from "./refund-control";
 // core re-validates, so this only decides visibility.
 const REFUNDABLE = new Set<string>(REFUNDABLE_STATUSES);
 
+// Statuses from which a revision may be started: DERIVED from
+// SUPERSEDABLE_PAYMENT_REQUEST_STATUSES, the same constant
+// `revisePaymentRequestCore` checks, rather than a hand-typed set (PAY-UI-006
+// is the recorded instance of that exact drift, on the list's Cancel button;
+// same discipline applied here so it is not repeated). The core also refuses an
+// unsent draft separately, so this button can still surface on one and hand
+// back that refusal, same as every other button on this page.
+const REVISABLE = new Set<string>(SUPERSEDABLE_PAYMENT_REQUEST_STATUSES);
+
 // Per-request detail (P9 artist UI, slice 2b-i). Read-only view of one payment
-// request and its lines, on the shared read layer. This is the surface the
-// revise / refund actions attach to in the next sub-slices; for now it lets an
-// artist see exactly what a request contains and its state.
+// request and its lines, on the shared read layer, plus the Revise and Refund
+// actions attached to it.
 export const metadata = { title: "Payment request" };
 
 function formatAmount(minor: number, currency: string): string {
@@ -64,6 +73,14 @@ export default async function PaymentRequestDetailPage({
           {request.revision > 1 ? ` (revision ${request.revision})` : ""}
           {request.linkSent ? " · client link sent" : ""}
         </p>
+        {REVISABLE.has(request.status) && (
+          <Link
+            href={`/bookings/payments/${request.id}/revise`}
+            className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Revise
+          </Link>
+        )}
       </header>
 
       <section className="space-y-2">

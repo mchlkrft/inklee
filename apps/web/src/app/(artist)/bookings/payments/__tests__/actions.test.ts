@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const {
   getUser,
   createCore,
+  reviseCore,
   sendCore,
   cancelCore,
   refundCore,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   getUser: vi.fn(),
   createCore: vi.fn(),
+  reviseCore: vi.fn(),
   sendCore: vi.fn(),
   cancelCore: vi.fn(),
   refundCore: vi.fn(),
@@ -24,6 +26,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/lib/server/appointment-payments", () => ({
   createPaymentRequestCore: (...a: unknown[]) => createCore(...a),
+  revisePaymentRequestCore: (...a: unknown[]) => reviseCore(...a),
   sendPaymentRequestCore: (...a: unknown[]) => sendCore(...a),
   cancelPaymentRequestCore: (...a: unknown[]) => cancelCore(...a),
 }));
@@ -38,6 +41,7 @@ vi.mock("@/lib/server/appointment-payment-delivery", () => ({
 
 import {
   createPaymentRequestAction,
+  revisePaymentRequestAction,
   sendPaymentRequestAction,
   cancelPaymentRequestAction,
   refundPaymentRequestAction,
@@ -47,6 +51,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getUser.mockResolvedValue({ data: { user: { id: "artist1" } } });
   createCore.mockResolvedValue({ ok: true, id: "r1", status: "draft" });
+  reviseCore.mockResolvedValue({ ok: true, id: "r2", status: "draft" });
   sendCore.mockResolvedValue({
     ok: true,
     id: "r1",
@@ -113,6 +118,58 @@ describe("createPaymentRequestAction", () => {
     const r = await createPaymentRequestAction(CREATE_INPUT);
     expect(r).toEqual({ ok: false, error: "Not signed in." });
     expect(createCore).not.toHaveBeenCalled();
+  });
+});
+
+const REVISE_INPUT = {
+  id: "r1",
+  collects: "deposit",
+  lines: [
+    {
+      name: "Deposit",
+      unitAmountMinor: 5000,
+      quantity: 1,
+      classification: "tattoo_service",
+    },
+  ],
+};
+
+describe("revisePaymentRequestAction", () => {
+  it("revises via the core and returns the new revision's id", async () => {
+    const r = await revisePaymentRequestAction(REVISE_INPUT);
+    expect(r).toEqual({ ok: true, id: "r2" });
+    expect(reviseCore).toHaveBeenCalledWith(
+      expect.anything(),
+      "artist1",
+      "r1",
+      {
+        collects: "deposit",
+        lines: REVISE_INPUT.lines,
+      },
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/bookings/payments");
+    expect(revalidatePath).toHaveBeenCalledWith("/bookings/payments/r1");
+  });
+
+  it("surfaces the core's refusal without revalidating", async () => {
+    reviseCore.mockResolvedValue({
+      ok: false,
+      code: "invalid",
+      error: "Only a sent request can be revised.",
+    });
+    const r = await revisePaymentRequestAction(REVISE_INPUT);
+    expect(r).toEqual({
+      ok: false,
+      error: "Only a sent request can be revised.",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("refuses when not signed in, without calling the core", async () => {
+    getUser.mockResolvedValue({ data: { user: null } });
+    const r = await revisePaymentRequestAction(REVISE_INPUT);
+    expect(r).toEqual({ ok: false, error: "Not signed in." });
+    expect(reviseCore).not.toHaveBeenCalled();
   });
 });
 

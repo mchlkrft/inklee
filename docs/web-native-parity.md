@@ -247,7 +247,7 @@ Two things follow, both done here:
   booking/project subject picker + collects + line editor → `createPaymentRequestAction`).
   `actions.ts` wraps the SAME cores the mobile routes call: create / send / cancel
   / refund (a two-step full-refund control on the detail page, case voluntary_full,
-  reusing the artist-case allowlist; revise form + partial/by-line refunds still to
+  reusing the artist-case allowlist; partial/by-line refunds still to
   come). **LINK DELIVERY (slice 3, 2026-08-01): on send, the client is emailed
   their `/pay/<token>` link** (shared `appointment-payment-delivery.ts`, best-effort
   AFTER the send, `Sent by Inklee on behalf of <artist>` anti-phishing footer);
@@ -262,7 +262,12 @@ Two things follow, both done here:
   cancelled/expired/failed (money-holding states per the transition matrix), which
   the mobile refund route inherits automatically; the web UI derives its
   Cancel/Refund visibility from the shared/core constants (Finding A, no more
-  hand-copied sets).** NOT yet in the nav (feature is dark /
+  hand-copied sets).** **REVISE FORM (Track A tail, 2026-08-01):** the detail
+  page now offers a Revise action, prefilled from the request's current lines
+  and collects value, via `revisePaymentRequestAction` → `[id]/revise` → the
+  new revision's own detail page (web only; mobile already had the
+  `/api/mobile/payments/requests/:id/revise` route from A7, but no native
+  screen yet). NOT yet in the nav (feature is dark /
   entitlement-gated; the item appears at launch-readiness, like `/pricing`),
   reachable by URL. NATIVE EQUIVALENT is a follow-on: the app already has the
   write + read `/api/mobile/payments/requests` routes but no management SCREEN.
