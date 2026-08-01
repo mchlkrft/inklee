@@ -375,3 +375,19 @@ goods order shares the intent.**
   whole-intent refund. On corrupt amounts the helper returns undefined
   (whole-intent, the old behaviour) rather than inventing a number.
 - Reversible? Cheap; pure decision in `resolveDepositRefundAmountMinor`, tested.
+
+**GC4 [ENG/product] — the standalone shop sells every ACTIVE product, not only
+`is_checkout_addon` ones.** That flag scopes the appointment add-on list (what
+an artist offers alongside a deposit), not the shop. Catalog rows are mapped
+into the shared compositor's shape with the flag forced true, so its remaining
+gates (status, stock, variants, drops, quantity caps) all still run. Reversible?
+Cheap (one filter).
+
+**GC5 [ENG/UX, provisional] — the standalone checkout page is SELF-CONTAINED
+(v1).** `/[slug]/shop/checkout` lists the products itself (quantity steppers +
+variant picker + email + optional code), then swaps to the PaymentElement phase
+on the server-created intent. The booking page's wishlist cart is NOT wired
+into it yet: the interest context is scoped to the booking surface, and
+plumbing it across routes is UX polish for a dark feature. Confirm: founder ok
+that v1 checkout is its own page; the ShopTeaser gains a link to it at un-park.
+Reversible? Additive (context integration later changes no server contract).

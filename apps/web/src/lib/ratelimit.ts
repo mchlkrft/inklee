@@ -34,6 +34,18 @@ export async function checkRateLimit(ip: string, artistId?: string) {
   return check(bookingRl, `${artistId ?? "unknown-artist"}:${ip}`);
 }
 
+// Standalone shop checkout (GC1 C3): 10 checkout starts / artist / IP / hour.
+// Its own bucket so a buyer's retries never consume the same IP's booking-form
+// budget (and vice versa). Higher than the booking limit because a legitimate
+// buyer may bounce off card errors and restart several times.
+const shopCheckoutRl = makeLimit(
+  Ratelimit.slidingWindow(10, "1 h"),
+  "inklee:shop-checkout",
+);
+export async function checkShopCheckoutRateLimit(ip: string, artistId: string) {
+  return check(shopCheckoutRl, `${artistId}:${ip}`);
+}
+
 // Waitlist form: 3 submissions / IP / hour
 const waitlistRl = makeLimit(
   Ratelimit.slidingWindow(3, "1 h"),
