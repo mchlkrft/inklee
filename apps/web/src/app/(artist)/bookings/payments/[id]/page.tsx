@@ -2,6 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPaymentRequestForArtist } from "@/lib/server/appointment-payment-read";
+import { RefundControl } from "./refund-control";
+
+// Statuses from which a refund can be initiated (mirrors the refund core's
+// REFUNDABLE_STATUSES). The core re-validates, so this only decides visibility.
+const REFUNDABLE = new Set(["paid", "partially_paid", "partially_refunded"]);
 
 // Per-request detail (P9 artist UI, slice 2b-i). Read-only view of one payment
 // request and its lines, on the shared read layer. This is the surface the
@@ -92,6 +97,13 @@ export default async function PaymentRequestDetailPage({
           </ul>
         )}
       </section>
+
+      {REFUNDABLE.has(request.status) && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-foreground">Refund</h2>
+          <RefundControl requestId={request.id} />
+        </section>
+      )}
     </div>
   );
 }

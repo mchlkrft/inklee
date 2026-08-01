@@ -246,7 +246,9 @@ Two things follow, both done here:
   `[id]` (2b-i, shows lines), and the create flow `new/` (2b-ii/iii: a form with a
   booking/project subject picker + collects + line editor → `createPaymentRequestAction`).
   `actions.ts` wraps the SAME cores the mobile routes call: create / send / cancel
-  (revise + refund forms still to come). NOT yet in the nav (feature is dark /
+  / refund (a two-step full-refund control on the detail page, case voluntary_full,
+  reusing the artist-case allowlist; revise form + partial/by-line refunds still to
+  come). NOT yet in the nav (feature is dark /
   entitlement-gated; the item appears at launch-readiness, like `/pricing`),
   reachable by URL. NATIVE EQUIVALENT is a follow-on: the app already has the
   write + read `/api/mobile/payments/requests` routes but no management SCREEN.

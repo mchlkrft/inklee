@@ -1,13 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { getUser, createCore, sendCore, cancelCore, revalidatePath } =
-  vi.hoisted(() => ({
-    getUser: vi.fn(),
-    createCore: vi.fn(),
-    sendCore: vi.fn(),
-    cancelCore: vi.fn(),
-    revalidatePath: vi.fn(),
-  }));
+const {
+  getUser,
+  createCore,
+  sendCore,
+  cancelCore,
+  refundCore,
+  revalidatePath,
+} = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  createCore: vi.fn(),
+  sendCore: vi.fn(),
+  cancelCore: vi.fn(),
+  refundCore: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/supabase/server", () => ({
@@ -18,11 +25,17 @@ vi.mock("@/lib/server/appointment-payments", () => ({
   sendPaymentRequestCore: (...a: unknown[]) => sendCore(...a),
   cancelPaymentRequestCore: (...a: unknown[]) => cancelCore(...a),
 }));
+vi.mock("@/lib/server/appointment-payment-refund", () => ({
+  refundPaymentRequestCore: (...a: unknown[]) => refundCore(...a),
+}));
+// isArtistInitiatedFeeRefundCase is NOT mocked: the real allowlist is what the
+// action relies on to reject a client-chosen fee-manipulating case.
 
 import {
   createPaymentRequestAction,
   sendPaymentRequestAction,
   cancelPaymentRequestAction,
+  refundPaymentRequestAction,
 } from "../actions";
 
 beforeEach(() => {
@@ -31,6 +44,11 @@ beforeEach(() => {
   createCore.mockResolvedValue({ ok: true, id: "r1", status: "draft" });
   sendCore.mockResolvedValue({ ok: true, id: "r1", status: "sent" });
   cancelCore.mockResolvedValue({ ok: true, id: "r1", status: "cancelled" });
+  refundCore.mockResolvedValue({
+    status: "ok",
+    refundId: "re1",
+    refundedMinor: 5000,
+  });
 });
 
 const CREATE_INPUT = {
@@ -145,5 +163,62 @@ describe("cancelPaymentRequestAction", () => {
     const r = await cancelPaymentRequestAction("r1");
     expect(r).toEqual({ ok: false, error: "Not signed in." });
     expect(cancelCore).not.toHaveBeenCalled();
+  });
+});
+
+describe("refundPaymentRequestAction", () => {
+  it("refunds via the core and revalidates on success", async () => {
+    const r = await refundPaymentRequestAction({
+      id: "r1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+    expect(r).toEqual({ ok: true });
+    expect(refundCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artistId: "artist1",
+        requestId: "r1",
+        refundType: "full",
+        case: "voluntary_full",
+      }),
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/bookings/payments/r1");
+  });
+
+  it("rejects a fee-manipulating case WITHOUT calling the core (real allowlist)", async () => {
+    const r = await refundPaymentRequestAction({
+      id: "r1",
+      refundType: "full",
+      case: "inklee_error",
+    });
+    expect(r).toEqual({
+      ok: false,
+      error: "That refund reason isn't available.",
+    });
+    expect(refundCore).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a core error (status: error)", async () => {
+    refundCore.mockResolvedValue({
+      status: "error",
+      message: "Refund could not be processed.",
+    });
+    const r = await refundPaymentRequestAction({
+      id: "r1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+    expect(r).toEqual({ ok: false, error: "Refund could not be processed." });
+  });
+
+  it("refuses when not signed in", async () => {
+    getUser.mockResolvedValue({ data: { user: null } });
+    const r = await refundPaymentRequestAction({
+      id: "r1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+    expect(r).toEqual({ ok: false, error: "Not signed in." });
+    expect(refundCore).not.toHaveBeenCalled();
   });
 });

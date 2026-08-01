@@ -9,6 +9,8 @@ import {
   type PaymentSubjectInput,
   type PaymentLineInput,
 } from "@/lib/server/appointment-payments";
+import { refundPaymentRequestCore } from "@/lib/server/appointment-payment-refund";
+import { isArtistInitiatedFeeRefundCase } from "@inklee/shared/fee-refund-policy";
 
 // Web server actions for the artist payment-requests surface. Thin wrappers over
 // the SAME cores the mobile routes call (one implementation, two surfaces), with
@@ -86,4 +88,34 @@ export async function createPaymentRequestAction(
   if (!result.ok) return { ok: false, error: result.error };
   revalidatePath(LIST_PATH);
   return { ok: true, id: result.id };
+}
+
+/** Refund a paid request. The fee-refund CASE decides Inklee's fee treatment, so
+ *  an artist may only assert the artist-initiated subset (voluntary / cancellation);
+ *  the route-level allowlist mirrors the mobile refund route. The core (with the
+ *  M5/M11 fixes) computes amounts + fee handling from stored transaction state. */
+export async function refundPaymentRequestAction(input: {
+  id: string;
+  refundType: "full" | "partial" | "by_line";
+  case: string;
+  amountMinor?: number;
+  lineIds?: string[];
+}): Promise<PaymentActionResult> {
+  const auth = await currentArtistId();
+  if (!auth.ok) return { ok: false, error: "Not signed in." };
+  if (!isArtistInitiatedFeeRefundCase(input.case)) {
+    return { ok: false, error: "That refund reason isn't available." };
+  }
+  const result = await refundPaymentRequestCore({
+    artistId: auth.id,
+    requestId: input.id,
+    refundType: input.refundType,
+    amountMinor: input.amountMinor,
+    lineIds: input.lineIds,
+    case: input.case,
+  });
+  if (result.status === "error") return { ok: false, error: result.message };
+  revalidatePath(LIST_PATH);
+  revalidatePath(`${LIST_PATH}/${input.id}`);
+  return { ok: true };
 }
