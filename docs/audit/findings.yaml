@@ -3807,6 +3807,17 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "SCOPE 0B — production schema drift detection (method + first read-only execution)"
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit, 2026-08-02"
+        action: "evidence-added"
+        note: "STILL UNFIXED and now measured: with the local stack in its current state, `truncate
+          public.artist_page_events` as role authenticated is PERMITTED, while shop_cart_items and
+          payment_allocations correctly refuse 42501 in the same probe. seed.sql's GRANT ALL runs
+          after migrations and clobbers the table REVOKEs. Currently divergent: artist_page_events,
+          artist_page_rollups, growth_activity_events, growth_artist_stats; the three shop_* tables
+          from 0141 are latent until the next db reset. Production is unaffected (seed.sql never
+          runs there)."
+
   - id: "AUTH-GRT-001"
     title: "All 107 public tables in production grant TRUNCATE to `authenticated`, and RLS does not gate
       TRUNCATE — a layer the codebase already treats as real for exactly one table"
@@ -8142,6 +8153,12 @@ findings:
       - date: "2026-07-30"
         actor: "Opus 5 code quality audit: migration quality lens"
         action: "opened"
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit, 2026-08-02"
+        action: "evidence-added"
+        note: "Stale in the SAFE direction: seed.sql now carries the payment_collections REVOKE mirror
+          while this entry's remediation still reads open. Verified during the 2026-08-02 audit."
+
   - id: "DATA-RACE-002"
     title: "0124's self-documented residual risks (timeout and deadlock) not recorded in the audit
       evidence register"
@@ -9460,6 +9477,15 @@ findings:
           no self-verification. Scoping caveat recorded: this documents A residual, not THE
           residuals - the round-4 IPv6 gaps (HUB-GAL-004) are a second, different gap in the
           same guard. discovery.commit corrected to 45a44bee."
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit, 2026-08-02"
+        action: "evidence-added"
+        note: "The inspection this entry RECOMMENDED and nobody ran has now been run, and it came back
+          negative: the sibling third-party fetch path (seed-coverage.ts) had a weaker,
+          non-resolving guard. MAP-SSRF-001. The residual this entry describes (rebinding TOCTOU)
+          is unchanged and still open, and HUB-GAL-008 records that its real fix - connection
+          pinning via a custom dispatcher - is the same work a dual-stack allowance needs, so the
+          two should be done together."
 
   - id: "PAY-UI-006"
     title: "Payments list UI cancel-button state set drifted from the core's authorization constant"
@@ -11332,6 +11358,18 @@ findings:
         action: "opened"
         note: "Recorded as accepted deviation; order_items has no artist column to compose
           with."
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit, 2026-08-02"
+        action: "evidence-added"
+        note: "CORRECTED, and the risk acceptance must be RE-ARGUED. This entry states as confirmed
+          fact that order_items' write path is service-role-only and that no client write path
+          exists. Both are FALSE and were disproved by execution: orders and order_items each
+          carry a single FOR ALL policy to public with with-check (artist_id = auth.uid()), and
+          authenticated holds insert/update/delete on both - the audit forged a paid order and
+          its items as an ordinary artist. The acceptance was premised on the error (its own text
+          says 'revisit only if a client write path to order_items ever appears'; one was always
+          there), so the deviation is no longer accepted on those grounds. Tracked under
+          PAY-AUTHZ-002, whose remediation carries the policy replacement."
 
   - id: "SHOP-VAR-001"
     title: "Bundles cannot express variants, and nothing guards the gap: a variant-stocked
@@ -12472,6 +12510,13 @@ findings:
         action: "verified"
         note: "Fix behaviourally real; discovery.commit and fix_commit corrected to 45a44bee
           (register-accuracy defect N5 from the same pass)."
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit, 2026-08-02"
+        action: "evidence-added"
+        note: "CORRECTED: this entry's parenthetical claim that no other third-party-URL fetch sites
+          exist besides the gallery import is FALSE. fetchSiteEvidence in seed-coverage.ts
+          fetches URLs from third-party map data behind a non-resolving string check, and it is
+          production-reachable. Recorded as MAP-SSRF-001 and fixed in c3d7ae49."
 
   - id: "OPS-GOV-001"
     title: "A build agent violated an explicit stand-down order and committed to the shared
@@ -13455,6 +13500,602 @@ findings:
         actor: "supervisor session"
         action: "fix-committed"
         note: "Pinned and mutation-proven in 01003200."
+
+  - id: "PAY-AUTHZ-001"
+    title: "refundDepositCore refunded whatever PaymentIntent the booking row named, without ever
+      checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION"
+    summary: "getAuthorisedBooking checks booking.artist_id === userId and nothing else; the intent id is
+      then read out of that same artist-writable row and refunded with reverse_transfer and
+      refund_application_fee. booking_requests carries ownership-only RLS, authenticated holds
+      write on the deposit columns, and the intent column is not uniquely indexed. A paying
+      customer's browser legitimately receives pi_..._secret_... on the request page. So an
+      artist could insert a booking of their own naming another artist's intent, mark it paid,
+      and press Refund: money leaves the VICTIM's connected balance and Inklee's fee is returned
+      too. The already-refunded guard and its DB backstop are keyed per BOOKING, so neither
+      impedes it."
+    classification:
+      domain: "payment"
+      category: "missing-authorization"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "local"
+      discovery_context: "Full quality/security/UX audit requested by the founder after
+        the FD phase closed."
+    location:
+      files:
+        - "apps/web/src/lib/server/bookings.ts"
+        - "apps/web/src/app/(artist)/bookings/actions.ts"
+        - "apps/web/src/app/api/mobile/bookings/[id]/deposit-refund/route.ts"
+    evidence:
+      observed_facts:
+        - "The forged write was EXECUTED as role authenticated in a rolled-back transaction, with
+          positive controls proving RLS was enforced in the same session."
+        - "The vulnerable shape is byte-comparable on origin/master: production authorises the
+          booking and refunds the row's intent with no ownership check."
+      references:
+        - "apps/web/src/lib/server/bookings.ts"
+    assessment:
+      interpretation: "Authorisation was attached to the booking row, and the row names a resource the row's
+        owner can choose. The intent is the only witness of who was actually paid."
+      root_cause_hypothesis: "Authorisation was placed on the row that names a resource rather than on the resource itself."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "See the failure scenario in the summary."
+      production_exposure: "LIVE. The code is on origin/master. Not currently exploitable for value because
+        production has never taken a live-mode charge, so no real deposit intent exists to
+        forge against - it arms with the first real deposit."
+      exploit_preconditions: "Authenticated artist account; for the refund findings, an
+        intent id the platform discloses only to that booking's own paying customer."
+      remaining_uncertainty: "No Stripe call was executed in any probe; the Stripe half
+        is reasoned from the destination-charge parameters."
+    relationships:
+      related_findings:
+        - "PAY-AUTHZ-002"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "8db7b2dc"
+      fixed_at: "2026-08-02"
+      proposed_action: "Fixed by asserting the intent itself: metadata.booking_id matching, or
+        transfer_data.destination matching the caller's connected account, with a retrieve
+        failure REFUSING rather than proceeding. STILL OWED, and deliberately not shipped blind:
+        a UNIQUE partial index on deposit_payment_intent_id and REVOKEing artist write access to
+        the deposit columns (the 0074 profiles pattern). Both are migrations that could fail or
+        lock on real production data, so they belong to the release sequencer after a duplicate
+        check."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "audit verifier (refuted-by-default); fix by the supervisor, NOT
+        independently re-verified"
+      verified_at: "2026-08-02"
+      verification_commit: "43e08766"
+      verification_method: "Executed against the local database in a rolled-back transaction with positive controls proving RLS was live in the probe session."
+      residual_risk: "Fixed by the same session that triaged it; the structural half
+        (unique indexes + column REVOKEs) is deliberately NOT shipped, see the remediation."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit
+        recipe."
+    history:
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+        action: "opened"
+        note: "Confirmed by an adversarial verifier whose default was REFUTED."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in 8db7b2dc the same day."
+
+  - id: "PAY-AUTHZ-002"
+    title: "refundGoodsOrderCore had the same defect, and the attacker authors the order_items the
+      refund amount is computed from"
+    summary: "orders and order_items each carry a single FOR ALL policy with with-check
+      (artist_id = auth.uid()), authenticated holds insert/update/delete on both, and
+      orders_stripe_pi_idx is not unique. The refund amount is derived from attacker-authored
+      order_items, so the attacker chooses the sum up to the real charge. Additionally the whole
+      (artist)/goods/sales surface references no goods-commerce flag anywhere, so unlike the rest
+      of the goods build this money-moving route is not parked."
+    classification:
+      domain: "payment"
+      category: "missing-authorization"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "local"
+      discovery_context: "Full quality/security/UX audit requested by the founder after
+        the FD phase closed."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-order-refund.ts"
+        - "apps/web/src/app/(artist)/goods/sales/[id]/page.tsx"
+    evidence:
+      observed_facts:
+        - "Order, order_items and duplicate-intent forgery all EXECUTED as authenticated and rolled
+          back; controls proved RLS was enforced and that 0139's REVOKE bit in the same session."
+        - "Grep confirms no isGoodsCommerceEnabled reference under (artist)/goods/sales and no
+          goods layout providing one."
+      references:
+        - "apps/web/src/lib/server/goods-order-refund.ts"
+    assessment:
+      interpretation: "The same row-not-resource authorisation error as PAY-AUTHZ-001, with a larger blast
+        radius because the attacker also authors the amount."
+      root_cause_hypothesis: "Authorisation was placed on the row that names a resource rather than on the resource itself."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "See the failure scenario in the summary."
+      production_exposure: "None: the goods build is unpushed and its migrations are unapplied. The sales route
+        being unparked is a RELEASE-GATE item, not a live exposure."
+      exploit_preconditions: "Authenticated artist account; for the refund findings, an
+        intent id the platform discloses only to that booking's own paying customer."
+      remaining_uncertainty: "No Stripe call was executed in any probe; the Stripe half
+        is reasoned from the destination-charge parameters."
+    relationships:
+      related_findings:
+        - "PAY-AUTHZ-001"
+        - "SHOP-MIG-002"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "8db7b2dc"
+      fixed_at: "2026-08-02"
+      proposed_action: "Fixed with the same intent-ownership assertion (metadata.order_id or
+        transfer_data.destination), mutation-proven. STILL OWED for the release sequencer:
+        replace the FOR ALL policies on orders/order_items with SELECT-only TO authenticated plus
+        REVOKEs (both tables are service-role-write by design, exactly as 0139 already does for
+        refunds), and a UNIQUE index on stripe_payment_intent_id. Also decide whether
+        goods/sales should be flag-parked like the rest of the goods build."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "audit verifier (refuted-by-default); fix by the supervisor, NOT
+        independently re-verified"
+      verified_at: "2026-08-02"
+      verification_commit: "43e08766"
+      verification_method: "Executed against the local database in a rolled-back transaction with positive controls proving RLS was live in the probe session."
+      residual_risk: "Fixed by the same session that triaged it; the structural half
+        (unique indexes + column REVOKEs) is deliberately NOT shipped, see the remediation."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit
+        recipe."
+    history:
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+        action: "opened"
+        note: "Confirmed by an adversarial verifier whose default was REFUTED."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in 8db7b2dc the same day."
+
+  - id: "WEB-XSS-001"
+    title: "Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into
+      dangerouslySetInnerHTML, bypassing the repo's own escaper"
+    summary: "JSON.stringify escapes neither < nor /, and the values are studio-owner free text
+      (name/description written with only trim and length caps; city/country/address likewise
+      owner-written). Production CSP is script-src 'self' 'unsafe-inline' with no nonce, so an
+      injected script executes on the inklee.app origin - the same origin as /dashboard and
+      /settings. This was the ONLY ld+json emitter in the repo bypassing serializeJsonLd, whose
+      entire purpose is escaping < and whose test asserts against this exact breakout payload."
+    classification:
+      domain: "web"
+      category: "broken-invariant"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "local"
+      discovery_context: "Full quality/security/UX audit requested by the founder after
+        the FD phase closed."
+    location:
+      files:
+        - "apps/web/src/app/studios/[slug]/page.tsx"
+        - "apps/web/src/components/seo/json-ld.tsx"
+    evidence:
+      observed_facts:
+        - "The payload was rendered through the repo's own react-dom renderToStaticMarkup and the
+          production CSP header was fetched live from https://inklee.app."
+        - "The file is byte-identical to origin/master."
+      references:
+        - "apps/web/src/app/studios/[slug]/page.tsx"
+    assessment:
+      interpretation: "A shared escaper existed precisely for this and one call site did not use it - the
+        failure mode of a convention that is not mechanically enforced."
+      root_cause_hypothesis: "Authorisation was placed on the row that names a resource rather than on the resource itself."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "See the failure scenario in the summary."
+      production_exposure: "LIVE code, currently UNREACHABLE: rendering the JSON-LD requires an admin-approved
+        studio claim and production has zero claims. It arms with the first approved claim."
+      exploit_preconditions: "Authenticated artist account; for the refund findings, an
+        intent id the platform discloses only to that booking's own paying customer."
+      remaining_uncertainty: "No Stripe call was executed in any probe; the Stripe half
+        is reasoned from the destination-charge parameters."
+    relationships:
+      related_findings:
+        - "PAY-AUTHZ-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "8db7b2dc"
+      fixed_at: "2026-08-02"
+      proposed_action: "Fixed by using serializeJsonLd; swept for other raw emitters, none remain. Consider a lint
+        rule forbidding JSON.stringify inside dangerouslySetInnerHTML, since the convention is
+        otherwise only as good as the next reviewer."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "audit verifier (refuted-by-default); fix by the supervisor, NOT
+        independently re-verified"
+      verified_at: "2026-08-02"
+      verification_commit: "43e08766"
+      verification_method: "Payload rendered through the repo's own react-dom; live production CSP header
+        fetched. Not executed in a browser."
+      residual_risk: "Fixed by the same session that triaged it; the structural half
+        (unique indexes + column REVOKEs) is deliberately NOT shipped, see the remediation."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit
+        recipe."
+    history:
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+        action: "opened"
+        note: "Confirmed by an adversarial verifier whose default was REFUTED."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in 8db7b2dc the same day."
+
+  - id: "PAY-AUTHZ-003"
+    title: "The appointment refund read allocations and updated payment_collections keyed on the intent
+      id alone, held up only by an undocumented accident"
+    summary: "refundPaymentRequestCore scopes its payment_requests read by artist, then keys the
+      allocations reads and the payment_collections update on payment_intent_id ALONE, though
+      payment_allocations.artist_id exists. What prevented a forged intent id (the column is
+      artist-writable) from reaching a victim's allocations was a partial unique index plus the
+      fact that NOTHING CURRENTLY WRITES partially_paid - documented nowhere, and one planned
+      feature away from dissolving, since partially_paid -> payment_processing is already a
+      designed transition. Worse, 0127's own safety comment claims nothing reads the column
+      outside payment_processing, which went stale when REFUNDABLE_STATUSES was widened."
+    classification:
+      domain: "payment"
+      category: "missing-authorization"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "local"
+      discovery_context: "Full quality/security/UX audit requested by the founder after
+        the FD phase closed."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+        - "apps/web/supabase/migrations/0127_payment_request_intent.sql"
+    evidence:
+      observed_facts:
+        - "Both the blocked case and the exploitable state were executed; the exploitable state had
+          to be constructed with superuser, which is itself the finding: it is not reachable
+          today, only undefended."
+        - "The victim would receive no notification, because the confirmation email is keyed to the
+          attacker's own request."
+      references:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+    assessment:
+      interpretation: "A safety property that lives in the absence of a feature rather than in a predicate is
+        not a safety property; it is a coincidence with a deadline."
+      root_cause_hypothesis: "Authorisation was placed on the row that names a resource rather than on the resource itself."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "See the failure scenario in the summary."
+      production_exposure: "None: appointment payments are unreleased and their migrations unapplied."
+      exploit_preconditions: "Authenticated artist account; for the refund findings, an
+        intent id the platform discloses only to that booking's own paying customer."
+      remaining_uncertainty: "No Stripe call was executed in any probe; the Stripe half
+        is reasoned from the destination-charge parameters."
+    relationships:
+      related_findings:
+        - "PAY-AUTHZ-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "3d308203"
+      fixed_at: "2026-08-02"
+      proposed_action: "Fixed by adding artist_id to all three queries, so the scope is a property of the query.
+        STILL OWED: a db test asserting payment_requests_intent_idx is UNIQUE (it is load-bearing
+        security and undocumented as such), payment_intent_id added to the frozen-column set for
+        a sent request, and 0127's stale guard comment corrected."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "audit verifier (refuted-by-default); fix by the supervisor, NOT
+        independently re-verified"
+      verified_at: "2026-08-02"
+      verification_commit: "43e08766"
+      verification_method: "Executed against the local database in a rolled-back transaction with positive controls proving RLS was live in the probe session."
+      residual_risk: "Fixed by the same session that triaged it; the structural half
+        (unique indexes + column REVOKEs) is deliberately NOT shipped, see the remediation."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit
+        recipe."
+    history:
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+        action: "opened"
+        note: "Confirmed by an adversarial verifier whose default was REFUTED."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in 3d308203 the same day."
+
+  - id: "PAY-WHK-002"
+    title: "charge.refunded treated an AMBIGUOUS booking lookup as absence: two rows claiming one intent
+      silently skipped the sponsorship release and the double-refund guard"
+    summary: "The handler used .single() on a lookup by deposit_payment_intent_id and discarded the
+      error. Because that column is artist-writable and not uniquely indexed, a second row
+      carrying the same intent yields PGRST116, which read as 'no booking': the handler returned
+      200 having skipped releaseSponsoredFeeForRefund AND the deposit_refunded audit row - the
+      same audit row refundDepositCore uses as its already-refunded guard. Silent, and plantable
+      by the person who holds the intent id."
+    classification:
+      domain: "webhook"
+      category: "silent-failure"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "local"
+      discovery_context: "Full quality/security/UX audit requested by the founder after
+        the FD phase closed."
+    location:
+      files:
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+    evidence:
+      observed_facts:
+        - "The duplicate-row write and the PostgREST 406/PGRST116 response for a two-row .single()
+          were both executed."
+        - "The verifier REFUTED the wider framing: under RLS an attacker reads zero rows of every
+          table holding an intent id, so this is self-involved griefing, not cross-tenant."
+      references:
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+    assessment:
+      interpretation: "An error discarded at a lookup becomes a false fact everywhere downstream; here the false
+        fact was 'this refund has no booking'."
+      root_cause_hypothesis: "Authorisation was placed on the row that names a resource rather than on the resource itself."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "See the failure scenario in the summary."
+      production_exposure: "LIVE code on origin/master, but the reachable version is self-involved: an artist can
+        poison the lookup for their OWN booking's refund."
+      exploit_preconditions: "Authenticated artist account; for the refund findings, an
+        intent id the platform discloses only to that booking's own paying customer."
+      remaining_uncertainty: "No Stripe call was executed in any probe; the Stripe half
+        is reasoned from the destination-charge parameters."
+    relationships:
+      related_findings:
+        - "PAY-AUTHZ-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "3d308203"
+      fixed_at: "2026-08-02"
+      proposed_action: "Fixed: the lookup now reads all matching rows, proceeds on exactly one, and treats more
+        than one as a loud data-integrity emergency (500 + Sentry) rather than as nothing to do.
+        The unique index that would make the state unrepresentable is owed to the release
+        sequencer with PAY-AUTHZ-001's."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "audit verifier (refuted-by-default); fix by the supervisor, NOT
+        independently re-verified"
+      verified_at: "2026-08-02"
+      verification_commit: "43e08766"
+      verification_method: "Executed against the local database in a rolled-back transaction with positive controls proving RLS was live in the probe session."
+      residual_risk: "Fixed by the same session that triaged it; the structural half
+        (unique indexes + column REVOKEs) is deliberately NOT shipped, see the remediation."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit
+        recipe."
+    history:
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+        action: "opened"
+        note: "Confirmed by an adversarial verifier whose default was REFUTED."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in 3d308203 the same day."
+
+  - id: "MAP-SSRF-001"
+    title: "The map coverage ingest fetched third-party URLs behind a hostname check that never resolved
+      DNS, while the hardened resolving guard sat one import away"
+    summary: "fetchSiteEvidence guarded its outbound fetch with hostnameAllowed: five string checks
+      (literal IPs, .local/.internal suffixes, a dot requirement) and no DNS resolution. Hosts
+      that resolve to loopback by design pass it. The loop also uses redirect:'manual' and
+      re-fetches, so a public host can 302 to an internal one - the exact bypass the gallery
+      import closes with redirect:'error'. This path is production-reachable: an operator-
+      triggered, CRON_SECRET-authed ingest that has processed roughly 71k rows of third-party
+      map data, running on a host that holds the service-role key."
+    classification:
+      domain: "jobs"
+      category: "missing-authorization"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "local"
+      discovery_context: "Full quality/security/UX audit requested by the founder after
+        the FD phase closed."
+    location:
+      files:
+        - "apps/web/src/lib/server/seed-coverage.ts"
+        - "apps/web/src/lib/server/ssrf-guard.ts"
+    evidence:
+      observed_facts:
+        - "EXECUTED: 127.0.0.1.nip.io and localtest.me both connected and returned an internal
+          page's title and meta description into the discovery payload; a public host 302-ing to
+          a loopback-resolving host was followed."
+        - "The verifier REFUTED the worst framings: https is re-checked per hop so HTTP-only cloud
+          metadata is out, and a private-CA internal service fails TLS, degrading the general
+          case to a blind connect oracle."
+      references:
+        - "apps/web/src/lib/server/seed-coverage.ts"
+    assessment:
+      interpretation: "The repo built a correct resolving guard for one feature and left an older, weaker check
+        in place on another path that fetches LESS trusted URLs. Convention did not travel."
+      root_cause_hypothesis: "A newer, better guard was written for the feature under scrutiny while the
+        older path nobody was looking at kept its weaker one."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "See the failure scenario in the summary."
+      production_exposure: "LIVE and reachable: the ingest runs against production on a schedule."
+      exploit_preconditions: "Authenticated artist account; for the refund findings, an
+        intent id the platform discloses only to that booking's own paying customer."
+      remaining_uncertainty: "No Stripe call was executed in any probe; the Stripe half
+        is reasoned from the destination-charge parameters."
+    relationships:
+      related_findings:
+        - "HUB-GAL-002"
+        - "HUB-GAL-003"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "c3d7ae49"
+      fixed_at: "2026-08-02"
+      proposed_action: "Fixed by calling isPublicHostname per hop and refusing URL userinfo. The durable lesson is
+        the sweep: any outbound fetch of a non-allowlisted host must use the resolving guard, and
+        that should be enforced rather than remembered."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "audit verifier (refuted-by-default); fix by the supervisor, NOT
+        independently re-verified"
+      verified_at: "2026-08-02"
+      verification_commit: "43e08766"
+      verification_method: "Executed against the local database in a rolled-back transaction with positive controls proving RLS was live in the probe session."
+      residual_risk: "Fixed by the same session that triaged it; the structural half
+        (unique indexes + column REVOKEs) is deliberately NOT shipped, see the remediation."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit
+        recipe."
+    history:
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+        action: "opened"
+        note: "Confirmed by an adversarial verifier whose default was REFUTED."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in c3d7ae49 the same day."
+
+  - id: "HUB-GAL-008"
+    title: "The IPv6 blanket refusal breaks Import-from-URL for most real image hosts, and the comment
+      justifying it asserted the opposite without measuring"
+    summary: "isPublicHostname refuses any host whose DNS answer contains an AAAA record. Measured
+      against live DNS for 20 popular image hosts, it refuses 14, including unsplash, cloudinary,
+      jsdelivr, wikimedia, googleusercontent and pinimg. The guard passes no hints to
+      dns.lookup, so AAAA records are returned regardless of the runtime's own IPv6
+      connectivity. The doc comment justified the policy with 'a public image host is reachable
+      over IPv4 regardless, so this costs nothing in practice' - written by the supervisor who
+      chose the policy, and false."
+    classification:
+      domain: "web"
+      category: "incorrect-documentation"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "local"
+      discovery_context: "Full quality/security/UX audit requested by the founder after
+        the FD phase closed."
+    location:
+      files:
+        - "apps/web/src/lib/server/ssrf-guard.ts"
+    evidence:
+      observed_facts:
+        - "The real exported isPublicHostname was run against live DNS on Node 24.15.0 for 20 hosts;
+          every refusal has AAAA records and every allow is A-only."
+      references:
+        - "apps/web/src/lib/server/ssrf-guard.ts"
+    assessment:
+      interpretation: "PAT-001 again, this time in the supervisor's own words: a property asserted in a comment
+        and never executed. The security posture is sound; the claim about its cost was not."
+      root_cause_hypothesis: "The policy was chosen for a real reason and its cost was estimated rather than
+        measured, in a comment that then read as established fact."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "See the failure scenario in the summary."
+      production_exposure: "None: contained entirely by the capability being ungranted (zero Plus artists)."
+      exploit_preconditions: "Authenticated artist account; for the refund findings, an
+        intent id the platform discloses only to that booking's own paying customer."
+      remaining_uncertainty: "No Stripe call was executed in any probe; the Stripe half
+        is reasoned from the destination-charge parameters."
+    relationships:
+      related_findings:
+        - "HUB-GAL-002"
+        - "HUB-GAL-004"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "c3d7ae49"
+      fixed_at: "2026-08-02"
+      proposed_action: "Comment corrected to state the measurement, and to warn off the plausible wrong fix:
+        filtering AAAA out of the resolved set does NOT work, because fetch() re-resolves and can
+        still dial the AAAA address. A correct dual-stack allowance needs the v4 set validated
+        AND the connection pinned to one validated v4 address via a custom undici dispatcher -
+        the same work HUB-GAL-002's rebinding TOCTOU needs. MUST be resolved before
+        rich_content_blocks is granted, or the feature ships broken."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "audit verifier (refuted-by-default); fix by the supervisor, NOT
+        independently re-verified"
+      verified_at: "2026-08-02"
+      verification_commit: "43e08766"
+      verification_method: "Executed against the local database in a rolled-back transaction with positive controls proving RLS was live in the probe session."
+      residual_risk: "Fixed by the same session that triaged it; the structural half
+        (unique indexes + column REVOKEs) is deliberately NOT shipped, see the remediation."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit
+        recipe."
+    history:
+      - date: "2026-08-02"
+        actor: "37-agent orchestrated audit (six dimensions, every finding adversarially refuted by default)"
+        action: "opened"
+        note: "Confirmed by an adversarial verifier whose default was REFUTED."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fixed in c3d7ae49 the same day."
 
 patterns:
 
@@ -16224,3 +16865,47 @@ coverage:
       cookie handling, FD6's one-rule claim, the simple-FK deviation's application guards and the
       native revise screen all uncovered. No Stripe call was made anywhere in this round. The
       policy sweep covers the migrated LOCAL schema, not production."
+
+  - area: "Full quality/security/UX audit of the unpushed build: authorization and RLS, untrusted
+      input and SSRF, money-path correctness, code quality, UI/UX and accessibility, data and
+      privacy"
+    subsystem: "security"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-02"
+    commit_inspected: "43e08766"
+    reviewer: "37-agent orchestrated audit: six dimension reviewers, every finding routed to an
+      adversarial verifier whose DEFAULT VERDICT WAS REFUTED and who was told the most common
+      false positive here is a finding already blocked by a layered guard"
+    evidence: "Six dimensions ran in parallel against a live local Postgres (the first audit in
+      this repo able to execute database probes). SEVEN findings survived adversarial
+      verification, all fixed the same day: two high-severity cross-tenant refund paths
+      (PAY-AUTHZ-001/002, both DEMONSTRATED by forging the rows as role authenticated in
+      rolled-back transactions with positive controls proving RLS was live), a stored XSS
+      (WEB-XSS-001, payload rendered through the repo's own react-dom with the production CSP
+      header fetched live), an unscoped appointment-refund read held up only by an undocumented
+      accident (PAY-AUTHZ-003), an ambiguous-lookup-as-absence webhook defect (PAY-WHK-002), a
+      production-reachable SSRF in the map ingest whose weaker guard sat one import from the
+      hardened one (MAP-SSRF-001, DEMONSTRATED against a local service), and a measured
+      70-percent false-refusal rate in the IPv6 policy whose comment claimed it cost nothing
+      (HUB-GAL-008). TWO OF THE HIGHS AND ONE MEDIUM ARE LIVE ON origin/master, i.e. in
+      production code, not in the dark build. The verifiers also REFUTED several claims outright,
+      including the widest framings of PAY-WHK-002 (under RLS an attacker reads zero rows of
+      every table holding an intent id) and the cloud-metadata variant of MAP-SSRF-001 (https is
+      re-checked per hop). The audit additionally produced FIVE corrections to EXISTING ledger
+      entries, the sharpest being that SHOP-MIG-002's risk acceptance rests on a premise the
+      audit disproved."
+    recommended_next_inspection: "The structural half of the refund findings, which is
+      deliberately NOT shipped: UNIQUE partial indexes on the two payment-intent columns and
+      REVOKEing artist write access to them, plus replacing the FOR ALL policies on
+      orders/order_items with SELECT-only. All are migrations that could fail or lock on real
+      production data, so they belong to the release sequencer after a duplicate check. Then
+      independent re-verification of all seven fixes, none of which has been verified by anyone
+      other than the session that wrote them."
+    known_exclusions: "No Stripe call was made in any probe: the Stripe half of both refund
+      findings is reasoned from the destination-charge parameters, not executed. Production was
+      never touched - every database probe ran against the local stack in a rolled-back
+      transaction. The XSS was not executed in a browser. Per-dimension caps mean each lane
+      verified only its five most serious fresh findings; lower-severity ones were reported but
+      NOT verified and are listed in the workflow output rather than the register. UI/UX coverage
+      is code-reading only, with no rendering, no screen-reader pass and no device testing."

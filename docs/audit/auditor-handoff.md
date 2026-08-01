@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `4e6c00e303ec`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `d2f0f2750d24`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 
@@ -65,6 +65,8 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | DATA-MIG-001 | high | not-started | false | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
 | DATA-RACE-001 | high | passed | true | READ COMMITTED single-statement snapshots defeated two separate safety mechanisms, each shipped with a written claim of atomicity that had never been executed |
 | DRIFT-ENUM-001 | high | not-started | false | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
+| PAY-AUTHZ-001 | high | not-started | true | refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION |
+| PAY-AUTHZ-002 | high | not-started | true | refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from |
 | PAY-BAL-001 | high | not-started | false | deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production |
 | PAY-CONN-001 | high | not-started | false | Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault |
 | PAY-FEE-002 | high | not-started | false | The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount |
@@ -77,6 +79,7 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | PAY-WHK-001 | high | not-started | false | A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on |
 | SHOP-ORD-002 | high | passed | true | The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt and no artist visibility |
 | TEST-VAC-001 | high | passed | true | Tests incapable of failing, found in at least five independent rounds, including the suite written specifically to prove an RLS repair |
+| WEB-XSS-001 | high | not-started | true | Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper |
 | WHK-COLL-001 | high | not-started | false | P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator |
 | WHK-ERR-001 | high | not-started | false | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
 | WHK-TOK-001 | high | not-started | false | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |

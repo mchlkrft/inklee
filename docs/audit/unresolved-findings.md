@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `4e6c00e303ec`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `d2f0f2750d24`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -81,7 +81,7 @@ Operational view. Generated from the ledger; do not edit.
 
 _None._
 
-## Fixed but NOT verified (38)
+## Fixed but NOT verified (45)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -90,12 +90,15 @@ A commit exists. Nothing independent has confirmed it works.
 | AUTH-RPC-001 | critical | authorization | currently-unreachable | historically-impacting | book_flash_item and increment_fee_sponsored_used were callable by anon via PostgREST until 0060 revoked the grants |
 | PAY-DEP-001 | critical | payment | directly-reachable | historically-impacting | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
 | DATA-MIG-001 | high | migration | directly-reachable | historically-impacting | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
+| PAY-AUTHZ-001 | high | payment | conditionally-reachable | latent | refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION |
+| PAY-AUTHZ-002 | high | payment | conditionally-reachable | latent | refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from |
 | PAY-CONN-001 | high | payment | directly-reachable | historically-impacting | Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault |
 | PAY-FEE-002 | high | payment | currently-unreachable | latent | The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount |
 | PAY-RFD-002 | high | payment | currently-unreachable | latent | Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost |
 | PAY-RLS-005 | high | payment | currently-unreachable | latent | 0128 anon SELECT policies expose every sent payment request via the anon key |
 | PAY-SPON-001 | high | payment | directly-reachable | historically-impacting | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
 | PAY-WHK-001 | high | webhook | currently-unreachable | latent | A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on |
+| WEB-XSS-001 | high | web | conditionally-reachable | latent | Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper |
 | BILL-UI-001 | medium | billing | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
 | BILL-UI-002 | medium | billing | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
 | DATA-MIG-002 | medium | migration | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
@@ -103,13 +106,17 @@ A commit exists. Nothing independent has confirmed it works.
 | GOODS-VAR-001 | medium | database | conditionally-reachable | latent | reconcileVariants would hard-delete a variant sold ONLY inside a bundle, stranding the sale's snapshot and silently breaking its refund restock |
 | HUB-GAL-001 | medium | billing | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
 | HUB-GAL-004 | medium | web | conditionally-reachable | latent | isPrivateIpv6 has proven coverage holes (v4-mapped hex, v4-compatible, NAT64 forms all ALLOWED), fails OPEN on garbage against its own doc comment, and the IPv6-literal branch is dead only by accident of URL bracket handling |
+| HUB-GAL-008 | medium | web | conditionally-reachable | latent | The IPv6 blanket refusal breaks Import-from-URL for most real image hosts, and the comment justifying it asserted the opposite without measuring |
+| MAP-SSRF-001 | medium | jobs | conditionally-reachable | latent | The map coverage ingest fetched third-party URLs behind a hostname check that never resolved DNS, while the hardened resolving guard sat one import away |
 | OPS-TOOL-001 | medium | tooling | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
+| PAY-AUTHZ-003 | medium | payment | conditionally-reachable | latent | The appointment refund read allocations and updated payment_collections keyed on the intent id alone, held up only by an undocumented accident |
 | PAY-FEE-004 | medium | payment | currently-unreachable | latent | Fee schedule v2 has no defined rate for a legacy_free_v1 artist who carries the deposits override |
 | PAY-RFD-003 | medium | payment | conditionally-reachable | latent | Artist refund route lets the artist choose the fee-refund case, controlling Inklee's fee |
 | PAY-RFD-004 | medium | payment | conditionally-reachable | latent | Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund |
 | PAY-RFD-007 | medium | payment | conditionally-reachable | latent | No artist self-serve refund path for money collected on a cancelled/expired/failed request |
 | PAY-RFD-009 | medium | payment | conditionally-reachable | latent | The appointment by-line refund summed each selected line's FULL original allocation every call, so re-selecting an exhausted line over-refunded by misattribution |
 | PAY-RFD-010 | medium | payment | conditionally-reachable | latent | The appointment refund's idempotency key omitted the line selection the goods path deliberately fingerprints, and the ledger insert that caught the collision was swallowed, so the artist was told a refund succeeded while Stripe moved nothing |
+| PAY-WHK-002 | medium | webhook | conditionally-reachable | latent | charge.refunded treated an AMBIGUOUS booking lookup as absence: two rows claiming one intent silently skipped the sponsorship release and the double-refund guard |
 | SHOP-FUL-004 | medium | payment | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
 | TEST-VAC-004 | medium | testing | currently-unreachable | latent | The sweep test claiming cancelled-on-Stripe-then-the-order-row asserts only existence, not sequence: reversing the order (the exact SHOP-ORD-002 defect ordering) survives the full suite |
 | TEST-VAC-006 | medium | testing | currently-unreachable | latent | SHOP-FUL-004's observability has zero tests: deleting a capture site leaves the full suite green, and no test references reportStockWriteFailure or either Sentry tag |
