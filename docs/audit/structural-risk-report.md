@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `76ed8088f889`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `c0bcdfa8dc61`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-89 recorded finding(s), 3 structural pattern(s), across 72 mapped area(s).
-84 remain open by remediation status. 71 are reachable (directly or conditionally) rather than latent.
-78 have not passed independent verification.
-158 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+97 recorded finding(s), 3 structural pattern(s), across 74 mapped area(s).
+92 remain open by remediation status. 78 are reachable (directly or conditionally) rather than latent.
+86 have not passed independent verification.
+171 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -27,8 +27,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 28 |
-| medium | 34 |
-| low | 21 |
+| medium | 39 |
+| low | 24 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -39,14 +39,15 @@ The register is deliberately incomplete. It records what has been examined, not 
 | deferred | 1 |
 | fixed-unverified | 22 |
 | mitigated | 1 |
-| open | 58 |
+| open | 66 |
 | verified | 5 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 77 |
+| not-started | 84 |
+| partially-verified | 1 |
 | passed | 11 |
 | pending | 1 |
 
@@ -140,25 +141,26 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 18 |
+| payment | 20 |
 | jobs | 12 |
+| webhook | 12 |
 | billing | 11 |
-| webhook | 11 |
-| database | 8 |
+| database | 9 |
 | authorization | 5 |
 | migration | 3 |
 | production-config | 3 |
+| testing | 3 |
 | web | 3 |
 | ci-cd | 2 |
 | data-retention | 2 |
 | governance | 2 |
+| public-surface | 2 |
 | secrets | 2 |
 | tooling | 2 |
+| analytics | 1 |
 | api | 1 |
 | entitlement | 1 |
 | logging | 1 |
-| public-surface | 1 |
-| testing | 1 |
 
 ## Findings with production reachability
 
@@ -211,8 +213,13 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-003 | medium | conditionally-reachable | latent | Artist refund route lets the artist choose the fee-refund case, controlling Inklee's fee |
 | PAY-RFD-004 | medium | conditionally-reachable | latent | Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund |
 | PAY-RFD-007 | medium | conditionally-reachable | latent | No artist self-serve refund path for money collected on a cancelled/expired/failed request |
+| PAY-RFD-008 | medium | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
 | SEED-GRT-001 | medium | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
+| SHOP-ORD-001 | medium | conditionally-reachable | latent | A standalone goods order abandoned at the payment step stays pending forever: no webhook branch and no cron sweep can ever reach it |
+| SHOP-VIS-001 | medium | conditionally-reachable | latent | The standalone shop lists and sells products the artist marked NOT publicly visible: is_public_visible is filtered by the public artist page but by neither of the two new standalone-checkout reads |
+| TEST-VAC-002 | medium | directly-reachable | latent | The goods-refund suite's once-only restock guarantee cannot fail: moving restockInventory outside the flip gate leaves the whole suite green |
+| TEST-VAC-003 | medium | directly-reachable | latent | The standalone checkout's discount arithmetic has no effective coverage: neither the fee base nor the amount the buyer is CHARGED can be broken by a test |
 | WHK-DEA-001 | medium | conditionally-reachable | latent | The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id; ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment |
 | WHK-RFD-001 | medium | directly-reachable | latent | charge.refunded records at most one audit row per booking carrying the first cumulative amount, so a partial refund is indistinguishable from a full one and later partials are never recorded |
 | WHK-RTY-001 | medium | directly-reachable | unknown | The file identifies Stripe endpoint auto-disabling as a hazard in one branch and then returns 4xx from six other branches for permanently unsatisfiable conditions |
@@ -227,10 +234,12 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-ORPH-001 | low | conditionally-reachable | latent | createProductAction inserts the product row before processing images and returns the image error without deleting it, so every failed image upload leaves an untitled-to-the-artist orphan product that still consumes the plan's active-product cap |
 | DATA-RACE-002 | low | conditionally-reachable | latent | 0124's self-documented residual risks (timeout and deadlock) not recorded in the audit evidence register |
 | DRIFT-FN-001 | low | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
+| OBS-MAP-001 | low | directly-reachable | actively-impacting | Public-map analytics plane has recorded zero events and one pageview since the 2026-07-27 launch; silence cause indistinguishable from repo+DB evidence |
 | OPS-CFG-001 | low | directly-reachable | reachable-no-known-impact | The grandfathering backfill defaults ADMIN_EMAILS to a hardcoded personal address; the application's admin guard has no default at all |
 | OPS-CRD-001 | low | conditionally-reachable | latent | RISK INTRODUCED BY THIS REMEDIATION: an exported DATABASE_URL now outranks apps/web/.env.local in every governance recorder |
 | OPS-ERR-001 | low | directly-reachable | actively-impacting | Raw Postgres error messages are returned to clients from 91 call sites — 60 in the mobile JSON API and 31 in web server actions |
 | OPS-LINT-001 | low | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
+| PAY-AUD-001 | low | directly-reachable | reachable-no-known-impact | audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not |
 | PAY-FEE-003 | low | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | PAY-UI-006 | low | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
 | WHK-CUR-001 | low | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
@@ -283,6 +292,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Any other durable-medium artifact composed with a fail-soft read (none found in the withdrawal/cancellation branches, but not swept repo-wide).
 - Any other table added after account-deletion.ts that has ON DELETE CASCADE from profiles and contains financial or legally-retainable data.
 - Any other token-gated public read (booking_requests, waitlist, pay tokens) should be re-checked for a real hash-equality predicate vs a not-null predicate.
+- Bundles: 0132_product_bundles.sql:61-62 gives product_bundles its own is_public_visible mirroring product_collections. Slice C4 (payable bundles) is not yet written; the same omission would land there. NOT inspected.
 - Commit edb99fb (2026-07-21) records that 0095-0098 ALSO had to be repaired into the ledger because 'they had been applied by another session via direct SQL and were unrecorded' — a second, later ledger/reality divergence, in the safe direction. Whether other silent divergences exist was NOT checked against a live catalog.
 - Every /api/mobile/* route relies on requireMobileUser and none of the routes I read carries a rate limit except events/route.ts and settings/connect-link/route.ts. The authenticated-but-unthrottled write routes (goods, travel, booking-form fields) were not assessed for abuse volume.
 - Every other `revoke execute ... from public` in the migration set was NOT enumerated. Any function whose only caller is the service role and which revokes from PUBLIC without an explicit service_role grant has the live version of this defect.
@@ -290,11 +300,13 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Every other object created by 0036 and 0037 was compared and matched; objects created by migrations applied out of band that this pass could not attribute were not separately enumerated.
 - Every other place a plpgsql RPC writes a row and a TypeScript caller then reads that row back through PostgREST with a different filter: `delete_collection_atomic` (0124) and `send_payment_request` (0126) were not inspected for this shape.
 - Every other table created since 0035 with `enable row level security` — I did not enumerate policy-vs-writing-client across the full table set.
+- Every other test file in the repo using this same queue/nextReply recording-double pattern was NOT swept for the same default-reply vacuity. goods-checkout.test.ts uses an identical harness (its :90-94 nextReply is the same code) and was checked only for the mutations in this pass.
 - Fixes that were author-verified and never independently re-examined: the entire 0026-0031 RLS incident response, and effectively all pre-2026-07 history. Absence of later findings there is absence of looking, not absence of defects.
 - I did NOT sweep the codebase for em-dashes in user-visible strings; I verified only the two the plan named. A repo-wide sweep of JSX string literals and apps/web/content/legal was NOT done.
 - I did not check whether any of the 68 tables' inline constraints have actually diverged in production — that needs a live pg_constraint comparison I did not run.
 - I scanned only `create table if not exists` blocks. Sibling non-convergent shapes were NOT scanned: `create index if not exists` where the definition later changed, `create policy` without a preceding `drop policy if exists`, `create trigger` guarded by existence rather than dropped and recreated.
 - Migrations 0108, 0109 and 0110 add further billing objects; I confirmed only that they contain no `references profiles(id)` lines. Whether they create tables with other cascade paths to profiles was NOT checked.
+- Mutating the shared compositor's totalAmount reddened exactly ONE test in the whole 2702-test suite (the C2 happy path). That suggests other consumers of computeAddonLines mock it. NOT inspected.
 - My grep excluded *.md but covered the whole tree; only scripts/ matched, so apps/ appears clean, but I did not separately audit apps/mobile config files.
 - No check was made for mangling in object COMMENTS, ACL grantee names, or the auth/storage schemas.
 - No check was made of whether any existing test in apps/web/tests/db/ actually depends on the growth views' grants, so the concrete number of tests affected is unknown.
@@ -303,7 +315,9 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Non-public schemas were not swept for orphans.
 - Orphan objects of other kinds in production were searched for only in the categories this diff covers (tables, views, sequences, functions, indexes, constraints, triggers, policies, enums, extensions, publications). Composite types, domains, operators, casts and collations were not enumerated.
 - Other Sentry-capture-then-continue sites across the money path were not enumerated by me. Commit 3fce7be (2026-07-30) shows the class was still being found nine days later: 'the lost-claim read-back discarded its error ... the code CANCELLED AN INTENT A TWIN WAS COLLECTING ON'.
+- Other audit_log event types that may also be written by only one of several equivalent action paths (refund marks, cancellation marks).
 - Other bearer/secret comparisons outside the cron and admin-seed surface were not enumerated.
+- Other bulk data operations performed via direct SQL without a logged trail (the migration-bookkeeping incidents in AGENTS.md are the same class).
 - Other cached external-state denormalisations on profiles (Instagram token state from 0061/0062, subscription status from 0106) were NOT audited by me for the same 'cache asserts a capability the external system denies' shape.
 - Other constants duplicating a schedule/registry value and agreeing only under current configuration were NOT swept for. Candidates I did not check: cap values in packages/shared/src/entitlements.ts vs docs/product/pricing-model.md, and the capability-registry-vs-CAPABILITIES lockstep that docs/architecture/capability-registry.md:3-6 says is required.
 - Other migrations that self-document residual risks in comments but have no register entry.
@@ -316,8 +330,10 @@ These are the register's highest-value entries for an auditor: places a recorded
 - PUT /api/mobile/goods/:id/variants and POST /api/mobile/goods/:id/image were not read; whether either can strand a partial write was not assessed.
 - Resend-side suppression/rate limiting was not inspected.
 - Statement-level or deferred constraint triggers were not enumerated (I filtered on row-level DELETE/UPDATE tgtype bits).
+- Stripe PaymentIntents left uncancelled by an abandoned standalone checkout were NOT inspected (they expire on Stripe's side; nothing reconciles them back).
 - The (artist) action directories outside the audited subset — payouts, reminders, emails, deposits, dashboard, clients — appear in the count and were not read.
 - The 2374-test unit suite (count from 3fce7be) has NOT been mutation-tested as a whole. Only the 14 golden fee tests and a handful of db tests carry demonstrated kill evidence.
+- The ADD-ON checkout path (apps/web/src/app/request/[token]/actions.ts:478-531) performs the same two subtractions with the same v1-zero masking. Whether ITS tests exercise an accepted discount was NOT inspected.
 - The DEPOSIT webhook's charge.refunded branch, which performs the same converge-to-a-target and then updates booking state. Whether its status write reaches the row it means to was not checked in this pass and no test imports that route.
 - The Instagram sync/import paths in the shared sync module use the same token and were not inspected for the same catch-everything shape.
 - The Playwright e2e suite was not examined by me for the same class.
@@ -326,9 +342,11 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The Stripe Customer is never deleted either; I did not check whether an orphaned Customer with a saved payment method can be charged by any other path.
 - The accepted residual — 'a refund that is itself later reversed does not re-debit, since the ledger only converges upward' (bcb45d5) — is recorded as known and handled by hand. No tooling for it was inspected.
 - The account-deletion path uses the same ORDER_MONEY_STATES carve-out (account-deletion-logic.ts:44) and was not re-checked for the same discarded-error shape in this pass.
+- The add-on order path (request/[token]/actions.ts:541-560) creates pending orders too; its rows DO carry booking_id, so the cleanup sweep can see the booking, but whether a pending add-on order is ever cancelled was NOT inspected here.
 - The artist cancel path's forfeiture branch
 - The billing-webhook endpoint's subscription set
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
+- The charge.refunded handler returns BEFORE settleGoodsOrderRefund when the PI has payment_allocations (webhook/route.ts:199-205). Today no appointment-payment PI writes an orders row (the only two order inserts are request/[token]/actions.ts:543 and goods-checkout.ts:209), so nothing is shadowed. If an appointment payment ever carries goods, that early return would skip the goods settle entirely. Recorded as a forward hazard; NOT a defect at this commit.
 - The deposit endpoint's `account.updated` and `account.application.deauthorized` branches return 500 on a persistence error. Whether that can loop on a permanently failing account was not examined.
 - The deposit path's `platform_fee_collected_cents` write, which 0128 cites as the precedent for this shape and which I did not read.
 - The deposit path's refund gate (refundDepositCore) against booking statuses: whether a cancelled booking with a paid deposit has an equivalent stranded-money state was not checked in this pass.
@@ -342,6 +360,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The mobile deposit route (apps/web/src/app/api/mobile/bookings/[id]/deposit/route.ts) was NOT inspected by me for the same degradation.
 - The mobile payouts onboarding route, if one exists
 - The mobile routes OUTSIDE my assigned subset (bookings/*, flash/*, instagram/*, map/*, notifications/*, onboarding/*, account, analytics, billing/*, clients/*, calendar/*, devices, events, home, me, support, slots, waitlist) were included in the grep count but not read, so I know they carry the idiom and not whether they carry anything worse.
+- The mobile shop surfaces, if any, were NOT inspected for this filter.
 - The mobile twins of the audited mutations (/api/mobile/*) legitimately do not revalidate, since the app holds no Next.js cache. Whether the app refetches after each write was not inspected.
 - The order_items currency hard-coding at actions.ts:486/557/574/586 versus a non-EUR artist
 - The other Plus block families (feature blocks, featured_collection) at save: featured_collection is render-gated via the collection read; the six feature blocks are not appearance_custom-gated at render either, so their save-path status was not changed here and should be confirmed when those blocks are entitlement-gated.
@@ -375,6 +394,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Whether any other grandfather grant (beyond the deposits override) crosses a v2 rate cell in a way the tier-only schedule does not capture.
 - Whether any other signing key in the codebase falls back to a bearer secret was not enumerated (WA_VISITOR_HASH_SECRET was not checked).
 - Whether db-backup.yml and coverage-worker.yml have equivalent silent-manual dependencies.
+- Whether founder/team browsers are internal-marked at all (WA_EXCLUDE_IPS / inklee_internal), which decides how much of the 479-row web plane is external traffic.
 - Whether packages/shared is covered by prettier — lint-staged also runs `prettier --write` on *.{ts,tsx} and prettier has no base-path restriction, so formatting may be covered where linting is not. NOT verified.
 - Whether the Terms actually promise retention of these specific records — I did NOT read apps/web/content/legal/terms.
 - Whether the audit register's own `pnpm audit:check` step, which IS in CI, would catch a stale generated report if findings.yaml were edited by a non-CI path.
@@ -415,12 +435,14 @@ These are the register's highest-value entries for an auditor: places a recorded
 - order_fulfillment_status also declares a 'cancelled' label (0036:12-14) and COMPARED CLEAN, but no other enum in the repo was checked for semantically-equivalent silent-mismatch classes (e.g. trailing whitespace, case).
 - packages/shared/src/order-fees.ts and fee-schedule.ts were not read in full by me; my evidence for the engine's current shape is order-fee-sync.ts plus commit messages.
 - pg_default_acl differences between local and production were not diffed, so whether newly created production objects will keep inheriting this grant is assumed, not verified.
+- product_collections.is_public_visible (0120:19). Whether any standalone-shop surface will read collections was NOT inspected.
 - profiles.deleted_at / deleted_by have no writer that I found in the deletion path; who sets them, if anyone, is unknown.
 - reconcileVariants (lib/server/goods-variants.ts) performs N unbatched writes with no transaction and no rollback, so a mid-loop failure leaves a partially reconciled variant set. I read the function but did not assess that property; it is recorded here as uninspected rather than as a finding.
 - refundDepositCore and the goods refund path: confirm their idempotency keys are deterministic (goods refund path does not yet exist).
 - reorderCollectionsCore and reorderCollectionProductsCore in lib/server/collections.ts have the same unbatched-loop shape and return on first error, leaving a partial ordering. The file's own comment accepts position ties as cosmetic, but the partial-reorder case is not discussed and was not assessed.
 - scripts/billing/stripe-test-lib.cjs has the same env-first order for STRIPE_SECRET_KEY; it refuses a live key, but I did not audit that refusal.
 - scripts/country-geo-import.cjs, seed-country.cjs and seed-coverage.cjs read CRON_SECRET env-first and were not evaluated for the same retargeting shape.
+- settlePaymentRequestRefund (the appointment-payment lane) also refunds with fee handling and was NOT inspected in this pass.
 - startPlusConsumerCheckoutAction and confirmBusinessCheckoutAction also do not revalidate, but both hand back a Stripe URL and the return trip lands on /settings/plan?checkout= success, so their staleness question is different and was not assessed.
 - storage-purge.ts still unread for the same retention conflict (carried over from BILL-ENT-002).
 - syncDate and the gsc_* upserts; the backfill cursor advance (sync.ts:276-313) writes cursor_date after a batch with no lock re-check.
