@@ -1346,6 +1346,60 @@ export async function refundDepositCore(
     .maybeSingle();
   const depositOnlyMinor = resolveDepositRefundAmountMinor(sharedOrder);
 
+  // OWNERSHIP ASSERTION (audit 2026-08-02, cross-tenant refund). Everything
+  // above authorises the BOOKING ROW, never the PaymentIntent it names, and
+  // `booking_requests` is artist-writable with an ownership-only policy — so an
+  // artist can insert a booking of their own carrying SOMEONE ELSE'S intent id
+  // (a paying customer's browser receives `pi_..._secret_...` on the request
+  // page) and press Refund. Deposits are platform destination charges with
+  // reverse_transfer, so that would claw money out of the victim artist's
+  // connected balance and return Inklee's fee too. The intent is the only
+  // trustworthy witness: our own metadata records the booking it was created
+  // for, and transfer_data.destination records who was actually paid.
+  try {
+    const intent = await stripe.paymentIntents.retrieve(
+      fresh.deposit_payment_intent_id,
+    );
+    const destination =
+      typeof intent.transfer_data?.destination === "string"
+        ? intent.transfer_data.destination
+        : (intent.transfer_data?.destination?.id ?? null);
+    const routing = await getConnectRoutingForArtist(userId);
+    const ownsIntent =
+      intent.metadata?.booking_id === id ||
+      (destination !== null &&
+        routing.stripeAccountId !== null &&
+        destination === routing.stripeAccountId);
+    if (!ownsIntent) {
+      Sentry.captureMessage(
+        "deposit refund refused: intent not owned by artist",
+        {
+          level: "error",
+          tags: { action: "deposit_refund_ownership" },
+          extra: {
+            bookingId: id,
+            artistId: userId,
+            intentId: fresh.deposit_payment_intent_id,
+          },
+        },
+      );
+      return {
+        error: "This deposit can't be refunded here.",
+        errorCode: "not_authorised",
+      };
+    }
+  } catch (ownErr) {
+    // A retrieve failure must REFUSE, not proceed: the whole point is that we
+    // do not act on an intent we could not confirm belongs here.
+    Sentry.captureException(ownErr, {
+      tags: { action: "deposit_refund_ownership" },
+      extra: { bookingId: id },
+    });
+    return {
+      error: "Couldn't verify the payment. Try again.",
+    };
+  }
+
   let refundId: string;
   try {
     const refund = await stripe.refunds.create(

@@ -34,6 +34,12 @@ vi.mock("@/lib/audit", () => ({
   writeAudit: (...a: unknown[]) => mockWriteAudit(...a),
 }));
 vi.mock("@/lib/stripe", () => ({ stripe: mockStripe }));
+vi.mock("@/lib/stripe-connect", () => ({
+  getConnectRoutingForArtist: async () => ({
+    stripeAccountId: "acct_artist_1",
+    routeCharges: true,
+  }),
+}));
 vi.mock("@/lib/order-fulfillment", () => ({
   expandInventoryMovements: (...a: unknown[]) => mockExpand(...a),
   restockInventory: (...a: unknown[]) => mockRestock(...a),
@@ -107,7 +113,9 @@ beforeEach(() => {
   mockStripe.paymentIntents.retrieve.mockResolvedValue({
     id: "pi_test",
     amount: 10000,
-    metadata: {},
+    // A real intent for this order carries the order it was created for; the
+    // ownership assertion (audit 2026-08-02) refuses without it.
+    metadata: { order_id: "order_1" },
     latest_charge: { id: "ch_test", application_fee: "fee_test" },
   });
   mockStripe.refunds.create.mockResolvedValue({
@@ -259,6 +267,63 @@ describe("refundGoodsOrderCore: full refund", () => {
       (o) => o.table === "discount_redemptions" && o.verb === "delete",
     );
     expect(discountDelete?.filters).toEqual({ order_id: "order_1" });
+  });
+
+  it("REFUSES to refund an intent that is not this order's and not this artist's", async () => {
+    // Audit 2026-08-02, cross-tenant refund. `orders` carries a FOR ALL policy
+    // with `with check (artist_id = auth.uid())` and orders_stripe_pi_idx is
+    // not unique, so an artist can insert a paid-looking order of their OWN
+    // naming another artist's PaymentIntent (the pi id reaches a paying
+    // customer's browser inside the client secret) and press refund. Nothing
+    // before this assertion looks at the intent at all.
+    //
+    // FAILS IF the ownership assertion is removed: the refund proceeds and
+    // Stripe is asked to move another artist's money, with the platform fee
+    // clawed back too.
+    setupOrder({});
+    claimOk();
+    alreadyRefundedForItem(0);
+    mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+      id: "pi_victim",
+      amount: 10000,
+      metadata: { order_id: "someone_elses_order" },
+      transfer_data: { destination: "acct_victim" },
+      latest_charge: { id: "ch_v", application_fee: "fee_v" },
+    });
+
+    const result = await refundGoodsOrderCore({
+      artistId: "artist_1",
+      orderId: "order_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("error");
+    expect(mockStripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it("accepts an intent owned via transfer_data.destination when metadata is absent", async () => {
+    // The second witness: a destination charge names who was actually paid.
+    setupOrder({});
+    claimOk();
+    alreadyRefundedForItem(0);
+    mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+      id: "pi_test",
+      amount: 10000,
+      metadata: {},
+      transfer_data: { destination: "acct_artist_1" },
+      latest_charge: { id: "ch_test", application_fee: "fee_test" },
+    });
+
+    const result = await refundGoodsOrderCore({
+      artistId: "artist_1",
+      orderId: "order_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(mockStripe.refunds.create).toHaveBeenCalled();
   });
 
   it("does NOT release the cap when the refunded flip is lost (once-only gate)", async () => {

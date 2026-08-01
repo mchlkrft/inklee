@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { stripe } from "@/lib/stripe";
+import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { writeAudit } from "@/lib/audit";
 import {
   feeRefundOutcome,
@@ -251,6 +252,44 @@ export async function refundGoodsOrderCore(
     order.stripe_payment_intent_id,
     { expand: ["latest_charge"] },
   );
+  // OWNERSHIP ASSERTION (audit 2026-08-02, cross-tenant refund). Everything
+  // above this line authorises the ORDER ROW, and `orders` carries a FOR ALL
+  // policy with `with check (artist_id = auth.uid())`, so an artist can INSERT
+  // a row of their own naming SOMEONE ELSE'S PaymentIntent (the pi id reaches
+  // a paying customer's browser as part of the client secret, and
+  // orders_stripe_pi_idx is not unique). Refunding on the strength of a
+  // self-written row would move another artist's money and claw back Inklee's
+  // fee. The intent itself is the only trustworthy witness of who was paid:
+  // for a destination charge that is transfer_data.destination, and our own
+  // metadata records the order it was created for.
+  const connectAccountId = (await getConnectRoutingForArtist(input.artistId))
+    .stripeAccountId;
+  const intentDestination =
+    typeof intent.transfer_data?.destination === "string"
+      ? intent.transfer_data.destination
+      : (intent.transfer_data?.destination?.id ?? null);
+  const intentOrderId = intent.metadata?.order_id ?? null;
+  const ownsIntent =
+    (intentOrderId !== null && intentOrderId === order.id) ||
+    (intentDestination !== null &&
+      connectAccountId !== null &&
+      intentDestination === connectAccountId);
+  if (!ownsIntent) {
+    Sentry.captureMessage("goods refund refused: intent not owned by artist", {
+      level: "error",
+      tags: { action: "goods_refund_ownership" },
+      extra: {
+        orderId: order.id,
+        artistId: input.artistId,
+        intentId: order.stripe_payment_intent_id,
+      },
+    });
+    return {
+      status: "error",
+      message: "This order can't be refunded here.",
+    };
+  }
+
   const latestCharge =
     intent.latest_charge && typeof intent.latest_charge !== "string"
       ? intent.latest_charge
