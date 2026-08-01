@@ -2322,3 +2322,41 @@ slice added, zero regressions. `pnpm test:db`: migration 0139 applied via
 `appointment-payment-refund.test.ts` (46, up from ~39) and the new
 `goods-order-refund.test.ts` (17) pass; the 3 pre-existing failures above are
 the only red in the full 235-test `test:db` suite.
+
+## FD2: native gallery editor at full parity (2026-08-01, ready for review)
+
+Founder ruling FD2 (`plus-build-time-decisions.md`, "native gallery editing
+ships BEFORE publication; SUPERSEDES D4"). Full report delivered to the team
+lead via SendMessage; the durable implementation note is in
+`plus-build-time-decisions.md` under the same heading — this entry is the
+short progress-log summary.
+
+**What shipped.** Native Link Hub image-gallery editing reaches the ruling's
+full required scope (device upload, delete, reorder, caption editing, a
+layout picker as the closest native analog to "visibility controls",
+entitlement + downgrade lock states, upload progress, retry with the picked
+file kept rather than discarded, unsupported-file handling via the server's
+existing validator, empty states, safe render), replacing D4's read-only
+"edit on the web" summary. New shared server module
+(`hub-gallery-upload.ts`) so the web direct-upload action and the new
+`POST /api/mobile/settings/hub/gallery-image` route enforce identical
+entitlement/ceiling/upload gates. Deliberately not ported: "Import from URL"
+(FD4) — not in FD2's named scope list, and its own SSRF-guard + rate-limit
+posture is a separate scope decision. `docs/web-native-parity.md` updated in
+the same change (founder rule).
+
+**Verified rather than assumed:** the brief flagged the native save path's
+orphan cleanup as a thing to check for a gap. It was already correctly
+wired (`removeDroppedHubImages` inside `POST /api/mobile/settings/hub`,
+shipped with that route) — confirmed by reading the route and now pinned by
+a new test, not a defect found or fixed this slice.
+
+**Validation.** `npx tsc --noEmit` (web) clean, `pnpm typecheck` (mobile)
+clean, eslint 0 errors on every touched file. Full `npx vitest run`: 175
+files, 3031 passed + 1 expected fail (3032 total), up from the
+3018-passed/1-expected-fail baseline (`48cfbab2`) by exactly the 13 tests
+this slice added (9 new-route tests, 4 hub-route tests), zero regressions.
+`pnpm test:db`: 235/235 green on a clean run (one run hit an unrelated
+Windows/Docker worker-crash flake with no failing assertion; this slice
+touches no schema/RLS/migration). RN component logic is outside the vitest
+include, stated as a real coverage limit rather than papered over.

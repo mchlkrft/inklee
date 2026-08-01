@@ -425,6 +425,36 @@ Two things follow, both done here:
   resolving to one address and connecting to it directly, a larger change than
   this slice.
 
+  **FD2 (2026-08-01, founder ruling, "native gallery editing ships BEFORE
+  publication", SUPERSEDES D4): native editing reaches FULL parity with the
+  web editor.** The read-only "N images · edit on the web" summary above is
+  GONE, replaced by `apps/mobile/src/components/GalleryBlockEditor.tsx`:
+  device upload (new `POST /api/mobile/settings/hub/gallery-image`, modelled
+  on the goods-image-upload route, sharing the web action's gates via the
+  new `apps/web/src/lib/server/hub-gallery-upload.ts`), delete, reorder,
+  caption editing, the layout picker (grid/carousel — the closest native
+  analog to "gallery visibility controls"; see the FD2 implementation note
+  in `plus-build-time-decisions.md` for why nothing else in the web source
+  of truth exists to be at parity with), a locked read-only card on
+  downgrade (mirrors the web editor's card verbatim), upload progress, and a
+  keep-the-file Retry affordance on a failed upload (none of the app's other
+  four image-upload components had this). Orphan cleanup on the native save
+  path (`removeDroppedHubImages` inside `POST /api/mobile/settings/hub`) was
+  already correctly wired before this slice (verified, not assumed — pinned
+  by a new test). **NOT ported: "Import from URL" (FD4 above)** — FD2's
+  required scope list does not name a native import affordance, and the web
+  path's SSRF guard + per-artist rate limit is its own scope decision to
+  port, not a mechanical restatement; left as a deliberate, named cut.
+  ⚠️ **A fresh EAS build is still the gate**, unchanged from the
+  `rich_content_blocks` requirement above — this slice changes what an
+  entitled artist can do once granted, not the grant gate itself. Files:
+  `apps/mobile/src/components/GalleryBlockEditor.tsx` (new),
+  `apps/mobile/app/settings/link-hub.tsx` (wired), `apps/web/src/lib/server/hub-gallery-upload.ts`
+  (new, shared with the web action), `apps/web/src/app/api/mobile/settings/hub/gallery-image/route.ts`
+  (new). On LOCAL `master`, unpushed, same as the rest of the in-flight Plus
+  build: the server route does not exist in production yet, and reaching
+  devices additionally needs the fresh EAS build noted above once it does.
+
 - **2026-08-01 — FD12: native REVISE screen closes the parity gap the P9
   slice-2b entry below named ("mobile already had the revise ROUTE from A7,
   but no native SCREEN yet").** `apps/mobile/app/bookings/payments/[id]/

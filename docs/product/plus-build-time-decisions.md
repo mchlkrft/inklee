@@ -1239,3 +1239,144 @@ half was always real, so no bundle could ever have been SOLD with a mis-owned
 variant. Recorded as BUNDLE-RLS-001, whose widening question is the durable
 part: no other policy has been swept for the same column-shadowing shape, and
 that defect class cannot be found by review.
+
+### 2026-08-01 — FD2 implementation note (native gallery editing at parity)
+
+Implements founder ruling FD2 ("native gallery editing ships BEFORE
+publication; SUPERSEDES D4"). D4 had deferred all native gallery editing to
+web-only v1 (the app showed a read-only "N images · edit on the web"
+summary); this slice replaces that with the ruling's full required scope:
+device upload, delete, reorder, caption editing, layout (the closest native
+analog to "visibility controls" — see below), entitlement states, downgrade
+lock states, upload progress, retry, unsupported-file handling, empty
+states, and safe render of existing blocks.
+
+**What shipped.**
+
+- `apps/web/src/lib/server/hub-gallery-upload.ts` (new): the web direct-
+  upload action's three gates (`requireGalleryEntitlement`,
+  `galleryAtCapacity`, `uploadProcessedGalleryFile`, plus the
+  `MAX_HOSTED_GALLERY_IMAGES` constant) lifted OUT of
+  `link-hub/actions.ts` into a shared module, so the web Server Action and
+  the new native route call the identical entitlement-first / ceiling /
+  unique-path logic rather than two copies that could drift — a native
+  client is not a trust boundary. `link-hub/actions.ts` now imports these;
+  behaviour is unchanged (`upload-gallery-image.test.ts`, the existing
+  20-test suite, passes unmodified against the refactor). The failure
+  variant of `GalleryUploadResult` gained an optional `status` field
+  (additive) so an HTTP caller can use `processAndUpload`'s own 400/500
+  distinction; the web action ignores it.
+- `POST /api/mobile/settings/hub/gallery-image` (new mobile route,
+  multipart): the native counterpart of `uploadGalleryImageAction`. Modelled
+  directly on `POST /api/mobile/goods/[id]/image` (the established
+  expo-image-picker -> multipart -> mobile route pattern already used for
+  logo/flash/goods/cover). Entitlement first (403 `not_entitled`), then the
+  120-image server ceiling counted from saved settings (400 `cap_reached`),
+  then `readImageFile` validation (PNG/JPEG/WebP, 4MB) and the same
+  `{uid}/hub/{uuid}.webp`, `fit:"inside"`, `upsert:false`, `cacheBust:false`
+  upload shape as the web action. Deliberately out-of-band from the settings
+  save, exactly like the web action: this route only stores the file and
+  returns the hosted URL; the client appends it to local block state, and
+  the existing `POST /api/mobile/settings/hub` persists it. There is no
+  separate native delete endpoint — removal is a local state edit, and Save
+  is what persists it, mirroring the web editor exactly.
+- **Orphan cleanup was already correctly wired on the native save path
+  before this slice** — `POST /api/mobile/settings/hub` already called
+  `removeDroppedHubImages` after every write (shipped with the route itself,
+  2026-08-01, Track B). This slice's brief asked to verify that rather than
+  assume it; it was verified and is now also pinned by a new test
+  (`hub/__tests__/route.test.ts`, "invokes removeDroppedHubImages with the
+  prior and saved blocks when a native save drops an image").
+- `apps/mobile/src/components/GalleryBlockEditor.tsx` (new): the full editor,
+  rendered per gallery block (each instance owns its own upload/retry state,
+  so — unlike the web editor's single global "one upload in flight" lock —
+  two gallery blocks can upload independently; layouts need not match per
+  the ruling). Layout picker (grid/carousel chips), per-image thumbnail +
+  caption field + move-up/move-down/remove controls, an empty-gallery
+  message, and an "Add image" control that picks via
+  `expo-image-picker` (no forced crop/aspect — the server keeps the
+  original aspect via `fit:"inside"`, matching the web editor's uncropped
+  uploads) and uploads immediately. On upload failure the picked file is
+  KEPT (not discarded): the tile shows the error plus a Retry button that
+  re-attempts the same file, and a separate Dismiss (X) to discard it — this
+  is the "retry and recoverable failure handling" requirement; none of the
+  four existing native upload components (`ImageUploadField`,
+  `MultiImageField`, `CoverImageField`) had this, they require re-picking
+  from the library after any failure. Entitlement/downgrade: when
+  `richBlocksAllowed` is false the component renders the web editor's
+  locked-card shape verbatim (image count, captions/urls list, "Plus
+  (locked)" badge, no controls) rather than the block disappearing or
+  crashing — the block itself stays removable via the existing outer
+  block-level Trash2 control. Errors from the entitlement/ceiling gates are
+  routed through `planBoundaryMessage` (D17 IAP-safety helper, already used
+  by `page-appearance.tsx`/goods/booking-form screens) so the app never
+  shows "Upgrade to Plus" copy; every other error (bad file type, too large,
+  upload failure) passes through the server's already app-safe message
+  unchanged.
+- `apps/mobile/app/settings/link-hub.tsx`: replaced the D4-era read-only
+  "N images · edit on the web" summary with `<GalleryBlockEditor>`;
+  `BlockPatch` gained `images`/`layout` fields (both optional, additive) so
+  the existing generic `patchBlock` plumbing threads gallery edits into
+  local block state exactly like every other block type.
+
+**"Gallery visibility controls" — what this ruling item was mapped to, and
+why.** The bio-page block model (`bio-page.ts`) has no per-block hide/show
+flag independent of layout; the web editor's own gallery UI has exactly two
+controls beyond image CRUD: the layout picker (grid/carousel) and the
+block-level remove button every block type already has. There is nothing
+else in the web source of truth to be at parity WITH. This note records that
+reading explicitly rather than silently deciding it: if "visibility
+controls" meant something else the ruling intended and the web editor does
+not yet have either, that is a fresh product question, not a native parity
+gap — flag it back rather than treat this note as having resolved it.
+
+**Not ported: "Import from URL" (FD4).** FD2's verbatim required scope list
+does not name a native import affordance, unlike the eleven items it does
+name. The web import path spends Inklee's own egress fetching an
+artist-supplied, otherwise-arbitrary URL under an SSRF guard
+(`gallery-url-import.ts`) plus a 20/artist/hour rate limit
+(`checkGalleryImportRateLimit`) — porting it is a real scope decision (does
+the native rate limit share the web artist-level counter or need its own;
+does the SSRF guard's residual DNS-rebinding risk change shape from a
+mobile client), not a mechanical restatement of the upload gates, so it is
+left as a named, deliberate cut rather than folded into this slice.
+
+**A pre-existing characteristic this slice did not introduce or fix:** an
+image uploaded (web OR native) but never followed by a Save is an orphan
+`removeDroppedHubImages` cannot see — that helper only diffs a gallery's
+PRIOR persisted state against its SAVED state, so an upload that never
+reached a saved block was never "dropped from" anything. This has been true
+of the web direct-upload path since Track B (2026-08-01) and is unchanged by
+adding a second upload surface; noted here so it isn't mistaken for a new
+native-only gap.
+
+**Validation.** `npx tsc --noEmit` (web, via `next typegen && tsc --noEmit`)
+clean. `pnpm typecheck` (mobile, `tsc --noEmit && check-lucide-icons.cjs`)
+clean, 143 icon imports OK (no new icon names introduced outside the
+checked set — `RefreshCw`/`ArrowUp`/`ArrowDown`/`Trash2`/`X` were already in
+use elsewhere in the app). `eslint` 0 errors on every touched/new file, both
+apps. Full `npx vitest run` (web): 175 files, 3031 passed + 1 expected fail
+(3032 total), up from the 3018-passed/1-expected-fail baseline
+(`48cfbab2`) by exactly the 13 tests this slice added (9 in the new
+`gallery-image` route suite, 4 in the new `hub` route suite), zero
+regressions. `pnpm test:db`: 235/235 green (one run hit an unrelated worker
+crash — `[vitest-pool]: Worker forks emitted error`, a known Windows/Docker
+flake with no assertion failure in it — a clean retry immediately after
+confirmed 235/235; this slice touches no schema, RLS, or migration, so a
+real DB regression from it was never plausible). RN component logic is not
+in the vitest include (`vitest.config.ts` excludes `apps/mobile`), so
+`GalleryBlockEditor`'s render tree is unverified by this test run; its pure
+array operations (reorder swap, caption patch, remove-by-index) are the same
+five-line shape already duplicated inline at three other call sites in this
+codebase (web's `moveImage`, native's own `moveBlock`) and were exercised
+manually rather than unit-tested — a real coverage limit, stated rather than
+worked around.
+
+Files: `apps/web/src/lib/server/hub-gallery-upload.ts` (new),
+`apps/web/src/app/(artist)/link-hub/actions.ts` (refactored to import the
+shared helpers), `apps/web/src/app/api/mobile/settings/hub/gallery-image/route.ts`
+(new) + its `__tests__/route.test.ts` (new), `apps/web/src/app/api/mobile/settings/hub/__tests__/route.test.ts`
+(new — the route itself, `route.ts`, had no test file before this slice),
+`apps/mobile/src/components/GalleryBlockEditor.tsx` (new),
+`apps/mobile/app/settings/link-hub.tsx` (wired). `docs/web-native-parity.md`
+updated in the same change (founder rule).

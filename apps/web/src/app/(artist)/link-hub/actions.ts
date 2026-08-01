@@ -9,15 +9,22 @@ import {
 import {
   gateMediaBlocksForSave,
   preserveGoodsDestinationOnSave,
-  MAX_BLOCKS_PER_TYPE,
-  MAX_GALLERY_IMAGES,
 } from "@inklee/shared/bio-page";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
-import { readImageFromForm, processAndUpload } from "@/lib/mobile-image";
+import { readImageFromForm } from "@/lib/mobile-image";
 import { fetchImageForImport } from "@/lib/server/gallery-url-import";
 import { removeDroppedHubImages } from "@/lib/server/hub-images";
 import { checkGalleryImportRateLimit } from "@/lib/ratelimit";
+import {
+  requireGalleryEntitlement,
+  galleryAtCapacity,
+  uploadProcessedGalleryFile,
+  MAX_HOSTED_GALLERY_IMAGES,
+  type GalleryUploadResult,
+} from "@/lib/server/hub-gallery-upload";
+
+export type { GalleryUploadResult };
 
 type State =
   | { error: string }
@@ -146,74 +153,6 @@ export async function saveBioPageAction(
     note = note ? `${note} ${g}` : `Saved. ${g}`;
   }
   return note ? { success: true, settings, note } : { success: true, settings };
-}
-
-export type GalleryUploadResult =
-  | { ok: true; url: string }
-  | { ok: false; error: string };
-
-/** The hosted-image ceiling: every gallery block full (H6). Derived from the
- *  shared caps, never a magic number, so a cap change moves this with it. */
-const MAX_HOSTED_GALLERY_IMAGES = MAX_BLOCKS_PER_TYPE * MAX_GALLERY_IMAGES;
-
-/** ENTITLEMENT FIRST (H4), shared by BOTH ways a gallery image enters storage
- *  (direct upload and "Import from URL", FD4): the save path gates gallery
- *  blocks, so an unentitled write would only produce an orphaned storage
- *  object — refuse before touching storage OR making an outbound fetch on the
- *  artist's behalf. Fail-safe to unentitled on a plan-read blip. */
-async function requireGalleryEntitlement(userId: string): Promise<boolean> {
-  try {
-    return richContentBlocksAllowed(await getAccountOverrides(userId));
-  } catch {
-    return false;
-  }
-}
-
-/** The stored-image CEILING, counted server-side from the SAVED settings
- *  (H6), shared by both write paths: the per-block cap of 12 lives in the
- *  parser, but an unsaved block is invisible here, so the enforceable server
- *  bound is the total across all saved gallery blocks. Checked BEFORE the
- *  (possibly network) work of processing or importing a new image. */
-async function galleryAtCapacity(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-): Promise<boolean> {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", userId)
-    .single();
-  const bio = parseBioPageSettings(
-    ((profile?.settings ?? {}) as Record<string, unknown>).bio_page,
-  );
-  const storedImages = bio.blocks.reduce(
-    (sum, b) => sum + (b.type === "image_gallery" ? b.images.length : 0),
-    0,
-  );
-  return storedImages >= MAX_HOSTED_GALLERY_IMAGES;
-}
-
-/** Re-encode + upload an already-validated file through the ONE sharp
- *  pipeline every gallery image goes through, direct upload or import alike.
- *  Unique path per upload (`{uid}/hub/{uuid}.webp`, upsert:false, no
- *  cache-bust — the path never repeats and a query string would pollute the
- *  settings JSON the save-gate deep-compares). */
-async function uploadProcessedGalleryFile(
-  userId: string,
-  file: File,
-): Promise<GalleryUploadResult> {
-  const result = await processAndUpload(file, {
-    path: `${userId}/hub/${crypto.randomUUID()}.webp`,
-    width: 1600,
-    height: 1600,
-    // `inside`, never `cover`: the renderer crops with object-cover itself, and
-    // server-side cropping would destroy pixels the carousel layout wants.
-    fit: "inside",
-    upsert: false,
-    cacheBust: false,
-  });
-  if (!result.ok) return { ok: false, error: result.error };
-  return { ok: true, url: result.url };
 }
 
 /**

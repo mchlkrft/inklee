@@ -30,6 +30,7 @@ import { IconButton } from "@/components/IconButton";
 import { SectionLabel } from "@/components/SectionLabel";
 import { FilterChip } from "@/components/Chip";
 import { ErrorState } from "@/components/ErrorState";
+import { GalleryBlockEditor } from "@/components/GalleryBlockEditor";
 import { useApiQuery, apiPost } from "@/lib/api";
 import { captureError } from "@/lib/telemetry";
 import { config, displayUrl } from "@/lib/config";
@@ -50,6 +51,7 @@ import {
   isFeatureBlockType,
   type BioBlock,
   type BioBlockType,
+  type BioGalleryImage,
   type BioGoodsDestination,
   type BioPageSettings,
   type BioSocial,
@@ -116,6 +118,8 @@ type BlockPatch = Partial<{
   url: string;
   isActive: boolean;
   destination: BioGoodsDestination;
+  images: BioGalleryImage[];
+  layout: "grid" | "carousel";
 }>;
 
 /** Short chip labels for the goods block's destination picker (FD8). */
@@ -598,16 +602,23 @@ function HubForm({
                   </>
                 ) : null}
 
-                {/* Image gallery is edited on the web for now (adding images
-                    needs the web uploader). The app keeps the block intact on
-                    save, so a gallery made on the web survives edits here. */}
+                {/* Full native editing parity (founder ruling FD2,
+                    2026-08-01, SUPERSEDES D4): device upload, delete,
+                    reorder, captions, and layout. Locked read-only when the
+                    artist is downgraded (richBlocksAllowed=false) — the
+                    saved gallery is kept and still shows on the public page
+                    while entitled, never deleted (decision D2). */}
                 {block.type === "image_gallery" ? (
-                  <Text className="text-xs text-shell-dim">
-                    {block.images.length === 1
-                      ? "1 image"
-                      : `${block.images.length} images`}
-                    {" · Edit this gallery on the web."}
-                  </Text>
+                  <GalleryBlockEditor
+                    block={block}
+                    richBlocksAllowed={richBlocksAllowed}
+                    onImagesChange={(images) =>
+                      patchBlock(block.id, { images })
+                    }
+                    onLayoutChange={(layout) =>
+                      patchBlock(block.id, { layout })
+                    }
+                  />
                 ) : null}
               </View>
             ))}
