@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `13461d574bbb`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `fd90b6d227a2`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-126 recorded finding(s), 3 structural pattern(s), across 84 mapped area(s).
-104 remain open by remediation status. 98 are reachable (directly or conditionally) rather than latent.
-100 have not passed independent verification.
+127 recorded finding(s), 3 structural pattern(s), across 84 mapped area(s).
+105 remain open by remediation status. 99 are reachable (directly or conditionally) rather than latent.
+101 have not passed independent verification.
 179 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -26,7 +28,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | critical | 2 |
 | high | 29 |
 | medium | 54 |
-| low | 37 |
+| low | 38 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -37,7 +39,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | deferred | 1 |
 | fixed-unverified | 37 |
 | mitigated | 2 |
-| open | 62 |
+| open | 63 |
 | risk-accepted | 2 |
 | verified | 20 |
 
@@ -45,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 96 |
+| not-started | 97 |
 | partially-verified | 3 |
 | passed | 26 |
 | pending | 1 |
@@ -150,10 +152,10 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | authorization | 5 |
 | migration | 4 |
 | public-surface | 4 |
+| data-retention | 3 |
 | governance | 3 |
 | production-config | 3 |
 | ci-cd | 2 |
-| data-retention | 2 |
 | secrets | 2 |
 | tooling | 2 |
 | analytics | 1 |
@@ -249,6 +251,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | HUB-GAL-002 | low | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
 | HUB-GAL-005 | low | conditionally-reachable | latent | URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted to the third-party host while the SSRF guard sees only the clean hostname |
 | HUB-GAL-006 | low | conditionally-reachable | latent | The hosted-logos marker single-sourcing is incomplete: a second literal survives in mobile-goods-server.ts while the parser comment claims the drift risk was closed |
+| HUB-GAL-007 | low | directly-reachable | latent | An image uploaded but never saved is an orphan no cleanup can see: removeDroppedHubImages diffs PERSISTED state against saved state, so a file that never reached a save has no prior state to be dropped from |
 | OBS-MAP-001 | low | directly-reachable | actively-impacting | Public-map analytics plane has recorded zero events and one pageview since the 2026-07-27 launch; silence cause indistinguishable from repo+DB evidence |
 | OPS-CFG-001 | low | directly-reachable | reachable-no-known-impact | The grandfathering backfill defaults ADMIN_EMAILS to a hardcoded personal address; the application's admin guard has no default at all |
 | OPS-CRD-001 | low | conditionally-reachable | latent | RISK INTRODUCED BY THIS REMEDIATION: an exported DATABASE_URL now outranks apps/web/.env.local in every governance recorder |

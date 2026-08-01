@@ -13190,6 +13190,89 @@ findings:
         note: "Found and fixed in the same commit; reported for the register per the task's
           supervisor-ledgers rule."
 
+  - id: "HUB-GAL-007"
+    title: "An image uploaded but never saved is an orphan no cleanup can see: removeDroppedHubImages
+      diffs PERSISTED state against saved state, so a file that never reached a save has no prior
+      state to be dropped from"
+    summary: "Both gallery upload surfaces (the web action since Track B, and the native route
+      added by FD2) write the object to storage BEFORE the artist saves the block. The orphan
+      sweep compares a gallery's previously-PERSISTED images against the images being saved, so an
+      upload the artist abandons - closes the editor, navigates away, app backgrounded - leaves a
+      file in logos/{uid}/hub/ that no diff will ever include. Pre-existing and unchanged by FD2;
+      recorded now because there are two upload surfaces feeding it rather than one, and because
+      the FD2 worker documented it rather than letting it be mistaken for something its slice
+      introduced."
+    classification:
+      domain: "data-retention"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "fd2-worker (documented while building the second upload surface)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "18846296"
+      environment: "repository-only"
+      discovery_context: "Tracing whether the native save path bypassed the orphan cleanup (it
+        does not - that question came back clean and is now pinned by a test); the abandoned-upload
+        case surfaced alongside it."
+    location:
+      files:
+        - "apps/web/src/lib/server/hub-images.ts"
+        - "apps/web/src/lib/server/hub-gallery-upload.ts"
+    evidence:
+      observed_facts:
+        - "removeDroppedHubImages takes prior and saved block sets and removes the set difference;
+          an object never referenced by a saved block appears in neither."
+        - "Both upload paths persist the object before any save (web action and the FD2 mobile
+          route share the lifted gates in hub-gallery-upload.ts)."
+      references:
+        - "apps/web/src/app/api/mobile/settings/hub/gallery-image/route.ts"
+    assessment:
+      interpretation: "Bounded storage waste rather than a correctness or privacy defect: the
+        objects live in the artist's own namespace, are unreferenced by any page, and the 120-image
+        ceiling is computed from SAVED settings so abandoned uploads cannot exhaust it. It is
+        recorded because unbounded-in-principle waste with two producers deserves a decision
+        rather than silence."
+      root_cause_hypothesis: "Upload-then-save is the right UX (the artist sees the image before
+        committing), and the cleanup was designed for the removal case, not the abandonment case."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Storage footprint only."
+      production_exposure: "None today: the gallery capability has never been granted, so no
+        artist can reach either upload surface."
+      exploit_preconditions: "An entitled artist abandoning uploads repeatedly; not
+        attacker-interesting since it is their own namespace and rate-limited on the import path."
+      remaining_uncertainty: "No measurement of real abandonment rates exists (feature unreleased)."
+    relationships:
+      related_findings:
+        - "HUB-GAL-001"
+    remediation:
+      status: "open"
+      proposed_action: "Decide deliberately at un-park, not before: options are a periodic sweep of
+        logos/{uid}/hub/ objects unreferenced by any saved block (the honest general fix, and it
+        also catches any future producer), or a client-side commit-on-save upload flow (bigger UX
+        change, loses the see-before-commit property). Prefer the sweep; it belongs with the other
+        retention crons rather than in the editor."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-01"
+      verification_commit: "18846296"
+      verification_method: "Established by reading the cleanup's diff semantics against both
+        upload paths; not executed (would need storage-level assertions the suite does not have)."
+      residual_risk: "Unmeasured; unreleased feature."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "fd2-worker"
+        action: "opened"
+        note: "Documented in the FD2 note so it could not be mistaken for a regression of that
+          slice; recorded here by the supervisor with the remediation question."
+
 patterns:
 
   - id: "PAT-001"

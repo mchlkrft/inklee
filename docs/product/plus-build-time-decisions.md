@@ -1380,3 +1380,14 @@ shared helpers), `apps/web/src/app/api/mobile/settings/hub/gallery-image/route.t
 `apps/mobile/src/components/GalleryBlockEditor.tsx` (new),
 `apps/mobile/app/settings/link-hub.tsx` (wired). `docs/web-native-parity.md`
 updated in the same change (founder rule).
+
+**FD2 implementation resolution (2026-08-01) — "gallery visibility controls".**
+FD2's required-scope list names "gallery visibility controls" among the native
+items. Resolved by inspection rather than by building something to satisfy the
+words: THE WEB EDITOR HAS NO PER-GALLERY VISIBILITY CONTROL. A gallery block's
+visibility IS its presence in the block list, so add and remove ARE the
+control, and the native editor supports both. Nothing to port, no gap. The
+implementing worker mapped the phrase to the grid/carousel layout picker and
+flagged the stretch; the layout picker is genuinely at parity too, but it is
+not what the phrase describes. Recorded so a later reader comparing the ruling
+to the product does not conclude a control went missing.
