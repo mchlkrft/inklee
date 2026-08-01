@@ -7,7 +7,6 @@ import type { PaymentRequestSummary } from "@/lib/server/appointment-payment-rea
 import {
   sendPaymentRequestAction,
   cancelPaymentRequestAction,
-  type PaymentActionResult,
 } from "./actions";
 
 function formatAmount(minor: number, currency: string): string {
@@ -42,20 +41,39 @@ export function PaymentRequestsList({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The pay link from the last send. The token is stored hashed server-side, so
+  // this response is the only carrier: always show it so the artist can share
+  // it themselves (DMs are how most of this audience talks to clients).
+  const [sent, setSent] = useState<{ payUrl: string; emailed: boolean } | null>(
+    null,
+  );
 
-  const run = (
-    action: (id: string) => Promise<PaymentActionResult>,
-    id: string,
-  ) => {
+  const cancel = (id: string) => {
     setError(null);
     setBusyId(id);
     startTransition(async () => {
-      const result = await action(id);
+      const result = await cancelPaymentRequestAction(id);
       setBusyId(null);
       if (!result.ok) {
         setError(result.error);
         return;
       }
+      router.refresh();
+    });
+  };
+
+  const send = (id: string) => {
+    setError(null);
+    setSent(null);
+    setBusyId(id);
+    startTransition(async () => {
+      const result = await sendPaymentRequestAction(id);
+      setBusyId(null);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setSent({ payUrl: result.payUrl, emailed: result.emailed });
       router.refresh();
     });
   };
@@ -75,6 +93,29 @@ export function PaymentRequestsList({
         <p className="rounded-md border border-destructive/30 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive">
           {error}
         </p>
+      )}
+      {sent && (
+        <div className="space-y-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+          <p className="text-foreground">
+            {sent.emailed
+              ? "Sent. Your client got the payment link by email. You can also share it yourself:"
+              : "Sent, but the email could not be delivered. Share the payment link with your client yourself:"}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="max-w-full truncate rounded bg-muted/40 px-2 py-1 text-xs text-foreground">
+              {sent.payUrl}
+            </code>
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText(sent.payUrl);
+              }}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30"
+            >
+              Copy link
+            </button>
+          </div>
+        </div>
       )}
       <ul className="space-y-2">
         {requests.map((r) => {
@@ -107,7 +148,7 @@ export function PaymentRequestsList({
                   <button
                     type="button"
                     disabled={rowBusy}
-                    onClick={() => run(sendPaymentRequestAction, r.id)}
+                    onClick={() => send(r.id)}
                     className="rounded-lg bg-brand-mustard px-3 py-1.5 text-xs font-semibold text-brand-charcoal transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
                     {rowBusy ? "Working..." : "Send"}
@@ -117,7 +158,7 @@ export function PaymentRequestsList({
                   <button
                     type="button"
                     disabled={rowBusy}
-                    onClick={() => run(cancelPaymentRequestAction, r.id)}
+                    onClick={() => cancel(r.id)}
                     className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
                   >
                     Cancel

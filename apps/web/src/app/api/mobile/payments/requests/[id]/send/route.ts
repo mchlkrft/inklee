@@ -4,6 +4,7 @@ import {
   mobileOk,
 } from "@/lib/server/mobile-auth";
 import { sendPaymentRequestCore } from "@/lib/server/appointment-payments";
+import { deliverPaymentRequestLink } from "@/lib/server/appointment-payment-delivery";
 
 export const runtime = "nodejs";
 
@@ -38,9 +39,23 @@ export async function POST(
           : 400;
     return mobileError(status, result.error, result.code);
   }
+  // Email the client their /pay/<token> link (Track A slice 3). Best-effort
+  // AFTER the send succeeded: a provider outage never un-sends the request.
+  // ADDITIVE keys (older builds ignore them); customerToken stays for the app's
+  // own share-the-link flow. `customerToken?` is optional only because the
+  // write-result type is shared; a successful send always carries one.
+  const delivery = result.customerToken
+    ? await deliverPaymentRequestLink(
+        supabase,
+        userId,
+        id,
+        result.customerToken,
+      )
+    : null;
   return mobileOk({
     id: result.id,
     status: result.status,
     customerToken: result.customerToken,
+    ...(delivery ? { payUrl: delivery.payUrl, emailed: delivery.emailed } : {}),
   });
 }

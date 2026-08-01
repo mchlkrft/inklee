@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import {
   createPaymentRequestCore,
@@ -10,6 +11,7 @@ import {
   type PaymentLineInput,
 } from "@/lib/server/appointment-payments";
 import { refundPaymentRequestCore } from "@/lib/server/appointment-payment-refund";
+import { deliverPaymentRequestLink } from "@/lib/server/appointment-payment-delivery";
 import { isArtistInitiatedFeeRefundCase } from "@inklee/shared/fee-refund-policy";
 
 // Web server actions for the artist payment-requests surface. Thin wrappers over
@@ -35,16 +37,51 @@ async function currentArtistId(): Promise<
   return { ok: true, supabase, id: user.id };
 }
 
-/** Freeze a draft and make it payable. */
+export type SendPaymentRequestResult =
+  | {
+      ok: true;
+      /** The client's /pay/<token> link. The token is stored HASHED, so this
+       *  response is the only carrier: the UI must show it to the artist. */
+      payUrl: string;
+      emailed: boolean;
+    }
+  | { ok: false; error: string };
+
+/** Freeze a draft, make it payable, and email the client their payment link.
+ *  Email delivery is best-effort AFTER the send succeeded: a provider outage
+ *  never un-sends a request, it reports emailed:false and the artist shares
+ *  the link themselves. */
 export async function sendPaymentRequestAction(
   id: string,
-): Promise<PaymentActionResult> {
+): Promise<SendPaymentRequestResult> {
   const auth = await currentArtistId();
   if (!auth.ok) return { ok: false, error: "Not signed in." };
   const result = await sendPaymentRequestCore(auth.supabase, auth.id, id, {});
   if (!result.ok) return { ok: false, error: result.error };
+  // The write-result type shares `customerToken?` across create/cancel/send;
+  // a successful SEND always carries one (the core generates it in the same
+  // step that freezes the request). Guarded for the type system; a violation
+  // would be a core bug worth hearing about, not something to paper over.
+  if (!result.customerToken) {
+    Sentry.captureMessage("payment request sent without a customer token", {
+      extra: { requestId: id },
+    });
+    revalidatePath(LIST_PATH);
+    return {
+      ok: false,
+      error:
+        "The request was sent, but the payment link could not be prepared. Please contact support.",
+    };
+  }
+  const delivery = await deliverPaymentRequestLink(
+    auth.supabase,
+    auth.id,
+    id,
+    result.customerToken,
+  );
   revalidatePath(LIST_PATH);
-  return { ok: true };
+  revalidatePath(`${LIST_PATH}/${id}`);
+  return { ok: true, payUrl: delivery.payUrl, emailed: delivery.emailed };
 }
 
 /** Withdraw a payment request. Ungated on purpose (stop a request for money). */

@@ -6,6 +6,7 @@ const {
   sendCore,
   cancelCore,
   refundCore,
+  deliverLink,
   revalidatePath,
 } = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -13,6 +14,7 @@ const {
   sendCore: vi.fn(),
   cancelCore: vi.fn(),
   refundCore: vi.fn(),
+  deliverLink: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -28,6 +30,9 @@ vi.mock("@/lib/server/appointment-payments", () => ({
 vi.mock("@/lib/server/appointment-payment-refund", () => ({
   refundPaymentRequestCore: (...a: unknown[]) => refundCore(...a),
 }));
+vi.mock("@/lib/server/appointment-payment-delivery", () => ({
+  deliverPaymentRequestLink: (...a: unknown[]) => deliverLink(...a),
+}));
 // isArtistInitiatedFeeRefundCase is NOT mocked: the real allowlist is what the
 // action relies on to reject a client-chosen fee-manipulating case.
 
@@ -42,7 +47,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   getUser.mockResolvedValue({ data: { user: { id: "artist1" } } });
   createCore.mockResolvedValue({ ok: true, id: "r1", status: "draft" });
-  sendCore.mockResolvedValue({ ok: true, id: "r1", status: "sent" });
+  sendCore.mockResolvedValue({
+    ok: true,
+    id: "r1",
+    status: "sent",
+    customerToken: "tok1",
+  });
+  deliverLink.mockResolvedValue({
+    payUrl: "https://inklee.app/pay/tok1",
+    emailed: true,
+  });
   cancelCore.mockResolvedValue({ ok: true, id: "r1", status: "cancelled" });
   refundCore.mockResolvedValue({
     status: "ok",
@@ -103,19 +117,46 @@ describe("createPaymentRequestAction", () => {
 });
 
 describe("sendPaymentRequestAction", () => {
-  it("calls the core with the artist id and revalidates on success", async () => {
+  it("sends via the core, delivers the link, and returns payUrl + emailed", async () => {
     const r = await sendPaymentRequestAction("r1");
-    expect(r).toEqual({ ok: true });
+    expect(r).toEqual({
+      ok: true,
+      payUrl: "https://inklee.app/pay/tok1",
+      emailed: true,
+    });
     expect(sendCore).toHaveBeenCalledWith(
       expect.anything(),
       "artist1",
       "r1",
       {},
     );
+    // Delivery gets the token the core returned, not something re-derived.
+    expect(deliverLink).toHaveBeenCalledWith(
+      expect.anything(),
+      "artist1",
+      "r1",
+      "tok1",
+    );
     expect(revalidatePath).toHaveBeenCalledWith("/bookings/payments");
   });
 
-  it("surfaces the core's error and does not revalidate", async () => {
+  it("still succeeds (emailed:false, link intact) when delivery fails", async () => {
+    deliverLink.mockResolvedValue({
+      payUrl: "https://inklee.app/pay/tok1",
+      emailed: false,
+      reason: "send_failed",
+    });
+    const r = await sendPaymentRequestAction("r1");
+    // The send is NOT rolled back by an email failure; the artist gets the
+    // link to share manually.
+    expect(r).toEqual({
+      ok: true,
+      payUrl: "https://inklee.app/pay/tok1",
+      emailed: false,
+    });
+  });
+
+  it("surfaces the core's error and does not deliver or revalidate", async () => {
     sendCore.mockResolvedValue({
       ok: false,
       code: "not_entitled",
@@ -126,6 +167,7 @@ describe("sendPaymentRequestAction", () => {
       ok: false,
       error: "Upgrade to send payment requests.",
     });
+    expect(deliverLink).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 

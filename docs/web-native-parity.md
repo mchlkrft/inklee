@@ -248,7 +248,13 @@ Two things follow, both done here:
   `actions.ts` wraps the SAME cores the mobile routes call: create / send / cancel
   / refund (a two-step full-refund control on the detail page, case voluntary_full,
   reusing the artist-case allowlist; revise form + partial/by-line refunds still to
-  come). NOT yet in the nav (feature is dark /
+  come). **LINK DELIVERY (slice 3, 2026-08-01): on send, the client is emailed
+  their `/pay/<token>` link** (shared `appointment-payment-delivery.ts`, best-effort
+  AFTER the send, `Sent by Inklee on behalf of <artist>` anti-phishing footer);
+  BOTH surfaces deliver — the web action returns `{payUrl, emailed}` and shows the
+  copyable link (the token is stored hashed, so this response is its only carrier),
+  and the mobile send route gained ADDITIVE `payUrl`/`emailed` keys (older builds
+  ignore them; `customerToken` unchanged). NOT yet in the nav (feature is dark /
   entitlement-gated; the item appears at launch-readiness, like `/pricing`),
   reachable by URL. NATIVE EQUIVALENT is a follow-on: the app already has the
   write + read `/api/mobile/payments/requests` routes but no management SCREEN.
